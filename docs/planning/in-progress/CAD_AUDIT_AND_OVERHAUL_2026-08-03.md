@@ -965,3 +965,64 @@ what caught it.
 **Verified in the browser at 8% / 30% / 135%:** clean thumbnail with no lettering outside the sheet
 at 8%, and at 135% the notes read "Texas State **Plane**", "as **noted** on the plat", "on this
 **plat**" — words intact.
+
+---
+
+## S12 — the editor may break, but it must not take the drawing with it. **DONE 2026-08-04.**
+
+Owner's ask: *"make sure the CAD software doesn't freeze or get bugged out or shut down without
+emergency saving."*
+
+### ▶ First, a theory that was wrong — recorded because it was persuasive
+
+The obvious mechanism for "it freezes and we have to refresh" is a render loop that throws and never
+reschedules: one bad frame and the canvas is dead while the page stays alive. **That is not what
+this code does.** `renderLoop` wraps `renderAll()` in try/catch, logs the frame, and calls
+`requestAnimationFrame` unconditionally afterwards. A throwing frame is skipped, not fatal. Checked
+before writing it down, per this document's own history of confident wrong mechanisms.
+
+### ▶ Second, most of the protection already existed
+
+`"it does not exist" is usually wrong` held again. Already present: recovery snapshots debounced
+1.5 s after activity with a **15 s max-wait ceiling** so a non-stop drag spree cannot outrun them;
+flushes on `visibilitychange → hidden` and `pagehide`, covering tab close, navigation, reload and OS
+shutdown; a `beforeunload` guard; and WebGL `contextlost` handling that calls `preventDefault()` to
+request restoration. Between them, the *exit* paths are well covered.
+
+### ▶ What was actually missing: the paths where the editor breaks while the page stays open
+
+| path | before |
+|---|---|
+| Uncaught React render error | `CADErrorBoundary` logged it. **It did not save** — while telling the user *"your most recent auto-save (if any) will be offered for recovery when you reload"* |
+| Unhandled promise rejection | never reaches a React error boundary at all — no save, no UI |
+| Error thrown from an event handler / `setTimeout` / rAF | same |
+| WebGL context lost | restoration attempted; if it fails the drawing is stranded |
+
+**The error-boundary case is the sharp one.** A render crash is very often caused by *the edit just
+made* — which is exactly the edit still sitting inside the 1.5 s debounce window. The panel's
+reassurance was a claim about a write nobody had made.
+
+`lib/cad/persistence/emergency-save.ts` is one entry point callable from all four, because none of
+them can reach the CADLayout closure that owns the routine autosave: a class error boundary, two
+bare `window` listeners and a canvas event handler. It reads the store via `getState()`.
+
+**Two deliberate differences from the routine autosave**, both load-bearing:
+
+- **It ignores `autoSaveEnabled`.** That setting means "don't write every few seconds while I work",
+  not "discard my drawing when the program crashes". A recovery snapshot only ever *offers* itself
+  on reload; it never overwrites a file.
+- **It never throws.** Every caller is already on a failure path. A throw from here converts a
+  recoverable crash into an unrecoverable one, so failures are logged and returned, not raised.
+
+**And the panel now states what happened instead of promising.** Three outcomes, each with the right
+advice: *your work was saved*, *nothing was unsaved*, or — the one that matters — **the recovery copy
+could not be written, do not reload yet, try to continue and save manually.** Telling someone their
+work is safe when it is not is worse than saying nothing, and that is what the old copy did whenever
+the write would have failed.
+
+The global `error` handler skips `ResizeObserver loop` notifications, which every Chromium browser
+reports as an uncaught error and which mean nothing — saving on those would write a snapshot on
+every panel resize. Neither global handler swallows the event: it still reaches the console, so the
+failure stays diagnosable. This only makes sure the drawing survives it.
+
+8 tests, `npm run build` clean.

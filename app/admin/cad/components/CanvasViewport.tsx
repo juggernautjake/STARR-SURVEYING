@@ -57,6 +57,7 @@ import {
 // markers feed the Perf overlay + the Phase-3 go/no-go decision.
 import { measureRender } from '@/lib/cad/perf/render-markers';
 import { wrapTextToWidth, sheetTextSize } from '@/lib/cad/render/text-layout';
+import { emergencySave } from '@/lib/cad/persistence/emergency-save';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
@@ -1468,6 +1469,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const onLost = (e: Event) => {
           e.preventDefault();
           cadLog.error('CanvasViewport', 'WebGL context lost — attempting recovery');
+          // S12 — save before finding out whether restoration works. This is the state the owner
+          // describes as the program "getting bugged out": the canvas is blank and the editor looks
+          // dead, but the document is still perfectly intact in the store. preventDefault() above
+          // asks the browser to restore the context and it usually does — but if it does not, the
+          // drawing is stranded in a page the surveyor can only reload. The snapshot costs
+          // milliseconds and is the difference between a blink and a lost afternoon.
+          void emergencySave('webgl-context-lost');
         };
         const onRestored = () => {
           cadLog.info('CanvasViewport', 'WebGL context restored — rebuilding image textures');

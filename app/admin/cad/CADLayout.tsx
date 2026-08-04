@@ -121,6 +121,7 @@ import {
   summarizeDocument,
   writeAutosave,
 } from '@/lib/cad/persistence/autosave';
+import { emergencySave } from '@/lib/cad/persistence/emergency-save';
 import {
   buildSettingsPatch as buildCompassSettingsPatch,
   consumePendingCompassJob,
@@ -972,6 +973,34 @@ export default function CADLayout() {
       window.removeEventListener('pagehide', flush);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // S12 — the crash paths that never reach a React error boundary.
+  //
+  // `CADErrorBoundary` catches uncaught errors thrown during render or in a lifecycle method. It
+  // cannot catch an unhandled promise rejection, or an error thrown from a bare event handler,
+  // `setTimeout`, or the requestAnimationFrame render loop — and most of this editor's work happens
+  // in exactly those places. So the app can be left broken with the boundary never firing, which is
+  // the "bugged out" state where nothing is saved because nothing noticed.
+  //
+  // Deliberately does NOT show UI or swallow the error: the event keeps propagating to the console
+  // so the failure stays diagnosable. This only makes sure the drawing survives it.
+  useEffect(() => {
+    const onRejection = () => { void emergencySave('unhandled-rejection'); };
+    const onError = (e: ErrorEvent) => {
+      // ResizeObserver's benign loop notification is reported as an uncaught error by every
+      // Chromium browser and means nothing. Saving on it would write a snapshot on every panel
+      // resize, which is noise in the log and wasted IndexedDB traffic — it is already filtered in
+      // CanvasViewport for the same reason.
+      if (typeof e.message === 'string' && e.message.includes('ResizeObserver loop')) return;
+      void emergencySave('uncaught-error');
+    };
+    window.addEventListener('unhandledrejection', onRejection);
+    window.addEventListener('error', onError);
+    return () => {
+      window.removeEventListener('unhandledrejection', onRejection);
+      window.removeEventListener('error', onError);
+    };
   }, []);
 
   // ── One-time inline-image heal ───────────────────────────────────────────────

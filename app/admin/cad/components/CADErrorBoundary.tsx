@@ -6,6 +6,7 @@
 
 import React from 'react';
 import { cadLog } from '@/lib/cad/logger';
+import { emergencySave } from '@/lib/cad/persistence/emergency-save';
 
 interface Props {
   children: React.ReactNode;
@@ -16,18 +17,21 @@ interface State {
   message: string;
   stack: string;
   copied: boolean;
+  /** S12 — outcome of the emergency recovery write, so the panel can state what actually happened
+   *  instead of promising a snapshot that may not exist. */
+  rescue: 'pending' | 'saved' | 'nothing-to-save' | 'failed';
 }
 
 export default class CADErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, message: '', stack: '', copied: false };
+    this.state = { hasError: false, message: '', stack: '', copied: false, rescue: 'pending' };
   }
 
   static getDerivedStateFromError(error: unknown): State {
     const message = error instanceof Error ? error.message : String(error);
     const stack   = error instanceof Error ? (error.stack ?? '') : '';
-    return { hasError: true, message, stack, copied: false };
+    return { hasError: true, message, stack, copied: false, rescue: 'pending' };
   }
 
   /** Build a full, paste-ready report: the crash message + stack plus the
@@ -76,6 +80,18 @@ export default class CADErrorBoundary extends React.Component<Props, State> {
       'Uncaught render error — CAD editor crashed',
       { error, componentStack: info.componentStack },
     );
+    // S12 — write the recovery snapshot NOW.
+    //
+    // This panel already told the user their most recent auto-save would be offered on reload, and
+    // nothing wrote one at this moment. The routine autosave is debounced 1.5 s after activity
+    // settles, and a render crash is very often caused by the edit just made — precisely the edit
+    // still sitting inside that window. The store is untouched by a render failure, so the document
+    // is fully intact here and there is nothing stopping us from saving it.
+    void emergencySave('react-error-boundary').then((r) => {
+      this.setState({
+        rescue: r.saved ? 'saved' : r.skipped === 'not-dirty' ? 'nothing-to-save' : 'failed',
+      });
+    });
   }
 
   private handleReload = () => {
@@ -84,7 +100,7 @@ export default class CADErrorBoundary extends React.Component<Props, State> {
   };
 
   private handleDismiss = () => {
-    this.setState({ hasError: false, message: '', stack: '', copied: false });
+    this.setState({ hasError: false, message: '', stack: '', copied: false, rescue: 'pending' });
   };
 
   override render() {
@@ -99,9 +115,44 @@ export default class CADErrorBoundary extends React.Component<Props, State> {
           </div>
 
           <p className="text-gray-400 text-sm leading-relaxed">
-            The CAD editor encountered an unrecoverable error. Your most recent auto-save
-            (if any) will be offered for recovery when you reload.
+            The CAD editor encountered an unrecoverable error.
           </p>
+
+          {/* S12 — say what actually happened to the drawing. The previous copy promised that "your
+              most recent auto-save (if any) will be offered for recovery", which was a claim about
+              a write nobody had made: the emergency save did not exist, and the routine one is
+              debounced. A surveyor deciding whether to reload needs the fact, not the reassurance. */}
+          <div
+            className={`rounded p-3 text-sm border ${
+              this.state.rescue === 'saved'
+                ? 'bg-emerald-950/50 border-emerald-700 text-emerald-200'
+                : this.state.rescue === 'failed'
+                  ? 'bg-red-950/50 border-red-700 text-red-200'
+                  : 'bg-gray-800 border-gray-700 text-gray-300'
+            }`}
+            role="status"
+          >
+            {this.state.rescue === 'pending' && 'Saving a recovery copy of your drawing…'}
+            {this.state.rescue === 'saved' && (
+              <>
+                <strong>Your work was saved.</strong> A recovery copy of this drawing was written
+                just now, and will be offered when you reload.
+              </>
+            )}
+            {this.state.rescue === 'nothing-to-save' && (
+              <>
+                <strong>Nothing was unsaved.</strong> Every change was already stored before the
+                error, so reloading loses no work.
+              </>
+            )}
+            {this.state.rescue === 'failed' && (
+              <>
+                <strong>The recovery copy could not be written.</strong> Do <em>not</em> reload yet —
+                use “Try to Continue” and save the drawing manually (File → Save, or Save a copy) if
+                the editor responds.
+              </>
+            )}
+          </div>
 
           <div className="bg-gray-800 border border-gray-700 rounded p-3 text-xs font-mono text-red-300 max-h-40 overflow-auto whitespace-pre-wrap">
             {this.state.message}
