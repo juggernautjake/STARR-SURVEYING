@@ -303,6 +303,27 @@ business app a worker, and share one push backend.
 
   ### What is left, and what it needs
 
+  #### ▶ 2026-08-04 — a phone-sized BROWSER pass was attempted and did NOT complete
+
+  The 2026-08-03 note above blamed Playwright for refusing local connections. **That diagnosis was
+  wrong, and the real cause is now known:** `AUTH_URL` in `.env.local` points at `localhost:3000`,
+  which is a dead socket, so every middleware redirect for an unauthenticated request hung forever.
+  It looked exactly like a browser that could not reach localhost. Mint a session cookie first and
+  the redirect never happens.
+
+  With that understood, a 390x844 pass was run against `/admin/me`, `/admin/install`,
+  `/admin/receipts/new` and `/admin/jobs`. **It produced no usable result and none is claimed.**
+  Every page returned `textLen: 13` — the string "⏳ Loading..." — with zero interactive elements,
+  because `npm run build` had been run earlier in the same session while the dev server was live,
+  which replaces `.next` underneath it: the server answers 200 for HTML and 500 for every JS chunk,
+  so the React tree never mounts.
+
+  **The measurements from that run said "0 px overflow, 0 undersized tap targets" on all three
+  pages, and they were measuring a blank page.** Recording this because it is the same failure this
+  document already warns about one section up — an instrument that appears to work and is answering
+  a different question — and because "no overflow found" is exactly the kind of result that would
+  have been believed. **Never run `npm run build` against a live dev server**; restart it afterwards.
+
   **W6b — the actual device pass.** Needs a phone, ideally after installing to the home screen so it
   is exercised in the standalone shell. The field-critical surfaces are the shortlist: `/admin/me`,
   the job page and its Work Mode tabs, receipt/photo capture, and `/admin/install` itself. **Not
