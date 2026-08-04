@@ -333,3 +333,55 @@ failure. `notSentByChoice` separates "we didn't try" from "we tried and it faile
 **Remaining in this document:** F4 (bulk receipt capture), F6 (job intake — verify email delivery,
 role-based notification targeting, and that the full submission is stored), F7 (explanations and
 tutorials), and the UI halves F1b/F2b that put the card registry and pass-through recovery on screen.
+
+---
+
+## ✅ F6 — job intake. **VERIFIED 2026-08-04.** All four legs already worked; one owner decision left.
+
+*Ask: "all job requests/queries come through both email and also come to the website and show up as a
+notification to me and my dad. There should be certain roles that can see new job queries. All of the
+information about the job should be recorded."*
+
+Traced end to end rather than assumed. **Every leg is built and wired:**
+
+| leg | state |
+|---|---|
+| Email to the office | `app/api/contact/route.ts` → Resend, to `EMAIL_RECIPIENTS` (info@, starrsurveying@yahoo, hankmaddux@) |
+| Recorded as a lead | `insertLeadFromForm` — the row carries name/email/phone/company, property address, county, service type, project details, `howHeard`, click attribution, a salted IP hash, and a `SS-…` reference number that correlates the inbox email with the DB row |
+| On-site notification | `notifyIntakeRecipients` → `notifyMany` with `type: 'lead.new'`, deep-linked to `/admin/leads/<id>`, escalated to `high` for a rush |
+| Role-based targeting | `INTAKE_ROUTING_ROLES` — a single named list, not hard-coded addresses |
+| Attachments kept | `uploadLeadAttachments` stores the bytes in the lead-attachments bucket and `signLeadAttachmentUrls` serves them back through short-lived signed URLs |
+
+**A stale comment nearly cost a rebuild.** `lib/leads/intake.ts` says of attachments: *"The contact
+route still emails the bytes via Resend; persisting bytes to Supabase storage is a follow-up slice."*
+That follow-up **already shipped** — the upload is called at two sites in the route. Believing the
+comment would have meant rebuilding working storage. Tenth feature this session called missing and
+found present.
+
+### What this slice actually adds: a guard on the CHAIN
+
+154 tests across ten files already cover the individual helpers. What nothing covered is that the
+route still *calls* them — and the failure mode here is silent and asymmetric:
+
+- drop the notification call and **both emails still send**, so nothing looks broken. The only
+  symptom is a bell that stops ringing, and nobody notices a notification that never arrives;
+- drop the upload and the email still carries the bytes, so it looks fine until someone needs the
+  file a year later and the mailbox has rotated.
+
+`intake-chain-is-wired.test.ts` pins all four legs, in the spirit of
+`research-modules-are-reachable`.
+
+**The guard was broken on first write, and watching it fail is what caught it.** It asserted
+`code.toContain('notifyIntakeRecipients')` — which matches the *import statement*, so the check
+passed with the call renamed out of existence. Requiring `notifyIntakeRecipients(` makes it detect
+the removal. That is three of the last four structural checks in this repo broken on first write in
+exactly this way; the rule earns its place every time.
+
+### The one genuine open item — an owner decision, not a defect
+
+`INTAKE_ROUTING_ROLES` is `admin`, `employee`, `equipment_manager`, `field_crew` — effectively
+everyone. The ask says *"certain roles"*, which suggests narrowing (a new customer query is
+commercially sensitive, and a field crew member does not act on one). **Deliberately not changed
+here:** who sees inbound work is a business decision, not a refactor, and silently narrowing it could
+stop someone's alerts without their knowing. It is one line in one place when the owner says which
+roles.
