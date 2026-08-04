@@ -185,3 +185,56 @@ describe('the warning collector is bounded', () => {
     expect(all).not.toContain('LAYER_0.');
   });
 });
+
+// ── S13m: the reserved layer is caught at the STORE, not only at fourteen UI filters ─────────────
+//
+// This guard checked only `!document.layers[id]`, and SURVEY-INFO exists — so geometry written onto
+// the reserved sheet-info layer passed silently. The fourteen UI filters found across S13h-S13l were
+// the entire defence, and a fifteenth surface would have bypassed all of them.
+//
+// Fourteen sites, five rounds, three false claims that the last one had been found. A rule enforced
+// only at the edges holds until someone adds an edge.
+
+describe('geometry written to the reserved layer is flagged', () => {
+  const RESERVED = 'SURVEY-INFO';
+
+  it('warns on addFeature, even though the layer EXISTS', () => {
+    // The distinction that made this invisible: it is not a missing layer, it is a real one that
+    // geometry may not live on.
+    expect(useDrawingStore.getState().document.layers[RESERVED]).toBeDefined();
+    useDrawingStore.getState().addFeature(feature('on-reserved', RESERVED));
+    const w = __orphanWarnings().join('\n');
+    expect(w).toContain(RESERVED);
+    expect(w).toMatch(/reserved layer/i);
+  });
+
+  it('warns on a MOVE onto it', () => {
+    const st = useDrawingStore.getState();
+    const drawable = st.document.layerOrder.find((id) => !isReservedDrawLayer(id))!;
+    st.addFeature(feature('moving', drawable));
+    __resetOrphanWarnings();
+    useDrawingStore.getState().updateFeature('moving', { layerId: RESERVED } as never);
+    expect(__orphanWarnings().join('\n')).toMatch(/reserved layer/i);
+  });
+
+  it('explains the consequence, not just the rule', () => {
+    // "You can't do that" without "because it vanishes when the furniture is hidden" is a rule
+    // people route around.
+    useDrawingStore.getState().addFeature(feature('why', RESERVED));
+    expect(__orphanWarnings()[0]).toMatch(/sheet furniture is hidden|toggled as a unit/i);
+  });
+
+  it('stays silent for a normal drawing layer', () => {
+    const st = useDrawingStore.getState();
+    const drawable = st.document.layerOrder.find((id) => !isReservedDrawLayer(id))!;
+    st.addFeature(feature('fine', drawable));
+    expect(__orphanWarnings()).toEqual([]);
+  });
+
+  it('still stores the feature — warn, do not block', () => {
+    // Same rule as every other site in this family. Refusing would lose work over a placement
+    // problem the surveyor can fix in one move.
+    useDrawingStore.getState().addFeature(feature('kept-reserved', RESERVED));
+    expect(useDrawingStore.getState().getFeature('kept-reserved')).toBeDefined();
+  });
+});

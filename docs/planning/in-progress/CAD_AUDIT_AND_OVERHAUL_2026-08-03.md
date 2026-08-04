@@ -1998,3 +1998,51 @@ while still being wrong, right up to the last one. **The thing that worked was n
 it was opening the next file.**
 
 22 tests in this file. 3,440 CAD tests, `npm run build` clean.
+
+### ✅ S13m DONE 2026-08-04 — the fix that ends the hunt instead of continuing it
+
+S13l closed by saying *"the store warns on any orphan regardless of route — that's the part that
+doesn't depend on my having found everything."* **Checking that sentence showed it was false.**
+
+The store guard tested `!document.layers[id]`, and **`SURVEY-INFO` exists**. Writing geometry onto
+the reserved layer was never a *missing* layer, so it never warned. The fourteen UI filters were the
+**entire** defence, and a fifteenth surface would have bypassed all of them.
+
+`warnIfLayerMissing` now flags reserved layers alongside missing ones, with its own message naming
+the consequence — *geometry there disappears when the sheet furniture is hidden* — because "you can't
+do that" without a reason is a rule people route around.
+
+### ▶ Why this is the last slice in this family, and the previous fourteen were not
+
+Fourteen sites, five rounds, **three false claims that the last one had been found**. Each round
+fixed the edges. **A rule enforced only at the edges holds until somebody adds an edge** — and this
+codebase adds edges constantly: four of the fourteen sites were AI, point-viewer and transfer-dialog
+surfaces that did not exist when the reserved layer was defined.
+
+Checking at the store means a fifteenth surface is caught **by construction**. It does not need me to
+have found everything, which is the property none of the previous fourteen fixes had — and the reason
+the sweep kept being wrong is that it was the wrong instrument for the job, not that it was run
+carelessly.
+
+The UI filters stay. They are the better experience: a destination that never appears beats a warning
+after the fact. The store check is the floor beneath them, not a replacement.
+
+**Warn, do not block**, consistent with the whole family — refusing would lose work over a placement
+problem the surveyor can fix in one move.
+
+5 tests, watched failing. 3,445 CAD tests, `npm run build` clean.
+
+### ▶ The scoreboard for this bug family
+
+| | |
+|---|---|
+| Sites found | 14 |
+| Rounds | 6 (S13d, h, i, j, k, l) |
+| Completeness claims made | 4 |
+| Completeness claims that were true | **0** |
+| Found because a user reported it | **0** |
+| Rounds needed once the check moved to the store | **0** |
+
+Every claim was weaker and more careful than the last, and all four were wrong. The thing that
+finally worked was not a better claim or a better search — it was **moving the check to a place where
+being wrong about coverage stops mattering.**

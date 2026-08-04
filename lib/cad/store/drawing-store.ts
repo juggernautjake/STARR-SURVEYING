@@ -133,9 +133,32 @@ function warnIfLayerMissing(
   origin: string,
 ): void {
   if (process.env.NODE_ENV === 'production') return;
+  // CAD_AUDIT Slice S13m — reserved layers are flagged alongside missing ones.
+  //
+  // Until now this checked only `!document.layers[id]`, and SURVEY-INFO **exists** — so writing
+  // geometry onto the reserved sheet-info layer passed silently. Fourteen UI filters (S13h–S13l)
+  // were the *entire* defence, and a fifteenth surface would have bypassed every one of them.
+  //
+  // That is the wrong shape for a rule. Fourteen sites were found across five rounds, and three
+  // separate claims that the last one had been found were all false. A rule enforced only at the
+  // edges is a rule that holds until someone adds an edge. Checking it here means a new surface is
+  // caught by construction rather than by another sweep.
+  const reserved = new Set<string>();
   const missing = new Set<string>();
   for (const f of features) {
     if (!document.layers[f.layerId]) missing.add(f.layerId || '(empty string)');
+    else if (isReservedDrawLayer(f.layerId)) reserved.add(f.layerId);
+  }
+  if (reserved.size > 0) {
+    const rmsg =
+      `[drawing-store] ${origin}: geometry written to reserved layer(s) — ${[...reserved].join(', ')}. `
+      + `That layer holds the title block, seal, scale bar, north arrow, notes and certification, and `
+      + `is toggled as a unit; geometry there disappears when the sheet furniture is hidden. Use a `
+      + `drawing layer (see drawableLayerIds).`;
+    orphanWarnings.push(rmsg);
+    if (orphanWarnings.length > ORPHAN_WARNING_LIMIT) orphanWarnings.shift();
+    // eslint-disable-next-line no-console
+    console.warn(rmsg);
   }
   if (missing.size === 0) return;
   const msg =
