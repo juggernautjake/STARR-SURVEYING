@@ -1,0 +1,136 @@
+# Finance, tax, invoicing and job intake
+
+**Opened 2026-08-04** at the owner's request, in one long burst of asks during a CAD session. Written
+down first because they span four subsystems and would otherwise be re-scoped from memory.
+
+---
+
+## 0. What already exists — read this before building anything
+
+The owner's own framing was *"we should already have a good deal of finance and tax management
+stuff"*, and that is correct. This repo's most expensive recurring mistake is rebuilding something
+that already shipped, so each slice below states what it is **adding to**, not what it invents.
+
+| area | state |
+|---|---|
+| Receipts | Substantial. `app/admin/receipts` — AI extraction with per-field confidence, categories + `category_source`, `tax_deductible_flag`, an approval workflow (`status`/`approved_by`/`rejected_reason`), soft-delete with retention and a "Show deleted" audit toggle, promotion of a receipt to a capital asset in `equipment_inventory`, links to maintenance events, and a "Batch QQ" tax summary that excludes promoted receipts so dollars do not land twice on Schedule C |
+| Payment identity | `payment_method` and `payment_last4` on the receipt row — **and nothing else**. No card registry, no owner, no role |
+| Customer invoicing | Shipped: `/pay` portal, composer, dashboard, on `customer_invoices` (NOT the Stripe `invoices` table), upfront rule, gated by `PAY_PORTAL_PASSWORD` + `PAYMENTS_LIVE` |
+| Invoicing UI | `app/admin/invoicing` (525 lines) + categories; `app/admin/invoices/new` |
+| Job intake | `app/admin/leads` + `app/api/admin/leads`, with a `lead.new` bell-icon notification that is dismissed when the lead leaves `new` |
+| Finances | `app/admin/finances`, `app/admin/money`, `app/admin/billing`, `app/admin/mileage` |
+
+**So most asks below are gaps in a working system, not new systems.** The two genuine modelling gaps
+are the card registry and pass-through cost recovery.
+
+---
+
+## 1. Slices
+
+### F1. The card registry — whose card was this, and is it ours?
+
+*Ask:* "We need to be able to recognize if the cards used to pay for things are on file or not and
+what the card role is. Some cards may be personal cards of clients or customers or employees, or they
+might be cards that belong to the company or my dad's personal cards or mine."
+
+Today a receipt carries `payment_last4` and no idea whose card that is. The tax treatment of a
+charge depends entirely on that answer — a company card is a company expense, an employee's personal
+card is a reimbursement, a client's card is not our transaction at all — and right now nothing
+records it.
+
+- A `payment_cards` table: last4, brand, a label, an **owner** (a person or the company), and a
+  **role**: `COMPANY`, `OWNER_PERSONAL` (distinguishing the two owners by person, not by a flag),
+  `EMPLOYEE_PERSONAL`, `CLIENT`, `UNKNOWN`.
+- Matching a receipt to a card on `last4` is **a guess, and must be labelled one.** Several cards
+  share a last4 eventually; a matched card is a suggestion until confirmed, and an unmatched one is
+  reported as *"this card is not on file"* rather than silently left blank.
+- The unmatched case is the useful one: a charge on a card nobody has registered is exactly what a
+  bookkeeper needs surfaced.
+
+### F2. Pass-through costs — the no-net-gain case
+
+*Ask:* "Sometimes we pay sanitarians and other professionals to help us complete the survey, and then
+we charge the customer for that. Those types of situations are a no net gain and need to be
+determined and recorded."
+
+This is the sharpest modelling gap. The money moves twice and nets to zero, and unless the two legs
+are *linked*, the books show an expense and an unrelated revenue — which overstates both sides and
+misstates the profit on the job.
+
+- A link between the expense (receipt / bill) and the invoice line that recovers it.
+- A computed **recovery state** per expense: `not-recovered`, `recovered-in-full`, `recovered-partly`
+  (with the delta), `not-recoverable` (we ate it).
+- **A partial recovery is not a no-net-gain event** and must not be reported as one. If we paid a
+  sanitarian $450 and billed $400, that is a $50 loss on the job, and rounding it to "net zero" is
+  the failure this slice exists to prevent.
+
+### F3. Short tax summaries per financial interaction
+
+*Ask:* "create very short summaries for all receipts and financial interactions that would affect how
+we handle taxes… take care of our taxes very quickly and easily."
+
+A one-line, plain-language statement of the tax consequence — *"Deductible business meal, 50%
+limited"*, *"Reimbursement owed to Jacob — not a company expense"*, *"Pass-through, recovered in full
+on INV-1042 — no net gain"*, *"Capital asset, depreciated, not a current-year deduction"*.
+
+Derived from the fields already present (category, `tax_deductible_flag`, card role from F1,
+recovery state from F2), **not** re-inferred by an AI call — the inputs are known, and a summary that
+can disagree with the fields it summarises is worse than none.
+
+### F4. Bulk receipt capture
+
+*Ask:* "a setting to do bulk receipt additions, where we can just take a bunch of pictures of
+receipts and invoices and upload them all at once, as well as just one receipt at a time."
+
+The single-receipt path exists (`receipts/new`). Bulk adds: multi-select / multi-capture, a queue
+with per-item extraction status, and per-item review before commit. The existing extraction pipeline
+is per-receipt and reused as-is; the work is the queue, the progress reporting, and the failure
+handling — one bad photo in twenty must not sink the batch or silently vanish from it.
+
+### F5. The general invoice builder
+
+*Ask:* "a full invoice builder so my dad can invoice anyone for anything."
+
+`customer_invoices` and its composer are built around a customer and a job. This is the general case:
+an arbitrary payee, free-form line items, no job required — while still feeding the same ledger and
+the same `/pay` portal, so a general invoice is not a second parallel system with its own reporting.
+
+### F6. Job intake — email, on-site notification, and a role gate
+
+*Ask:* "all job requests/queries come through both email and also come to the website and show up as
+a notification to me and my dad. There should be certain roles that can see new job queries. All of
+the information about the job should be recorded."
+
+`lead.new` notifications already exist. To verify then close the gaps: that every intake path
+(website form, email, phone entry) lands in the same place; that email delivery is actually wired and
+not just intended; that notification targeting is **role-based** rather than hard-coded; and that the
+full submission is stored rather than a summary — a lead whose details were truncated at intake
+cannot be recovered later.
+
+### F7. Explanations and tutorials
+
+*Ask:* "make it very intuitive and clear how to use the tools and create explanations and tutorials
+if you can."
+
+In-context explanation over a manual nobody opens: what each finance screen is for, what a field
+means, and what happens next. Sequenced last deliberately — documenting F1–F6 before they settle
+means writing the tutorial twice.
+
+---
+
+## 2. Standing rules
+
+Carried from the CAD and research programs, each learned expensively:
+
+1. **Check what exists before building.** Six times in the CAD program a "missing" feature was found
+   already present. §0 exists for this reason.
+2. **A guess must be labelled a guess.** F1's last4 match and F3's derived summary are both places
+   where a confident-looking answer would be wrong some of the time.
+3. **Never silently net to zero.** F2's partial-recovery case is the specific trap.
+4. **Drive it in a browser.** Every browser pass in the CAD program found a bug the suite missed.
+5. **`npm run build` before declaring done.** Three times a green suite has sat on a broken build.
+
+## 3. State
+
+**Nothing built yet** — this document was written first, on purpose. Start at **F1**, because F2 and
+F3 both depend on the card role, and F3 depends on F2's recovery state.

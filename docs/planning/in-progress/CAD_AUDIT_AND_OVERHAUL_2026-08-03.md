@@ -1026,3 +1026,43 @@ every panel resize. Neither global handler swallows the event: it still reaches 
 failure stays diagnosable. This only makes sure the drawing survives it.
 
 8 tests, `npm run build` clean.
+
+---
+
+## Owner asks added 2026-08-04 — slices S13–S15
+
+Recorded verbatim in intent so a later session does not re-scope them.
+
+- **S13. The tool palette: catalogue, mechanics, and discoverability.**
+  *Ask:* "think through all of the tools that we have and consider the best way to implement them
+  and the best way to reveal the tool menu so that things make sense and are well explained and easy
+  to use. Please make sure the actual mechanics of the tools with the mouse controls work well."
+
+  **S13a — the inventory.** `ToolBar.tsx` carries **51 distinct tools in 18 palette groups**, each
+  already with a `label`, a `description` written as an instruction ("Click start point, then end
+  point…") and mostly a keyboard shortcut. So the *explanation* layer largely exists; what has never
+  been verified is whether each tool's mouse interaction actually produces geometry.
+
+  **S13b — mechanics, driven.** For each drawing tool: activate it, perform the documented mouse
+  interaction on the canvas, and assert a feature of the right type appeared. This is the slice that
+  finds bugs; every browser pass this program has run has found at least one.
+
+  **S13c — discoverability.** Only after S13b, because reorganising a palette whose tools you have
+  not exercised is rearranging what you have not read. Blocked-adjacent to S5.
+
+- **S14. Reconcile several records into one initial drawing.**
+  *Ask:* "gather the distances and bearings/azimuths and points of interest from the survey drawings
+  or calls and deeds and any document that we can find that has them and compare them to make sure
+  they are in agreement and then we can use that to make our initial drawing."
+
+  S9 already compares **two** readings and *reports* the difference, leading with the basis rotation
+  so a change of frame is not reported as eighteen errors. S14 is the step past that: take **N**
+  sources, agree them call-by-call, and emit the reconciled figure as the starting drawing — with
+  every call carrying which sources agreed and which disagreed. The honesty rule from S8a governs:
+  a call the sources disagree on must not be silently averaged into a confident line.
+
+- **S15. Memory and load-time audit.**
+  *Ask:* "make sure that loading and rendering times are fast and that we don't have memory leaks."
+  S2b fixed the frame cost (269 → 25 ms). Not yet measured: heap growth over a long editing session,
+  listener/texture accumulation, and the CAD bundle's load time. The perf overlay measures frames,
+  not leaks — this needs a different instrument.
