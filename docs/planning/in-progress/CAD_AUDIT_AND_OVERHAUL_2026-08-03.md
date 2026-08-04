@@ -1472,3 +1472,35 @@ the sentence with a vague "More options available."
 **S5 (menu condensation) remains genuinely blocked** on splitting the 15,403-line
 `CanvasViewport.tsx`, which should be sequenced deliberately rather than attempted alongside a
 behavioural change.
+
+### ✅ S13d DONE 2026-08-04 — the store now shouts about the bug that cost two slices
+
+Two slices this session were the same defect at unrelated call sites:
+
+| slice | what happened |
+|---|---|
+| **S8c** | The research import created features on `RESEARCH_BOUNDARY` before that layer existed. The dialog said *"3 feature(s) will be added"*, they were added, and the canvas stayed empty. |
+| **S13** | A brand-new drawing had `activeLayerId: ''`, so **everything a surveyor drew** landed on `layerId: ''`. Length and bearing were computed correctly and shown live; Select All found three lines; nothing was ever drawn. |
+
+Both were invisible for the same reason. `getVisibleFeatures` drops a feature whose layer is missing
+(`if (!layer) return false`) **silently** — correct for the renderer, and a terrible diagnostic for
+everyone else. The feature exists, is selectable, is saved, and cannot be seen. **The only symptom is
+an empty canvas, which reads as "the tool did nothing".**
+
+`addFeature` / `addFeatures` now warn at the point of insertion, naming the missing layer, the call
+site, and what to do about it — turning an invisible state into a named message with a stack, at the
+moment the mistake is made rather than whenever somebody happens to notice.
+
+**It warns and does not block.** A store that refused would convert a rendering bug into lost work,
+and a legitimate flow may add the layer a moment later — a test pins exactly that: an orphaned
+feature becomes visible once its layer arrives. The warning describes a **recoverable** state, not a
+corrupted one. Silent in production, because a surveyor cannot act on it.
+
+Each missing layer is reported **once per call**, however many features reference it: twenty features
+on one absent layer is one mistake, not twenty, and a warning that scrolls the console is a warning
+people turn off.
+
+**Nothing in the existing suite trips it** — 3,394 CAD tests pass with the check live, which is
+itself the useful negative result: no current flow adds features ahead of their layers.
+
+9 tests. `npm run build` clean.

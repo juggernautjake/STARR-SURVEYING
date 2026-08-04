@@ -85,6 +85,58 @@ export function __resetVisibleCache(): void {
   visibleCache = null;
 }
 
+/** Collected for the test that proves this fires. Only appended in non-production. */
+const orphanWarnings: string[] = [];
+/** Test-only accessor + reset for the orphan-layer warnings. */
+export function __orphanWarnings(): readonly string[] { return orphanWarnings; }
+export function __resetOrphanWarnings(): void { orphanWarnings.length = 0; }
+
+/**
+ * CAD_AUDIT Slice S13d — shout when a feature is added to a layer that does not exist.
+ *
+ * This exact defect cost two separate slices in one session, in two unrelated call sites:
+ *
+ *   * **S8c** — the research import created features on `RESEARCH_BOUNDARY` before that layer
+ *     existed. The dialog said "3 feature(s) will be added", they were added, and the canvas stayed
+ *     empty.
+ *   * **S13** — a brand-new drawing had `activeLayerId: ''`, so *everything a surveyor drew* landed
+ *     on `layerId: ''`. The line's length and bearing were computed correctly and displayed live;
+ *     Select All found three lines; nothing was ever drawn.
+ *
+ * Both are the same shape, and both were invisible for the same reason: `getVisibleFeatures` drops a
+ * feature whose layer is missing (`if (!layer) return false`) **silently**, which is correct
+ * behaviour for the renderer and a terrible diagnostic for everyone else. The feature exists, is
+ * selectable, is saved, and cannot be seen — and the only symptom is an empty canvas, which reads as
+ * "the tool did nothing".
+ *
+ * A warning at the point of insertion converts that into a named error with a stack, at the moment
+ * the mistake is made rather than whenever somebody notices. It does **not** reject the write: a
+ * store that refused would turn a rendering bug into lost work, and legitimate flows may add a layer
+ * moments later. Warn, do not block.
+ *
+ * Silent in production — this is a developer diagnostic, and a surveyor cannot act on it.
+ */
+function warnIfLayerMissing(
+  document: DrawingDocument,
+  features: ReadonlyArray<Feature>,
+  origin: string,
+): void {
+  if (process.env.NODE_ENV === 'production') return;
+  const missing = new Set<string>();
+  for (const f of features) {
+    if (!document.layers[f.layerId]) missing.add(f.layerId || '(empty string)');
+  }
+  if (missing.size === 0) return;
+  const msg =
+    `[drawing-store] ${origin}: ${features.length} feature(s) reference layer(s) that do not exist `
+    + `— ${[...missing].join(', ')}. They will be stored and selectable but NEVER RENDERED, because `
+    + `getVisibleFeatures drops features whose layer is missing. Create the layer first `
+    + `(see researchLayersToCreate) or set a valid active layer.`;
+  orphanWarnings.push(msg);
+  // eslint-disable-next-line no-console
+  console.warn(msg);
+}
+
 // Start with a completely blank document — no layers, no features.
 // The user must create a new drawing or import data to begin working.
 function createDefaultDocument(): DrawingDocument {
@@ -305,6 +357,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
   },
 
   addFeature: (feature) => {
+    warnIfLayerMissing(get().document, [feature], 'addFeature');
     get().dirtyFeatureIds.add(feature.id);
     set((state) => ({
       document: {
@@ -491,6 +544,7 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     })),
 
   addFeatures: (features) => {
+    warnIfLayerMissing(get().document, features, 'addFeatures');
     const dirty = get().dirtyFeatureIds;
     for (const f of features) dirty.add(f.id);
     set((state) => {
