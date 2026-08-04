@@ -543,8 +543,22 @@ guard where `-1` read as "earliest", and a `toContain` that matched an import ra
 three **failed by passing**, and none would have been caught by reading them.
 
 **State of this document:** S-6, S-7, S-8, S-10, S-11, S-12, S-13, S-14, S-15 and S-16 are done.
-**S-9 (Stripe SetupIntent + the charge) is the only slice left and it is owner-gated** — the limits
-form exists and the numbers can be entered today; what remains needs a live-payments decision.
+**S-9 is the only slice left and it is owner-gated** — the limits form exists and the numbers can be
+entered today.
+
+> **Corrected 2026-08-04 (S-9e).** This line used to read *"S-9 (Stripe SetupIntent + the charge) …
+> what remains needs a live-payments decision"*, which named **one** blocker where there are
+> **three**, and the missing one is not a decision at all:
+>
+> 1. **The Stripe SetupIntent and off-session charge** — a live-payments decision. As stated.
+> 2. **Vendor credentials** — `credential_env_var` names an environment variable nobody has set.
+> 3. **A balance reader** — *nothing in this repo writes a vendor balance*, and there is no module
+>    that could. Not a decision; a component that has not been written, and it cannot be written
+>    without (2).
+>
+> The consequence is visible on screen today: every account reports *"Cannot decide — balance is
+> unknown"*, correctly, and will keep doing so after any Stripe decision. See S-9e for the full chain
+> and the order the three have to be taken in.
 
 ---
 
@@ -745,3 +759,24 @@ Recorded because the previous note would have sent someone to build the sweep, w
 top of a history store for readings that never happen.
 
 20 tests in the ledger file, 977 across the research suite, `tsc` and `eslint` clean.
+
+## S-9f DONE 2026-08-04 — the state line named one blocker where there are three, and a helper I wrote had no caller
+
+Two corrections, both to work from earlier the same day.
+
+**The state line was wrong in a way that mattered.** It said S-9 *"needs a live-payments decision"*, so
+a reader would reasonably conclude that a Stripe decision unblocks the whole slice. It does not: after
+that decision, every vendor account would still report *"Cannot decide — balance is unknown"*, because
+there is no balance reader and no credentials for one to use. The three blockers, and their order, are
+now stated where the summary is rather than only in S-9e's detail.
+
+**And `hasRunContext()` was my own orphan.** R4b's run-context module exported it two slices ago with
+a justification — *"so a call site can say this was not attributable out loud"* — and nothing ever
+called it. Every consumer checks `currentProjectId() === null`, which answers the same question and
+returns the id in the same breath.
+
+Deleted rather than left. It is small, but it is **authored-but-not-wired inside the module written to
+fix authored-but-not-wired**, and an exported helper with no caller is precisely what this program's
+reachability guards exist to catch. Writing the guard does not exempt the author from it.
+
+Worker suite 92 files / 1,525 tests green; `tsc` and `eslint` clean.

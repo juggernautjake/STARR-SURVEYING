@@ -51,12 +51,12 @@ export function currentProjectId(): string | null {
   return storage.getStore()?.projectId ?? null;
 }
 
-/**
- * True when there is an ambient run.
- *
- * Exists so a call site can say *"this was not attributable"* out loud instead of quietly recording
- * nothing — the difference between a known gap and an invisible one.
- */
-export function hasRunContext(): boolean {
-  return storage.getStore() !== undefined;
-}
+// `hasRunContext()` was exported here alongside `currentProjectId`, justified as letting a call site
+// "say this was not attributable out loud". Two slices later nothing had called it: every consumer
+// checks `currentProjectId() === null`, which answers the same question and yields the id in the same
+// breath.
+//
+// Deleted rather than left. It is a small thing, but it is authored-but-not-wired inside the module
+// written to fix authored-but-not-wired, and an exported helper with no caller is exactly what
+// `research-modules-are-reachable` exists to catch. A convenience nobody reached for is not
+// convenient.

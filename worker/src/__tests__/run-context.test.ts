@@ -12,13 +12,12 @@
 // stops the wrong job, and its numbers reconcile to nothing.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { withRunContext, currentProjectId, hasRunContext } from '../infra/run-context.js';
+import { withRunContext, currentProjectId } from '../infra/run-context.js';
 import { recordAmbientAiCall, __resetUnattributedWarnings } from '../infra/usage.js';
 
 describe('run context', () => {
   it('reports no run outside one, rather than guessing', () => {
     expect(currentProjectId()).toBeNull();
-    expect(hasRunContext()).toBe(false);
   });
 
   it('carries the run through awaits', async () => {
