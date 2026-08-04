@@ -11,14 +11,14 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { isReservedDrawLayer, getDefaultLayerOrder } from '@/lib/cad/styles/default-layers';
+import { isReservedDrawLayer, getDefaultLayerOrder, drawableLayerIds } from '@/lib/cad/styles/default-layers';
 
 const src = fs.readFileSync(
   path.join(process.cwd(), 'app/admin/cad/components/PropertyPanel.tsx'), 'utf8');
 
 describe('both move-to-layer selects filter the reserved layer', () => {
   it('uses a filtered list rather than every layer in layerOrder', () => {
-    expect(src).toContain('isReservedDrawLayer');
+    expect(src).toContain('drawableLayerIds');
     expect(src).toContain('const moveTargets =');
   });
 
@@ -83,7 +83,7 @@ describe('the right-click menu also excludes the reserved layer', () => {
     path.join(process.cwd(), 'app/admin/cad/components/FeatureContextMenu.tsx'), 'utf8');
 
   it('filters the transfer submenu (copy and move)', () => {
-    expect(menu).toContain('isReservedDrawLayer');
+    expect(menu).toContain('drawableLayerIds');
     expect(menu).toMatch(/moveTargets\(\)\.filter\(\(l\) => l && !l\.locked\)/);
   });
 
@@ -101,5 +101,50 @@ describe('the right-click menu also excludes the reserved layer', () => {
     // The reserved filter is additive. Dropping the locked check while adding this one would trade
     // one silent-destination bug for another.
     expect(menu).toContain('!l.locked');
+  });
+});
+
+// ── S13j: one definition, and a guard against a thirteenth site ──────────────────────────────────
+//
+// Going looking (rather than trusting S13i's paragraph) found THREE more: the feature-properties
+// dialog's layer select and both "Send to layer" controls in the point viewer. Tenth, eleventh and
+// twelfth.
+//
+// At that point the fix stopped being "filter this list too". Two rounds of fixes had each claimed to
+// find the last site and each was wrong, because the filter was being RE-TYPED per site. A rule
+// enforced in five places is a rule that will be enforced in four the next time someone adds a
+// sixth — so it now lives once, in `drawableLayerIds`.
+
+describe('the reserved-layer rule has ONE definition', () => {
+  const CONSUMERS = [
+    'app/admin/cad/components/PropertyPanel.tsx',
+    'app/admin/cad/components/FeatureContextMenu.tsx',
+    'app/admin/cad/components/FeaturePropertiesDialog.tsx',
+    'app/admin/cad/components/PointDataViewer.tsx',
+  ];
+
+  it('every layer-destination surface imports the shared helper', () => {
+    for (const f of CONSUMERS) {
+      const txt = fs.readFileSync(path.join(process.cwd(), f), 'utf8');
+      expect(txt, f).toContain('drawableLayerIds');
+    }
+  });
+
+  it('none of them re-implements the predicate locally', () => {
+    // The exact regression that produced sites 10-12: someone filters `isReservedDrawLayer` inline
+    // instead of calling the helper, and the next surface added copies THAT.
+    for (const f of CONSUMERS) {
+      const txt = fs.readFileSync(path.join(process.cwd(), f), 'utf8');
+      expect(txt, `${f} should call drawableLayerIds, not filter isReservedDrawLayer inline`)
+        .not.toMatch(/filter\([^)]*isReservedDrawLayer/);
+    }
+  });
+
+  it('the helper re-admits the current layer and excludes the rest', () => {
+    // The behaviour every consumer now depends on, asserted once against the real function.
+    const order = getDefaultLayerOrder();
+    const reserved = order.find(isReservedDrawLayer)!;
+    expect(drawableLayerIds(order).some(isReservedDrawLayer)).toBe(false);
+    expect(drawableLayerIds(order, reserved)).toContain(reserved);
   });
 });

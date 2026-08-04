@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDrawingStore, useUndoStore } from '@/lib/cad/store';
+import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, Point2D } from '@/lib/cad/types';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
@@ -422,9 +423,14 @@ export default function FeaturePropertiesDialog({ featureId, onClose, initialX, 
               value={feature.layerId}
               onChange={(e) => drawingStore.updateFeature(featureId, { layerId: e.target.value })}
             >
-              {layers.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
+              {/* S13j — reserved sheet-info layers are not destinations. Tenth site found in this
+                  family; see drawableLayerIds for why the rule now lives in one place. */}
+              {drawableLayerIds(doc.layerOrder, feature.layerId)
+                .map((id) => doc.layers[id])
+                .filter(Boolean)
+                .map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
             </select>
           </div>
           {feature.properties.polylineGroupId && (

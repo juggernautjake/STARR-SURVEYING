@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { useDrawingStore, useSelectionStore, useUndoStore, useInverseStore } from '@/lib/cad/store';
-import { isReservedDrawLayer } from '@/lib/cad/styles/default-layers';
+import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, FillLayer, FillPattern } from '@/lib/cad/types';
@@ -565,8 +565,8 @@ export default function PropertyPanel() {
   /** Destinations offered for a "move to layer" select, given what it is currently showing.
    *  `currentId` is always included even when reserved — otherwise the select renders blank for a
    *  feature already on SURVEY-INFO and the surveyor cannot see where it is, let alone move it off. */
-  const moveTargets = (currentId: string | null | undefined) =>
-    allLayers.filter((l) => !isReservedDrawLayer(l.id) || l.id === currentId);
+  const moveTargets = (currentId?: string | null) =>
+    drawableLayerIds(doc.layerOrder, currentId).map((id) => doc.layers[id]).filter(Boolean);
   const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const originN = displayPrefs.originNorthing ?? 0;
   const originE = displayPrefs.originEasting ?? 0;

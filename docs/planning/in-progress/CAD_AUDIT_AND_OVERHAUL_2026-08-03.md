@@ -1892,3 +1892,36 @@ five minutes and found something. This note therefore ends without one: there ma
 and the way to find out is to go looking rather than to trust this paragraph.
 
 12 tests. 3,430 CAD tests, `npm run build` clean.
+
+### ✅ S13j DONE 2026-08-04 — going looking found three more, so the rule now has one home
+
+S13i ended by refusing to claim completeness and saying *"there may be a tenth site; the way to find
+out is to go looking."* Going looking found **three**:
+
+| site | what it offered |
+|---|---|
+| `FeaturePropertiesDialog` | a layer select writing straight to `updateFeature({ layerId })` |
+| `PointDataViewer` × 2 | both **"Send to layer"** controls — the toolbar select and the row context menu |
+
+**Tenth, eleventh and twelfth.** At that point the fix stopped being *"filter this list too."*
+
+Two rounds of fixes had each claimed to find the last site and each was wrong, and the reason was
+structural: **the filter was being re-typed per site.** A rule enforced in five places is a rule that
+will be enforced in four the next time somebody adds a sixth. So it now lives once, as
+`drawableLayerIds(layerOrder, currentId?)` in `default-layers.ts`, and the four surfaces that offer a
+layer as a destination all call it — including the two that had local copies from S13h and S13i.
+
+**A test asserts there is no local re-implementation**, matching `filter(... isReservedDrawLayer ...)`
+in any consumer. That is the exact regression that produced sites 10–12: someone filters inline
+instead of calling the helper, and the next surface copies *that*.
+
+### ▶ What the search cost, and what claiming cost
+
+The sweep that found these three was one `grep` for `layerOrder.map` across `app/admin/cad` — about
+thirty seconds, and it enumerated every layer list in the subsystem at once. **The two confident
+completeness claims that preceded it took longer to write than the search took to run.**
+
+Twelve sites, one predicate. The count is not the interesting number; **the interesting number is
+that two of three completeness claims were false, and the third was never made.**
+
+15 tests. 3,433 CAD tests, `npm run build` clean.

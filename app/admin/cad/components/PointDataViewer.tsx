@@ -12,6 +12,7 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { X, RotateCcw, Image as ImageIcon, Eye } from 'lucide-react';
 import { useMediaStore } from '@/lib/cad/media/media-store';
+import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import { useDrawingStore, useUndoStore, useSelectionStore, makeBatchEntry, makeRemoveFeatureEntry } from '@/lib/cad/store';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
@@ -504,7 +505,7 @@ export default function PointDataViewer({
             title="Send the selected points to a layer"
           >
             <option value="">Send to layer…</option>
-            {layerOrder.map((lid) => {
+            {drawableLayerIds(layerOrder).map((lid) => {
               const lyr = document.layers[lid];
               return lyr ? <option key={lid} value={lid}>{lyr.name}</option> : null;
             })}
@@ -685,7 +686,7 @@ export default function PointDataViewer({
             <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-gray-500 mt-1">Send to layer</div>
             <div className="max-h-40 overflow-y-auto">
               {layerOrder.length === 0 && <div className="px-3 py-1 text-gray-500">No layers</div>}
-              {layerOrder.map((lid) => {
+              {drawableLayerIds(layerOrder).map((lid) => {
                 const lyr = document.layers[lid];
                 if (!lyr) return null;
                 const here = ctxMenu.row.layerId === lid;

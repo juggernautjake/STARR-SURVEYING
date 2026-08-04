@@ -96,6 +96,29 @@ export function isReservedDrawLayer(layerId: string | null | undefined): boolean
   return !!layerId && RESERVED_DRAW_LAYER_IDS.includes(layerId);
 }
 
+/**
+ * CAD_AUDIT Slice S13j — the one definition of "layers a surveyor may send geometry to".
+ *
+ * Every UI that offers a layer as a *destination* must filter the reserved ones, and by the time
+ * this helper was written there were **five** such places: the Property panel's bulk and
+ * single-feature selects, the context menu's transfer and move submenus, the feature-properties
+ * dialog, and both "Send to layer" controls in the point viewer. Two rounds of fixes each claimed to
+ * have found the last one and each was wrong, because the filter was being re-typed per site.
+ *
+ * A rule enforced in five places is a rule that will be enforced in four the next time someone adds
+ * a sixth. This is that rule, once.
+ *
+ * `currentId` is re-admitted even when reserved: a feature ALREADY on the reserved layer — an older
+ * drawing, an AI edit, an import predating these rules — must still see where it lives, or the
+ * control renders blank and there is no way to move it off.
+ */
+export function drawableLayerIds(
+  layerOrder: readonly string[],
+  currentId?: string | null,
+): string[] {
+  return layerOrder.filter((id) => !isReservedDrawLayer(id) || id === currentId);
+}
+
 export function getDefaultLayerOrder(): string[] {
   return PHASE3_DEFAULT_LAYERS.map((l) => l.id);
 }

@@ -29,7 +29,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useMediaStore } from '@/lib/cad/media/media-store';
-import { isReservedDrawLayer } from '@/lib/cad/styles/default-layers';
+import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -284,7 +284,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
    *  Same exception as the Property panel: a feature ALREADY on the reserved layer keeps its current
    *  layer in the list, or the tick showing where it lives has nothing to sit beside. */
   const moveTargets = (currentId?: string | null) =>
-    layers.filter((l) => !isReservedDrawLayer(l.id) || l.id === currentId);
+    drawableLayerIds(doc.layerOrder, currentId).map((id) => doc.layers[id]).filter(Boolean);
 
   // Position the menu next to the cursor, but keep it on-screen: flip
   // horizontally when it would overflow the right edge, prefer opening
