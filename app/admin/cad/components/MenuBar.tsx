@@ -1685,16 +1685,30 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     {
       label: 'AI',
       items: [
-        // AI mode picker — mirrors the StatusBar chip's cycle but
-        // makes every mode + the chord visible from the menu.
-        ...AI_MODE_CYCLE.map((mode: AIMode) => ({
-          label: `${mode === aiMode ? '● ' : '  '}AI mode: ${mode}`,
-          action: () => { setAIMode(mode); setOpenMenu(null); },
-        })),
+        // CAD_AUDIT S5b — five top-level entries for one setting, condensed into one.
+        //
+        // S1a recorded this as the third of its three observations: *"`AI` spends five entries on one
+        // setting — four mode items plus Cycle."* Half the menu was a radio group. The current mode
+        // is now on the parent row, so the menu ANSWERS "what mode am I in?" at a glance instead of
+        // requiring the reader to scan four lines for a bullet.
+        //
+        // The submenu keeps every mode individually selectable — condensing must not cost the ability
+        // to jump straight to COMMAND — and keeps the chord visible, which was the original reason
+        // for listing Cycle here at all.
         {
-          label: 'Cycle AI mode',
-          shortcut: 'Ctrl+Shift+M',
-          action: () => { cycleAIMode(); setOpenMenu(null); },
+          label: `AI mode: ${aiMode}`,
+          submenu: [
+            ...AI_MODE_CYCLE.map((mode: AIMode) => ({
+              label: `${mode === aiMode ? '● ' : '  '}${mode}`,
+              action: () => { setAIMode(mode); setOpenMenu(null); },
+            })),
+            { separator: true },
+            {
+              label: 'Cycle to next mode',
+              shortcut: 'Ctrl+Shift+M',
+              action: () => { cycleAIMode(); setOpenMenu(null); },
+            },
+          ],
         },
         { separator: true },
         { label: 'Run AI Drawing Engine…', action: () => { onOpenAIDrawing?.(); setOpenMenu(null); } },

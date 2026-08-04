@@ -1469,9 +1469,7 @@ handler, the chevron, and descriptions reaching the Tooltip at all. If any of th
 new sentence would become a lie, and nothing else would have noticed. Watched failing by replacing
 the sentence with a vague "More options available."
 
-**S5 (menu condensation) remains genuinely blocked** on splitting the 15,403-line
-`CanvasViewport.tsx`, which should be sequenced deliberately rather than attempted alongside a
-behavioural change.
+**S5 (menu condensation) was recorded as blocked** on splitting the 15,403-line `CanvasViewport.tsx`. ⚠ **That was wrong — see S5b below.** All three of S1a's observations live in `MenuBar.tsx` and none of them touches the canvas.
 
 ### ✅ S13d DONE 2026-08-04 — the store now shouts about the bug that cost two slices
 
@@ -2489,3 +2487,49 @@ and rescaling a surveyor's sheet to accommodate a reference is their decision (t
 9 tests. CAD suite 3,438 green; `tsc`, `eslint` and `npm run build` clean.
 
 **S9 is now complete**: S9a the core, S9b the report, S9c the figure on the canvas.
+
+### ✅ S5b DONE 2026-08-04 — S5 was never blocked on the file split, and is now complete
+
+This document recorded S5 as *"genuinely blocked on splitting the 15,403-line `CanvasViewport.tsx`,
+which should be sequenced deliberately rather than attempted alongside a behavioural change."*
+
+**S5a should have contradicted that and did not.** It renamed two File-menu entries without going
+near the canvas, and the blocker note was left standing beside it. Checking it properly: **all three
+of S1a's observations live in `MenuBar.tsx`.** The AI mode entries come from `useAIStore` and
+`AI_MODE_CYCLE` in `lib/cad/store/ai-store.ts`; nothing in the menu bar reaches the renderer. The
+split is a real piece of work and it was never S5's blocker.
+
+**Sixth stale reason found in these documents today**, and the third I wrote myself. The pattern is
+now unmistakable: a reason recorded once is believed indefinitely, and the cost is not the wrong
+sentence — it is the work that never gets attempted because a note says it cannot be.
+
+#### ▶ The last observation, acted on
+
+> *"`AI` spends five entries on one setting — four mode items plus Cycle."*
+
+Half that menu was a radio group. It is now **one row**, `AI mode: AUTO`, with the modes in a submenu.
+
+The current mode moved onto the parent, so the menu **answers** "what mode am I in?" instead of making
+the reader scan four lines for a bullet. Every mode is still individually selectable — condensing must
+not cost the ability to jump straight to COMMAND, which is the only reason to list modes rather than
+offer Cycle alone — and `Ctrl+Shift+M` stays visible, which was the original justification for putting
+Cycle in the menu at all.
+
+5 tests. A menu shape is exactly the regression that survives review: nothing breaks if it is
+re-flattened — it typechecks, it renders, every action works, and the only symptom is a menu that is
+harder to read. That is what S1a existed to find. The control restores the flattened label and the
+guard fails by name.
+
+**S5 is complete**, and with it every item in this document that is not owner-gated:
+
+| observation | outcome |
+|---|---|
+| Draw mixes creation with modification | **stale** — the separator was already there (S5a) |
+| File's ambiguous Opens | **fixed** — both now name their source (S5a) |
+| AI spends five entries on one setting | **fixed** — one row and a submenu (S5b) |
+
+CAD suite 3,443 green; `tsc`, `eslint` and `npm run build` clean.
+
+**What remains in this document is owner-gated only**: the golden instrument file (S16's scale factor
+and convergence, plus the 19 skipping TRV assertions from S16c), and splitting `CanvasViewport.tsx` —
+which is still worth doing, on its own terms, and is now unblocking nothing.
