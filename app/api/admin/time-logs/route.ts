@@ -84,12 +84,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Also fetch work type rates for display
-  const { data: workTypes } = await supabaseAdmin
-    .from('work_type_rates')
-    .select('*')
-    .eq('is_active', true)
-    .order('sort_order');
+  // The activity list, from the model rather than straight off the table. It matters because
+  // `work_type_rates.base_rate` is meaningless for a `rate_mode = 'base'` activity — field work
+  // pays the person's own rate, and the $20 in that column is never paid to anybody. A raw select
+  // would hand that $20 to the client as though it were a price.
+  const { workTypes } = await loadPayConfig();
 
   // ── ATTACH WHAT WAS ACTUALLY DECIDED ────────────────────────────────────────────────────────
   //

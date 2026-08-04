@@ -119,8 +119,8 @@ Supporting modules:
 | **C-11** | `work_type_rates.rate_mode` (seed 575, applied to production); driving set to $15 | ✅ Shipped |
 | **C-12** | `/admin/pay-rates` — manage what each activity pays; registered in nav + middleware | ✅ Shipped |
 | **C-13** | `parked` flag on the route registry; hidden from rail AND search, still resolves | ✅ Shipped |
-| **C-14** | Retire the payroll-run engine's own formula onto `resolvePayRate` | ⬜ Not started |
-| **C-15** | One hours ledger — `daily_time_logs` vs `job_time_entries` (payroll runs read the latter) | ⬜ Not started |
+| **C-14** | Payroll runs pay from `daily_time_logs` at model rates, honouring approver decisions; FLSA half-time premium on blended rates | ✅ Shipped |
+| **C-15** | Source guards + negative control: no route may re-implement a rate, progression stays parked | ✅ Shipped |
 | **C-16** | One payout ledger — `payout_log`, `employee_payouts`, `payout_batches`, `balance_transactions` all exist and are empty | ⬜ Not started |
 | **C-17** | Week history + pay advances fully built out | ⬜ Not started |
 | **C-18** | Backfill `employee_profiles.tier_key` (NULL for everybody; `job_title` carries the title) | ⬜ Not started |

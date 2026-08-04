@@ -5,6 +5,28 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildPayStubNotification } from '@/lib/notifications/payout';
+import { buildStubTotals, type PayableHours } from '@/lib/payroll/pay-stub';
+
+interface TimeLogRow {
+  id: string;
+  user_email: string;
+  log_date: string;
+  work_type: string;
+  hours: number;
+  adjusted_hours: number | null;
+  job_id: string | null;
+  job_name: string | null;
+  effective_rate: number | null;
+  status: string;
+}
+
+interface DecisionRow {
+  time_log_id: string;
+  blocks: Array<{ hours: number; rate: number | null; work_type: string | null }>;
+  total_pay: number;
+  total_hours: number;
+  undecided_hours: number;
+}
 
 // GET: List payroll runs or get specific run with stubs
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -91,24 +113,56 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'No active employees found' }, { status: 400 });
   }
 
-  // Get time entries for this period from job_time_entries
-  const { data: timeEntries } = await supabaseAdmin
-    .from('job_time_entries')
-    .select('*')
-    .gte('start_time', pay_period_start)
-    .lte('start_time', pay_period_end + 'T23:59:59');
+  // ── APPROVED HOURS, PRICED BY THE ONE MODEL (pay consolidation, 2026-08-04) ─────────────────
+  //
+  // This engine used to read `job_time_entries` — a table with zero rows, and no relationship to
+  // where hours are actually logged, which is `daily_time_logs`. So a payroll run produced a stub
+  // of 0 hours for everybody and reported success. **An empty result read as a completed payroll.**
+  //
+  // It also computed its own rate: `hourly_rate + certBump + roleAdj`, off
+  // `employee_certifications.pay_bump_amount` and `role_pay_adjustments`, sharing no table with any
+  // other rate in the platform. Both of those belong to the parked progression system, so a stub
+  // could pay a credential bump nobody is offered any more.
+  //
+  // Now: only APPROVED hours, at the rate already agreed for them — the approver's decision where
+  // one exists, otherwise what the pay model resolved when the hours were submitted. Nothing is
+  // re-derived here, so a stub cannot disagree with the screen the employee was shown.
+  const { data: timeLogs, error: logsError } = await supabaseAdmin
+    .from('daily_time_logs')
+    .select('id, user_email, log_date, work_type, hours, adjusted_hours, job_id, job_name, effective_rate, status')
+    .eq('status', 'approved')
+    .gte('log_date', pay_period_start)
+    .lte('log_date', pay_period_end);
 
-  // Get role adjustments
-  const { data: adjustments } = await supabaseAdmin
-    .from('role_pay_adjustments')
-    .select('*')
-    .eq('is_active', true);
+  if (logsError) return NextResponse.json({ error: logsError.message }, { status: 500 });
 
-  // Get certifications for pay bumps
-  const { data: allCerts } = await supabaseAdmin
-    .from('employee_certifications')
-    .select('*')
-    .eq('verified', true);
+  // The approver's decisions for those entries. Where one exists it is what is being paid; the
+  // rate stamped on the log is only what the rules said before anybody looked at it.
+  const logIds = (timeLogs ?? []).map((l: { id: string }) => l.id);
+  let decisions: DecisionRow[] = [];
+  if (logIds.length > 0) {
+    const { data: rows, error: decisionError } = await supabaseAdmin
+      .from('time_log_pay_decisions')
+      .select('time_log_id, blocks, total_pay, total_hours, undecided_hours')
+      .in('time_log_id', logIds);
+    // Refused rather than swallowed. Running payroll on the pre-decision figures would pay people
+    // amounts an approver had explicitly overridden, and the stub would look perfectly normal.
+    if (decisionError) {
+      return NextResponse.json(
+        { error: `Could not read the pay decisions for this period, so payroll was not run: ${decisionError.message}` },
+        { status: 500 },
+      );
+    }
+    decisions = (rows ?? []) as DecisionRow[];
+  }
+  const decisionByLog = new Map(decisions.map((d) => [d.time_log_id, d]));
+
+  // Overtime settings, from the same config the rest of the platform reads.
+  const { data: configRows } = await supabaseAdmin.from('pay_system_config').select('key, value');
+  const config: Record<string, number> = {};
+  for (const row of (configRows ?? []) as { key: string; value: number }[]) config[row.key] = Number(row.value);
+  const overtimeThreshold = Number.isFinite(config.overtime_threshold_weekly) ? config.overtime_threshold_weekly : 40;
+  const overtimeMultiplier = Number.isFinite(config.overtime_multiplier) ? config.overtime_multiplier : 1.5;
 
   // Create payroll run
   const { data: run, error: runError } = await supabaseAdmin
@@ -132,87 +186,74 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   let totalNet = 0;
 
   for (const emp of employees) {
-    // Calculate hours from time entries
-    const empEntries = (timeEntries || []).filter(
-      (e: { user_email: string }) => e.user_email === emp.user_email
-    );
-    const totalMinutes = empEntries.reduce(
-      (sum: number, e: { duration_minutes: number | null }) => sum + (e.duration_minutes || 0), 0
-    );
-    const totalHours = Math.round((totalMinutes / 60) * 100) / 100;
-    const regularHours = Math.min(totalHours, 80); // 80 hrs for biweekly
-    const overtimeHours = Math.max(0, totalHours - 80);
+    const employee = emp as { user_email: string; user_name: string | null };
+    const mine = (timeLogs ?? []).filter((l: TimeLogRow) => l.user_email === employee.user_email) as TimeLogRow[];
 
-    // Calculate cert bumps
-    const empCerts = (allCerts || []).filter(
-      (c: { user_email: string }) => c.user_email === emp.user_email
-    );
-    const certBump = empCerts.reduce(
-      (sum: number, c: { pay_bump_amount: number | null }) => sum + (c.pay_bump_amount || 0), 0
-    );
+    // Flatten to priced hours. A decision may split one entry across several rates, so one log can
+    // yield several payable rows — which is exactly why the split is stored rather than blended.
+    const payable: PayableHours[] = [];
+    for (const log of mine) {
+      const decision = decisionByLog.get(log.id);
+      const hours = log.adjusted_hours != null ? Number(log.adjusted_hours) : Number(log.hours);
 
-    // Calculate role adjustment (average if worked multiple roles)
-    let roleAdj = 0;
-    const jobRoles = new Set(
-      empEntries.map((e: { work_type: string }) => e.work_type).filter(Boolean)
-    );
-    if (adjustments && jobRoles.size > 0) {
-      for (const role of jobRoles) {
-        const adj = adjustments.find(
-          (a: { base_title: string; role_on_job: string }) =>
-            a.base_title === emp.job_title && a.role_on_job === role
-        );
-        if (adj) roleAdj = Math.max(roleAdj, (adj as { adjustment_amount: number }).adjustment_amount);
+      if (decision && Array.isArray(decision.blocks) && decision.blocks.length > 0) {
+        for (const block of decision.blocks) {
+          payable.push({
+            hours: Number(block.hours),
+            rate: block.rate === null || block.rate === undefined ? null : Number(block.rate),
+            workType: block.work_type ?? log.work_type,
+            jobId: log.job_id,
+            jobName: log.job_name,
+            logDate: log.log_date,
+          });
+        }
+        continue;
       }
+
+      payable.push({
+        hours,
+        rate: log.effective_rate === null || log.effective_rate === undefined ? null : Number(log.effective_rate),
+        workType: log.work_type,
+        jobId: log.job_id,
+        jobName: log.job_name,
+        logDate: log.log_date,
+      });
     }
 
-    const effectiveRate = emp.hourly_rate + certBump + roleAdj;
-    const overtimeRate = effectiveRate * 1.5;
-    const grossPay = Math.round(((regularHours * effectiveRate) + (overtimeHours * overtimeRate)) * 100) / 100;
-
-    // Estimate deductions (simplified — real payroll uses a provider like Gusto/ADP)
-    const federalTax = Math.round(grossPay * 0.12 * 100) / 100;
-    const stateTax = Math.round(grossPay * 0.0 * 100) / 100; // Texas has no state income tax
-    const socialSecurity = Math.round(grossPay * 0.062 * 100) / 100;
-    const medicare = Math.round(grossPay * 0.0145 * 100) / 100;
-    const totalDeductions = federalTax + stateTax + socialSecurity + medicare;
-    const netPay = Math.round((grossPay - totalDeductions) * 100) / 100;
-
-    // Job hours breakdown
-    const jobHoursMap: Record<string, { job_id: string; hours: number; role: string }> = {};
-    for (const entry of empEntries) {
-      const e = entry as { job_id: string; duration_minutes: number; work_type: string };
-      if (!jobHoursMap[e.job_id]) {
-        jobHoursMap[e.job_id] = { job_id: e.job_id, hours: 0, role: e.work_type || 'general' };
-      }
-      jobHoursMap[e.job_id].hours += (e.duration_minutes || 0) / 60;
-    }
+    const totals = buildStubTotals({ entries: payable, overtimeThreshold, overtimeMultiplier });
 
     stubs.push({
       payroll_run_id: run.id,
-      user_email: emp.user_email,
-      user_name: emp.user_name,
+      user_email: employee.user_email,
+      user_name: employee.user_name,
       pay_period_start,
       pay_period_end,
-      regular_hours: regularHours,
-      overtime_hours: overtimeHours,
-      base_rate: emp.hourly_rate,
-      overtime_rate: overtimeRate,
-      role_adjustment: roleAdj,
-      cert_adjustment: certBump,
-      effective_rate: effectiveRate,
-      gross_pay: grossPay,
-      federal_tax: federalTax,
-      state_tax: stateTax,
-      social_security: socialSecurity,
-      medicare,
-      total_deductions: totalDeductions,
-      net_pay: netPay,
-      job_hours: Object.values(jobHoursMap),
+      regular_hours: totals.regularHours,
+      overtime_hours: totals.overtimeHours,
+      // The blended rate the period actually ran at. Null when nothing was paid, rather than 0,
+      // which would read as "worked at no rate" instead of "worked no paid hours".
+      base_rate: totals.regularRate,
+      overtime_rate: totals.regularRate === null ? null : Math.round(totals.regularRate * overtimeMultiplier * 100) / 100,
+      // Both belong to the parked progression system. NULL, not 0: a zero draws a "+ $0.00 role
+      // adjustment" line on the stub, which is a system pretending to be present.
+      role_adjustment: null,
+      cert_adjustment: null,
+      effective_rate: totals.regularRate,
+      gross_pay: totals.grossPay,
+      federal_tax: totals.federalTax,
+      state_tax: totals.stateTax,
+      social_security: totals.socialSecurity,
+      medicare: totals.medicare,
+      total_deductions: totals.totalDeductions,
+      net_pay: totals.netPay,
+      job_hours: totals.jobHours,
+      // Hours that were approved but never priced. On the stub so "why is this short" has an
+      // answer, and so they are visibly owed rather than quietly gone.
+      metadata: totals.unpaidHours > 0 ? { unpaid_hours: totals.unpaidHours } : null,
     });
 
-    totalGross += grossPay;
-    totalNet += netPay;
+    totalGross += totals.grossPay;
+    totalNet += totals.netPay;
   }
 
   // Insert all stubs
