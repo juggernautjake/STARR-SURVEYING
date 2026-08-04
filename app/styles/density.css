@@ -69,3 +69,48 @@
   --hub-font-2xl: calc(var(--hub-font-base-rem) * 2.0 * var(--hub-font-scale));
   --hub-font-3xl: calc(var(--hub-font-base-rem) * 2.5 * var(--hub-font-scale));
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE TOKENS ABOVE HAD ZERO CONSUMERS. Measured 2026-08-04.
+ *
+ * The header says "Widgets style themselves with var(--hub-spc-*) and var(--hub-font-*)". Scanned
+ * across every .css/.ts/.tsx in `app/` and `lib/` — 2,772 files — the count of `var(--hub-font-…)`,
+ * `var(--hub-spc-…)` and `var(--hub-row-height)` outside this file is **0**.
+ *
+ * So the density picker and the text-size slider have never changed anything, on any page,
+ * including the Hub they were built for. They wrote a value to a variable nobody read. That is a
+ * harder failure to notice than the theme's — the theme at least worked on one page — and it is why
+ * the owner asked whether the formatting settings were "actually functional".
+ *
+ * (The first version of this scan looked for `--hub-space-` and found "2 consumers", both of them
+ * files that SET the variables. The real prefix is `--hub-spc-`. Widening a probe before believing
+ * it is the standing rule here, and it changed the answer from "almost nothing" to "nothing".)
+ *
+ * ── THE FIX: SCALE THE ROOT, NOT EACH COMPONENT ───────────────────────────────────────────────
+ *
+ * Converting every page to these tokens is the same 2,500-declaration job the colour conversion is,
+ * and it would leave the setting inert until it finished. The root font size is the lever that
+ * already exists: this app's typography is written in `rem` almost everywhere (`0.85rem`,
+ * `1.22rem`, `1.35rem`…), and `rem` is defined against the root. One rule makes the slider real on
+ * every page immediately.
+ *
+ * HONEST LIMIT, stated rather than discovered later: anything sized in `px` does not scale. Those
+ * are mostly fixed chrome — the 64px top bar, the 260px sidebar — which is the right thing to hold
+ * still anyway, but a `px` font size in a page will ignore the setting. Each is a separate fix, and
+ * this is the change that makes the control do something rather than nothing.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+html {
+  /* `--hub-font-scale` is set on <html> by ShellTheme, clamped 0.875–1.5 by the same function the
+   * server clamps with. Unset (signed out, or a user who never chose) resolves to 1 and this is a
+   * no-op — the default must not move for someone who has expressed no preference. */
+  font-size: calc(100% * var(--hub-font-scale, 1));
+}
+
+/* Density adjusts the shell's breathing room. Deliberately ONE surface rather than a sweep: the
+ * content area's padding is what a person perceives as "tight" or "roomy", and changing 2,500
+ * paddings to tokens has the same cost and risk as the colour conversion. */
+:root { --shell-pad: 2rem; --shell-pad-phone: 1rem; }
+[data-density="compact"]     { --shell-pad: 1.25rem; --shell-pad-phone: 0.75rem; }
+[data-density="comfortable"] { --shell-pad: 2rem;    --shell-pad-phone: 1rem; }
+[data-density="spacious"]    { --shell-pad: 2.75rem; --shell-pad-phone: 1.25rem; }

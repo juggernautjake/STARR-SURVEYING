@@ -23,7 +23,7 @@
  * the count so it is a number that moves rather than an adjective. */
 .admin-layout { display:flex; min-height:100vh; background:var(--theme-bg-page, #F3F4F6); color:var(--theme-fg-primary, inherit); }
 .admin-layout__main { flex:1; margin-left:260px; display:flex; flex-direction:column; min-height:100vh; transition:margin-left .3s; min-width:0; overflow-x:hidden; }
-.admin-layout__content { flex:1; padding:2rem; margin-top:64px; min-width:0; overflow-x:hidden; }
+.admin-layout__content { flex:1; padding:var(--shell-pad, 2rem); margin-top:64px; min-width:0; overflow-x:hidden; }
 
 /* Admin sections use navy links; the global `a { color: var(--brand-red) }`
    in app/styles/globals.css is a marketing-site default that bleeds into
@@ -1028,7 +1028,7 @@
    * content area ensures the last scrollable element on every page
    * can be fully reached without the FAB covering it. Audit U-6.
    */
-  .admin-layout__content { padding:1.25rem 1.25rem 96px 1.25rem; }
+  .admin-layout__content { padding:var(--shell-pad-phone, 1.25rem) var(--shell-pad-phone, 1.25rem) 96px; }
   .fb { width:100%; border-radius:12px 12px 0 0; }
 }
 @media(max-width:599px) {
@@ -1038,7 +1038,7 @@
   /* Keep the clock-in pill + bell + avatar on one uncrowded row when the pill
      is in its wider "Clock Out · 8h 30m" state (C5). */
   .admin-topbar__right { gap:.4rem; }
-  .admin-layout__content { padding:1rem 1rem 96px 1rem; margin-top:56px; }
+  .admin-layout__content { padding:var(--shell-pad-phone, 1rem) var(--shell-pad-phone, 1rem) 96px; margin-top:56px; }
   .admin-dashboard__cards { grid-template-columns:1fr; }
   .dashboard-cards { grid-template-columns:1fr; }
   .dashboard-card__metrics { flex-wrap:wrap; gap:.75rem; }

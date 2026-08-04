@@ -850,3 +850,54 @@ fallback, because `:root` defines all fourteen unconditionally and an inline hex
 every token, media query and contrast audit — which is exactly what the ratchet says.
 
 **22,663 tests pass, 0 fail**; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W9d DONE 2026-08-04 — density and text size had NO consumers at all
+
+The theme was applied at the wrong level. The other two formatting settings were worse: measured
+today, **nothing in the codebase reads the tokens they set.**
+
+`app/styles/density.css` defines three densities and a font-scale multiplier and states *"Widgets
+style themselves with var(--hub-spc-*) and var(--hub-font-*)"*. Scanned across every `.css`, `.ts`
+and `.tsx` in `app/` and `lib/` — **2,772 files** — uses of `var(--hub-font-…)`, `var(--hub-spc-…)`
+and `var(--hub-row-height)` outside that file: **0**.
+
+So the density picker and the text-size slider wrote a value to a variable nobody read. Not "only on
+the Hub", as the theme was — **nowhere, including the Hub they were built for.**
+
+**A setting that changes nothing is worse than an absent one.** The user concludes the app is broken;
+every structural check in the repo agrees the feature exists; and the header of the file asserts the
+opposite of the truth, which is what stops the next reader looking.
+
+#### ▶ Fixed by scaling the root, not by converting the app
+
+Adopting those tokens across the product is the same ~2,500-declaration job as the colour
+conversion, and the setting would stay inert until it finished. The lever that already exists is the
+root font size: this app writes type in `rem` almost everywhere, and `rem` resolves against the root.
+
+```css
+html { font-size: calc(100% * var(--hub-font-scale, 1)); }
+```
+
+One rule, and the slider is real on every page. The fallback is `1`, so a user who has never opened
+the setting sees no change — a default that moves silently would be a change nobody asked for.
+
+Density gets the equivalent single lever: `--shell-pad` / `--shell-pad-phone` per density, read by
+`.admin-layout__content` at both desktop and phone widths. Reading it in one and not the other is
+how a setting appears to work at a desk and do nothing in a truck.
+
+**Honest limit, stated rather than discovered later:** anything sized in `px` ignores the text
+setting. That is mostly fixed chrome — the 64 px top bar, the 260 px sidebar — which should hold
+still anyway, but a `px` font size inside a page will not scale. Each is a separate fix; this is the
+change that makes the control do something rather than nothing.
+
+#### ▶ And the probe was wrong first
+
+The initial scan searched for `--hub-space-` and reported **2 consumers** — both of them files that
+*set* the variables. The real prefix is `--hub-spc-`. Widening it changed the answer from "almost
+nothing" to "nothing", which is a different finding with a different fix. Standing rule, again: when
+a probe comes back near-empty, widen it once before believing it.
+
+Eight assertions pin both levers, including that the clamp is imported from the module the server
+clamps with rather than restated. Control: removing the root rule fails two of them by name.
+
+22,671 tests pass; `tsc`, `eslint` and `npm run build` clean.
