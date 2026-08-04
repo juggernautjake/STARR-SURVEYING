@@ -225,8 +225,20 @@ describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)
     expect(HENSCHEN_FIPS_SET.has('48053')).toBe(true);
   });
 
-  it('4. Llano County (48299) is in HENSCHEN_FIPS_SET', () => {
-    expect(HENSCHEN_FIPS_SET.has('48299')).toBe(true);
+  it('4. Llano County (48299) is NOT Henschen — its real portal is Kofile PublicSearch', () => {
+    // ── INVERTED 2026-08-04 (R39d) ───────────────────────────────────────────────────────────────
+    //
+    // This asserted Llano was a Henschen county, on the strength of a config entry pointing at
+    // `llano.co.texas.us` — a hostname that **does not exist and never did** (R39b measured all 16
+    // Henschen hosts as ENOTFOUND).
+    //
+    // Llano's actual records portal is `llano.tx.publicsearch.us`: it resolves on 35.247.2.99, the
+    // same cluster as the proven Bell and Travis portals, and renders the Llano County clerk record
+    // search with the field labels the Kofile adapter drives.
+    //
+    // The entry is removed rather than repointed, and Llano is recorded in
+    // `KOFILE_IDENTIFIED_NOT_DRIVEN` — identified, not yet driven, which is the bar that file sets.
+    expect(HENSCHEN_FIPS_SET.has('48299')).toBe(false);
   });
 
   it('5. San Saba County (48411) is in HENSCHEN_FIPS_SET', () => {
@@ -325,9 +337,16 @@ describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)
     }
   });
 
-  it('19. Gillespie County (48171) config has hasImageAccess defined', () => {
-    expect(HENSCHEN_CONFIGS['48171']).toBeDefined();
-    expect(typeof HENSCHEN_CONFIGS['48171']?.hasImageAccess).toBe('boolean');
+  it('19. Gillespie County (48171) is NOT Henschen — its own website links to Kofile', () => {
+    // Same inversion as case 4, with stronger evidence: gillespiecounty.gov links to
+    // `gillespie.tx.publicsearch.us` as the county's records portal, and the Henschen entry pointed
+    // at `records.gillespiecountyclerk.com`, which does not resolve.
+    //
+    // Worth stating plainly, because it is the shape R38 was written to find: the platform believed
+    // it knew where a county's records were and was wrong, while the real portal sat on a vendor it
+    // had already proven, at the exact hostname the Kofile adapter derives for an unconfigured
+    // county. The wrong answer was not "no coverage" — it was confident coverage of nothing.
+    expect(HENSCHEN_CONFIGS['48171']).toBeUndefined();
   });
 
   it('20. Randall County (48381) is in HENSCHEN_FIPS_SET', () => {

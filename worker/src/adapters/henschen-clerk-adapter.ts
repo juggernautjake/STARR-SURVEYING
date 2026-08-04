@@ -85,12 +85,9 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
     countyDisplayName: 'Burnet County',
     hasImageAccess: true,
   },
-  '48299': {  // Llano County
-    baseUrl: 'https://llano.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Llano County',
-    hasImageAccess: true,
-  },
+  // 48299 removed 2026-08-04 (R39d): its real portal is Kofile PublicSearch, not a
+  // Henschen deployment. The host recorded here never existed — see the block header.
+  // Recorded in KOFILE_IDENTIFIED_NOT_DRIVEN until a search has actually been driven.
   '48319': {  // Mason County
     baseUrl: 'https://mason.co.texas.us',
     searchPath: '/ClerkInquiry/',
@@ -138,12 +135,9 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
     countyDisplayName: 'Sutton County',
     hasImageAccess: false,
   },
-  '48171': {  // Gillespie County
-    baseUrl: 'https://records.gillespiecountyclerk.com',
-    searchPath: '/',
-    countyDisplayName: 'Gillespie County',
-    hasImageAccess: true,
-  },
+  // 48171 removed 2026-08-04 (R39d): its real portal is Kofile PublicSearch, not a
+  // Henschen deployment. The host recorded here never existed — see the block header.
+  // Recorded in KOFILE_IDENTIFIED_NOT_DRIVEN until a search has actually been driven.
   // 48281, not 48283 — 48283 is La Salle County, 250 miles south. Filed under the wrong FIPS since
   // this table was written, so a Lampasas lookup missed and a La Salle lookup would have been sent
   // to Lampasas's clerk. Harmless only because the Henschen adapter's URLs are all dead and the

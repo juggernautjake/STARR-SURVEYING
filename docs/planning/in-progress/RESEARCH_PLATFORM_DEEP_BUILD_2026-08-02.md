@@ -4427,3 +4427,60 @@ found one at a time, the way Burnet was — and then driven.
 
 **Correction to the slice table above:** the R4b row still reads *"the remaining **12** AI call
 sites"*. **R4b is at zero** (see the entry earlier in this section). Ninth stale status line.
+
+### ✅ R39c/R39d DONE 2026-08-04 — four counties hunted individually, and two were on a proven vendor all along
+
+R38's method is the only one left once no URL pattern generalises: **open the county's own website and
+read where it says its records are.** Four done.
+
+| county | what the config claimed | what the county says |
+|---|---|---|
+| **Burnet** | Henschen at `burnet.co.texas.us` (ENOTFOUND) | **Tyler**, at `burnetcountytx-web.tylerhost.net` — linked from burnetcountytexas.org |
+| **Gillespie** | Henschen at `records.gillespiecountyclerk.com` (ENOTFOUND) | **Kofile PublicSearch**, at `gillespie.tx.publicsearch.us` — linked from gillespiecounty.gov |
+| **Llano** | Henschen at `llano.co.texas.us` (ENOTFOUND) | **Kofile PublicSearch**, at `llano.tx.publicsearch.us` |
+| **Lampasas** | eDocTec (correct) | eDocTec **from June 2023**, and **Kofile for 1932–2023** |
+
+#### ▶ The finding worth acting on: the real portals are on vendors already proven
+
+Gillespie and Llano both resolve to **35.247.2.99** — the same cluster as the proven Bell and Travis
+portals — and both render an official clerk record search with the exact field labels this adapter
+drives. Gillespie's own county site links to it.
+
+So the platform was not missing coverage for these counties. **It held confident coverage of nothing**,
+while the working portal sat on a vendor it had already proven, at precisely the hostname
+`KofileClerkAdapter` derives for a county with no explicit config. That is the shape R38 existed to
+find, and it is worse than a gap: a gap is visible.
+
+Both are recorded in `KOFILE_IDENTIFIED_NOT_DRIVEN`, **not** added to `KOFILE_CONFIGS`. That file's
+own bar is *"the search form was driven, rows came back, and the headers mapped — nothing goes in
+this table because a URL returned 200"*, and a search has not been executed. Identification is not
+proving, and this document has the receipts for what happens when the two are conflated: 53 claimed
+counties against 21 verified.
+
+The two fictional Henschen entries are **deleted**, and the two tests that pinned them are inverted
+with the evidence inline.
+
+#### ▶ And a second date-split index, which makes it a pattern
+
+R39c found Lampasas split across two vendors by date. Gillespie's clerk page describes the same shape
+— *"Index Books and associated documents from the county's Sovereignty to 1989"* alongside the modern
+portal. **`getClerkSystem` returns one vendor per county**, so a chain of title searched through the
+modern index alone silently misses the older half — and for a surveyor the senior deed that fixes a
+boundary is far likelier to be from 1954 than from last year.
+
+Recorded as `EDOCTEC_COVERAGE` for Lampasas, with the earlier records' location. Modelling it properly
+means routing to two vendors and merging, which changes the shape of every caller — a real slice with
+a design question in it ("what does a chain walk do when half its range lives elsewhere?"), not a
+drive-by.
+
+#### ▶ One thing to carry forward
+
+Both PublicSearch pages now say **"Powered by Neumo"**, not Kofile or GovOS. Same product, same
+labels, same cluster — a rebrand. Worth knowing before somebody reads it, concludes the adapter is
+pointed at the wrong vendor, and rewrites something that works.
+
+Worker suite **1,543 green**; 22,730 root tests; `tsc`, `eslint` and `npm run build` clean.
+
+**Twelve Henschen counties and six Fidlar counties remain** — each needs its own site read, the way
+these four were. It is slow, it does not generalise, and it is the only method that has produced a
+correct answer.

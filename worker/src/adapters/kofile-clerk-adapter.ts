@@ -1195,3 +1195,51 @@ Return ONLY valid JSON, no explanation. If no results visible, return [].`,
     };
   }
 }
+
+/**
+ * Counties whose PublicSearch portal was IDENTIFIED but not yet DRIVEN (plan R39d, 2026-08-04).
+ *
+ * ── WHY THESE ARE NOT IN `KOFILE_CONFIGS` ───────────────────────────────────────────────────────
+ *
+ * The bar in this file is explicit: *"Verified means the search form was driven, rows came back, and
+ * the headers mapped. Nothing goes in this table because a URL returned 200 — that is exactly how
+ * the platform ended up claiming 53 Kofile counties when it had 21."*
+ *
+ * These two clear every check short of that one:
+ *
+ *   * both hosts resolve, on **35.247.2.99** — the same address as the proven `bell` and `travis`
+ *     portals, i.e. the same PublicSearch cluster;
+ *   * both render an official county-clerk record search naming the right county and clerk;
+ *   * both expose the field labels this adapter drives — *Search Term*, *Date Range*,
+ *     *Recorded Date*, *Search Index & Full Text (OCR)*;
+ *   * Gillespie's own county website links to it as its records portal.
+ *
+ * What has NOT happened is a search executed and its rows parsed. So they are recorded here, where
+ * a proving pass can pick them up, and they route nowhere.
+ *
+ * ── WHY IT MATTERS THAT THEY WERE FOUND AT ALL ──────────────────────────────────────────────────
+ *
+ * Both were in `HENSCHEN_CONFIGS`, pointed at `llano.co.texas.us` and `records.gillespiecountyclerk.com`
+ * — hostnames that **do not exist and never did** (R39b measured all 16 Henschen hosts as ENOTFOUND).
+ * So the platform believed it knew where these counties' records were, and was wrong; the real
+ * portals are on a vendor it has already proven, under the exact hostname pattern this adapter
+ * derives for a county with no explicit config.
+ *
+ * ── ONE THING TO CARRY INTO THE DRIVEN PASS ─────────────────────────────────────────────────────
+ *
+ * Both pages now say **"Powered by Neumo"**, not Kofile or GovOS. Same product, same field labels,
+ * same cluster — a rebrand, not a different system. Worth knowing before somebody reads "Neumo" on
+ * screen, concludes the adapter is pointed at the wrong vendor, and rewrites something that works.
+ */
+export const KOFILE_IDENTIFIED_NOT_DRIVEN: Record<string, { county: string; url: string; evidence: string }> = {
+  '48171': {
+    county: 'Gillespie',
+    url: 'https://gillespie.tx.publicsearch.us',
+    evidence: "linked from gillespiecounty.gov as the county's records portal; resolves on the proven cluster; clerk named on the page",
+  },
+  '48299': {
+    county: 'Llano',
+    url: 'https://llano.tx.publicsearch.us',
+    evidence: 'resolves on the proven cluster; renders the Llano County clerk record search with the expected field labels',
+  },
+};
