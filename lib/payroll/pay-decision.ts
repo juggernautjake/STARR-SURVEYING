@@ -25,7 +25,7 @@
 //     deliberate. There is no shape of "I decided nothing" — that state is *not having decided*.
 //
 // What it deliberately allows, because the owner is the authority on pay:
-//   • A rate outside the grade's advisory band — reported by `resolvePayRate`, never blocked here.
+//   • Any rate at all, high or low. Nothing here second-guesses the number a person typed.
 //   • $0.00 for a block, as long as somebody typed it. Unpaid time is a real outcome.
 //   • A total that differs from what the rules computed at submission. That difference is the
 //     entire point of an approval step.
@@ -64,7 +64,7 @@ export type PayDecisionResult =
   | { ok: true; decision: PayDecisionTotals }
   | { ok: false; error: string };
 
-/** A rate above this is refused as a slip. Well clear of the firm's top grade — an RPLS band tops out at $75. */
+/** A rate above this is refused as a slip. Well clear of anything a survey firm pays by the hour. */
 const IMPLAUSIBLE_RATE = 1000;
 
 /** Hours are compared to the nearest cent-equivalent, so 0.25-hour increments never fail on float noise. */
@@ -99,7 +99,7 @@ export function buildPayDecision(input: PayDecisionInput): PayDecisionResult {
         return { ok: false, error: `Block ${index + 1} has a rate of ${block.rate}. A rate cannot be negative.` };
       }
       if (rate > IMPLAUSIBLE_RATE) {
-        return { ok: false, error: `Block ${index + 1} is set to $${rate}/hr. That is almost certainly a typo — the highest configured grade tops out well below it.` };
+        return { ok: false, error: `Block ${index + 1} is set to $${rate}/hr. That is almost certainly a typo.` };
       }
       rate = round2(rate);
     }

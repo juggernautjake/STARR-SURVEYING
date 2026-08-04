@@ -44,6 +44,9 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // customer conversion values and hashed identifiers, and it writes into the ad account's record of what
   // has been uploaded. That is a commercial control, not a work queue.
   { prefix: '/admin/marketing', roles: ['admin'] },
+  // Editing what an activity pays changes everybody's wages, so it sits with payroll rather than
+  // with the work queues that tech_support can reach.
+  { prefix: '/admin/pay-rates', roles: ['admin', 'developer'] },
   { prefix: '/admin/hours-approval', roles: ['admin', 'developer', 'tech_support'] },
   // `researcher` added 2026-08-04, when 'My Jobs' was folded into 'Assignments'. The retired entry
   // offered it to researchers and pointed at the Hub, which is open to everyone — so the mismatch

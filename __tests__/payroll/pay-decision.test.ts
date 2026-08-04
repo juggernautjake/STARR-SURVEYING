@@ -142,19 +142,17 @@ describe('buildPayDecision — what it allows, because the owner is the authorit
 describe('defaultDecisionBlocks', () => {
   it('opens on the rules’ own answer, so agreeing is one click', () => {
     const resolved: ResolvedRate = {
-      rate: 30.5, source: 'activity', explanation: '$30.50/hr — …',
-      breakdown: null, floorApplied: false, actingBonus: 0, outOfBand: null,
+      rate: 25, source: 'base', explanation: '$25.00/hr — base pay.',
     };
     const blocks = defaultDecisionBlocks(8, resolved, 'Field work', 'field_work');
     expect(blocks).toHaveLength(1);
-    expect(blocks[0].rate).toBe(30.5);
+    expect(blocks[0].rate).toBe(25);
     expect(buildPayDecision({ submittedHours: 8, blocks }).ok).toBe(true);
   });
 
   it('carries an unset rate through as unset rather than inventing one', () => {
     const resolved: ResolvedRate = {
       rate: null, source: 'unset', explanation: 'No rate set…',
-      breakdown: null, floorApplied: false, actingBonus: 0, outOfBand: null,
     };
     expect(defaultDecisionBlocks(8, resolved, 'Hours', null)[0].rate).toBeNull();
   });

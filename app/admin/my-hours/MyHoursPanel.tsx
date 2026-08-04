@@ -26,7 +26,6 @@ interface ResolvedRate {
   rate: number | null;
   source: 'manual' | 'override' | 'activity' | 'base' | 'unset';
   explanation: string;
-  floorApplied: boolean;
 }
 
 /** `/api/admin/time-logs/rates` → `menu`: every option, priced for the person asking. */
@@ -37,6 +36,8 @@ interface RateMenu {
     label: string;
     icon: string | null;
     base_rate: number;
+    /** 'base' pays the person's own rate; 'flat' pays base_rate to everybody. */
+    rate_mode: 'base' | 'flat';
     resolved: ResolvedRate;
   }>;
 }
@@ -44,7 +45,6 @@ interface RateMenu {
 interface PayBasis {
   job_title: string | null;
   tier_label: string | null;
-  years_employed: number;
   base_pay: number | null;
   note: string | null;
 }
@@ -510,13 +510,11 @@ export default function MyHoursPanel() {
                 <span><strong>{formatCurrency(payBasis.base_pay)}/hr</strong> agreed base pay</span>
               )}
               {payBasis.tier_label && <span>{payBasis.tier_label}</span>}
-              {payBasis.base_pay != null && (
-                <span>{payBasis.years_employed} {payBasis.years_employed === 1 ? 'year' : 'years'} in</span>
-              )}
               {payBasis.note && <span className="tl-pay-basis__note">{payBasis.note}</span>}
               {payBasis.base_pay != null && (
                 <span className="tl-pay-basis__note">
-                  Activity rates below include your grade and seniority, and never pay below your agreed base.
+                  Most work pays your base pay. A few activities have a set rate that is the same for
+                  everyone — those are marked below.
                 </span>
               )}
             </div>
@@ -585,18 +583,19 @@ export default function MyHoursPanel() {
                             ? 'Not specified — let the boss decide'
                             : `Base pay${rateMenu?.base.rate != null ? ` (${formatCurrency(rateMenu.base.rate)}/hr)` : ''} — no specific activity`}
                         </option>
-                        {workTypes.filter((w) => w.is_active).map((w) => {
-                          // The person's own rate for this activity, not the firm's list price.
-                          const mine = rateMenu?.activities.find((a) => a.work_type === w.work_type)?.resolved;
-                          return (
-                            <option key={w.work_type} value={w.work_type}>
-                              {w.icon} {w.label}
-                              {mine?.rate != null
-                                ? ` (${formatCurrency(mine.rate)}/hr)`
-                                : ` (${formatCurrency(w.base_rate)}/hr base)`}
-                            </option>
-                          );
-                        })}
+                        {/*
+                          Priced from the menu, never from `work_type_rates.base_rate` — for an
+                          ordinary activity that column is ignored entirely (field work pays the
+                          person's own rate), so showing it would put a number on screen that
+                          nobody is ever paid.
+                        */}
+                        {(rateMenu?.activities ?? []).map((a) => (
+                          <option key={a.work_type} value={a.work_type}>
+                            {a.icon} {a.label}
+                            {a.resolved.rate != null ? ` — ${formatCurrency(a.resolved.rate)}/hr` : ''}
+                            {a.rate_mode === 'flat' ? ' (set rate)' : ''}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div className="tl-form-group tl-form-group--hours">
@@ -613,9 +612,10 @@ export default function MyHoursPanel() {
                     </div>
                   </div>
                   {/*
-                    The working, shown rather than implied. "$30.50/hr — $20.00 field work + $10.00
-                    party chief + $0.50 seniority" is checkable; a bare $30.50 next to a $25 on the
-                    My Pay page is what made this look like two systems disagreeing.
+                    Where the number came from, shown rather than implied. "$25.00/hr — base pay,
+                    the rate for field work" and "$15.00/hr — the set rate for driving, the same for
+                    everyone" are both checkable; a bare figure is what made this look like two
+                    systems disagreeing.
                   */}
                   {resolved && (
                     <div className={`tl-entry-card__rate tl-entry-card__rate--${resolved.source}`}>

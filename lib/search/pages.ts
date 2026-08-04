@@ -38,6 +38,10 @@ export interface PageHit {
 const WEIGHT = { title: 100, keyword: 60, description: 30, path: 10 } as const;
 
 function visibleTo(route: AdminRoute, roles: readonly string[]): boolean {
+  // Parked routes are hidden from everybody, including admins. A parked feature is one deliberately
+  // taken out of circulation — offering it in search would put it back in circulation through the
+  // one door that skips the menus.
+  if (route.parked) return false;
   // No `roles` on the route means every signed-in user may open it. Mirrors the rail's own rule
   // rather than restating a stricter one — a search that hides pages the menu shows would read as
   // the search being broken.

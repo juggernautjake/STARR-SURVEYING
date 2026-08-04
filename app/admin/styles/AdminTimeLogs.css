@@ -575,6 +575,49 @@
   margin-top: 1rem;
 }
 
+/* ---- Pay-rates management (/admin/pay-rates) ---- */
+.tl-rate-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
+.tl-rate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #fff);
+}
+.tl-rate-row__icon { font-size: 1.2rem; align-self: center; }
+.tl-rate-row__name { flex: 1 1 12rem; min-width: 0; display: flex; flex-direction: column; gap: 0.1rem; }
+.tl-rate-row__desc { font-size: 0.75rem; color: var(--theme-fg-muted, #6B7280); }
+.tl-rate-row label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; }
+.tl-rate-row label span { color: var(--theme-fg-muted, #6B7280); }
+.tl-rate-row select,
+.tl-rate-row input {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  min-height: 38px;
+}
+.tl-rate-row__rate input { width: 7rem; }
+.tl-rate-row__new-name { flex: 1 1 14rem; }
+/* "varies by person" occupies the same slot the rate box would, so the rows stay aligned whichever
+   mode an activity is in. */
+.tl-rate-row__varies {
+  width: 7rem;
+  align-self: center;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--theme-fg-muted, #6B7280);
+}
+.tl-rate-row--new { border-style: dashed; align-items: center; }
+.tl-rate-row--retired { opacity: 0.7; }
+.tl-rate-retired { margin-top: 1.5rem; }
+.tl-rate-retired h4 { margin: 0 0 0.25rem; font-size: 0.95rem; color: var(--theme-fg-primary, #1F2937); }
+.tl-rate-retired__note { margin: 0 0 0.6rem; font-size: 0.78rem; color: var(--theme-fg-muted, #6B7280); }
+
 /* ---- What the approver decided, as the employee sees it ---- */
 .tl-history-entry__decision {
   margin-top: 0.35rem;

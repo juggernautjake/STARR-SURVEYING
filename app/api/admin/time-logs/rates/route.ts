@@ -57,29 +57,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     results.earned_credentials = data || [];
   }
 
-  // ── THE RATE THIS PERSON ACTUALLY EARNS (owner report, 2026-08-04) ──────────────────────────
+  // ── WHAT THIS PERSON IS PAID (owner decision, 2026-08-04) ───────────────────────────────────
   //
-  // *"On my payment page it shows my base pay is $25 an hour, but when I go to My Hours to log
-  // hours, it shows a bunch of different roles at different pay rates and it doesn't show the $25.
-  // This is inconsistent."*
+  // `menu` is the whole of it: every activity, priced. Under the simple model that means either
+  // the person's own base pay (ordinary work) or the activity's set rate — "if people are riding
+  // in a vehicle for an hour to a job, then they all get $15". `menu.base` is the no-activity
+  // option.
   //
-  // It was inconsistent because three models answered that one question off three sets of tables —
-  // the full account is in the header of `lib/payroll/resolve-rate.ts`. The picker was not showing a
-  // *wrong* number; it was showing a *different* one from the number the person had been told they
-  // earn, with nothing on screen to say either was partial.
+  // This endpoint, the approval screen and the hours submission all read the same call, so they
+  // cannot drift apart the way four hand-rolled copies of a formula did.
   //
-  // `menu` now comes from the consolidated model, so this endpoint, the approval screen and the
-  // payroll run cannot drift apart again. Each entry carries the rate, which rule produced it, and a
-  // sentence explaining it, so the picker can show
-  // "$30.50/hr — $20.00 field work + $10.00 party chief + $0.50 seniority" rather than a bare figure
-  // the reader has to take on trust.
-  //
-  // `menu.base` is the no-activity option: the agreed base pay. That is the row for *"we should also
-  // be able to apply the base pay too"* and for *"submit the hours without any payment option"*.
-  //
-  // Permission note: `effective_for` is already covered by the self-or-admin gate at the top of this
-  // handler via the `email` param, but that gate keys off `email`, not this one. Checking it
-  // explicitly here means adding a parameter cannot quietly widen who can read whose pay.
+  // Permission note: `effective_for` is NOT covered by the self-or-admin gate at the top of this
+  // handler — that one keys off `email`. Checking it explicitly means adding a parameter cannot
+  // quietly widen who can read whose pay.
   const forEmail = searchParams.get('effective_for') ?? session.user.email;
   if (!isAdmin(session.user.roles) && forEmail !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -88,33 +78,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (forEmail && !table) {
     const config = await loadPayConfig();
     const person = await loadPersonPayFacts(forEmail, config);
-    const menu = rateMenuFor(person, config, searchParams.get('role_on_job'));
+    const menu = rateMenuFor(person, config);
 
     results.menu = menu;
     results.effective_for = forEmail;
-    // Stated rather than assumed. Without a profile there is no grade and no tenure, so every rate
-    // is the activity's list price — saying so stops "why is mine the same as the intern's" from
-    // being a mystery the reader has to solve.
+    // Stated rather than assumed. Somebody with no profile has no base pay, so every ordinary
+    // activity resolves to nothing at all — saying so stops an empty rate being a puzzle.
     results.effective_basis = {
       job_title: person.tierKey,
       tier_label: person.tierLabel,
-      years_employed: person.yearsEmployed,
       base_pay: person.basePay,
-      band: person.band,
       note: person.hasProfile
         ? null
-        : 'No employee profile — showing list rates only, with no grade, seniority or agreed base pay.',
+        : 'No base pay is set for this person, so only the fixed-rate activities have a rate.',
     };
 
-    // Kept under its original key so existing callers keep working while they move over. It is the
-    // same numbers, flattened.
+    // Kept under its original key so existing callers keep working while they move over.
     results.effective = menu.activities.map((entry) => ({
       work_type: entry.work_type,
       label: entry.label,
+      rate_mode: entry.rate_mode,
       effectiveRate: entry.resolved.rate,
       source: entry.resolved.source,
       explanation: entry.resolved.explanation,
-      ...(entry.resolved.breakdown ?? {}),
     }));
   }
 

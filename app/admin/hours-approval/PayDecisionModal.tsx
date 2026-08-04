@@ -16,8 +16,8 @@
 // Everything in that paragraph is on this screen, and nothing that is not:
 //
 //   • the employee's agreed base pay, stated at the top, always, without being asked for;
-//   • every activity rate **priced for this person** — grade, seniority and credentials included,
-//     never the firm's list price, since the whole point is deciding what THIS person is owed;
+//   • every activity, priced: ordinary work at this person's own base pay, and the fixed-rate
+//     activities at the rate everybody gets for them;
 //   • split the day into as many blocks as you like, each on its own rate;
 //   • or type a unique amount on any block;
 //   • or leave a block unpriced, which pays nothing yet and says so rather than paying zero;
@@ -33,8 +33,6 @@ interface ResolvedRate {
   rate: number | null;
   source: 'manual' | 'override' | 'activity' | 'base' | 'unset';
   explanation: string;
-  floorApplied: boolean;
-  outOfBand: { band: { min: number; max: number }; direction: 'below' | 'above' } | null;
 }
 
 interface Block {
@@ -51,6 +49,8 @@ interface MenuActivity {
   label: string;
   icon: string | null;
   base_rate: number;
+  /** 'base' pays the person's own rate; 'flat' pays base_rate to everybody. */
+  rate_mode: 'base' | 'flat';
   resolved: ResolvedRate;
 }
 
@@ -59,8 +59,7 @@ interface DecisionPayload {
   payable_hours: number;
   person: {
     email: string; name: string | null; base_pay: number | null;
-    tier_label: string | null; years_employed: number; has_profile: boolean;
-    band: { min: number; max: number } | null;
+    tier_label: string | null; has_profile: boolean;
   };
   menu: { base: ResolvedRate; activities: MenuActivity[] };
   decision: { payout_note: string | null; decided_by: string; decided_at: string } | null;
@@ -232,14 +231,9 @@ export default function PayDecisionModal({
                 ? <span> — {money(data.person.base_pay)}/hr agreed base pay</span>
                 : <span className="tl-pay-who__warn"> — no agreed pay rate set</span>}
               {data.person.tier_label && <span> · {data.person.tier_label}</span>}
-              {data.person.base_pay != null && (
-                <span> · {data.person.years_employed} {data.person.years_employed === 1 ? 'year' : 'years'} in</span>
-              )}
-              {data.person.band && (
-                <span className="tl-pay-who__band">
-                  Usual range for this grade: {money(data.person.band.min)}–{money(data.person.band.max)}/hr
-                </span>
-              )}
+              <span className="tl-pay-who__band">
+                Ordinary work pays their base pay. Activities marked &ldquo;set rate&rdquo; pay the same to everyone.
+              </span>
             </div>
 
             <div className="tl-pay-entry">
@@ -272,11 +266,14 @@ export default function PayDecisionModal({
                         <option value={BASE_CHOICE}>
                           Base pay{data.menu.base.rate != null ? ` — ${money(data.menu.base.rate)}/hr` : ' — not set'}
                         </option>
-                        {/* Every activity, priced for this person. This is the "reference for all of
-                            the other activities' pay levels" the owner asked for. */}
+                        {/* Every activity, priced. The set-rate ones are labelled as such so the
+                            approver can see at a glance which figures are personal and which are
+                            the same for everybody. */}
                         {data.menu.activities.map((a) => (
                           <option key={a.work_type} value={a.work_type}>
-                            {a.label}{a.resolved.rate != null ? ` — ${money(a.resolved.rate)}/hr` : ''}
+                            {a.label}
+                            {a.resolved.rate != null ? ` — ${money(a.resolved.rate)}/hr` : ''}
+                            {a.rate_mode === 'flat' ? ' (set rate)' : ''}
                           </option>
                         ))}
                         <option value={MANUAL_CHOICE}>A unique amount…</option>

@@ -189,11 +189,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const results = [];
   for (const entry of entries) {
-    const resolved = rateFor(payFacts, payConfig, {
-      workType: entry.work_type,
-      roleOnJob: entry.role_on_job,
-    });
-    const breakdown = resolved.breakdown;
+    const resolved = rateFor(payFacts, payConfig, { workType: entry.work_type });
 
     const { data, error } = await supabaseAdmin
       .from('daily_time_logs')
@@ -210,10 +206,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         description: entry.description,
         notes: entry.notes || null,
         status: 'pending',
-        base_rate: breakdown?.baseRate ?? null,
-        role_bonus: breakdown?.roleBonus ?? null,
-        seniority_bonus: breakdown?.seniorityBonus ?? null,
-        credential_bonus: (breakdown?.credentialBonusCapped ?? 0) + (breakdown?.xpBonusCapped ?? 0) || null,
+        // The bonus columns stay NULL. Under the simple model there are no bonuses to record —
+        // an hour is worth the person's base pay or the activity's set rate, and nothing is
+        // stacked. Writing 0 into them would draw a "+ $0.00 seniority" line on every screen that
+        // reads this row, which is a graduated system pretending to be present.
+        base_rate: resolved.rate,
+        role_bonus: null,
+        seniority_bonus: null,
+        credential_bonus: null,
         effective_rate: resolved.rate,
         // Null, not zero, when no rate is set. A zero here would total into a pay period as
         // "worked for free" instead of "waiting on a decision", and the difference is somebody's

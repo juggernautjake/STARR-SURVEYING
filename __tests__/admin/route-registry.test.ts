@@ -157,9 +157,27 @@ describe('route-registry — breadcrumb trail (F1)', () => {
 });
 
 describe('route-registry — access filtering', () => {
-  it('admin sees every route', () => {
+  it('admin sees every route that is not parked', () => {
     const visible = accessibleRoutes({ roles: ['admin'], isCompanyUser: true });
-    expect(visible.length).toBe(ADMIN_ROUTES.length);
+    expect(visible.length).toBe(ADMIN_ROUTES.filter((r) => !r.parked).length);
+  });
+
+  it('parked routes are hidden from admins too — that is what parked means', () => {
+    // A parked feature is deliberately out of circulation. Exempting admins would put it back in
+    // circulation for exactly the people who decide what the firm uses.
+    const parked = ADMIN_ROUTES.filter((r) => r.parked);
+    const visible = accessibleRoutes({ roles: ['admin'], isCompanyUser: true });
+    for (const route of parked) {
+      expect(visible.some((r) => r.href === route.href), `${route.href} should be hidden`).toBe(false);
+    }
+  });
+
+  it('a parked route still resolves, so bookmarks and breadcrumbs keep working', () => {
+    // Parked is not deleted. The distinction matters: the pay-progression pages are wanted back
+    // later, and a 404 in the meantime would look like data loss.
+    for (const route of ADMIN_ROUTES.filter((r) => r.parked)) {
+      expect(findRoute(route.href)).toBeTruthy();
+    }
   });
 
   it('non-company users never see internalOnly routes', () => {

@@ -91,6 +91,18 @@ export interface AdminRoute {
    *  landings, fly-outs, expanded panel) while keeping it searchable in
    *  the Cmd+K palette and resolvable for breadcrumbs. */
   showInRail?:   boolean;
+  /** Parked: a feature deliberately taken out of circulation, not deleted.
+   *
+   *  Stronger than `showInRail: false` — a parked route is hidden from the rail AND from search,
+   *  so it does not surface anywhere a person browses. The page still exists and still resolves,
+   *  so a bookmark works, breadcrumbs read correctly, and nothing 404s.
+   *
+   *  Used for the pay-progression system, 2026-08-04: *"put the whole pay progression and
+   *  seniority thing on hold and hide it from surfacing for now… eventually we might work with
+   *  balancing everything for job types, role types, seniority, certifications/education level."*
+   *  Deleting it would have thrown away working, tested code that is wanted later; leaving it in
+   *  the menus would have offered a pay model the firm does not use. */
+  parked?:       boolean;
   /** True for non-route commands ("Clock in", "Run AI engine"). For
    *  Phase 1 the registry only ships routes; actions land in slice 1b
    *  alongside the palette. */
@@ -174,6 +186,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // period" for ONE resource type, and the dispatcher's actual question — "for Thursday, what can I
   // send" — spans crew, equipment and vehicles at once. In the rail because it is asked daily.
   { href: '/admin/availability',    label: 'Availability',    workspace: 'work', iconName: 'CalendarClock', description: 'Who and what can go out on one day — crew, equipment and vehicles together, with the reason for anything that cannot.', roles: ['admin', 'developer', 'tech_support', 'equipment_manager'], internalOnly: true, keywords: ['dispatch', 'free', 'available', 'thursday', 'who is free', 'schedule', 'crew', 'assign', 'book'] },
+  // The pay model is two screens: this one sets what each ACTIVITY pays, /admin/payroll sets what
+  // each PERSON is on. Registered so it is reachable and searchable — an unlinked settings page is
+  // a setting nobody can change.
+  { href: '/admin/pay-rates',       label: 'Pay Rates',       workspace: 'work', iconName: 'DollarSign',    description: 'What each activity pays — the person’s base pay, or a set rate everyone gets.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['rate', 'rates', 'pay', 'hourly', 'driving', 'activity', 'work type', 'base pay', 'money'] },
   { href: '/admin/hours-approval',  label: 'Hours Approval',  workspace: 'work', iconName: 'CheckSquare',   description: 'Approve submitted timesheets.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['timesheet', 'approve'] },
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
   { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
@@ -261,7 +277,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // workspace.
   { href: '/admin/roles/custom',          label: 'Role Builder',     workspace: 'office', section: 'People', iconName: 'ShieldPlus',   description: 'Define new roles on top of the built-in role list.', roles: ['admin'], internalOnly: true, keywords: ['permissions', 'roles', 'custom'] },
   { href: '/admin/payroll',               label: 'Payroll',          workspace: 'money', section: 'Money out', iconName: 'BadgeDollarSign', description: 'Payroll runs.', roles: ['admin'], internalOnly: true, keywords: ['paychecks', 'wages'] },
-  { href: '/admin/pay-progression',       label: 'Pay Progression',  workspace: 'money', section: 'Money out', iconName: 'TrendingUp',   description: 'Pay rate progression model.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raises', 'progression'] },
+  // PARKED 2026-08-04. The graduated model — role tiers, seniority brackets, credential bonuses,
+  // XP milestones — is on hold at the owner's request in favour of base pay plus a handful of set
+  // activity rates. The page and its data are intact; it is simply not offered anywhere. See
+  // docs/planning/in-progress/PAY_MODEL_CONSOLIDATION_2026-08-04.md.
+  { href: '/admin/pay-progression',       label: 'Pay Progression',  workspace: 'money', section: 'Money out', iconName: 'TrendingUp',   description: 'Pay rate progression model.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, parked: true, keywords: ['raises', 'progression'] },
   { href: '/admin/payout-log',            label: 'Payout History',   workspace: 'money', section: 'Money out', iconName: 'ScrollText',   description: 'Historical payout log.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
   { href: '/admin/receipts',              label: 'Receipts',         workspace: 'money', section: 'Money out', iconName: 'Receipt',      description: 'Receipt approval queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['expenses', 'approvals'] },
   { href: '/admin/receipts/new',          label: 'Capture Receipt',  workspace: 'money', section: 'Money out', iconName: 'Camera',       description: 'Upload a receipt photo for approval.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['upload', 'photo', 'expense'] },
@@ -414,6 +434,9 @@ export function accessibleRoutes(opts: {
   const { roles, isCompanyUser } = opts;
   const isAdmin = roles.includes('admin');
   return ADMIN_ROUTES.filter((r) => {
+    // Parked first, before any role logic: it hides the route from everybody including admins,
+    // which is the point. `findRoute` still resolves it, so breadcrumbs and direct links work.
+    if (r.parked) return false;
     if (r.internalOnly && !isCompanyUser) return false;
     if (!r.roles) return true;
     if (isAdmin) return true;

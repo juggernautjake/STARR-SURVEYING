@@ -104,8 +104,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       base_pay: person.basePay,
       tier_key: person.tierKey,
       tier_label: person.tierLabel,
-      years_employed: person.yearsEmployed,
-      band: person.band,
       has_profile: person.hasProfile,
     },
     menu,
