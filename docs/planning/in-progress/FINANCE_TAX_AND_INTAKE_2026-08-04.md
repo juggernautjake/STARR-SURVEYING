@@ -385,3 +385,52 @@ commercially sensitive, and a field crew member does not act on one). **Delibera
 here:** who sees inbound work is a business decision, not a refactor, and silently narrowing it could
 stop someone's alerts without their knowing. It is one line in one place when the owner says which
 roles.
+
+---
+
+## ✅ F4 — bulk receipt capture. **DONE 2026-08-04.**
+
+`lib/finance/receipt-batch.ts` + the queue wired into `app/admin/receipts/new/page.tsx`, 23 tests.
+
+The first thing in this document that was genuinely **not** already built. The single-receipt path
+exists (camera viewfinder, file picker, preview, upload) and `/api/admin/receipts/upload` takes one
+file, stores it, and inserts a `pending` row with `extraction_status = 'queued'`. So bulk needs **no
+new API and no new pipeline** — a bulk upload produces exactly the rows a one-at-a-time upload does,
+and the worker cannot tell them apart. What it needed was the queue, the progress, and the failure
+handling.
+
+**The rule: one bad photo in twenty must not sink the batch, or vanish from it.** Two failure modes,
+and the second is worse than the first:
+
+1. `Promise.all` over twenty uploads rejects on the first failure and the caller has no idea which of
+   the other nineteen landed. The obvious mistake.
+2. Swallowing the error so the batch "succeeds" — nineteen filed, one gone, a green tick over the
+   lot. **Nobody re-photographs a receipt they were told was uploaded.**
+
+So every item reaches its own terminal state, `allSucceeded` is deliberately a *different question*
+from `finished`, and the failure reason travels **with the row** — "3 uploads failed" does not tell
+you which three, and a person cannot re-photograph an unnamed receipt.
+
+**Sequential on purpose.** These are 12 MB photos from a phone on site; firing twenty at once
+competes for one uplink, makes every one slower, and turns a flaky connection into twenty
+simultaneous failures instead of one. It also makes the progress honest — "4 of 20" means four are
+*filed*, not four *started*.
+
+**Rejected files stay in the list** rather than being dropped at validation. A file that vanishes
+between the picker and the list is indistinguishable from one the person forgot to select, so they
+never re-add it. Retry is offered for failures only — a rejected file fails validation again.
+
+**The page stays put on a partial batch.** Navigating away would hide exactly the rows that need a
+person, which is the failure the whole slice exists to prevent.
+
+### Two mistakes made and caught here, both worth recording
+
+- **The route's own header comment is stale.** It says *"Returns `{ id, photo_url }` on success"*; it
+  actually returns `{ receipt: inserted }`. Checked against the code rather than trusted — a wrong id
+  would have produced rows the batch could not link to, silently.
+- **The wiring test's comment-stripper broke twice, in opposite directions.** Removing block comments
+  first treated the `image/*` inside a `//` header comment as an opening delimiter and deleted every
+  import; removing `*`-prefixed lines first orphaned a JSDoc opener, whose regex then swallowed the
+  function beneath it. **Both times the checker accused working code** — the most misleading way a
+  checker can fail. It now reads the raw source and asserts *call shapes* (`await runBatch(`, a full
+  `router.push` statement) that prose in that file does not contain. Watched failing.

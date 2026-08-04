@@ -31,6 +31,9 @@ import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  buildBatch, runBatch, progressOf, batchSummary, type BatchProgress,
+} from '@/lib/finance/receipt-batch';
 
 const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
 const ACCEPTED_TYPES_CAMERA = 'image/*';
@@ -55,6 +58,16 @@ export default function NewReceiptPage() {
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // ── F4 — bulk capture ────────────────────────────────────────────────────────────────────────
+  // A separate queue rather than a list-shaped `file`, because the two flows genuinely differ: the
+  // single path previews one image and navigates away on success, while the batch path has to keep
+  // a row per file and stay on screen so failures remain visible and retryable. Collapsing them
+  // would mean the single flow inherits a progress list it never needs, and the batch flow inherits
+  // a preview that only makes sense for one photo.
+  const [batchFiles, setBatchFiles] = useState<File[]>([]);
+  const [batch, setBatch] = useState<BatchProgress | null>(null);
+  const bulkRef = useRef<HTMLInputElement>(null);
 
   // Live-camera state. cameraStream holds the active MediaStream when
   // the viewfinder is open; closing the viewfinder stops every track.
@@ -258,6 +271,56 @@ export default function NewReceiptPage() {
     if (fileRef.current) fileRef.current.value = '';
   }
 
+  /** F4 — pick many at once. `multiple` on the input; everything else is the queue. */
+  function onPickBulk(e: React.ChangeEvent<HTMLInputElement>) {
+    setError(null);
+    const picked = Array.from(e.target.files ?? []);
+    if (bulkRef.current) bulkRef.current.value = '';
+    if (picked.length === 0) return;
+    setBatchFiles(picked);
+    // Show the screened list immediately — including anything rejected — so the person sees what
+    // will and will not upload BEFORE committing, while the folder is still open in their head.
+    setBatch(progressOf(buildBatch(picked)));
+  }
+
+  /** F4 — run the queue against the same single-file endpoint, one at a time.
+   *
+   *  Reuses `/api/admin/receipts/upload` untouched: it already stores the photo and inserts a
+   *  `receipts` row in `pending` with `extraction_status = 'queued'`, so a bulk upload produces
+   *  exactly the same rows a one-at-a-time upload does and the worker cannot tell them apart. */
+  async function onUploadBatch() {
+    if (busy || batchFiles.length === 0) return;
+    setBusy(true);
+    setError(null);
+    const items = buildBatch(batchFiles);
+    const result = await runBatch(
+      items,
+      async (i) => {
+        const form = new FormData();
+        form.append('file', batchFiles[i]);
+        if (jobId.trim()) form.append('jobId', jobId.trim());
+        if (notes.trim()) form.append('notes', notes.trim());
+        const res = await fetch('/api/admin/receipts/upload', { method: 'POST', body: form });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body?.error ?? `Upload failed (${res.status})`);
+        }
+        const json = await res.json().catch(() => ({}));
+        // The route returns `{ receipt: inserted }`. Its own header comment says `{ id, photo_url }`
+        // and is stale — checked against the code rather than trusted, because a wrong id here would
+        // silently produce rows the batch could not link to. Falls back to `id` in case the shape
+        // changes back.
+        return { receiptId: json?.receipt?.id ?? json?.id };
+      },
+      setBatch,
+    );
+    setBusy(false);
+    // Only leave the page when there is nothing left to look at. Navigating away on a partial
+    // batch would hide exactly the rows that need a person — which is the failure this whole slice
+    // exists to prevent.
+    if (result.allSucceeded) router.push('/admin/receipts');
+  }
+
   async function onUpload() {
     if (!file || busy) return;
     setBusy(true);
@@ -330,6 +393,19 @@ export default function NewReceiptPage() {
             aria-hidden
             tabIndex={-1}
           />
+          {/* F4 — the bulk picker. A third input rather than adding `multiple` to the one above,
+              so the single-receipt flow keeps its preview-one-image behaviour unchanged. */}
+          <input
+            ref={bulkRef}
+            type="file"
+            accept={ACCEPTED_TYPES_FILE}
+            multiple
+            onChange={onPickBulk}
+            disabled={busy}
+            style={styles.hiddenInput}
+            aria-hidden
+            tabIndex={-1}
+          />
 
           {cameraOpen ? (
             <CameraViewfinder
@@ -363,6 +439,18 @@ export default function NewReceiptPage() {
                   <span aria-hidden style={styles.captureBtnIcon}>📁</span>
                   <span>Choose a file</span>
                 </button>
+                {/* F4 — the whole point of the slice: a stack of receipts in one go. */}
+                <button
+                  type="button"
+                  onClick={() => { setError(null); bulkRef.current?.click(); }}
+                  disabled={busy}
+                  style={styles.captureBtnSecondary}
+                  aria-label="Choose several receipts or invoices to upload at once"
+                  title="Pick many photos or PDFs at once. Each one is uploaded and queued for extraction separately, so one bad file doesn't stop the others."
+                >
+                  <span aria-hidden style={styles.captureBtnIcon}>🗂️</span>
+                  <span>Upload several at once</span>
+                </button>
               </div>
               {cameraError && (
                 <p role="alert" style={styles.cameraError}>{cameraError}</p>
@@ -375,6 +463,52 @@ export default function NewReceiptPage() {
             </>
           )}
         </div>
+
+        {/* F4 — the batch panel. Stays on screen after the run, because navigating away on a
+            partial batch hides exactly the rows that need a person. */}
+        {batch && batch.total > 0 && (
+          <div style={styles.previewWrap}>
+            <p style={{ fontWeight: 600, margin: '0 0 .5rem' }} role="status">
+              {batchSummary(batch)}
+            </p>
+            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.35rem' }}>
+              {batch.items.map((it) => (
+                <li
+                  key={it.id}
+                  style={{
+                    display: 'flex', justifyContent: 'space-between', gap: '.75rem',
+                    fontSize: '.85rem', padding: '.35rem .5rem', borderRadius: 6,
+                    background:
+                      it.status === 'done' ? '#E7F6EC'
+                        : it.status === 'failed' || it.status === 'rejected' ? '#FDECEC'
+                          : it.status === 'uploading' ? '#EAF0FB' : '#F3F4F6',
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {it.fileName}
+                  </span>
+                  {/* The reason travels with the row. "3 uploads failed" does not tell anyone which
+                      three, and a person cannot re-photograph an unnamed receipt. */}
+                  <span style={{ flexShrink: 0, fontWeight: 600 }}>
+                    {it.status === 'done' ? 'Uploaded'
+                      : it.status === 'uploading' ? 'Uploading…'
+                        : it.status === 'queued' ? 'Waiting'
+                          : it.error ?? 'Failed'}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {!busy && (
+              <button
+                type="button"
+                onClick={() => { setBatch(null); setBatchFiles([]); }}
+                style={styles.clearBtn}
+              >
+                Clear list
+              </button>
+            )}
+          </div>
+        )}
 
         {previewUrl && !cameraOpen && (
           <div style={styles.previewWrap}>
@@ -437,14 +571,28 @@ export default function NewReceiptPage() {
 
         <div style={styles.actions}>
           <Link href="/admin/receipts" style={styles.cancelBtn}>Cancel</Link>
-          <button
-            type="button"
-            onClick={onUpload}
-            disabled={!file || busy}
-            style={{ ...styles.uploadBtn, opacity: !file || busy ? 0.55 : 1, cursor: !file || busy ? 'not-allowed' : 'pointer' }}
-          >
-            {busy ? 'Uploading…' : 'Upload receipt'}
-          </button>
+          {/* F4 — one button, two flows. Which one runs is decided by what the person picked, so
+              there is no mode to set and get wrong. A finished batch disables it rather than
+              re-uploading everything, which would duplicate every receipt that already landed. */}
+          {(() => {
+            const bulk = batchFiles.length > 0;
+            const bulkDone = bulk && (batch?.finished ?? false);
+            const disabled = busy || (bulk ? bulkDone : !file);
+            return (
+              <button
+                type="button"
+                onClick={bulk ? onUploadBatch : onUpload}
+                disabled={disabled}
+                style={{ ...styles.uploadBtn, opacity: disabled ? 0.55 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
+              >
+                {busy
+                  ? 'Uploading…'
+                  : bulk
+                    ? (bulkDone ? 'Batch finished' : `Upload ${batchFiles.length} receipts`)
+                    : 'Upload receipt'}
+              </button>
+            );
+          })()}
         </div>
       </section>
     </main>
