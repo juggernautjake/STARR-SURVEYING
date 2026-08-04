@@ -737,3 +737,49 @@ The negative control re-derives the summary inside the page and fails by name.
 **Still genuinely blocked:** F1b/F2b and the card-registry/pass-through walkthroughs, on seeds
 572/573. `lib/finance/payment-cards.ts` and `cost-recovery.ts` have zero callers *for that reason* —
 recorded here so the next reachability sweep reads it as a known gate rather than a new defect.
+
+## ✅ F7d — the owner's one blocking action, de-risked. **DONE 2026-08-04.**
+
+Everything left in this document waits on one command: `node scripts/apply-seeds.mjs`, which applies
+seeds 572 (`payment_cards`) and 573 (`cost_recoveries`) and unblocks F1b, F2b and the remaining F7
+walkthroughs. **Nothing in this repo checked that those two seeds would actually apply.**
+
+Seeds are not executed by the suite, `tsc` never sees them, and a bad `REFERENCES` is a hard Postgres
+error. So the failure would surface **on the owner's machine, at the moment they ran the one command
+that unblocks the feature** — and it would read as *"your seeds are broken"* rather than *"573 came
+before 323"*.
+
+**Both seeds check out**, verified rather than assumed:
+
+| checked | result |
+|---|---|
+| Idempotency | `CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS` throughout; the RLS policy is guarded by an existence query |
+| `registered_users(id)` | exists, `uuid`, and is the **primary key** — Postgres requires the referenced column to be unique, so a table keyed on `email` would have failed |
+| `customer_invoices(id)` | created in seed **323**, comfortably before 573 |
+| `receipts(id)` · `jobs(id)` | seeds 220 and 000 |
+
+One of those was a genuine near-miss in reasoning: `registered_users` is queried by **email**
+everywhere in this codebase, so "it is probably keyed by email" was the plausible read. It is not —
+`id uuid` with `registered_users_pkey PRIMARY KEY (id)`. The FK is valid, but it was valid by luck
+until checked.
+
+### ▶ Generalised, because per-seed hand-checking is what gets skipped
+
+`__tests__/seeds/fk-targets-exist-in-order.test.ts` sweeps **371 seeds / 335 created tables** and
+fails when any `REFERENCES` names a table that no seed creates, or one created by a *later* seed.
+It found nothing today — which is the point of running it before the owner does.
+
+`auth.users` is the one external table, listed explicitly rather than pattern-matched so a genuine
+`public.users` typo is still caught. Both instrument guards are present (the scan must find seeds,
+and must find `REFERENCES` clauses at all), and **both failure modes were watched failing**: a probe
+seed referencing a table nothing creates, and a low-numbered seed referencing `payment_cards` from
+seed 572 — each named by file and by table in the failure message. Both probes deleted, and the seeds
+directory verified clean afterwards.
+
+It is not a SQL parser and does not replace applying them: column existence, type compatibility and
+constraint validity still need a real database. It answers the one question this layout invites
+someone to get wrong.
+
+**Still blocked, unchanged:** seeds 572/573 are written, verified and unapplied. F1b, F2b and the
+card-registry/pass-through walkthroughs wait on them, and `lib/finance/payment-cards.ts` and
+`cost-recovery.ts` have zero callers for that reason rather than by neglect.
