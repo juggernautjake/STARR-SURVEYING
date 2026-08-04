@@ -1299,10 +1299,42 @@ So "get all the classes built" is **mostly already true**. What is actually left
 > builder and sheet, per-field and whole-draft AI assist, file ingest, images, and both engine bridges.
 > The owner's priority list is therefore satisfied down to "the audit findings".
 >
-> **Start with `P5-7b`** — per-slot screens inside the Levels step. It is the only actionable slice in
-> the owner's priority band, the slot model already returns exactly the list that would drive it, and
-> the doc records it as a presentation change rather than new mechanics. It is a UI slice, so the
-> standing rule applies: **drive it in a browser before ticking it.**
+> ~~**Start with `P5-7b`**~~ — **struck 2026-08-04. `P5-7b` is DONE**, on the unmerged stack. This
+> line survived the correction directly above it, which named `P5-7b` as finished in the same
+> paragraph, and would have sent the next reader to rebuild a shipped slice. A corrected table with an
+> uncorrected instruction underneath it is worse than an uncorrected table, because the instruction is
+> the part people act on.
+>
+> ### ✅ Verification 2026-08-04 — by commit ancestry, NOT by reading the tree
+>
+> Re-checked as item 0 of the handoff instructs. **The method matters here**: this doc's own warning
+> is that a working-tree check cannot see finished-but-unmerged work, and the branch this session ran
+> on does **not** contain the D&D stack (`git merge-base --is-ancestor` → false). So a tree check from
+> here would have reported every item below as *missing* and "confirmed" the overstatement it was
+> meant to correct. Each was instead verified as an ancestor of
+> `origin/claude/dnd-streamer-audit-2026-08-03`:
+>
+> | item | commit | on the stack |
+> |---|---|---|
+> | P5-7b | `8b5428d8f` | ✅ |
+> | P8-2 | `8d56532d4` | ✅ |
+> | P13-13b | `1a3834784` | ✅ |
+> | P14-8 | `5eba42601` | ✅ |
+> | P14-9 | `b6a0275bf` | ✅ |
+> | P14-9b | `c32d6864a` | ✅ |
+> | P14-10 | `0a07571e1` | ✅ |
+> | P14-10b | `fd9645ac4` | ✅ |
+> | P14-11 | `76b26b5d9` | ✅ |
+> | Phase 13 (eight items, ticked by evidence) | `ccc3cb542` | ✅ |
+>
+> Ten for ten. The stack is **20 commits** ahead of `origin/main` as measured today, not the 13 quoted
+> above — that figure counted only the D&D commits and the stack also carries research and docs work.
+>
+> **So the honest remainder of this document is `P10-5b` and the P13 import slices**, and neither
+> should be started before the merge lands: anything built now against a tree missing nine finished
+> slices will be built against the wrong baseline.
+>
+> **The next actionable slice is therefore not in this document at all — it is the merge.**
 
 - [x] **P5-8 — IG Champion. ✅ RESOLVED 2026-07-27, recorded here 2026-08-02.** Never actually blocked:
       Champion IS published on intuitivegames.net/classes. The page **lazy-renders** its subclass blocks, so
