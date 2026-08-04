@@ -829,3 +829,42 @@ policy for what to do when the parse is thin. If no, the current behaviour is co
 above is the whole fix.
 
 29 inbound tests still green; `tsc` and `eslint` clean.
+
+## ✅ F8 — the five orphaned payments modules, triaged. **DONE 2026-08-04.**
+
+`lib-orphan-ratchet` records 41 modules with no production importer and says of itself: *"MEASURED —
+not triaged. Giving each of 44 modules a real reason means investigating 44 modules."* Five of them
+are payment-domain, so they belong to this document. Investigated, one at a time:
+
+| module | verdict |
+|---|---|
+| `payments/rls-allowlist.ts` | **Not a defect.** Documentation-as-code: the canonical list of every payment table and its expected RLS posture, consumed by `payment-rls-audit.test.ts`, which fails the build when a table's posture drifts. Same shape as `dnd/ai-scope.ts` and `glossary/coverage.ts`, which the D&D guard exempts by name. A runtime caller would not make the claim any more true. |
+| `payouts/stripe-payout.ts` | **Owner-gated, as designed.** Its header calls it a *"gated foundation for paying EMPLOYEES via Stripe (Connect transfers)"*. Unreachable because the feature is switched off, not because it was forgotten. |
+| `payments/secrets.ts` | **Unreached because nothing encrypts yet.** An app-layer wrapper over the pgcrypto helpers in seed 324; nothing anywhere calls `pgp_sym_decrypt` or touches a payment secret. The wrapper is not missing a caller — the *feature it wraps* has no data. |
+| `payments/customer-snapshot.ts` | **Superseded in practice.** It merges customer details from several sources into one invoice snapshot. `POST /api/admin/invoices` persists `customer_name` / `customer_email` / `billing_address` **straight from the request body**, and the composer's job-picker auto-fill does the merging in the UI. The helper duplicates a job the screen already does. |
+| `payments/allocation-reports.ts` | **A second revenue answer — the one worth acting on.** See below. |
+
+### ▶ Two modules answer "what revenue did we make", and they read different tables
+
+| | `payments/allocation-reports.ts` | `lib/reports/revenue-periods.ts` |
+|---|---|---|
+| exports | `revenueByPeriod`, `rollupAllocationsByCategory` | `periodWindows`, `sumRevenue` |
+| reached by | **nothing** | `/api/admin/reports?metric=monthly-revenue` |
+| reads | invoice **allocations**, by category | **`job_payments`** |
+| from | `CUSTOMER_INVOICING_PHASE2` (completed) | `hub-widget-excellence-11` |
+
+The wired one arrived **later** and the earlier one was left in place. They do not merely duplicate —
+they sum **different tables**, so they can disagree about the same month, and only one of them is on
+screen. That is the two-copies-drift defect applied to revenue, which is the number a business owner
+is least able to check by eye.
+
+**Not resolved here, deliberately.** S4b and S4c deleted a dead spatial index and a superseded bearing
+helper because the supersession was documented and traceable. This one is not: nothing says
+allocation-reports was replaced, the two read different sources, and choosing between them is a
+question about *which figure the firm considers revenue* — invoiced-and-allocated, or payments
+received. That is the owner's answer, not a refactor.
+
+**Third parallel-implementation pair found today**, after the two spatial indexes (S4b) and the
+worker's two AI-spend trackers (R4b). Recorded together because the pattern is now the finding: this
+codebase grows a second implementation whenever a later slice needs something the earlier one already
+did, and nothing notices until a reachability sweep asks.

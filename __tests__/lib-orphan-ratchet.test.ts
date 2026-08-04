@@ -58,7 +58,20 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
-/** MEASURED 2026-08-04 — not triaged. See the header. It may shrink; it may not grow. */
+/** MEASURED 2026-08-04 — mostly not triaged. See the header. It may shrink; it may not grow.
+ *
+ *  TRIAGED SO FAR (reasons live with the subsystem that owns them, not here):
+ *
+ *    · the five `payments/*` and `payouts/*` entries — FINANCE_TAX_AND_INTAKE_2026-08-04.md §F8.
+ *      Two are legitimate (documentation-as-code; a deliberately gated feature), two are unreached
+ *      because the feature they serve has no data or was superseded by the UI, and one —
+ *      `payments/allocation-reports.ts` — is a SECOND answer to "what revenue did we make", reading
+ *      a different table from the wired `lib/reports/revenue-periods.ts`. That one is an owner
+ *      question, not a refactor.
+ *
+ *  Reasons are deliberately NOT inlined here. This list's job is to notice a new orphan anywhere
+ *  under `lib/`; a paragraph per entry would make it unreadable, and a one-line reason for a module
+ *  nobody investigated is exactly the "list that LOOKS reviewed" the header warns against. */
 const KNOWN_ORPHANS: readonly string[] = [
   'admin/legacy-redirects.ts',
   'cad/ai/mock-proposer.ts',
