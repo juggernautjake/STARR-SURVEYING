@@ -94,7 +94,14 @@ describe('the offline page tells the truth', () => {
   });
 
   it('does not promise data that is deliberately not cached', () => {
-    expect(offline).toContain('live on the\n      server, not on this device');
+    // Line endings normalised before matching. The literal carried a bare `\n`, which cannot match
+    // a working tree checked out with CRLF — so this passed when written and failed the moment git
+    // normalised the file, with nothing about the page having changed.
+    //
+    // Seventh CRLF trap in this repo today, across three different shapes: negative controls that
+    // silently did nothing, a source-slice that swallowed the whole file, and now an exact-match
+    // assertion. **Any check that matches multi-line source text must normalise first.**
+    expect(offline.replace(/\r\n/g, '\n')).toContain('live on the\n      server, not on this device');
   });
 
   it('tells a crew member their work is not lost, which is what they will fear', () => {

@@ -12,12 +12,17 @@ import './starr-dark';
 import './slate-light';
 import './slate-dark';
 import './forest-light';
+import './forest-dark';
 import './sunset';
 import './ocean';
 import './plum';
 import './high-contrast-light';
 import './high-contrast-dark';
 
-// All 10 built-in themes registered. Custom themes land at runtime
+// All 11 built-in themes registered — 10 until 2026-08-04, when `forest-dark` was found declared in
+// `BuiltinThemeId` and present in neither this registry nor themes.css. This comment said "10"
+// beside a type that said eleven, and nothing compared the two. A test does now.
+//
+// Custom themes land at runtime
 // via the picker (slice 106) — they're not registered here because
 // each user's palette varies.

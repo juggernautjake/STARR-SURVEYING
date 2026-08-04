@@ -15,7 +15,7 @@ export const FOREST_LIGHT: ThemeDefinition = {
     bgElevated:   '#DCFCE7',
     fgPrimary:    '#14532D',
     fgSecondary:  '#166534',
-    fgMuted:      '#65A30D',
+    fgMuted:      '#4D7C0F',
     accent:       '#15803D',
     accentFg:     '#FFFFFF',
     border:       '#BBF7D0',

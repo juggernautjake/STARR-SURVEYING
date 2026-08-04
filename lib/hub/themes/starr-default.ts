@@ -15,7 +15,7 @@ export const STARR_DEFAULT: ThemeDefinition = {
     bgElevated:   '#F1F5F9',
     fgPrimary:    '#0F172A',
     fgSecondary:  '#475569',
-    fgMuted:      '#94A3B8',
+    fgMuted:      '#64748B',
     accent:       '#1D3095',
     accentFg:     '#FFFFFF',
     border:       '#E2E8F0',

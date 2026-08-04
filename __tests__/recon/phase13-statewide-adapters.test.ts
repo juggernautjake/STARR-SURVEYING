@@ -586,13 +586,31 @@ describe('Services clerk-registry routing for Phase 13 adapters (services/clerk-
     expect(typeof summary.fidlar).toBe('number');
   });
 
-  it('59. registrySummary.henschen equals HENSCHEN_FIPS_SET.size', () => {
+  // ── 59/60 INVERTED 2026-08-04 (research plan R39b) ─────────────────────────────────────────────
+  //
+  // These pinned `registrySummary.<vendor> === <VENDOR>_FIPS_SET.size` — the exact behaviour that
+  // slice found to be wrong in two directions at once. `getClerkSystem` routes to a vendor only when
+  // `isVendorProven`, so for an unproven vendor the summary credited counties that route elsewhere
+  // AND subtracted them from the TexasFile remainder. Both errors lean the same way: unproven
+  // vendors look real and the fallback that actually serves those counties looks smaller.
+  //
+  // Henschen's sixteen configured hosts are all ENOTFOUND (measured, `check-adapter-hosts.mjs`), so
+  // the old assertions were pinning coverage that has never existed.
+  //
+  // **These failed for a day before being noticed**, because R39b's verification ran the worker
+  // suite — where `clerk-registry.ts` lives — and these tests live in the main repo's `__tests__`.
+  // A module and its tests on opposite sides of a package boundary is a real gap in "run the tests
+  // for what you changed", and the fix is to run both, which the standing rule now says.
+  it('59. registrySummary credits henschen with ZERO, because it is unproven and routes nothing', () => {
     const summary = registrySummary();
-    expect(summary.henschen).toBe(HENSCHEN_FIPS_SET.size);
+    expect(summary.henschen).toBe(0);
+    // …and the configured list is still there, as the R38/R39 work list rather than as coverage.
+    expect(HENSCHEN_FIPS_SET.size).toBeGreaterThan(0);
   });
 
-  it('60. registrySummary.idocket equals IDOCKET_FIPS_SET.size', () => {
+  it('60. registrySummary credits idocket with ZERO for the same reason', () => {
     const summary = registrySummary();
-    expect(summary.idocket).toBe(IDOCKET_FIPS_SET.size);
+    expect(summary.idocket).toBe(0);
+    expect(IDOCKET_FIPS_SET.size).toBeGreaterThan(0);
   });
 });

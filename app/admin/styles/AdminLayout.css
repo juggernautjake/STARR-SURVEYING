@@ -1292,3 +1292,11 @@
   line-height: 1.4;
   box-sizing: border-box;
 }
+
+/* Collapsed nav sections (2026-08-04, owner request: every section starts closed).
+ *
+ * `hidden` alone is enough — the attribute's UA default is `display:none` — but a `display:flex`
+ * rule elsewhere in a stylesheet beats it on specificity, which is a classic way for a `hidden`
+ * element to stay visible. Stated explicitly so the collapse cannot be undone by an unrelated
+ * layout rule later. */
+.admin-sidebar__section-items[hidden] { display: none; }

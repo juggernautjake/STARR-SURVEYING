@@ -122,7 +122,11 @@ describe('an old approved packet does not claim it is clean', () => {
   it('the crew view says so rather than showing an empty warning list', () => {
     const cmp = read('app/admin/jobs/[id]/JobResearchPacket.tsx');
     expect(cmp).toContain('data.brief.warningsUnknown');
-    expect(cmp).toContain('not the\n                same as it having none');
+    // Line endings normalised. The literal carries a bare `\n` and the working tree is CRLF, so
+    // this could only pass on the machine that wrote it. Eighth instance of this trap in the repo
+    // today across three shapes — silent negative controls, a source-slice that swallowed a whole
+    // file, and exact-match assertions like this one.
+    expect(cmp.replace(/\r\n/g, '\n')).toContain('not the\n                same as it having none');
   });
 });
 

@@ -801,3 +801,52 @@ tightened 4,199 → 2,579 rather than left at the old number.
 white-on-dark text, gradients and one-off accents. Each needs a human decision, not a rule.
 
 1,864 tests green; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W9c DONE 2026-08-04 — the full suite found six things the scoped runs could not
+
+W9b ran the hub and PWA suites and reported green. The **full** run found **14 failures**, six of
+them real and two of them mine from a slice already merged to `main`.
+
+| failure | cause |
+|---|---|
+| `registrySummary.henschen === HENSCHEN_FIPS_SET.size` ×2 | **R39b's own change**, pinned by tests in the main repo while the module lives in `worker/` |
+| `registrySummary.countyfusion > 0` | same |
+| 3 × `sidebar-render` | sections collapsed → links unmounted → the "no route was lost" guard could not tell *collapsed* from *lost* |
+| `orphan-routes` | `/admin/profile`, `/admin/cards`, `/admin/pass-through` built and unregistered |
+| `api-bundle-gate` ×2 | two new API routes with no commercial classification |
+| `inline-style-hex-ratchet` | 8 inline hexes in the two finance pages — colours that can never follow a theme |
+| 2 × CRLF exact-match | pre-existing; seventh and eighth instances today |
+
+#### ▶ The one worth carrying: a module and its tests on opposite sides of a package boundary
+
+R39b changed `worker/src/services/clerk-registry.ts` and I verified it by running the **worker**
+suite. Its behavioural tests live in the main repo's `__tests__/recon/`. So "run the tests for what
+you changed" was satisfied and still missed them, and the change reached `main` with two red tests.
+
+**Scoped runs cannot see a boundary they do not cross.** The standing rule "run the full suite
+periodically" already existed for module-singleton pollution; this is a second, different reason for
+it, and the more common one.
+
+#### ▶ The collapse guard, fixed the right way round
+
+The nav collapse first used `{isExpanded && items.map(…)}`, which removes the links from the DOM.
+Three assertions failed — correctly: they exist because *authored but not wired* is this repo's
+signature defect, and they prove every registered route reaches the drawer's markup. A collapse that
+deletes links makes them unable to distinguish "collapsed" from "lost".
+
+Now the links always render and `hidden` closes the section, which is also the more correct control:
+it removes them from the accessibility tree and from find-in-page, pairs with `aria-expanded`, and
+keeps the guard exactly as strong.
+
+#### ▶ Three pages and two APIs were unreachable and unclassified
+
+`/admin/profile`, `/admin/cards` and `/admin/pass-through` existed with no registry entry — so no
+⌘K, no drawer, no workspace landing. **Registered.** And `/api/admin/payment-cards` and
+`/api/admin/cost-recoveries` had no bundle classification; both are bookkeeping, so `office`,
+matching receipts and receivables.
+
+The finance pages' inline hexes are gone too: `var(--theme-warning)` and friends, with no literal
+fallback, because `:root` defines all fourteen unconditionally and an inline hex is invisible to
+every token, media query and contrast audit — which is exactly what the ratchet says.
+
+**22,663 tests pass, 0 fail**; `tsc`, `eslint` and `npm run build` clean.

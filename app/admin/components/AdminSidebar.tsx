@@ -205,12 +205,25 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
                   </span>
                   {section.label}
                 </div>
-                {isExpanded && items.map((item) => (
-                  <Link key={item.href} href={item.href} className={`admin-sidebar__link ${isActive(item.href) ? 'admin-sidebar__link--active' : ''}`} onClick={onClose}>
-                    <span className="admin-sidebar__link-icon"><RouteIcon name={item.icon} size={18} /></span>
-                    {item.label}
-                  </Link>
-                ))}
+                {/* Rendered ALWAYS, hidden when collapsed — not mounted conditionally.
+                 *
+                 * The first version of this used `{isExpanded && items.map(…)}`, which took the
+                 * links out of the DOM entirely and broke `sidebar-render.test.tsx`: that guard
+                 * exists because "authored but not wired" is this repo's signature defect, and it
+                 * proves every registered route actually reaches the drawer's markup. A collapse
+                 * that deletes the links makes the guard unable to tell "collapsed" from "lost".
+                 *
+                 * `hidden` is also the more correct control: it removes them from the accessibility
+                 * tree and from find-in-page while collapsed, which is what an accordion should do,
+                 * and it pairs with the `aria-expanded` on the header above. */}
+                <div className="admin-sidebar__section-items" hidden={!isExpanded}>
+                  {items.map((item) => (
+                    <Link key={item.href} href={item.href} className={`admin-sidebar__link ${isActive(item.href) ? 'admin-sidebar__link--active' : ''}`} onClick={onClose}>
+                      <span className="admin-sidebar__link-icon"><RouteIcon name={item.icon} size={18} /></span>
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
               </div>
             );
           })}

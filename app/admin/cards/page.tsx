@@ -96,7 +96,7 @@ export default function CardRegistryPage() {
       {!data.registryExists && (
         <div
           style={{
-            border: '1px solid #B45309', background: '#78350F22', borderRadius: 8,
+            border: '1px solid var(--theme-warning)', background: 'color-mix(in srgb, var(--theme-warning) 13%, transparent)', borderRadius: 8,
             padding: '0.85rem', fontSize: '0.85rem', marginBottom: '1rem',
           }}
         >
@@ -133,7 +133,7 @@ export default function CardRegistryPage() {
           <p
             style={{
               marginTop: '0.4rem', fontSize: '0.83rem',
-              color: c.taxTreatment.needsResolution ? '#B45309' : 'var(--color-text-secondary)',
+              color: c.taxTreatment.needsResolution ? 'var(--theme-warning)' : 'var(--color-text-secondary)',
               fontWeight: c.taxTreatment.needsResolution ? 600 : 400,
             }}
           >

@@ -157,6 +157,83 @@ describe('the themes are actually consumed', () => {
     ).toEqual([]);
   });
 
+  it('every theme is readable — AA text on every surface it can land on', () => {
+    // ── THE ASSERTION BEHIND "the themes look good on every page" ────────────────────────────────
+    //
+    // W9b converted ~1,900 declarations so that surfaces and neutral text follow the palette. That
+    // makes readability a property OF THE PALETTE rather than of each page: every converted card is
+    // `--theme-bg-surface` carrying `--theme-fg-primary/secondary/muted`, so if a palette's own
+    // pairs pass, every converted page passes with it — and if one fails, it fails everywhere at
+    // once, which is exactly the kind of breakage that would otherwise be found by a person.
+    //
+    // 4.5:1 for body text and 3.0:1 for muted are the WCAG AA thresholds. Muted is held to the
+    // large-text bar deliberately: it is used for timestamps and secondary labels, never for
+    // anything a decision depends on.
+    const themes = fs.readFileSync('app/styles/themes.css', 'utf8');
+
+    const luminance = (hex: string) => {
+      const h = hex.replace('#', '');
+      const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+      const [r, g, b] = [0, 2, 4]
+        .map((i) => parseInt(full.substr(i, 2), 16) / 255)
+        .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a: string, b: string) => {
+      const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+      return (hi + 0.05) / (lo + 0.05);
+    };
+
+    const failures: string[] = [];
+    let checked = 0;
+    for (const m of themes.matchAll(/\[data-theme="([a-z0-9-]+)"\]\s*\{([^}]*)\}/g)) {
+      const [, id, body] = m;
+      const get = (name: string) =>
+        new RegExp(`--theme-${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`).exec(body)?.[1] ?? null;
+
+      for (const [fgName, min] of [['fg-primary', 4.5], ['fg-secondary', 4.5], ['fg-muted', 3.0]] as const) {
+        const fg = get(fgName);
+        if (!fg) continue;
+        for (const bgName of ['bg-surface', 'bg-page', 'bg-elevated']) {
+          const bg = get(bgName);
+          if (!bg) continue;
+          checked++;
+          const r = ratio(fg, bg);
+          if (r < min) failures.push(`${id}: ${fgName} on ${bgName} = ${r.toFixed(2)} (needs ${min})`);
+        }
+      }
+    }
+
+    // The sweep must have looked at something — a regex that stopped matching would pass silently.
+    expect(checked).toBeGreaterThan(80);
+    expect(failures, `Unreadable colour pairs — these break every converted page at once:\n  ${failures.join('\n  ')}`)
+      .toEqual([]);
+  });
+
+  it('the CSS and the TypeScript registry offer the same themes', () => {
+    // Two sources for one palette, and that is how `forest-dark` hid in plain sight: the CSS block
+    // is what PAINTS, this registry is what the picker LISTS and what `useThemeColors()` reads. It
+    // was missing from both, and neither could reveal the other's gap.
+    //
+    // `register-builtins.ts` even said "All 10 built-in themes registered" next to a type declaring
+    // eleven. Nothing compared them; this does.
+    const registry = fs.readFileSync('lib/hub/themes/register-builtins.ts', 'utf8');
+    const types = fs.readFileSync('lib/hub/types.ts', 'utf8');
+    const declared = /export type BuiltinThemeId =([\s\S]*?);/.exec(types)?.[1] ?? '';
+    const ids = [...declared.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1]);
+
+    const unregistered = ids.filter((id) => !new RegExp(`import '\\./${id}'`).test(registry));
+    expect(
+      unregistered,
+      `Declared as themes but never registered, so the picker cannot offer them: ${unregistered.join(', ')}`,
+    ).toEqual([]);
+
+    // …and each registered import must be a file that exists, or the side-effect import throws.
+    for (const id of ids) {
+      expect(fs.existsSync(path.join('lib/hub/themes', `${id}.ts`)), `lib/hub/themes/${id}.ts is missing`).toBe(true);
+    }
+  });
+
   it('every theme defines the FULL variable set', () => {
     // A partially-defined theme inherits the light fallback for whatever it omits — so a dark theme
     // missing `--theme-fg-primary` renders near-black text on a near-black card. That is a worse

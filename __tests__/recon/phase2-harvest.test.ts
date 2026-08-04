@@ -544,9 +544,18 @@ describe('registrySummary', () => {
   it('returns correct adapter counts', () => {
     const summary = registrySummary();
     expect(summary.kofile).toBeGreaterThan(0);
-    expect(summary.countyfusion).toBeGreaterThan(0);
     expect(summary.tyler).toBeGreaterThan(0);
     expect(summary.texasfile).toBeGreaterThanOrEqual(0);
+
+    // `countyfusion` moved from >0 to ===0 on 2026-08-04 (R39b), and the change is the point rather
+    // than a relaxation: the summary now counts what `getClerkSystem` actually ROUTES, and
+    // CountyFusion is not in `PROVEN_VENDORS`, so no county reaches it. It previously reported the
+    // configured set size — coverage that has never existed for a vendor nobody has driven.
+    expect(summary.countyfusion).toBe(0);
+
+    // The sum is the assertion that keeps this honest: every Texas county lands somewhere exactly
+    // once, so an unproven vendor's counties are TexasFile's, not nobody's.
+    expect(Object.values(summary).reduce((a, b) => a + b, 0)).toBe(254);
   });
 
   it('all counts are non-negative', () => {

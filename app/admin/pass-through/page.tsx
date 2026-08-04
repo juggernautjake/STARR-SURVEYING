@@ -51,10 +51,10 @@ const money = (cents: number) => `$${(Math.abs(cents) / 100).toFixed(2)}`;
 
 /** Colour carries the same meaning as the state, never a different one. */
 const TONE: Record<RecoveryState, { label: string; color: string }> = {
-  NO_NET_GAIN: { label: 'No net gain', color: '#15803D' },
-  OVER_RECOVERED: { label: 'Margin', color: '#1D4ED8' },
-  UNDER_RECOVERED: { label: 'Under-recovered', color: '#B45309' },
-  NOT_RECOVERED: { label: 'Not billed yet', color: '#B91C1C' },
+  NO_NET_GAIN: { label: 'No net gain', color: 'var(--theme-success)' },
+  OVER_RECOVERED: { label: 'Margin', color: 'var(--theme-info)' },
+  UNDER_RECOVERED: { label: 'Under-recovered', color: 'var(--theme-warning)' },
+  NOT_RECOVERED: { label: 'Not billed yet', color: 'var(--theme-danger)' },
   NOT_RECOVERABLE: { label: 'Absorbed', color: 'var(--color-text-secondary)' },
 };
 
@@ -100,7 +100,7 @@ export default function PassThroughPage() {
       {/* "Nothing recorded" and "nowhere to record it" are different sentences. */}
       {!data.tableExists && (
         <div style={{
-          border: '1px solid #B45309', background: '#78350F22', borderRadius: 8,
+          border: '1px solid var(--theme-warning)', background: 'color-mix(in srgb, var(--theme-warning) 13%, transparent)', borderRadius: 8,
           padding: '0.85rem', fontSize: '0.85rem', marginBottom: '1rem',
         }}>
           <strong>Pass-through tracking has not been created yet.</strong>
@@ -119,12 +119,12 @@ export default function PassThroughPage() {
           {/* Shown separately from the net, deliberately: margin on one job would otherwise hide
               money paid out on another and never billed. */}
           {t.shortfallCents > 0 && (
-            <span style={{ color: '#B45309', fontWeight: 600 }}>
+            <span style={{ color: 'var(--theme-warning)', fontWeight: 600 }}>
               {money(t.shortfallCents)} absorbed by jobs
             </span>
           )}
           {t.needingAttention > 0 && (
-            <span style={{ color: '#B91C1C', fontWeight: 600 }}>
+            <span style={{ color: 'var(--theme-danger)', fontWeight: 600 }}>
               {t.needingAttention} need attention
             </span>
           )}
@@ -163,7 +163,7 @@ export default function PassThroughPage() {
 
             <p style={{
               marginTop: '0.4rem', fontSize: '0.83rem',
-              color: r.recovery.needsAttention ? '#B45309' : 'var(--color-text-secondary)',
+              color: r.recovery.needsAttention ? 'var(--theme-warning)' : 'var(--color-text-secondary)',
               fontWeight: r.recovery.needsAttention ? 600 : 400,
             }}>
               {r.recovery.summary}

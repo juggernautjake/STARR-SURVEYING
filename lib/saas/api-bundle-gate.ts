@@ -113,6 +113,15 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'deliverables': { bundle: 'office', reason: 'Document control is the office product.' },
   'change-orders': { bundle: 'office', reason: 'Change orders are the office product.' },
   'ar-aging': { bundle: 'office', reason: 'Receivables are the office product.' },
+  // F1b / F2b, classified 2026-08-04 — the guard caught both the day after they shipped, which is
+  // its job: an unclassified API route is one nobody has decided the commercial answer for, and the
+  // default would be to leak or to over-refuse depending on which way the resolver falls.
+  //
+  // Bookkeeping, so `office` — the same bundle as receipts and receivables. Both read what a job
+  // really cost and what the customer was really charged, which is the bookkeeping product rather
+  // than an account-level surface like billing.
+  'payment-cards': { bundle: 'office', reason: 'Card bookkeeping is the office product.' },
+  'cost-recoveries': { bundle: 'office', reason: 'Pass-through recovery is bookkeeping — the office product.' },
   'portal-access': { bundle: 'office', reason: 'The customer portal is the office product.' },
   // Setting the firm up. Gating this would be the sharpest possible own goal: a firm whose plan is
   // not yet resolved could not reach the checklist that tells it how to finish signing up.
