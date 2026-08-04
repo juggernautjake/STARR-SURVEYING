@@ -132,5 +132,64 @@ Carried from the CAD and research programs, each learned expensively:
 
 ## 3. State
 
-**Nothing built yet** — this document was written first, on purpose. Start at **F1**, because F2 and
+**F1 DONE 2026-08-04 (model + schema; UI is F1b).** See the note under F1.
+
+**Previously:** nothing built — this document was written first, on purpose. Start at **F1**, because F2 and
 F3 both depend on the card role, and F3 depends on F2's recovery state.
+
+---
+
+## ✅ F1 — the card registry. **DONE 2026-08-04** (domain model + schema; the UI is F1b.)
+
+`lib/finance/payment-cards.ts` + `seeds/572_payment_cards.sql`, 13 tests.
+
+**The rule the whole slice is built on: a match on `last4` is a guess.** Four digits are not an
+identifier. Two cards sharing a last4 is ordinary inside one wallet and effectively certain across a
+company card, two owners' personal cards and a handful of employees'. So `matchCardByLast4` never
+returns "this is the card" — it returns candidates with a stated confidence, and **every outcome sets
+`needsReview: true`, including the single-match case.** Auto-applying a lone match is how a charge on
+an unregistered card silently inherits someone else's tax treatment. There is deliberately no unique
+index on `last4` either: it would encode the opposite claim and make the honest case impossible to
+record.
+
+**What the role actually decides.** Not "what was bought" but *whose money was it*:
+
+| role | treatment | company expense now? |
+|---|---|---|
+| `COMPANY` | company expense | **yes** |
+| `OWNER_PERSONAL` | reimbursement owed to that owner | no |
+| `EMPLOYEE_PERSONAL` | reimbursement owed to that employee | no |
+| `CLIENT` | **not our transaction** | no |
+| `UNKNOWN` | undetermined — cannot be filed | no |
+
+Exactly one role is a company expense at charge time, and that is asserted as a whole-set property so
+a role added later cannot quietly become deductible. A reimbursement becomes an expense when it is
+*paid* — a separate event with its own date. Treating it as one at charge time double-counts it and
+hides a real debt to a person; and booking a client's charge as ours invents an expense that never
+existed.
+
+`UNKNOWN` has no treatment **on purpose**. Returning a plausible default is the single most damaging
+thing that function could do, because the row would then look filed.
+
+**Three schema decisions worth keeping:**
+
+- `payment_card_id` is separate from `payment_last4` and never rewrites it. The two answer different
+  questions — what the receipt *said* (evidence, immutable) versus who we *concluded* that was
+  (a judgement, correctable).
+- `payment_card_confirmed_by` / `_at` exist so a suggestion the software made and a decision a person
+  made do not look identical after a page reload.
+- `retired_at` rather than deletion, and retired cards still match: a receipt from March points at
+  whatever card paid it, and deleting a closed card would silently turn last year's filed receipts
+  into "not on file" — history changed by an action about the present.
+
+A CHECK constraint refuses a personal card with no holder: a reimbursement with no payee is worse
+than `UNKNOWN`, because it looks answered.
+
+**Caught while writing the seed:** the receipts table is `receipts`. The file is named
+`220_starr_field_receipts.sql` and the RLS policies inside it are named `starr_field_receipts_*`, so
+the obvious inference from the filename is wrong and would have failed on apply. Noted inline.
+
+**Not applied to the live database** — that is the owner's call, per the standing rule. Apply with
+`node scripts/apply-seeds.mjs`.
+
+**Next: F2** (pass-through recovery), which needs the card role this slice establishes.
