@@ -26,6 +26,8 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { featuresFromSurveyReading, researchLayersToCreate, type SurveyReadingLike } from '@/lib/cad/import/from-survey-reading';
 // S9b — compare two records of the same parcel; the basis difference is the headline finding.
 import { compareSurveys, callsFromPoints } from '@/lib/cad/compare/survey-compare';
+// S9c — the comparison as geometry on a locked layer, not just a report.
+import { comparisonOverlay } from '@/lib/cad/compare/comparison-overlay';
 import {
   reconcileSurveys, pointsFromReconciled, type ReconcileSource,
 } from '@/lib/cad/compare/survey-reconcile';
@@ -1076,6 +1078,46 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           ].filter(Boolean).join('\n'),
         });
         cadLog.info('Survey', `Compared surveys: ${result.flaggedCount} flagged, basis offset ${result.basisOffsetDeg ?? 'n/a'}`);
+
+        // S9c — offer to put the OTHER survey on the canvas.
+        //
+        // The report above says a course differs; it cannot say WHERE, and that is the question a
+        // surveyor actually has. The second reading goes onto its own locked, dashed, magenta layer
+        // — see `comparison-overlay.ts` for why a real layer beats a bespoke render pass.
+        //
+        // ASKED, not done automatically. This writes features into the surveyor's drawing, and a
+        // comparison that silently adds geometry is indistinguishable from one that corrupted it.
+        // Declining still leaves the report, which is what S9b always gave.
+        const wantsOverlay = await confirmAction({
+          title: 'Show it on the drawing?',
+          message:
+            `Add "${files[1].name}" as a locked reference layer, so you can see where the two ` +
+            `records differ. It is drawn dashed and in magenta, it cannot be edited or moved, and ` +
+            `you can hide or delete it from the layer panel at any time.`,
+          confirmLabel: 'Add reference layer',
+        });
+        if (wantsOverlay) {
+          const doc = useDrawingStore.getState().document;
+          const overlay = comparisonOverlay(
+            readings[1] as unknown as SurveyReadingLike,
+            files[1].name,
+            doc.layerOrder.length,
+          );
+          // Replace rather than duplicate when the same record is compared twice — otherwise the
+          // second run stacks an identical figure on the first and every course looks doubled.
+          if (doc.layers[overlay.layer.id]) {
+            useDrawingStore.getState().removeFeatures(
+              Object.values(doc.features).filter((f) => f.layerId === overlay.layer.id).map((f) => f.id),
+            );
+          } else {
+            useDrawingStore.getState().addLayer(overlay.layer);
+          }
+          useDrawingStore.getState().addFeatures(overlay.features);
+          // Never re-fits the page: by definition there is existing work here, and re-scaling a
+          // surveyor's sheet to accommodate a reference is their decision (the S8d rule).
+          setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 50);
+          cadLog.info('Survey', `Added comparison layer ${overlay.layer.id} (${overlay.features.length} feature(s))`);
+        }
       } catch (err) {
         cadLog.error('Survey', 'Survey comparison failed', err);
         void alertAction({ title: 'Starr CAD', message: 'Could not read those files. They may not be valid JSON.' });

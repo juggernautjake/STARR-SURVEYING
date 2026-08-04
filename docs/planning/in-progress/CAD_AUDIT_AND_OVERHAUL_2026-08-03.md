@@ -2439,3 +2439,53 @@ The control renames the context menu's event and the guard fails by name, on the
 probe had wrongly accused.
 
 CAD suite 3,429 green; `tsc` and `eslint` clean.
+
+### ✅ S9c DONE 2026-08-04 — the other survey, on the canvas, as a locked reference layer
+
+The last unbuilt feature in this document. S9b compares two readings and reports *"course 7 differs by
+0.4 ft once the basis is accounted for"* — and a surveyor reading that wants to know **where**, which
+a list cannot answer.
+
+#### ▶ A real layer, not a bespoke render pass
+
+The spec anticipated *"overlaying the two figures on the canvas"* and warned it was visual work. It
+was implemented as a **layer** instead, and that is a better answer rather than a cheaper one:
+
+- it zooms, pans and prints with the drawing, correctly and for free;
+- it toggles from the layer panel the surveyor already uses, which is where they would look;
+- it can be **snapped to and measured against** — most of why you want the prior survey on screen;
+- it survives save/load, so the comparison is still there tomorrow.
+
+A custom overlay would have had to reimplement all four and would have got the third wrong by default.
+It also reuses `featuresFromSurveyReading` rather than re-deriving geometry: a second implementation
+of "reading → geometry" is how two paths come to disagree about the same deed.
+
+#### ▶ The properties that make a reference figure safe
+
+The layer is **locked** — a reference that can be dragged will eventually be edited by accident and
+then believed, and here the wrong line is somebody else's survey. It is dashed and magenta so it never
+reads as your own work, with the colour forced in each feature's `style` because a feature's own
+colour overrides the layer's and the import sets one for the boundary. Its id derives from the source
+filename, so comparing three records produces three layers rather than one silently overwritten — and
+re-comparing the *same* record replaces its features instead of stacking an identical figure where
+every course would look doubled.
+
+It is **offered, not automatic**. This writes features into the surveyor's drawing, and a comparison
+that silently adds geometry is indistinguishable from one that corrupted it. Declining leaves the
+report S9b always gave. It never re-fits the page either: by definition there is existing work here,
+and rescaling a surveyor's sheet to accommodate a reference is their decision (the S8d rule).
+
+#### ▶ Two mistakes, both caught by instruments this session added
+
+1. **The test fixture was the wrong shape** — `traverses: [...]` with a `closed` flag, which does not
+   exist — and an `as unknown as SurveyReadingLike` cast let it compile. It produced **zero features**,
+   and only the *"draws something"* guard noticed. Exactly the `as never` lesson from the D&D
+   roll-publish path earlier today: a cast on a fixture disables the one check that would have said
+   the shape was wrong. The cast is gone and the fixture is type-checked.
+2. **The per-feature colour was written as a top-level `color`**, which `Feature` does not have. `tsc`
+   rejected it only in the test that read the field back — so a silently-ignored property was one
+   assertion away from shipping, and the reference would have drawn in the research-boundary colour.
+
+9 tests. CAD suite 3,438 green; `tsc`, `eslint` and `npm run build` clean.
+
+**S9 is now complete**: S9a the core, S9b the report, S9c the figure on the canvas.
