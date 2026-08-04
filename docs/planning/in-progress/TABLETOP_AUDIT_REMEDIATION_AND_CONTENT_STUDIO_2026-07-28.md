@@ -4010,7 +4010,7 @@ ticked that has not been verified.**
       the five shared themes still may not. Aqua's grounds are bluer besides.
 - [x] **P14-6 — All rolls reach the campaign feed.** PF2 and IG published nothing; only the 5e store
       called `publishRoll`. Both now do.
-- [x] **P14-7 — Statblock `uses`** ("3/Day", "Recharge 5–6") so legendary resistance is a resource.
+- [x] **P14-7 — Statblock `uses`** ("3/Day", "Recharge 5–6") is modelled, parsed and **shown** on the creature page. ⚠ **Corrected 2026-08-04:** this line read *"so legendary resistance is a resource"*. It is a LABEL, not a resource — nothing spends it. See the note at the foot of this document.
 
 ## Outstanding
 
@@ -4507,3 +4507,42 @@ everywhere. The negative control adds `dnd-sheet` to the PF2 root — the exact 
 with the reason and the alternative in the message.
 
 8,940 D&D tests green, `tsc` and `eslint` clean.
+
+---
+
+## 2026-08-04 — the Shipped list, spot-checked; one claim overstated
+
+S-6b in the research-sources doc found a slice marked DONE whose adapter had no caller at all. The
+same check was run over this document's **Shipped this session** list. **It holds up far better** —
+which is worth recording, because a verification pass that only reports failures is not a
+verification pass.
+
+| item | verified |
+|---|---|
+| **P14-6** — all rolls reach the campaign feed | Wiring confirmed earlier today, and its `as never` casts removed so the compiler can finally check the payload shape. The caveat stands: no PF2/IG character sits at a campaign, so it cannot be exercised. |
+| **P14-7** — statblock `uses` | Modelled, parsed on import, **and rendered**. See below. |
+
+### ▶ P14-7's claim was stronger than what shipped
+
+The line read: *"Statblock `uses` ("3/Day", "Recharge 5–6") **so legendary resistance is a
+resource**."*
+
+`uses` is real — typed in `homebrew/statblock.ts`, parsed by the importer, and rendered on the
+creature page. **It is a label, not a resource.** Nothing spends it. The only use-tracking in this
+codebase is `combat.abilityUses` on the 5e *player* sheet; a creature's `uses` is a string shown in
+brackets. Counting a legendary resistance down from three needs encounter state — P7-12, the session
+shell, still unchecked.
+
+That distinction is the whole point of the correction. *"Legendary resistance is a resource"* is a
+sentence a DM would act on: it says the app will remember two are left. It will not, and finding that
+out mid-fight is the wrong moment.
+
+`statblock-uses-is-displayed.test.ts` pins the three things that ARE true — modelled, parsed, rendered
+— because the render is a single JSX conditional in one file, and nothing else would notice if it
+went. The control removes it and the guard fails by name.
+
+Its fourth assertion is the inverse: it asserts creature use-tracking does **not** exist, and fails
+the day someone builds it — at which point the guard and the Shipped line get updated together,
+rather than the line quietly becoming true years after it was written.
+
+8,944 D&D tests green; `tsc` and `eslint` clean.
