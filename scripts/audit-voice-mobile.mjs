@@ -27,7 +27,18 @@ const BASE = argValue('--base', 'http://localhost:3222');
 const USER = argValue('--user', 'juggernautjake');
 const PASS = argValue('--pass', '');
 
-const ROUTES = [
+/** PWA W6d — a session cookie instead of the voice form login, so this measurer can be pointed at
+ *  the staff app.
+ *
+ *  The tap-target rules below (and, more importantly, the exemptions that stop them accusing working
+ *  markup) are the expensive part of this file, and they are not specific to the voice studio. The
+ *  staff app is where a field crew actually works on a phone, and it had no tap-target check at all
+ *  — `audit-mobile.mjs` measures overflow only. Copying these thresholds into a second script is how
+ *  this repo ended up with two overflow detectors that disagreed. */
+const COOKIE = argValue('--cookie', process.env.STARR_SESSION || '');
+const COOKIE_NAME = argValue('--cookie-name', 'authjs.session-token');
+
+const ROUTES = (argValue('--routes', '') || [
   '/AndrewAsh/studio',
   '/AndrewAsh/studio/guide',
   '/AndrewAsh/studio/pages',
@@ -41,7 +52,7 @@ const ROUTES = [
   '/AndrewAsh/studio/demos',
   '/AndrewAsh/studio/documents',
   '/AndrewAsh/studio/settings',
-];
+].join(',')).split(',').map((r) => r.trim()).filter(Boolean);
 
 /** 44×44 CSS px is Apple's minimum and the one most often cited; Android asks for 48dp. 40 is the
  *  floor below which a control is genuinely hard to hit, so that is where this warns.
@@ -60,7 +71,13 @@ const context = await browser.newContext({ ...iPhone, viewport: { width: 390, he
 const page = await context.newPage();
 
 // Sign in, or every route redirects to the login page and the sweep measures thirteen login screens.
-if (PASS) {
+// W6d — a cookie is the staff app's session; the form login below is the voice studio's.
+if (COOKIE) {
+  await context.addCookies([
+    { name: COOKIE_NAME, value: COOKIE, domain: new URL(BASE).hostname, path: '/' },
+  ]);
+  console.log(`(session cookie: ${COOKIE_NAME})`);
+} else if (PASS) {
   const res = await page.request.post(`${BASE}/api/voice/auth/login`, {
     data: { email: USER, password: PASS },
   });

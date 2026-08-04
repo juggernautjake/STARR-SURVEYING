@@ -2035,6 +2035,14 @@
 @media (max-width: 1023px) {
   /* Improve sidebar section labels */
   .admin-sidebar__section-label { font-size: 0.68rem; letter-spacing: 0.9px; }
+  /* W6d — these are not headings. They carry `role="button"`, `onClick` and `tabIndex={0}`: each one
+   * expands or collapses a nav section, and at 32px tall they were the five smallest controls in the
+   * drawer. Raised only inside this breakpoint, which is where the sidebar BECOMES a drawer and a
+   * thumb replaces a mouse — the desktop sidebar keeps its compact spacing, because padding every
+   * label to 44px there buys nothing and costs vertical room in a list people scan rather than tap.
+   * The element is already `display:flex; align-items:center`, so a min-height centres the text
+   * without touching the type. */
+  .admin-sidebar__section-label--collapsible { min-height: 44px; }
   .admin-sidebar__link { font-size: 0.88rem; padding: 0.65rem 1.25rem; }
 }
 
@@ -2093,7 +2101,11 @@
   /* Topbar: compact but readable */
   .admin-topbar { padding: 0 0.5rem; }
   .admin-topbar__left { gap: 0.5rem; }
-  .admin-topbar__hamburger { width: 32px; height: 32px; font-size: 1.1rem; }
+  /* W6d — was 32px here, i.e. the nav button got SMALLER on the narrowest phones, which is exactly
+   * backwards: that is where the screen is most cramped and where a thumb has replaced a mouse. The
+   * topbar has room for it — at 390px it holds this button, the wordmark and the avatar — so the
+   * saving was ~12px of horizontal space bought at the cost of the control people press most. */
+  .admin-topbar__hamburger { width: 44px; height: 44px; font-size: 1.1rem; }
 
   /* Better list item readability */
   .admin-sidebar__link { padding: 0.55rem 1rem; font-size: 0.82rem; }

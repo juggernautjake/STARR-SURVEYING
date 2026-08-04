@@ -421,3 +421,54 @@ first-match-wins would hand it to the approval queue's admin-only gate.
 *viewport* in a desktop browser; it cannot see the standalone home-screen shell, real touch, iOS
 Safari's chrome, or the push permission prompt. Recording that distinction rather than letting a
 green sweep read as "mobile is done".
+
+### ✅ W6d DONE 2026-08-04 — tap targets, and the nav button that shrank on the smallest phones
+
+W6c measured **overflow** and found none. Overflow is not the whole of "fits on a phone": a control
+can sit perfectly inside the viewport and still be too small to hit. This is that half.
+
+**No second measurer was written.** `scripts/audit-voice-mobile.mjs` already had the rules and — more
+valuable — the *exemptions* that stop them accusing working markup: 40px for controls, **24 for
+links** (WCAG 2.5.8's figure, deliberately not 44, because padding eight reference links to 44 each
+builds a 350px wall of whitespace), plus the label-wrapped-input case where measuring the 17px box
+inside a 44px label reports a target that is not the target. That reasoning is the expensive part and
+it is not specific to the voice studio. It was hardwired to it — thirteen routes and a form login —
+so it now takes `--routes` and a session cookie. Copying the thresholds instead is how this repo
+ended up with two overflow detectors that disagreed.
+
+**17 undersized controls per route, and 7 of them were chrome** — the same elements on every page, so
+one rule each moved them everywhere:
+
+| control | was | now | why it mattered |
+|---|---|---|---|
+| `.admin-topbar__hamburger` | 36px, **and 32px below 480px** | 44px | The single most-tapped control the app has on a phone: it is how navigation opens at all. It only ever *displays* below 1023px, so every size it has ever had was a touch size — and the responsive rule made it **smaller on the narrowest screens**, which is exactly backwards. |
+| `.admin-sidebar__section-label--collapsible` ×5 | 32px | 44px (≤1023px only) | Not headings. `role="button"`, `onClick`, `tabIndex={0}` — each expands a nav section. Raised only inside the breakpoint where the sidebar *becomes a drawer*; the desktop sidebar keeps its compact spacing, because padding every label there costs vertical room in a list people scan rather than tap. |
+| `.notif-bell__btn` | 36px | 40px | 40 rather than 44: it shares a 390px row with the wordmark and the avatar, and the hamburger has already taken 44. |
+
+**The icon inside the hamburger stays 18px.** The target grew, not the glyph — nothing about the
+topbar's appearance changes except how easy it is to hit.
+
+**Re-measured after rebuilding, and the fix was checked for the defect it could cause.** All three
+disappear from the report. Enlarging controls is a plausible way to *create* horizontal overflow, so
+the overflow sweep was re-run at 360 and 390 across all six routes: still clean. A fix that trades one
+defect for another is not a fix.
+
+#### ▶ What is still undersized, measured rather than estimated
+
+**10 per route remain, and they are all Hub-widget controls**, identical on `/admin/me` and
+`/admin/work-mode` because both render the widget grid:
+
+| control | size | floor |
+|---|---|---|
+| `"CS"` chip · `"✏️ Customize Hub"` | 34px | 40 |
+| `"All steps"` | 39px | 40 |
+| `"×"` (dismiss) | 28px | 40 |
+| `widget-go-to-link` — *"Go to the schedule→"*, *"Go to jobs→"* | 19px | 24 (link) |
+
+Left for a follow-up rather than swept up here: they are one component family with a shared layout,
+and the 19px links in particular need a judgement about whether to pad them or restyle them as
+buttons — which is the choice the auditor's own comment warns against making by reflex. **Recorded
+with numbers so the next pass starts from measurement, not from "the hub feels cramped".**
+
+**W6b is unchanged and still needs a phone.** A 390px viewport in a desktop browser measures
+geometry; it cannot tell you whether a 44px button is comfortable in a gloved hand in a truck.

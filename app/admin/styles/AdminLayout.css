@@ -381,7 +381,13 @@
 /* === TOP BAR === */
 .admin-topbar { position:fixed; top:0; left:260px; right:0; height:64px; background:#FFF; border-bottom:2px solid #E5E7EB; display:flex; align-items:center; justify-content:space-between; padding:0 2rem; z-index:200; transition:left .3s; }
 .admin-topbar__left { display:flex; align-items:center; gap:1rem; }
-.admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:36px; height:36px; background:none; border:2px solid #E5E7EB; border-radius:6px; color:#4B5563; font-size:1.25rem; cursor:pointer; }
+/* PWA W6d — 44px, not 36. This button only ever DISPLAYS below 1023px (see the media query further
+ * down), so every size it has ever had is a touch size, and 36 was under the 40px floor that
+ * `audit-voice-mobile.mjs` warns at. It is also the single most-tapped control the app has on a
+ * phone: it is how a field crew opens navigation at all, and a miss costs a second tap on a screen
+ * someone is holding in one hand in a truck. The icon inside stays 18px — the TARGET grows, not the
+ * glyph, so nothing about the topbar's appearance changes except how easy it is to hit. */
+.admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:44px; height:44px; background:none; border:2px solid #E5E7EB; border-radius:6px; color:#4B5563; font-size:1.25rem; cursor:pointer; }
 .admin-topbar__hamburger:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
 .admin-topbar__title { margin:0; font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .admin-topbar__right { display:flex; align-items:center; gap:.75rem; min-width:0; flex-shrink:1; }
@@ -1023,7 +1029,11 @@
 
 /* === NOTIFICATION BELL === */
 .notif-bell { position:relative; }
-.notif-bell__btn { position:relative; display:flex; align-items:center; justify-content:center; width:36px; height:36px; border:1px solid #E5E7EB; border-radius:8px; background:#fff; cursor:pointer; color:#6B7280; transition:all .15s; }
+/* W6d — 36 → 40. The notification bell sits in the topbar on every page, so it is chrome: one rule
+ * moves it everywhere. 40 rather than 44 because it shares a row with the wordmark and the avatar at
+ * 390px and the hamburger has already taken 44; this clears the floor the auditor warns at without
+ * crowding the bar it lives in. */
+.notif-bell__btn { position:relative; display:flex; align-items:center; justify-content:center; width:40px; height:40px; border:1px solid #E5E7EB; border-radius:8px; background:#fff; cursor:pointer; color:#6B7280; transition:all .15s; }
 .notif-bell__btn:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); background:#F5F7FF; }
 .notif-bell__icon { display:block; }
 .notif-bell__badge { position:absolute; top:-4px; right:-4px; min-width:18px; height:18px; padding:0 5px; background:#EF4444; color:#fff; font-size:.65rem; font-weight:700; border-radius:10px; display:flex; align-items:center; justify-content:center; border:2px solid #fff; line-height:1; font-family:'Inter',sans-serif; }
