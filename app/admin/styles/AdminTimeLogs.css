@@ -575,6 +575,18 @@
   margin-top: 1rem;
 }
 
+/* ---- Pay advances: what is still owed (C-17) ---- */
+.tl-advances-owed {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--theme-warning, #B45309);
+}
+.tl-advance-card__balance {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
 /* ---- Pay-rates management (/admin/pay-rates) ---- */
 .tl-rate-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.75rem; }
 .tl-rate-row {

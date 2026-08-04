@@ -6,6 +6,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildPayStubNotification } from '@/lib/notifications/payout';
 import { buildStubTotals, type PayableHours } from '@/lib/payroll/pay-stub';
+import { planAdvanceRecovery, type OutstandingAdvance } from '@/lib/payroll/advance-recovery';
 
 interface TimeLogRow {
   id: string;
@@ -164,6 +165,33 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const overtimeThreshold = Number.isFinite(config.overtime_threshold_weekly) ? config.overtime_threshold_weekly : 40;
   const overtimeMultiplier = Number.isFinite(config.overtime_multiplier) ? config.overtime_multiplier : 1.5;
 
+  // ── ADVANCES COME BACK OUT (C-17) ───────────────────────────────────────────────────────────
+  //
+  // The view is already filtered to advances that were actually PAID and still have a balance.
+  // Approving is a decision and paying is an event; recovering against an approved-but-unpaid
+  // advance would take back money that was never handed over.
+  const { data: outstandingRows, error: advanceError } = await supabaseAdmin
+    .from('pay_advances_outstanding')
+    .select('id, user_email, outstanding, repay_per_period, paid_at, reason');
+
+  // Refused, not skipped. Running payroll while blind to what people owe pays out money the firm
+  // has already advanced, and the stubs would look entirely normal.
+  if (advanceError) {
+    return NextResponse.json(
+      { error: `Could not read outstanding pay advances, so payroll was not run: ${advanceError.message}` },
+      { status: 500 },
+    );
+  }
+
+  const advancesByEmail = new Map<string, OutstandingAdvance[]>();
+  for (const row of (outstandingRows ?? []) as (OutstandingAdvance & { user_email: string })[]) {
+    const list = advancesByEmail.get(row.user_email) ?? [];
+    list.push(row);
+    advancesByEmail.set(row.user_email, list);
+  }
+  // Every recovery this run will make, applied only once the stubs exist and have ids.
+  const pendingRecoveries: Array<{ userEmail: string; advanceId: string; amount: number }> = [];
+
   // Create payroll run
   const { data: run, error: runError } = await supabaseAdmin
     .from('payroll_runs')
@@ -222,6 +250,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     const totals = buildStubTotals({ entries: payable, overtimeThreshold, overtimeMultiplier });
 
+    // Recovery comes out of NET, after tax — an advance is money already handed over, not a
+    // pre-tax deduction. Taking it from gross would reduce the tax withheld on wages the person
+    // genuinely earned.
+    const recovery = planAdvanceRecovery({
+      advances: advancesByEmail.get(employee.user_email) ?? [],
+      netPay: totals.netPay,
+    });
+    for (const r of recovery.recoveries) {
+      pendingRecoveries.push({ userEmail: employee.user_email, advanceId: r.advanceId, amount: r.amount });
+    }
+
     stubs.push({
       payroll_run_id: run.id,
       user_email: employee.user_email,
@@ -245,7 +284,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       social_security: totals.socialSecurity,
       medicare: totals.medicare,
       total_deductions: totals.totalDeductions,
-      net_pay: totals.netPay,
+      // Kept separate from the tax deductions above. An advance recovery is not a deduction from
+      // earnings; it is the repayment of a loan, and rolling it into `total_deductions` would make
+      // the tax figures on the stub wrong.
+      other_deductions: recovery.totalRecovered || null,
+      deduction_notes: recovery.note,
+      net_pay: recovery.netAfterRecovery,
       job_hours: totals.jobHours,
       // Hours that were approved but never priced. On the stub so "why is this short" has an
       // answer, and so they are visibly owed rather than quietly gone.
@@ -253,16 +297,75 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
 
     totalGross += totals.grossPay;
-    totalNet += totals.netPay;
+    totalNet += recovery.netAfterRecovery;
   }
 
   // Insert all stubs
+  let insertedStubs: { id: string; user_email: string }[] = [];
   if (stubs.length > 0) {
-    const { error: stubError } = await supabaseAdmin
+    const { data: written, error: stubError } = await supabaseAdmin
       .from('pay_stubs')
-      .insert(stubs);
+      .insert(stubs)
+      .select('id, user_email');
 
     if (stubError) return NextResponse.json({ error: stubError.message }, { status: 500 });
+    insertedStubs = (written ?? []) as { id: string; user_email: string }[];
+  }
+
+  // ── Record the recoveries, now that the stubs have ids ──────────────────────────────────────
+  //
+  // Written AFTER the stubs and linked to them, so every repayment names the cheque it came out of.
+  // A running total on the advance alone could not answer "which pay period took this", and could
+  // not be reversed if a run is voided.
+  //
+  // The unique index on (advance_id, pay_stub_id) is what makes a re-run safe: a retry cannot
+  // double-deduct, and the only evidence of a double deduction would have been a short cheque.
+  if (pendingRecoveries.length > 0) {
+    const stubIdByEmail = new Map(insertedStubs.map((s) => [s.user_email, s.id]));
+
+    const rows = pendingRecoveries.map((r) => ({
+      advance_id: r.advanceId,
+      pay_stub_id: stubIdByEmail.get(r.userEmail) ?? null,
+      user_email: r.userEmail,
+      amount: r.amount,
+      note: `Recovered on the ${pay_period_start} – ${pay_period_end} payroll run.`,
+    }));
+
+    const { error: repayError } = await supabaseAdmin.from('pay_advance_repayments').insert(rows);
+
+    if (repayError) {
+      // The stubs are already written and already show the reduced net. Leaving the advances
+      // un-decremented would mean the same money is recovered again next period — the employee
+      // pays twice. Say so loudly rather than returning a success the numbers do not support.
+      console.error('[payroll/runs] recoveries were deducted but NOT recorded:', repayError.message);
+      return NextResponse.json({
+        error: 'The stubs were created, but the advance repayments could not be recorded. ' +
+               'Void this run before processing it — otherwise the same advance will be recovered again next period.',
+        run_id: run.id,
+      }, { status: 500 });
+    }
+
+    // Move the balance on each advance, and close out any that are now fully repaid.
+    for (const r of pendingRecoveries) {
+      const { data: current } = await supabaseAdmin
+        .from('pay_advance_requests')
+        .select('amount, repaid_amount')
+        .eq('id', r.advanceId)
+        .maybeSingle();
+      if (!current) continue;
+
+      const row = current as { amount: number; repaid_amount: number };
+      const repaid = Math.round((Number(row.repaid_amount) + r.amount) * 100) / 100;
+      await supabaseAdmin
+        .from('pay_advance_requests')
+        .update({
+          repaid_amount: repaid,
+          // Only once it is genuinely clear. A rounding cent left behind would otherwise keep an
+          // advance open forever, so the comparison allows for it.
+          ...(repaid >= Number(row.amount) - 0.005 ? { status: 'repaid' } : {}),
+        })
+        .eq('id', r.advanceId);
+    }
   }
 
   // Update run totals

@@ -50,6 +50,9 @@ interface Advance {
   reviewed_by: string | null;
   denial_reason: string | null;
   pay_date: string | null;
+  repaid_amount?: number;
+  /** Still owed. Zero unless the advance has been paid out. */
+  outstanding?: number;
 }
 
 interface Bonus {
@@ -311,14 +314,49 @@ export default function HoursApprovalPage() {
   };
 
   // Advance actions
+  // ── APPROVING IS NOT PAYING (pay consolidation C-17, 2026-08-04) ──────────────────────────
+  //
+  // Approve records the decision and, optionally, how much comes back each pay period. It does
+  // NOT make the advance recoverable — "Mark paid" does that, because recovering against money
+  // that was blessed but never handed over takes back something the person never received.
   const approveAdvance = async (id: string) => {
     const payDate = prompt('Pay date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
     if (!payDate) return;
-    await fetch('/api/admin/time-logs/advances', {
+    // Blank means the whole balance comes out of the next cheque, which is right for a small
+    // advance. A larger one is spread by entering a figure. Either way a cheque is never
+    // emptied — a quarter of net pay is always protected.
+    const instalment = prompt('Recover how much per pay period? Leave blank to take it all from the next cheque.', '');
+    const perPeriod = instalment === null ? null : parseFloat(instalment);
+
+    const res = await fetch('/api/admin/time-logs/advances', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, action: 'approve', pay_date: payDate }),
+      body: JSON.stringify({
+        id, action: 'approve', pay_date: payDate,
+        ...(Number.isFinite(perPeriod) && (perPeriod as number) > 0 ? { repay_per_period: perPeriod } : {}),
+      }),
     });
+    if (!res.ok) {
+      const problem = await res.json().catch(() => ({}));
+      alert(problem.error || 'Could not approve that advance.');
+      return;
+    }
+    await loadData();
+  };
+
+  /** The money has actually left. This is what puts the advance into recovery. */
+  const markAdvancePaid = async (id: string) => {
+    if (!confirm('Mark this advance as paid out? It will start coming back out of upcoming paycheques.')) return;
+    const res = await fetch('/api/admin/time-logs/advances', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: 'mark_paid' }),
+    });
+    if (!res.ok) {
+      const problem = await res.json().catch(() => ({}));
+      alert(problem.error || 'Could not mark that advance as paid.');
+      return;
+    }
     await loadData();
   };
 
@@ -642,7 +680,11 @@ export default function HoursApprovalPage() {
                     </div>
                   </div>
                   <div className="tl-advance-card__right">
-                    <span className={`tl-badge ${adv.status === 'approved' ? 'tl-badge--approved' : adv.status === 'denied' ? 'tl-badge--rejected' : adv.status === 'paid' ? 'tl-badge--approved' : 'tl-badge--pending'}`}>
+                    <span className={`tl-badge ${
+                      adv.status === 'denied' || adv.status === 'cancelled' ? 'tl-badge--rejected'
+                        : adv.status === 'pending' ? 'tl-badge--pending'
+                        : 'tl-badge--approved'
+                    }`}>
                       {adv.status}
                     </span>
                     {adv.status === 'pending' && (
@@ -650,6 +692,16 @@ export default function HoursApprovalPage() {
                         <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => approveAdvance(adv.id)}>Approve</button>
                         <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={() => denyAdvance(adv.id)}>Deny</button>
                       </div>
+                    )}
+                    {adv.status === 'approved' && (
+                      <div className="tl-advance-card__actions">
+                        <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => markAdvancePaid(adv.id)}>Mark paid</button>
+                      </div>
+                    )}
+                    {adv.status === 'paid' && (adv.outstanding ?? 0) > 0 && (
+                      <span className="tl-advance-card__balance">
+                        {formatCurrency(adv.outstanding ?? 0)} still to recover
+                      </span>
                     )}
                   </div>
                 </div>

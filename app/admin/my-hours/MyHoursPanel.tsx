@@ -103,6 +103,10 @@ interface TimeLog {
 }
 
 interface Advance {
+  /** How much has been recovered from pay so far. */
+  repaid_amount?: number;
+  /** Still owed. Zero unless the advance has actually been paid out. */
+  outstanding?: number;
   id: string;
   amount: number;
   reason: string;
@@ -149,6 +153,7 @@ export default function MyHoursPanel() {
   const [payBasis, setPayBasis] = useState<PayBasis | null>(null);
   const [logs, setLogs] = useState<TimeLog[]>([]);
   const [advances, setAdvances] = useState<Advance[]>([]);
+  const [advancesOwed, setAdvancesOwed] = useState(0);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -168,6 +173,10 @@ export default function MyHoursPanel() {
   const [showAdvanceForm, setShowAdvanceForm] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState('');
   const [advanceReason, setAdvanceReason] = useState('');
+  // The server refuses a second open request and says why ("you already have a $200 request
+  // pending"). That sentence belongs on the page, not in a browser alert box that disappears
+  // the moment it is dismissed.
+  const [advanceError, setAdvanceError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -185,6 +194,7 @@ export default function MyHoursPanel() {
       if (advRes.ok) {
         const data = await advRes.json();
         setAdvances(data.advances || []);
+        setAdvancesOwed(data.total_outstanding ?? 0);
       }
 
       // ── PRICED FOR THIS PERSON, NOT THE LIST PRICE (owner report, 2026-08-04) ─────────────
@@ -309,10 +319,11 @@ export default function MyHoursPanel() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || 'Failed to submit');
+        const problem = await res.json().catch(() => ({}));
+        setAdvanceError(problem.error || 'Could not submit that request.');
         return;
       }
+      setAdvanceError(null);
 
       await loadData();
       setTab('history');
@@ -336,10 +347,11 @@ export default function MyHoursPanel() {
         body: JSON.stringify({ amount: amt, reason: advanceReason.trim() }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        alert(data.error || 'Failed to submit');
+        const problem = await res.json().catch(() => ({}));
+        setAdvanceError(problem.error || 'Could not submit that request.');
         return;
       }
+      setAdvanceError(null);
       setShowAdvanceForm(false);
       setAdvanceAmount('');
       setAdvanceReason('');
@@ -791,10 +803,19 @@ export default function MyHoursPanel() {
         <div className="tl-advances-section">
           <div className="tl-advances-header">
             <h3>Pay Advance Requests</h3>
+            {/* Stated up front. An advance comes back out of a later cheque, so somebody
+                deciding whether to ask for another needs to know what they already owe. */}
+            {advancesOwed > 0 && (
+              <span className="tl-advances-owed">
+                {formatCurrency(advancesOwed)} still to come out of upcoming pay
+              </span>
+            )}
             <button className="tl-btn tl-btn--primary" onClick={() => setShowAdvanceForm(!showAdvanceForm)}>
               {showAdvanceForm ? 'Cancel' : 'Request Advance'}
             </button>
           </div>
+
+          {advanceError && <div className="tl-pay-error">{advanceError}</div>}
 
           {showAdvanceForm && (
             <div className="tl-advance-form">
@@ -838,9 +859,31 @@ export default function MyHoursPanel() {
                     </div>
                     {adv.pay_date && <div className="tl-advance-card__pay-date">Pay date: {adv.pay_date}</div>}
                     {adv.denial_reason && <div className="tl-advance-card__denial">Denied: {adv.denial_reason}</div>}
+                    {/* What is left to repay, and what has come back. Shown only once the money
+                        has actually been paid out — before that there is nothing owed. */}
+                    {adv.status === 'paid' && (
+                      <div className="tl-advance-card__balance">
+                        {formatCurrency(adv.outstanding ?? 0)} still to be recovered
+                        {(adv.repaid_amount ?? 0) > 0 && (
+                          <> &mdash; {formatCurrency(adv.repaid_amount ?? 0)} already repaid</>
+                        )}
+                      </div>
+                    )}
+                    {adv.status === 'repaid' && (
+                      <div className="tl-advance-card__balance">Fully repaid.</div>
+                    )}
+                    {adv.status === 'approved' && (
+                      <div className="tl-advance-card__balance">
+                        Approved &mdash; waiting to be paid out. Nothing is recovered until it is.
+                      </div>
+                    )}
                   </div>
                   <div className="tl-advance-card__right">
-                    <span className={`tl-badge ${adv.status === 'approved' ? 'tl-badge--approved' : adv.status === 'denied' ? 'tl-badge--rejected' : adv.status === 'paid' ? 'tl-badge--approved' : 'tl-badge--pending'}`}>
+                    <span className={`tl-badge ${
+                      adv.status === 'denied' || adv.status === 'cancelled' ? 'tl-badge--rejected'
+                        : adv.status === 'pending' ? 'tl-badge--pending'
+                        : 'tl-badge--approved'
+                    }`}>
                       {adv.status.charAt(0).toUpperCase() + adv.status.slice(1)}
                     </span>
                     {adv.status === 'pending' && (

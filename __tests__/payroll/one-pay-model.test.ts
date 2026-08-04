@@ -115,6 +115,44 @@ describe('the pay model has exactly one implementation', () => {
   });
 });
 
+describe('pay advances come back out', () => {
+  // An advance that is never recovered is a gift. Nothing about the recovery is enforced by types:
+  // deleting the call leaves a payroll run that typechecks, passes, and silently writes off every
+  // advance the firm has made.
+  const runs = () => code(read('app/api/admin/payroll/runs/route.ts'));
+
+  it('the payroll run recovers outstanding advances', () => {
+    // The CALL, not the identifier. Matching the bare name passes on the import line alone, so
+    // deleting the invocation would have left this test green — a check that cannot fail for the
+    // reason it claims. Found by breaking it and watching it pass.
+    expect(runs()).toContain('planAdvanceRecovery({');
+    expect(runs()).toContain('recovery.recoveries');
+  });
+
+  it('it recovers only against advances that were actually PAID OUT', () => {
+    // The view filters to status 'paid'. Reading `pay_advance_requests` directly would recover
+    // against approved-but-unpaid advances — taking back money never handed over.
+    expect(runs()).toContain("'pay_advances_outstanding'");
+    expect(
+      runs().includes("from('pay_advance_requests')\n    .select('id, user_email, outstanding"),
+      'payroll must read the outstanding view, not the raw request table',
+    ).toBe(false);
+  });
+
+  it('every recovery is written as its own row, linked to the stub it came out of', () => {
+    // A running total alone cannot answer "which pay period took this", and cannot be reversed when
+    // a run is voided.
+    expect(runs()).toContain("'pay_advance_repayments'");
+    expect(runs()).toContain('pay_stub_id');
+  });
+
+  it('the recovery comes out of net pay, not gross', () => {
+    // An advance is money already handed over, not a pre-tax deduction. Taking it from gross would
+    // reduce the tax withheld on wages the person genuinely earned.
+    expect(runs()).toContain('net_pay: recovery.netAfterRecovery');
+  });
+});
+
 describe('the parked progression system stays parked', () => {
   it('nothing in the live pay path stacks grade, seniority, credentials or XP', () => {
     // Parked at the owner's request, 2026-08-04: base pay plus a handful of set activity rates.

@@ -122,7 +122,8 @@ Supporting modules:
 | **C-14** | Payroll runs pay from `daily_time_logs` at model rates, honouring approver decisions; FLSA half-time premium on blended rates | ✅ Shipped |
 | **C-15** | Source guards + negative control: no route may re-implement a rate, progression stays parked | ✅ Shipped |
 | **C-16** | One payout ledger — `payout_log`, `employee_payouts`, `payout_batches`, `balance_transactions` all exist and are empty | ⬜ Not started |
-| **C-17** | Week history + pay advances fully built out | ⬜ Not started |
+| **C-17** | Pay advances are recovered from pay: seed 576 (repayment ledger + outstanding view), instalments, protected share of net, mark-paid step, employee sees the balance | ✅ Shipped |
+| **C-19** | Week history: period totals + what the week is worth | ⬜ Not started |
 | **C-18** | Backfill `employee_profiles.tier_key` (NULL for everybody; `job_title` carries the title) | ⬜ Not started |
 
 ---
