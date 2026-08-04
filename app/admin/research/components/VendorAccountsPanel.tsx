@@ -39,6 +39,36 @@ export interface AccountRow {
 const n = (v: string | number | null): number | null =>
   v === null || v === '' ? null : Number(v);
 
+/** What auto top-up WOULD do right now, per account. Computed server-side by `decideTopup`; nothing
+ *  here re-derives it, because a second opinion about spending money is how the two come to differ. */
+export interface DryRunDecision {
+  vendorId: string;
+  wouldTopUp: boolean;
+  amountUsd: number | null;
+  reason: string;
+  blocked: boolean;
+}
+
+export interface DryRun {
+  decisions: DryRunDecision[];
+  chargesNothing: boolean;
+  /** False when the top-up ledger could not be read — then month-to-date spend is UNKNOWN, not $0. */
+  monthToDateKnown: boolean;
+  note: string;
+}
+
+/**
+ * The one-line verdict for a row, and the tone it should be read in.
+ *
+ * Three states, deliberately distinct — collapsing `blocked` into "no" is what would make this
+ * screen lie. *"Nothing to do"* and *"I cannot tell whether there is anything to do"* look identical
+ * on a quiet row and mean opposite things when money is involved.
+ */
+export function dryRunTone(d: DryRunDecision): 'would-charge' | 'blocked' | 'idle' {
+  if (d.blocked) return 'blocked';
+  return d.wouldTopUp ? 'would-charge' : 'idle';
+}
+
 /** The same rule `describeBalance()` applies server-side: never a figure without its provenance.
  *
  *  Exported so it can be tested directly. These two functions are the risky part of this file — they
@@ -77,6 +107,7 @@ export function topupLine(a: AccountRow): string {
 
 export default function VendorAccountsPanel() {
   const [accounts, setAccounts] = useState<AccountRow[] | null>(null);
+  const [dryRun, setDryRun] = useState<DryRun | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -96,6 +127,10 @@ export default function VendorAccountsPanel() {
         );
       }
       setAccounts(json.accounts as AccountRow[]);
+      // S-9d — the route has returned `topupDryRun` since S-9b and nothing rendered it. The decision
+      // engine was wired to an API that answered into the void: authored-but-not-wired one layer up
+      // from where that defect is usually found.
+      setDryRun((json.topupDryRun as DryRun | undefined) ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -169,6 +204,16 @@ export default function VendorAccountsPanel() {
 
       {error && <div className="rounded border border-red-800 bg-red-950/40 p-3 text-sm text-red-200">{error}</div>}
 
+      {/* S-9d — said once, at the top, rather than repeated on every row: when the top-up ledger
+          cannot be read, month-to-date spend is UNKNOWN and every verdict below is a refusal to
+          decide. Without this the rows would each say "blocked" and look like eleven separate
+          configuration problems instead of one missing table. */}
+      {dryRun && !dryRun.monthToDateKnown && (
+        <div className="rounded border border-amber-700 bg-amber-950/30 p-3 text-xs text-amber-200">
+          {dryRun.note}
+        </div>
+      )}
+
       {accounts.map((a) => (
         <div key={a.vendor_id} className="rounded border border-gray-700 bg-gray-900 p-4 space-y-2">
           <div className="flex items-center justify-between">
@@ -190,6 +235,38 @@ export default function VendorAccountsPanel() {
 
           <p className="text-sm text-gray-300">{balanceLine(a)}</p>
           <p className="text-sm text-gray-300">{topupLine(a)}</p>
+
+          {/* S-9d — what auto top-up would do RIGHT NOW, charging nothing. The limits above say what
+              was configured; this says what those limits currently amount to, which is the question
+              "amounts, ceiling — owner decides" actually needs answered. `decideTopup` produced both
+              the verdict and the sentence; nothing is re-derived here. */}
+          {(() => {
+            const d = dryRun?.decisions.find((x) => x.vendorId === a.vendor_id);
+            if (!d) return null;
+            const tone = dryRunTone(d);
+            const cls =
+              tone === 'would-charge' ? 'border-emerald-800 bg-emerald-950/30 text-emerald-200'
+              : tone === 'blocked'    ? 'border-amber-800 bg-amber-950/30 text-amber-200'
+              :                         'border-gray-800 bg-gray-950/40 text-gray-400';
+            return (
+              <div className={`rounded border p-2 text-xs ${cls}`} data-testid={`dry-run-${a.vendor_id}`}>
+                <span className="font-medium">
+                  {tone === 'would-charge'
+                    ? `Would charge $${(d.amountUsd ?? 0).toFixed(2)} now`
+                    : tone === 'blocked'
+                      ? 'Cannot decide'
+                      : 'Nothing to do'}
+                </span>
+                {' — '}{d.reason}
+                {/* Stated on the row that would spend money, not only in the docs. */}
+                {tone === 'would-charge' && (
+                  <span className="block pt-1 text-emerald-300/70">
+                    Nothing is charged — the card flow is not built yet.
+                  </span>
+                )}
+              </div>
+            );
+          })()}
 
           {editing === a.vendor_id && (
             <div className="border-t border-gray-800 pt-3 space-y-3">

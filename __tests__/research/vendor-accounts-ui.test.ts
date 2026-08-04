@@ -10,6 +10,9 @@
 // about money moving.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { dryRunTone, type DryRunDecision } from '@/app/admin/research/components/VendorAccountsPanel';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -117,5 +120,66 @@ describe('the panel is actually reachable', () => {
 
   it('requires a session on both verbs', () => {
     expect(route.match(/if \(!session\?\.user\?\.email\)/g)?.length).toBe(2);
+  });
+});
+
+// ── S-9d — the dry run reaches the screen ───────────────────────────────────────────────────────
+//
+// `decideTopup()` shipped with no caller (S-9b wired it into the route). The route then returned
+// `topupDryRun` for two slices and **nothing rendered it** — the decision engine was wired to an API
+// that answered into the void, which is the authored-but-not-wired defect one layer up from where
+// this program usually finds it.
+//
+// The tone function is the risky part and is tested directly. A source-text check that the file
+// contains the word "blocked" proves nothing about which branch produces it, and this is a screen
+// about spending money.
+
+describe('S-9d — what auto top-up would do, on screen', () => {
+  const decision = (over: Partial<DryRunDecision> = {}): DryRunDecision => ({
+    vendorId: 'texasfile',
+    wouldTopUp: false,
+    amountUsd: null,
+    reason: 'above the threshold.',
+    blocked: false,
+    ...over,
+  });
+
+  it('separates "nothing to do" from "cannot tell"', () => {
+    // The distinction the whole panel turns on. Collapsing `blocked` into "no" is what would make
+    // this screen lie: a quiet row and an unreadable one look identical and mean opposite things.
+    expect(dryRunTone(decision())).toBe('idle');
+    expect(dryRunTone(decision({ blocked: true, reason: 'balance is unknown.' }))).toBe('blocked');
+  });
+
+  it('reports a pending charge as its own state, not as "idle"', () => {
+    expect(dryRunTone(decision({ wouldTopUp: true, amountUsd: 90 }))).toBe('would-charge');
+  });
+
+  it('treats blocked as blocked even if something also set wouldTopUp', () => {
+    // Defensive: `decideTopup` never returns both, but if a future change did, the safe reading is
+    // the refusal. A screen that says "would charge $90" over a decision the engine refused to make
+    // is worse than one that says nothing.
+    expect(dryRunTone(decision({ wouldTopUp: true, amountUsd: 90, blocked: true }))).toBe('blocked');
+  });
+
+  it('the panel renders the dry run rather than deriving its own verdict', () => {
+    const src = readFileSync(
+      join(__dirname, '..', '..', 'app/admin/research/components/VendorAccountsPanel.tsx'),
+      'utf8',
+    );
+    expect(src).toContain('topupDryRun');
+    expect(src).toContain('dryRunTone(');
+    // A second opinion about spending money is how the two come to differ.
+    expect(src, 'the panel is deciding for itself whether to top up').not.toMatch(/lowWaterUsd|low_water_usd\s*[<>]/);
+  });
+
+  it('says once, at the top, when the ledger could not be read', () => {
+    const src = readFileSync(
+      join(__dirname, '..', '..', 'app/admin/research/components/VendorAccountsPanel.tsx'),
+      'utf8',
+    );
+    // Otherwise eleven rows each say "blocked" and it reads as eleven configuration problems
+    // instead of one missing table.
+    expect(src).toMatch(/monthToDateKnown/);
   });
 });

@@ -655,3 +655,44 @@ why. The negative control (making `attempted` stop counting) fails the assertion
 
 **Still owner-blocked, unchanged:** the SetupIntent and the off-session PaymentIntent, the per-vendor
 amounts and thresholds, the monthly ceiling figure, and which vendors to open accounts with.
+
+## S-9d DONE 2026-08-04 — the dry run reaches the screen
+
+S-9b wired `decideTopup()` into the route. S-9c fed it the real ledger. **Neither put it in front of
+anyone**: `GET /api/admin/research/vendor-accounts` has returned `topupDryRun` for two slices and
+`VendorAccountsPanel` never read the field.
+
+That is the authored-but-not-wired defect **one layer up from where this program usually finds it** —
+not a module without a caller, but an API answering into the void. Both previous slices were written
+while describing that exact failure, which is worth recording: knowing the pattern is not the same as
+checking for it.
+
+Each account row now carries what auto top-up would do right now, in one of **three states**:
+
+| state | shown as | when |
+|---|---|---|
+| would-charge | *"Would charge $90.00 now"* + the reason | the engine says yes |
+| blocked | *"Cannot decide"* + which rail stopped it | balance unknown, stale, unsettled charge, ledger unreadable |
+| idle | *"Nothing to do"* + why | above the threshold, or auto top-up off |
+
+**Collapsing `blocked` into "no" is what would make this screen lie**, and it is the obvious
+simplification. *"Nothing to do"* and *"I cannot tell whether there is anything to do"* look identical
+on a quiet row and mean opposite things when money is involved. `dryRunTone()` is exported and tested
+directly for that reason — a source-text check that the file contains the word "blocked" proves
+nothing about which branch produces it. It also resolves `blocked` **first**: if a future change ever
+returned both flags, the safe reading is the refusal, because a row saying *"would charge $90"* over a
+decision the engine refused to make is worse than one saying nothing.
+
+**The unreadable-ledger note is said once, at the top.** Otherwise every row reads "blocked" and the
+screen looks like eleven separate configuration problems rather than one missing table.
+
+And on any row that would spend money, the screen says **"Nothing is charged — the card flow is not
+built yet"** in place. That sentence existed only in this document and in a route comment; the person
+it protects is the one looking at a green box that says a charge would happen.
+
+The negative control collapses `blocked` into `idle` and fails two assertions by name. 22 tests in
+this file, 977 across the research suite, `tsc` and `eslint` clean, production build compiles.
+
+**Still owner-blocked, unchanged:** the SetupIntent and the off-session PaymentIntent, the per-vendor
+amounts and thresholds, the ceiling figure, and which vendors to open accounts with. The difference
+after this slice is that the owner can now *see what those numbers would do* before choosing them.
