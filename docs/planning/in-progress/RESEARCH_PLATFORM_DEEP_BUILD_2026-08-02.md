@@ -4283,3 +4283,34 @@ rather than a run.
 **That leaves the two-tracker question as the real remaining work here**, not the four call sites:
 `lib/ai-usage-tracker.ts` still keeps a parallel cost model and its own `canMakeCall()` gate, and
 `spendForRun` cannot see it.
+
+### ◑ R4b — the three Bell files, 4 → 1, and my own blocker was wrong
+
+The previous entry recorded the three Bell call sites as *"each needs `projectId` from the Bell
+pipeline, which does not run under `runPipeline`'s ambient context."* **The second half is true and
+the first half is not.**
+
+`BellResearchInput.projectId` has existed all along — it is the first field on the interface, commented
+*"Supabase project ID for status updates and storage"*. Nothing needed threading. The Bell pipeline is
+simply a **second entry point**, and it had not been wrapped.
+
+`runBellCountyResearch` now establishes the ambient run the same way `runPipeline` does, at the
+outermost edge rather than inside `orchestrateBellResearch` — so anything the orchestrator reaches,
+now or later, is attributed without further thought. The three call sites became one line each.
+
+**This is the fifth stale reason found in these documents today**, and the first one I wrote myself —
+three slices ago, in the same file where I corrected R4b's *previous* stale reason about R6. Writing
+"needs X threaded" without opening the input type is the same failure as writing "same R6 pass"
+without checking whether R6 had shipped. **A reason nobody checked is not a reason**, and that applies
+to reasons written an hour ago by the person now reading them.
+
+Ratchet tightened **4 → 1**. Worker suite 93 files / 1,529 tests green; `tsc` and `eslint` clean.
+
+**One entry remains**, and it is not a migration: `receipt-extraction.ts` runs from a CLI batch over
+queued receipts, has no run to belong to, and needs its own accounting key rather than a `projectId`.
+Every AI call site in this worker that belongs to a research run now prices through `infra/usage`.
+
+**And the larger question stands**, untouched by any of this: `lib/ai-usage-tracker.ts` remains a
+parallel spend system with its own cost model and its own `canMakeCall()` gate, invisible to
+`spendForRun`. Migrating the last call sites made the ceiling accurate; it did not make it the only
+answer.

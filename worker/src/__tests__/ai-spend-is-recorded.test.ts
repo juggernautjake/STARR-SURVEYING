@@ -51,9 +51,6 @@ const UNMIGRATED: Record<string, string> = {
   // job queue runs `concurrency: 3`, so a module-level "current run" would file one run's spend
   // against another — a silent misattribution, which is the failure this whole file exists to stop.
   // `AsyncLocalStorage` is correct under concurrency and is the likely shape of the fix.
-  'src/counties/bell/analyzers/site-intelligence.ts': 'Bell site intelligence. Needs projectId threaded from the Bell pipeline.',
-  'src/counties/bell/reports/survey-plan-generator.ts': 'Survey plan generation. Needs projectId threaded.',
-  'src/counties/bell/scrapers/map-screenshot-capture.ts': 'Vision call on a map screenshot. Needs projectId threaded.',
   'src/services/receipt-extraction.ts': 'NOT a research-run call at all: it runs from a CLI batch over queued RECEIPTS and has no project to attribute to. Its cost is real but it is not run spend, so migrating it as-is would file finance work against a research ceiling. Needs its own key, or an explicit exemption.',
 };
 
@@ -126,6 +123,6 @@ describe('spend the budget cannot see', () => {
     // **Tightened when the count drops, not just when it rises.** Left at 14 it would have allowed
     // two new unrecorded call sites to appear and still pass — a ratchet that does not follow the
     // work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
-    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(4);
+    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(1);
   });
 });

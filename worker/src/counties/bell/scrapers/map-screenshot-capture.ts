@@ -21,6 +21,7 @@
  */
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { acquireBrowser } from '../../../lib/browser-factory.js';
 
@@ -169,6 +170,13 @@ async function ocrVerifyPage(
           { type: 'text', text: prompt },
         ],
       }],
+    });
+
+    // R4b — the Bell pipeline now runs inside an ambient run (see counties/bell/index.ts), so
+    // this is attributable without threading anything through the orchestrator.
+    void recordAmbientAiCall('map-screenshot-capture', OCR_VERIFY_MODEL, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
     });
 
     const textBlock = response.content.find((c) => c.type === 'text');

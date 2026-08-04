@@ -7,6 +7,7 @@
  */
 
 import type { BellResearchResult, SurveyPlan, FieldStep, PlatLayer } from '../types/research-result.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call writes the survey gameplan — the one output a crew acts on.
 import { modelFor } from '../../../infra/model-router.js';
 import type { SurveyType } from '../types/research-input.js';
@@ -186,6 +187,13 @@ Include steps for:
 
 Make it specific to ${input.surveyType} surveys. Be practical and actionable.`,
       }],
+    });
+
+    // R4b — the Bell pipeline now runs inside an ambient run (see counties/bell/index.ts), so
+    // this is attributable without threading anything through the orchestrator.
+    void recordAmbientAiCall('survey-plan-generator', modelFor('synthesize').model, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
     });
 
     const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;

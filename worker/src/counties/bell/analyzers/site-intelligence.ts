@@ -7,6 +7,7 @@
  */
 
 import type { ScreenshotCapture, SiteIntelligenceNote } from '../types/research-result.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call reads a portal page structure.
 import { modelFor } from '../../../infra/model-router.js';
@@ -108,6 +109,13 @@ Only include genuinely useful observations. Skip obvious things.`,
           },
         ],
       }],
+    });
+
+    // R4b — the Bell pipeline now runs inside an ambient run (see counties/bell/index.ts), so
+    // this is attributable without threading anything through the orchestrator.
+    void recordAmbientAiCall('site-intelligence', modelFor('extract').model, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
     });
 
     const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;

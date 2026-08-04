@@ -6,6 +6,7 @@
  */
 
 import { orchestrateBellResearch } from './orchestrator.js';
+import { withRunContext } from '../../infra/run-context.js';
 export { orchestrateBellResearch };
 export type { OrchestratorProgress, ProgressCallback } from './orchestrator.js';
 export type { BellResearchInput } from './types/research-input.js';
@@ -35,5 +36,12 @@ export async function runBellCountyResearch(
   onProgress: import('./orchestrator').ProgressCallback,
   signal?: AbortSignal,
 ): Promise<import('./types/research-result').BellResearchResult> {
-  return orchestrateBellResearch(input, onProgress, signal);
+  // R4b — the Bell pipeline is a second entry point, and until now it ran outside the ambient run
+  // that `runPipeline` establishes. Three Bell AI call sites were recorded as blocked on "needs
+  // projectId threaded from the Bell pipeline" — which was wrong: `BellResearchInput` has carried a
+  // `projectId` all along, for status updates and storage. The blocker was a reason nobody checked.
+  //
+  // Wrapping here rather than in `orchestrateBellResearch` keeps the context at the outermost edge,
+  // so anything the orchestrator calls — now or later — is attributed without further thought.
+  return withRunContext(input.projectId, () => orchestrateBellResearch(input, onProgress, signal));
 }
