@@ -5,6 +5,7 @@
 
 import type { DocumentResult, ExtractedBoundaryData, BoundaryCall, DocumentReference, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
 import { checkAndFlagCreditDepletion, isCreditDepleted, AnthropicCreditDepletedError as SharedCreditError } from '../lib/credit-guard.js';
 import { acquireBrowser } from '../lib/browser-factory.js';
@@ -174,6 +175,12 @@ async function callClaudeWithRetry(
         system: systemPrompt,
         messages: messages as Parameters<typeof client.messages.create>[0]['messages'],
       });
+
+      // R4b — priced against the ambient run, before the response is read.
+      void recordAmbientAiCall('ai-extraction', AI_MODEL, {
+        input:  response.usage?.input_tokens  ?? 0,
+        output: response.usage?.output_tokens ?? 0,
+      }, { site: 'extract' });
 
       const textBlock = response.content.find((c) => c.type === 'text');
       if (!textBlock || textBlock.type !== 'text' || !textBlock.text.trim()) {
@@ -1677,6 +1684,12 @@ export async function extractFromImage(
       }],
     });
 
+    // R4b — priced against the ambient run, before the response is read.
+    void recordAmbientAiCall('ai-extraction', AI_MODEL, {
+      input:  ocrResponse.usage?.input_tokens  ?? 0,
+      output: ocrResponse.usage?.output_tokens ?? 0,
+    }, { site: 'ocr' });
+
     ocrText = ocrResponse.content
       .filter((b: any) => b.type === 'text')
       .map((b: any) => b.text as string)
@@ -1744,6 +1757,12 @@ export async function analyzeDocumentQuadrants(
               ],
             }],
           });
+
+          // R4b — priced against the ambient run, before the response is read.
+          void recordAmbientAiCall('ai-extraction', AI_MODEL, {
+            input:  response.usage?.input_tokens  ?? 0,
+            output: response.usage?.output_tokens ?? 0,
+          }, { site: 'region-text' });
 
           const text = response.content
             .filter((b: any) => b.type === 'text')
@@ -1831,6 +1850,12 @@ export async function analyzeMultiPageDocument(
             ],
           }],
         });
+
+        // R4b — priced against the ambient run, before the response is read.
+        void recordAmbientAiCall('ai-extraction', AI_MODEL, {
+          input:  response.usage?.input_tokens  ?? 0,
+          output: response.usage?.output_tokens ?? 0,
+        }, { site: 'page-text' });
 
         const pageText = response.content
           .filter((b: any) => b.type === 'text')

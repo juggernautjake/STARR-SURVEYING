@@ -54,7 +54,6 @@ const UNMIGRATED: Record<string, string> = {
   'src/counties/bell/analyzers/site-intelligence.ts': 'Bell site intelligence. Needs projectId threaded from the Bell pipeline.',
   'src/counties/bell/reports/survey-plan-generator.ts': 'Survey plan generation. Needs projectId threaded.',
   'src/counties/bell/scrapers/map-screenshot-capture.ts': 'Vision call on a map screenshot. Needs projectId threaded.',
-  'src/services/ai-extraction.ts': 'Generic field extraction — FIVE call sites, the largest single job on this list.',
   'src/services/receipt-extraction.ts': 'NOT a research-run call at all: it runs from a CLI batch over queued RECEIPTS and has no project to attribute to. Its cost is real but it is not run spend, so migrating it as-is would file finance work against a research ceiling. Needs its own key, or an explicit exemption.',
 };
 
@@ -122,11 +121,11 @@ describe('spend the budget cannot see', () => {
     // The ratchet. R4's own note claimed 21; the measured figure was 14. On 2026-08-04 the deed and
     // plat analyzers came off, then — once `withRunContext` made attribution possible without
     // threading — ai-context-analyzer, adaptive-vision, address-normalizer,
-    // property-validation-pipeline, geo-reconcile, subdivision-lot-isolator and bis-cad. Five left.
+    // property-validation-pipeline, geo-reconcile, subdivision-lot-isolator, bis-cad and ai-extraction. Four left.
     //
     // **Tightened when the count drops, not just when it rises.** Left at 14 it would have allowed
     // two new unrecorded call sites to appear and still pass — a ratchet that does not follow the
     // work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
-    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(5);
+    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(4);
   });
 });

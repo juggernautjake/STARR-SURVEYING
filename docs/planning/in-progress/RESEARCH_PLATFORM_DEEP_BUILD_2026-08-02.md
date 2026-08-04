@@ -4260,3 +4260,26 @@ Ratchet tightened **8 → 5**. Worker suite 92 files / 1,525 tests green; `tsc` 
 
 **Remaining 5:** `ai-extraction.ts` (five call sites in one file, the largest single job), the three
 Bell files, and `receipt-extraction.ts` — which still needs its own accounting key rather than a run.
+
+### ◑ R4b — `ai-extraction.ts`, the largest single file, 5 → 4 (2026-08-04)
+
+Four call sites in one file — the biggest remaining job on the list, and now four lines. The
+`grep` reported five `messages.create` matches; the fifth is a **type reference**
+(`Parameters<typeof client.messages.create>[0]['messages']`), not a call. Counted before instrumenting
+rather than after, because inserting a recorder after a type expression would have compiled and
+recorded nothing.
+
+Each is placed before the response is read: `extract`, `ocr`, `region-text` and `page-text`. The OCR
+site uses a differently-named response variable (`ocrResponse`), which is exactly the kind of detail a
+bulk find-and-replace would have got wrong — it was read per site instead.
+
+Ratchet tightened **5 → 4**. Worker suite 92 files / 1,525 tests green; `tsc` and `eslint` clean.
+
+**Remaining 4:** the three Bell files (`site-intelligence`, `survey-plan-generator`,
+`map-screenshot-capture` — each needs `projectId` from the Bell pipeline, which does not run under
+`runPipeline`'s ambient context) and `receipt-extraction.ts`, which needs its own accounting key
+rather than a run.
+
+**That leaves the two-tracker question as the real remaining work here**, not the four call sites:
+`lib/ai-usage-tracker.ts` still keeps a parallel cost model and its own `canMakeCall()` gate, and
+`spendForRun` cannot see it.
