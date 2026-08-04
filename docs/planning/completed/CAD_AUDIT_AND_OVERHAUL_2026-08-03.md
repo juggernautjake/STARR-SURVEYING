@@ -2640,3 +2640,51 @@ helper that cannot see the zoom is wrong at every zoom but 1.
 **Three extractions in, the pattern is consistent:** every chunk taken out of this file was either
 untestable where it sat (S19a, S19c) or cost a renderer to reach (S19b). The file's size is not the
 problem — what it hides is.
+
+### ✅ S19d DONE 2026-08-04 — the dash loop, and the last top-level helper
+
+`drawDashedScreenLine` — the mirror axis and alignment hints. Pixi draws solid strokes only, so a
+dash is a run of short segments, and that loop has **three edge cases** nobody had tested:
+
+- a **degenerate** line (two points in the same place) must draw nothing, or a stray dot appears
+  where a surveyor reads a snap point;
+- the **last dash is clipped** to the endpoint — without it a dashed axis is drawn up to 6 px longer
+  than the thing it marks, which on a short axis is a quarter of its length;
+- the rhythm must not depend on **direction**, or the same guide flickers as the cursor crosses the
+  midpoint and the line flips.
+
+8 tests, including a sweep in four directions because the loop walks a unit vector and a sign error
+would show only on the way back.
+
+`lib/cad/render/dashed-line.ts`. 15,188 → 15,165 lines.
+
+## ✅ CLOSING STATE 2026-08-04 — moved to `completed/`
+
+Every slice in this document has shipped or is deferred with its reason recorded inline. What remains
+is **owner-gated or open-ended**, and neither is an action item this plan can close.
+
+| item | state |
+|---|---|
+| S0–S18, S1a/S1b, S4a–S4c, S5a/S5b, S6a, S7a/S7b, S8a–S8d, S9a–S9c, S11–S17, S19a–S19d | **shipped** |
+| **S4** — the incremental spatial index | **DEFERRED on measurement**, with a stated revisit trigger: S4a measured the immutable rebuild at 25.8 ms/frame across 200k features, so the orphan solved a cost that does not exist. |
+| **the golden plat + golden instrument file** | **owner.** 19 TRV assertions across 16 files are written and skipping on a fixture nobody has committed; the four real `.TRV` filenames are named in the tests and are the firm's own jobs. |
+| **splitting `CanvasViewport.tsx`** | **ongoing, and deliberately not an action item.** See below. |
+
+### ▶ Why the split is recorded as ongoing rather than outstanding
+
+Four extractions landed (S19a–S19d) and the file is 15,165 lines. The remainder has **no defined
+finish line** — "split the big file" is a direction, not a task, and a plan item that can never be
+ticked is how a document stays open forever while nobody can say what would close it.
+
+What the four slices established is the rule to keep applying, and it is not about size:
+
+> **Extract when the code cannot be checked where it sits.** S19a's fillet/chamfer previews and
+> S19c's transform ghost were untestable inside the component; S19b's hit test and S19d's dash loop
+> cost a renderer to reach. Every one produced tests that could not have existed before — 12, 12, 14
+> and 8 — and three produced findings: two implementations of one corner rule, a priority ordering
+> asserted only pairwise, and a radius that ignored zoom.
+
+Moving a chunk that is already reachable and already tested buys tidiness and risks a regression.
+That is the trade this document's own S4 deferral was decided on, and it applies here too.
+
+CAD suite **3,479 green**; `tsc`, `eslint` and `npm run build` clean.

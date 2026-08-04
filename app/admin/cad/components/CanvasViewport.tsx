@@ -35,6 +35,7 @@ import { pickFeatureCentroid, buildAreaText } from '@/lib/cad/labels/area-label'
 import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
 import { drawTransformedFeaturePreview } from '@/lib/cad/render/ghost-preview';
+import { drawDashedScreenLine } from '@/lib/cad/render/dashed-line';
 // Extracted from this file. They duplicate the geometry inside `filletTwoLines`/`chamferTwoLines`,
 // which cannot be called for a preview because calling them performs the edit — so a differential
 // test now pins the two to the same answers AND the same refusals. See the module header.
@@ -356,38 +357,9 @@ function pickAxisFromFeature(
   return getSegmentEndpoints(feature, idx);
 }
 
-/**
- * Draw a dashed line between two screen-space points. Pixi
- * doesn't natively support dash patterns, so we emit a series
- * of short solid segments. `lineStyle` is set internally so
- * callers don't need to (lineWeight 1.25 matches the rest of
- * the ghost-preview render path).
- */
-function drawDashedScreenLine(
-  g: import('pixi.js').Graphics,
-  a: { sx: number; sy: number },
-  b: { sx: number; sy: number },
-  color: number,
-  alpha: number,
-): void {
-  const DASH = 6;
-  const GAP = 4;
-  const dx = b.sx - a.sx;
-  const dy = b.sy - a.sy;
-  const len = Math.sqrt(dx * dx + dy * dy);
-  if (len < 0.5) return;
-  const ux = dx / len;
-  const uy = dy / len;
-  g.lineStyle(1.25, color, alpha);
-  let t = 0;
-  while (t < len) {
-    const t0 = t;
-    const t1 = Math.min(t + DASH, len);
-    g.moveTo(a.sx + ux * t0, a.sy + uy * t0);
-    g.lineTo(a.sx + ux * t1, a.sy + uy * t1);
-    t += DASH + GAP;
-  }
-}
+// S19d — `drawDashedScreenLine` moved to lib/cad/render/dashed-line.ts. A dash loop with three
+// edge cases (degenerate line, clipped final dash, direction-independent rhythm) and no test,
+// because it lived here.
 
 // S19c — `drawTransformedFeaturePreview` moved to lib/cad/render/ghost-preview.ts. It draws the
 // ghost of a transform (mirror/move/copy/rotate/scale) across nine geometry types and was
