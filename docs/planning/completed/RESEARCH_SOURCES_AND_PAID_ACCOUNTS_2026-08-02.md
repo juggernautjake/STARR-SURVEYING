@@ -876,7 +876,7 @@ instruction for the day GLO is wired: clear the flag, and these assertions go ba
 
 93 worker test files / 1,531 tests green; `tsc` and `eslint` clean.
 
-**Still open and unchanged:** the adapter has no caller. S-6 is *built and verified live, not wired*.
+~~**Still open and unchanged:** the adapter has no caller. S-6 is *built and verified live, not wired*.~~ **CLOSED by S-6d, 2026-08-04** — `services/original-survey.ts` calls it from the Bell orchestrator. Eleventh stale status line found in these documents today, and it survived exactly one slice.
 
 ## ✅ S-6d DONE 2026-08-04 — GLO is wired, and "wired" turned out to be per county
 
@@ -943,3 +943,33 @@ Worker suite **94 files / 1,543 tests green**; `tsc` and `eslint` clean.
 
 **S-6 is complete.** Remaining in this document: S-9's Stripe SetupIntent (owner: live-payments
 decision), and wiring GLO for counties beyond Bell as their pipelines are built.
+
+## ✅ CLOSING STATE 2026-08-04 — moved to `completed/`
+
+Every slice has shipped. **S-9 is the only one left, and all three of its blockers are the owner's.**
+
+| slice | state |
+|---|---|
+| S-6, S-6b, S-6c, **S-6d** | **shipped.** The GLO adapter is built, driven live against 1,523 Bell grants, *and now called* — S-6d closed the two-day gap where the run claimed `original_survey` and nothing queried it. |
+| S-7, S-8, S-10 – S-16 | **shipped** |
+| **S-9** — card on file + auto top-up | **owner, and it is three things, not one** |
+
+### ▶ The three, restated so none of them reads as "code left to write"
+
+1. **The Stripe SetupIntent and off-session charge.** A live-payments decision — real money, moved
+   without a person present.
+2. **Vendor credentials.** `credential_env_var` names environment variables nobody has set.
+3. **A balance reader.** *Nothing in this repo writes a vendor balance, and no module could.* Not a
+   decision — a component that has not been written, and it **cannot** be written without (2),
+   because reading a balance means signing in to that vendor.
+
+The consequence is on screen today and is correct: every account reports **"Cannot decide — balance
+is unknown"**, and will keep saying so after any Stripe decision. That sentence is the feature
+working, not the feature missing — `describeBalance` refuses to guess, for the same reason F1b's
+route distinguishes "no cards" from "no registry".
+
+**Moved per the rubric.** The phase this document describes has shipped: two research modes that
+govern a run, a source catalogue that states what it will and will not do, free-first ordering,
+ledger reconciliation, a top-up dry run that charges nothing, and the guard rails fed rather than
+merely declared. What is left needs an owner to open accounts and decide how much money may move
+unattended.
