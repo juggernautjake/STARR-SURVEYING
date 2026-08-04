@@ -34,6 +34,16 @@ export default function WidgetGoToLink({ href, label, icon }: WidgetGoToLinkProp
       style={{
         display: 'inline-flex',
         alignItems: 'center',
+        // PWA W6e — 19px tall was below the 24px floor `audit-voice-mobile.mjs` holds LINKS to
+        // (WCAG 2.5.8 AA). Deliberately 24 and not the 40 that file applies to buttons: 40 is the
+        // comfort figure for something being aimed at, and the auditor's own comment warns that
+        // padding a list of links to 40 each builds a wall of whitespace worse than the problem.
+        //
+        // That warning does not apply here, which is why this one is safe to raise: this is a SINGLE
+        // footer affordance per widget card, not a list. The cost is ~5px per card, and the benefit
+        // is the primary action of every hub widget becoming reliably tappable on a phone — which is
+        // the screen a field crew opens the hub on.
+        minHeight: '24px',
         gap: '0.3rem',
         fontSize: 'var(--hub-font-xs, 0.75rem)',
         fontWeight: 600,

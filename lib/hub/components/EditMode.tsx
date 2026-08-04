@@ -138,6 +138,10 @@ const customizeButtonStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
+  // W6e note: this button is NOT the one a phone shows — `CustomizeHubButton` returns null below
+  // 768px, so it is desktop-only and already comfortably clickable with a mouse. The 34px control
+  // the mobile audit reports is `customizeEntryButtonStyle` in HubCanvas.tsx. Left unchanged rather
+  // than padded on the strength of a name it shares with two other controls.
   padding: '6px 12px',
   borderRadius: 6,
   border: '1px solid var(--theme-border)',

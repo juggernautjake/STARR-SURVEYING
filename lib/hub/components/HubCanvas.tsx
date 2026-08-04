@@ -182,6 +182,15 @@ const customizeEntryButtonStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   gap: 6,
+  // PWA W6e — 34px tall, under the 40px control floor. This is the Hub's on-page entry to editing
+  // and it renders on phones (unlike `EditMode.tsx`'s button, which returns null below 768px).
+  //
+  // Worth naming: there are THREE controls in this codebase labelled "Customize Hub" — this one, the
+  // account-menu row in AdminTopBar, and EditMode's desktop-only toggle. The first fix for this
+  // measurement went to EditMode's, on the strength of a grep, and changed nothing — that button is
+  // not rendered at 390px. Reading the rendered element's own inline style is what identified this
+  // one. "Check one instance before acting on a grep" is rule 2 in this program's standing list.
+  minHeight: 40,
   padding: '6px 14px',
   borderRadius: 6,
   border: 'none',

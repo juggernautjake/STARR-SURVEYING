@@ -1301,8 +1301,9 @@
 /* 599px: shrink buttons, adjust menu position */
 @media (max-width: 599px) {
   .fab-menu { bottom: 1rem; right: 1rem; border-radius: 12px; }
-  .fab-menu__toggle { width: 32px; height: 42px; border-radius: 12px 0 0 12px; }
-  .fab-menu--collapsed .fab-menu__toggle { border-radius: 12px; width: 36px; height: 36px; }
+  /* W6e — narrow axis raised to the 40px floor. The tab proportions and radii are kept. */
+  .fab-menu__toggle { width: 40px; height: 48px; border-radius: 12px 0 0 12px; }
+  .fab-menu--collapsed .fab-menu__toggle { border-radius: 12px; width: 40px; height: 40px; }
   .fab-menu .fieldbook-fab { width: 40px; height: 40px; font-size: 1.05rem; }
   .fab-menu .discussion-fab { width: 40px; height: 40px; font-size: 1rem; }
   .fab-menu .messenger-fab { width: 40px; height: 40px; font-size: 1rem; }
@@ -1317,8 +1318,8 @@
 /* 480px: smaller buttons */
 @media (max-width: 480px) {
   .fab-menu { bottom: 0.75rem; right: 0.75rem; border-radius: 11px; }
-  .fab-menu__toggle { width: 30px; height: 38px; border-radius: 11px 0 0 11px; }
-  .fab-menu--collapsed .fab-menu__toggle { border-radius: 11px; width: 34px; height: 34px; }
+  .fab-menu__toggle { width: 40px; height: 44px; border-radius: 11px 0 0 11px; }
+  .fab-menu--collapsed .fab-menu__toggle { border-radius: 11px; width: 40px; height: 40px; }
   .fab-menu .fieldbook-fab { width: 36px; height: 36px; font-size: 0.95rem; border-radius: 9px; }
   .fab-menu .discussion-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 9px; }
   .fab-menu .messenger-fab { width: 36px; height: 36px; font-size: 0.9rem; border-radius: 9px; }
@@ -1333,8 +1334,8 @@
 /* 380px: even smaller */
 @media (max-width: 380px) {
   .fab-menu { bottom: 0.75rem; right: 0.75rem; border-radius: 10px; }
-  .fab-menu__toggle { width: 28px; height: 34px; border-radius: 10px 0 0 10px; }
-  .fab-menu--collapsed .fab-menu__toggle { border-radius: 10px; width: 32px; height: 32px; }
+  .fab-menu__toggle { width: 40px; height: 42px; border-radius: 10px 0 0 10px; }
+  .fab-menu--collapsed .fab-menu__toggle { border-radius: 10px; width: 40px; height: 40px; }
   .fab-menu .fieldbook-fab { width: 32px; height: 32px; font-size: 0.85rem; border-radius: 8px; }
   .fab-menu .discussion-fab { width: 32px; height: 32px; font-size: 0.85rem; border-radius: 8px; }
   .fab-menu .messenger-fab { width: 32px; height: 32px; font-size: 0.85rem; border-radius: 8px; }

@@ -472,3 +472,50 @@ with numbers so the next pass starts from measurement, not from "the hub feels c
 
 **W6b is unchanged and still needs a phone.** A 390px viewport in a desktop browser measures
 geometry; it cannot tell you whether a 44px button is comfortable in a gloved hand in a truck.
+
+### ✅ W6e DONE 2026-08-04 — the Hub-widget backlog W6d deferred, and a grep that fixed nothing
+
+W6d left 10 undersized controls per route, recorded with numbers and deferred on the grounds that the
+19px links needed *"a judgement about whether to pad them or restyle them as buttons — the choice the
+auditor's own comment warns against making by reflex."* This is that judgement, made.
+
+**The 19px `widget-go-to-link` was raised to 24, not 40, and that is the whole judgement.** 40 is the
+comfort figure for a button; 24 is WCAG 2.5.8's floor for a link, which is what the auditor holds
+links to *because* padding a list of them to 40 each builds a wall of whitespace worse than the
+problem. That warning does not apply here — this is a **single footer affordance per widget card**,
+not a list — which is precisely why this one is safe to raise. Cost: ~5px per card.
+
+| control | was | now | reasoning |
+|---|---|---|---|
+| `widget-go-to-link` | 19px | 24px | Link floor, not button floor. One per card, so no whitespace wall. |
+| Account-menu rows ×5 | ~34px | 40px | **Adjacent menu items are the strongest case for the floor**: a mis-tap does not do nothing, it does something *else* — missing "Sign out" and hitting "Customize Hub" is a different page. Extracted to one `MENU_ITEM_STYLE` rather than editing five near-identical inline styles, because five copies of a rule is how the fifth stops matching. |
+| `customizeEntryButtonStyle` (HubCanvas) | 34px | 40px | The Hub's on-page entry to editing. |
+| `.fab-menu__toggle` | 32→30→**28**px wide | 40px | A three-tier ladder that shrank it as the screen narrowed — the same backwards pattern as the hamburger in W6d. Tab proportions and radii kept. |
+
+**17 undersized controls per route at the start of W6d; 4 remain.** Overflow re-checked at 360 and 390
+after every change: still clean, so none of this was bought with a sideways scrollbar.
+
+#### ▶ The grep that fixed nothing, and how it was caught
+
+The first attempt at "✏️ Customize Hub" edited `EditMode.tsx`'s `customizeButtonStyle`. Rebuilt,
+re-measured — **34px, unchanged**. That button is `return null` below 768px: it is desktop-only and
+never renders on a phone at all.
+
+**There are three controls in this codebase labelled "Customize Hub"** — EditMode's desktop toggle,
+the account-menu row in `AdminTopBar`, and `HubCanvas`'s on-page entry. A grep finds all three and
+says nothing about which one a phone shows.
+
+What identified the right one was reading the **rendered element's own inline style** in the browser
+(`padding: 6px 14px`, `background: var(--theme-accent)`, a box-shadow) and matching that against the
+source. Rule 2 of this program's standing list is *"check one instance before acting on a grep"*, and
+skipping it cost a full build cycle. The wrong edit was reverted rather than left in place looking
+like a fix.
+
+#### ▶ Still undersized, measured
+
+`"CS"` chip 34px · `"All steps"` 39px · `"×"` dismiss 28px · `"Browse pages"` 20px. Four per route,
+all page-level rather than chrome, and `"All steps"` is one pixel under. Recorded with numbers so the
+next pass starts from measurement.
+
+**W6b unchanged and still needs a phone**: a viewport measures geometry, not whether 40px is
+comfortable in a gloved hand.

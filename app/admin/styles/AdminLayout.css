@@ -492,7 +492,11 @@
 
 /* Toggle arrow — left side of the green bar */
 .fab-menu__toggle {
-  width: 36px;
+  /* W6e — 36 → 40 on the narrow axis. The tab shape is deliberate (a pull handle, not a circle) and
+   * the 56px height was never the problem; legibility of a tap target is set by its SMALLER
+   * dimension, and 36 sat under the 40px floor. This control is fixed to the edge of every page, so
+   * it is one of the few a thumb reaches for without looking. */
+  width: 40px;
   height: 56px;
   border-radius: 16px 0 0 16px;
   background: transparent;

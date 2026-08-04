@@ -17,6 +17,37 @@ import { Menu, Star } from 'lucide-react';
 
 interface AdminTopBarProps { title: string; role: UserRole; onMenuToggle: () => void; }
 
+/**
+ * PWA W6e — the account dropdown's rows, in one place.
+ *
+ * Five items carried five near-identical inline styles, and each was ~34px tall — under the 40px
+ * floor `audit-voice-mobile.mjs` holds controls to. **Adjacent menu items are the strongest case for
+ * that floor**, and stronger than an isolated button: a mis-tap here does not do nothing, it does
+ * something *else*. Missing "Sign out" and hitting "Customize Hub" is a different page; missing
+ * "Privacy" and hitting "Theme" is a different settings screen.
+ *
+ * `minHeight` rather than more padding, so the rows grow to a reliable target without changing the
+ * text's position inside them. Extracted rather than edited five times because five copies of one
+ * rule is how the fifth stops matching — the defect this codebase has fixed more often than any
+ * other.
+ */
+const MENU_ITEM_STYLE: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  minHeight: 40,
+  padding: '0.6rem 0.85rem',
+  textDecoration: 'none',
+  color: 'var(--theme-fg-primary)',
+  fontSize: '0.88rem',
+};
+
+/** The same row, with the hairline that separates it from the one above. */
+const MENU_ITEM_DIVIDED: React.CSSProperties = {
+  ...MENU_ITEM_STYLE,
+  borderTop: '1px solid var(--theme-border)',
+};
+
 export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
   const { data: session } = useSession();
   const pathname = usePathname();
@@ -113,7 +144,7 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
               role="menuitem"
               href="/admin/me?tab=profile"
               onClick={() => setOpen(false)}
-              style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem' }}
+              style={MENU_ITEM_STYLE}
             >
               Profile + settings
             </Link>
@@ -121,7 +152,7 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
               role="menuitem"
               href="/admin/me?tab=profile&sub=themes"
               onClick={() => setOpen(false)}
-              style={{ display: 'block', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+              style={MENU_ITEM_DIVIDED}
             >
               Theme + density
             </Link>
@@ -132,7 +163,7 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
               role="menuitem"
               href="/admin/me/privacy"
               onClick={() => setOpen(false)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+              style={MENU_ITEM_DIVIDED}
             >
               <RouteIcon name="Lock" size={15} /> Privacy
             </Link>
@@ -143,7 +174,7 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
               role="menuitem"
               href="/admin/me?edit=1"
               onClick={() => setOpen(false)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.85rem', textDecoration: 'none', color: 'var(--theme-fg-primary)', fontSize: '0.88rem', borderTop: '1px solid var(--theme-border)' }}
+              style={MENU_ITEM_DIVIDED}
             >
               <RouteIcon name="SquarePen" size={15} /> Customize Hub
             </Link>
@@ -159,15 +190,16 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
                 void signOut({ callbackUrl: '/admin/login' });
               }}
               style={{
-                display: 'block',
+                ...MENU_ITEM_DIVIDED,
+                // A <button>, so it needs the things a Link does not: full width, left-aligned text,
+                // no chrome. Everything else — including the 40px floor — comes from the shared row,
+                // because "Sign out" is the item whose mis-tap costs most and it sits at the edge of
+                // the menu where a thumb overshoots.
                 width: '100%',
                 textAlign: 'left',
-                padding: '0.6rem 0.85rem',
                 background: 'transparent',
                 border: 'none',
                 borderTop: '1px solid var(--theme-border)',
-                color: 'var(--theme-fg-primary)',
-                fontSize: '0.88rem',
                 cursor: 'pointer',
               }}
             >
