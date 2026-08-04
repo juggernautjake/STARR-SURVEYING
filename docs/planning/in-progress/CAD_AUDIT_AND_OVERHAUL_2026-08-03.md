@@ -874,7 +874,9 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is DEFERRED 2026-08-04**, on the measurement in its note, with a stated revisit trigger. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **S7a is DONE** (coordinate-entry defect fixed). **Not started:** S1b+, S5, S9c (canvas overlay). **Deferred:** S4. **Done since:** S7b (create-a-point UI), S16b, S5a.
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is DEFERRED 2026-08-04**, on the measurement in its note, with a stated revisit trigger. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **S7a is DONE** (coordinate-entry defect fixed). ~~**Not started:** S1b+, S5, S9c (canvas overlay).~~ **STALE — corrected 2026-08-04.** All three shipped the same day this line was written and it was never updated: S1b (every panel opens), S5a/S5b (the menu observations), S9c (the comparison overlay on the canvas). **Deferred:** S4 (measured, with a revisit trigger), S4b (the second spatial index, deleted). **Nothing in this document is un-started.** What remains is owner-gated — the golden plat and the golden instrument file — plus splitting `CanvasViewport.tsx`, which S19a has now begun.
+
+This line is the seventh stale reason found in these documents. It cost nothing here only because the work was done anyway; the pattern is that a status line is read as an instruction long after it stopped being true.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
@@ -2533,3 +2535,55 @@ CAD suite 3,443 green; `tsc`, `eslint` and `npm run build` clean.
 **What remains in this document is owner-gated only**: the golden instrument file (S16's scale factor
 and convergence, plus the 19 skipping TRV assertions from S16c), and splitting `CanvasViewport.tsx` —
 which is still worth doing, on its own terms, and is now unblocking nothing.
+
+### ✅ S19a DONE 2026-08-04 — the first extraction out of CanvasViewport, and what it made testable
+
+`CanvasViewport.tsx` is 15,494 lines. This document has recorded splitting it as *"worth doing on
+its own terms, now unblocking nothing"*, which is true and is also why it never got started — a
+15k-line refactor with no forcing function is always next week's job.
+
+**So it starts from the reason that isn't tidiness.** The first 158 lines out are
+`computeFilletPreview`, `computeChamferPreview` and `keepEndOf`, now
+`lib/cad/geometry/corner-preview.ts`, and the point is what they turn out to be.
+
+#### ▶ FILLET and CHAMFER each exist twice
+
+`filletTwoLines` and `chamferTwoLines` in `operations.ts` compute the corner **and commit it** — two
+features removed, three added, an undo entry pushed. They cannot be called to draw a hover preview,
+because calling them performs the edit. So the preview computes the same geometry a second time.
+
+That is this codebase's most expensive defect shape, and here the damaging disagreement is not about
+the answer. **It is about whether there is one:**
+
+- a preview that draws an arc the commit then refuses makes the tool look broken;
+- a preview that refuses a corner the commit would happily cut makes a working operation look
+  **impossible** — and that one is invisible. Nothing errors, nothing logs. The cursor just never
+  shows a preview, and the surveyor concludes the radius won't work and stops trying.
+
+The split is kept — merging them means either the preview mutating the document or the operation
+growing a `dryRun` flag, and a flag that half-runs a mutation is worse than two functions — but the
+two are now **pinned to each other by a differential test**: same lines, same clicks, and the
+preview's null-ness must match the operation's `ok`, with the tangent points equal when both succeed.
+Tolerances (`1e-6`, `1e-9`, `1e-10`) are named constants in the extracted module rather than three
+scattered literals, because a boundary that differs between preview and commit shows up as a sliver
+of radii where they disagree and nowhere else. Two of the twelve tests probe exactly that sliver.
+
+Known values are asserted alongside the differential ones — a right angle filleted at r=20 puts the
+tangent points at (20, 0) and (0, 20) — because **two implementations agreeing on the wrong answer is
+precisely what a differential test cannot see.** The chamfer case uses unequal distances (15 and 25)
+for the same reason: equal ones would hide a `dist1`/`dist2` swap between the two.
+
+#### ▶ Before this, none of it could be tested at all
+
+There was no test for `filletTwoLines` or `chamferTwoLines` anywhere in the repo, and none was
+possible for the previews: both were **private functions inside a 15k-line `'use client'`
+component** — no export, no way in. Corner geometry a surveyor relies on, checked by nothing.
+
+That is the argument for the split, and it is stronger than the file-size one. The negative control
+confirms the guard bites: loosening the preview's length check to `len + 1` fails the boundary test
+by name while every other test stays green.
+
+15,494 → 15,337 lines. CAD suite **3,455 green**; `tsc`, `eslint` and `npm run build` clean.
+
+**Also corrected in §4:** the State section still read *"Not started: S1b+, S5, S9c"* — all three
+shipped the day that line was written. Seventh stale status line in these documents.

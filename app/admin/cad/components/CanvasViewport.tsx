@@ -34,6 +34,10 @@ import type { AreaAnnotation } from '@/lib/cad/labels/annotation-types';
 import { pickFeatureCentroid, buildAreaText } from '@/lib/cad/labels/area-label';
 import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
+// Extracted from this file. They duplicate the geometry inside `filletTwoLines`/`chamferTwoLines`,
+// which cannot be called for a preview because calling them performs the edit — so a differential
+// test now pins the two to the same answers AND the same refusals. See the module header.
+import { computeFilletPreview, computeChamferPreview } from '@/lib/cad/geometry/corner-preview';
 import {
   buildFeatureIndex,
   cullFeaturesToViewport,
@@ -332,164 +336,6 @@ interface CanvasViewportProps {
   pendingPlaceImageId?: string | null;
   /** Called after the pending image id has been consumed (image placed or dialog dismissed). */
   onPlaceImageConsumed?: () => void;
-}
-
-/**
- * Same fillet geometry as `filletTwoLines` in operations.ts
- * but pure — no side effects, returns the arc center / radius
- * / start+end angles + tangent points so the canvas preview
- * can sketch the result while the surveyor is hovering. Returns
- * null for any degenerate input (parallel lines, anti-parallel,
- * radius too large, etc).
- */
-function computeFilletPreview(
-  l1a: import('@/lib/cad/types').Point2D,
-  l1b: import('@/lib/cad/types').Point2D,
-  click1: import('@/lib/cad/types').Point2D,
-  l2a: import('@/lib/cad/types').Point2D,
-  l2b: import('@/lib/cad/types').Point2D,
-  click2: import('@/lib/cad/types').Point2D,
-  radius: number,
-): {
-  center: import('@/lib/cad/types').Point2D;
-  radius: number;
-  startAngle: number;
-  endAngle: number;
-  anticlockwise: boolean;
-  tangent1: import('@/lib/cad/types').Point2D;
-  tangent2: import('@/lib/cad/types').Point2D;
-} | null {
-  if (!Number.isFinite(radius) || radius <= 0) return null;
-  // Infinite-line intersection.
-  const denom = (l1a.x - l1b.x) * (l2a.y - l2b.y) - (l1a.y - l1b.y) * (l2a.x - l2b.x);
-  if (Math.abs(denom) < 1e-10) return null;
-  const tParam = ((l1a.x - l2a.x) * (l2a.y - l2b.y) - (l1a.y - l2a.y) * (l2a.x - l2b.x)) / denom;
-  const P = { x: l1a.x + tParam * (l1b.x - l1a.x), y: l1a.y + tParam * (l1b.y - l1a.y) };
-
-  const keepDir = (a: import('@/lib/cad/types').Point2D, b: import('@/lib/cad/types').Point2D, click: import('@/lib/cad/types').Point2D) => {
-    const dStart = Math.hypot(click.x - a.x, click.y - a.y);
-    const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
-    const keepEnd = dEnd < dStart ? b : a;
-    const dx = keepEnd.x - P.x;
-    const dy = keepEnd.y - P.y;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-10) return null;
-    return { x: dx / len, y: dy / len };
-  };
-  const u1 = keepDir(l1a, l1b, click1);
-  const u2 = keepDir(l2a, l2b, click2);
-  if (!u1 || !u2) return null;
-
-  let cos2t = u1.x * u2.x + u1.y * u2.y;
-  cos2t = Math.max(-1, Math.min(1, cos2t));
-  if (cos2t > 1 - 1e-9 || cos2t < -1 + 1e-9) return null;
-  const sinT = Math.sqrt((1 - cos2t) / 2);
-  const cosT = Math.sqrt((1 + cos2t) / 2);
-  if (sinT < 1e-9 || cosT < 1e-9) return null;
-  const tanT = sinT / cosT;
-  const t = radius / tanT;
-
-  const PT1 = { x: P.x + t * u1.x, y: P.y + t * u1.y };
-  const PT2 = { x: P.x + t * u2.x, y: P.y + t * u2.y };
-
-  const k1 = keepEndOf(l1a, l1b, click1);
-  const k2 = keepEndOf(l2a, l2b, click2);
-  const len1 = Math.hypot(k1.x - P.x, k1.y - P.y);
-  const len2 = Math.hypot(k2.x - P.x, k2.y - P.y);
-  if (t > len1 - 1e-6 || t > len2 - 1e-6) return null;
-
-  const bx = u1.x + u2.x;
-  const by = u1.y + u2.y;
-  const blen = Math.hypot(bx, by);
-  if (blen < 1e-10) return null;
-  const ubx = bx / blen;
-  const uby = by / blen;
-  const centerDist = radius / sinT;
-  const center = { x: P.x + centerDist * ubx, y: P.y + centerDist * uby };
-
-  const startAngle = Math.atan2(PT1.y - center.y, PT1.x - center.x);
-  const endAngle = Math.atan2(PT2.y - center.y, PT2.x - center.x);
-  // Pick anticlockwise so the arc bulges back toward P.
-  const arcMid = (cw: boolean) => {
-    let s = startAngle;
-    let e = endAngle;
-    if (!cw) {
-      if (e <= s) e += 2 * Math.PI;
-    } else {
-      if (s <= e) s += 2 * Math.PI;
-      [s, e] = [e, s];
-    }
-    const m = (s + e) / 2;
-    return { x: center.x + radius * Math.cos(m), y: center.y + radius * Math.sin(m) };
-  };
-  const midCcw = arcMid(false);
-  const midCw = arcMid(true);
-  const dCcw = Math.hypot(midCcw.x - P.x, midCcw.y - P.y);
-  const dCw = Math.hypot(midCw.x - P.x, midCw.y - P.y);
-  return {
-    center, radius,
-    startAngle, endAngle,
-    anticlockwise: dCcw < dCw,
-    tangent1: PT1, tangent2: PT2,
-  };
-}
-
-function keepEndOf(
-  a: import('@/lib/cad/types').Point2D,
-  b: import('@/lib/cad/types').Point2D,
-  click: import('@/lib/cad/types').Point2D,
-): import('@/lib/cad/types').Point2D {
-  const dStart = Math.hypot(click.x - a.x, click.y - a.y);
-  const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
-  return dEnd < dStart ? b : a;
-}
-
-/**
- * Pure helper mirroring `chamferTwoLines` from operations.ts.
- * Returns the two trim points + the connecting bevel line so
- * the canvas can sketch a live preview while the surveyor
- * hovers candidate second lines.
- */
-function computeChamferPreview(
-  l1a: import('@/lib/cad/types').Point2D,
-  l1b: import('@/lib/cad/types').Point2D,
-  click1: import('@/lib/cad/types').Point2D,
-  l2a: import('@/lib/cad/types').Point2D,
-  l2b: import('@/lib/cad/types').Point2D,
-  click2: import('@/lib/cad/types').Point2D,
-  dist1: number,
-  dist2: number,
-): { tangent1: import('@/lib/cad/types').Point2D; tangent2: import('@/lib/cad/types').Point2D } | null {
-  if (!Number.isFinite(dist1) || dist1 <= 0 || !Number.isFinite(dist2) || dist2 <= 0) return null;
-  const denom = (l1a.x - l1b.x) * (l2a.y - l2b.y) - (l1a.y - l1b.y) * (l2a.x - l2b.x);
-  if (Math.abs(denom) < 1e-10) return null;
-  const tParam = ((l1a.x - l2a.x) * (l2a.y - l2b.y) - (l1a.y - l2a.y) * (l2a.x - l2b.x)) / denom;
-  const P = { x: l1a.x + tParam * (l1b.x - l1a.x), y: l1a.y + tParam * (l1b.y - l1a.y) };
-
-  const keepDir = (a: import('@/lib/cad/types').Point2D, b: import('@/lib/cad/types').Point2D, click: import('@/lib/cad/types').Point2D) => {
-    const dStart = Math.hypot(click.x - a.x, click.y - a.y);
-    const dEnd = Math.hypot(click.x - b.x, click.y - b.y);
-    const keepEnd = dEnd < dStart ? b : a;
-    const dx = keepEnd.x - P.x;
-    const dy = keepEnd.y - P.y;
-    const len = Math.hypot(dx, dy);
-    if (len < 1e-10) return null;
-    return { x: dx / len, y: dy / len };
-  };
-  const u1 = keepDir(l1a, l1b, click1);
-  const u2 = keepDir(l2a, l2b, click2);
-  if (!u1 || !u2) return null;
-
-  const k1 = keepEndOf(l1a, l1b, click1);
-  const k2 = keepEndOf(l2a, l2b, click2);
-  const len1 = Math.hypot(k1.x - P.x, k1.y - P.y);
-  const len2 = Math.hypot(k2.x - P.x, k2.y - P.y);
-  if (dist1 > len1 - 1e-6 || dist2 > len2 - 1e-6) return null;
-
-  return {
-    tangent1: { x: P.x + dist1 * u1.x, y: P.y + dist1 * u1.y },
-    tangent2: { x: P.x + dist2 * u2.x, y: P.y + dist2 * u2.y },
-  };
 }
 
 /**
