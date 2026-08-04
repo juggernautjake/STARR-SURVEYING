@@ -48,6 +48,51 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
   { prefix: '/admin/schedule', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
 
+  // ── Money & bookkeeping (audit S19) ──
+  // Every prefix here was reachable by ANY authenticated user until 2026-08-04. The pages never
+  // leaked: all seven fetch through `/api/admin/*` routes that check `isAdmin`, so a field-crew
+  // visitor got a bookkeeping shell full of 403s rather than anyone's money. That is the failure
+  // mode this section closes — a broken page that looks like a permissions bug, and a gate living
+  // in exactly one layer instead of two.
+  //
+  // Each role list MATCHES THE NAV REGISTRY's list for the same href, deliberately, and is a
+  // superset of what the backing API allows. Two layers, two jobs:
+  //
+  //   middleware (here) — keeps out roles the product never offers the page to at all
+  //   the API           — decides who actually gets the data, and is the real boundary
+  //
+  // Copying the API's stricter `isAdmin` down to here instead would bounce every `developer` and
+  // `tech_support` user to /admin/me the moment they clicked a link their own sidebar still shows
+  // them. Trading a broken page for a vanishing one is not a fix.
+  //
+  // KNOWN MISMATCH, left for the owner: the nav offers these to developer/tech_support while the
+  // APIs answer only to `admin`, so those roles get a 403 shell today. Closing it means either
+  // widening the APIs (a permissions decision) or dropping the nav links (a product one). Both are
+  // the owner's call, not a side effect of a middleware slice — see FINANCE_TAX_AND_INTAKE §S19.
+  // Capture Receipt is the one money route that belongs to the whole crew: a field surveyor
+  // photographs a fuel receipt from the truck. It MUST precede '/admin/receipts' — the approval
+  // queue's prefix matches '/admin/receipts/new' too, and putting the queue first would bounce
+  // every crew member at the moment they tried to file an expense.
+  { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'] },
+  { prefix: '/admin/receipts', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/invoicing', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/receivables', roles: ['admin', 'developer'] },
+  { prefix: '/admin/reports', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/compliance', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/team', roles: ['admin', 'developer', 'tech_support'] },
+  { prefix: '/admin/finances', roles: ['admin', 'developer', 'tech_support'] },
+  //
+  // NOT gated here, deliberately, and each for a different reason:
+  //   /admin/people   — the staff directory is open to staff BY DESIGN ("a crew member looking up a
+  //                     colleague's number is the most common use of it"). Its API strips roles and
+  //                     account state for non-admins rather than refusing the request, so a gate
+  //                     here would remove a feature rather than protect one.
+  //   /admin/billing, /admin/payouts, /admin/audit, /admin/org-settings, /admin/orgs, /admin/invites
+  //                   — SaaS surfaces scoped by org membership via resolveAdminOrg(), not by Starr's
+  //                     internal roles. Gating them on `admin` would lock out the org admins they
+  //                     exist for, which is a worse bug than the one being fixed.
+  //   /admin/money    — a link hub (WorkspaceLanding); every destination it lists is gated above.
+
   // ── Learning (management routes before general) ──
   { prefix: '/admin/learn/manage', roles: ['admin', 'developer', 'teacher', 'tech_support'] },
   { prefix: '/admin/learn/students', roles: ['admin', 'developer', 'teacher', 'tech_support'] },

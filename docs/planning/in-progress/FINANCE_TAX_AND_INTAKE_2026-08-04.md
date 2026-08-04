@@ -565,3 +565,75 @@ summary that says "done" over two failures is how a receipt goes missing. Both h
 render only inside an expanded receipt row, and this environment has no receipt data to expand. It
 needs a real receipt, so it is **recorded as unverified rather than assumed working** — the same
 standard applied to the CAD slices.
+
+---
+
+## S19 — the money pages were reachable by anyone signed in (2026-08-04)
+
+Found while chasing the "no receipt data" claim above. `/admin/receipts` reported **0 receipts**, and
+the reason was not an empty table: the page's own fetch was answering **403**, and the count read 0
+because the request failed. The console said so; the page did not.
+
+Pulling that thread: `/admin/receipts` had **no `ROUTE_ROLES` entry in `middleware.ts`**, and
+unmatched `/admin/*` paths fall through to `NextResponse.next()`. Any authenticated user could load
+the bookkeeping approval queue. Thirty-six admin page routes were in that state; **seven were money
+surfaces**.
+
+### What was and was not at risk
+
+Nothing leaked. All seven fetch through `/api/admin/*` routes that check `isAdmin`, and every one of
+the fifteen pages examined makes **zero direct database calls** from the page body — so a field-crew
+visitor got a shell full of 403s, not anyone's money. This is a **defence-in-depth and UX defect**,
+not a breach, and it is worth stating at that size rather than a larger one.
+
+### What was deliberately NOT gated
+
+A blanket "add `admin` to all of them" would have caused two regressions worse than the bug:
+
+| left open | why |
+|---|---|
+| `/admin/people` | The staff directory is open to staff **by design** — the code says *"a crew member looking up a colleague's number is the most common use of it."* Its API strips roles and account state for non-admins instead of refusing. A gate would delete a feature, not protect one. |
+| `/admin/billing`, `/payouts`, `/audit`, `/org-settings`, `/orgs`, `/invites` | SaaS surfaces scoped by **org membership** via `resolveAdminOrg()`, not by Starr's internal roles. Gating on `admin` would lock out the org admins they exist for. |
+| `/admin/money`, `/work`, `/office` | Link hubs; every destination is gated individually. |
+
+### The regression this slice nearly shipped
+
+The first version copied each API's stricter `isAdmin` into middleware. That would have bounced every
+`developer` and `tech_support` user to `/admin/me` **the moment they clicked a link their own sidebar
+still shows them**. Trading a broken page for a vanishing one is not a fix. The gates now match the
+**nav registry's** role list — a coarse filter that keeps out roles the product never offers the page
+to, with the API remaining the real boundary.
+
+Worse, `/admin/receipts` as a prefix also matches **`/admin/receipts/new`** — *Capture Receipt*, the
+one money route that belongs to the whole crew. Shipped as first written, it would have bounced a
+field surveyor at the moment they photographed a fuel receipt. `/admin/receipts/new` now precedes it
+with the wider list. This was caught by the consistency check below, not by review.
+
+### Enforced by construction
+
+`__tests__/middleware/admin-route-gates.test.ts` — four invariants, **each watched failing** before
+being kept:
+
+1. **Every `/admin` page route is gated or knowingly open** — an `INTENTIONALLY_OPEN` allowlist where
+   each entry carries a reason. A new ungated page fails until someone decides about it. *(Caught
+   `/admin/learn` on first run — intentional, now recorded.)*
+2. **Specific prefixes precede general ones** — the table is first-match-wins with a `break`, so
+   `/admin/jobs` above `/admin/jobs/new` would silently hand job creation the wider list. The file
+   said this in a comment; a comment cannot fail. Checked across all 34 prefixes.
+3. **No nav link is shown to a role its own gate would bounce** — checked over all 84 registry
+   entries. *This is what caught the `/admin/receipts/new` regression above.*
+4. Instrument guards on all three, because a scan that silently returns nothing makes every
+   assertion pass vacuously — a failure mode this repo has hit before.
+
+### Known mismatch, left for the owner
+
+The nav offers `/admin/receipts`, `/admin/invoicing`, `/admin/reports`, `/admin/compliance` and
+`/admin/finances` to `developer` and `tech_support`, while those APIs answer only to `admin` — so
+those two roles get a 403 shell today. That predates this slice. Closing it means either **widening
+the APIs** (a permissions decision) or **dropping the nav links** (a product one). Both are the
+owner's call, not a side effect of a middleware slice, so both were left alone and written down here.
+
+**Verification:** 12 middleware tests green, 3,689 across the adjacent suites, `tsc` and `eslint`
+clean. Not browser-verified — middleware compiles into `.next` and the running server predates the
+change; the behaviour is asserted statically against the real `middleware.ts` and
+`route-registry.ts` sources instead.
