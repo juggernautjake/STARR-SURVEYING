@@ -34,6 +34,7 @@ import type { AreaAnnotation } from '@/lib/cad/labels/annotation-types';
 import { pickFeatureCentroid, buildAreaText } from '@/lib/cad/labels/area-label';
 import { buildLineworkFeatures } from '@/lib/cad/import/linework-features';
 import { findSnapPoint } from '@/lib/cad/geometry/snap';
+import { drawTransformedFeaturePreview } from '@/lib/cad/render/ghost-preview';
 // Extracted from this file. They duplicate the geometry inside `filletTwoLines`/`chamferTwoLines`,
 // which cannot be called for a preview because calling them performs the edit — so a differential
 // test now pins the two to the same answers AND the same refusals. See the module header.
@@ -388,129 +389,10 @@ function drawDashedScreenLine(
   }
 }
 
-/**
- * Render a faint ghost of `feature` after applying
- * `transformFn` so the user can see exactly where a transform
- * (mirror, move, copy, flip, invert, rotate, scale) will land
- * before committing. Caller must have set `g.lineStyle(...)`
- * already; this only issues moveTo/lineTo/drawCircle calls.
- * World→screen conversion is delegated to `w2s` so this
- * helper stays decoupled from the component's render context.
- */
-function drawTransformedFeaturePreview(
-  g: import('pixi.js').Graphics,
-  feature: import('@/lib/cad/types').Feature,
-  transformFn: (p: import('@/lib/cad/types').Point2D) => import('@/lib/cad/types').Point2D,
-  w2s: (wx: number, wy: number) => { sx: number; sy: number },
-): void {
-  const ghost = transformFeature(feature, transformFn);
-  const gg = ghost.geometry;
-
-  if (gg.type === 'POINT' && gg.point) {
-    const sp = w2s(gg.point.x, gg.point.y);
-    g.drawCircle(sp.sx, sp.sy, 3);
-    return;
-  }
-  if (gg.type === 'LINE' && gg.start && gg.end) {
-    const a = w2s(gg.start.x, gg.start.y);
-    const b = w2s(gg.end.x, gg.end.y);
-    g.moveTo(a.sx, a.sy);
-    g.lineTo(b.sx, b.sy);
-    return;
-  }
-  if ((gg.type === 'POLYLINE' || gg.type === 'POLYGON') && gg.vertices && gg.vertices.length >= 2) {
-    const p0 = w2s(gg.vertices[0].x, gg.vertices[0].y);
-    g.moveTo(p0.sx, p0.sy);
-    for (let i = 1; i < gg.vertices.length; i += 1) {
-      const p = w2s(gg.vertices[i].x, gg.vertices[i].y);
-      g.lineTo(p.sx, p.sy);
-    }
-    if (gg.type === 'POLYGON') g.lineTo(p0.sx, p0.sy);
-    return;
-  }
-  if (gg.type === 'CIRCLE' && gg.circle) {
-    const sp = w2s(gg.circle.center.x, gg.circle.center.y);
-    const radiusPx = gg.circle.radius * useViewportStore.getState().zoom;
-    g.drawCircle(sp.sx, sp.sy, radiusPx);
-    return;
-  }
-  if (gg.type === 'ELLIPSE' && gg.ellipse) {
-    const e = gg.ellipse;
-    const cosR = Math.cos(e.rotation);
-    const sinR = Math.sin(e.rotation);
-    const samples = 64;
-    for (let i = 0; i <= samples; i += 1) {
-      const t = (i / samples) * Math.PI * 2;
-      const lx = e.radiusX * Math.cos(t);
-      const ly = e.radiusY * Math.sin(t);
-      const wx = e.center.x + lx * cosR - ly * sinR;
-      const wy = e.center.y + lx * sinR + ly * cosR;
-      const sp = w2s(wx, wy);
-      if (i === 0) g.moveTo(sp.sx, sp.sy);
-      else g.lineTo(sp.sx, sp.sy);
-    }
-    return;
-  }
-  if (gg.type === 'ARC' && gg.arc) {
-    const a = gg.arc;
-    const sp = w2s(a.center.x, a.center.y);
-    const radiusPx = a.radius * useViewportStore.getState().zoom;
-    const steps = 32;
-    let startA = a.startAngle;
-    let endA = a.endAngle;
-    if (a.anticlockwise) {
-      if (endA <= startA) endA += Math.PI * 2;
-    } else {
-      if (startA <= endA) startA += Math.PI * 2;
-      [startA, endA] = [endA, startA];
-    }
-    const span = endA - startA;
-    for (let i = 0; i <= steps; i += 1) {
-      const t = i / steps;
-      const angle = startA + span * t;
-      const px = sp.sx + radiusPx * Math.cos(angle);
-      const py = sp.sy - radiusPx * Math.sin(angle);
-      if (i === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    }
-    return;
-  }
-  if (gg.type === 'SPLINE' && gg.spline && gg.spline.controlPoints.length >= 4) {
-    const cps = gg.spline.controlPoints;
-    const segCount = Math.floor((cps.length - 1) / 3);
-    const stepsPerSeg = 24;
-    let started = false;
-    for (let seg = 0; seg < segCount; seg += 1) {
-      const p0 = cps[seg * 3];
-      const p1 = cps[seg * 3 + 1];
-      const p2 = cps[seg * 3 + 2];
-      const p3 = cps[seg * 3 + 3];
-      const startStep = started ? 1 : 0;
-      for (let i = startStep; i <= stepsPerSeg; i += 1) {
-        const t = i / stepsPerSeg;
-        const u = 1 - t;
-        const wx = u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x;
-        const wy = u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y;
-        const sp = w2s(wx, wy);
-        if (!started) {
-          g.moveTo(sp.sx, sp.sy);
-          started = true;
-        } else {
-          g.lineTo(sp.sx, sp.sy);
-        }
-      }
-    }
-    return;
-  }
-  if (gg.type === 'MIXED_GEOMETRY' && gg.vertices && gg.vertices.length >= 2) {
-    const p0 = w2s(gg.vertices[0].x, gg.vertices[0].y);
-    g.moveTo(p0.sx, p0.sy);
-    for (let i = 1; i < gg.vertices.length; i += 1) {
-      const p = w2s(gg.vertices[i].x, gg.vertices[i].y);
-      g.lineTo(p.sx, p.sy);
-    }
-  }
-}
+// S19c — `drawTransformedFeaturePreview` moved to lib/cad/render/ghost-preview.ts. It draws the
+// ghost of a transform (mirror/move/copy/rotate/scale) across nine geometry types and was
+// untested, because it sat in this file. It also read the viewport store directly; the extracted
+// form takes `zoom` like every other helper in lib/cad/geometry/curve-render.ts.
 
 // Slice 226 — pure hit-test for the title-block + paper-furniture
 // element bounds. Extracted so the test suite can lock the priority
@@ -5389,6 +5271,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pixi = pixiRef.current;
     if (!pixi) return;
     const g = pixi.previewGraphics;
+    // S19c — read once here rather than inside the ghost helper, which no longer reaches into
+    // the store. Same value the rest of this function uses for screen conversion.
+    const zoom = useViewportStore.getState().zoom || 1;
     g.clear();
 
     // Always use getState() to avoid stale closure issues in the render loop
@@ -5415,7 +5300,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       g.lineStyle(1.25, selColor, 0.4);
       for (const orig of rotateGrabRef.current.originals.values()) {
         if (orig.geometry.type === 'IMAGE') continue;
-        drawTransformedFeaturePreview(g, orig, (p) => p, w2s);
+        drawTransformedFeaturePreview(g, orig, (p) => p, w2s, zoom);
       }
     }
 
@@ -5458,7 +5343,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           for (const id of selIds) {
             const f = drawing.getFeature(id);
             if (!f) continue;
-            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s, zoom);
           }
         }
       }
@@ -5498,7 +5383,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             // Images rotate live around their center, so they're already
             // showing the result — skip the ghost to avoid a double image.
             if (f.geometry.type === 'IMAGE') continue;
-            drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
+            drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s, zoom);
           }
         }
       }
@@ -5534,7 +5419,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           for (const id of selIds) {
             const f = drawing.getFeature(id);
             if (!f) continue;
-            drawTransformedFeaturePreview(g, f, (p) => scale(p, bp, factor), w2s);
+            drawTransformedFeaturePreview(g, f, (p) => scale(p, bp, factor), w2s, zoom);
           }
         }
       }
@@ -5646,7 +5531,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           for (const id of selIds) {
             const f = drawing.getFeature(id);
             if (!f) continue;
-            drawTransformedFeaturePreview(g, f, (p) => mirror(p, a, b), w2s);
+            drawTransformedFeaturePreview(g, f, (p) => mirror(p, a, b), w2s, zoom);
           }
         }
       } else if (axisLabel) {
@@ -5715,7 +5600,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Ghost preview
       g.lineStyle(1.25, 0xff66ff, 0.55);
       for (const f of features) {
-        drawTransformedFeaturePreview(g, f, (p) => mirror(p, axisA, axisB), w2s);
+        drawTransformedFeaturePreview(g, f, (p) => mirror(p, axisA, axisB), w2s, zoom);
       }
       return;
     }
@@ -5737,7 +5622,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       for (const id of selIds) {
         const f = drawing.getFeature(id);
         if (!f) continue;
-        drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, Math.PI), w2s);
+        drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, Math.PI), w2s, zoom);
       }
       return;
     }
@@ -7494,7 +7379,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const angleRad = (stepDeg * i * Math.PI) / 180;
           for (const f of features) {
             if (ts.arrayPolarRotate) {
-              drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s);
+              drawTransformedFeaturePreview(g, f, (p) => rotate(p, center, angleRad), w2s, zoom);
             } else {
               const allPts: Point2D[] = [];
               const fg = f.geometry;
@@ -7511,7 +7396,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               const rotated = rotate({ x: cx, y: cy }, center, angleRad);
               const dx = rotated.x - cx;
               const dy = rotated.y - cy;
-              drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+              drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s, zoom);
             }
           }
         }
@@ -7541,7 +7426,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           const dx = c * colSp;
           const dy = r * rowSp;
           for (const f of features) {
-            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s);
+            drawTransformedFeaturePreview(g, f, (p) => translate(p, dx, dy), w2s, zoom);
           }
         }
       }
@@ -7752,7 +7637,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
             g.lineTo(b.sx, b.sy);
           }
         } else {
-          drawTransformedFeaturePreview(g, sourceFeat, (p) => translate(p, dx, dy), w2s);
+          drawTransformedFeaturePreview(g, sourceFeat, (p) => translate(p, dx, dy), w2s, zoom);
         }
         return;
       }
@@ -8475,6 +8360,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     const pixi = pixiRef.current;
     if (!pixi) return;
     const g = pixi.previewGraphics;
+    const zoom = useViewportStore.getState().zoom || 1;
     const tx = useTransferStore.getState();
     if (!tx.isOpen) return;
     if (tx.pickedIds.size === 0) return;
@@ -8532,7 +8418,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Ghost outline — destination-layer tint at 45% opacity.
       g.lineStyle(1.5, tint, 0.55);
-      drawTransformedFeaturePreview(g, f, translateFn, w2s);
+      drawTransformedFeaturePreview(g, f, translateFn, w2s, zoom);
     }
   }
 

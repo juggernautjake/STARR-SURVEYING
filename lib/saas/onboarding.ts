@@ -136,6 +136,17 @@ export interface OnboardingFacts {
 export interface OnboardingStepState extends OnboardingStep {
   done: boolean;
   blocked: boolean;
+  /**
+   * The specific things still missing, named the way the target page labels them (owner report,
+   * 2026-08-04: *"there needs to be clearer instructions… I am not seeing a clear way to make sure
+   * everything that needs to be updated can be updated"*).
+   *
+   * `why` explains the GOAL — "your name, phone and address go on every proposal". That is the
+   * right sentence for deciding whether to care and the wrong one for finishing: it never says
+   * which of the three is blank, so a firm that has filled in two sees "0 of 2 done" and no way to
+   * tell what is left. Empty when the step is done.
+   */
+  missing: string[];
 }
 
 export interface OnboardingState {
@@ -165,6 +176,33 @@ function isDone(id: OnboardingStepId, f: OnboardingFacts): boolean {
   }
 }
 
+/**
+ * What is still blank for a step, in the words the target page uses.
+ *
+ * Derived from the same `facts` as `isDone`, so "done" and "nothing missing" are the same
+ * statement made twice rather than two opinions — a card that says "0 of 2 done" beside an empty
+ * list of what to do is precisely the state the owner reported.
+ */
+function missingFor(id: OnboardingStepId, f: OnboardingFacts): string[] {
+  switch (id) {
+    case 'firm_identity': {
+      const gaps: string[] = [];
+      if (!f.hasFirmName) gaps.push('Firm name');
+      // Either channel counts — see the fact's own note. Named as one gap, not two, so nobody
+      // fills in a phone and still sees "email missing".
+      if (!f.hasFirmContact) gaps.push('A contact email or phone number');
+      return gaps;
+    }
+    case 'team': return f.memberCount > 1 ? [] : ['At least one teammate invited'];
+    case 'counties': return f.countyCount > 0 ? [] : ['One county you work in'];
+    case 'work_types': return f.workTypeCount > 0 ? [] : ['One service with a rate'];
+    case 'equipment': return f.equipmentCount > 0 ? [] : ['One vehicle or instrument'];
+    case 'first_customer': return f.customerCount > 0 ? [] : ['One customer'];
+    case 'first_job': return f.jobCount > 0 ? [] : ['One job'];
+    case 'payments': return f.paymentsConfigured ? [] : ['A way to get paid'];
+  }
+}
+
 export function evaluateOnboarding(facts: OnboardingFacts): OnboardingState {
   const doneById = new Map<OnboardingStepId, boolean>();
   for (const s of ONBOARDING_STEPS) doneById.set(s.id, isDone(s.id, facts));
@@ -175,6 +213,7 @@ export function evaluateOnboarding(facts: OnboardingFacts): OnboardingState {
     // Blocked only by steps that are not done. A step can be blocked and done at once — somebody
     // added a job before adding a customer — and that is not an error, so `done` wins in the UI.
     blocked: s.blockedBy.some((b) => !doneById.get(b)),
+    missing: doneById.get(s.id) ? [] : missingFor(s.id, facts),
   }));
 
   const required = steps.filter((s) => s.required);

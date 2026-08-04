@@ -129,7 +129,14 @@ describe('the checklist behaves like a path, not a wall', () => {
   const componentCode = code(component);
 
   it('renders nothing once the essentials are done', () => {
-    expect(component).toMatch(/if \(!state \|\| failed \|\| state\.ready\) return null;/);
+    // Widened 2026-08-04: the condition gained `!mayComplete ||` in front, because the card is now
+    // owners and admins only — every step it offers leads somewhere a field-crew member cannot
+    // open, so for them it was a permanent to-do list of things they are not permitted to do.
+    //
+    // Matched loosely on purpose. The property this test defends is *"ready hides it"*, and pinning
+    // the whole expression makes it fail on any change to who sees it — which is a different
+    // question, already asserted in `onboarding-card-is-completable.test.ts`.
+    expect(component).toMatch(/if \([^)]*state\.ready\) return null;/);
   });
 
   it('has no "don’t show again" flag', () => {

@@ -13,11 +13,24 @@
 // suppress exactly when it mattered.
 
 import { useCallback, useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Circle, Lock } from 'lucide-react';
 import type { OnboardingState } from '@/lib/saas/onboarding';
 
 export default function OnboardingChecklist() {
+  // ── Owners and admins only (owner request, 2026-08-04) ──────────────────────────────────────
+  //
+  // Every step this card offers leads somewhere a field-crew member cannot open: org settings,
+  // invites, rates. So for everyone else it was a to-do list of things they are not permitted to
+  // do, sitting at the top of the first screen they see, with a count that could never move however
+  // long they looked at it.
+  //
+  // Read from the session rather than fetched, so a crew member costs no request at all.
+  const { data: session } = useSession();
+  const roles: string[] = (session?.user as { roles?: string[] } | undefined)?.roles ?? [];
+  const mayComplete = roles.includes('admin') || roles.includes('owner') || roles.includes('developer');
+
   const [state, setState] = useState<OnboardingState | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -36,10 +49,13 @@ export default function OnboardingChecklist() {
     }
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (mayComplete) load(); }, [load, mayComplete]);
 
   // Nothing to say: still loading, failed, or the firm is set up.
-  if (!state || failed || state.ready) return null;
+  // `state.ready` is the disappearance the owner asked for, and it was already the behaviour — what
+  // was missing is that the card never named WHICH field was blank, so "meet the requirements" had
+  // no visible finish line. See `missing` below.
+  if (!mayComplete || !state || failed || state.ready) return null;
 
   const { next, steps, requiredDone, requiredTotal } = state;
 
@@ -57,6 +73,15 @@ export default function OnboardingChecklist() {
             {next ? next.title : 'Almost there'}
           </div>
           {next && <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', marginTop: 2 }}>{next.why}</div>}
+          {/* WHAT is blank, not just why it matters. Without this the card states a goal and a
+              score and never the gap, so a firm with a name but no phone sees "0 of 2 done" and no
+              way to work out which half is missing. */}
+          {next && next.missing.length > 0 && (
+            <div style={{ fontSize: 13, marginTop: 6 }}>
+              <span style={{ color: 'var(--color-text-secondary)' }}>Still needed: </span>
+              <strong>{next.missing.join(' · ')}</strong>
+            </div>
+          )}
         </div>
         {next && (
           <Link
@@ -95,6 +120,11 @@ export default function OnboardingChecklist() {
                   {s.title}
                   {!s.required && <span style={{ fontSize: 11, color: 'var(--color-text-secondary)' }}> · optional</span>}
                 </div>
+                {!s.done && !s.blocked && s.missing.length > 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
+                    Needs: {s.missing.join(' · ')}
+                  </div>
+                )}
                 {!s.done && s.blocked && (
                   <div style={{ fontSize: 12, color: 'var(--color-text-secondary)' }}>
                     Do “{steps.find((x) => x.id === s.blockedBy[0])?.title ?? 'the earlier step'}” first

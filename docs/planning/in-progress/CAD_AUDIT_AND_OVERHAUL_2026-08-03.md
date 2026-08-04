@@ -2613,3 +2613,30 @@ what it says. Control: swapping the seal label below its container fails both th
 original pair case.
 
 15,337 → 15,304 lines. CAD suite **3,457 green**; `tsc` and `eslint` clean.
+
+### ✅ S19c DONE 2026-08-04 — the transform ghost, and nine untested geometry types
+
+Third extraction out of `CanvasViewport.tsx`. `drawTransformedFeaturePreview` is the faint outline a
+surveyor sees before committing a mirror, move, copy, flip, invert, rotate or scale — **123 lines
+covering nine geometry types**, none of them tested, because the function lived inside the component.
+
+Now `lib/cad/render/ghost-preview.ts`, beside the curve helpers it already resembled.
+
+**Two things changed in the move, both deliberate.** It called `useViewportStore.getState().zoom`
+twice, so testing a circle meant standing up a store; `zoom` is a parameter now, exactly as in
+`lib/cad/geometry/curve-render.ts`, and every call site already had it in scope. And it takes
+`GraphicsLike` rather than Pixi's `Graphics` — that interface exists for this reason, so a test can
+hand it a recorder and read back what was drawn.
+
+14 tests. Every geometry type must emit drawing calls (a type that silently draws nothing is
+invisible — the surveyor sees no ghost and concludes the tool does not support that shape); a polygon
+closes and a polyline does not; the ghost is drawn **transformed**, since drawing it where the
+feature already is would look like the tool doing nothing; and a circle's radius scales with zoom,
+which is the bug the store read was hiding — a radius is a world length drawn in screen pixels, so a
+helper that cannot see the zoom is wrong at every zoom but 1.
+
+15,304 → 15,188 lines. CAD suite green; `tsc`, `eslint` and `npm run build` clean.
+
+**Three extractions in, the pattern is consistent:** every chunk taken out of this file was either
+untestable where it sat (S19a, S19c) or cost a renderer to reach (S19b). The file's size is not the
+problem — what it hides is.
