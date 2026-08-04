@@ -16,6 +16,7 @@
 
 import type { PipelineLogger } from '../lib/logger.js';
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -394,6 +395,14 @@ async function extractSegment(
       system: EXTRACTION_PROMPT,
       messages: [{ role: 'user', content: userContent }],
     });
+
+    // R4b — priced against the ambient run established by `runPipeline`. Vision calls carry image
+    // payloads, so their input token counts are among the largest this worker makes; leaving them
+    // unrecorded skewed the ceiling in the direction that matters most.
+    void recordAmbientAiCall('adaptive-vision', process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6', {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
+    }, { segmentId });
 
     const textBlock = response.content.find(c => c.type === 'text');
     return (textBlock?.type === 'text' ? textBlock.text : '') ?? '';

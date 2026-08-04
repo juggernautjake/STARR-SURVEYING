@@ -13,6 +13,7 @@
 //   CALL 7: Final report generation — per-lot M&B, discrepancies, recommendations
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import type {
   ExtractedBoundaryData,
   ValidationResult,
@@ -202,6 +203,17 @@ async function callClaude(
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       });
+      // R4b — this file already reads `response.usage` a few lines below to log a token count, so
+      // the numbers were being computed and thrown away. Recording them is the whole change.
+      void recordAmbientAiCall(
+        'property-validation-pipeline',
+        process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
+        {
+          input:  response.usage?.input_tokens  ?? 0,
+          output: response.usage?.output_tokens ?? 0,
+        },
+      );
+
       const tb = response.content.find(c => c.type === 'text');
       const text = (tb?.type === 'text' ? tb.text : '') ?? '';
       const elapsed = ((Date.now() - attemptStart) / 1000).toFixed(1);

@@ -4208,3 +4208,32 @@ line each — no signatures change, no callers move. `receipt-extraction.ts` sti
 accounting key rather than a run, and that stays a decision rather than a line.
 
 Worker suite 92 files / 1,521 tests green; `tsc` and `eslint` clean.
+
+### ◑ R4b — three more call sites, 11 → 8 (2026-08-04)
+
+The ambient run made these mechanical, exactly as predicted: one `recordAmbientAiCall` line each, no
+signature changed, no caller moved. That is the whole return on the `AsyncLocalStorage` slice.
+
+| site | note |
+|---|---|
+| `adaptive-vision.ts` | Vision calls carry image payloads, so their **input** token counts are among the largest this worker makes. Leaving them unrecorded skewed the ceiling in the direction that matters most. |
+| `address-normalizer.ts` | Priced with the model **`modelFor` actually chose**, not a constant. Pricing a Haiku call at Sonnet rates would make the cheap path look expensive and defeat the routing R6 shipped. |
+| `property-validation-pipeline.ts` | Already read `response.usage` a few lines further down **to log a token count**. The numbers were being computed and thrown away; recording them is the entire change. |
+
+That last one is the shape worth naming: the data was present, correct and formatted for a human, and
+simply never persisted. It is the cheapest possible version of "the ceiling cannot see this", and it
+sat one line from the fix.
+
+Ratchet tightened **11 → 8** to match. Worker suite 92 files / 1,521 tests green; `tsc` and `eslint`
+clean.
+
+**Twice in this slice a shell-quoted `node -e` regex silently failed to match** and reported success —
+once removing ratchet entries, once adding an import. Both were caught by counting afterwards rather
+than by trusting the script's own output. That is the fourth and fifth false-green of this session
+from string replacement; the entries were removed with an editor instead.
+
+**Remaining 8**, and they are no longer blocked on anything structural: `ai-extraction.ts` (five call
+sites, the largest single job), `geo-reconcile.ts` (three), `subdivision-lot-isolator.ts` (two),
+`bis-cad.ts` (two), the three Bell files, and `receipt-extraction.ts` — which still needs its own
+accounting key rather than a run, because it is a CLI batch over queued receipts and has no run to
+belong to.

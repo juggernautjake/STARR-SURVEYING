@@ -12,6 +12,7 @@
 import { lookupCountyFIPS } from '../lib/county-fips.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call normalises an address string.
 import { modelFor } from '../infra/model-router.js';
+import { recordAmbientAiCall } from '../infra/usage.js';
 
 // Re-export for consumers that import all address utilities from a single module
 export { lookupCountyFIPS } from '../lib/county-fips.js';
@@ -582,6 +583,15 @@ Return ONLY a JSON array of search strings. Example: ["3779 FM 436","3779 FARM M
 
 Important: Do NOT repeat strings already tried. Only return NEW variants.`,
       }],
+    });
+
+    // R4b — R6 already routed this call through `modelFor` for cheap-first selection and did not add
+    // usage recording, which is why the "migrate both at once" plan was abandoned. Priced with the
+    // model `modelFor` actually chose, not a constant: pricing a Haiku call at Sonnet rates would
+    // make the cheap path look expensive and defeat the routing R6 shipped.
+    void recordAmbientAiCall('address-normalizer', modelFor('read_text').model, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
     });
 
     const text = response.content.find((c) => c.type === 'text');
