@@ -987,3 +987,47 @@ printout must not.** No find-and-replace can know the difference, which is the h
 remaining 2,297 are one-at-a-time work.
 
 22,679 tests pass; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W10 DONE 2026-08-04 — the push sender is installed, and installing it deleted `pg`
+
+`npm i web-push`. One of the three things standing between the owner and working notifications, and
+the only one that was mine to do — the other two are the VAPID key pair and setting it in Vercel.
+
+Verified the way that matters rather than by reading `package.json`: `lib/push/web-push.ts` resolves
+the module through `eval('require')` so webpack cannot see the specifier, and that indirection is the
+whole reason the package could be absent without breaking the build. A `require.resolve` from the
+repo root confirms `setVapidDetails` and `sendNotification` are both there, so W4c's `no-transport`
+state now correctly gives way to `no-keys` — the install page's message moves from *"the server is
+missing the package"* to *"the notification keys are not set"*, which is the true one.
+
+#### ▶ Installing it removed `pg`, and seven tests said so
+
+`pg` was a **phantom dependency**: present in `node_modules`, imported by `scripts/apply-seeds.mjs`
+and four audit scripts, and **not in `package.json`**. It had been pulled in transitively by
+something else. `npm i` pruned what nothing declared, and the seed runner — the tool that applies the
+seeds this document has been blocked on all day — stopped working.
+
+Nothing about that was visible in the install output. It surfaced as
+`ERR_MODULE_NOT_FOUND: Cannot find package 'pg'` in the schema guards, which run the seed script for
+real. **A test that executes the tool is what caught it**; a test that read the script's source would
+have passed.
+
+`pg` is now declared. The lesson is not "be careful with npm" — it is that **an undeclared
+dependency works right up until any install command runs**, and the failure lands on whatever
+unrelated thing happens to be next.
+
+#### ▶ And "✓ Compiled successfully" was partly a cache
+
+Before the install the build printed `✓ Compiled successfully`; after it, `⚠ Compiled with warnings`
+— with the warnings in files nobody had touched (`<img>` instead of `next/image`, a few
+`exhaustive-deps`). The install invalidated Next's lint cache and lint ran in full for the first time
+in a while.
+
+So "build clean" in earlier notes meant *"no new errors"*, not *"no warnings"*. The warnings are
+pre-existing and non-fatal, and they are now visible, which is better.
+
+22,679 tests pass; `tsc` clean; build succeeds.
+
+**Notifications now need only what the owner holds:** generate the VAPID pair
+(`npx web-push generate-vapid-keys`), set four variables in Vercel, redeploy. Written up for them in
+`starr-app-install-setup.html`.
