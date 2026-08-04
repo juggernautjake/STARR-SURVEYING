@@ -1583,3 +1583,46 @@ catastrophic for the rest is worth hunting exhaustively rather than fixing where
 them. The sweep is now complete: every store path that can set a  — ,
 ,  and  — is checked, and the two that CHOOSE a layer
 (, ) refuse to choose the reserved one.
+
+---
+
+### ✅ S18 DONE 2026-08-04 — a reachability guard for lib/cad, and what it found
+
+The research platform has `research-modules-are-reachable` because *"authored but never wired"*
+appeared eleven times in one plan. **`lib/cad` has 248 modules and had no equivalent** — and this
+session found that same defect eleven more times elsewhere in the codebase.
+
+Ten of the 248 have **no production importer**. "Production" is the operative word: a module imported
+only by its own test is not reachable, and the distinction is the entire point — **every dead module
+found today had passing tests.**
+
+### ▶ The finding worth acting on: the spatial index exists twice
+
+`lib/cad/spatial/feature-index.ts` has no importer at all. `CanvasViewport` defines its **own**
+`ensureFeatureIndex` inline, around line 2253.
+
+The perf doc records *"P1 spatial index for feature bounds | DONE — `lib/cad/spatial/feature-index.ts`,
+a hand-rolled uniform grid"*. That is true of the **file** and false of the **renderer**: the version
+that actually runs on every frame is the copy inside the component, and the tested one is dead. Two
+implementations of the same rule, which is precisely the shape that let the TRV and survey-data paper
+fits drift apart (S17) and the notes/certification wrapping drift apart (S11).
+
+**Deliberately not deduplicated here.** It means editing `CanvasViewport`, and this program has
+already recorded that splitting that file should be sequenced with S5 rather than bolted onto an
+unrelated change. Recorded against the module with the reason, so it is a specific claim rather than
+a rediscovery.
+
+### ▶ And one of the ten is mine
+
+`geo/texas-state-plane.ts` — shipped this session in S16a — has no production caller either. The
+exporters still hardcode their own EPSG constants. Pointing them at the table is a behavioural change
+to files handed to clients and wants its own slice, so it is listed with that reason rather than
+quietly wired in the margin of a different change. **The guard caught its author.**
+
+### ▶ The inventory is not an amnesty
+
+Each of the ten carries a reason, and a second assertion fails on a **stale** entry — one naming a
+module that has since been wired or deleted — because a list that silently stops tracking reality is
+worse than no list. A third rejects a reason too short to act on; "TODO" is not a reason.
+
+Watched failing by planting an orphan module, which the guard named. 3,416 CAD tests, `tsc` clean.
