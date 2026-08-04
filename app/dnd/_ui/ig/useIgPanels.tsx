@@ -216,7 +216,10 @@ export function useIgPanels({ ig, elements, sheetType, canEdit, characterId, cam
   // Recent Rolls. Same gap as PF2 had; the 5e store has published all along.
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     if (!campaignId) return;
-    publishRoll(entry as never, { characterId, campaignId, actorName: ig.identity?.name });
+    // No `as never` — see the note on the PF2 panel's identical call. `RollEntry` structurally
+    // satisfies `PublishableRoll`, and letting the compiler say so is the only verification this
+    // path can currently get: no IG character sits at a campaign, so nothing exercises it at runtime.
+    publishRoll(entry, { characterId, campaignId, actorName: ig.identity?.name });
   }, [campaignId, characterId, ig.identity?.name]);
   // Optional target DC — when set, a roll resolves the four-step degree of success (IG's ladder).
   const [targetDc, setTargetDc] = useState('');

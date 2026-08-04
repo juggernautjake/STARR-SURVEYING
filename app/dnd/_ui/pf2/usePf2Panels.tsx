@@ -272,7 +272,11 @@ export function usePf2Panels({ pf2, sheetType, characterId, campaignId, canEdit,
   // called publishRoll and the bespoke sheets never did.
   const commitRoll = useCallback((entry: Omit<RollEntry, 'id'>) => {
     if (!campaignId) return;
-    publishRoll(entry as never, { characterId, campaignId, actorName: id.name });
+    // No `as never`. The cast was suppressing the only check anything can perform here: this path
+    // cannot be exercised with current data (no PF2 character sits at a campaign), so the compiler
+    // agreeing that a RollEntry satisfies PublishableRoll is the whole of the available evidence.
+    // Under the cast, renaming `total` or making `label` optional would break publishing silently.
+    publishRoll(entry, { characterId, campaignId, actorName: id.name });
   }, [campaignId, characterId, id.name]);
   // Optional target DC — when set, a roll resolves PF2's four-step degree of success.
   const [targetDc, setTargetDc] = useState('');

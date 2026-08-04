@@ -69,6 +69,23 @@ describe('the bespoke sheets publish rolls to the campaign feed', () => {
           .toContain('campaignId');
       });
 
+      it('does not cast the entry away on the way to publishRoll', () => {
+        // Both panels called `publishRoll(entry as never, …)`. `RollEntry` structurally satisfies
+        // `PublishableRoll`, so the cast bridged nothing — it only switched off the type check.
+        //
+        // That matters more here than almost anywhere else in the codebase: this path CANNOT be
+        // exercised at runtime with current data (no PF2 or IG character sits at a campaign), so the
+        // compiler agreeing about the shape is the entire body of available evidence. Under `as
+        // never`, renaming `total` or making `label` optional would break publishing in total
+        // silence — no type error, no test failure, and no data able to reach it.
+        // Matched on the CALL, not on the words: the first version searched the whole `commitRoll`
+        // body for "as never" and flagged the comment that explains why the cast was removed. A
+        // check that reads prose accuses whoever documents the fix — the same shape as the
+        // comment-stripper that deleted a file's imports because a header contained `image/*`.
+        expect(src, `${file}: the entry is cast on its way to publishRoll, so nothing checks its shape`)
+          .not.toMatch(/publishRoll\(\s*entry\s+as\s+\w+/);
+      });
+
       it('hands commitRoll to the roll feed provider', () => {
         // Defined but never passed = defined but never called. The panel would compile, the sheet
         // would render, and the feed would stay empty.

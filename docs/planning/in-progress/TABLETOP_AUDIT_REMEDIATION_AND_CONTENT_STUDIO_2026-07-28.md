@@ -4036,6 +4036,37 @@ ticked that has not been verified.**
 >
 > The bullets below are preserved **as originally written**, not edited, so the record of what was
 > believed at the time stays intact.
+>
+> ### And the unticked boxes further up this document are worse (added 2026-08-04)
+>
+> The `- [ ]` items in Phase 13 and Phase 8 are **not a to-do list**. Two different things are mixed
+> into them, and rebuilding either would be expensive:
+>
+> **(a) Shipped, present in THIS tree, box never ticked.** Closed three weeks ago by a *different*
+> plan doc — `completed/BESTIARY_BUILDOUT_2026-07-29.md` — and nobody walked back to tick them here.
+> Verified in the working tree just now, not taken on the branch's word:
+>
+> | item | evidence in this tree |
+> |---|---|
+> | P13-4 / P13-5 (SRD 5.2 + PF2 imports) | `lib/dnd/bestiary/import-open5e.ts`, `import-pf2.ts`, `ig-curation.ts` |
+> | P13-8 (AI creature generation) | `lib/dnd/homebrew/draft-assist.ts` |
+> | P13-11 (fork a creature) | `app/api/dnd/bestiary/[id]/fork/route.ts` — `forked_from` is server-set |
+> | P13-12 (transpose across systems) | `lib/dnd/bestiary/transpose.ts` + **27 tests** |
+> | P13-14 (library pages) | `app/dnd/library/[key]/` |
+>
+> **(b) Shipped only on the unmerged branch, genuinely absent here.** `P8-2` — the SRD magic items —
+> is the one to be careful with: there is **no magic-items module and no seed in this tree**, so a
+> file-existence check says "not built" and it is 237 catalogued items with a licence gate sitting on
+> `claude/dnd-streamer-audit-2026-08-03`. Same for P14-8/9/10, P13-13b and P5-7b.
+>
+> **That is the distinction worth carrying**, and it is why the two cases are listed apart rather than
+> as one "stale" pile: (a) is safe to tick from this tree, (b) will look missing to any check that
+> reads the working tree — *including every structural guard in this repo* — until the merge lands.
+> A probe cannot tell **"nobody wrote it"** from **"nobody merged it"**.
+>
+> Not ticked here, deliberately: the branch's `ccc3cb542` already ticks the (a) items with DB-query
+> evidence, and doing it again in this copy would produce a merge conflict in a document whose only
+> job is to be read. The duplicated *warning* costs nothing; a duplicated tick costs a conflict.
 
 - [ ] **P14-8 — Manual roll entry.** *"users can record manual rolls if they want"*. `RollFeed.tsx`
       already posts to `/api/dnd/rolls` and `roll-publish.ts` calls it "the manual dice box", but there is
@@ -4342,3 +4373,52 @@ the property that makes it worth keeping.
 **Still genuinely blocked, unchanged:** the end-to-end confirmation needs a PF2 or IG character sitting
 at a campaign. That is one row, and it is the owner's to create — this program's rule against
 manufacturing test data to satisfy its own checks is the reason it was not created here.
+
+---
+
+## 2026-08-04 — `as never` was hiding the only check this path can get
+
+The roll-publishing caveat above stands: no PF2 or IG character sits at a campaign, so nothing
+exercises the publish path at runtime. Looking at *what could still be verified* found that the one
+remaining check had been switched off.
+
+Both bespoke panels called `publishRoll(entry as never, …)`. `RollEntry` — which both import from the
+shared sheet store — structurally satisfies `PublishableRoll` (`label`, `total`, `breakdown`, `crit`,
+`fumble`), so **the cast bridged nothing**. It only suppressed the type check.
+
+That matters more here than almost anywhere else in this codebase. A path that cannot be run is a path
+where the compiler's agreement about the shape is the *entire* body of available evidence. Under `as
+never`, renaming `total` or making `label` optional would break publishing in complete silence — no
+type error, no failing test, and no data able to reach it. Both casts are gone and `tsc` is clean,
+which turns "we cast it and hoped" into a proof of the one property that was still provable.
+
+The guard now pins it. **Its first version accused the fix**: it searched the `commitRoll` body for
+the words `as never` and matched the comment explaining why the cast had been removed — the same
+shape as the comment-stripper that once deleted a file's imports because a header contained
+`image/*`. It matches the call syntax now, and the negative control fails on exactly the one file
+that carries a cast.
+
+### ▶ The unticked boxes above are two different things, and one is dangerous
+
+Extended the warning on the Outstanding list to cover Phase 13 and Phase 8, because the `- [ ]` marks
+there are not a to-do list:
+
+- **Shipped and present in this tree, box never ticked** — P13-4, P13-5, P13-8, P13-11, P13-12,
+  P13-14. Closed three weeks ago by a *different* doc (`completed/BESTIARY_BUILDOUT_2026-07-29.md`)
+  and never walked back here. Verified in the working tree rather than taken on the branch's word:
+  the importers, `draft-assist.ts`, the server-set `forked_from` fork route, `transpose.ts` with 27
+  tests, and the library pages all exist.
+- **Shipped only on the unmerged branch, genuinely absent here** — P8-2, the SRD magic items. There
+  is no module and no seed in this tree, so a file-existence check correctly says "not built" about
+  **237 catalogued items with a licence gate** that already exist on
+  `claude/dnd-streamer-audit-2026-08-03`.
+
+**That second case is the one to carry.** It will look missing to any check that reads the working
+tree — *including every structural guard in this repo* — until the merge lands. A probe cannot tell
+"nobody wrote it" from "nobody merged it".
+
+The (a) items were **not** ticked here: the branch's `ccc3cb542` already ticks them with DB-query
+evidence, and doing it again would create a merge conflict in a document whose only job is to be
+read. A duplicated warning costs nothing; a duplicated tick costs a conflict.
+
+8,934 D&D tests green, `tsc` and `eslint` clean.
