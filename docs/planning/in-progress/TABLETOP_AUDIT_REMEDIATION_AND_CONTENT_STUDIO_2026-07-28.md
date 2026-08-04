@@ -4463,3 +4463,47 @@ replacement, once from a missing interpreter. `grep` the file before believing a
 **Unchanged and still blocking this doc:** the merge of `claude/dnd-streamer-audit-2026-08-03`, and
 P14-11's fix — whose audit lives in a commit message on that branch rather than in this tree, which is
 itself an argument for merging before starting it.
+
+---
+
+## 2026-08-04 — P14-11's obvious fix is a regression, and the reason is already in the tree
+
+P14-11's audit lives in a commit message on the unmerged branch, which makes it hard to act on. Its
+central claim is **checkable here**, so it was checked here — and doing so found the trap in the
+remedy it implies.
+
+**The claim holds.** Measured in this working tree:
+
+| root | class list | streamer rules reached |
+|---|---|---|
+| 5e (`_sheet/App.tsx`) | `dnd-sheet sheet-shell skin-… variant-…` | all of them |
+| PF2 (`_ui/PF2Sheet.tsx`) | `sheet-shell ${skin}` | — |
+| IG (`_ui/IGSheet.tsx`) | `sheet-shell igs-root ${skin}` | — |
+
+`theme.css` carries **91** `.dnd-sheet.skin-streamer` rules and **1** streamer rule without that
+prefix; `skinAccents.css` carries **3**, none prefixed. So PF2 and IG get four rules in total, which
+matches the audit's "3 selectors plus the token bridge".
+
+### ▶ But adding `dnd-sheet` to those roots would undo a deliberate boundary
+
+The omission is not an oversight. `App.tsx` names it **T-SHELL-SCOPE**:
+
+> *`sheet-shell` carries the shared FORMAT layout rules (codex/dashboard/play CSS), scoped apart from
+> theme.css's broad `.dnd-sheet` element rules so the same shells can render inside a bespoke PF2/IG
+> sheet **without those rules bleeding onto its panels**.*
+
+So the cheapest reading of the audit — *"the roots are missing a class, add it"* — unlocks the 91
+streamer rules **and** every broad `.dnd-sheet` element rule in theme.css, onto panels built for other
+systems. It would look like progress on the first sheet somebody opened and like damage on the rest.
+
+**The fix P14-11 needs is to bring the streamer's root-level treatment across under a selector the
+bespoke roots already carry** (`.sheet-shell.skin-streamer`), not to widen the gate. That is a
+different and larger piece of work than the audit's phrasing suggests, and it is worth knowing before
+the merge rather than after.
+
+`shell-scope-is-deliberate.test.ts` pins it: PF2 and IG roots must carry `sheet-shell` and must not
+carry `dnd-sheet`; the 5e root must carry both, so the guard cannot pass by the class disappearing
+everywhere. The negative control adds `dnd-sheet` to the PF2 root — the exact wrong fix — and fails
+with the reason and the alternative in the message.
+
+8,940 D&D tests green, `tsc` and `eslint` clean.
