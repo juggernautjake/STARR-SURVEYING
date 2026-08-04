@@ -2296,3 +2296,50 @@ is different from deferring to empty a folder, and the difference is that this o
 
 CAD suite 3,445 green (down 13 with the deleted test's cases), `tsc` and `eslint` clean, production
 build compiles.
+
+### ✅ S16c DONE 2026-08-04 — the golden instrument file has nineteen tests already waiting for it
+
+This document lists a **golden instrument file** among the owner-gated items, described as *"whether
+zone, grid-vs-ground scale factor and convergence are genuinely handled needs a real robotic
+total-station file, not a code read."* True, and an understatement.
+
+Chasing the suite's *"2 skipped files / 13 skipped tests"* found the concrete version: the `.TRV`
+importer has **sixteen integration test files**, and **nineteen of their assertions are gated on a
+fixture that does not exist**. `fixtures/trv/` is not in this repository.
+
+| | |
+|---|---|
+| Fixture-gated assertions | **19** — 15 `it.skipIf`, 4 `describe.skipIf` (a skipped `describe` hides more per line) |
+| Files affected | 16 |
+| Files falling back to a dead absolute path | **10** — `/root/.claude/uploads/…`, an ephemeral session directory |
+| Distinct real `.TRV` files referenced | **4** |
+
+**These tests were written against real client work.** The paths name them:
+
+    GARLAND_KREUGER_WHITE_OWL_LANE_TEMPLE_26074_MAY_25_2026 (.TRV, _1, _2)
+    SKP_PROPERTY_ADVISORS_TREMONT_ST_BELTON_26065_MAY_20_2026.TRV
+
+Those are the firm's own jobs — Temple and Belton — so the files may well still exist off-repo. The
+fallback path is also a **Linux path in a repository checked out on Windows**, so it could not have
+resolved here even while those uploads lived.
+
+**The suite reports this as "skipped", which reads as deliberate.** It is not: it is data that was
+present once, tested against, and never committed. Nothing fails, and the green tick is honest about
+the tests it ran while saying nothing about the nineteen it did not.
+
+**This reframes the ask.** The golden instrument file is not a nice-to-have sample for a future
+verification pass — connectors, construction-hidden flags, derived round-trips, fill styling, line
+types, text elements, traverse groups and the two-layer restructure are **already written**. Nineteen
+assertions light up the moment one real `.TRV` lands in `fixtures/trv/`.
+
+`trv-fixtures-are-missing.test.ts` makes the silence countable: a twentieth silently-skipping
+assertion fails it, and so does the **arrival** of the fixture — the moment this entry needs updating.
+No data was invented; a fabricated `.TRV` would prove the parser agrees with itself rather than with
+Traverse PC.
+
+**Its own first run was wrong in both directions, which is the reason to state counts rather than
+adjectives:** the file quotes `it.skipIf(` and the dead upload path in its header, so it counted
+*itself* as an offender — a scan that includes the scanner, inflating both numbers by one. It also
+missed the four `describe.skipIf` blocks entirely. Excluding self and counting both forms gives 19.
+
+CAD suite 3,449 green, 13 still skipped — and now countable.
