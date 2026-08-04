@@ -526,3 +526,42 @@ passing a card the database cannot supply would have been worse. The point is th
 **The test that would close it** belongs with F1b: once `receipts.payment_card_id` exists, assert
 that the receipt panel resolves the card and passes it, and that a receipt on a client card shows
 "not our transaction" *on screen* rather than only in a unit test.
+
+---
+
+## ✅ Browser verification 2026-08-04 — F4 and F5, against a production build
+
+The CAD doc's S14c note recorded that the finance UI shipped today had **unit and wiring tests and
+had never been opened in a browser**. Closing that, against `npm run build` + `npm start`:
+
+### F4 — bulk receipt capture
+
+Fed the bulk picker **two JSON files** — deliberately the wrong type — and every honesty rule fired:
+
+| behaviour | observed |
+|---|---|
+| Per-file reason, on the row | *"Only photos and PDFs can be uploaded as receipts."* — **twice, once per file** |
+| Rejected files stay in the list | **yes** — both rows rendered |
+| Summary refuses to imply success | *"None uploaded — all 2 failed. **Nothing was filed.**"* |
+| Finished batch is not re-runnable | button reads **"Batch finished"** |
+| Page errors | none |
+
+That is the rejection path, which is the one this slice was designed around: a file that vanishes
+between the picker and the list is indistinguishable from one the person forgot to select, and a
+summary that says "done" over two failures is how a receipt goes missing. Both held.
+
+### F5 — invoice anyone, including people with no email
+
+| behaviour | observed |
+|---|---|
+| Both actions present | **`Create without sending`** beside `Create + send invoice` |
+| Tooltip explains when to use it | *"Creates the invoice and its pay link without emailing anyone. Use this when you don't have an email, or you'll…"* |
+| Empty form refuses rather than crashing | *"Please add at least one line item."* |
+| Page errors | none |
+
+### What is still unverified in a browser
+
+**F3b / F7a** — the tax summary and its `Decided by:` explanation on the receipt detail panel. Both
+render only inside an expanded receipt row, and this environment has no receipt data to expand. It
+needs a real receipt, so it is **recorded as unverified rather than assumed working** — the same
+standard applied to the CAD slices.
