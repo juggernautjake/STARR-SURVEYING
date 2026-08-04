@@ -31,7 +31,7 @@
 //   4. **Monuments that could not be placed are counted, not invented.** `located` is documented as
 //      shorter than `monuments` when a corner could not be placed; the difference is reported.
 
-import type { Feature, FeatureGeometry, Point2D } from '../types';
+import type { Feature, FeatureGeometry, Layer, Point2D } from '../types';
 
 // ── The input shape, declared structurally ──────────────────────────────────────────────────────
 
@@ -80,10 +80,50 @@ export interface DrawFromReadingResult {
   /** Surfaced verbatim for the UI, so the drawing can state its own provenance. */
   relative: true;
   confidence: { score: number | null; band: string | null };
+  /** CAD_AUDIT Slice S8c — the layers `features` reference, for a caller that is ADDING to an
+   *  existing drawing rather than replacing it.
+   *
+   *  This is a returned VALUE rather than an assumption in the caller because of the bug that
+   *  produced it: `addFeatures` does not create layers, and `getVisibleFeatures` drops any feature
+   *  whose `layerId` is not in `document.layers` (`if (!layer) return false`). So the import
+   *  reported "3 feature(s) will be added", added them, and drew nothing — in the one adapter whose
+   *  entire design rule is that nothing is dropped silently. Returning the requirement makes it
+   *  impossible for a caller to satisfy the feature contract and miss the layer one. */
+  requiredLayers: RequiredLayer[];
+}
+
+/** A layer the import needs to exist. Deliberately NOT a full `Layer`: this module is pure and
+ *  structurally typed, and importing CAD's `Layer` would pull the store's defaults in with it. The
+ *  caller fills the rest from its own layer factory, which is where those defaults belong. */
+export interface RequiredLayer {
+  id: string;
+  name: string;
+  /** Suggested colour. A caller that already has a layer with this id keeps its own styling. */
+  color: string;
+  description: string;
 }
 
 const LAYER_BOUNDARY = 'RESEARCH_BOUNDARY';
 const LAYER_MONUMENTS = 'RESEARCH_MONUMENTS';
+
+/** S8c — the definitions for the two layers above. Exported so a caller can create them without
+ *  re-declaring the ids, which is how the two halves drift apart. */
+export const RESEARCH_LAYERS: Record<'boundary' | 'monuments', RequiredLayer> = {
+  boundary: {
+    id: LAYER_BOUNDARY,
+    name: 'Research Boundary',
+    color: '#C2410C',
+    description: 'Boundary read from a deed or plat by the research platform. Coordinates are '
+      + 'relative to the point of beginning, not tied to the state plane.',
+  },
+  monuments: {
+    id: LAYER_MONUMENTS,
+    name: 'Research Monuments',
+    color: '#0F766E',
+    description: 'Monuments recited in the record and placed on the figure. FOUND controls a '
+      + 'corner; SET is an opinion.',
+  },
+};
 
 let seq = 0;
 /** Deterministic within a call, which keeps snapshots stable; `Date.now()` would not. */
@@ -116,6 +156,49 @@ function makeFeature(
 }
 
 /**
+ * S8c — turn `requiredLayers` into layers the caller can add, skipping any that already exist.
+ *
+ * Pure, and separate from the UI, because the interesting rule is a data rule: **an existing layer
+ * is never restyled.** A surveyor who set "Research Boundary" to a heavier weight and re-imports
+ * the same deed would otherwise have that undone by the import — silently, since nothing in the
+ * dialog mentions styling.
+ *
+ * @param required     what the import needs (from `DrawFromReadingResult.requiredLayers`)
+ * @param existingIds  ids already in the document
+ * @param sortOrderFrom  first free sort order (normally `document.layerOrder.length`)
+ */
+export function researchLayersToCreate(
+  required: RequiredLayer[],
+  existingIds: Iterable<string>,
+  sortOrderFrom: number,
+): Layer[] {
+  const have = new Set(existingIds);
+  const out: Layer[] = [];
+  for (const r of required) {
+    if (have.has(r.id)) continue;
+    out.push({
+      id: r.id,
+      name: r.name,
+      visible: true,
+      locked: false,
+      frozen: false,
+      color: r.color,
+      lineWeight: 0.75,
+      lineTypeId: 'SOLID',
+      opacity: 1,
+      groupId: null,
+      sortOrder: sortOrderFrom + out.length,
+      isDefault: false,
+      // Not protected: a surveyor must be able to delete an import they did not want.
+      isProtected: false,
+      autoAssignCodes: [],
+      description: r.description,
+    });
+  }
+  return out;
+}
+
+/**
  * Turn a research `SurveyReading` into CAD features.
  *
  * Returns what it drew AND what it could not — the second is the point. A caller that ignores
@@ -142,7 +225,9 @@ export function featuresFromSurveyReading(reading: SurveyReadingLike): DrawFromR
         ? 'the traverse has fewer than two corners'
         : 'the description is not traversable (lot-and-block or reference-only)',
     });
-    return { features, notDrawn, closed: false, relative: true, confidence };
+    // No features, so no layers are required. Returning the boundary layer anyway would leave an
+    // empty "Research Boundary" in the surveyor's layer list implying a boundary was read.
+    return { features, notDrawn, closed: false, relative: true, confidence, requiredLayers: [] };
   }
 
   const unusable = traverse.unusable ?? [];
@@ -213,5 +298,11 @@ export function featuresFromSurveyReading(reading: SurveyReadingLike): DrawFromR
     });
   }
 
-  return { features, notDrawn, closed, relative: true, confidence };
+  // S8c — derived from what was actually emitted, never declared up front. A reading whose
+  // monuments were all unplaceable must not leave an empty "Research Monuments" layer behind,
+  // because an empty layer reads as "we looked and found none" rather than "none could be placed".
+  const usedLayerIds = new Set(features.map((f) => f.layerId));
+  const requiredLayers = Object.values(RESEARCH_LAYERS).filter((l) => usedLayerIds.has(l.id));
+
+  return { features, notDrawn, closed, relative: true, confidence, requiredLayers };
 }

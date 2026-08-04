@@ -783,6 +783,58 @@ been worth shipping.
   reading with an unusable call (expect the dialog to list it and the boundary to come in OPEN),
   then compare two readings on different bases (expect a basis statement, not a list of errors).
 
+  #### ✅ S8c DONE 2026-08-04 — the visual pass ran, and the import was drawing NOTHING
+
+  The browser worked on the next session's first attempt, so the isolation above was transient.
+  What it found justifies the standing rule on its own.
+
+  **The import added three features to a drawing that could not show any of them.** The dialog said
+  *"3 feature(s) will be added"*, they were added, the log line said so — and the canvas stayed
+  empty, with no `RESEARCH_*` layer anywhere in the layer panel.
+
+  `addFeatures` does not create layers, and `getVisibleFeatures` drops any feature whose `layerId`
+  is not in `document.layers`:
+
+  ```ts
+  const layer = document.layers[f.layerId];
+  if (!layer) return false;      // drawing-store.ts:955-956
+  ```
+
+  So the one adapter in this codebase whose entire stated design rule is *"unusable calls are
+  reported, never silently dropped"* silently dropped **everything it imported**. The other
+  importers never hit this because they call `loadDocument`, which brings layers along with the
+  document; S8b deliberately ADDs instead of replacing — correctly — and adding is the path where
+  the layers have to be created explicitly.
+
+  **No test could have caught it, and that is the point worth keeping.** Both halves were correct
+  in isolation: the features were well-formed and the store behaved exactly as documented. Only the
+  *composition* was wrong, and neither module's tests can see a composition. This is a fourth
+  failure state to sit beside the three in the handoff — not *stale*, not *unreachable*, not
+  *unmerged*, but **wired to something that cannot use it**.
+
+  **The fix makes the requirement a returned value rather than an assumption.**
+  `DrawFromReadingResult.requiredLayers` names the layers the emitted features reference, derived
+  from what was actually emitted — so a reading whose monuments were all unplaceable leaves no empty
+  "Research Monuments" layer implying we looked and found none. `researchLayersToCreate` turns those
+  into layers, skipping any that exist, because a surveyor who restyled the layer and re-imports the
+  same deed must not have that silently undone. A test pins the set relation *every emitted
+  feature's layer is declared*, so it keeps holding when a future reading emits a third kind.
+
+  Ordering is asserted too — layers before features. It is not cosmetic: features added first are
+  invisible until something unrelated re-renders, which is worse than never drawing them because it
+  is intermittent. **That assertion was watched failing** (rule 3): reversed the two statements, saw
+  it go red, restored it. The first attempt to watch it fail was itself a dud — a string replace
+  that silently matched nothing and "passed" — which is the same lesson one level up.
+
+  Also fixed here: the import now dispatches `cad:zoomExtents` afterwards. The reading's coordinates
+  are relative to a point of beginning at (0,0), which is essentially never where the current view
+  is looking, so a correct import could still land off-screen and be indistinguishable from a failed
+  one.
+
+  **Verified in the browser, not inferred:** both layers present in the panel, boundary drawn, and
+  the figure visibly OPEN with the gap at the unusable call — with the same fixture that produced
+  the empty canvas.
+
   ### S9c — what still remains
 
   Overlaying the two figures on the canvas, rather than reporting the difference in a dialog. That

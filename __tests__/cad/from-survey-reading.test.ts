@@ -10,7 +10,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  featuresFromSurveyReading, __resetIds, type SurveyReadingLike,
+  featuresFromSurveyReading, researchLayersToCreate, __resetIds, type SurveyReadingLike,
 } from '@/lib/cad/import/from-survey-reading';
 
 beforeEach(() => { __resetIds(); });
@@ -169,5 +169,82 @@ describe('it does not couple the two builds together', () => {
   it('imports nothing from worker/', () => {
     const code = src.split('\n').filter((l: string) => !l.trim().startsWith('//') && !l.trim().startsWith('*')).join('\n');
     expect(code).not.toMatch(/from\s+['"].*worker\//);
+  });
+});
+
+// ── CAD_AUDIT Slice S8c ─────────────────────────────────────────────────────────────────────────
+//
+// Found by finally driving the import in a browser, which S8b could not. The dialog said "3
+// feature(s) will be added", they were added, and the canvas stayed empty: `addFeatures` does not
+// create layers, and `getVisibleFeatures` drops any feature whose `layerId` is absent from
+// `document.layers` (`if (!layer) return false`).
+//
+// So the one adapter whose entire design rule is "nothing is dropped silently" dropped everything
+// silently. No test here could have caught it, because each half was correct on its own — the
+// features were well-formed and the store behaved as documented. Only the composition was wrong.
+
+describe('the layers its features need are declared, not assumed', () => {
+  it('requires the boundary layer whenever a boundary is drawn', () => {
+    const out = featuresFromSurveyReading(reading());
+    expect(out.requiredLayers.map((l) => l.id)).toContain('RESEARCH_BOUNDARY');
+  });
+
+  it('names a layer for every layer its features actually reference', () => {
+    // The contract that makes the bug unrepeatable: satisfying `requiredLayers` is sufficient for
+    // every feature to be renderable. Asserted as a set relation rather than a fixed list, so it
+    // keeps holding when a future reading emits a third kind of feature.
+    const out = featuresFromSurveyReading(reading({
+      located: [{ x: 0, y: 0, label: 'iron rod', status: 'FOUND' }],
+      monuments: [1],
+    }));
+    const declared = new Set(out.requiredLayers.map((l) => l.id));
+    for (const f of out.features) expect(declared.has(f.layerId)).toBe(true);
+  });
+
+  it('does NOT require the monuments layer when no monument could be placed', () => {
+    // An empty "Research Monuments" layer reads as "we looked and found none", which is a different
+    // claim from "two were recited and neither could be placed" — and the second is what happened.
+    const out = featuresFromSurveyReading(reading({
+      located: [{ label: 'cedar stake', status: 'SET' }],
+      monuments: [1, 2],
+    }));
+    expect(out.requiredLayers.map((l) => l.id)).not.toContain('RESEARCH_MONUMENTS');
+    expect(out.notDrawn.some((n) => /monument/.test(n.what))).toBe(true);
+  });
+
+  it('requires no layers at all when nothing is drawn', () => {
+    const out = featuresFromSurveyReading(reading({ traverse: null }));
+    expect(out.features).toEqual([]);
+    expect(out.requiredLayers).toEqual([]);
+  });
+});
+
+describe('researchLayersToCreate', () => {
+  const required = [
+    { id: 'RESEARCH_BOUNDARY', name: 'Research Boundary', color: '#C2410C', description: 'b' },
+    { id: 'RESEARCH_MONUMENTS', name: 'Research Monuments', color: '#0F766E', description: 'm' },
+  ];
+
+  it('creates the layers a document is missing', () => {
+    const made = researchLayersToCreate(required, [], 3);
+    expect(made.map((l) => l.id)).toEqual(['RESEARCH_BOUNDARY', 'RESEARCH_MONUMENTS']);
+    expect(made.every((l) => l.visible && !l.frozen && !l.locked)).toBe(true);
+  });
+
+  it('never restyles a layer that already exists', () => {
+    // A surveyor who set "Research Boundary" to a heavier weight and re-imports the same deed would
+    // otherwise have that silently undone — and nothing in the dialog mentions styling.
+    const made = researchLayersToCreate(required, ['RESEARCH_BOUNDARY'], 3);
+    expect(made.map((l) => l.id)).toEqual(['RESEARCH_MONUMENTS']);
+  });
+
+  it('gives each new layer a distinct sort order continuing from the document', () => {
+    const made = researchLayersToCreate(required, [], 3);
+    expect(made.map((l) => l.sortOrder)).toEqual([3, 4]);
+  });
+
+  it('leaves them deletable', () => {
+    // An import a surveyor did not want must be removable; isProtected would strand it.
+    expect(researchLayersToCreate(required, [], 0).every((l) => !l.isProtected)).toBe(true);
   });
 });

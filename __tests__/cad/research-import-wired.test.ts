@@ -127,3 +127,36 @@ describe('S9b — comparing with a prior survey is reachable', () => {
     expect(body).toContain('Could not be compared');
   });
 });
+
+// ── CAD_AUDIT Slice S8c ─────────────────────────────────────────────────────────────────────────
+//
+// The visual pass S8b deferred finally ran, and the feature it was meant to confirm did not work:
+// three features were added to a drawing with no layer to hold them, so `getVisibleFeatures`
+// filtered every one of them out and the canvas stayed empty.
+//
+// Both halves were individually correct — that is why nothing caught it. These assertions are about
+// the COMPOSITION, which is the only place the defect existed.
+
+describe('the imported features can actually be rendered', () => {
+  const fn = code.slice(code.indexOf('async function openResearchReading'));
+  const body = fn.slice(0, fn.indexOf('async function openDxf') > 0
+    ? fn.indexOf('async function openDxf') : fn.length);
+
+  it('creates the layers the adapter says it needs', () => {
+    expect(body).toContain('researchLayersToCreate(');
+    expect(body).toContain('addLayer(');
+  });
+
+  it('creates them BEFORE adding the features', () => {
+    // Not cosmetic ordering. A feature whose layer is absent is dropped by `getVisibleFeatures`,
+    // so features added first are invisible until something unrelated triggers a re-render — which
+    // is a worse bug than never drawing them, because it is intermittent.
+    expect(body.indexOf('addLayer(')).toBeLessThan(body.indexOf('addFeatures('));
+  });
+
+  it('brings the new geometry into view', () => {
+    // The reading's coordinates are relative to a point of beginning at (0,0). An import that lands
+    // off-screen is indistinguishable from one that failed.
+    expect(body).toContain('cad:zoomExtents');
+  });
+});

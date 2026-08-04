@@ -23,7 +23,7 @@ import type { AIMode } from '@/lib/cad/store';
 import { computeBounds } from '@/lib/cad/geometry/bounds';
 // S8b — the research-platform bridge. Structurally typed, so importing it here does not couple the
 // CAD build to the worker's.
-import { featuresFromSurveyReading, type SurveyReadingLike } from '@/lib/cad/import/from-survey-reading';
+import { featuresFromSurveyReading, researchLayersToCreate, type SurveyReadingLike } from '@/lib/cad/import/from-survey-reading';
 // S9b — compare two records of the same parcel; the basis difference is the headline finding.
 import { compareSurveys, callsFromPoints } from '@/lib/cad/compare/survey-compare';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
@@ -946,11 +946,35 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
           if (!ok || result.features.length === 0) return;
         }
 
+        // S8c — the layers FIRST, and this order is not cosmetic. `getVisibleFeatures` drops any
+        // feature whose `layerId` is not in `document.layers`, so features added before their
+        // layers exist are invisible until something else re-renders. Adding features to a
+        // drawing that cannot show them is the failure this whole adapter exists to prevent, and
+        // it is exactly what happened here: the dialog said "3 feature(s) will be added", they
+        // were added, and the canvas stayed empty.
+        const store = useDrawingStore.getState();
+        const doc = store.document;
+        const newLayers = researchLayersToCreate(
+          result.requiredLayers,
+          Object.keys(doc.layers),
+          doc.layerOrder.length,
+        );
+
+        for (const layer of newLayers) store.addLayer(layer);
+
         useDrawingStore.getState().addFeatures(result.features);
+
+        // And show it. An import that lands off-screen is indistinguishable from one that failed —
+        // the reading's coordinates are relative to a point of beginning at (0,0), which is almost
+        // never where the current view is looking. Deferred a tick like `ImportDialog` does, so the
+        // extents are computed from a document that already contains the new features.
+        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 50);
+
         cadLog.info(
           'FileIO',
           `Imported research reading: ${result.features.length} feature(s), `
             + `${result.closed ? 'closed' : 'OPEN (incomplete)'}, `
+            + `${newLayers.length} layer(s) created, `
             + `${result.notDrawn.length} item(s) not drawn`,
         );
       } catch (err) {
