@@ -783,3 +783,49 @@ someone to get wrong.
 **Still blocked, unchanged:** seeds 572/573 are written, verified and unapplied. F1b, F2b and the
 card-registry/pass-through walkthroughs wait on them, and `lib/finance/payment-cards.ts` and
 `cost-recovery.ts` have zero callers for that reason rather than by neglect.
+
+## ◑ F6b — "come through both email" has two readings, and only one is built
+
+F6 above says *"every leg is built and wired"* and traces five of them. That is true for the reading
+the slice took, and silent about the other — which is a materially different feature.
+
+The ask: *"all job requests/queries **come through both email and also come to the website** and show
+up as a notification to me and my dad."*
+
+| reading | meaning | state |
+|---|---|---|
+| **(b) one channel, two destinations** | a request submitted on the website is emailed to the office **and** appears in the app | **BUILT.** F6's table is a correct trace of it. |
+| **(a) two arrival channels** | a request may arrive *by email* — a customer writing to the office directly — or on the website, and either becomes a recorded job query | **NOT built.** |
+
+Reading (a) is at least as natural — *"come through"* describes arrival — and it is the one that
+matches how a customer who has your address behaves.
+
+### ▶ What actually happens to an email today
+
+`app/api/webhooks/email-inbound/route.ts` exists and is provider-agnostic, but it handles **replies,
+not enquiries**. It looks for an `SS-…` reference number, threads the message onto that lead as a
+`lead_replies` row, and **drops anything without one**:
+
+    if (!parsed) return { success: true, stored: false, reason: 'no_reference_number' }
+
+So a customer emailing the office cold is discarded. No lead, no notification, no record. And the
+route is unconfigured anyway — without `EMAIL_INBOUND_WEBHOOK_SECRET` it answers **503**, so no email
+reaches it at all today.
+
+**One thing was fixed here rather than deferred.** That drop had **no log**, while the
+unknown-reference branch immediately below it already warned — so the *more* consequential case was
+the quieter one. It now warns with the sender and says plainly that if this was a new enquiry it has
+not been recorded and nobody was notified. An enquiry that vanishes silently is indistinguishable
+from one that never arrived, and that is the failure this whole program is written against.
+
+**The rest is deliberately not built.** Turning free-text email into a job query means parsing a name,
+a phone number and a service out of prose, deciding what is spam, and deciding whether a half-parsed
+enquiry is better than none. That is a feature with real judgement in it, and inferring which reading
+was meant would be guessing at the shape of the work rather than at a detail of it.
+
+**Owner decision, and the only one this document adds:** should a cold email to the office become a
+job query? If yes, F6b is the slice — inbound parsing, a lead from an unstructured message, and a
+policy for what to do when the parse is thin. If no, the current behaviour is correct and the warning
+above is the whole fix.
+
+29 inbound tests still green; `tsc` and `eslint` clean.

@@ -52,6 +52,25 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!parsed) {
     // No SS reference found — drop politely. The provider should NOT
     // retry; respond 200 so it doesn't.
+    //
+    // F6b — but LOG it, because this is the branch a cold enquiry lands in. An email carrying an
+    // `SS-…` reference is a reply to a lead we already have; an email carrying none may be a
+    // customer writing to the office for the first time, and this route discards it. The
+    // unknown-reference branch below already warns; this one, which is the more consequential of the
+    // two, said nothing at all.
+    //
+    // Deliberately NOT a lead: turning free-text email into a job query means parsing a name, a
+    // phone number and a service out of prose, and deciding what to do with spam. That is a real
+    // feature and an owner decision (see F6b in FINANCE_TAX_AND_INTAKE), not something to infer
+    // here. What is not defensible is dropping it with no trace — an enquiry that vanishes is
+    // indistinguishable from one that never arrived.
+    const from = typeof (payload as { from?: unknown }).from === 'string'
+      ? (payload as { from: string }).from
+      : 'unknown sender';
+    console.warn(
+      `[email-inbound] dropped an email from ${from} — no SS-… reference, so it is not a reply to ` +
+      `any known lead. If this was a new enquiry it has NOT been recorded and nobody was notified.`,
+    );
     return NextResponse.json({
       success: true,
       stored: false,
