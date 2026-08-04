@@ -1,5 +1,7 @@
 // lib/cad/types.ts — Core TypeScript types for the Starr CAD engine
 
+import type { TexasStatePlaneZone } from './geo/texas-state-plane';
+
 /** Generate a unique ID. Use for all entities. */
 export function generateId(): string {
   return crypto.randomUUID();
@@ -155,6 +157,29 @@ export interface DrawingDocument {
 
 export interface DrawingSettings {
   units: 'FEET';
+
+  /**
+   * CAD_AUDIT S16b — which Texas State Plane zone this drawing's coordinates are in.
+   *
+   * S16a consolidated the five zones into `lib/cad/geo/texas-state-plane.ts` after finding EPSG:2277
+   * hardcoded in four exporters and *described as two different zones*. This field is the other half
+   * of that fix: what was missing was never the projection maths — coordinates already flow through
+   * the editor untouched at their native state-plane values, which is right for a firm working in one
+   * zone — it was the ability to **declare** the zone instead of every export assuming Central.
+   *
+   * Lives on the document rather than in `displayPreferences` because it is a fact about the
+   * coordinates, not a preference about how they are shown. DMS-vs-decimal changes what one person
+   * sees; this changes what every exported file tells the next firm's software.
+   *
+   * Optional on purpose. `undefined` means "this drawing did not say", which `zoneByKey` resolves to
+   * Central — exactly what all four exporters hardcoded before this field existed, so every drawing
+   * saved before S16b exports byte-identically. Consolidating a constant must not silently relabel
+   * files that were already correct.
+   *
+   * Setting this does NOT re-project. It changes the zone the drawing *declares*; it does not move a
+   * coordinate. Pointing it at the wrong zone mislabels the file rather than converting it.
+   */
+  stateplaneZoneKey?: TexasStatePlaneZone['key'];
 
   // Grid
   gridVisible: boolean;

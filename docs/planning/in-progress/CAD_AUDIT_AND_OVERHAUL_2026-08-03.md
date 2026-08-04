@@ -2112,3 +2112,58 @@ itself.
 The remaining unverified UI work from today is the **finance** side — F4's bulk receipt queue, F5's
 "Create without sending", F3b/F7a's tax summary on the receipt panel. Recorded rather than claimed:
 those have unit and wiring tests and **have not been opened in a browser**.
+
+### ✅ S16b DONE 2026-08-04 — the zone table now has callers, which is the half S16a left out
+
+S16a built `lib/cad/geo/texas-state-plane.ts` and shipped it with **no production caller**. S18's
+reachability guard flagged it in the same session, and the audit doc recorded the honest reason:
+pointing the exporters at it changes delivered files and wanted its own slice. This is that slice.
+
+**What was actually missing.** Not the projection maths — coordinates already flow through the editor
+untouched at native state-plane values, which is correct for a firm working in one zone. What was
+missing was the ability to **declare** the zone. Four exporters each hardcoded EPSG:2277, so every
+drawing this software has ever produced claims Central whether or not it is.
+
+`DrawingSettings.stateplaneZoneKey` now carries that declaration, and all four read it:
+
+| exporter | what it stamps |
+|---|---|
+| GeoJSON | `crs.properties.name` URN + `metadata.coordinateSystem` label |
+| LandXML | `epsgCode` **and** the SPCS zone number in `desc` |
+| Traverse PC bundle | the COORDINATE SYSTEM paragraph a human reads before importing |
+| Orbit sync | `sourceCRS` — Orbit re-projects from it, so a wrong zone there is a *relocation* |
+
+It lives on the document, not in `displayPreferences`, and the field's doc-comment says why: DMS
+versus decimal changes what one person sees; this changes what every exported file tells the next
+firm's software. (It was written into `DisplayPreferences` first — the interface that happens to
+carry `originNorthing` — and moved before it could compile.)
+
+**The property that mattered more than the feature.** Every drawing on disk predates this field, so
+the default had to be inert: `undefined` → `zoneByKey` → Central → the exact bytes all four exporters
+already produced. The LandXML `desc` nearly broke that — templating `${zone.name}` yields *"NAD83
+Texas Central State Plane…"* where the original read *"NAD83 Texas State Plane Central…"*. Stripping
+the leading `Texas ` restores the historical string exactly. **A test that only checked "declaring a
+zone changes the output" would have passed while silently re-labelling every historical drawing on
+its next export**, so the no-declaration case is pinned as whole strings, not smoke-tested.
+
+`epsgCode` and the SPCS number are emitted from the same record, because a file claiming EPSG 2276
+beside zone 4203 contradicts itself — worse than being merely wrong, since a reader cannot tell which
+half to believe. Pinned by a `not.toContain('4203')`.
+
+**UI.** A five-zone picker in the Coordinates section of the display panel, beside Origin Offset —
+the two together are what make a coordinate mean a place on the ground: the offset says where the
+numbers start, the zone says which grid they are on. Its tooltip states the one thing a surveyor must
+not get wrong: *this declares the zone, it does not re-project*. Choosing the wrong one mislabels the
+file rather than converting it, and nothing errors.
+
+10 tests. The negative control (`zoneByKey(undefined)` in place of the real read) fails 2 of them,
+including the all-five-zones round trip, which fails for four zones at once — that reads as "the
+field is ignored", not "one zone is wrong". The reachability ratchet then failed on its own stale
+inventory entry and the entry was removed, which is the ratchet working: a list of known-dead modules
+nobody prunes becomes a list of permanent excuses.
+
+**Still open for S16** (unchanged, and not approximated): the combined grid-to-ground scale factor
+and convergence angle. Both need a geodetic position and an ellipsoid model, there is no projection
+library in this repo, and a grid distance labelled as a ground distance is exactly the confident
+wrong answer this codebase's rules exist to prevent. Still needs a **golden instrument file**, which
+is owner-gated.

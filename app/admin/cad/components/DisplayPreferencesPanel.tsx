@@ -7,6 +7,11 @@ import { useState, useRef, useEffect } from 'react';
 import { Settings2, X, ChevronDown, RotateCcw } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import {
+  DEFAULT_TEXAS_ZONE_KEY,
+  TEXAS_STATE_PLANE_ZONES,
+  type TexasStatePlaneZone,
+} from '@/lib/cad/geo/texas-state-plane';
 import type {
   DisplayPreferences,
   LinearUnit,
@@ -336,6 +341,43 @@ export default function DisplayPreferencesPanel({ open, onClose }: Props) {
               tooltip="Added to the world X coordinate to get the displayed Easting. Set to a real-world Easting to display absolute State Plane or UTM coordinates."
               width="w-28"
             />
+          </div>
+
+          {/* S16b — declare the zone. Sits with Origin Offset because the two together are what make
+              a coordinate mean a place on the ground: the offset says where the numbers start, this
+              says which grid they are on. Everything else in this panel changes what one person
+              sees; this changes what every exported file tells the next firm's software. */}
+          <div className="pt-2 space-y-0.5">
+            <div className="text-[10px] text-gray-400 mb-0.5">
+              State Plane Zone
+              <span className="ml-1 text-gray-600 font-normal text-[9px]">(stamped into exports)</span>
+            </div>
+            <select
+              className="w-full bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-[11px] text-gray-200"
+              value={drawingStore.document.settings.stateplaneZoneKey ?? DEFAULT_TEXAS_ZONE_KEY}
+              onChange={(e) =>
+                drawingStore.updateSettings({
+                  stateplaneZoneKey: e.target.value as TexasStatePlaneZone['key'],
+                })
+              }
+              title={
+                'Which Texas State Plane zone this drawing’s coordinates are in. Stamped into ' +
+                'GeoJSON, LandXML, the Traverse PC bundle and the Orbit sync so receiving software ' +
+                're-projects from the right grid.\n\n' +
+                'This does NOT move or convert any coordinate — it declares which zone the ' +
+                'numbers were already in. Choosing the wrong zone mislabels the file: the parcel ' +
+                'lands thousands of feet away in the other firm’s software, with no error shown.'
+              }
+            >
+              {TEXAS_STATE_PLANE_ZONES.map((z) => (
+                <option key={z.key} value={z.key}>
+                  {z.name} — EPSG:{z.epsg} (zone {z.fipsZone})
+                </option>
+              ))}
+            </select>
+            <div className="text-[9px] text-gray-600 leading-snug pt-0.5">
+              Declares the zone; does not re-project.
+            </div>
           </div>
         </Section>
 

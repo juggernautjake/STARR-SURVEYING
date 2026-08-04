@@ -49,11 +49,11 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // S5 split at all — it needs someone to decide which of the two survives.
   'spatial/feature-index.ts': 'DEAD PARALLEL IMPL of geometry/spatial-index.ts (the live one, via geometry/lod). Decide which survives; nothing in the renderer depends on this file',
 
-  // ── Shipped this session, deliberately not yet wired ──────────────────────────────────────────
-  // S16a built the zone table and corrected a mislabel (2277 is Central, not North Central). The
-  // exporters still hardcode their own EPSG constants; pointing them at this table is a behavioural
-  // change to delivered files and wants its own slice, not a drive-by.
-  'geo/texas-state-plane.ts': 'S16a — the zone table; wiring the exporters to it is a separate slice',
+  // 'geo/texas-state-plane.ts' was here — S16a shipped the zone table with no caller and recorded
+  // that wiring it was a separate slice. S16b is that slice: all four exporters now read the zone
+  // the drawing declares, and this guard failed until the entry was removed. That is the whole
+  // point of the ratchet — an inventory of known-dead modules that nobody prunes becomes a list of
+  // permanent excuses.
 
   // ── Genuinely unused today ────────────────────────────────────────────────────────────────────
   'ai/mock-proposer.ts': 'test/dev double for the AI proposer',

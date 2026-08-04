@@ -27,6 +27,7 @@ import type {
 } from '../types';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
 import { collectDerivedPoints } from '../points/derived-points';
+import { zoneByKey } from '../geo/texas-state-plane';
 
 export interface LandXmlExportOptions {
   /** Sample density for SPLINE / ELLIPSE → polyline conversion.
@@ -70,9 +71,18 @@ export function exportToLandXML(
       'angularUnit="decimal degrees" directionUnit="decimal degrees"/>' +
       '</Units>'
   );
+  // S16b — zone declared by the drawing. The `desc` carries the SPCS zone number as well as the EPSG
+  // code because instrument firmware and NGS publications identify zones by that number (4203), and
+  // it is the other easy thing to transpose: stamping EPSG 2277 beside zone 4202 would be a file
+  // that contradicts itself, which is worse than one that is merely wrong.
+  const zone = zoneByKey(doc.settings.stateplaneZoneKey);
+  // `name` is "Texas Central" / "Texas North Central"; the established wording here puts the zone
+  // qualifier after "State Plane". Dropping the leading "Texas " reproduces the previous string
+  // exactly for Central — a drawing that never declared a zone still exports the identical file.
+  const qualifier = zone.name.replace(/^Texas\s*/, '');
   lines.push(
-    '  <CoordinateSystem epsgCode="2277" horizontalDatum="NAD83" ' +
-      'desc="NAD83 Texas State Plane Central Zone 4203 (US Survey Feet)"/>'
+    `  <CoordinateSystem epsgCode="${zone.epsg}" horizontalDatum="NAD83" ` +
+      `desc="NAD83 Texas State Plane ${qualifier} Zone ${zone.fipsZone} (US Survey Feet)"/>`
   );
   // Some LandXML importers require a <Project> element before the data.
   lines.push(`  <Project name="${xmlAttr(doc.name || 'Survey')}"/>`);

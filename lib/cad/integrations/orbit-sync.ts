@@ -25,6 +25,7 @@ import type {
   RPLSWorkflowStatus,
 } from '../delivery/rpls-workflow';
 import { exportToGeoJSON } from '../delivery/geojson-writer';
+import { crsUrn, zoneByKey } from '../geo/texas-state-plane';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -147,7 +148,8 @@ export function classifyForOrbit(doc: DrawingDocument): ClassifiedFeatures {
 // Public API
 // ────────────────────────────────────────────────────────────
 
-const SOURCE_CRS = 'urn:ogc:def:crs:EPSG::2277';
+// S16b — the zone the drawing declares. Orbit re-projects from whatever this says, so a drawing
+// that declares the wrong zone is not a mislabel there, it is a relocation.
 
 export function buildOrbitPayload(
   inputs: OrbitSyncInputs
@@ -188,7 +190,7 @@ export function buildOrbitPayload(
     jobId: doc.id,
     projectName: tb.projectName || doc.name,
     at: new Date().toISOString(),
-    sourceCRS: SOURCE_CRS,
+    sourceCRS: crsUrn(zoneByKey(doc.settings.stateplaneZoneKey)),
     rpls: {
       name: reviewRecord.rplsName,
       license: reviewRecord.rplsLicense,

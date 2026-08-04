@@ -36,6 +36,7 @@ import type {
   SplineGeometry,
 } from '../types';
 import { computeAreaFromPoints2D } from '../geometry/area';
+import { crsUrn, zoneByKey } from '../geo/texas-state-plane';
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -96,14 +97,15 @@ interface GeoJsonFeatureCollection {
 // Public API
 // ────────────────────────────────────────────────────────────
 
-const DEFAULT_CRS = 'urn:ogc:def:crs:EPSG::2277';
-const DEFAULT_LABEL =
-  'NAD83 / Texas State Plane Central (US ft) — EPSG:2277';
+// S16b — the zone comes from the drawing, not from a constant in this file. A drawing that never
+// declared one resolves to Central, which is exactly what the two constants here used to hardcode,
+// so files exported before and after this change are identical.
 
 export function exportToGeoJSON(
   doc: DrawingDocument,
   options: GeoJsonExportOptions = {}
 ): string {
+  const zone = zoneByKey(doc.settings.stateplaneZoneKey);
   const samples = Math.max(8, options.curveSamples ?? 32);
   const includeHidden = !!options.includeHidden;
   const indent = options.indent ?? 2;
@@ -122,10 +124,10 @@ export function exportToGeoJSON(
     features: out,
     crs: {
       type: 'name',
-      properties: { name: options.crs ?? DEFAULT_CRS },
+      properties: { name: options.crs ?? crsUrn(zone) },
     },
     metadata: {
-      coordinateSystem: options.coordinateSystemLabel ?? DEFAULT_LABEL,
+      coordinateSystem: options.coordinateSystemLabel ?? zone.label,
       units: 'US Survey Feet',
       generatedAt: new Date().toISOString(),
       project: doc.settings.titleBlock?.projectName || doc.name,
