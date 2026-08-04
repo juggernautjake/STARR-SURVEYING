@@ -8,8 +8,10 @@ interface EmployeeProfile {
   id: string;
   user_email: string;
   user_name: string;
-  job_title: string;
-  hourly_rate: number;
+  job_title: string | null;
+  hourly_rate: number | null;
+  /** False for a staff member with no pay record yet — see the payroll API. */
+  hasProfile?: boolean;
   salary_type: string;
   annual_salary: number | null;
   pay_frequency: string;
@@ -28,7 +30,17 @@ interface EmployeePayCardProps {
 
 export default function EmployeePayCard({ employee, onSelect, compact }: EmployeePayCardProps) {
   const jobTitles = useJobTitles();
-  const titleInfo = jobTitles[employee.job_title] || { label: employee.job_title, icon: '👤' };
+  // ── "No pay set" is not "$0.00/hr" (owner report, 2026-08-04) ───────────────────────────────
+  //
+  // The payroll list now includes staff who have no `employee_profiles` row — five of the firm's
+  // six people, previously invisible. A card that renders their rate as $0.00/hr would state a
+  // wage nobody agreed to, and it would look identical to somebody genuinely on zero.
+  //
+  // So an absent rate renders as an absence, and the card says what to do about it.
+  const noPayYet = employee.hasProfile === false || employee.hourly_rate == null;
+  const titleInfo = employee.job_title
+    ? (jobTitles[employee.job_title] || { label: employee.job_title, icon: '👤' })
+    : { label: 'No position set', icon: '👤' };
 
   if (compact) {
     return (
@@ -44,7 +56,7 @@ export default function EmployeePayCard({ employee, onSelect, compact }: Employe
           <div className="payroll-emp-card__title">{titleInfo.label}</div>
         </div>
         <div className="payroll-emp-card__rate">
-          {formatCurrency(employee.hourly_rate)}/hr
+          {noPayYet ? 'Pay not set' : `${formatCurrency(employee.hourly_rate ?? 0)}/hr`}
         </div>
       </div>
     );
@@ -71,7 +83,7 @@ export default function EmployeePayCard({ employee, onSelect, compact }: Employe
           <span className="payroll-emp-card__stat-value">
             {employee.salary_type === 'salary'
               ? `${formatCurrency(employee.annual_salary || 0)}/yr`
-              : `${formatCurrency(employee.hourly_rate)}/hr`
+              : `${noPayYet ? 'Pay not set' : `${formatCurrency(employee.hourly_rate ?? 0)}/hr`}`
             }
           </span>
         </div>

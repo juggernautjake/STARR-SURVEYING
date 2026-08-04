@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { computeEffectiveRate } from '@/lib/payroll/effective-rate';
 
 // GET: Fetch all rate configuration tables
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -54,6 +55,72 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select('*')
       .eq('user_email', email);
     results.earned_credentials = data || [];
+  }
+
+  // ── THE RATE THIS PERSON ACTUALLY EARNS (owner report, 2026-08-04) ──────────────────────────
+  //
+  // *"On my payment page it shows my base pay is $25 an hour, but when I go to My Hours to log
+  // hours, it shows a bunch of different roles at different pay rates and it doesn't show the $25.
+  // This is inconsistent."*
+  //
+  // Three numbers answer one question, and nothing reconciled them:
+  //
+  //   1. `employee_profiles.hourly_rate` — $25. What My Pay shows.
+  //   2. `work_type_rates.base_rate` — $20 field work, $23 drafting, $16 driving. What the hours
+  //      picker showed, **identically for everybody**, so a party chief and an intern saw the same
+  //      list.
+  //   3. `computeEffectiveRate()` — the designed model: activity rate + role tier bonus + seniority
+  //      + credentials + XP, capped. **It existed and was used by the pay-progression pages only.**
+  //
+  // So the hours picker was not showing a wrong number; it was showing a *different* number from the
+  // one the person had been told they earn, with no indication that either was partial. That reads
+  // as the system disagreeing with itself, which is exactly what it was doing.
+  //
+  // `effective` now returns, per work type, what THIS person earns for that work — with the
+  // breakdown, so the picker can show "$30.00/hr — $20 field work + $10 party chief" rather than a
+  // bare figure the reader has to trust.
+  const forEmail = searchParams.get('effective_for') ?? session.user.email;
+  if (forEmail && !table) {
+    const [{ data: profile }, { data: earned }] = await Promise.all([
+      supabaseAdmin.from('employee_profiles').select('job_title, hire_date').eq('user_email', forEmail).maybeSingle(),
+      supabaseAdmin.from('employee_earned_credentials').select('credential_key').eq('user_email', forEmail),
+    ]);
+
+    const p = profile as { job_title: string | null; hire_date: string | null } | null;
+    const tiers = (results.role_tiers ?? []) as { role_key: string }[];
+    const tier = tiers.find((t) => t.role_key === p?.job_title) ?? null;
+
+    // Years employed, floored. A hire date that has not been set yields 0 — the new-hire bracket —
+    // rather than a guess, because inventing tenure inflates somebody's pay.
+    const years = p?.hire_date
+      ? Math.max(0, Math.floor((Date.now() - new Date(p.hire_date).getTime()) / 31_557_600_000))
+      : 0;
+
+    // `work_types`, which is the key set above — NOT `work_type_rates`, the table name. Reading the
+    // wrong key would have produced an empty list and an `effective` array of zero entries, which on
+    // screen is indistinguishable from "this person earns nothing for any work".
+    const workTypes = (results.work_types ?? []) as Record<string, unknown>[];
+    results.effective = workTypes.map((wt) => {
+      const breakdown = computeEffectiveRate({
+        workType: wt as never,
+        tier: tier as never,
+        yearsEmployed: years,
+        seniority: (results.seniority_brackets ?? []) as never,
+        earnedCredentialKeys: ((earned ?? []) as { credential_key: string }[]).map((c) => c.credential_key),
+        credentials: (results.credential_bonuses ?? []) as never,
+        totalXp: 0,
+        xpMilestones: [],
+      });
+      return { work_type: wt.work_type, label: wt.label, ...breakdown };
+    });
+
+    results.effective_for = forEmail;
+    // Stated rather than assumed: without a profile there is no role and no tenure, so every
+    // effective rate is just the activity's base. Saying so stops "why is mine the same as the
+    // intern's" being a mystery.
+    results.effective_basis = p
+      ? { job_title: p.job_title, years_employed: years }
+      : { job_title: null, years_employed: 0, note: 'No employee profile — showing base activity rates only.' };
   }
 
   return NextResponse.json(results);

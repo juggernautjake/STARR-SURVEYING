@@ -38,6 +38,7 @@ export default function PayrollPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'employees' | 'rates' | 'payroll'>('overview');
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const [addForm, setAddForm] = useState({
     user_email: '',
     user_name: '',
@@ -62,7 +63,7 @@ export default function PayrollPage() {
 
   useEffect(() => {
     if (!isAdmin) {
-      router.push('/admin/me?tab=pay');
+      router.push('/admin/my-pay');
       return;
     }
     loadEmployees();
@@ -75,6 +76,10 @@ export default function PayrollPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          // `create`, explicitly. The API upserts, so without this an "Add" for somebody who already
+          // has a record would overwrite their position and rate with this form's defaults —
+          // survey_technician at $18.00 — and return 200 as though it had added a new person.
+          mode: 'create',
           user_email: addForm.user_email,
           user_name: addForm.user_name,
           job_title: addForm.job_title,
@@ -84,9 +89,16 @@ export default function PayrollPage() {
         }),
       });
       if (res.ok) {
+        setAddError(null);
         setShowAddForm(false);
         setAddForm({ user_email: '', user_name: '', job_title: 'survey_technician', hourly_rate: '18.00', salary_type: 'hourly', hire_date: '' });
         loadEmployees();
+      } else {
+        // Previously this branch did not exist: a refused add left the form open with no message,
+        // which reads as the button doing nothing. The server's sentence is shown as-is because it
+        // names the person and what they are already on.
+        const j = (await res.json().catch(() => null)) as { message?: string; error?: string } | null;
+        setAddError(j?.message ?? j?.error ?? `Could not add this person (HTTP ${res.status}).`);
       }
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'add employee' });
@@ -96,7 +108,7 @@ export default function PayrollPage() {
   const filteredEmployees = employees.filter(emp =>
     !search || emp.user_name?.toLowerCase().includes(search.toLowerCase()) ||
     emp.user_email.toLowerCase().includes(search.toLowerCase()) ||
-    emp.job_title.toLowerCase().includes(search.toLowerCase())
+    emp.job_title?.toLowerCase().includes(search.toLowerCase())
   );
 
   const activeEmployees = filteredEmployees.filter(e => e.is_active);
@@ -104,9 +116,10 @@ export default function PayrollPage() {
 
   // Summary stats
   const totalPayroll = employees.filter(e => e.is_active).reduce((s, e) => s + e.available_balance, 0);
-  const avgRate = employees.filter(e => e.is_active).length > 0
-    ? employees.filter(e => e.is_active).reduce((s, e) => s + e.hourly_rate, 0) / employees.filter(e => e.is_active).length
-    : 0;
+  // Averaged over people who HAVE a rate. Counting an unset rate as 0 would drag the firm average
+  // down by everyone not yet set up — a pay cut that never happened, shown as a headline figure.
+  const paid = employees.filter((e) => e.is_active && e.hourly_rate != null);
+  const avgRate = paid.length > 0 ? paid.reduce((s, e) => s + (e.hourly_rate ?? 0), 0) / paid.length : 0;
   const totalEarned = employees.reduce((s, e) => s + e.total_earned, 0);
 
   if (!isAdmin) return null;
@@ -225,6 +238,13 @@ export default function PayrollPage() {
 
           {showAddForm && (
             <form className="payroll-add-form" onSubmit={addEmployee}>
+            {addError && (
+              <div role="alert" style={{ gridColumn: '1 / -1', padding: '10px 12px', borderRadius: 8, marginBottom: 8,
+                background: 'color-mix(in srgb, var(--theme-danger) 10%, transparent)',
+                border: '1px solid var(--theme-danger)', color: 'var(--theme-danger)', fontSize: 13 }}>
+                {addError}
+              </div>
+            )}
               <div className="payroll-form-row">
                 <div className="payroll-form-group">
                   <label>Email</label>

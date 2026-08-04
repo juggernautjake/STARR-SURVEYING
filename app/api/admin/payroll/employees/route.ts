@@ -70,7 +70,58 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ employees: data || [] });
+  // ── STAFF WITH NO PAY RECORD ARE STILL STAFF (owner report, 2026-08-04) ──────────────────────
+  //
+  // *"Make sure the payroll page is fully hooked up to show all of employees and their positions and
+  // their current pay level. Make sure we can manually set people's pay too."*
+  //
+  // It was hooked up — to `employee_profiles`, which has **one row**. The firm has **six** registered
+  // users. So five of six were invisible on the payroll page, and the page read as "we have one
+  // employee" rather than "five people have no pay set".
+  //
+  // Those are opposite statements, and only one of them is a to-do list. An absence rendered as an
+  // empty set is the defect this codebase keeps finding; here it hides the exact thing the owner
+  // needs to act on — a person who works here and has no rate.
+  //
+  // So the list is every staff member, with the profile attached where one exists. `hasProfile: false`
+  // rows carry no invented rate: `hourly_rate` stays null rather than 0, because a zero would total
+  // into the payroll figures and read as "paid nothing" instead of "not yet set".
+  const withProfile = new Set((data ?? []).map((e: { user_email: string }) => e.user_email.toLowerCase()));
+
+  const { data: staff, error: staffError } = await supabaseAdmin
+    .from('registered_users')
+    .select('email, name, roles')
+    .order('name', { ascending: true });
+
+  if (staffError) {
+    // Named, not swallowed — but the profiles we DID read are still worth returning. Losing the
+    // whole page because the roster query failed would be a worse outcome than a partial list that
+    // says so.
+    console.error('[payroll/employees] could not read the staff roster:', staffError.message);
+    return NextResponse.json({ employees: data ?? [], rosterUnavailable: true });
+  }
+
+  const unpaid = (staff ?? [])
+    .filter((u: { email: string; roles: string[] | null }) =>
+      !withProfile.has(u.email.toLowerCase()) && (u.roles ?? []).includes('employee'))
+    .map((u: { email: string; name: string | null }) => ({
+      user_email: u.email,
+      user_name: u.name ?? u.email,
+      job_title: null,
+      hourly_rate: null,
+      salary_type: null,
+      hire_date: null,
+      available_balance: 0,
+      total_earned: 0,
+      total_withdrawn: 0,
+      is_active: true,
+      /** The flag the UI keys off to offer "Set pay" instead of showing a rate. */
+      hasProfile: false,
+    }));
+
+  return NextResponse.json({
+    employees: [...(data ?? []).map((e: Record<string, unknown>) => ({ ...e, hasProfile: true })), ...unpaid],
+  });
 }, { routeName: 'payroll/employees' });
 
 // POST: Create or update employee profile (admin only for others, self for own)
@@ -115,6 +166,40 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ profile: data });
+  }
+
+  // ── "ADD" MUST NOT SILENTLY OVERWRITE (owner report, 2026-08-04) ────────────────────────────
+  //
+  // *"I just added my own account's email as a new employee even though that is my current
+  // user account's email. It should know that there is already a user with that email and should
+  // probably not allow it… If we try to add an employee that already exists, it shouldn't work."*
+  //
+  // The upsert never created a duplicate — `user_email` is the conflict key — so nothing was
+  // corrupted. **The danger is the other direction:** an upsert from a form whose defaults are
+  // `survey_technician` / `$18.00` would have written those over a party chief on $25, and returned
+  // 200 with no indication that a rate had just been replaced.
+  //
+  // So the caller now says which it means. `mode: 'create'` refuses when a record exists, and says
+  // what the existing one holds — enough to decide without leaving the page. Anything else updates,
+  // which is the path for "assign new pay levels to employees".
+  const mode = typeof body.mode === 'string' ? body.mode : 'update';
+
+  const { data: existing } = await supabaseAdmin
+    .from('employee_profiles')
+    .select('user_email, user_name, job_title, hourly_rate, salary_type')
+    .eq('user_email', targetEmail)
+    .maybeSingle();
+
+  if (mode === 'create' && existing) {
+    const e = existing as { user_name: string | null; job_title: string | null; hourly_rate: number | null };
+    return NextResponse.json({
+      error: 'already_exists',
+      message:
+        `${e.user_name ?? targetEmail} already has a pay record — ${e.job_title ?? 'no position set'}` +
+        `${e.hourly_rate != null ? ` at $${e.hourly_rate}/hr` : ''}. Open them to change it rather ` +
+        `than adding them again; adding would overwrite what is there.`,
+      existing,
+    }, { status: 409 });
   }
 
   // Admin: full profile creation/update
