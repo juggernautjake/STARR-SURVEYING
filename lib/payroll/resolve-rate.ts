@@ -55,6 +55,20 @@ export type RateSource = 'manual' | 'override' | 'activity' | 'base' | 'unset';
 export const UNSPECIFIED_WORK_TYPE = 'unspecified';
 
 /**
+ * Stored in `daily_time_logs.work_type` when somebody deliberately attaches **no rate at all**.
+ *
+ * *"Make it so that we can log hours without assigning any specific pay rate at all if we don't
+ * want to assign one. The pay rate selection should be optional, and it shouldn't be pointing to
+ * a specific pay rate by default."*
+ *
+ * Distinct from `UNSPECIFIED_WORK_TYPE`, and the distinction is the whole point. "No particular
+ * activity" still means ordinary work at the person's base pay — a number. "No rate" means the
+ * hours are recorded and the money is somebody else's decision. Collapsing the two would put a
+ * figure on hours the submitter explicitly declined to price.
+ */
+export const UNPRICED_WORK_TYPE = 'unpriced';
+
+/**
  * How an activity is priced.
  *
  *   `base` — pays the person's own base pay. Field work is $25 for somebody on $25 and $18 for
@@ -90,6 +104,11 @@ export interface ResolveRateInput {
   activity?: ActivityRate | null;
   /** `employee_profiles.hourly_rate` — this person's agreed rate. */
   basePay?: number | null;
+  /**
+   * The submitter attached no rate on purpose. Resolves to `unset` — the hours are recorded,
+   * the money is left to whoever approves them.
+   */
+  unpriced?: boolean;
 }
 
 export interface ResolvedRate {
@@ -140,14 +159,27 @@ export function resolvePayRate(input: ResolveRateInput): ResolvedRate {
     return { rate, source: 'manual', explanation: `${money(rate)}/hr — set by hand for this entry.` };
   }
 
-  // 2 — a standing pin on this person.
+  // 2 — the submitter deliberately attached no rate.
+  //
+  // Below the manual rate, because the whole point is deferring to whoever approves. Above
+  // everything else — including a standing pin — because any of those would put a number on hours
+  // the person explicitly declined to price.
+  if (input.unpriced) {
+    return {
+      rate: null,
+      source: 'unset',
+      explanation: 'No rate attached — whoever approves these hours will decide what they are worth.',
+    };
+  }
+
+  // 3 — a standing pin on this person.
   const fixed = input.override?.fixed_rate;
   if (isRate(fixed)) {
     const rate = round2(Number(fixed));
     return { rate, source: 'override', explanation: `${money(rate)}/hr — a fixed rate is set for this person.` };
   }
 
-  // 3 — a set rate for this activity, the same for everybody who does that work.
+  // 4 — a set rate for this activity, the same for everybody who does that work.
   //
   // Note what is NOT here: no floor at the person's base pay. Driving pays $15 to everyone, and
   // lifting it to a $25 base for one person would make the rate not-the-same-for-everyone, which is
@@ -161,7 +193,7 @@ export function resolvePayRate(input: ResolveRateInput): ResolvedRate {
     };
   }
 
-  // 4 — ordinary work: this person's own base pay, whether or not an activity is named.
+  // 5 — ordinary work: this person's own base pay, whether or not an activity is named.
   //
   // *"I want to log 7 hours of field work at $25 an hour"* — $25 because that is what THEY are on,
   // not because field work has a price. Naming the activity still records what they did.
@@ -176,7 +208,7 @@ export function resolvePayRate(input: ResolveRateInput): ResolvedRate {
     };
   }
 
-  // 5 — nothing to go on. Say so.
+  // 6 — nothing to go on. Say so.
   return {
     rate: null,
     source: 'unset',

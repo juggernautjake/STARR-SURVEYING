@@ -31,7 +31,7 @@
 // how the platform came to hold three different hourly rates for the same person.
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { resolvePayRate, type PayOverride, type ResolvedRate } from './resolve-rate';
+import { resolvePayRate, UNPRICED_WORK_TYPE, type PayOverride, type ResolvedRate } from './resolve-rate';
 import { matchTier, resolveTierKey } from './tier-match';
 
 /** A work type as the UI needs it — the flat rate plus its display fields. */
@@ -130,7 +130,10 @@ export interface RateRequest {
 
 /** Resolve one rate for one person from already-loaded facts. No I/O. */
 export function rateFor(person: PersonPayFacts, config: PayConfigTables, request: RateRequest = {}): ResolvedRate {
-  const activity = request.workType
+  // The sentinel means "no rate on purpose" and matches no `work_type_rates` row, so it must be
+  // recognised here rather than falling through the lookup into base pay.
+  const unpriced = request.workType === UNPRICED_WORK_TYPE;
+  const activity = request.workType && !unpriced
     ? config.workTypes.find((w) => w.work_type === request.workType) ?? null
     : null;
 
@@ -139,6 +142,7 @@ export function rateFor(person: PersonPayFacts, config: PayConfigTables, request
     override: person.override,
     activity,
     basePay: person.basePay,
+    unpriced,
   });
 }
 
@@ -163,6 +167,8 @@ export interface RateMenuEntry {
 export function rateMenuFor(person: PersonPayFacts, config: PayConfigTables) {
   return {
     person,
+    /** No rate at all — the hours are recorded and the money is left to whoever approves. */
+    unpriced: rateFor(person, config, { workType: UNPRICED_WORK_TYPE }),
     /** The no-activity option: this person's base pay, or `unset` when they have none. */
     base: rateFor(person, config),
     activities: config.workTypes.map<RateMenuEntry>((workType) => ({

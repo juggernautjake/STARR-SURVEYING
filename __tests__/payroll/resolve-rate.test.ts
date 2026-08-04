@@ -208,3 +208,39 @@ describe('totalHourBlocks — a day split across rates', () => {
     expect(totalHourBlocks([]).blendedRate).toBeNull();
   });
 });
+
+describe('resolvePayRate — no rate on purpose', () => {
+  // "Make it so that we can log hours without assigning any specific pay rate at all if we don't
+  // want to assign one. The pay rate selection should be optional, and it shouldn't be pointing to
+  // a specific pay rate by default."
+  it('resolves to nothing at all, not to base pay', () => {
+    const r = resolvePayRate({ ...CHIEF, unpriced: true });
+    expect(r.rate).toBeNull();
+    expect(r.source).toBe('unset');
+  });
+
+  it('outranks a set activity rate and a standing pin', () => {
+    // Both would put a number on hours the submitter explicitly declined to price.
+    expect(resolvePayRate({ ...CHIEF, unpriced: true, activity: DRIVING }).rate).toBeNull();
+    expect(resolvePayRate({ ...CHIEF, unpriced: true, override: { fixed_rate: 32 } }).rate).toBeNull();
+  });
+
+  it('does NOT outrank the approver — that is who it is deferring to', () => {
+    const r = resolvePayRate({ ...CHIEF, unpriced: true, manualRate: 30 });
+    expect(r.rate).toBe(30);
+    expect(r.source).toBe('manual');
+  });
+
+  it('says who will decide, rather than reading as an error', () => {
+    expect(resolvePayRate({ ...CHIEF, unpriced: true }).explanation).toContain('whoever approves');
+  });
+
+  it('is distinct from having no base pay at all', () => {
+    // Both are `unset`, but one is a choice and the other is a gap in the person's record. The
+    // sentences differ so the reader can tell which they are looking at.
+    const declined = resolvePayRate({ ...CHIEF, unpriced: true });
+    const missing = resolvePayRate({});
+    expect(declined.explanation).not.toBe(missing.explanation);
+    expect(missing.explanation).toContain('no base pay');
+  });
+});

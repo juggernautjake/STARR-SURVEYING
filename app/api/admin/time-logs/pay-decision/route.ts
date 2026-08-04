@@ -22,7 +22,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { loadPayConfig, loadPersonPayFacts, rateMenuFor } from '@/lib/payroll/pay-context';
 import { buildPayDecision, defaultDecisionBlocks, describeDecision, type PayBlock } from '@/lib/payroll/pay-decision';
-import { UNSPECIFIED_WORK_TYPE } from '@/lib/payroll/resolve-rate';
+import { UNPRICED_WORK_TYPE, UNSPECIFIED_WORK_TYPE } from '@/lib/payroll/resolve-rate';
 
 interface TimeLogRow {
   id: string;
@@ -90,10 +90,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // What the screen opens on when nothing has been decided: the rules' own answer for the activity
   // the employee logged, so the common case — agreeing — is one click.
   const hours = payableHours(entry);
-  const loggedActivity = entry.work_type === UNSPECIFIED_WORK_TYPE ? null : entry.work_type;
-  const resolvedForLogged = loggedActivity
-    ? menu.activities.find((a) => a.work_type === loggedActivity)?.resolved ?? menu.base
-    : menu.base;
+
+  // Three cases, and they are genuinely different:
+  //   'unpriced'    — the submitter attached no rate on purpose. Open on no rate, so the
+  //                   approver makes the decision they were asked to make rather than nodding
+  //                   through a suggestion.
+  //   'unspecified' — ordinary work, no particular activity. Open on their base pay.
+  //   anything else — the activity they logged, at whatever it pays them.
+  const wasUnpriced = entry.work_type === UNPRICED_WORK_TYPE;
+  const loggedActivity = wasUnpriced || entry.work_type === UNSPECIFIED_WORK_TYPE ? null : entry.work_type;
+  const resolvedForLogged = wasUnpriced
+    ? menu.unpriced
+    : loggedActivity
+      ? menu.activities.find((a) => a.work_type === loggedActivity)?.resolved ?? menu.base
+      : menu.base;
 
   return NextResponse.json({
     log: entry,
@@ -116,7 +126,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
           resolvedForLogged,
           loggedActivity
             ? menu.activities.find((a) => a.work_type === loggedActivity)?.label ?? loggedActivity
-            : 'Base pay',
+            : wasUnpriced ? 'Not yet priced' : 'Base pay',
           loggedActivity,
         ),
   });

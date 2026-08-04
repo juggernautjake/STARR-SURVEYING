@@ -575,6 +575,18 @@
   margin-top: 1rem;
 }
 
+/* ---- Approved hours nobody has priced yet (C-19) ---- */
+.tl-week-undecided {
+  margin: 0 0 1rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px dashed var(--theme-warning, #D97706);
+  background: var(--theme-bg-elevated, #FFFBEB);
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--theme-fg, #78350F);
+}
+
 /* ---- Pay advances: what is still owed (C-17) ---- */
 .tl-advances-owed {
   font-size: 0.82rem;

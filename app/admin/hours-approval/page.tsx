@@ -99,6 +99,16 @@ function formatCurrency(n: number) {
   return '$' + n.toFixed(2);
 }
 
+/**
+ * The label for a logged activity. The two sentinels are internal — 'unpriced' means the
+ * submitter attached no rate and 'unspecified' means ordinary work with no particular activity —
+ * and neither should ever appear verbatim on a timesheet.
+ */
+function activityLabel(workType: string, label?: string | null): string {
+  if (workType === 'unpriced') return 'No rate attached';
+  if (workType === 'unspecified') return 'General work';
+  return label || workType;
+}
 export default function HoursApprovalPage() {
   const { data: session } = useSession();
   const { safeFetch, safeAction, reportPageError } = usePageError('HoursApprovalPage');
@@ -605,7 +615,7 @@ export default function HoursApprovalPage() {
                       <div className="tl-approval-entry__main">
                         <div className="tl-approval-entry__top">
                           <span className="tl-approval-entry__icon">{wt?.icon || '📋'}</span>
-                          <span className="tl-approval-entry__type">{wt?.label || log.work_type}</span>
+                          <span className="tl-approval-entry__type">{activityLabel(log.work_type, wt?.label)}</span>
                           <span className="tl-approval-entry__date">{formatDate(log.log_date)}</span>
                           <span className="tl-approval-entry__hours">{log.hours}h</span>
                           <span className="tl-badge" style={{ backgroundColor: `${STATUS_COLORS[log.status] || '#6B7280'}20`, color: STATUS_COLORS[log.status] || '#6B7280' }}>

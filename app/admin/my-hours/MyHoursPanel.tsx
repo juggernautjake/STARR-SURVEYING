@@ -10,6 +10,7 @@ import '../styles/AdminTimeLogs.css';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
+import { summarizeWeek } from '@/lib/payroll/week-summary';
 
 interface WorkType {
   id: string;
@@ -30,6 +31,8 @@ interface ResolvedRate {
 
 /** `/api/admin/time-logs/rates` → `menu`: every option, priced for the person asking. */
 interface RateMenu {
+  /** No rate at all — the hours are recorded, the money is left to whoever approves. */
+  unpriced: ResolvedRate;
   base: ResolvedRate;
   activities: Array<{
     work_type: string;
@@ -50,11 +53,19 @@ interface PayBasis {
 }
 
 /**
- * The value the activity dropdown carries when the submitter does not want to pick a rate —
- * *"submit the hours without any payment option and the boss can decide what is fair."* Sent as an
- * empty `work_type`, which the API stores as its `UNSPECIFIED_WORK_TYPE` sentinel.
+ * The dropdown value meaning **no rate at all**, and the default for a new row.
+ *
+ * *"The pay rate selection should be optional, and it shouldn't be pointing to a specific pay rate
+ * by default. It should only point to a specific pay rate if the user selects one."*
+ *
+ * Deliberately distinct from `BASE_PAY` below. "No particular activity" still resolves to a
+ * number — the person's base pay. This one resolves to nothing at all: the hours are recorded and
+ * whoever approves them decides what they are worth.
  */
-const NO_ACTIVITY = '';
+const NO_RATE = 'unpriced';
+
+/** Ordinary work at the person's own base pay, with no particular activity named. */
+const BASE_PAY = '';
 
 interface TimeEntry {
   work_type: string;
@@ -140,6 +151,16 @@ function formatDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+/**
+ * The label for a logged activity. The two sentinels are internal — 'unpriced' means the
+ * submitter attached no rate and 'unspecified' means ordinary work with no particular activity —
+ * and neither should ever appear verbatim on a timesheet.
+ */
+function activityLabel(workType: string, label?: string | null): string {
+  if (workType === 'unpriced') return 'No rate attached';
+  if (workType === 'unspecified') return 'General work';
+  return label || workType;
+}
 function formatCurrency(n: number) {
   return '$' + n.toFixed(2);
 }
@@ -237,7 +258,10 @@ export default function MyHoursPanel() {
     );
     if (editable.length > 0) {
       setEntries(editable.map((l) => ({
-        work_type: l.work_type,
+        // 'unspecified' is the stored form of "base pay, no activity"; the dropdown spells that as
+        // an empty string. Left unmapped it would match no option and the select would silently
+        // fall back to its first entry, changing what the person had submitted.
+        work_type: l.work_type === 'unspecified' ? BASE_PAY : l.work_type,
         hours: l.hours,
         description: l.description,
         notes: l.notes || '',
@@ -251,10 +275,9 @@ export default function MyHoursPanel() {
 
   const addEntry = () => {
     setEntries((prev) => [...prev, {
-      // Defaults to no activity, not to whichever work type happens to sort first. Picking a rate
-      // is a decision, and pre-selecting one on the submitter's behalf is how "field work" ended up
-      // on hours that were nothing of the sort.
-      work_type: NO_ACTIVITY,
+      // No rate at all. Picking one is a decision, and pre-selecting anything on the submitter's
+      // behalf — even their own base pay — attaches a number to hours nobody has chosen to price.
+      work_type: NO_RATE,
       hours: 0,
       description: '',
       notes: '',
@@ -403,13 +426,15 @@ export default function MyHoursPanel() {
 
   const weekEndStr = weekDays[6];
 
-  // Summary stats for the week
+  // Summary stats for the week.
+  //
+  // Computed in `lib/payroll/week-summary.ts` rather than inline, because every figure here was
+  // previously answering a slightly different question from the one on its label: "Est. Pay"
+  // summed rejected entries too, it read the rate the rules set rather than what the approver
+  // decided, the status counts were of ENTRIES not hours, and an adjustment from 10h to 8h left
+  // the total reading 10. See that file for the full account.
   const weekLogs = logs.filter((l) => l.log_date >= weekStart && l.log_date <= weekEndStr);
-  const weekTotalHours = weekLogs.reduce((s, l) => s + l.hours, 0);
-  const weekApproved = weekLogs.filter((l) => l.status === 'approved');
-  const weekPending = weekLogs.filter((l) => l.status === 'pending');
-  const weekRejected = weekLogs.filter((l) => l.status === 'rejected');
-  const weekEstPay = weekLogs.reduce((s, l) => s + (l.total_pay || 0), 0);
+  const week = summarizeWeek(weekLogs);
 
   if (!session?.user?.email) return <div className="tl-loading">Please sign in</div>;
 
@@ -429,30 +454,51 @@ export default function MyHoursPanel() {
       <div className="tl-summary-cards">
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#128337;</div>
-          <div className="tl-summary-card__value">{weekTotalHours.toFixed(1)}h</div>
+          <div className="tl-summary-card__value">{week.totalHours.toFixed(1)}h</div>
           <div className="tl-summary-card__label">Total Hours</div>
         </div>
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#9989;</div>
-          <div className="tl-summary-card__value">{weekApproved.length}</div>
+          <div className="tl-summary-card__value">{week.approvedHours.toFixed(1)}h</div>
           <div className="tl-summary-card__label">Approved</div>
         </div>
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#9203;</div>
-          <div className="tl-summary-card__value">{weekPending.length}</div>
-          <div className="tl-summary-card__label">Pending</div>
+          <div className="tl-summary-card__value">{week.pendingHours.toFixed(1)}h</div>
+          <div className="tl-summary-card__label">Awaiting approval</div>
         </div>
-        <div className="tl-summary-card">
-          <div className="tl-summary-card__icon">&#10060;</div>
-          <div className="tl-summary-card__value">{weekRejected.length}</div>
-          <div className="tl-summary-card__label">Rejected</div>
-        </div>
+        {week.rejectedHours > 0 && (
+          <div className="tl-summary-card">
+            <div className="tl-summary-card__icon">&#10060;</div>
+            <div className="tl-summary-card__value">{week.rejectedHours.toFixed(1)}h</div>
+            <div className="tl-summary-card__label">Rejected</div>
+          </div>
+        )}
+        {/* Approved pay is what is actually coming. Pending pay sits beside it rather than in
+            it, because a figure that mixes settled and unsettled money is not usable for
+            either purpose. */}
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#128176;</div>
-          <div className="tl-summary-card__value">{formatCurrency(weekEstPay)}</div>
-          <div className="tl-summary-card__label">Est. Pay</div>
+          <div className="tl-summary-card__value">{formatCurrency(week.approvedPay)}</div>
+          <div className="tl-summary-card__label">Approved pay</div>
         </div>
+        {week.pendingPay > 0 && (
+          <div className="tl-summary-card">
+            <div className="tl-summary-card__icon">&#9203;</div>
+            <div className="tl-summary-card__value">{formatCurrency(week.pendingPay)}</div>
+            <div className="tl-summary-card__label">Pending approval</div>
+          </div>
+        )}
       </div>
+
+      {/* Approved hours nobody has priced yet. They pay nothing until somebody sets a rate, so
+          without this line the week simply shows less money than expected and nothing says why. */}
+      {week.undecidedHours > 0 && (
+        <div className="tl-week-undecided">
+          {week.undecidedHours.toFixed(1)}h approved but not yet priced — no pay is attached to those
+          hours until a rate is set.
+        </div>
+      )}
 
       {/* Day selector strip */}
       <div className="tl-day-strip">
@@ -566,9 +612,11 @@ export default function MyHoursPanel() {
             // The rate THIS person earns for the selected activity — or, with nothing selected, the
             // agreed base pay. Falls back to null (rather than a list price) when the menu has not
             // loaded, so a stale number never stands in for the real one.
-            const resolved = entry.work_type
-              ? rateMenu?.activities.find((a) => a.work_type === entry.work_type)?.resolved ?? null
-              : rateMenu?.base ?? null;
+            const resolved = entry.work_type === NO_RATE
+              ? rateMenu?.unpriced ?? null
+              : entry.work_type
+                ? rateMenu?.activities.find((a) => a.work_type === entry.work_type)?.resolved ?? null
+                : rateMenu?.base ?? null;
             return (
               <div key={idx} className="tl-entry-card">
                 <div className="tl-entry-card__header">
@@ -590,11 +638,14 @@ export default function MyHoursPanel() {
                           what is fair". Those are the same row: no activity, agreed base pay, and a
                           decision left to whoever approves it.
                         */}
-                        <option value={NO_ACTIVITY}>
-                          {rateMenu?.base.source === 'unset'
-                            ? 'Not specified — let the boss decide'
-                            : `Base pay${rateMenu?.base.rate != null ? ` (${formatCurrency(rateMenu.base.rate)}/hr)` : ''} — no specific activity`}
-                        </option>
+                        {/* First, and the default. Optional means optional: an entry can be
+                            submitted with no rate on it at all. */}
+                        <option value={NO_RATE}>No pay rate — let whoever approves decide</option>
+                        {rateMenu?.base.rate != null && (
+                          <option value={BASE_PAY}>
+                            Base pay ({formatCurrency(rateMenu.base.rate)}/hr) — no specific activity
+                          </option>
+                        )}
                         {/*
                           Priced from the menu, never from `work_type_rates.base_rate` — for an
                           ordinary activity that column is ignored entirely (field work pays the
@@ -725,7 +776,7 @@ export default function MyHoursPanel() {
                           <div className="tl-history-entry__left">
                             <span className="tl-history-entry__icon">{wt?.icon || '📋'}</span>
                             <div>
-                              <div className="tl-history-entry__type">{wt?.label || log.work_type}</div>
+                              <div className="tl-history-entry__type">{activityLabel(log.work_type, wt?.label)}</div>
                               <div className="tl-history-entry__desc">{log.description}</div>
                               {log.job_name && <div className="tl-history-entry__job">Job: {log.job_name}</div>}
                               {log.rejection_reason && (

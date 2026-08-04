@@ -123,7 +123,8 @@ Supporting modules:
 | **C-15** | Source guards + negative control: no route may re-implement a rate, progression stays parked | ✅ Shipped |
 | **C-16** | One payout ledger — `payout_log`, `employee_payouts`, `payout_batches`, `balance_transactions` all exist and are empty | ⬜ Not started |
 | **C-17** | Pay advances are recovered from pay: seed 576 (repayment ledger + outstanding view), instalments, protected share of net, mark-paid step, employee sees the balance | ✅ Shipped |
-| **C-19** | Week history: period totals + what the week is worth | ⬜ Not started |
+| **C-19** | Week summary in `lib/payroll/week-summary.ts`: hours not entry counts, adjustments honoured, rejected excluded, approver decisions used, undecided hours surfaced | ✅ Shipped |
+| **C-20** | `UNPRICED_WORK_TYPE` — hours loggable with no rate at all, and that is the picker default | ✅ Shipped |
 | **C-18** | Backfill `employee_profiles.tier_key` (NULL for everybody; `job_title` carries the title) | ⬜ Not started |
 
 ---
