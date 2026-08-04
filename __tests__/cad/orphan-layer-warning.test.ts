@@ -157,3 +157,31 @@ describe('moving a feature to a layer that does not exist', () => {
     expect(useDrawingStore.getState().getFeature('moved')!.layerId).toBe('GHOST_LAYER');
   });
 });
+
+// ── The collector itself must not leak ───────────────────────────────────────────────────────────
+//
+// This array started unbounded — a memory leak introduced by the very slice that made orphaned
+// features loud, in the same session as S15's leak ratchet. That ratchet could never have caught it:
+// it counts addEventListener against removeEventListener and createObjectURL against
+// revokeObjectURL, and an array that only ever grows matches no pair.
+
+describe('the warning collector is bounded', () => {
+  it('does not grow without limit under a repeated orphan condition', () => {
+    // The realistic shape: a loop that keeps re-adding a feature whose layer never arrives.
+    for (let i = 0; i < 300; i++) {
+      useDrawingStore.getState().addFeature(feature(`leak-${i}`, 'STILL_MISSING'));
+    }
+    expect(__orphanWarnings().length).toBeLessThanOrEqual(50);
+  });
+
+  it('keeps the MOST RECENT warnings, not the first', () => {
+    // When this fires in a loop, the latest occurrence is the one being debugged; the first fifty
+    // of an ongoing loop all say the same thing.
+    for (let i = 0; i < 60; i++) {
+      useDrawingStore.getState().addFeature(feature(`seq-${i}`, `LAYER_${i}`));
+    }
+    const all = __orphanWarnings().join('\n');
+    expect(all).toContain('LAYER_59');
+    expect(all).not.toContain('LAYER_0.');
+  });
+});

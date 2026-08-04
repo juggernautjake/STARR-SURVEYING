@@ -1770,3 +1770,24 @@ the state that produced the wrong "P1 DONE" citation in the first place.
 **Not deleted here.** Removing production code is the owner's call, it is genuinely dead so there is
 no urgency, and the file is worth reading before it goes — the large-bin overflow and the
 false-positive filter are ideas the live index does not have.
+
+### ✅ S15c DONE 2026-08-04 — the leak I introduced while building the leak ratchet
+
+S13d's warning collector was an **unbounded module-level array**, pushed on every orphan warning. A
+repeated orphan condition in a long dev session — a render loop re-adding a feature, a broken import
+retried — would grow it without limit.
+
+**S15's ratchet could never have caught this.** That guard counts `addEventListener` against
+`removeEventListener` and `createObjectURL` against `revokeObjectURL`. **An array that only ever
+grows matches no pair.** It is a fair summary of what a structural checker can and cannot do: it
+finds the leak shapes it was taught, and is blind to the ones it was not.
+
+Found by reading my own diff, in the same session, on the same subsystem, immediately after writing
+the check that was supposed to find leaks. Capped at 50, keeping the **most recent** rather than the
+first — when this fires in a loop the latest occurrence is the one being debugged, and the first
+fifty all say the same thing. Watched failing by removing the cap.
+
+**Worth stating plainly rather than fixing quietly:** three of today's slices were corrections to work
+shipped earlier the same day (56 → 44 orphans, the spatial-index misreading, and this). None was
+caught by a test, a reviewer, or a tool. All three were caught by going back and checking a claim
+after making it — which is the only technique in this session that has a perfect record.

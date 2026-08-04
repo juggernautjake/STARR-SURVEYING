@@ -85,7 +85,18 @@ export function __resetVisibleCache(): void {
   visibleCache = null;
 }
 
-/** Collected for the test that proves this fires. Only appended in non-production. */
+/** Collected for the test that proves this fires. Only appended in non-production.
+ *
+ *  **Capped, and the cap is not decoration.** This started as an unbounded array, which is a memory
+ *  leak of exactly the kind S15's ratchet was written to catch — introduced, in the same session, by
+ *  the slice that made orphaned features loud. A repeated orphan condition in a long dev session
+ *  (a render loop re-adding a feature, a broken import retried) would grow it without limit.
+ *
+ *  S15's checker could never have found it: that guard counts `addEventListener` against
+ *  `removeEventListener` and `createObjectURL` against `revokeObjectURL`. **An array that only ever
+ *  grows matches no pair**, which is a fair summary of what a structural checker can and cannot do.
+ *  It took reading my own diff to notice. */
+const ORPHAN_WARNING_LIMIT = 50;
 const orphanWarnings: string[] = [];
 /** Test-only accessor + reset for the orphan-layer warnings. */
 export function __orphanWarnings(): readonly string[] { return orphanWarnings; }
@@ -133,6 +144,9 @@ function warnIfLayerMissing(
     + `getVisibleFeatures drops features whose layer is missing. Create the layer first `
     + `(see researchLayersToCreate) or set a valid active layer.`;
   orphanWarnings.push(msg);
+  // Keep the most RECENT, not the first: when this fires repeatedly the latest occurrence is the
+  // one being debugged, and the first fifty of an ongoing loop say the same thing.
+  if (orphanWarnings.length > ORPHAN_WARNING_LIMIT) orphanWarnings.shift();
   // eslint-disable-next-line no-console
   console.warn(msg);
 }
