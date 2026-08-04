@@ -14,15 +14,23 @@ import { describe, it, expect } from 'vitest';
 import { LEGACY_REDIRECTS } from '@/lib/admin/legacy-redirects';
 
 describe('LEGACY_REDIRECTS', () => {
-  it('ships exactly the five `my-*` + profile paths, plus the retired dashboard', () => {
+  it('ships the four `my-*` paths plus the retired dashboard — and NOT /admin/profile', () => {
     expect(Object.keys(LEGACY_REDIRECTS).sort()).toEqual([
       '/admin/dashboard',
       '/admin/my-hours',
       '/admin/my-jobs',
       '/admin/my-notes',
       '/admin/my-pay',
-      '/admin/profile',
     ]);
+
+    // `/admin/profile` left this table on 2026-08-04. Owner report: the top bar's "Profile +
+    // settings" and "Theme + density" entries "just take me to the hub" — this entry was the
+    // mechanism, and `?tab=profile` had meant nothing since Slice 189 retired the Hub's tab bar.
+    // The panel it redirected away from still existed in full; it had simply lost its route.
+    expect(
+      LEGACY_REDIRECTS['/admin/profile'],
+      'appearance settings CONFIGURE the widget canvas, so they must not redirect into it',
+    ).toBeUndefined();
   });
 
   it('every redirect lands on the Hub', () => {
@@ -56,7 +64,7 @@ describe('LEGACY_REDIRECTS', () => {
       '/admin/my-hours': 'hours',
       '/admin/my-pay': 'pay',
       '/admin/my-notes': 'notes',
-      '/admin/profile': 'profile',
+      // No `/admin/profile` entry: it is a real page again, not a tab anchor.
     };
     for (const [from, anchor] of Object.entries(mapping)) {
       expect(LEGACY_REDIRECTS[from]).toBe(`/admin/me?tab=${anchor}`);

@@ -109,18 +109,35 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
       .filter((section) => section.items.length > 0);
   }, [roles, isCompanyUser]);
 
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // ── Sections start CLOSED (owner request, 2026-08-04) ──────────────────────────────────────────
+  //
+  // Every section used to start open, so the menu opened as one long scroll of every destination in
+  // the product — worst on a phone, where the sidebar is the whole screen and Hub, Work, Equipment,
+  // Research & CAD and the rest stacked past the fold.
+  //
+  // The map records only what the user has EXPLICITLY set, and anything absent is closed. That
+  // matters for the change to take effect at all: the old map stored "collapsed" flags, so a
+  // returning user's saved `{}` — or a partial map — would otherwise still mean "everything open".
+  // Missing now means closed, which is why the toggle below is written against the RESOLVED state
+  // rather than flipping `!prev[label]` (that would leave a closed section closed on first click).
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) setCollapsed(JSON.parse(stored));
+      if (stored) setOpenSections(JSON.parse(stored));
     } catch { /* ignore */ }
   }, []);
 
-  const toggleSection = (label: string) => {
-    setCollapsed((prev) => {
-      const next = { ...prev, [label]: !prev[label] };
+  /** Closed unless the user opened it — except the section holding the page you are on, which opens
+   *  so the menu can still answer "where am I". An explicit choice always wins over that. */
+  const sectionIsOpen = (label: string, active: boolean): boolean =>
+    label in openSections ? openSections[label] : active;
+
+  const toggleSection = (label: string, active: boolean) => {
+    setOpenSections((prev) => {
+      const current = label in prev ? prev[label] : active;
+      const next = { ...prev, [label]: !current };
       try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* ignore */ }
       return next;
     });
@@ -171,16 +188,17 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
             if (!items.length) return null;
 
             const sectionActive = isSectionActive(section);
-            const isExpanded = !collapsed[section.label];
+            const isExpanded = sectionIsOpen(section.label, sectionActive);
 
             return (
               <div key={section.label} className="admin-sidebar__section">
                 <div
                   className={`admin-sidebar__section-label admin-sidebar__section-label--collapsible${sectionActive ? ' admin-sidebar__section-label--active' : ''}`}
-                  onClick={() => toggleSection(section.label)}
+                  onClick={() => toggleSection(section.label, sectionActive)}
                   role="button"
                   tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter') toggleSection(section.label); }}
+                  aria-expanded={isExpanded}
+                  onKeyDown={(e) => { if (e.key === 'Enter') toggleSection(section.label, sectionActive); }}
                 >
                   <span className={`admin-sidebar__section-arrow ${isExpanded ? 'admin-sidebar__section-arrow--expanded' : ''}`}>
                     <ChevronRight size={13} strokeWidth={2.5} />

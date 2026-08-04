@@ -30,6 +30,10 @@ const ADMIN_DIR = join(REPO, 'app', 'admin');
 const INTENTIONALLY_OPEN: Record<string, string> = {
   // ── Personal surfaces: the user's own data, by definition ──
   'me': "the user's own profile hub",
+  // Restored as a real route 2026-08-04: your own profile form, Hub theme, density and font scale.
+  // Open for the same reason `me` is — it is your data and your appearance settings, and its API
+  // (`/api/admin/me/*`) resolves the row from the session rather than from anything typed.
+  'profile': "the user's own profile and appearance settings",
   'my-files': 'the signed-in user\'s own files',
   'my-jobs': "redirected to /admin/me by LEGACY_REDIRECTS before the role check",
   'my-hours': 'redirected to /admin/me by LEGACY_REDIRECTS before the role check',

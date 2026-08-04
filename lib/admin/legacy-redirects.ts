@@ -11,7 +11,19 @@ export const LEGACY_REDIRECTS: Readonly<Record<string, string>> = {
   '/admin/my-hours': '/admin/me?tab=hours',
   '/admin/my-pay':   '/admin/me?tab=pay',
   '/admin/my-notes': '/admin/me?tab=notes',
-  '/admin/profile':  '/admin/me?tab=profile',
+
+  // `/admin/profile` was here until 2026-08-04 and is deliberately NOT any more.
+  //
+  // Owner report: *"whenever I click the settings + profile or the theme + density links, it just
+  // takes me to the hub."* This entry was the mechanism. The panel it redirected away from —
+  // profile form, Hub theme picker, density, font scale — still exists in full; what it lost was
+  // its route, and this line then sent every visitor to a widget canvas that answers a different
+  // question. `?tab=profile` stopped meaning anything when Slice 189 retired the Hub's tab bar,
+  // so the redirect had been landing nowhere useful for two months.
+  //
+  // The other four entries stay: their content genuinely became widgets, and `LegacyTabNotice`
+  // says which. Appearance settings did not become a widget — they configure the widget canvas,
+  // which makes "edit it from inside the thing it styles" the worse home, not the better one.
 
   // Platform audit §2.1 / Phase 1 item 6 (2026-08-01) — "four competing home concepts", of which
   // two claimed to be THE home. `/admin/dashboard` was a 474-line hardcoded tile page; `/admin/me`

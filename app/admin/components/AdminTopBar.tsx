@@ -151,19 +151,35 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
             </div>
             <Link
               role="menuitem"
-              href="/admin/me?tab=profile"
+              href="/admin/profile"
               onClick={() => setOpen(false)}
               style={MENU_ITEM_STYLE}
             >
               Profile + settings
             </Link>
+            {/* Both entries pointed at `/admin/me?tab=profile…` until 2026-08-04. The Hub stopped
+                reading `tab` when its tab bar was retired, so this menu's two most-used entries
+                landed on the widget canvas and read as broken. `/admin/profile` is a real page
+                again; `#themes` scrolls to the picker rather than needing a second route. */}
             <Link
               role="menuitem"
-              href="/admin/me?tab=profile&sub=themes"
+              href="/admin/profile#themes"
               onClick={() => setOpen(false)}
               style={MENU_ITEM_DIVIDED}
             >
               Theme + density
+            </Link>
+            {/* Install — the PWA install walkthrough had ZERO inbound links until 2026-08-04.
+                Owner: *"how do I download the app to be an app icon on my phone? I would think
+                there would be something in the settings page."* The page existed; nothing pointed
+                at it, which is this codebase's most common defect wearing its most literal form. */}
+            <Link
+              role="menuitem"
+              href="/admin/install"
+              onClick={() => setOpen(false)}
+              style={MENU_ITEM_DIVIDED}
+            >
+              <RouteIcon name="Smartphone" size={15} /> Install app on your phone
             </Link>
             {/* Privacy settings — controls what co-workers see about you in
                 the employee directory. Previously orphaned (no inbound link);

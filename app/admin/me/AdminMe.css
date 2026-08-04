@@ -532,6 +532,17 @@
     gap: 1rem;
   }
   .hub-greeting__actions {
+    /* 2026-08-04, owner screenshot: the Enter Work Mode button hung off the LEFT edge of the phone.
+     *
+     * This block set `width: 100%` and never undid the desktop rule's `position: absolute; right:
+     * 2.5rem`. A full-card-width box anchored 2.5 rem from the right starts 2.5 rem PAST the left
+     * edge — so the button was pushed off-screen, and the card's own overflow could not clip it.
+     * The width was the giveaway: it only makes sense on a static element, which says the mobile
+     * rule was written expecting normal flow and the absolute positioning arrived later.
+     *
+     * Back into the flow, where `flex-direction: column` on the card already stacks it correctly. */
+    position: static;
+    transform: none;
     width: 100%;
     flex-wrap: wrap;
   }
@@ -539,6 +550,16 @@
   .hub-greeting__actions .hub-greeting__nav-toggle {
     flex: 1 1 auto;
     justify-content: center;
+    /* A button may not be wider than the screen it is on. The CTA carries 2.6 rem of horizontal
+     * padding and a 1.22 rem label from the desktop design, which alone exceeds a 360 px viewport
+     * once the card's padding is taken off. */
+    max-width: 100%;
+  }
+  .hub-greeting__work-mode-btn.hub-btn {
+    padding: 1rem 1.25rem;
+    font-size: 1.05rem;
+    /* The pill's own shadow/glow spread was part of what crossed the edge. */
+    width: 100%;
   }
 }
 
