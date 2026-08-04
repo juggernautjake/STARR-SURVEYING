@@ -911,6 +911,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
     // frame defaults to world origin (0,0), so without this the points
     // render far off the sheet (up and to the right). paperOrigin is a
     // purely visual frame position — it never moves any geometry.
+    let paperWasFitted = false;
     {
       const bounds = boundsOfPoints(
         importResult.points.map((p) => ({ easting: p.easting, northing: p.northing })),
@@ -923,6 +924,7 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
           s.paperOrientation ?? 'LANDSCAPE',
         );
         drawingStore.updateSettings({ drawingScale, paperOrigin });
+        paperWasFitted = true;
       }
     }
 
@@ -945,7 +947,19 @@ export default function ImportDialog({ onClose, onImportComplete }: ImportDialog
     // Force the canvas to (re)render and frame the newly-added points.
     // Without this the features are in the store but the view doesn't
     // visibly update until the next pan/zoom.
-    setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 50);
+    //
+    // CAD_AUDIT Slice S17 — when the paper WAS fitted just above, frame the PAPER rather than the
+    // strict feature extent. The TRV importer already made this distinction and this path had not:
+    // a single stray shot (an outlier GPS fix, a mistyped northing) drags the feature bbox out by
+    // thousands of feet, so `zoomExtents` leaves the actual lot a speck in the corner while the
+    // sheet we just centred under it is barely visible. The paper was sized from a robust bbox, so
+    // it is the better frame. The outlier stays in the drawing; the surveyor pans to it.
+    //
+    // Falls back to the feature extent when no paper fit happened (an import with no coordinates),
+    // because framing a sheet that was never positioned would be worse than framing the data.
+    setTimeout(() => window.dispatchEvent(new CustomEvent(
+      paperWasFitted ? 'cad:zoomToPaper' : 'cad:zoomExtents',
+    )), 50);
 
     importStore.nextStep(); // → COMPLETE
     onImportComplete?.();

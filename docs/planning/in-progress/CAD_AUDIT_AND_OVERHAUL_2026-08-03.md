@@ -1178,3 +1178,34 @@ chose is no more honest than geometry landing nowhere.
   JobXML, DXF, GeoJSON, `.TRV`, the point library — so a surveyor never lands on a blank grey screen
   with their data off-sheet. The empty-drawing condition stays: re-fitting the sheet under work in
   progress silently changes the plot scale, which is the surveyor's decision.
+
+### ✅ S17 DONE 2026-08-04 — and it was mostly already built
+
+Checked before building, per the standing rule, and the premise was wrong in the useful direction.
+**`ImportDialog` already centres the paper under imported points**, with a comment naming the exact
+reason:
+
+> *"Features are stored at raw state-plane coordinates (often in the millions) while the paper frame
+> defaults to world origin (0,0), so without this the points render far off the sheet… `paperOrigin`
+> is a purely visual frame position — it never moves any geometry."*
+
+That is the owner's ask, already implemented, on the path a robotic total-station job actually comes
+through. **The seventh feature this program has called missing and found present.** A shared
+`fit-paper-to-import` module had already been written before the check — and was deleted rather than
+shipped, because a third copy of the paper-fit rule is precisely how the TRV path and the
+survey-data path came to disagree in the first place.
+
+**The one real inconsistency, now fixed.** Having fitted the paper, this path then zoomed to the
+**feature** extent. The TRV importer deliberately zooms to the **paper**, and its comment says why:
+one outlier shot — a stray GPS fix, a mistyped northing — drags the strict bbox out by thousands of
+feet, leaving the actual lot a speck in the corner of the screen. The paper was sized from a robust
+(1st–99th percentile) bbox, so it is the better frame; the outlier stays in the drawing and the
+surveyor pans to it. `zoomExtents` remains the fallback when no fit happened, since framing a sheet
+that was never positioned is worse than framing the data.
+
+4 tests, including one pinning the pre-existing paper-centring so a later simplification cannot
+quietly drop it and send state-plane jobs back off the sheet.
+
+**Still open for S16:** whether zone selection, grid-vs-ground scale factor and convergence are
+genuinely handled, or whether the survey-notes line about the Texas State Plane Coordinate System is
+the only part of that claim which is true. That needs a golden instrument file, not a code read.
