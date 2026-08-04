@@ -56,6 +56,7 @@ import {
 // cad-desktop-tauri-and-perf Slice N1b — per-phase frame-time
 // markers feed the Perf overlay + the Phase-3 go/no-go decision.
 import { measureRender } from '@/lib/cad/perf/render-markers';
+import { wrapTextToWidth, sheetTextSize } from '@/lib/cad/render/text-layout';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
@@ -2800,6 +2801,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const t = new pixi.TextClass(content, new pixi.TextStyleClass(style));
       (t as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
       t.resolution = res;
+      // S11 — same legibility gate as `mkTBTextIn`. The legend, notes and certification blocks size
+      // their text in POINTS scaled by `inchToPx`, so unlike the title block they already shrank
+      // correctly with the sheet; the gate stops them rendering a smear of sub-pixel glyphs at
+      // thumbnail zoom, which is both illegible and a texture per line.
+      if (sheetTextSize(Number(style.fontSize ?? 0)) === null) t.visible = false;
       container.addChild(t);
       return t;
     };
@@ -2878,13 +2884,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const charPx = rowFontPx * 0.55; // rough monospace-ish approximation
         const charsPerLine = Math.max(20, Math.floor(innerW / charPx));
         let totalRows = 0;
+        // S11 — wrap between words. This used to slice every `charsPerLine` characters, which put
+        // "Texas State Plan / e Coordinate System", "as note / d on the plat" and "Profess / ional
+        // Surveyors" on a real plat. The notes carry the basis of bearing and the monument
+        // description, so a hyphenless mid-word break is the kind of thing that gets a plat sent
+        // back.
         const wrapped = shown.map((line, i) => {
-          const prefix = `${i + 1}. `;
-          const text = prefix + line;
-          const lines: string[] = [];
-          for (let s = 0; s < text.length; s += charsPerLine) {
-            lines.push(text.slice(s, s + charsPerLine));
-          }
+          const lines = wrapTextToWidth(`${i + 1}. ${line}`, charsPerLine);
           totalRows += lines.length;
           return lines;
         });
@@ -2958,18 +2964,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           .replace(/\{\{licenseNumber\}\}/g, tpl.certification.licenseNumber || '')
           .replace(/\{\{licenseState\}\}/g, tpl.certification.licenseState || '')
           .replace(/\{\{firmName\}\}/g, tpl.certification.firmName || tpl.company?.name || '');
-        const words = filled.split(/\s+/);
-        const lines: string[] = [];
-        let cur = '';
-        for (const word of words) {
-          if ((cur + ' ' + word).length > charsPerLine && cur) {
-            lines.push(cur);
-            cur = word;
-          } else {
-            cur = cur ? cur + ' ' + word : word;
-          }
-        }
-        if (cur) lines.push(cur);
+        // S11 — the same wrapper the notes block uses. This one already broke on words; sharing it
+        // removes the second copy of the rule and adds the hard-break fallback, so a long licence
+        // string or URL in the certification text stops running past the block's edge.
+        const lines = wrapTextToWidth(filled, charsPerLine);
         const rowH = bodyFontPx * 1.35;
         const heightPx = padPx * 2 + titleFontPx * 1.4 + lines.length * rowH;
         // Slice 227 — drag-to-move: same live-tracking convention as
@@ -3167,6 +3165,20 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const t = new pixiCtx.TextClass(content, new pixiCtx.TextStyleClass(style));
       (t as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
       t.resolution = res;
+      // S11 — sheet lettering is proportional to the sheet, at every zoom.
+      //
+      // Each size below is now the one the element's own geometry implies, with no pixel floor. The
+      // floors were right in intent and wrong in scope: they kept small lettering readable, but they
+      // never stopped applying, so as the sheet shrank the boxes kept shrinking and the text did
+      // not. At 8% zoom the paper was a thumbnail with "SURVEY FIRM", "GRAPHIC SCALE", "Untitled
+      // Drawing" and the north arrow's "N" drawn full-size on top of one another, spilling well
+      // outside the paper.
+      //
+      // Gated here rather than at ~12 call sites because every title-block text factory funnels
+      // through this one function, so a label added later cannot forget the rule. Hidden rather
+      // than skipped so callers can still position/anchor the returned object unconditionally —
+      // PIXI does not rasterise a Text that never renders, so the texture is not paid for either.
+      if (sheetTextSize(Number(style.fontSize ?? 0)) === null) t.visible = false;
       container.addChild(t);
       return t;
     }
@@ -3284,7 +3296,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // it applies firm-wide on every drawing; when present we
     // draw the image instead of the text.
     const firmLogoUrl = useUIStore.getState().firmLogoDataUrl;
-    const hFontSz  = Math.max(headerH * 0.52, 7);
+    const hFontSz  = headerH * 0.52;   // S11: no pixel floor — see mkTBTextIn
     const headerSplitX = tbScrLeft + tbW * 0.55;
     if (!firmLogoUrl) {
       // Tear down any prior logo sprite so a remove-from-Settings
@@ -3349,7 +3361,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     // Right subtitle (italic, muted blue) — survey type
     const subTxt = mkTBTextTB((tb.surveyType || 'BOUNDARY SURVEY').toUpperCase(), {
-      fontFamily: 'Arial', fontSize: Math.max(hFontSz * 0.70, 5.5),
+      fontFamily: 'Arial', fontSize: hFontSz * 0.70,   // S11: no pixel floor
       fill: 0x6a9fcc, fontStyle: 'italic', letterSpacing: 0.5,
     });
     subTxt.anchor.set(1, 0.5);
@@ -3395,8 +3407,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const label = (flKey && fl[flKey]) ? fl[flKey]! : defaultLabel;
 
       const pad   = 6;
-      const lblSz = Math.max(cellH * 0.26, 5.5);
-      const valSz = Math.max(cellH * 0.42, 7.5);
+      const lblSz = cellH * 0.26;   // S11: no pixel floor
+      const valSz = cellH * 0.42;   // S11: no pixel floor
       const lbl = mkTBTextTB(label.toUpperCase(), {
         fontFamily: 'Arial', fontSize: lblSz, fill: 0x3a5f8a,
         fontWeight: 'bold', letterSpacing: 0.5,
@@ -3514,7 +3526,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     sigg.lineTo(sigLineX2, sigLineY);
 
     // Font sizes relative to box height, with sensible floor values
-    const sLblSz = Math.max(sigBoxH * 0.12, 5);
+    const sLblSz = sigBoxH * 0.12;   // S11: no pixel floor
 
     // ── "OFFICIAL SEAL" label — centered vertically in seal column ────
     const sCx = sigLeft + sealColW / 2;
@@ -3596,7 +3608,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── "AUTHORIZED SIGNATURE" — single-line label directly below the signature line ──
-    const authFontSz   = Math.max(sLblSz * 0.88, 4.5);
+    const authFontSz   = sLblSz * 0.88;   // S11: no pixel floor
     const authLabelY   = sigLineY + 4;
     const authTxt = mkTBTextSig('AUTHORIZED SIGNATURE', {
       fontFamily: 'Arial', fontSize: authFontSz, fill: 0x2c4a6e,
@@ -3615,7 +3627,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // Editable date value written above the line.
     if (tb.signatureDate) {
       const dvTxt = mkTBTextSig(tb.signatureDate, {
-        fontFamily: 'Arial', fontSize: Math.max(sLblSz * 0.95, 5), fill: 0x111111,
+        fontFamily: 'Arial', fontSize: sLblSz * 0.95, fill: 0x111111,   // S11: no pixel floor
       });
       dvTxt.anchor.set(0, 1);
       dvTxt.position.set(sigLineX1 + 2, dateLineY - 2);
@@ -3626,7 +3638,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // a screen click back through the block's scale/rotation so the band stays
     // aligned with the visible date line.
     {
-      const dvBandH = Math.max(sLblSz * 1.6, 10);
+      const dvBandH = sLblSz * 1.6;   // S11: no pixel floor
       tbFieldBoundsRef.current.push({
         key: 'signatureDate', label: 'Date',
         editValue: tb.signatureDate || '',
@@ -3637,7 +3649,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     // ── "DATE" label below the date line ──────────────────────────────────
-    const dateLblSz = Math.max(sLblSz * 0.80, 4);
+    const dateLblSz = sLblSz * 0.80;   // S11: no pixel floor
     const dateLbl = mkTBTextSig('DATE', {
       fontFamily: 'Arial', fontSize: dateLblSz, fill: 0x555555, fontWeight: 'bold',
     });
@@ -3735,9 +3747,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       for (const s of niceSteps) { if (s <= rawSeg) segFt = s; }
       const totalFt   = segFt * numSegs;
       const barLenPx  = (totalFt / ds) * inchToPx;
-      const barH      = Math.max(0.12 * inchToPx, 6);
-      const lblAboveH = Math.max(0.20 * inchToPx, 10);
-      const lblBelowH = Math.max(0.22 * inchToPx, 12); // slightly more room below for units label
+      const barH      = 0.12 * inchToPx;   // S11: no pixel floor — the BOX must shrink with the sheet too
+      const lblAboveH = 0.20 * inchToPx;   // S11: no pixel floor
+      const lblBelowH = 0.22 * inchToPx;   // S11: no pixel floor (was 12px; slightly more room below for units label)
       const sbTotalH  = lblAboveH + barH + lblBelowH + 4; // bar + labels above & below
 
       let sbScrLeft: number;
@@ -3777,7 +3789,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       }
 
       // "GRAPHIC SCALE" label above
-      const gsLblSz = Math.max(barH * 0.9, 6);
+      const gsLblSz = barH * 0.9;   // S11: no pixel floor
       const gsTxt = mkTBTextSB('GRAPHIC SCALE', {
         fontFamily: 'Arial', fontSize: gsLblSz, fill: 0x111111, fontWeight: 'bold', letterSpacing: 0.5,
       });
@@ -3807,7 +3819,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
       // Tick marks + distance labels below bar
       const tickH   = barH * 0.5;
-      const lblBelowSz = Math.max(barH * 0.85, 5.5);
+      const lblBelowSz = barH * 0.85;   // S11: no pixel floor
       sbg.lineStyle(0.75, 0x000000, 1);
       for (let i = 0; i <= numSegs; i++) {
         const tickX = sbScrLeft + i * segPx;
@@ -4001,7 +4013,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     if (mkTBText) {
       const nLbl = mkTBText('N', {
         fontFamily: 'Arial',
-        fontSize: Math.max(radius * 0.45, 8),
+        fontSize: radius * 0.45,   // S11: no pixel floor
         fill: 0x000000,
         fontWeight: 'bold',
       });
@@ -4012,11 +4024,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // Fallback when mkTBText not provided (legacy call path)
       const nLbl = new pixi.TextClass('N', new pixi.TextStyleClass({
         fontFamily: 'Arial',
-        fontSize: Math.max(radius * 0.45, 8),
+        fontSize: radius * 0.45,   // S11: no pixel floor
         fill: 0x000000,
         fontWeight: 'bold',
       }));
       (nLbl as unknown as { _isTitleBlockText: boolean })._isTitleBlockText = true;
+      // S11 — this legacy path builds the Text directly and so bypasses `mkTBTextIn`, which is
+      // where the legibility gate lives. It has to gate itself or the north arrow's "N" stays
+      // full-size over a thumbnail sheet while every other label correctly disappears.
+      if (sheetTextSize(radius * 0.45) === null) nLbl.visible = false;
       const nOffset = radius * 0.55;  // clear gap between N and north tip
       nLbl.anchor.set(0.5, 0.5);
       nLbl.position.set(tipX + ux * nOffset, tipY + uy * nOffset);

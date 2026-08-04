@@ -913,3 +913,55 @@ is asserted.
 
 **Verified in the browser:** tract on the sheet, north arrow, graphic scale, certification block,
 survey-notes block and title block all framed at 1"=40'.
+
+---
+
+## S11 — the survey-info blocks lay out in paper space, not screen space. **DONE 2026-08-04.**
+
+Two defects the owner reported as *"the text gets out of whack depending on the level of zoom"* and
+*"text does weird stuff when the zoom changes and goes way out"*. Both were reproduced in the browser
+before anything was changed, and they turned out to be unrelated causes with one shared theme.
+
+### ▶ 1. Wrapping broke words, not lines
+
+The standard-notes block wrapped by slicing every N characters:
+
+```ts
+for (let s = 0; s < text.length; s += charsPerLine) lines.push(text.slice(s, s + charsPerLine));
+```
+
+which put **"Texas State Plan / e Coordinate System"**, "as note / d on the plat", "shown on this p /
+lat" and "Profess / ional Surveyors" on a plat. Not cosmetic: those notes carry the basis of bearing
+and the monument description, and a hyphenless mid-word break is the kind of thing that gets a plat
+sent back. Now `wrapTextToWidth` in `lib/cad/render/text-layout.ts`, shared with the certification
+block, which had its own second copy of the rule; the shared one adds a hard-break fallback so a
+long licence string or URL stops running past the block's edge.
+
+### ▶ 2. A legibility floor that outlived its box
+
+Every label was sized `Math.max(boxHeight * k, N)` with **N in screen pixels** — `hFontSz`, `lblSz`,
+`valSz`, `sLblSz`, `dateLblSz`, `authFontSz`, `gsLblSz`, `lblBelowSz`, and the north arrow's `N`.
+The intent is right and the scope was wrong: the floor never stopped applying, so as the sheet shrank
+with zoom the boxes kept shrinking and the lettering did not. **At 8% zoom the paper was a thumbnail
+with "SURVEY FIRM", "GRAPHIC SCALE", "Untitled Drawing" and the north arrow's "N" drawn at full size
+on top of one another, spilling well outside the paper.**
+
+The rule that replaces it: **text on the sheet is always proportional to the sheet.** Sizes are now
+what the element's own geometry implies, with no floor, and `sheetTextSize` suppresses text below
+4.5 px instead of flooring it. Lettering that has stopped scaling is telling the reader it is
+somewhere it is not; drawing nothing is the honest answer, and it is cheaper — each `PIXI.Text`
+allocates its own canvas texture, and a thumbnail sheet does not need forty of them.
+
+**Gated at the factory, not the call sites.** All four title-block text helpers funnel through
+`mkTBTextIn`, and the legend/notes/certification blocks through `mkText`, so the gate lives in those
+two functions and a label added later cannot forget it. The one path that builds a `PIXI.Text`
+directly — the north arrow's legacy fallback — gates itself, with a comment saying why.
+
+**The scale bar needed the same fix one level up.** `barH`, `lblAboveH` and `lblBelowH` had pixel
+floors on the *geometry*, so the bar's box stopped shrinking too and overlapped the sheet. Found
+only because the first fix left "GRAPHIC SCALE" still visible on the thumbnail — the second look is
+what caught it.
+
+**Verified in the browser at 8% / 30% / 135%:** clean thumbnail with no lettering outside the sheet
+at 8%, and at 135% the notes read "Texas State **Plane**", "as **noted** on the plat", "on this
+**plat**" — words intact.
