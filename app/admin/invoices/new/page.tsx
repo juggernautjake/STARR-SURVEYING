@@ -421,9 +421,19 @@ export default function NewInvoicePage(): React.ReactElement {
         className="invoice-page__card"
         onSubmit={(e) => { e.preventDefault(); void createInvoice(true); }}
       >
-        <h1 className="invoice-page__title">Create + send invoice</h1>
+        {/* F7b — this heading and lede described only the emailed path, which is the half F5 was
+            built to stop being the only one. The ask was "invoice anyone for anything"; someone
+            reading "Create + send invoice … the customer gets an email" would reasonably conclude
+            this screen cannot help them for a customer whose email they do not have, and go looking
+            for a different one. The buttons offered both outcomes; the page's own description of
+            itself did not. Copy that has drifted from behaviour is the same defect as a comment that
+            has, and it is worse here because the reader acts on it. */}
+        <h1 className="invoice-page__title">Create an invoice</h1>
         <p className="invoice-page__lede">
-          The customer gets an email with a one-click payment link.
+          For anyone, with or without a job attached. <strong>Create + send</strong> emails the
+          customer a one-click payment link; <strong>Create without sending</strong> makes the same
+          invoice and pay link for you to hand over yourself — use it when you have no email address
+          for them. Either way you get a pay link, and nothing is charged until they use it.
         </p>
 
         {/* invoice-composer-job-picker-2026-06-22 — pick an existing

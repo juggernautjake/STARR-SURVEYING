@@ -357,10 +357,16 @@ export default function NewReceiptPage() {
       <header style={styles.header}>
         <div>
           <h1 style={styles.title}>Capture receipt</h1>
+          {/* F7b — this described one receipt at a time, which was the whole story before F4 added
+              the batch picker. The bulk control carried a tooltip, but a tooltip is only found by
+              someone already reaching for it: a person holding a fortnight of fuel receipts would
+              read this and start uploading them one at a time. */}
           <p style={styles.subtitle}>
-            Snap a photo with your device camera, or pick a file or PDF
-            from disk. We&rsquo;ll queue it for AI extraction and you&rsquo;ll
-            see it land in the pending queue.
+            Snap a photo with your device camera, or pick files from disk &mdash;
+            <strong> one, or a whole batch at once</strong>. Photos and PDFs only.
+            Each is queued for AI extraction separately, so a file that fails
+            doesn&rsquo;t stop the rest, and every one that fails says why.
+            They land in the pending queue for approval.
           </p>
         </div>
         <Link href="/admin/receipts" style={styles.cancelLink}>← Back to queue</Link>

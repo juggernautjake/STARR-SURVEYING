@@ -637,3 +637,54 @@ owner's call, not a side effect of a middleware slice, so both were left alone a
 clean. Not browser-verified — middleware compiles into `.next` and the running server predates the
 change; the behaviour is asserted statically against the real `middleware.ts` and
 `route-registry.ts` sources instead.
+
+## ✅ F7b — the screens' account of themselves had drifted from what they do. **DONE 2026-08-04.**
+
+F7's remaining walkthroughs are for the card registry and pass-through screens, and those genuinely
+wait on seeds 572/573 — documenting a screen before it exists is how the tutorial gets written twice.
+But F7's brief is *"what each finance screen is for, what a field means, and what happens next"*, and
+checking that against the two screens which **are** settled found both describing a narrower tool
+than they had become.
+
+| screen | said | actually does |
+|---|---|---|
+| `/admin/invoices/new` | **"Create + send invoice"** · *"The customer gets an email with a one-click payment link."* | Also creates an invoice **without sending**, for a customer with no email — which is the half F5 was built for |
+| `/admin/receipts/new` | *"Snap a photo … pick a file or PDF"* — one at a time | Also takes a **whole batch** at once, each file queued separately |
+
+**This is the same defect as a comment that has drifted from its code, and it is worse.** A stale
+comment misleads the next developer, who can read the code. Stale copy misleads the person using the
+tool, who cannot. Somebody who reads *"Create + send invoice — the customer gets an email"* and has
+no email address for that customer concludes the screen cannot help them and goes looking for another
+one, and there isn't another one. Somebody holding a fortnight of fuel receipts reads *"pick a file"*
+and uploads them one at a time. **In both cases the capability shipped and the screen's description
+of itself stayed where it was.**
+
+The batch control did carry a tooltip. A tooltip is found by someone already reaching for the
+control; it does not reach the person deciding whether this screen is the right one.
+
+**The claim about charging was verified, not assumed** — the new lede says nothing is charged until
+the customer uses the link, and `POST /api/admin/invoices` inserts a `draft` row with a pay link and
+makes no Stripe call. Writing an explanation is exactly the moment to state something confidently
+wrong.
+
+### ▶ The test found its own instrument broken three times
+
+`__tests__/finance/screens-describe-what-they-do.test.ts` pins the agreement, since nothing else does:
+the behaviour has tests and a browser pass, and no check fails when a page describes a capability it
+no longer has. Getting it to *look at the right text* took three corrections, each caught by running
+the negative control and reading **which** assertion failed rather than that one did:
+
+1. `indexOf('invoice-page__title')` found the post-submit success heading (*"Invoice #### ready"*).
+2. `lastIndexOf` found the `.invoice-page__title { … }` rule in the styles block at the foot of the
+   file — so neither version was ever looking at a heading, and both reported green.
+3. Selecting the composer's lede by `/send/i` picked the success lede, whose JSX reads
+   `success.sent`. It failed against copy that was already correct.
+
+**A control that fires for the wrong reason is not a passing control.** The file is two screens
+wearing one set of class names, and matching JSX rather than hunting string offsets is what finally
+made it honest.
+
+86 finance tests, `tsc` and `eslint` clean, `npm run build` compiles.
+
+**Still open in F7:** the card-registry and pass-through walkthroughs, unchanged — blocked on seeds
+572/573, not on effort.
