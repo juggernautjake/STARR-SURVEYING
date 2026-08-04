@@ -1791,3 +1791,31 @@ fifty all say the same thing. Watched failing by removing the cap.
 shipped earlier the same day (56 → 44 orphans, the spatial-index misreading, and this). None was
 caught by a test, a reviewer, or a tool. All three were caught by going back and checking a claim
 after making it — which is the only technique in this session that has a perfect record.
+
+#### ▶ A check that could not be performed, recorded so nobody trusts the same false negative
+
+**Question:** with the S13d/f/g orphan guards live, does any *existing* production flow create
+features on a missing layer? 22,000 tests exercise a great deal of this codebase, so a suite-wide
+sweep of the warnings would have been strong evidence either way.
+
+**Attempted instrument:** run the full suite, grep the output for `[drawing-store]`. It reported
+**zero**.
+
+**The instrument was broken, and checking it is the only reason that is known.** Running *only*
+`orphan-layer-warning.test.ts` — a suite that deliberately triggers the warning a dozen times —
+reports **zero as well**, with `--silent=false` and with no console stubbing in `vitest.setup.ts`.
+The warnings *are* being emitted: the tests asserting `__orphanWarnings()` is populated all pass. The
+reporter simply does not put them where a grep can see them.
+
+**So the zero means nothing and is not claimed.** What is actually known:
+
+- the six paths that could orphan a feature are each covered by their own tests;
+- `__orphanWarnings()` is asserted **empty** for legitimate flows in the "does not cry wolf" cases;
+- a suite-wide aggregate is not available through the exported array, which is per-module-instance
+  and therefore per test file.
+
+**Fourth time today an instrument was measuring something other than what it appeared to.** The
+others: Playwright "could not reach localhost" (a redirect to a dead port), a phone-viewport pass
+reporting `0 px overflow` on a blank page (`.next` clobbered under a live dev server), and an orphan
+detector blind to side-effect imports. The habit that caught all four is the same one — **take the
+instrument, feed it a case whose answer you already know, and see if it agrees.**
