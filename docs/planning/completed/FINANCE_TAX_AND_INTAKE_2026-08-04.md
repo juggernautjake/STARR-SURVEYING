@@ -1015,3 +1015,32 @@ into the production build. `/admin/pass-through` gated `admin`, matching its API
 
 **With F1b and F2b shipped, every F-item in this document is done except the owner-gated ones**
 (F6b's cold-email decision, F8's which-figure-is-revenue, and applying seeds 572/573).
+
+## ✅ Closing state, 2026-08-04 — moved to `completed/`
+
+Every F-item has shipped. What remains is four owner decisions and one owner action, each named with
+what it needs rather than left as "outstanding".
+
+| item | state |
+|---|---|
+| F1, F2, F3, F3b, F4, F5, F6, F7a–F7d, F8, F9, F1b, F2b | **shipped** |
+| **F6b** — should a cold email become a job query? | **owner decision.** Two readings of "come through email"; one is built. Turning free-text email into a lead means parsing a name, a phone and a service out of prose, deciding what is spam, and deciding whether a half-parsed enquiry beats none. Real judgement, not a detail. The silent drop was fixed regardless — it now warns with the sender. |
+| **F8** — which figure is revenue? | **owner decision.** `revenue-periods.ts` sums `job_payments`; `allocation-reports.ts` rolls up invoice allocations. Different tables, so they can disagree about the same month. |
+| **seeds 572/573** | **owner action.** Written, and verified to apply cleanly (F7d): `node scripts/apply-seeds.mjs`. |
+| card role + pass-through in the receipt tax line | **blocked on those seeds, deliberately.** `receiptTaxLine` passes neither, and says so in its own header — `taxSummaryFor` answers what it can rather than assuming company money. Wiring them before the columns exist would mean inventing a card. |
+
+### ▶ One probe corrected while writing this
+
+A grep for `taxSummaryFor` found it only in its own module, the tests and this document — which would
+have made it the eleventh "authored but not wired" of the session, and this doc's F3b claim false.
+
+**It is wired.** The page calls `receiptTaxLine`, the exported wrapper, which calls `taxSummaryFor`
+one line down. The probe searched for the inner function and missed the door it is behind. Checked
+before claiming, which is the only reason this paragraph reads the way it does — the standing rule
+here is that a near-empty result gets widened once before it is believed, and it has now paid twice
+in one session.
+
+**Moved per the rubric.** The phase this document describes has shipped: receipts capture in bulk and
+carry a derived tax line, cards and pass-through costs each have a screen, invoices reach people with
+no email address, and job intake is guarded end to end. What is left needs a person to decide
+something, and no amount of code closes it.
