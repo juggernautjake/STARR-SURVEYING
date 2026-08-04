@@ -4129,3 +4129,40 @@ lines where `lib/` sorted after `worker/`. It is fully wired — **R18 already d
 (`lib/research/document.service.ts` line 5 imports `assessCapture`/`chooseTiles`, line 470 and 820
 call the latter on both tiling paths). Eighth feature this program has called missing and found
 present; recorded because the near-miss was a truncated instrument, not a misreading of the code.
+
+### ◑ R4b — the reason the other twelve were waiting had expired (2026-08-04)
+
+Going back for the next batch found the deferral itself was stale. Every entry on the unmigrated list
+carried the same note: *migrate alongside R6's cheap-first rewrite so the file is not touched twice.*
+
+**R6 shipped 2026-08-02** — two days *before* that note was written. And it had already passed through
+two of the listed files, `address-normalizer.ts` and `bis-cad.ts`: both now call `modelFor`, R6's
+routing helper, and **neither records usage**. So the pairing plan had already failed on the two files
+R6 actually reached, while the other ten waited for something that had happened. Twelfth stale item in
+this program, and the first one where the stale thing was a *reason* rather than a task.
+
+**The real blocker, measured rather than assumed: none of the twelve has `projectId` in scope.**
+Seventeen call sites across nine files, each needing it threaded from a caller and sometimes several
+hops up. That is real work, not a drive-by, and saying so is the difference between a backlog and an
+excuse — the ratchet's own header warns that an inventory nobody prunes becomes a permanent excuse,
+and a wrong reason gets there faster than a wrong count.
+
+**A run-scoped global was considered and rejected.** It would collapse the threading to one line, but
+`currentRunningRuns()` returns a *list* and the job queue runs `concurrency: 3`, so a module-level
+"current run" would file one run's spend against another. That is a silent misattribution, which is
+precisely the failure this ratchet exists to prevent — it would look like the problem was solved while
+making the numbers wrong in a new way. `AsyncLocalStorage` is correct under concurrency and is the
+likely shape of the fix.
+
+**And one entry does not belong on this list at all.** `receipt-extraction.ts` runs from a CLI batch
+over queued *receipts*; it contains no reference to a project or a research run, because it is not
+part of one. Its cost is real, but it is not *run* spend — migrating it as written would file finance
+work against a research ceiling and make `spendForRun` wrong in the opposite direction. It needs its
+own key or an explicit exemption, and that is now what its entry says.
+
+**The ratchet was tightened from 14 to 12**, matching the two migrations earlier today. Left at 14 it
+would have admitted two new unrecorded call sites and still passed: a ratchet that only follows the
+work upward is a ceiling, and this file exists because an unwatched ceiling drifts. The negative
+control — a thirteenth entry — fails both the cap and the file-must-exist check.
+
+Worker suite 90 files / 1,497 tests green; `tsc` and `eslint` clean.

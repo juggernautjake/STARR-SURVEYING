@@ -35,18 +35,34 @@ const REPORTS_SPEND = /infra\/usage|ai-cost-helpers|recordUsage|recordAiCall|rec
  *  someone can watch go down; remove an entry when it is migrated — the stale-entry test below
  *  requires it. */
 const UNMIGRATED: Record<string, string> = {
-  'src/counties/bell/analyzers/site-intelligence.ts': 'Bell site intelligence — R6 rewrites this call site for cheap-first routing; migrating both at once avoids touching the file twice.',
-  'src/counties/bell/reports/survey-plan-generator.ts': 'Generates the survey plan; same R6 pass.',
-  'src/counties/bell/scrapers/map-screenshot-capture.ts': 'Vision call on a map screenshot; same R6 pass.',
-  'src/services/adaptive-vision.ts': 'Vision fallback ladder; same R6 pass.',
-  'src/services/address-normalizer.ts': 'Cheap classification — the clearest cheap-first candidate, so R6 owns it.',
-  'src/services/ai-context-analyzer.ts': 'Context synthesis; same R6 pass.',
-  'src/services/ai-extraction.ts': 'Generic field extraction; same R6 pass.',
-  'src/services/bis-cad.ts': 'BIS/CAD interpretation; same R6 pass.',
-  'src/services/geo-reconcile.ts': 'Geometry reconciliation; same R6 pass.',
-  'src/services/property-validation-pipeline.ts': 'Validation pass; same R6 pass.',
-  'src/services/receipt-extraction.ts': 'Receipt OCR post-processing; same R6 pass.',
-  'src/services/subdivision-lot-isolator.ts': 'Lot isolation; same R6 pass.',
+  // ── The blocker is projectId, not R6 ─────────────────────────────────────────────────────────
+  // Every reason below used to read "same R6 pass" — migrate alongside the cheap-first rewrite so
+  // the file is not touched twice. **R6 shipped 2026-08-02**, two days BEFORE that note was written,
+  // and it had already passed through `address-normalizer` and `bis-cad` (both call `modelFor`)
+  // without adding usage recording. So the pairing plan had already failed on the two files R6
+  // actually reached, and the other ten were waiting for something that had happened.
+  //
+  // The real blocker, measured 2026-08-04: **none of these has `projectId` in scope.** 17 call sites
+  // across 9 files each need it threaded from a caller, sometimes several hops up. That is genuine
+  // work rather than a drive-by — and it is the honest reason. A stale one turns this map into
+  // exactly the permanent excuse the header above warns about.
+  //
+  // A run-scoped global was considered and rejected: `currentRunningRuns()` returns a LIST and the
+  // job queue runs `concurrency: 3`, so a module-level "current run" would file one run's spend
+  // against another — a silent misattribution, which is the failure this whole file exists to stop.
+  // `AsyncLocalStorage` is correct under concurrency and is the likely shape of the fix.
+  'src/counties/bell/analyzers/site-intelligence.ts': 'Bell site intelligence. Needs projectId threaded from the Bell pipeline.',
+  'src/counties/bell/reports/survey-plan-generator.ts': 'Survey plan generation. Needs projectId threaded.',
+  'src/counties/bell/scrapers/map-screenshot-capture.ts': 'Vision call on a map screenshot. Needs projectId threaded.',
+  'src/services/adaptive-vision.ts': 'Vision fallback ladder. Needs projectId threaded through the ladder.',
+  'src/services/address-normalizer.ts': 'Cheap classification. R6 already routed it (modelFor) and did not add usage — proof the pairing plan did not hold.',
+  'src/services/ai-context-analyzer.ts': 'Context synthesis. Called from ai-document-analyzer, which must pass projectId down.',
+  'src/services/ai-extraction.ts': 'Generic field extraction — FIVE call sites, the largest single job on this list.',
+  'src/services/bis-cad.ts': 'BIS/CAD interpretation. R6 already routed it (modelFor) without adding usage.',
+  'src/services/geo-reconcile.ts': 'Geometry reconciliation — three call sites.',
+  'src/services/property-validation-pipeline.ts': 'Validation pass. Needs projectId threaded.',
+  'src/services/receipt-extraction.ts': 'NOT a research-run call at all: it runs from a CLI batch over queued RECEIPTS and has no project to attribute to. Its cost is real but it is not run spend, so migrating it as-is would file finance work against a research ceiling. Needs its own key, or an explicit exemption.',
+  'src/services/subdivision-lot-isolator.ts': 'Lot isolation — two call sites.',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -110,8 +126,12 @@ describe('spend the budget cannot see', () => {
   });
 
   it('does not let the backlog grow past where it stands today', () => {
-    // The ratchet. R4's own note claimed 21; the measured figure is 14. It may go down and must not
-    // go up — a new unrecorded call site is new money the ceiling cannot see.
-    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(14);
+    // The ratchet. R4's own note claimed 21; the measured figure was 14, and the deed and plat
+    // analyzers came off on 2026-08-04, so it is 12.
+    //
+    // **Tightened when the count drops, not just when it rises.** Left at 14 it would have allowed
+    // two new unrecorded call sites to appear and still pass — a ratchet that does not follow the
+    // work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
+    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(12);
   });
 });
