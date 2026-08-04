@@ -1115,3 +1115,37 @@ failing.
 
 **Verified in the browser:** fresh load shows `Layer: Survey Info` instead of `Layer: —`, and a line
 and a point both draw.
+
+#### ▶ S13 correction, same day — the first fix was wrong, and the owner caught it
+
+The fix above seeded `activeLayerId` to `layerOrder[0]`, mirroring `newDocument()`. **`layerOrder[0]`
+is `SURVEY-INFO`** — the layer carrying the title block, seal, graphic scale, north arrow, notes and
+certification, which exists precisely so that furniture can be toggled as one unit. Seeding it would
+have quietly made the reserved layer the default target for every line a surveyor draws.
+
+Two corrections from the owner, both now implemented:
+
+1. *"We should not be able to add points and lines and stuff to the survey info layer. That layer is
+   just reserved for placing different information blocks."*
+2. *"We should have to create a 1st layer to start drawing."*
+
+So the rule is **not** "always have an active layer". It is **never create geometry the surveyor
+cannot see, and never choose the layer for them.** A new drawing starts with no active layer on
+purpose; the draw handler refuses and names the next action:
+
+> `No drawing layer is active. Pick one in the Layers panel — or use "New Layer" — then draw. Nothing was added.`
+>
+> `"Survey Info" is reserved for the title block and information panels — you can't draw on it. Pick or create a drawing layer in the Layers panel. Nothing was added.`
+
+`isReservedDrawLayer` / `RESERVED_DRAW_LAYER_IDS` live in `default-layers.ts` and are deliberately
+**not** derived from `isProtected`: that flag means "cannot be DELETED", this means "cannot be DRAWN
+ON", and conflating them would silently change either set the moment the other moved.
+
+A test asserts the trap directly — `isReservedDrawLayer(getDefaultLayerOrder()[0])` is **true** — so
+the next person who reaches for "just default to the first layer" is told why not.
+
+**Both refusals verified in the browser**, message text included.
+
+**The generalisable lesson:** the original bug was silence, and the first fix cured the silence by
+guessing. Guessing is the same failure wearing better clothes — geometry landing on a layer nobody
+chose is no more honest than geometry landing nowhere.

@@ -255,19 +255,24 @@ const defaultDoc = createDefaultDocument();
 
 export const useDrawingStore = create<DrawingStore>((set, get) => ({
   document: defaultDoc,
-  // CAD_AUDIT Slice S13 — seed the active layer here too.
+  // CAD_AUDIT Slice S13 — deliberately EMPTY, and the draw path refuses rather than orphaning.
   //
-  // `newDocument()` below already does this, with a comment explaining that leaving it empty
-  // orphans the first geometry the surveyor places on `layerId: ''`. That fix (cad-domain-audit
-  // Slice D) was applied to `newDocument` and `loadDocument` and NOT to this initial state — which
-  // is the path that runs when you simply open `/admin/cad`. So the exact bug it describes was
-  // still live on the most common entry point in the program: open the editor, draw a line, and
-  // the feature is created, is selectable via Select All, and is never rendered, because
-  // `getVisibleFeatures` drops any feature whose layer is missing (`if (!layer) return false`).
+  // The bug this slice fixed was that drawing with no active layer stamped `layerId: ''`, which
+  // `getVisibleFeatures` drops (`if (!layer) return false`). Confirmed in a browser: three lines
+  // drawn on a fresh document, canvas empty, and Select All reporting "3 SELECTED — Editing 3 lines
+  // together." The features existed, were selectable, and were never rendered.
   //
-  // Confirmed in a browser before fixing: three lines drawn this way, canvas empty, and Select All
-  // reporting "3 SELECTED — Editing 3 lines together."
-  activeLayerId: defaultDoc.layerOrder[0] ?? '',
+  // The first fix seeded `layerOrder[0]`, mirroring `newDocument()`. **That was wrong**, and the
+  // owner caught it: `layerOrder[0]` is `SURVEY-INFO`, which is reserved for the title block, seal,
+  // scale bar, north arrow, notes and certification — a layer whose whole purpose is to be toggled
+  // as a unit, and not where survey geometry belongs. Auto-seeding it would have quietly made the
+  // reserved layer the default drawing target.
+  //
+  // So a new drawing starts with NO active layer on purpose: the surveyor picks or creates the layer
+  // their geometry belongs on, which is how they know where it went. What must never happen again is
+  // the *silent* part — the draw handler now refuses with a message naming the next action, and no
+  // feature is created. See `isReservedDrawLayer`.
+  activeLayerId: '',
   isDirty: false,
 
   // cad-desktop-tauri-and-perf Slice P3 — shared mutable Set the

@@ -75,6 +75,27 @@ export function getDefaultLayersRecord(): Record<string, Layer> {
 }
 
 /** Get default layer order (array of IDs). */
+/**
+ * CAD_AUDIT Slice S13 — layers reserved for the sheet's information furniture, which the surveyor
+ * may not draw geometry onto.
+ *
+ * `SURVEY-INFO` carries the title block, seal/signature block, graphic scale, north arrow, survey
+ * notes and certification. Those are paper-fixed overlays, not features — the layer exists so its
+ * eye can hide them all at once. Dropping a boundary line onto it therefore mixes drawn geometry
+ * into the one layer whose whole purpose is to be toggled as a unit, and it is not where any survey
+ * geometry belongs.
+ *
+ * Kept here rather than as an `isProtected` check because the two mean different things:
+ * `isProtected` stops the layer being DELETED, and this stops it being DRAWN ON. Reusing the delete
+ * flag for both would silently protect or expose the wrong set the moment either list changes.
+ */
+export const RESERVED_DRAW_LAYER_IDS: readonly string[] = ['SURVEY-INFO'];
+
+/** True when `layerId` is reserved for sheet information and may not receive drawn geometry. */
+export function isReservedDrawLayer(layerId: string | null | undefined): boolean {
+  return !!layerId && RESERVED_DRAW_LAYER_IDS.includes(layerId);
+}
+
 export function getDefaultLayerOrder(): string[] {
   return PHASE3_DEFAULT_LAYERS.map((l) => l.id);
 }

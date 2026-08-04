@@ -58,6 +58,7 @@ import {
 import { measureRender } from '@/lib/cad/perf/render-markers';
 import { wrapTextToWidth, sheetTextSize } from '@/lib/cad/render/text-layout';
 import { emergencySave } from '@/lib/cad/persistence/emergency-save';
+import { isReservedDrawLayer } from '@/lib/cad/styles/default-layers';
 import { featureBounds, computeBounds, computeFeaturesBounds } from '@/lib/cad/geometry/bounds';
 import { boundsContains, boundsOverlap, segmentSegmentIntersection } from '@/lib/cad/geometry/intersection';
 import { pointToSegmentDistance, pointInPolygon, closestPointOnSegment } from '@/lib/cad/geometry/point';
@@ -10027,25 +10028,34 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (activeTool.startsWith('DRAW_')) {
         const dStore = useDrawingStore.getState();
         const activeLayer = dStore.document.layers[dStore.activeLayerId];
-        // S13 — no valid active layer at all. Both guards below are written `if (activeLayer && …)`,
-        // so an EMPTY or dangling `activeLayerId` slipped past both and the geometry was created on
-        // `layerId: ''` — where `getVisibleFeatures` silently drops it. The store now seeds a real
-        // active layer, which is the actual fix; this is the second line of defence for a document
-        // whose layers were all deleted, because "the drawing tool did nothing and said nothing" is
-        // the single worst failure this editor can present.
+        // S13 — no valid active layer at all. The two guards below are written `if (activeLayer && …)`,
+        // so an EMPTY or dangling `activeLayerId` slipped past both, and the geometry was created on
+        // `layerId: ''` where `getVisibleFeatures` silently drops it: the line was measured, stored
+        // and selectable, and never drawn. "The tool did nothing and said nothing" is the worst
+        // failure this editor can present, because the surveyor's only evidence is an empty canvas.
+        //
+        // It refuses rather than picking a layer for them. Auto-adopting `layerOrder[0]` was the
+        // first attempt and it was wrong — that is `SURVEY-INFO`, reserved for the sheet furniture —
+        // and more generally, geometry silently landing on a layer nobody chose is the same class of
+        // problem as geometry landing nowhere.
         if (!activeLayer) {
-          const first = dStore.document.layerOrder[0];
-          if (first) {
-            dStore.setActiveLayer(first);
-            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: `No layer was active — drawing on "${dStore.document.layers[first]?.name ?? first}". Pick a different layer in the Layers panel if that is not where this belongs.` },
-            }));
-          } else {
-            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
-              detail: { text: 'This drawing has no layers, so there is nowhere to put new geometry. Create one with "New Layer" in the Layers panel first.' },
-            }));
-            return;
-          }
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: {
+              text: dStore.document.layerOrder.some((id) => !isReservedDrawLayer(id))
+                ? 'No drawing layer is active. Pick one in the Layers panel — or use "New Layer" — then draw. Nothing was added.'
+                : 'This drawing has no layer to draw on. Create one with "New Layer" in the Layers panel first. Nothing was added.',
+            },
+          }));
+          return;
+        }
+        // Reserved: SURVEY-INFO carries the title block, seal, scale bar, north arrow, notes and
+        // certification. Those are paper-fixed overlays toggled as a unit; survey geometry does not
+        // belong among them.
+        if (isReservedDrawLayer(activeLayer.id)) {
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: `"${activeLayer.name}" is reserved for the title block and information panels — you can't draw on it. Pick or create a drawing layer in the Layers panel. Nothing was added.` },
+          }));
+          return;
         }
         if (activeLayer && activeLayer.visible === false) {
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
