@@ -28,10 +28,32 @@ export default function RegisterAdminPWA() {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
 
     let cancelled = false;
+    // Set by enable() so the visibility listener is removed with the component.
+    let cleanup: (() => void) | null = null;
 
     async function enable() {
       try {
-        await navigator.serviceWorker.register(SW_URL, { scope: SCOPE });
+        const reg = await navigator.serviceWorker.register(SW_URL, { scope: SCOPE });
+
+        // ── "as soon as the deployment happens" (owner, 2026-08-04) ─────────────────────────────
+        //
+        // Registering does not check for a new worker on its own. The browser looks for an updated
+        // script on navigation and at most once a day — and an installed home-screen app rarely
+        // *navigates* at all: it is opened, backgrounded, and reopened for weeks. So a deploy could
+        // sit unseen on a phone that is used daily.
+        //
+        // `update()` on mount, and again whenever the app comes back to the foreground, is what
+        // turns "eventually" into "on the next time you open it". Paired with the worker's
+        // skipWaiting/clients.claim, the new version is live in the same visit.
+        void reg.update().catch(() => { /* offline; the next foreground will retry */ });
+
+        const onForeground = () => {
+          if (document.visibilityState === 'visible') {
+            void reg.update().catch(() => { /* offline */ });
+          }
+        };
+        document.addEventListener('visibilitychange', onForeground);
+        cleanup = () => document.removeEventListener('visibilitychange', onForeground);
       } catch {
         // A failed registration is not worth an error in front of somebody filing a receipt. The app
         // works without it — that is the whole point of a progressive enhancement.
@@ -55,7 +77,7 @@ export default function RegisterAdminPWA() {
 
     if (cancelled) return;
     void (enabled ? enable() : disable());
-    return () => { cancelled = true; };
+    return () => { cancelled = true; cleanup?.(); };
   }, [enabled]);
 
   return null;

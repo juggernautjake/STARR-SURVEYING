@@ -68,6 +68,43 @@ const nextConfig = {
     };
     return config;
   },
+
+  // ── A deployed change must reach an installed app immediately (2026-08-04) ────────────────────
+  //
+  // Owner: *"if we push to main and merge to trigger a redeploy, those changes should show up on the
+  // browser version and the app version as soon as the deployment happens."*
+  //
+  // Everything else in that chain was already right — navigations are network-only, hashed assets
+  // change URL, the worker calls skipWaiting/clients.claim, and `RegisterAdminPWA` now calls
+  // `update()` whenever the app comes to the foreground.
+  //
+  // **This is the link that would have undone all of it.** A service-worker script served from
+  // `public/` inherits a long `Cache-Control`, and the browser's update check fetches the script
+  // through the HTTP cache. So the check would run, hit a cached copy of the OLD worker, conclude
+  // nothing had changed, and the new build would sit unseen behind a worker that is byte-identical
+  // as far as the cache is concerned.
+  //
+  // `no-cache` means revalidate, not "never store" — the browser still keeps it and sends an
+  // If-None-Match, so the usual answer is a 304 costing a few hundred bytes.
+  async headers() {
+    return [
+      {
+        source: '/admin/sw.js',
+        headers: [{ key: 'Cache-Control', value: 'no-cache, must-revalidate' }],
+      },
+      {
+        // Same reasoning for the other two scoped workers — they are separate apps with the same
+        // update path, and a fix that reaches only one of three is the kind of half-measure that
+        // gets remembered as "the update thing does not work".
+        source: '/dnd/sw.js',
+        headers: [{ key: 'Cache-Control', value: 'no-cache, must-revalidate' }],
+      },
+      {
+        source: '/AndrewAsh/sw.js',
+        headers: [{ key: 'Cache-Control', value: 'no-cache, must-revalidate' }],
+      },
+    ];
+  },
 }
 
 module.exports = nextConfig

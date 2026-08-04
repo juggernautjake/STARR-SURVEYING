@@ -136,15 +136,40 @@ describe('an installed app updates itself — no reinstall, ever', () => {
     expect(sw).toContain('fetch(request).catch(() => caches.match(OFFLINE_URL))');
   });
 
-  it('cached images and fonts refresh in the background', () => {
-    // The gap this closes. `/_next/static/` is content-hashed so a deploy changes the URL, but
-    // `/logo.png` does not — and `VERSION` is a hardcoded `v1` that no deploy bumps, so cache-first
-    // would serve a replaced image forever on every installed device.
+  it('non-hashed assets are fetched fresh, with cache only as the offline fallback', () => {
+    // `/logo.png` keeps its path across deploys, and `VERSION` is a hardcoded `v1` no deploy
+    // bumps — so the activate handler that clears old caches has never cleared anything, and
+    // anything cache-first would serve the old bytes forever on every installed device.
     //
-    // Stale-while-revalidate: the cached copy is served immediately, the network copy replaces it
-    // for next time. One stale render, then correct, with no action from the user.
-    expect(sw).toContain('const network = fetch(request)');
-    expect(sw).toContain('hit || network');
+    // Network-first with a cache fallback, because the owner's requirement is "as soon as the
+    // deployment happens" rather than "eventually". Offline still works: the fallback is the cache.
+    expect(sw).toContain('fetch(request).then(keep).catch(() => caches.match(request))');
+  });
+
+  it('content-hashed build output stays cache-first, because it CANNOT go stale', () => {
+    // The other half of the split, and the reason network-first is not applied to everything: a
+    // hashed URL changes when its content does, so a stale copy is unreachable by name. Cache-first
+    // there is both the fastest and the only strategy that cannot serve the wrong bytes.
+    expect(sw).toContain("const immutable = url.pathname.startsWith('/_next/static/')");
+    expect(sw).toContain('caches.match(request).then((hit) => hit || fetch(request).then(keep))');
+  });
+
+  it('the app checks for a new version whenever it comes to the foreground', () => {
+    // Registering does not check on its own; the browser looks on navigation and at most once a
+    // day. An installed home-screen app rarely navigates — it is opened, backgrounded and reopened
+    // — so without this a deploy can sit unseen on a phone that is used daily.
+    expect(reg).toContain('reg.update()');
+    expect(reg).toContain("document.addEventListener('visibilitychange'");
+    expect(reg, 'the listener must come off with the component').toContain('removeEventListener');
+  });
+
+  it('the worker script is served revalidating, or none of the above happens', () => {
+    // The link that would undo everything else: a worker served from public/ inherits a long
+    // Cache-Control, and the browser's update check fetches the script THROUGH the HTTP cache. The
+    // check would run, hit a cached copy of the old worker, and conclude nothing had changed.
+    const config = readSource('next.config.js');
+    expect(config).toContain("source: '/admin/sw.js'");
+    expect(config).toContain("value: 'no-cache, must-revalidate'");
   });
 
   it('the offline page itself cannot go stale', () => {

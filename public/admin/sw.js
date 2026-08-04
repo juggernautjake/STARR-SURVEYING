@@ -75,34 +75,41 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (isCacheableAsset(url)) {
-    // ── STALE-WHILE-REVALIDATE, not cache-first (2026-08-04) ──────────────────────────────────
+    // ── HASHED FILES ARE CACHED; EVERYTHING ELSE IS FETCHED FRESH (2026-08-04) ────────────────
     //
-    // Owner's question: *"will I have to manually update the app if we make changes?"* No — but
-    // cache-first made one part of that answer untrue.
+    // Owner: *"if we push to main and merge to trigger a redeploy, those changes should show up on
+    // the browser version and the app version as soon as the deployment happens."*
     //
-    // `/_next/static/` is content-hashed, so a deploy changes the URL and a stale copy can never be
-    // served. **Images and fonts are not.** Replace `/logo.png` and every installed device keeps
-    // serving the old one from cache **forever**, because `VERSION` is a hardcoded `v1` that no
-    // deploy bumps — the activate handler only clears caches from a *different* version, and there
-    // has never been one.
+    // That splits cleanly in two, and the split is the whole design:
     //
-    // So: serve the cached copy immediately (the speed the cache is for), and refresh it in the
-    // background. The user sees the old image once and the new one from then on, with no action and
-    // no reinstall. A background failure is ignored on purpose — offline is the case this exists
-    // for, and a fetch that cannot complete must not evict a copy that works.
+    //   * **`/_next/static/`** is content-hashed — a deploy changes the URL. Cache-first is not just
+    //     safe, it is the *only* strategy that cannot serve a stale copy, because a stale copy is
+    //     unreachable by name. Fast and always current, both.
+    //
+    //   * **Images and fonts keep their paths.** `/logo.png` is `/logo.png` before and after a
+    //     deploy, so anything cache-first serves the old bytes — and `VERSION` is a hardcoded `v1`
+    //     no deploy bumps, so the activate handler that clears old caches has never cleared
+    //     anything. These go to the network first and fall back to cache only when the network
+    //     fails, which is exactly the offline case the cache exists for.
+    //
+    // The cost is one request per image on a warm load. That is the honest price of "as soon as the
+    // deployment happens", and it is paid on the assets least likely to be large.
+    const immutable = url.pathname.startsWith('/_next/static/');
+
+    const keep = (res) => {
+      // Only a real 200 is worth keeping. Caching an opaque or error response serves that error back
+      // forever, which looks exactly like a broken deploy and is diagnosed as one.
+      if (res.ok && res.type === 'basic') {
+        const copy = res.clone();
+        caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+      }
+      return res;
+    };
+
     event.respondWith(
-      caches.match(request).then((hit) => {
-        const network = fetch(request).then((res) => {
-          // Only a real 200 is worth keeping. Caching an opaque or error response serves that error
-          // back forever, which looks exactly like a broken deploy and is diagnosed as one.
-          if (res.ok && res.type === 'basic') {
-            const copy = res.clone();
-            caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
-          }
-          return res;
-        });
-        return hit || network;
-      }),
+      immutable
+        ? caches.match(request).then((hit) => hit || fetch(request).then(keep))
+        : fetch(request).then(keep).catch(() => caches.match(request)),
     );
     return;
   }

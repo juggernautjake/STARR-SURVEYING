@@ -50,6 +50,58 @@ export function edoctecBaseUrl(county: string): string | null {
   return slug ? `${EDOCTEC_HOST}/${slug}` : null;
 }
 
+/**
+ * How far back this index actually goes, per county — and where the rest of it lives.
+ *
+ * ── FOUND 2026-08-04 (R39c), ON THE COUNTY'S OWN PAGE ───────────────────────────────────────────
+ *
+ * Lampasas County publishes **two** records portals, split by date:
+ *
+ *   * **June 2023 → present** — eDocTec, the one this adapter drives;
+ *   * **1932 → 2023** — Kofile, at `kofilequicklinks.com/Lampasas-TX_CC/` (deeds from 1932, deeds of
+ *     trust from 1881, federal tax liens from 1946).
+ *
+ * **A chain of title searched only here misses ninety-one years and says nothing.** For a surveying
+ * firm that is not a gap in coverage, it is a wrong answer: the senior deed that fixes a boundary is
+ * far more likely to be from 1954 than from last year, and an empty result set reads as "no such
+ * conveyance" rather than "wrong century".
+ *
+ * ── WHY THIS IS A CONSTANT AND NOT A SECOND ADAPTER ─────────────────────────────────────────────
+ *
+ * `getClerkSystem` returns ONE vendor per county. Modelling a date-split index means routing to two
+ * of them and merging, which changes the shape of every caller — a real slice, not a drive-by, and
+ * one whose design question ("what does a chain walk do when half its range lives elsewhere?") is
+ * worth answering deliberately.
+ *
+ * Recorded here meanwhile so it cannot be rediscovered from scratch, and so the thing this platform
+ * refuses to do — report a partial answer as a complete one — has the fact it needs to refuse with.
+ */
+export interface CoverageWindow {
+  /** ISO date the online index begins. Records before it are NOT in this system. */
+  onlineFrom: string;
+  /** Where the earlier records actually are, in words a researcher can act on. */
+  earlierRecordsAt: string;
+}
+
+export const EDOCTEC_COVERAGE: Record<string, CoverageWindow> = {
+  Lampasas: {
+    onlineFrom: '2023-06-01',
+    earlierRecordsAt:
+      'Kofile QuickLinks — https://kofilequicklinks.com/Lampasas-TX_CC/ — index books for deeds ' +
+      '1932-2023, deeds of trust 1881-2017, federal tax liens 1946-2023.',
+  },
+  // Coryell is deliberately absent: its window has NOT been established. An empty entry would be a
+  // claim that the index is complete, which is the failure this whole constant exists to prevent.
+};
+
+/** The coverage window for a county, or null when nobody has established one.
+ *
+ *  Null means UNKNOWN, never "complete" — a caller that treats a missing window as full coverage
+ *  re-makes the bug this was written for. */
+export function edoctecCoverage(county: string): CoverageWindow | null {
+  return EDOCTEC_COVERAGE[county.replace(/\s+county$/i, '').trim()] ?? null;
+}
+
 /** Form field names, read off the live pages on 2026-08-02. */
 export const EDOCTEC_FIELDS = {
   party: { firstName: 'FirstName', lastName: 'LastName', partyType: 'PartyTypeID' },
