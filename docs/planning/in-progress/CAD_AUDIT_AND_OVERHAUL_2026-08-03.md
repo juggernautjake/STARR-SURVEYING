@@ -1149,3 +1149,32 @@ the next person who reaches for "just default to the first layer" is told why no
 **The generalisable lesson:** the original bug was silence, and the first fix cured the silence by
 guessing. Guessing is the same failure wearing better clothes — geometry landing on a layer nobody
 chose is no more honest than geometry landing nowhere.
+
+---
+
+## S16–S17 — added 2026-08-04
+
+- **S16. Texas State Plane and robotic-instrument jobs, end to end.**
+  *Ask:* "make sure our software totally works with texas state plane and robotic jobs."
+
+  Two claims to verify rather than assume, because both already have partial support and this
+  program's record on "it does not exist" is poor. **State plane:** the survey-notes template already
+  states *"Basis of bearing is the Texas State Plane Coordinate System, Central Zone (NAD 83)"*, and
+  the drawing carries an origin offset (`originNorthing`/`originEasting`) that S7a showed is applied
+  on display — so the question is whether zone selection, grid-vs-ground scale factor, and
+  convergence are actually handled, or whether the note is the only part that is true. **Robotic:**
+  the importers already cover RW5, JobXML, GSI, LandXML and Traverse PC `.TRV`; what is unverified is
+  a full round trip from a robotic total station's raw file to a drawing with the right coordinates.
+  A golden file per instrument is the honest instrument here — the same shape as the golden plat the
+  research program is waiting on.
+
+- **S17. Imported and loaded geometry is framed on the sheet, every time.**
+  *Ask:* "The rendered points should always be centered on the white page and have the extents
+  zoomed by default."
+
+  S8d did this for the research import specifically: `cad:fitDrawingToPage` moves the **paper** over
+  the data (never the geometry, so coordinates stay true) and then zooms, but only when the drawing
+  was empty. S17 generalises the rule to every path that brings geometry in — point files, CSV/RW5/
+  JobXML, DXF, GeoJSON, `.TRV`, the point library — so a surveyor never lands on a blank grey screen
+  with their data off-sheet. The empty-drawing condition stays: re-fitting the sheet under work in
+  progress silently changes the plot scale, which is the surveyor's decision.
