@@ -135,7 +135,7 @@ Each is sized to be shipped and verified independently, in the order that makes 
 
   | menu | items |
   |---|---|
-  | **File** | New Drawing `Ctrl+N` · Open… `Ctrl+O` · Open Saved Drawing… · File Manager… · Drawing notes… · Branches & Reviews… · Point File Library… · Recover unsaved drawings… · Save `Ctrl+S` · Save to Cloud… · Save a copy (local .starr)… · Export ▸ · Import ▸ · Review & Delivery ▸ |
+  | **File** | New Drawing `Ctrl+N` · Open from this computer… `Ctrl+O` · Open from Cloud… · File Manager… · Drawing notes… · Branches & Reviews… · Point File Library… · Recover unsaved drawings… · Save `Ctrl+S` · Save to Cloud… · Save a copy (local .starr)… · Export ▸ · Import ▸ · Review & Delivery ▸ |
   | **Edit** | Undo `Ctrl+Z` · Redo `Ctrl+Y` · Delete Selection `Del` · Select All `Ctrl+A` · Deselect All `Esc` · Send to Layer… `Ctrl+Shift+L` · Intersect Lines… `I X` · Reverse Direction · Explode (Polyline → Lines) · Smooth → Spline · Simplify polyline (0.5 ft tolerance) |
   | **View** | Zoom Extents `Z E` · Fit Drawing to Page · Move Page · Show Grid `F7` · Disable Snap `F3` · Hide Layer Panel · Hide Properties · Data tables & viewers ▸ · Project Images… `IM` · Hide Title Block |
   | **Survey** | Adjust Orientation… `OA` · Rotate Drawing View… `RV` · Title Block & North Arrow… · Code-to-Style Mapping… · Connect Points into Linework · Curve Calculator… `CC` · Calculator… `C` · Arc `A` · Spline (Fit-Point) `SF` · Spline (NURBS) `SN` · Curb Return / Fillet `CR` · Offset `OF` · Inverse (Bearing & Distance) `INV` · Forward Point `FP` |
@@ -2205,3 +2205,49 @@ path that places points in the *wrong* spot would be worse than the no-op it rep
 would look finished.
 
 CAD suite 3,459 green; `tsc` and `eslint` clean.
+
+### ✅ S5a DONE 2026-08-04 — the File menu now says where each Open goes
+
+S5 (condense the menus) is still blocked on splitting the 15.4k-line `CanvasViewport.tsx`. But S1a's
+three observations were recorded "not acted on", and **only one of them needed that split**. Checking
+the other two first found one already fixed and one worth a five-line change.
+
+**Observation 1 was stale.** S1a said *"`Draw` mixes creation with modification. One flat list, no
+separator, so 'Erase' sits in the menu you open to make things."* There is a `{ separator: true }`
+between Regular Polygon and Move, and there is today. Either it landed after the catalogue was taken
+or the catalogue was wrong when written — **thirteenth feature this program has called missing and
+found present**, and the third caught by reading the code before changing it.
+
+**Observation 2 was real and is fixed.** `Open…` runs a file picker on this machine; `Open Saved
+Drawing…` lists drawings saved to the cloud. Two genuinely different destinations, and neither label
+said which. A surveyor who picks wrong gets a dialog that looks *broken* rather than one that looks
+like the other option — the failure presents as the software being confusing, which is the kind of
+defect nobody files.
+
+The fix was not to invent a convention. **The Save half of the same menu already had one** — "Save to
+Cloud…" beside "Save a copy (local .starr)…" — so this applies it to the other half:
+
+| was | now |
+|---|---|
+| `Open…` `Ctrl+O` | **`Open from this computer…`** `Ctrl+O` |
+| `Open Saved Drawing…` | **`Open from Cloud…`** |
+
+Plain **`Save`** is deliberately left alone: it writes back to wherever the drawing already lives,
+which is the one entry where naming a destination would be a lie.
+
+**The Tauri native menu was deliberately not renamed.** Its File menu carries a single `Open…` and no
+cloud entry, so nothing there is ambiguous — and editing Rust means a desktop rebuild this session
+cannot verify. Changing a label whose result I could not see is how the last two "small" fixes in this
+document became defects.
+
+5 tests. The guard asserts the *symmetry*, not just the strings: both Opens must name a source, both
+Saves must keep naming theirs, plain `Save` must stay bare, and `Open` must still route through the
+unsaved-changes guard — because renaming a label is exactly the edit that drops the wrapper around its
+action. The negative control restores `Open…` and fails by name. S1a's catalogue table was updated in
+the same commit, so the audit's own record of the menu does not immediately go stale.
+
+**Observation 3 is left alone**: the AI menu spends five entries on one setting (four modes plus
+Cycle). That is a real condensation, but it changes a control rather than a label, and it belongs with
+S5 proper.
+
+CAD suite 3,464 green; `tsc` and `eslint` clean.

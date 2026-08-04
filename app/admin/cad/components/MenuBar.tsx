@@ -1336,8 +1336,17 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       label: 'File',
       items: [
         { label: 'New Drawing', shortcut: 'Ctrl+N', action: () => { window.dispatchEvent(new CustomEvent('cad:openNewDrawingDialog')); setOpenMenu(null); } },
-        { label: 'Open…', shortcut: 'Ctrl+O', action: () => requestDiscard(openFileDialog) },
-        { label: 'Open Saved Drawing…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
+        // CAD_AUDIT S5a — these two open completely different things and their labels did not say so.
+        // `Open…` is a file picker on this machine; `Open Saved Drawing…` lists the drawings saved to
+        // the cloud. S1a recorded it as "the difference between them is not discoverable from the
+        // labels", and a surveyor picking wrong gets a dialog that looks broken rather than one that
+        // looks like the other option.
+        //
+        // The fix is to name the SOURCE, which is what the Save side of this menu already does —
+        // "Save to Cloud…" beside "Save a copy (local .starr)…". Now both halves read the same way,
+        // so the menu teaches the distinction instead of hiding it.
+        { label: 'Open from this computer…', shortcut: 'Ctrl+O', action: () => requestDiscard(openFileDialog) },
+        { label: 'Open from Cloud…', action: () => { setDbDialog('open'); setOpenMenu(null); } },
         { label: 'File Manager…', action: () => { window.dispatchEvent(new CustomEvent('cad:openFileManager')); setOpenMenu(null); } },
         // drawings-collaboration Slice 4 — notes thread for the current
         // drawing. The RPLS / drawer / job-overseer dialog.
