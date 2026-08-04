@@ -8,7 +8,7 @@
 // Phase E-5 of SUPPORT_DESK.md.
 
 import Link from 'next/link';
-import { use, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface Ticket {
   id: string;
@@ -50,10 +50,25 @@ const PRIORITY_COLORS: Record<string, string> = {
   urgent:  '#EF4444',
 };
 
-interface PageProps { params: Promise<{ id: string }> }
+interface PageProps { params: { id: string } }
 
+// ── `params` is a PLAIN OBJECT on Next 14, and `use()` rejects it (owner report, 2026-08-04) ──
+//
+// Owner: *"there is a react error #438… there is no way to check the payroll and pay rates and
+// money pages."* React minified error #438 is **"An unsupported type was passed to use()"**.
+//
+// `use(params)` is the Next 15 pattern, where route params arrive as a Promise. This app is on
+// **next@14.2.35 / react@18.2.0**, where `params` is a plain object — so `use()` is handed
+// something that is neither a promise nor a context and throws on every render. The page never
+// mounts; the error boundary catches it and shows "Something went wrong".
+//
+// It typechecked, because the prop was ALSO declared `Promise<…>` — a type annotation asserting a
+// shape the framework does not deliver. `tsc` checks the code against the annotation, not the
+// annotation against reality, so the two were wrong together and agreed with each other.
+//
+// Six pages carried it. Read the params directly; there is nothing to await.
 export default function PlatformTicketDetailPage({ params }: PageProps) {
-  const { id } = use(params);
+  const { id } = params;
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);

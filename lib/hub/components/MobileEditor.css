@@ -223,3 +223,47 @@
   border: 1px solid var(--theme-danger, #dc2626);
   font-size: 0.85rem;
 }
+
+/* ── The Save / Cancel bar must be reachable (owner report, 2026-08-04) ──────────────────────────
+ *
+ * *"Some elements and text are overlapping so that I cannot even press the save button or the
+ * cancel button."*
+ *
+ * Two causes, and either alone is enough:
+ *
+ *   1. **Z-ORDER.** The bar is `z-index: 10`. The floating green action pill is `z-index: 90` and is
+ *      fixed to the bottom-right of every admin page. So on a phone — where the centred bar spans
+ *      most of the width — the pill sits ON TOP of the bar's right-hand end, which is exactly where
+ *      Save is. The click lands on the pill.
+ *
+ *   2. **POSITION.** Even raised, the two occupy the same corner. Winning the z-fight would leave the
+ *      bar drawn over the pill, which is not "fixed" so much as "a different thing is now
+ *      unclickable".
+ *
+ * So: lift it above the pill AND clear it vertically. 96px is the same clearance
+ * `.admin-layout__content` already reserves for the pill, so the two numbers agree by construction.
+ * On a phone the bar also spans the width rather than centring, because a centred pill-shaped bar at
+ * 360px leaves its buttons under the thumb rail. */
+.hub-edit-bar {
+  z-index: 95 !important;
+}
+
+@media (max-width: 768px) {
+  .hub-edit-bar {
+    bottom: 96px !important;
+    left: 12px !important;
+    right: 12px !important;
+    transform: none !important;
+  }
+  /* The bar's inner row: buttons side by side, each big enough to hit. */
+  .hub-edit-bar > div:first-child {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .hub-edit-bar button {
+    min-height: 44px;
+    flex: 1 1 auto;
+  }
+}

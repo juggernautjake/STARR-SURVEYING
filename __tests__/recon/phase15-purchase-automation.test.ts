@@ -271,7 +271,12 @@ describe('Phase 15 — HenschenPayAdapter (purchase-adapters/henschen-pay-adapte
   });
 
   it('9. HENSCHEN_FIPS_SET contains at least 10 counties', () => {
-    expect(HENSCHEN_PAY_FIPS.size).toBeGreaterThanOrEqual(10);
+    // Was `>= 10`, written when the table held sixteen counties — every one on a hostname that does
+    // not resolve. Six have been relocated to the vendors that actually serve them, and the rest
+    // will follow as each county's own site is read. A floor would forbid finishing that work, so
+    // this asserts the set is non-empty and never grows past what remains unexplained.
+    expect(HENSCHEN_PAY_FIPS.size).toBeGreaterThan(0);
+    expect(HENSCHEN_PAY_FIPS.size).toBeLessThanOrEqual(10);
   });
 
   it('10. HenschenPayAdapter respects portalUrl override in credentials', () => {

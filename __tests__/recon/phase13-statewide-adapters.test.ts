@@ -212,7 +212,13 @@ const FAKE_RESULT = {
 
 describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)', () => {
   it('1. HENSCHEN_CONFIGS has ≥ 10 entries', () => {
-    expect(Object.keys(HENSCHEN_CONFIGS).length).toBeGreaterThanOrEqual(10);
+    // Was `>= 10` when the table held sixteen counties, every one of them on a hostname that does
+    // not resolve (R39b). Six have since been relocated to the vendors that actually serve them —
+    // Burnet and Mills to Tyler, Ector/Kimble/Randall/Gonzales to the Tyler candidate list,
+    // Gillespie and Llano to Kofile — so the count is now what remains UNEXPLAINED, and it should
+    // keep falling. A floor of ten would forbid finishing the work.
+    expect(Object.keys(HENSCHEN_CONFIGS).length).toBeGreaterThan(0);
+    expect(Object.keys(HENSCHEN_CONFIGS).length).toBeLessThanOrEqual(10);
   });
 
   it('2. HENSCHEN_FIPS_SET is derived from HENSCHEN_CONFIGS keys', () => {
@@ -222,7 +228,9 @@ describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)
   });
 
   it('3. Burnet County (48053) is in HENSCHEN_FIPS_SET', () => {
-    expect(HENSCHEN_FIPS_SET.has('48053')).toBe(true);
+    // Burnet is Tyler, and has been in TYLER_EAGLE_PORTALS all along — so this entry was never
+    // reachable anyway (getClerkSystem checks Tyler first, and Tyler is proven). Removed 2026-08-04.
+    expect(HENSCHEN_FIPS_SET.has('48053')).toBe(false);
   });
 
   it('4. Llano County (48299) is NOT Henschen — its real portal is Kofile PublicSearch', () => {
@@ -246,7 +254,9 @@ describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)
   });
 
   it('6. Kimble County (48267) is in HENSCHEN_FIPS_SET', () => {
-    expect(HENSCHEN_FIPS_SET.has('48267')).toBe(true);
+    // Kimble answers on the Tyler pattern and renders 'Kimble County Clerk — Records Public Access
+    // Web'. Recorded in TYLER_IDENTIFIED_NOT_DRIVEN; not routed until a search has been driven.
+    expect(HENSCHEN_FIPS_SET.has('48267')).toBe(false);
   });
 
   it('7. All HENSCHEN_CONFIGS entries have a non-empty baseUrl', () => {
@@ -350,7 +360,8 @@ describe('Henschen Clerk Adapter — config coverage (henschen-clerk-adapter.ts)
   });
 
   it('20. Randall County (48381) is in HENSCHEN_FIPS_SET', () => {
-    expect(HENSCHEN_FIPS_SET.has('48381')).toBe(true);
+    // Randall answers on the Tyler pattern (DNS only so far). Same treatment as Kimble.
+    expect(HENSCHEN_FIPS_SET.has('48381')).toBe(false);
   });
 });
 
@@ -537,9 +548,19 @@ describe('Services clerk-registry routing for Phase 13 adapters (services/clerk-
   // These tests now pin that gate. They must NOT be "fixed" by marking a vendor proven; a vendor
   // becomes proven by probing its URLs, and then these expectations change with it.
 
-  it('49. Kimble Co (48267) is a Henschen county but routes to TexasFile — Henschen URLs are dead', () => {
-    expect(HENSCHEN_FIPS_SET.has('48267')).toBe(true);   // the knowledge is kept…
-    expect(isVendorProven('henschen')).toBe(false);      // …but the reachability is not claimed
+  it('49. Kimble Co (48267) still routes to TexasFile — now because Tyler is unproven, not Henschen', () => {
+    // ── The destination is unchanged; the reason is not, and the reason is the finding ───────────
+    //
+    // This read: *"Kimble is a Henschen county but routes to TexasFile — Henschen URLs are dead."*
+    // Half right. The URL was dead — `kimble.co.texas.us` does not resolve and never did — but Kimble
+    // is not a Henschen county at all. It answers on `kimblecountytx-web.tylerhost.net` and renders
+    // "Kimble County Clerk — Records Public Access Web".
+    //
+    // So the entry is gone, and Kimble sits in `TYLER_IDENTIFIED_NOT_DRIVEN` until somebody drives a
+    // search there. It falls through to TexasFile exactly as before — **the same behaviour reached
+    // by a true statement instead of a false one**, which is the whole difference between a fallback
+    // and a guess.
+    expect(HENSCHEN_FIPS_SET.has('48267')).toBe(false);
     expect(getClerkAdapter('48267', 'Kimble')).toBeInstanceOf(TexasFileAdapter);
   });
 

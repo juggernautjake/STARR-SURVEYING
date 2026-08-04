@@ -202,3 +202,51 @@ export function describeCompleteness(
   }
   return parts.join(' ');
 }
+
+/**
+ * Counties that answer on the Tyler hostname pattern but have NOT been driven (plan R39e, 2026-08-04).
+ *
+ * ── HOW THEY WERE FOUND, AND WHAT THAT IS WORTH ─────────────────────────────────────────────────
+ *
+ * `tylerEagleUrl` already derives `{county}countytx-web.tylerhost.net`. Applying that same pattern to
+ * the twelve counties left stranded by R39b's finding — all sixteen `HENSCHEN_CONFIGS` hosts are
+ * ENOTFOUND — turned up six that resolve. Two were already listed here (Burnet, Mills). **These four
+ * are new.**
+ *
+ * It is not a wildcard: the six answer on three different addresses and seven of the thirteen tried
+ * do not resolve at all. Kimble was fetched and returns *"Kimble County Clerk — Records Public Access
+ * Web"* with the standard clerk disclaimer; Ector is linked from `ectorcountytx.gov` as the clerk's
+ * self-service portal.
+ *
+ * ── WHY THEY ARE NOT IN `TYLER_EAGLE_PORTALS` ───────────────────────────────────────────────────
+ *
+ * Same bar as everywhere else in this platform: a portal is proven by driving a search and reading
+ * the rows back, not by a hostname resolving or a page rendering. Randall and Gonzales have only the
+ * DNS result behind them, and even Kimble has only a rendered disclaimer page.
+ *
+ * Adding them here would make `getClerkSystem` route real research at them, and a county that
+ * silently returns nothing looks exactly like a county with no records — the failure this whole
+ * registry was rebuilt to stop.
+ */
+export const TYLER_IDENTIFIED_NOT_DRIVEN: Record<string, { county: string; url: string; evidence: string }> = {
+  '48135': {
+    county: 'Ector',
+    url: 'https://ectorcountytx-web.tylerhost.net/web/user/disclaimer',
+    evidence: "linked from ectorcountytx.gov as the County Clerk's self-service portal; host resolves",
+  },
+  '48267': {
+    county: 'Kimble',
+    url: 'https://kimblecountytx-web.tylerhost.net/web/',
+    evidence: 'fetched: renders "Kimble County Clerk — Records Public Access Web" with the clerk disclaimer',
+  },
+  '48381': {
+    county: 'Randall',
+    url: 'https://randallcountytx-web.tylerhost.net/web/',
+    evidence: 'host resolves on the Tyler pattern — DNS only, page not yet read',
+  },
+  '48177': {
+    county: 'Gonzales',
+    url: 'https://gonzalescountytx-web.tylerhost.net/web/',
+    evidence: 'host resolves on the Tyler pattern — DNS only, page not yet read',
+  },
+};

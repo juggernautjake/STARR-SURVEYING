@@ -79,12 +79,11 @@ export interface HenschenConfig {
  * DOM, never by finding a link. Recorded as the next candidate, not as a fact.
  */
 export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
-  '48053': {  // Burnet County
-    baseUrl: 'https://burnet.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Burnet County',
-    hasImageAccess: true,
-  },
+  // Burnet, Mills, Ector, Kimble, Randall and Gonzales were removed on 2026-08-04 (R39d/e). Every
+  // one pointed at a host that does not exist, and every one answers on the Tyler pattern instead:
+  // Burnet and Mills are already in TYLER_EAGLE_PORTALS, the other four are recorded in
+  // TYLER_IDENTIFIED_NOT_DRIVEN pending a driven search. Gillespie and Llano went earlier, to
+  // Kofile. Ten remain here, and every one of their hosts is ENOTFOUND.
   // 48299 removed 2026-08-04 (R39d): its real portal is Kofile PublicSearch, not a
   // Henschen deployment. The host recorded here never existed — see the block header.
   // Recorded in KOFILE_IDENTIFIED_NOT_DRIVEN until a search has actually been driven.
@@ -98,12 +97,6 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
     baseUrl: 'https://mcculloch.co.texas.us',
     searchPath: '/ClerkInquiry/',
     countyDisplayName: 'McCulloch County',
-    hasImageAccess: false,
-  },
-  '48333': {  // Mills County
-    baseUrl: 'https://mills.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Mills County',
     hasImageAccess: false,
   },
   '48411': {  // San Saba County
@@ -123,12 +116,6 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
   },
   // 48267, not 48265 — 48265 is Kerr County. Verified against worker/src/lib/county-fips.ts, which
   // is the authoritative table; `fips-labels-match-county-table.test.ts` now pins every entry here.
-  '48267': {  // Kimble County
-    baseUrl: 'https://kimble.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Kimble County',
-    hasImageAccess: false,
-  },
   '48435': {  // Sutton County
     baseUrl: 'https://sutton.co.texas.us',
     searchPath: '/ClerkInquiry/',
@@ -146,24 +133,6 @@ export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
     baseUrl: 'https://lampasas.co.texas.us',
     searchPath: '/ClerkInquiry/',
     countyDisplayName: 'Lampasas County',
-    hasImageAccess: false,
-  },
-  '48381': {  // Randall County
-    baseUrl: 'https://randall.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Randall County',
-    hasImageAccess: false,
-  },
-  '48135': {  // Ector County
-    baseUrl: 'https://ector.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Ector County',
-    hasImageAccess: false,
-  },
-  '48177': {  // Gonzales County
-    baseUrl: 'https://gonzales.co.texas.us',
-    searchPath: '/ClerkInquiry/',
-    countyDisplayName: 'Gonzales County',
     hasImageAccess: false,
   },
   '48209': {  // Hays County (some record types)

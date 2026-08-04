@@ -12,6 +12,10 @@
 import React, { useEffect, useState } from 'react';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
+// The edit bar's mobile rules live here. Imported from THIS file, not only from MobileEditor —
+// the bar renders whenever edit mode is on, and MobileEditor may not be mounted at all, which
+// would leave the fix loaded on some screens and absent on the ones that needed it.
+import './MobileEditor.css';
 
 /** Slice 151 — desktop-only edit mode. Below this px the canvas
  *  becomes read-only (saved layout, single-column stack, no edit
@@ -95,7 +99,7 @@ export function EditModeBar() {
   const saving = saveStatus === 'saving';
 
   return (
-    <div role="region" aria-label="Edit hub" style={editBarWrapperStyle}>
+    <div role="region" aria-label="Edit hub" className="hub-edit-bar" style={editBarWrapperStyle}>
       <div style={editBarStyle}>
         <span style={hintStyle}>
           {isDirty ? 'Unsaved changes' : 'No changes yet'}

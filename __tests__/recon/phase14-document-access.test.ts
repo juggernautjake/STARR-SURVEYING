@@ -271,8 +271,16 @@ describe('PaidPlatformRegistry (services/paid-platform-registry.ts)', () => {
   // county as covered and left the intended one with nothing. See
   // worker/src/__tests__/fips-labels-match-county-table.test.ts, which now pins all of them.
   it('12. henschen_pay covers Kimble County (48267, NOT Kerr\'s 48265)', () => {
+    // The Kerr half is the original point and stands: a FIPS typo once had a paid platform claiming
+    // a county it does not serve while the intended one silently had no adapter.
+    //
+    // The Kimble half inverted on 2026-08-04. Kimble is not a Henschen county — its portal answers
+    // on the Tyler pattern and renders "Kimble County Clerk". `coveredFIPS` is built from
+    // HENSCHEN_FIPS_SET, so removing the fictional config removed the claim with it. That is the
+    // behaviour worth having: a paid platform listing a county it cannot reach is a bill waiting to
+    // be charged for nothing.
     const p = PAID_PLATFORM_CATALOG.find((p) => p.id === 'henschen_pay');
-    expect(p?.coveredFIPS).toContain('48267');
+    expect(p?.coveredFIPS).not.toContain('48267');
     expect(p?.coveredFIPS).not.toContain('48265');
   });
 
