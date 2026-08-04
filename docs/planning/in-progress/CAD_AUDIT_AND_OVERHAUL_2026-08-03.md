@@ -1738,3 +1738,35 @@ file.
 **Four sweep questions, four answers, and two of my own claims corrected in the process** (56 → 44,
 and this one). The pattern worth keeping: *a sweep produces candidates, not conclusions* — every one
 of these needed the call chain followed before it meant anything.
+
+#### ▶ Which of the two spatial indexes should survive — answered, with a caveat that matters
+
+The inventory entry asks for one decision. Comparing the APIs rather than assuming the live one wins:
+
+| | `geometry/spatial-index.ts` (**live**) | `spatial/feature-index.ts` (**dead**) |
+|---|---|---|
+| construction | `createSpatialIndex(items)` — immutable, built from the full set | `createFeatureIndex()` then `upsert` per item |
+| incremental edit | **none** — rebuild the whole index | `upsert(id, bounds)` / `remove(id)` |
+| oversized features | in the grid | separate **large-bin** overflow |
+| false positives | returns cell members | filters against a canonical AABB cache |
+| query order | stable (insertion) | unspecified |
+
+**The dead one is the better fit for how the editor actually behaves.** `ensureFeatureIndex` rebuilds
+the entire index whenever `document.features` or `document.layers` changes identity — which is *every
+edit*. The store already maintains `dirtyFeatureIds` precisely so the renderer can touch only what
+changed, and the live index has no API to accept that.
+
+**But this is not currently a performance problem, and saying otherwise would repeat the mistake this
+document was opened to stop.** S2b measured 269 → 25.2 ms/frame, and S4a measured 25.8 ms/frame under
+continuous pan and zoom with the mousemove handler at 0.2 ms. **Index rebuild has never appeared in a
+profile.** The perf overlay (`Ctrl+Alt+P`, or the command palette) answers this in minutes on the
+200k fixture, and nobody has asked it.
+
+**So the recommendation is: keep the live one and delete the dead one — unless a profile says
+otherwise first.** The dead module's better API is an argument for migrating *when there is a measured
+reason*, and no reason exists today. Two implementations with no measurement between them is exactly
+the state that produced the wrong "P1 DONE" citation in the first place.
+
+**Not deleted here.** Removing production code is the owner's call, it is genuinely dead so there is
+no urgency, and the file is worth reading before it goes — the large-bin overflow and the
+false-positive filter are ideas the live index does not have.
