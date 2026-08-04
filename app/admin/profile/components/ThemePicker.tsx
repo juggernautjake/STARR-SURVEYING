@@ -15,6 +15,7 @@ import { useEffect, useState } from 'react';
 import { allThemes, type ThemeDefinition } from '@/lib/hub/themes';
 import '@/lib/hub/themes/register-builtins';
 import type { HubLayoutRow, ThemeId } from '@/lib/hub/types';
+import { broadcastAppearanceChange } from '@/lib/hub/appearance-broadcast';
 
 interface ThemePickerProps {
   /** Initial theme — usually the saved value from
@@ -73,6 +74,11 @@ export function ThemePicker({ initialThemeId }: ThemePickerProps) {
       }
       const data = (await res.json()) as { layout: HubLayoutRow };
       setLayout(data.layout);
+      // Tell the shell, so the change lands on <html> now rather than on the next full page
+      // load of the Hub — the only page that hydrates the store this picker used to rely on.
+      broadcastAppearanceChange({
+        theme: data.layout.theme, density: data.layout.density, fontScale: data.layout.fontScale,
+      });
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
     } catch (e) {

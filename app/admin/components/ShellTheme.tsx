@@ -34,9 +34,10 @@
 // the default for one paint on every page load. It is a cache of a server-owned value: the store
 // always wins once it arrives, and a stale echo can only be wrong until the next hydrate.
 
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { clampFontScale } from '@/lib/hub/validate-layout';
+import { APPEARANCE_CHANGED, type AppearanceChange } from '@/lib/hub/appearance-broadcast';
 
 /** Same key the picker writes through the store; kept here because this component must be able to
  *  read it before any Hub code has run on the page. */
@@ -103,6 +104,62 @@ export default function ShellTheme() {
     document.documentElement.style.setProperty('--hub-font-scale', String(safe));
     try { localStorage.setItem(ECHO_FONT_KEY, String(safe)); } catch { /* ignore */ }
   }, [fontScale]);
+
+  /** One place that writes to `<html>`, so the three sources — store, event, fetch — cannot apply
+   *  the same value three slightly different ways. */
+  const apply = useCallback((c: AppearanceChange) => {
+    if (typeof document === 'undefined') return;
+    const el = document.documentElement;
+    if (c.theme) {
+      el.setAttribute('data-theme', c.theme);
+      try { localStorage.setItem(ECHO_KEY, c.theme); } catch { /* ignore */ }
+    }
+    if (c.density) {
+      el.setAttribute('data-density', c.density);
+      try { localStorage.setItem(ECHO_DENSITY_KEY, c.density); } catch { /* ignore */ }
+    }
+    if (c.fontScale != null) {
+      const safe = clampFontScale(c.fontScale);
+      el.style.setProperty('--hub-font-scale', String(safe));
+      try { localStorage.setItem(ECHO_FONT_KEY, String(safe)); } catch { /* ignore */ }
+    }
+  }, []);
+
+  // ── The picker's change lands NOW ───────────────────────────────────────────────────────────
+  //
+  // The three pickers save to `/api/admin/me/hub-layout` and update their own local state. Neither
+  // touches this store, so before this listener existed a chosen theme did nothing until the next
+  // full load of the Hub — the only page that hydrates the store — and never at all on any other
+  // page. The setting appeared broken while saving correctly.
+  useEffect(() => {
+    const onChange = (e: Event) => apply((e as CustomEvent<AppearanceChange>).detail ?? {});
+    window.addEventListener(APPEARANCE_CHANGED, onChange);
+    return () => window.removeEventListener(APPEARANCE_CHANGED, onChange);
+  }, [apply]);
+
+  // ── A hard load of any page, for a user whose store is empty ────────────────────────────────
+  //
+  // Only the Hub hydrates the store. Open `/admin/jobs` directly and `theme` is null forever, so
+  // the shell would show the default no matter what was saved. The localStorage echo covers repeat
+  // visits — but it has to be written once, and a new device has never written it.
+  //
+  // Fetched only when the store has nothing AND the echo has nothing, so the common path stays a
+  // zero-request render. Failure is silent on purpose: the default palette is a correct outcome,
+  // and an appearance preference is not worth an error message.
+  useEffect(() => {
+    if (typeof window === 'undefined' || theme) return;
+    try { if (localStorage.getItem(ECHO_KEY)) return; } catch { /* private mode — just fetch */ }
+
+    let cancelled = false;
+    void fetch('/api/admin/me/hub-layout', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { layout?: AppearanceChange } | null) => {
+        if (cancelled || !j?.layout) return;
+        apply(j.layout);
+      })
+      .catch(() => { /* the default palette is fine */ });
+    return () => { cancelled = true; };
+  }, [theme, apply]);
 
   return null;
 }

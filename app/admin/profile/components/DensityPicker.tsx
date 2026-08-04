@@ -9,6 +9,7 @@
 
 import { useEffect, useState } from 'react';
 import type { Density, HubLayoutRow } from '@/lib/hub/types';
+import { broadcastAppearanceChange } from '@/lib/hub/appearance-broadcast';
 
 const OPTIONS: { value: Density; label: string; description: string }[] = [
   { value: 'compact', label: 'Compact', description: 'Tight spacing, smaller text. Maxes info density.' },
@@ -67,6 +68,11 @@ export function DensityPicker({ initialDensity }: DensityPickerProps) {
       }
       const data = (await res.json()) as { layout: HubLayoutRow };
       setLayout(data.layout);
+      // Tell the shell, so the change lands on <html> now rather than on the next full page
+      // load of the Hub — the only page that hydrates the store this picker used to rely on.
+      broadcastAppearanceChange({
+        theme: data.layout.theme, density: data.layout.density, fontScale: data.layout.fontScale,
+      });
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
     } catch (e) {

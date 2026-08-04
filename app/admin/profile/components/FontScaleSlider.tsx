@@ -11,6 +11,7 @@
 
 import { useEffect, useState } from 'react';
 import type { HubLayoutRow } from '@/lib/hub/types';
+import { broadcastAppearanceChange } from '@/lib/hub/appearance-broadcast';
 
 const MIN = 0.875;
 const MAX = 1.5;
@@ -66,6 +67,11 @@ export function FontScaleSlider({ initialFontScale }: FontScaleSliderProps) {
       }
       const data = (await res.json()) as { layout: HubLayoutRow };
       setLayout(data.layout);
+      // Tell the shell, so the change lands on <html> now rather than on the next full page
+      // load of the Hub — the only page that hydrates the store this picker used to rely on.
+      broadcastAppearanceChange({
+        theme: data.layout.theme, density: data.layout.density, fontScale: data.layout.fontScale,
+      });
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 1500);
     } catch (e) {

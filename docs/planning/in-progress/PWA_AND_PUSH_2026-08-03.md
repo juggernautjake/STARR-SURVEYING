@@ -901,3 +901,50 @@ Eight assertions pin both levers, including that the clamp is imported from the 
 clamps with rather than restated. Control: removing the root rule fails two of them by name.
 
 22,671 tests pass; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W9e DONE 2026-08-04 — the pickers saved correctly and told nobody
+
+Third variant of one defect in a single day, and the last link in the chain:
+
+| slice | what was wrong | what a user saw |
+|---|---|---|
+| W9 | the theme was applied at the wrong **level** — a wrapper inside the Hub | the Hub changed, nothing else did |
+| W9d | density and text-size tokens had **no reader** anywhere | nothing changed at all |
+| **W9e** | the reader existed and **nothing told it** | the setting saved, and did nothing |
+
+All three are indistinguishable from outside — *"I picked a theme and nothing happened"* — which is
+why each had to be found separately, and why the first two fixes did not make the setting work.
+
+`ThemePicker`, `DensityPicker` and `FontScaleSlider` each save to `/api/admin/me/hub-layout` and
+update **their own component state**. `ShellTheme` reads `useHubStore`. Neither picker touches the
+store, so a chosen theme applied on the next full load of the Hub — the only page that hydrates it —
+and **never on any other page**.
+
+#### ▶ An event, not a store action
+
+`useHubStore`'s only ingress is `hydrate`, which takes a whole layout and resets edit mode, draft
+widgets and save status with it. Calling that from a settings page to change a colour would reach
+into the Hub editor's state — **a picker that can clear somebody's unsaved widget draft is a worse
+bug than the one being fixed.**
+
+A DOM event is the honest shape for "something changed, whoever cares should look": the pickers do
+not need to know the shell exists, the shell does not need to know how many pickers there are, and
+the name is a shared constant because a typo between dispatcher and listener fails silently and
+looks *exactly* like the bug being fixed.
+
+Broadcast **after** the save resolves, never on click: applying on click would show a theme the
+server rejected, leaving the screen and the database disagreeing with the wrong one visible.
+
+#### ▶ And a hard load of a non-Hub page
+
+Only the Hub hydrates the store, so opening `/admin/jobs` directly left `theme` null forever. The
+`localStorage` echo covers repeat visits but has to be written once, and a new device never has.
+`ShellTheme` now fetches the saved layout **only when the store and the echo are both empty** — the
+common path stays a zero-request render, and failure is silent because the default palette is a
+correct outcome and an appearance preference is not worth an error.
+
+All three sources — store, event, fetch — go through one `apply()`, so none can forget the clamp or
+the echo. Eight assertions; the control deletes the listener and fails by name. The ordering test
+found its own bug on first run (`indexOf` matched the *import*, not the call).
+
+22,679 tests pass; `tsc`, `eslint` and `npm run build` clean.
