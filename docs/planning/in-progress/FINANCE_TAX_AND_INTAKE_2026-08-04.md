@@ -868,3 +868,50 @@ received. That is the owner's answer, not a refactor.
 worker's two AI-spend trackers (R4b). Recorded together because the pattern is now the finding: this
 codebase grows a second implementation whenever a later slice needs something the earlier one already
 did, and nothing notices until a reachability sweep asks.
+
+## ✅ F9 — the finance surface verified, and the invariant its tests cannot see. **DONE 2026-08-04.**
+
+Everything left in this document is seed-blocked, so this pass verified what is already built rather
+than adding to it. **Three checks, and the first two found nothing** — which is the result, and worth
+saying plainly.
+
+| checked | result |
+|---|---|
+| **Finance API routes with no caller** | None. All consumed, including every `[id]` sub-route — `/send`, `/approve`, `/void`, `/ach-csv`, `/match`, `/mark`. |
+| **`cost-recovery` arithmetic** | 14 tests covering every state the doc emphasises: partial ≠ no-net-gain, a single cent is a difference, over-billing is margin, voided invoices excluded but kept. |
+| **Money units** | Integer **cents** throughout, with division confined to a display helper. Correct by construction. |
+
+**The first two checks each produced false positives before producing a result**, and both were the
+probe rather than the code:
+
+- *"Nine finance routes have no caller."* Every one contained a dynamic segment (`[id]`, `[email]`),
+  and callers build those with template literals — a literal path match cannot see
+  `` `/api/admin/receipts/${id}` ``. All nine are called.
+- The same shape as S1b's twelve dialogs and its two-line dispatch. **Third consecutive investigation
+  where a naive path match was wrong**, which is now less a coincidence than a property of the tools.
+
+### ▶ The invariant the 14 tests cannot see
+
+`cost-recovery`'s tests are thorough **and every one of them uses round amounts** — $450 paid, $400
+billed, $50 short. That is the natural way to write them, and it is exactly why a float bug would
+survive: `450.10 - 400.10` is not `50` in IEEE 754, and no existing case uses a value where that
+shows.
+
+The code is right — integer cents everywhere. But **that correctness is invisible to the tests that
+depend on it.** Someone adding `costUsd: number` beside `costCents` would break no assertion; the two
+would simply be added together somewhere later, and the first wrong number would appear on a real
+invoice with an odd cent in it.
+
+`money-stays-in-cents.test.ts` locks it two ways: it rejects any dollars-denominated field declared in
+`lib/finance`, and it exercises `computeRecovery` at **odd-cent resolution** — an exact recovery of
+$450.10, a one-cent shortfall reported as `-1`, and three $100.01 links summing without drift. Those
+are the cases the round-number suite cannot express.
+
+It is honest about its limits: field names are a proxy, not a proof. A correctly named `_cents` field
+could still be handed a float. It catches the realistic mistake, not a determined one.
+
+**Its control was the sixth false green of the session** — a `node -e` replace reported success having
+matched nothing, and only `grep` showed the field was never added. Redone with an editor; the guard
+then failed by name.
+
+99 finance tests green; `tsc` and `eslint` clean.
