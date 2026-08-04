@@ -389,6 +389,17 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     set((state) => {
       const existing = state.document.features[featureId];
       if (!existing) return state;
+      // CAD_AUDIT Slice S13g — the last way into this bug: MOVING a feature to a layer that does
+      // not exist. `updateFeature` accepted any `layerId` unchecked, and the Properties panel's
+      // "Move all to layer" writes exactly this field — so a stale id in a dropdown, or any
+      // programmatic move, made the geometry vanish with no error.
+      //
+      // Only checked when `layerId` is actually being written. Running it on every update would
+      // re-derive nothing useful on the overwhelming majority of calls, which change style or
+      // geometry, and a check that costs something on every mutation is a check someone removes.
+      if ('layerId' in updates && updates.layerId !== undefined) {
+        warnIfLayerMissing(state.document, [{ ...existing, ...updates } as Feature], 'updateFeature');
+      }
       return {
         document: {
           ...state.document,

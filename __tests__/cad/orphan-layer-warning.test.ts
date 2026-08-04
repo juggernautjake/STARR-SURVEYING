@@ -106,3 +106,54 @@ describe('it warns without blocking', () => {
     expect(useDrawingStore.getState().getVisibleFeatures().map((f) => f.id)).toContain('late');
   });
 });
+
+// ── S13g: the sixth and last way in — MOVING a feature to a layer that does not exist ────────────
+//
+// `updateFeature` accepted any `layerId` unchecked, and the Properties panel's "Move all to layer"
+// writes exactly that field. A stale id in a dropdown, or any programmatic move, made the geometry
+// vanish with no error and no way to tell it apart from a delete.
+
+describe('moving a feature to a layer that does not exist', () => {
+  it('warns, naming updateFeature as the origin', () => {
+    const st = useDrawingStore.getState();
+    const drawable = st.document.layerOrder.find((id) => !isReservedDrawLayer(id))!;
+    st.addFeature(feature('mover', drawable));
+    __resetOrphanWarnings();
+
+    useDrawingStore.getState().updateFeature('mover', { layerId: 'NO_SUCH_LAYER' } as never);
+
+    const w = __orphanWarnings().join('\n');
+    expect(w).toContain('NO_SUCH_LAYER');
+    expect(w).toContain('updateFeature');
+  });
+
+  it('stays silent when moving to a real layer', () => {
+    const st = useDrawingStore.getState();
+    const layers = st.document.layerOrder.filter((id) => !isReservedDrawLayer(id));
+    st.addFeature(feature('ok-move', layers[0]));
+    __resetOrphanWarnings();
+    useDrawingStore.getState().updateFeature('ok-move', { layerId: layers[0] } as never);
+    expect(__orphanWarnings()).toEqual([]);
+  });
+
+  it('does not check updates that leave the layer alone', () => {
+    // The overwhelming majority of updates change style or geometry. A check that costs something on
+    // every mutation is a check someone eventually removes.
+    const st = useDrawingStore.getState();
+    const drawable = st.document.layerOrder.find((id) => !isReservedDrawLayer(id))!;
+    st.addFeature(feature('styled', drawable));
+    __resetOrphanWarnings();
+    useDrawingStore.getState().updateFeature('styled', { style: { color: '#ff0000' } } as never);
+    expect(__orphanWarnings()).toEqual([]);
+  });
+
+  it('still performs the move, so the state stays recoverable', () => {
+    // Same rule as every other site in this family: warn, do not block. Refusing would strand the
+    // feature on its old layer while the UI reported a move.
+    const st = useDrawingStore.getState();
+    const drawable = st.document.layerOrder.find((id) => !isReservedDrawLayer(id))!;
+    st.addFeature(feature('moved', drawable));
+    useDrawingStore.getState().updateFeature('moved', { layerId: 'GHOST_LAYER' } as never);
+    expect(useDrawingStore.getState().getFeature('moved')!.layerId).toBe('GHOST_LAYER');
+  });
+});

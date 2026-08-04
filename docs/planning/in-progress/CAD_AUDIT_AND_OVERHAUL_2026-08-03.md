@@ -1575,8 +1575,11 @@ document is opened honestly rather than optimistically.
 | **S13d** | no warning at insertion — the store now says so |
 | **S13e** | deleting a layer migrated its geometry onto the reserved layer |
 | **S13f** | opening a file activated the reserved layer, and orphans in the file were silent |
+| **S13g** |  accepted any  — so "Move all to layer" could orphan geometry |
 
 All five trace to one line — `if (!layer) return false` in `getVisibleFeatures` — which is *correct*
 for a renderer and silent for everyone else. **A predicate that is right for one caller and
-catastrophic for the rest is worth hunting exhaustively rather than fixing where it surfaces.** Four
-of these were found by asking "where else?" after the first, not by anyone reporting them.
+catastrophic for the rest is worth hunting exhaustively rather than fixing where it surfaces.** **Five** of these six were found by asking "where else?" after the first, not by anyone reporting
+them. The sweep is now complete: every store path that can set a  — ,
+,  and  — is checked, and the two that CHOOSE a layer
+(, ) refuse to choose the reserved one.
