@@ -780,3 +780,50 @@ fix authored-but-not-wired**, and an exported helper with no caller is precisely
 reachability guards exist to catch. Writing the guard does not exempt the author from it.
 
 Worker suite 92 files / 1,525 tests green; `tsc` and `eslint` clean.
+
+## ⚠ S-6b 2026-08-04 — S-6 is marked DONE, and nothing queries GLO
+
+S-6 is recorded as *"DONE (2026-08-02): `GloLandGrantAdapter`, driven live — Bell County returns
+1,523 grants; Bell + grantee DUNCAN returns 5, with GLO record ids and free PDFs."* All of that is
+true. It was built, tested and driven against the live site.
+
+**It has no caller.** `adapters/glo-land-grant-adapter.ts` is imported by nothing anywhere.
+`sources/glo-client.ts` is imported once, by `index.ts`, and **never constructed** — an import and no
+`new`. That dead import is the *only* production reference to GLO in the entire worker, and it is
+what made the feature look wired.
+
+### ▶ Worse than unreachable: the plan claims the capability
+
+`SOURCE_CATALOGUE` lists `glo` with `capabilities: ['original_survey']`, and **GLO is the only source
+with that capability**. `buildPlan()` derives `covered` from the catalogue and reports
+`missingCapabilities` as whatever is left — so on **every run, in both modes**, the plan reports
+`original_survey` as covered.
+
+`missingCapabilities` exists to say what a run cannot answer. It is silent about the one thing only
+GLO can answer, because GLO is on a list. **A run tells the researcher the original survey is
+accounted for, and no code will ever look for it.**
+
+That is this program's signature defect exactly — *an unknown rendered as an answer* — sitting on the
+source this document calls **"the most valuable source found"** and **"Highest value per hour of
+anything remaining"**. Every Texas metes-and-bounds description is written against an original survey;
+this is the capability the document was most emphatic about.
+
+### ▶ Two ways out, and they are not interchangeable
+
+1. **Wire the adapter into the pipeline.** The right fix and a genuine slice: it needs a stage, a home
+   for grants in the report, and a decision about what a *missing* grant means for confidence.
+2. **Stop claiming the capability** until (1) lands, so `missingCapabilities` tells the truth.
+
+Choosing (2) alone quietly downgrades what every run reports; choosing (1) is the work S-6 was
+supposed to finish. **Neither was taken here** — both change what a researcher is told, which is the
+owner's call, and this document has already been wrong once about GLO being done.
+
+`glo-is-planned-but-never-run.test.ts` states the situation as four assertions and **fails the day it
+changes in either direction**: if the adapter gains an importer, or `GLOClient` is finally
+constructed, or another source takes on `original_survey`. Silence was the problem; this makes the
+state loud.
+
+93 worker test files / 1,529 tests green; `tsc` and `eslint` clean.
+
+**This also corrects the state line above.** S-6 should read *built and verified live, not wired* —
+and it means the free-source coverage this document claims is one source smaller than it appears.
