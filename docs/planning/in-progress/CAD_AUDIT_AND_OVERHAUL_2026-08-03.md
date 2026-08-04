@@ -1504,3 +1504,40 @@ people turn off.
 itself the useful negative result: no current flow adds features ahead of their layers.
 
 9 tests. `npm run build` clean.
+
+### ✅ S13e DONE 2026-08-04 — deleting a layer no longer dumps the survey on the title block
+
+Found by asking where else the S13d bug class could hide. `removeLayer` was **already right about the
+hard part**: it migrates a deleted layer's features onto a surviving layer rather than orphaning them
+(checked before changing anything). The fallback was the problem.
+
+The destination was `layerOrder[0]`, and `layerOrder[0]` is **SURVEY-INFO** — the layer holding the
+title block, seal, scale bar, north arrow, notes and certification, which S13 established may not
+receive drawn geometry. **So deleting the layer you were working on moved your boundary onto the
+title-block layer**, where toggling that layer's eye to hide the sheet furniture would take the
+survey with it.
+
+Quiet in the same way as S8c and S13: the features stay visible immediately afterwards, so nothing
+looks wrong until someone hides the furniture.
+
+### ▶ The test failed first, and that is what made the fix correct
+
+The obvious fix — prefer the first non-reserved layer — **did not pass**. A default document ships
+exactly **one** drawing layer ("Layer 1") beside SURVEY-INFO, so deleting the layer you were working
+on leaves no drawable layer at all, and the fallback landed on the reserved layer anyway. Two rules
+were in conflict and both are real:
+
+- geometry may not live on the reserved layer;
+- geometry may not be silently destroyed.
+
+A third option was needed, so `removeLayer` now **creates a replacement drawing layer** when none
+survives, and it carries a description saying why it exists — a layer appearing from nowhere is
+confusing unless it explains itself. Had the test not been written to fail first, the "fix" would
+have shipped as a no-op on the most common document in the program.
+
+The last-layer rule is unchanged: deleting the **final** layer still removes its features, because
+there is genuinely nowhere for them to go. This slice narrows the destination; it does not change
+the empty-project behaviour.
+
+7 tests, including one that asserts its own premise (`drawableLayers()` has length 1) rather than
+assuming it. 3,401 CAD tests, `npm run build` clean.

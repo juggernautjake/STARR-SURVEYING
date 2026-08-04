@@ -7,7 +7,7 @@ import { generateId } from '../types';
 import { DEFAULT_DRAWING_SETTINGS, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '../constants';
 // cad-trv-import-polish Slice 2 — seed every new drawing with
 // the default starting layers + their layer groups.
-import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS } from '../styles/default-layers';
+import { getDefaultLayersRecord, getDefaultLayerOrder, DEFAULT_LAYER_GROUPS, isReservedDrawLayer } from '../styles/default-layers';
 import { DEFAULT_GLOBAL_STYLE_CONFIG } from '../styles/types';
 // cad-domain-audit Slice E — canonical predicates for layer
 // visibility / selectability. `getVisibleFeatures` and the new
@@ -474,9 +474,45 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       }
 
       // Otherwise move the deleted layer's features onto a surviving layer.
-      const targetLayerId =
-        layerId === state.activeLayerId ? layerOrder[0] : state.activeLayerId;
-      const safeTarget = layerOrder.includes(targetLayerId) ? targetLayerId : layerOrder[0];
+      //
+      // CAD_AUDIT Slice S13e — never migrate geometry onto the reserved sheet-info layer.
+      //
+      // The fallback used to be `layerOrder[0]`, and `layerOrder[0]` is **SURVEY-INFO** — the layer
+      // holding the title block, seal, scale bar, north arrow, notes and certification, which S13
+      // established may not receive drawn geometry. So deleting the layer you were working on moved
+      // your boundary onto the title-block layer, where toggling that layer's eye to hide the sheet
+      // furniture would take the survey with it.
+      //
+      // Same defect family as S8c/S13 and just as quiet: the features stay visible immediately
+      // afterwards, so nothing looks wrong until someone hides the furniture.
+      let firstDrawable = layerOrder.find((id) => !isReservedDrawLayer(id));
+
+      // If NO drawable layer survives, make one rather than using the reserved layer as a dumping
+      // ground. This is the ordinary case on a default document, which ships exactly one drawing
+      // layer ("Layer 1") beside SURVEY-INFO — so deleting the layer you were working on would
+      // otherwise always land the survey on the title-block layer. Losing the geometry is not an
+      // option either; a third choice is needed, and creating somewhere legitimate for it to live is
+      // the only one that keeps both rules.
+      if (!firstDrawable) {
+        const replacement: Layer = {
+          id: generateId(),
+          name: 'Layer 1',
+          visible: true, locked: false, frozen: false,
+          color: '#000000', lineWeight: 0.5, lineTypeId: 'SOLID', opacity: 1,
+          groupId: null, sortOrder: layerOrder.length,
+          isDefault: false, isProtected: false, autoAssignCodes: [],
+          description: 'Created automatically to hold geometry from a deleted layer.',
+        };
+        layers[replacement.id] = replacement;
+        layerOrder.push(replacement.id);
+        firstDrawable = replacement.id;
+      }
+
+      const preferred =
+        layerId === state.activeLayerId ? firstDrawable : state.activeLayerId;
+      const safeTarget = layerOrder.includes(preferred) && !isReservedDrawLayer(preferred)
+        ? preferred
+        : firstDrawable;
       for (const [fid, feature] of Object.entries(features)) {
         if (feature.layerId === layerId) {
           features[fid] = { ...feature, layerId: safeTarget };
