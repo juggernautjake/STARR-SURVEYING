@@ -193,3 +193,57 @@ the obvious inference from the filename is wrong and would have failed on apply.
 `node scripts/apply-seeds.mjs`.
 
 **Next: F2** (pass-through recovery), which needs the card role this slice establishes.
+
+---
+
+## ✅ F2 — pass-through recovery. **DONE 2026-08-04** (model + schema; UI is F2b.)
+
+`lib/finance/cost-recovery.ts` + `seeds/573_cost_recoveries.sql`, 14 tests.
+
+**The design decision this slice is:** not a boolean.
+
+`receipts.is_pass_through BOOLEAN` is the obvious model and it is wrong in exactly the case that
+costs money. Pay a sanitarian **$450**, bill the customer **$400**, and the flag says *"pass-through,
+nets to zero"* while the job quietly lost $50. Over a year of small shortfalls that is a real number
+nobody ever sees, because every individual row looked like a wash.
+
+So recovery is **arithmetic over real linked amounts**, and the delta is always reported with a sign:
+
+| state | when | `isNoNetGain` |
+|---|---|---|
+| `NOT_RECOVERED` | paid, nothing billed yet | no — and it needs attention |
+| `NO_NET_GAIN` | billed exactly what was paid | **yes** |
+| `UNDER_RECOVERED` | billed less — the job absorbed the difference | no |
+| `OVER_RECOVERED` | billed more — that is margin, not a wash | no |
+| `NOT_RECOVERABLE` | deliberately absorbed | no |
+
+`isNoNetGain` is true for exactly one state, asserted as a whole-set property so a state added later
+cannot quietly start counting as a wash. **There is no tolerance band**: a penny of difference is a
+difference, because a rule that quietly absorbs pennies is indistinguishable from one that absorbs
+dollars. And over-recovery is named — billing $500 for a $450 cost is $50 of income, and filing it
+as a wash understates income.
+
+**Three modelling choices worth keeping:**
+
+- **The link carries an amount and points at an INVOICE, not a line.** `customer_invoices.line_items`
+  is a JSONB array with no stable per-line identity, so a foreign key to "the line that recovered
+  this" would be an array index that reordering silently invalidates — a link that looks intact while
+  pointing at the wrong line is worse than no link. `line_description` snapshots the wording, which
+  is what a customer quotes back at you.
+- **Voided invoices are excluded from the total but kept as links.** An invoice raised and voided is a
+  fact about what happened; deleting it would silently re-open the cost with no trace of the attempt.
+  Voided-ness is read from `customer_invoices.status`, not duplicated here — two places recording the
+  same thing is how they come to disagree.
+- **"We ate it" is distinct from "not billed yet."** That difference is the bookkeeper's working
+  queue. And a cost marked absorbed that nevertheless has live recoveries is reported as a
+  contradiction to resolve, rather than silently preferring either side.
+
+`summarizeRecoveries` reports **shortfall separately from net**, because netting them is how a run of
+small unbilled costs disappears behind margin earned elsewhere.
+
+`receipt_id` is a nullable FK on purpose: a pass-through cost often arrives as an emailed bill rather
+than a photographed receipt, and refusing to record the recovery until a receipt exists would lose
+the link entirely.
+
+**Not applied to the live database** — owner's call. **Next: F3**, the one-line tax summaries, which
+compose the card role (F1) with the recovery state (F2).
