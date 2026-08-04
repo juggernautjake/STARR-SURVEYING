@@ -13,6 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { expectOrder } from '../helpers/expect-order';
 
 const src = fs.readFileSync(
   path.join(process.cwd(), 'app/admin/cad/components/MenuBar.tsx'), 'utf8');
@@ -59,7 +60,7 @@ describe('omissions are confirmed before anything lands', () => {
   });
 
   it('asks BEFORE calling addFeatures, not after', () => {
-    expect(body.indexOf('confirmAction(')).toBeLessThan(body.indexOf('addFeatures('));
+    expectOrder(body, 'confirmAction(', 'addFeatures(', 'omissions are confirmed before anything lands');
   });
 
   it('says the boundary is open when it is', () => {
@@ -109,7 +110,7 @@ describe('S9b — comparing with a prior survey is reachable', () => {
     const fn = code.slice(code.indexOf('async function openCompareSurveys'));
     const body = fn.slice(0, fn.indexOf('async function openDxf'));
     expect(body).toContain('result.basisStatement');
-    expect(body.indexOf('result.basisStatement')).toBeLessThan(body.indexOf('flaggedCount === 0'));
+    expectOrder(body, 'result.basisStatement', 'flaggedCount === 0', 'the basis leads the report');
   });
 
   it('refuses a non-traversable reading by name', () => {
@@ -151,7 +152,7 @@ describe('the imported features can actually be rendered', () => {
     // Not cosmetic ordering. A feature whose layer is absent is dropped by `getVisibleFeatures`,
     // so features added first are invisible until something unrelated triggers a re-render — which
     // is a worse bug than never drawing them, because it is intermittent.
-    expect(body.indexOf('addLayer(')).toBeLessThan(body.indexOf('addFeatures('));
+    expectOrder(body, 'addLayer(', 'addFeatures(', 'layers exist before features reference them');
   });
 
   it('brings the new geometry into view', () => {
@@ -178,6 +179,6 @@ describe('the imported features can actually be rendered', () => {
   it('decides emptiness BEFORE adding the features', () => {
     // Reading it afterwards would always say non-empty, so the sheet would never be fitted — a
     // silent no-op that looks exactly like working code.
-    expect(body.indexOf('wasEmpty =')).toBeLessThan(body.indexOf('addFeatures('));
+    expectOrder(body, 'wasEmpty =', 'addFeatures(', 'emptiness is read before features are added');
   });
 });

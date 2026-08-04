@@ -15,6 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { expectOrder } from '../helpers/expect-order';
 
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const strip = (src: string) => src
@@ -39,7 +40,7 @@ describe('the survey-data import frames what it just positioned', () => {
     // An import with no coordinates fits no paper; framing a sheet that was never positioned would
     // be worse than framing the data.
     expect(code).toContain('paperWasFitted = true');
-    expect(code.indexOf('paperWasFitted = true')).toBeLessThan(code.indexOf('cad:zoomToPaper'));
+    expectOrder(code, 'paperWasFitted = true', 'cad:zoomToPaper', 'the fit is recorded before it is used');
   });
 });
 
