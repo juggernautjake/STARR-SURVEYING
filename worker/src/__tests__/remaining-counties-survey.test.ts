@@ -167,10 +167,28 @@ describe('the last three counties, hunted', () => {
   });
 
   it('distinguishes "no online portal" from "we have not found it"', () => {
-    // The whole point. Lee and San Saba publish nothing online; Hays is an unfinished search.
+    // The whole point. Lee and San Saba publish nothing online — a conclusion about the county.
     expect(REMAINING_COUNTY_SURVEY.Lee.status).toBe('no_online_portal');
     expect(REMAINING_COUNTY_SURVEY['San Saba'].status).toBe('no_online_portal');
-    expect(REMAINING_COUNTY_SURVEY.Hays.status).toBe('not_found');
+
+    // Hays was the third case — `not_found`, an admission that the search was unfinished. It was
+    // finished on 2026-08-04: the portal is Tyler Eagle at erss.co.hays.tx.us, reached from the
+    // county's own clerk page, and it is gated by a reCAPTCHA we refuse to solve (R12).
+    //
+    // The distinction this test protects is intact and now has three sides rather than two: a
+    // conclusion, an unfinished search, and a portal we can see but will not automate. Asserting
+    // it is NOT `not_found` keeps the old state from creeping back without keeping a stale label.
+    expect(REMAINING_COUNTY_SURVEY.Hays.status).toBe('captcha_gated');
+    expect(REMAINING_COUNTY_SURVEY.Hays.status).not.toBe('no_online_portal');
+  });
+
+  it('never lets a captcha be recorded as an absence of records', () => {
+    // A blocked read and an empty index are the same on screen and opposite in meaning. This is the
+    // same failure as every other in this plan, wearing a Google widget.
+    const hays = REMAINING_COUNTY_SURVEY.Hays;
+    expect(hays.url, 'a located portal must carry its URL').toBeTruthy();
+    expect(hays.blocker ?? '').toMatch(/captcha/i);
+    expect(hays.note).toMatch(/NOT ROUTED/);
   });
 
   it('still refuses to call either one an absence of records', () => {

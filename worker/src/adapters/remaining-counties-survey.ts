@@ -31,7 +31,14 @@ export interface CountySurvey {
    *  the county does not publish its land records online. The second is an admission that the
    *  search is unfinished. Collapsing them would turn "we stopped looking" into "there is nothing
    *  there", which is this document's defect in its purest form. */
-  status: 'open_partial' | 'login_required' | 'paywalled' | 'no_online_portal' | 'not_found';
+  status:
+    | 'open_partial'
+    | 'login_required'
+    | 'paywalled'
+    /** Located, but the index sits behind a captcha. See `captcha_gated` below. */
+    | 'captcha_gated'
+    | 'no_online_portal'
+    | 'not_found';
   url: string | null;
   /** Years the free path actually covers, when it is known. */
   freeCoverage?: string;
@@ -77,9 +84,18 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
   },
   Hays: {
     fips: '48209',
-    status: 'not_found',
-    url: null,
-    note: 'Henschen names it as their county but no Henschen URL resolves — confirmed in a browser, not just by fetch. No replacement portal located.',
+    status: 'captcha_gated',
+    url: 'https://erss.co.hays.tx.us/web/search/DOCSEARCH149S1',
+    blocker: 'Google reCAPTCHA v2 on the disclaimer; #submitDisclaimerAccept is disabled until solved.',
+    note:
+      'FOUND 2026-08-04 (R39). Was "not_found" — Henschen names Hays as theirs and no Henschen host ' +
+      'resolves. It is a Tyler Eagle county, the same software already driven for nine others, but on ' +
+      'a hostname the Tyler pattern cannot produce: the pattern builds ' +
+      '<county>countytx-web.tylerhost.net and Hays hosts it at its own erss.co.hays.tx.us. Found by ' +
+      "walking the county's own clerk page, which is the fourth time that has worked and the fourth " +
+      'time a URL pattern has not. ' +
+      'NOT ROUTED, and not because we could not: per R12 a captcha is refused until the county terms ' +
+      'are read and a posture is agreed. Falls through to TexasFile.',
   },
   Lee: {
     fips: '48287',

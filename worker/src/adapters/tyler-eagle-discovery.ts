@@ -249,4 +249,44 @@ export const TYLER_IDENTIFIED_NOT_DRIVEN: Record<string, { county: string; url: 
     url: 'https://gonzalescountytx-web.tylerhost.net/web/',
     evidence: 'host resolves on the Tyler pattern — DNS only, page not yet read',
   },
+  // ── Hays, found 2026-08-04 by walking the county's own site (R39) ──────────────────────────
+  //
+  // Hays sat at `not_found` because every Henschen hostname is dead and no replacement had been
+  // located. It is a **Tyler Eagle county** — the same software already driven for nine others —
+  // but on a hostname the Tyler pattern cannot produce: `tylerEagleUrl()` builds
+  // `<county>countytx-web.tylerhost.net`, and Hays hosts it at its own `erss.co.hays.tx.us`.
+  //
+  // This is why Hays is here rather than in TYLER_EAGLE_PORTALS: that table is keyed to the derived
+  // pattern, and adding Hays to it would generate a URL that does not exist. It is also why the
+  // county's own clerk page is the only reliable way to find these — the fourth vendor found that
+  // way and the fourth time a pattern failed to generalise.
+  //
+  // **Blocked by reCAPTCHA, and deliberately left blocked.** The disclaimer page carries a Google
+  // reCAPTCHA v2 widget and `#submitDisclaimerAccept` is `disabled` until it is solved; nothing is
+  // reachable behind it. Per R12 a captcha is refused until the county's terms have been read and a
+  // posture agreed — that is the intended failure mode, not an obstacle to route around. Hays
+  // therefore keeps falling through to TexasFile.
+  '48209': {
+    county: 'Hays',
+    url: 'https://erss.co.hays.tx.us/web/search/DOCSEARCH149S1',
+    evidence:
+      "driven 2026-08-04: linked from hayscountytx.gov/166/County-Clerk as 'Property Records Search'; " +
+      'redirects to /web/user/disclaimer titled "Self-Service" with the Tyler Eagle I Accept / ' +
+      'Yes - Continue / No - Start Over controls. BLOCKED: reCAPTCHA v2 gates the disclaimer and the ' +
+      'Accept button is disabled until it is solved. Not routed.',
+  },
 };
+
+/**
+ * Portals located but gated behind a captcha.
+ *
+ * Kept apart from the rest of `TYLER_IDENTIFIED_NOT_DRIVEN` because the blocker is categorically
+ * different, and so is what would clear it. "Not yet read" is undone by reading the page. This is
+ * undone by a **decision** — R12's automation posture, taken per county after its terms are read —
+ * and never by a cleverer adapter.
+ *
+ * Solving one is refused outright. A county that puts a captcha in front of its index is asking not
+ * to be automated, and reading that as a technical obstacle rather than an instruction is how a
+ * research tool becomes something a clerk blocks.
+ */
+export const TYLER_CAPTCHA_GATED = new Set<string>(['48209']);

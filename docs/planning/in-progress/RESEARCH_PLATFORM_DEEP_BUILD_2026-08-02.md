@@ -74,7 +74,7 @@ that *no* county of an unproven vendor routes to it.
 | ~~R14~~ | **DONE 2026-08-03** — errands run by citation, five outcomes, and "could not be searched" never reported as "not found" | — |
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
 | R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
-| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20 |
+| R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20. **Hays closed 2026-08-04** — located (Tyler Eagle on a county-owned host the pattern cannot produce) and REFUSED: reCAPTCHA gates the disclaimer, so per R12 it stays unrouted. No county in the survey is now merely 'not found' |
 | ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
 | ~~R17~~ | **DONE 2026-08-03** — `source_bounding_box` holds a value. The producer was in the app all along: the tiling OCR already measured every tile and discarded the geometry. Also fixed a write that was wiping the document viewer's page URLs | — |
@@ -4498,3 +4498,35 @@ Worker suite **1,543 green**; 22,730 root tests; `tsc`, `eslint` and `npm run bu
 **Twelve Henschen counties and six Fidlar counties remain** — each needs its own site read, the way
 these four were. It is slow, it does not generalise, and it is the only method that has produced a
 correct answer.
+
+#### R39, seventh finding — Hays was findable all along, and is refused anyway
+
+Hays sat at `not_found` — which in this survey means *"we stopped looking"*, deliberately distinct
+from `no_online_portal`, *"the county publishes nothing online"*. Collapsing those two is this
+document's defect in its purest form, so the honest move was to finish the search rather than
+re-label it.
+
+Walking `hayscountytx.gov` — the same method that found the last four vendors — its County Clerk
+page carries **"Property Records Search" → `https://erss.co.hays.tx.us/web/search/DOCSEARCH149S1`**.
+That redirects to `/web/user/disclaimer`, titled *Self-Service*, with `I Accept` / `Yes - Continue`
+/ `No - Start Over`: **Tyler Eagle**, the software already driven for nine counties.
+
+**The pattern could never have found it.** `tylerEagleUrl()` builds
+`<county>countytx-web.tylerhost.net`; Hays runs the same software on its own hostname. That is the
+fourth vendor found by reading a county's own site and the fourth time a URL pattern failed to
+generalise — which is now less a finding than the method.
+
+**It is captcha-gated, and stays blocked.** A Google reCAPTCHA v2 widget gates the disclaimer and
+`#submitDisclaimerAccept` is `disabled` until it is solved. Per R12 a captcha is refused until the
+county's terms are read and a posture is agreed — the intended failure mode, not an obstacle to
+route around. Hays keeps falling through to TexasFile.
+
+So the survey gains a fifth status, `captcha_gated`, rather than filing this under `login_required`.
+The blockers are not the same and neither is what clears them: credentials clear a login; only a
+decision clears this. A guard now asserts Hays is absent from the routed portal table — adding it
+would generate a hostname that does not exist — and that no captcha-gated county is ever routed, so
+a future edit cannot "fix" Hays by undoing a policy.
+
+**Remaining after this: nothing findable offline.** Lee and San Saba publish nothing online,
+Limestone needs credentials, Bosque is routed with its gap stated, Bastrop is driven. Worker 1,567
+green.
