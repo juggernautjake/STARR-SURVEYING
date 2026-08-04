@@ -12,7 +12,7 @@
 // argue with a named test rather than with a comment.
 
 import { describe, it, expect } from 'vitest';
-import { summariseTopups, decideTopup, type TopupRow, type VendorAccount } from '../services/vendor-accounts-policy.js';
+import { summariseTopups, decideTopup, describeBalance, type TopupRow, type VendorAccount } from '../services/vendor-accounts-policy.js';
 
 const NOW = new Date('2026-08-04T12:00:00Z');
 const row = (over: Partial<TopupRow> = {}): TopupRow => ({
@@ -125,5 +125,63 @@ describe('the summary actually drives decideTopup', () => {
     const d = decideTopup(account(), { now: NOW, ...summariseTopups(rows, NOW) });
     expect(d.topUp).toBe(false);
     expect(d.blocked, 'an unresolved charge is a refusal to decide, not an all-clear').toBe(true);
+  });
+});
+
+// ── S-9e — the state every vendor account is actually in ────────────────────────────────────────
+//
+// There is no balance reader. Nothing in this repo writes `balance_usd` for a vendor: the route
+// rejects hand-written figures (correctly), the SetupIntent flow is unbuilt, and the only
+// `balance_usd` writers anywhere are in the Stripe webhook, against a different table keyed by
+// `user_email`.
+//
+// So `balance_source = 'unknown'` is not an edge case — it is **the state of every row today**, and
+// it will stay that way until a reader exists. These tests pin what the system says in that state,
+// because "the dry run shows every account blocked" is either correct behaviour or a bug, and which
+// one it is should not depend on somebody remembering this paragraph.
+
+describe('S-9e — with no balance reader, which is today', () => {
+  const unread = (): VendorAccount => ({
+    vendorId: 'texasfile', displayName: 'TexasFile', accountStatus: 'active',
+    accountIdentifier: null, credentialEnvVar: 'TEXASFILE_PASSWORD', accountVerifiedAt: null,
+    balanceUsd: null, currency: 'USD', balanceSource: 'unknown', balanceCheckedAt: null,
+    autoTopupEnabled: true, lowWaterUsd: 25, topupToUsd: 100, monthlyCeilingUsd: 200,
+    minTopupIntervalMins: 60, lastTopupAt: null, coveredFips: [], statewide: true, cardLast4: '4242',
+  });
+
+  it('describes the balance as unknown and NOT as zero', () => {
+    // The distinction the whole module is built around. "$0.00" would read as a drained account and
+    // block purchases that should go through; UNKNOWN says nobody has looked.
+    const line = describeBalance(unread(), NOW);
+    expect(line).toMatch(/UNKNOWN/);
+    expect(line).toMatch(/[Nn]ot zero/);
+  });
+
+  it('refuses to top up, and says why, rather than charging on a guess', () => {
+    const d = decideTopup(unread(), { now: NOW, ...summariseTopups([], NOW) });
+    expect(d.topUp).toBe(false);
+    expect(d.blocked, 'this is a refusal to decide, not an all-clear').toBe(true);
+    expect(d.reason).toMatch(/unknown/i);
+  });
+
+  it('stays blocked even with auto top-up on, limits set, and a card on file', () => {
+    // Everything a person can configure IS configured in this fixture. The remaining blocker is not
+    // an owner decision and not a missing number — it is a component nobody has written. Anyone
+    // reading the panel and seeing "Cannot decide" on a fully-filled-in row deserves that to be a
+    // documented outcome rather than a puzzle.
+    const a = unread();
+    expect(a.autoTopupEnabled && a.lowWaterUsd && a.topupToUsd && a.monthlyCeilingUsd && a.cardLast4).toBeTruthy();
+    expect(decideTopup(a, { now: NOW, ...summariseTopups([], NOW) }).blocked).toBe(true);
+  });
+
+  it('would proceed the moment a real reading arrives', () => {
+    // The other half, so this file does not just assert "everything is blocked". The gate is the
+    // missing READING, not the configuration — flip the source and the same account tops up.
+    const read: VendorAccount = {
+      ...unread(), balanceUsd: 10, balanceSource: 'confirmed', balanceCheckedAt: NOW.toISOString(),
+    };
+    const d = decideTopup(read, { now: NOW, ...summariseTopups([], NOW) });
+    expect(d.topUp, 'a confirmed reading should unblock the decision').toBe(true);
+    expect(d.amountUsd).toBe(90);
   });
 });

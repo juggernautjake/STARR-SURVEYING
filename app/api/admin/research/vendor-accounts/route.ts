@@ -39,8 +39,21 @@ import {
 
 export const runtime = 'nodejs';
 
-/** Fields a person may set from this screen. Everything else on the row is set by machinery —
- *  balances by the reader, card details by the SetupIntent flow, `last_topup_at` by the charge. */
+/** Fields a person may set from this screen. Everything else on the row is set by machinery.
+ *
+ *  ⚠ **Two of those machines do not exist yet** (measured 2026-08-04, S-9e), and this comment used to
+ *  describe all three as though they did:
+ *
+ *    · `card_last4` / `stripe_*` — set by the SetupIntent flow. **Not built** (S-9, owner-gated).
+ *    · `last_topup_at` — set by the charge. **Not built** (same).
+ *    · `balance_usd` / `balance_source` / `balance_checked_at` — "written by the balance reader".
+ *      **There is no balance reader.** Nothing in this repo writes a vendor balance: the only
+ *      `balance_usd` writers are in the Stripe webhook, against a different table keyed by
+ *      `user_email`.
+ *
+ *  These fields are still rejected rather than accepted, and that is still right — a balance is a
+ *  reading or an inference, never a typed-in figure. But the reason is now "nothing writes this yet",
+ *  not "something else owns it", and those are different facts for whoever reads this next. */
 const EDITABLE = [
   'account_status', 'account_identifier', 'credential_env_var',
   'auto_topup_enabled', 'low_water_usd', 'topup_to_usd', 'monthly_ceiling_usd',

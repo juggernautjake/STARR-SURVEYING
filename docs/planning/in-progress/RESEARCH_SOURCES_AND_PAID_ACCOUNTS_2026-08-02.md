@@ -696,3 +696,52 @@ this file, 977 across the research suite, `tsc` and `eslint` clean, production b
 **Still owner-blocked, unchanged:** the SetupIntent and the off-session PaymentIntent, the per-vendor
 amounts and thresholds, the ceiling figure, and which vendors to open accounts with. The difference
 after this slice is that the owner can now *see what those numbers would do* before choosing them.
+
+## S-9e DONE 2026-08-04 — there is no balance reader, and three things were waiting on it
+
+S-10 says reconciliation shipped and *"the scheduled sweep waits on S-9"*. Checking what `reconcile()`
+would actually need found that reason is wrong, and the real one is bigger.
+
+**`reconcile()` has no production caller** — same shape as `decideTopup` before S-9b. But wiring it is
+not the fix, because it takes a `previousConfirmedUsd`, and **nothing stores one**: seed 569 creates
+two tables, accounts and top-ups, and neither keeps a prior reading. Its parameter has no source.
+
+Pulling that thread found the thing underneath:
+
+> **Nothing in this repo writes a vendor balance at all.**
+
+The route rejects hand-written figures (correctly — a balance is a reading or an inference, never a
+typed-in number), the SetupIntent flow is unbuilt, and the only `balance_usd` writers anywhere are in
+the Stripe webhook, against a **different table keyed by `user_email`**. There is no
+`readBalance`, no `fetchBalance`, no vendor login. The route's own comment said *"balances by the
+reader"* — **a comment describing a component that does not exist**, and the third instance of that
+pattern this session.
+
+### ▶ The chain, stated once so nobody re-derives it
+
+1. No balance reader → `balance_usd` is never written
+2. → `balance_source` stays `'unknown'` on every row
+3. → `describeBalance` correctly reports *"UNKNOWN — never established. Not zero"*
+4. → `decideTopup` correctly refuses, `blocked: true`, *"balance is unknown"*
+5. → **S-9d's dry run shows every account as "Cannot decide", forever, until a reader exists**
+6. → `reconcile()` has neither a current reading nor a previous one to compare it against
+
+Every step is correct behaviour. The system is not broken; it is honest about a component that has not
+been written. **But "every account is blocked" looks identical to a bug**, and the difference should
+not depend on someone remembering this paragraph — so it is now four tests: the unknown balance is not
+zero, the refusal is a refusal-to-decide rather than an all-clear, a **fully configured** account (auto
+top-up on, all three limits set, card on file) *still* blocks, and the same account tops up the moment
+a confirmed reading arrives. That last one is the important half: **the gate is the missing reading,
+not the configuration.**
+
+### ▶ What this changes about the next slice
+
+A scheduled reconciliation sweep is **not** the next thing to build, and neither is a balance-history
+column. The order is: **balance reader → history → reconcile sweep**, and the reader needs vendor
+credentials (`credential_env_var` names a variable nobody has set) — so it is owner-gated, like the
+rest of S-9.
+
+Recorded because the previous note would have sent someone to build the sweep, which cannot run, on
+top of a history store for readings that never happen.
+
+20 tests in the ledger file, 977 across the research suite, `tsc` and `eslint` clean.
