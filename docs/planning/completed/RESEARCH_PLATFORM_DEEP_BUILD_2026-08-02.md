@@ -76,11 +76,11 @@ that *no* county of an unproven vendor routes to it.
 | ~~R38~~ | **DONE 2026-08-04.** Measured: 11 of the 13 counties the owner named already route to a proven FREE vendor (7 Kofile, 2 Tyler Eagle, 1 eDocTec, 1 Avenu). The two that did not — Harrison and Trinity — were hunted from their own clerk pages. Harrison has a free Kofile QuickLink whose real coverage is 1880–1907 with a 1888–1896 hole, against a banner claiming 1840–1920; Trinity has no online portal at all. Neither is routed, and both say why | The remaining vendor work is not findable offline: Henschen, iDocket and Fidlar were browser-confirmed dead, Limestone needs credentials, Hays is captcha-refused |
 | R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20. **Hays closed 2026-08-04** — located (Tyler Eagle on a county-owned host the pattern cannot produce) and REFUSED: reCAPTCHA gates the disclaimer, so per R12 it stays unrouted. No county in the survey is now merely 'not found' |
 | ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
-| R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
+| R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | **DEFERRED — blocked on the owner, not on code.** These are subscription products; the purchase interface, the cost-ascending registry and the spend ceiling they plug into are all built and tested. Nothing further can be written until credentials exist, and writing an adapter against a login we cannot reach would be the fictional-config defect this document already caught once |
 | ~~R17~~ | **DONE 2026-08-03** — `source_bounding_box` holds a value. The producer was in the app all along: the tiling OCR already measured every tile and discarded the geometry. Also fixed a write that was wiping the document viewer's page URLs | — |
 | ~~R28/R29~~ | **DONE 2026-08-03** — the poller runs at boot behind `RESEARCH_QUEUE_POLLER`, default off. The loop was code, not deployment; enabling it is now configuration | — |
 | ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
-| R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
+| R26 | The native mobile job view and true offline document caching | **DEFERRED — cannot be verified here.** Camera, storage quota and background sync behave differently on a real handset than under any emulation available in this repo, and a green test on the wrong substrate is worse than no test. Tracked in the mobile BLOCKERS doc and device-tested by the owner |
 | ~~R4b~~ | **DONE 2026-08-04 — and the inventory had been wrong twice.** It read 0; measured properly it was 6. Six Bell analyzers accumulated a usage summary that was displayed and never persisted — `recordAiUsage` was defined in `ai-cost-helpers.ts` and called from **nowhere in the repository**. They passed the ratchet because its predicate is a text search and they *import* that module. All six now record: five once per run (exact, each uses a single `modelFor()` task), `lot-correlator` at the call since it has no accumulator and two return paths | The four "hard" reasons I then wrote were also wrong — "two hops", "three callers", "no accumulator", "dynamically imported with no projectId". All four are called from **one** place where `input.projectId` is already in scope, and the validator does have an accumulator. None survived opening the file. The ratchet now sweeps `.messages.create(` as well as `new Anthropic(`, requires a recorder to be **called** rather than imported, and asserts all six call sites still thread projectId — that last added because its negative control did **not** fire (`projectId` is optional, so cutting the thread compiled and passed) |
 
 ### Owner requests added after the original 30 slices
@@ -2055,7 +2055,14 @@ for each of these, which is what "fully built" means here.
   unproven* rather than as absent — which is the honest state until each is exercised.
   *Acceptance:* `/admin/research/coverage` lists all thirteen counties, none claiming to be proven.
 
-- **R37. Survey the live sites (Playwright, owner-permitted).** MOSTLY DONE 2026-08-02 — 13 of 25 portals confirmed by HTTP; the browser-driven form probe still to run
+- **R37. Survey the live sites (Playwright, owner-permitted).** DONE 2026-08-04 — the browser probe was run, and it changed answers HTTP had got wrong
+  <br>The line above used to read *"13 of 25 portals confirmed by HTTP; the browser-driven form probe
+  still to run"*. It has been run, repeatedly, and the browser disagreed with HTTP in both
+  directions: CountyFusion was declared dead by fetch and is alive (our TLD was wrong), while
+  Henschen (16), iDocket (18) and Fidlar (6) were re-probed in a real browser and stayed dead.
+  Every routed vendor has since been driven end to end — Kofile, Tyler Eagle, eDocTec, Avenu 20/20,
+  Aumentum and iDocMarket — and each one's traps are recorded where the adapter can see them
+  (`BASTROP_TRAPS`, the Avenu trusted-click finding, the Tyler paging banner).
   For each county, visit the clerk and appraisal portals and record what is actually there: the
   search form, its fields, the results shape, whether images are free or paid, whether a login or a
   captcha stands in the way, and the DOM fingerprint R7's health checks will watch.
@@ -2113,7 +2120,14 @@ found" for most of Texas.
 **Sequencing note:** R37 must precede R38 — every adapter this repo has shipped against a guessed DOM
 has needed rewriting, and R7/R8/R9 exist because of it.
 
-- **R39. Hunt each remaining county's portal from its own site.** IN PROGRESS 2026-08-02 — eDocTec found, Coryell + Lampasas off the paywall (seed 548, commit `59a0b463f`)
+- **R39. Hunt each remaining county's portal from its own site.** DONE 2026-08-04 — acceptance met: no county is left without either a driven adapter or a specific recorded reason
+  <br>Four vendors nobody had catalogued were found this way — eDocTec (Coryell, Lampasas), Tyler
+  Eagle (9 including McLennan/Waco), Avenu 20/20 (Falls, Robertson), Aumentum (Bastrop) — plus
+  iDocMarket and Bosque's free historical QuickLink. Then Hays (Tyler Eagle on a county-owned host,
+  captcha-refused), Harrison (free QuickLink, coverage 40 years narrower than advertised) and
+  Trinity (no online portal). **Verified counties 7 → 21.**
+  <br>The method is now the finding: **no URL pattern generalises, and the county's own clerk page
+  always does.** Four vendors, four pattern failures, four successes reading the site.
   R38 established that no vendor URL pattern generalises. The only method left is per-county: read
   the clerk's own page, find the portal, drive it, read the DOM, then list it.
   *Acceptance:* every county within 80 miles of Bell either has a driven adapter or a recorded,
@@ -4563,3 +4577,59 @@ or the clerk publishing one.
 
 Neither is routed. Harrison's free window is historical-only with no adapter, and saying otherwise
 would be the routing table claiming a county it cannot serve. Worker 1,579 green.
+
+---
+
+## Closed — 2026-08-04
+
+All 39 slices are shipped or explicitly deferred. Moved to `completed/` per the rubric in
+`docs/planning/README.md`.
+
+### Deferred, and why — neither is "we ran out of enthusiasm"
+
+| Slice | Why it is not built |
+|---|---|
+| **R13** — TitlePoint/DataTree/Regrid | Blocked on the owner. These are subscription products. Everything they plug into exists: the purchase interface, the cost-ascending registry that puts free sources first, the spend ceiling. What does not exist is credentials, and writing an adapter against a login nobody can reach is exactly the fictional-config defect this document already caught once — eight invented Henschen configs, deleted. |
+| **R26** — native mobile job view, offline caching | Cannot be verified here. Camera, storage quota and background sync behave differently on a handset than under any emulation this repo can run, and a green test on the wrong substrate is worse than no test. Device-tested by the owner; tracked in the mobile BLOCKERS doc. |
+
+Also still owner-gated, and listed in §4 rather than as slices: imagery licensing and API keys
+(R16), the ~10 golden-record properties a surveyor must confirm (R19 and R9's canaries), automation
+posture per county (R12 — which is why Hays stays refused), and ordering the scanning box (R29).
+
+### County coverage, measured
+
+Of the thirteen counties the owner's place list resolved to, **eleven route to a proven free
+vendor** — 7 Kofile, 2 Tyler Eagle, 1 eDocTec, 1 Avenu. The remaining two are recorded facts rather
+than gaps: Harrison has a free historical index (1880–1907, hole at 1888–1896) and no free modern
+one; Trinity publishes nothing online.
+
+**Verified counties 7 → 21.** No county in the survey is "not found" any more — every one is either
+driven, or carries a specific reason it is not.
+
+### The method, which turned out to be the finding
+
+Four vendors nobody had catalogued were found in this phase — eDocTec, Tyler Eagle, Avenu 20/20,
+Aumentum — plus iDocMarket and two free Kofile QuickLinks. Every one was found the same way, and
+every URL pattern failed the same way:
+
+> **No vendor URL pattern generalises. The county's own clerk page always does.**
+
+Hays makes the point cleanly: it runs the same Tyler Eagle software as nine catalogued counties, on
+a hostname the Tyler pattern cannot produce. A pattern-based search would have concluded Hays has no
+portal — and been wrong, confidently.
+
+### The defect this phase kept finding
+
+Thirty-nine slices, one defect in more than twenty places: **an unknown rendered as an answer.**
+
+A timeout that reads as an empty index. A readiness condition satisfied by page furniture, so a
+239-row grid is read while empty. A grid whose 239 rows render as one `<tr>`, so per-row parsing
+returns one document. A coverage banner claiming forty years the dropdown does not offer. A
+credential bump nobody is offered, still priced into a rate. A recorder defined and never called,
+credited by a guard that searched for its name. A payroll run reading a table that has never had a
+row, cutting 0-hour stubs and reporting success.
+
+The fix was the same every time — **say which, and say what would settle it** — and it is enforced
+by guards rather than by discipline. Several of those guards were themselves wrong when first
+written, and were only found by breaking the thing they claimed to catch and watching them pass.
+That practice is the most portable thing in this document.
