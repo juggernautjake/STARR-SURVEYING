@@ -49,13 +49,46 @@ export interface TaxSummaryInput {
   category?: string | null;
 }
 
+export type TaxSummaryBasis =
+  'card-unconfirmed' | 'card-role' | 'capital-asset' | 'recovery' | 'deductible-flag' | 'unclassified';
+
 export interface TaxSummary {
   /** The one line. Short enough to read in a list. */
   summary: string;
   /** True when a person must resolve something before this row can be filed. */
   needsAttention: boolean;
   /** Which rule decided it — so a surprising summary can be traced without re-deriving it. */
-  basis: 'card-unconfirmed' | 'card-role' | 'capital-asset' | 'recovery' | 'deductible-flag' | 'unclassified';
+  basis: TaxSummaryBasis;
+}
+
+/**
+ * FINANCE_TAX_AND_INTAKE Slice F7a — why the summary says what it says.
+ *
+ * The owner asked for the finance tools to explain themselves. The most useful explanation is not a
+ * manual nobody opens: it is *which rule fired on this row*, next to the row. `basis` was already
+ * computed and thrown away at every call site.
+ *
+ * It matters because the precedence is genuinely surprising the first time you meet it. A receipt
+ * whose category is "fully deductible" can correctly read *"not our transaction"*, and without this
+ * the reader's only options are to trust it or to go and read the source. Naming the rule turns a
+ * verdict into something checkable.
+ */
+export function explainBasis(basis: TaxSummaryBasis): string {
+  switch (basis) {
+    case 'card-unconfirmed':
+      return 'Decided by: the card match is only a suggestion — four digits are not an identifier, so nothing is filed until someone confirms whose card paid.';
+    case 'card-role':
+      return 'Decided by: whose card paid. This outranks the category — a purchase we did not pay for is not ours to deduct, and a personal card is money owed to a person until it is repaid.';
+    case 'capital-asset':
+      return 'Decided by: this receipt was promoted to a capital asset, so it is depreciated rather than deducted this year. It is excluded from the Schedule C receipts total so the dollars cannot land twice.';
+    case 'recovery':
+      return 'Decided by: what was billed back to the customer, compared with what was paid. Only an exact match is a pass-through; anything else is a shortfall or margin.';
+    case 'deductible-flag':
+      return "Decided by: the receipt's category and its tax-deductible flag, once the questions above were settled.";
+    case 'unclassified':
+    default:
+      return 'Decided by: nothing yet — this receipt has no category or deductibility recorded, so no treatment can be derived.';
+  }
 }
 
 export function taxSummaryFor(input: TaxSummaryInput): TaxSummary {

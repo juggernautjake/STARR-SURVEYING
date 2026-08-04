@@ -457,3 +457,30 @@ Wiring guard watched failing. `npm run build` clean, 75 finance tests green.
 
 **F1b/F2b — the card-registry and pass-through screens — remain**, and are the natural next slice
 once seeds 572/573 are applied. There is nothing useful to render until the tables exist.
+
+---
+
+## ✅ F7a — the screen explains its own verdict. **DONE 2026-08-04.**
+
+*Ask: "make it very intuitive and clear how to use the tools and create explanations and tutorials if
+you can."*
+
+F7 was sequenced last so it would not be written twice. The first instalment is not a manual: it is
+**which rule fired on this row, shown next to the row**.
+
+`taxSummaryFor` already returned a `basis` naming the rule that decided each verdict — and every call
+site threw it away. `explainBasis` turns it into a sentence, and the receipt panel now shows the
+verdict *and* the reason.
+
+**Why this is the explanation worth having.** The precedence is genuinely surprising the first time
+you meet it: a receipt whose category is "fully deductible" can correctly read *"not our
+transaction"*, because whose money it was outranks what was bought. Without the reason, a reader's
+only options are to trust the sentence or go and read the source — and a manual would not be open at
+the moment the surprising line appears. Naming the rule turns a verdict into something checkable.
+
+Every basis is covered, asserted as a **whole set** so a basis added later cannot ship without an
+explanation and quietly fall back to something generic. 78 finance tests, `npm run build` clean.
+
+**Still open in F7:** walkthroughs for the card registry and pass-through screens — which cannot be
+written until F1b/F2b exist, and those need seeds 572/573 applied. Documenting a screen before it
+exists is how the tutorial gets written twice, which is the reason F7 was sequenced last.

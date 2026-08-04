@@ -139,3 +139,48 @@ describe('the whole-file invariant', () => {
     }
   });
 });
+
+// ── F7a: the screen explains its own verdict ────────────────────────────────────────────────────
+//
+// The owner asked for the finance tools to explain themselves. The most useful explanation is not a
+// manual nobody opens — it is which rule fired on THIS row, shown next to the row. `basis` was
+// already computed and thrown away at every call site.
+
+describe('explainBasis', () => {
+  it('covers every basis a summary can return', async () => {
+    // Whole-set, so a basis added later cannot ship without an explanation and fall back to a
+    // generic sentence that explains nothing.
+    const { explainBasis } = await import('@/lib/finance/tax-summary');
+    const cases: TaxSummaryInput[] = [
+      input({ card: company, cardConfirmed: false }),
+      input({ card: clientCard }),
+      input({ promotedToAsset: true }),
+      input({ recovery: { costCents: 100, links: [{ invoiceId: 'i', amountCents: 100 }] } }),
+      input({ deductibleFlag: 'full' }),
+      input({ deductibleFlag: null, category: null }),
+    ];
+    const seen = new Set<string>();
+    for (const c of cases) {
+      const t = taxSummaryFor(c);
+      seen.add(t.basis);
+      const why = explainBasis(t.basis);
+      expect(why.length, t.basis).toBeGreaterThan(20);
+      expect(why, t.basis).toMatch(/^Decided by:/);
+    }
+    expect(seen.size).toBe(6);
+  });
+
+  it('explains the precedence that is genuinely surprising', async () => {
+    // A "fully deductible" category can correctly read "not our transaction". Without the reason,
+    // the reader's only options are to trust the sentence or go and read the source.
+    const { explainBasis } = await import('@/lib/finance/tax-summary');
+    const t = taxSummaryFor(input({ card: clientCard, deductibleFlag: 'full' }));
+    expect(explainBasis(t.basis)).toMatch(/outranks the category/i);
+  });
+
+  it('says a suggestion is a suggestion', async () => {
+    const { explainBasis } = await import('@/lib/finance/tax-summary');
+    const t = taxSummaryFor(input({ card: company, cardConfirmed: false }));
+    expect(explainBasis(t.basis)).toMatch(/four digits are not an identifier/i);
+  });
+});
