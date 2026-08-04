@@ -885,3 +885,31 @@ never completed, and the previous author's own hypothesis for exactly this sympt
 written from source in one session, and both would have been settled in five minutes by the overlay
 that was sitting there the whole time. The corrections are left in place rather than deleted, because
 the pattern is the lesson.
+
+---
+
+## S8d — the import landed on the grey, not on the sheet. **DONE 2026-08-04.**
+
+S8c made the imported boundary visible. Driving it once more showed the next problem, and it is the
+kind only a browser finds: the tract was drawn **entirely off the white page**.
+
+A reading's coordinates are relative to a point of beginning at `(0,0)`, and a traverse running south
+of the POB has **negative northings** — while the paper occupies `y ∈ [0, height]`. So a correctly
+imported, correctly closed tract sat on the grey surround. It looked drawn, and it would have
+**plotted blank**.
+
+**The fix is about which thing moves.** `cad:fitDrawingToPage` picks a standard engineering plot
+scale and repositions the **paper** over the data, leaving every coordinate, distance and bearing
+untouched — it even prints *"Fit to page at 1"=40'. Coordinates unchanged."* Moving the geometry onto
+the sheet instead would have falsified the survey to make the picture tidy, which is the one thing a
+survey drawing may never do.
+
+**Only when the drawing was empty.** Re-fitting the sheet under a surveyor with work in progress
+silently changes their plot scale and page position; that is their decision, not an import's. A
+non-empty drawing just gets `cad:zoomExtents`, and `View → Fit Drawing to Page` is there when they
+want it. `wasEmpty` is read **before** `addFeatures` — reading it afterwards always says non-empty,
+so the sheet would never be fitted, and a silent no-op looks exactly like working code. That ordering
+is asserted.
+
+**Verified in the browser:** tract on the sheet, north arrow, graphic scale, certification block,
+survey-notes block and title block all framed at 1"=40'.

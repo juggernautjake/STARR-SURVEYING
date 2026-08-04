@@ -159,4 +159,25 @@ describe('the imported features can actually be rendered', () => {
     // off-screen is indistinguishable from one that failed.
     expect(body).toContain('cad:zoomExtents');
   });
+
+  // ── S8d ──
+  it('puts the geometry on the SHEET when the drawing was empty', () => {
+    // A traverse running south of the point of beginning has negative northings while the paper
+    // occupies y >= 0, so a correctly imported tract sat entirely off the white sheet, on the grey.
+    // It looked drawn and would have plotted blank.
+    expect(body).toContain('cad:fitDrawingToPage');
+    expect(body).toContain('wasEmpty');
+  });
+
+  it('does NOT move the sheet under a drawing already in progress', () => {
+    // Re-fitting the page silently changes the surveyor's plot scale and page position. That is
+    // their decision, not an import's — View > Fit Drawing to Page is there when they want it.
+    expect(body).toMatch(/wasEmpty\s*\?\s*'cad:fitDrawingToPage'\s*:\s*'cad:zoomExtents'/);
+  });
+
+  it('decides emptiness BEFORE adding the features', () => {
+    // Reading it afterwards would always say non-empty, so the sheet would never be fitted — a
+    // silent no-op that looks exactly like working code.
+    expect(body.indexOf('wasEmpty =')).toBeLessThan(body.indexOf('addFeatures('));
+  });
 });

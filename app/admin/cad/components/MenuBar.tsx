@@ -954,6 +954,10 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // were added, and the canvas stayed empty.
         const store = useDrawingStore.getState();
         const doc = store.document;
+        // S8d — was this drawing empty before the import? A new document seeds 28 default layers
+        // but zero features, so this is a reliable test and it decides whether we may move the
+        // sheet (below).
+        const wasEmpty = Object.keys(doc.features).length === 0;
         const newLayers = researchLayersToCreate(
           result.requiredLayers,
           Object.keys(doc.layers),
@@ -964,11 +968,30 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
 
         useDrawingStore.getState().addFeatures(result.features);
 
-        // And show it. An import that lands off-screen is indistinguishable from one that failed —
-        // the reading's coordinates are relative to a point of beginning at (0,0), which is almost
-        // never where the current view is looking. Deferred a tick like `ImportDialog` does, so the
-        // extents are computed from a document that already contains the new features.
-        setTimeout(() => window.dispatchEvent(new CustomEvent('cad:zoomExtents')), 50);
+        // S8d — put it ON THE SHEET, not merely on screen.
+        //
+        // S8c made the geometry visible; driving it showed the next problem. A reading's
+        // coordinates are relative to a point of beginning at (0,0), and a traverse that runs
+        // south of the POB has negative northings — while the paper occupies y ∈ [0, height]. So a
+        // correctly imported tract sat entirely off the white sheet, on the grey. It looked drawn
+        // and would have plotted blank.
+        //
+        // `cad:fitDrawingToPage` is the right instrument because of WHICH thing it moves: it picks
+        // a standard engineering plot scale and repositions the PAPER over the data, leaving every
+        // coordinate, distance and bearing untouched. Moving the geometry onto the sheet instead
+        // would falsify the survey to make the picture tidy.
+        //
+        // Only when the drawing was empty, though. Re-fitting the sheet under a surveyor who
+        // already has work in progress silently changes their plot scale and page position, which
+        // is their decision and not an import's. In that case just bring the new geometry into
+        // view and leave the sheet alone; `Fit Drawing to Page` is on the View menu when they want
+        // it.
+        //
+        // Deferred a tick like `ImportDialog` does, so the fit is computed from a document that
+        // already contains the new features.
+        setTimeout(() => window.dispatchEvent(new CustomEvent(
+          wasEmpty ? 'cad:fitDrawingToPage' : 'cad:zoomExtents',
+        )), 50);
 
         cadLog.info(
           'FileIO',
