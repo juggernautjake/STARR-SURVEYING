@@ -2167,3 +2167,41 @@ and convergence angle. Both need a geodetic position and an ellipsoid model, the
 library in this repo, and a grid distance labelled as a ground distance is exactly the confident
 wrong answer this codebase's rules exist to prevent. Still needs a **golden instrument file**, which
 is owner-gated.
+
+### ✅ S7b DONE 2026-08-04 — the typed point was accepted and then discarded
+
+S7a fixed the *conversion* — display space to world, N-then-E, origin removed — and its note said the
+create path "still needs doing". Checking what "needs doing" meant found something worse than an
+absent feature.
+
+**Typing a coordinate with the Point tool did nothing at all, silently.** Every other draw tool builds
+its feature out of `drawingPoints`, so typed entry already worked for lines, polylines and circles.
+`DRAW_POINT` does not: it creates its feature *inside the mouse handler*, from the click's own
+`worldPt`. A typed pair therefore went into `drawingPoints` and **nothing ever consumed it**. The
+input was accepted, the field cleared, and the drawing did not change.
+
+That shape is worse than a missing feature. There is no error to read and nothing to retry — the app
+behaved exactly as it does when it succeeds. And typing a coordinate is precisely how a **control
+point off a data sheet** is entered, which is the one case where clicking is not accurate enough to
+be worth doing at all. The command hint even said so: *"Click to place a point"*, an accurate
+description of a tool that ignored what you typed.
+
+**One placement, two ways to reach it.** The click case's body moved into `placePointAt(worldPt)` and
+the new `cad:placeTypedPoint` handler calls the same function. Not two implementations that agree
+today: the parts that would drift are `withAutoLabels` and the undo entry, and a second copy missing
+the former yields points with no number or description — which reads as a labelling bug, not as a
+second code path. The test asserts the click case still *delegates*, so the copy cannot grow back.
+
+The handler clears `drawingPoints` after placing, because a POINT is complete on entry and has no
+confirm step; leaving the coordinate would make the next typed pair look like a second vertex. It
+also ignores the event unless `DRAW_POINT` is active, so a stray dispatch cannot place geometry while
+another tool is mid-figure.
+
+6 tests, and **both negative controls were watched failing**: restoring `addDrawingPoint` for the
+point tool fails the wiring assertion, and re-growing a private `createFeature('POINT')` in the click
+case fails the shared-placement one. The last test re-pins S7a's arithmetic at this new boundary —
+a typed pair read off a real state-plane origin must reproduce the same world point, because a typed
+path that places points in the *wrong* spot would be worse than the no-op it replaced: the drawing
+would look finished.
+
+CAD suite 3,459 green; `tsc` and `eslint` clean.

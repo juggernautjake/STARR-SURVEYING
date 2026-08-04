@@ -104,7 +104,10 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
     case 'PAN':
       return 'Click and drag to pan. Scroll to zoom. Middle-mouse drag also pans. Press S to return to Select.';
     case 'DRAW_POINT':
-      return 'Click to place a point. Use snap for precision. Esc to cancel.';
+      // S7b — the typed path exists now, so the hint says so. It said "click" only, which was an
+      // accurate description of a tool that ignored what you typed; a surveyor entering a control
+      // point from a data sheet needs the coordinate, not the mouse.
+      return 'Click to place a point, or type the coordinates. Use snap for precision. Esc to cancel.';
     case 'DRAW_LINE':
       return drawingPointsCount === 0
         ? 'Specify first point — click or type x,y'
@@ -268,6 +271,14 @@ export default function CommandBar() {
           const prefs = useDrawingStore.getState().document.settings.displayPreferences
             ?? DEFAULT_DISPLAY_PREFERENCES;
           pt = coordinatesFromDisplay(val.x ?? 0, val.y ?? 0, prefs);
+        }
+        // S7b — the Point tool has no confirm step, and it never consumed `drawingPoints`: it
+        // creates its feature from the click's own world coordinate. So a typed pair went into the
+        // store and stayed there, doing nothing. Hand it to the canvas, which places it through the
+        // same function the click uses.
+        if (toolState.activeTool === 'DRAW_POINT') {
+          window.dispatchEvent(new CustomEvent('cad:placeTypedPoint', { detail: { point: pt } }));
+          return;
         }
         toolStore.addDrawingPoint(pt);
         return;

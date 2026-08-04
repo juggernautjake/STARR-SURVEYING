@@ -9446,6 +9446,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     };
   }
 
+  /**
+   * CAD_AUDIT Slice S7b — place a POINT at a world coordinate, however it was specified.
+   *
+   * Extracted from the DRAW_POINT click case so the CLICKED point and the TYPED point are the same
+   * operation rather than two implementations that agree today. The auto-labels and the undo entry
+   * are the parts that would drift: a second copy that forgot `withAutoLabels` would produce points
+   * with no number or description, which looks like a labelling bug rather than a second code path.
+   */
+  function placePointAt(worldPt: Point2D) {
+    const feature = createFeature('POINT', [worldPt]);
+    if (!feature) return;
+    const labelledFeature = withAutoLabels(feature);
+    useDrawingStore.getState().addFeature(labelledFeature);
+    useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
+  }
+
   function finishFeature(type: FeatureType, overridePoints?: Point2D[]) {
     // IMPORTANT: use getState() to read the LIVE store state, not the stale
     // React snapshot captured during the render cycle.  Without this, points
@@ -10553,12 +10569,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         }
 
         case 'DRAW_POINT': {
-          const feature = createFeature('POINT', [worldPt]);
-          if (feature) {
-            const labelledFeature = withAutoLabels(feature);
-            useDrawingStore.getState().addFeature(labelledFeature);
-            useUndoStore.getState().pushUndo(makeAddFeatureEntry(labelledFeature));
-          }
+          placePointAt(worldPt);
           break;
         }
 
@@ -13357,6 +13368,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         setCursorStyle(TOOL_CURSORS[useToolStore.getState().state.activeTool] ?? 'crosshair');
       }
     };
+    // S7b — a coordinate typed into the command bar with the Point tool active.
+    //
+    // Every other draw tool consumes `drawingPoints`, so typing into them already worked. DRAW_POINT
+    // creates its feature inside the mouse handler and reads `worldPt` from the click, so a typed
+    // coordinate landed in `drawingPoints` and **nothing ever consumed it**: the surveyor typed a
+    // known northing and easting, pressed Enter, and the drawing did not change. A silent no-op is
+    // the worst version of this — the input was accepted, so there is nothing to retry.
+    //
+    // Typing a coordinate is how a surveyor enters a control point read off a data sheet, which is
+    // exactly the case where clicking is not accurate enough to be worth doing.
+    const onPlaceTypedPoint = (e: Event) => {
+      const detail = (e as CustomEvent<{ point?: Point2D }>).detail;
+      if (!detail?.point) return;
+      if (useToolStore.getState().state.activeTool !== 'DRAW_POINT') return;
+      placePointAt(detail.point);
+      // The point is complete on entry — a POINT needs no confirm step — so clear the pending
+      // coordinate. Leaving it would make the NEXT typed pair look like a second vertex.
+      useToolStore.getState().clearDrawingPoints();
+    };
     const onConfirm = () => {
       const toolState = useToolStore.getState().state;
       const { activeTool, drawingPoints } = toolState;
@@ -13632,6 +13662,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('cad:undoDrawVertex', onUndoDrawVertex);
     window.addEventListener('cad:confirm', onConfirm);
+    window.addEventListener('cad:placeTypedPoint', onPlaceTypedPoint);
     window.addEventListener('cad:zoomExtents', onZoomExtents);
     window.addEventListener('cad:zoomToPaper', onZoomToPaper);
     window.addEventListener('cad:fitDrawingToPage', onFitToPage);
@@ -14050,6 +14081,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('cad:undoDrawVertex', onUndoDrawVertex);
       window.removeEventListener('cad:confirm', onConfirm);
+      window.removeEventListener('cad:placeTypedPoint', onPlaceTypedPoint);
       window.removeEventListener('cad:zoomExtents', onZoomExtents);
       window.removeEventListener('cad:zoomToPaper', onZoomToPaper);
       window.removeEventListener('cad:fitDrawingToPage', onFitToPage);
