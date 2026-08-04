@@ -1679,3 +1679,30 @@ directions: a genuinely dead module is still flagged, and a side-effect-imported
 Sixth structural check broken on first write today, and **the only one already committed when it was
 caught**. A checker that is confidently wrong is worse than no checker, and the way to find out is to
 take one of its answers and chase it.
+
+#### ▶ And the last open question, answered
+
+The corrected ratchet left one cluster flagged as a question:
+*"`research/prioritized-pipeline{,.service}.ts` — worth checking whether the research guard's
+`KNOWN_UNREACHABLE` covers them or misses them."*
+
+**It covers them**, with better reasons than a sweep could have invented:
+
+> *PARKED: the prioritised run order is specified but the pipeline still runs its fixed stages.
+> Wiring it changes run behaviour and belongs with a plan slice, not a drive-by.*
+
+**The guess inside the question was wrong in an instructive direction.** `research-modules-are-
+reachable`'s `LIBRARY_DIRS` lists only `worker/src/*`, so it *looked* out of scope for `lib/research`
+— but its `KNOWN_UNREACHABLE` map carries `lib/research/*` entries regardless. **Scanning scope and
+inventory scope are different things**, and reading only the first would have produced a confident
+*"that guard misses them"* that was false.
+
+So several entries in the lib-wide list are already triaged elsewhere. That overlap is deliberate:
+this file's job is to notice a **new** orphan anywhere under `lib/`, and the research guard's job is
+to hold reasons for its own subsystem. Two lists that *disagreed* would be a problem; one being a
+superset of the other is not.
+
+**Three questions were raised by these sweeps and all three are now closed** — the duplicated spatial
+index (recorded against the module, deduplication sequenced with S5), the theme registry (a detector
+bug, corrected 56 → 44), and this one. None was left as an open TODO, which is the whole point of
+asking them out loud.

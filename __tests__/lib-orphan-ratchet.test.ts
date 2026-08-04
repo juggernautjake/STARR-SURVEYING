@@ -29,11 +29,24 @@
 // It stores the SET, not a count. A count would let a newly-dead module cancel out a newly-wired one
 // and report no change — which is the failure mode of every metric that averages.
 //
-// ── ONE CLUSTER STILL WORTH A LOOK, STATED AS A QUESTION ────────────────────────────────────────
-// `research/prioritized-pipeline{,.service}.ts` — a pipeline and its service, both unreferenced by
-// either import form, in a subsystem whose own guard (`research-modules-are-reachable`) already
-// exists. Worth checking whether that guard's `KNOWN_UNREACHABLE` covers them or misses them. Not
-// investigated, so not claimed.
+// ── THE LAST OPEN QUESTION, NOW ANSWERED ────────────────────────────────────────────────────────
+// `research/prioritized-pipeline{,.service}.ts` were flagged as "worth checking whether the research
+// guard covers them or misses them". **It covers them**, and with better reasons than this file
+// could have invented:
+//
+//   > *PARKED: the prioritised run order is specified but the pipeline still runs its fixed stages.
+//   >  Wiring it changes run behaviour and belongs with a plan slice, not a drive-by.*
+//
+// The guess embedded in the question was wrong in an instructive direction. `research-modules-are-
+// reachable`'s `LIBRARY_DIRS` lists only `worker/src/*`, so it looked like `lib/research` was out of
+// scope — but its `KNOWN_UNREACHABLE` map carries `lib/research/*` entries regardless. **Scanning
+// scope and inventory scope are different things**, and reading only the first would have produced a
+// confident "that guard misses them" that was false.
+//
+// So several entries in the list below are already triaged elsewhere. That overlap is deliberate and
+// not worth deduplicating: this file's job is to notice a NEW orphan anywhere under `lib/`, and the
+// research guard's job is to hold reasons for its own subsystem. Two lists that disagree would be a
+// problem; two lists where one is a superset are not.
 //
 // ── WHAT THIS CANNOT SEE ────────────────────────────────────────────────────────────────────────
 // Reachability by import is not the same as being exercised. `lib/finance/payment-cards` and
