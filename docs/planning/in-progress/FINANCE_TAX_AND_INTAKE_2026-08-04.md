@@ -247,3 +247,47 @@ the link entirely.
 
 **Not applied to the live database** — owner's call. **Next: F3**, the one-line tax summaries, which
 compose the card role (F1) with the recovery state (F2).
+
+---
+
+## ✅ F3 — the one-line tax summary. **DONE 2026-08-04.**
+
+`lib/finance/tax-summary.ts`, 13 tests (40 across F1–F3).
+
+**Derived, not generated.** Every input is already known — the category and `tax_deductible_flag` on
+the receipt, the card role (F1), the recovery state (F2), and whether the receipt was promoted to a
+capital asset. So this is a function of fields, not a question for a model. An AI-written summary
+could disagree with the fields it summarises and would do so unpredictably, which is worse than no
+summary at all: **a plausible sentence is exactly what stops someone checking.**
+
+**The order of precedence is the design.** Several facts are true of the same row and they do not
+carry equal weight:
+
+1. **Whose money was it.** A client's card and a "fully deductible" category are both true of the
+   same receipt, and the card wins — the category of a purchase we did not pay for is irrelevant.
+   A personal card is a debt to a person now and an expense when repaid; collapsing those into one
+   line is what double-counts it.
+2. **Is it an expense at all this year.** A capital asset is depreciated, not deducted now.
+3. **Did we get it back.** F2's wording is reused verbatim rather than re-phrased — two descriptions
+   of the same arithmetic is how they come to disagree.
+4. **How much is deductible.** Only now does the category's flag matter, and the 50% limit is named
+   explicitly, because "partial" without the number gets re-derived wrongly at filing time.
+
+Getting that order wrong is how a receipt ends up filed under a rule that never applied to it, so
+each level is pinned by a test that asserts the *lower* rule did **not** win.
+
+**Two deliberate stopping points:**
+
+- An **unconfirmed** card match returns "check whose card paid this" and goes no further. A last4
+  match is a suggestion; filing on one is the exact mistake F1's matcher refuses to make, and it
+  would be undone here without this branch.
+- An **unbilled** pass-through deliberately falls *through* to the deductible flag. A cost we have not
+  yet billed on is still a business expense today — it is flagged for billing elsewhere, not withheld
+  from the books.
+
+Every path returns a non-empty line and a `basis` naming the rule that decided it, so a surprising
+summary can be traced without re-deriving it. An empty cell in a tax list is the one outcome that
+teaches people to ignore the column.
+
+**`npm run build` clean. Next: F4** (bulk receipt capture) or **F5** (the general invoice builder) —
+both are UI-led and independent of each other.
