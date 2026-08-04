@@ -29,6 +29,9 @@ import { USLR_COUNTIES } from '../adapters/uslandrecords-discovery.js';
 import { AumentumClerkAdapter, AUMENTUM_COUNTIES } from '../adapters/aumentum-clerk-adapter.js';
 import { IDocMarketAdapter } from '../adapters/idocmarket-adapter.js';
 import type { ClerkAdapter } from '../adapters/clerk-adapter.js';
+// The authoritative 254-county table. `registrySummary` walks it rather than adding up set sizes,
+// so the summary and the router answer the same question — see the note on that function.
+import { TEXAS_COUNTIES } from '../lib/county-fips.js';
 
 // ── Kofile FIPS set ───────────────────────────────────────────────────────────
 //
@@ -279,26 +282,53 @@ export function hasFreeImagePreview(countyFIPS: string): boolean {
 }
 
 /**
- * Return the number of counties registered per clerk system.
- * Useful for diagnostics / admin dashboards.
+ * How many counties each clerk system actually serves.
+ *
+ * ── IT COUNTED CONFIGURATION, NOT ROUTING (fixed 2026-08-04, plan R39b) ─────────────────────────
+ *
+ * This used to report `HENSCHEN_FIPS_SET.size` and friends directly, which is a different question
+ * from the one anybody asks it. `getClerkSystem` routes a county to a vendor **only if
+ * `isVendorProven`**, so an unproven vendor's counties fall through to TexasFile — while this
+ * function reported them as that vendor's, and then *subtracted* them from the TexasFile remainder.
+ *
+ * The number was therefore wrong twice for every such county: a vendor was credited with coverage
+ * that never routes to it, and TexasFile — which does cover all 254 — was under-reported by exactly
+ * the counties that most needed to be visible as fallbacks. Measured today that was **16 Henschen +
+ * the Fidlar and iDocket sets**, on a figure whose entire purpose is answering "which counties can we
+ * do automatically?"
+ *
+ * It now derives from `getClerkSystem` over the authoritative 254-county table, so the summary and
+ * the router **cannot disagree** — the same rule this codebase keeps re-learning about two
+ * implementations of one question.
  */
 export function registrySummary(): Record<ClerkSystem, number> {
+  const counts: Record<ClerkSystem, number> = {
+    kofile: 0, edoctec: 0, uslandrecords: 0, aumentum: 0, idocmarket: 0,
+    countyfusion: 0, tyler: 0, henschen: 0, idocket: 0, fidlar: 0, texasfile: 0,
+  };
+  for (const county of TEXAS_COUNTIES) counts[getClerkSystem(county.fips)] += 1;
+  return counts;
+}
+
+/**
+ * What each vendor is *configured* for, regardless of whether it routes.
+ *
+ * Kept as a separate, honestly-named function rather than deleted: the configured sets are what a
+ * proving pass works through, and knowing that 16 counties are written down against Henschen is
+ * exactly the input to R38/R39. It is a work list, not a coverage claim, and conflating the two is
+ * what made `registrySummary` wrong.
+ */
+export function configuredCountyCounts(): Record<Exclude<ClerkSystem, 'texasfile'>, number> {
   return {
-    kofile:       KOFILE_FIPS_SET.size,
-    edoctec:      EDOCTEC_FIPS_SET.size,
+    kofile:        KOFILE_FIPS_SET.size,
+    edoctec:       EDOCTEC_FIPS_SET.size,
     uslandrecords: USLR_FIPS_SET.size,
-    aumentum:     AUMENTUM_FIPS_SET.size,
-    idocmarket:   IDOCMARKET_FIPS_SET.size,
-    countyfusion: COUNTYFUSION_FIPS_SET.size,
-    tyler:        TYLER_EAGLE_FIPS_SET.size,
-    henschen:     HENSCHEN_FIPS_SET.size,
-    idocket:      IDOCKET_FIPS_SET.size,
-    fidlar:       FIDLAR_FIPS_SET.size,
-    // TexasFile covers all 254; show the remainder not covered by named systems
-    texasfile: Math.max(
-      0,
-      254 - KOFILE_FIPS_SET.size - EDOCTEC_FIPS_SET.size - USLR_FIPS_SET.size - AUMENTUM_FIPS_SET.size - IDOCMARKET_FIPS_SET.size - COUNTYFUSION_FIPS_SET.size - TYLER_EAGLE_FIPS_SET.size
-        - HENSCHEN_FIPS_SET.size - IDOCKET_FIPS_SET.size - FIDLAR_FIPS_SET.size,
-    ),
+    aumentum:      AUMENTUM_FIPS_SET.size,
+    idocmarket:    IDOCMARKET_FIPS_SET.size,
+    countyfusion:  COUNTYFUSION_FIPS_SET.size,
+    tyler:         TYLER_EAGLE_FIPS_SET.size,
+    henschen:      HENSCHEN_FIPS_SET.size,
+    idocket:       IDOCKET_FIPS_SET.size,
+    fidlar:        FIDLAR_FIPS_SET.size,
   };
 }

@@ -59,11 +59,24 @@ export interface HenschenConfig {
 }
 
 /**
- * Known Henschen county configurations, keyed by 5-digit FIPS code.
+ * Henschen county configurations, keyed by 5-digit FIPS code.
  *
- * URL sources:
- *   - https://{county}.co.texas.us/ClerkInquiry/  (most common)
- *   - https://records.{county}countyclerk.com/     (some counties)
+ * ⚠ **EVERY HOSTNAME BELOW IS ENOTFOUND. Measured 2026-08-04 (plan R39b), all 16 of them, with
+ * `node worker/scripts/check-adapter-hosts.mjs`** — which resolves known-good names first and aborts
+ * if they fail, so this is not a broken resolver reporting a dead world.
+ *
+ * These are not portals that went away. `{county}.co.texas.us` is a **pattern that was written down
+ * rather than looked up**, and it never resolved for any of these counties. The comment below used to
+ * call it a "URL source", which is how a guess comes to be read as a citation.
+ *
+ * Nothing is broken for a user today: `henschen` is not in `PROVEN_VENDORS`, so `getClerkSystem`
+ * skips it and these counties fall through to TexasFile. This block is therefore a **work list for
+ * R38/R39, not coverage** — and `registrySummary()` no longer counts it as the latter.
+ *
+ * Burnet (48053) is the one worked so far: its real records portal, found on the county's own site
+ * at burnetcountytexas.org, is **Tyler** — `burnetcountytx-web.tylerhost.net`, which resolves. It is
+ * NOT routed there yet, because R37's rule is that a vendor is proven by driving it and reading the
+ * DOM, never by finding a link. Recorded as the next candidate, not as a fact.
  */
 export const HENSCHEN_CONFIGS: Record<string, HenschenConfig> = {
   '48053': {  // Burnet County

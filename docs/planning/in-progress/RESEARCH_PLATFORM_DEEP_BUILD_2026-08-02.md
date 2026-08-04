@@ -4365,3 +4365,65 @@ Worker suite **93 files / 1,535 tests green**; `tsc` and `eslint` clean.
 spend system with its own cost model and its own `canMakeCall()` gate, invisible to `spendForRun`.
 Migrating the call sites made the ceiling accurate; it did not make it the only answer. **Owner's
 call: which tracker is authoritative.**
+
+### ✅ R39b DONE 2026-08-04 — 31 configured portal hosts do not exist, and the coverage count said otherwise
+
+R38's note said the vendor URL patterns were dead. **Nobody had asked the cheapest possible version
+of that question: does the hostname resolve at all?** `worker/scripts/check-adapter-hosts.mjs` asks
+it of every configured adapter host.
+
+**31 of 51 are ENOTFOUND.** Not down, not blocking us, not slow — no such name:
+
+| vendor | result |
+|---|---|
+| **Henschen** | **16 of 16 dead.** `{county}.co.texas.us` is a pattern that was written down rather than looked up. |
+| **Fidlar** | **6 of 6 dead** — under a header claiming the URLs were *"verified against fidlar.com and publicsearch.us directories"*. |
+| Tyler (legacy `tyler-clerk-adapter`) | 6 dead, incl. `deed.dallascounty.org`, `casscountyclerk.com` |
+| **Kofile** | **every host resolves — including all 19 DERIVED ones.** |
+
+The script **resolves known-good names first and aborts if they fail**, because a broken resolver
+would report a dead world and manufacture exactly this finding. It is a script and not a test on
+purpose: a test that needs DNS fails on an aeroplane, and a test that fails for reasons unrelated to
+the code gets skipped.
+
+The Kofile row is the one worth reading twice. `KofileClerkAdapter` **derives** a hostname for any
+county with no explicit config — `{countyname}.tx.publicsearch.us` — which is precisely the kind of
+guess that produced Henschen's 16. All 19 resolve. **The pattern that looked riskiest is the one
+that is right**, and saying so matters as much as the failures: the fallback vendor carrying most of
+this platform's coverage is real.
+
+#### ▶ The count was wrong in both directions at once
+
+`registrySummary()` — the figure behind *"which counties can we do automatically?"* — added up the
+**configured** FIPS sets. `getClerkSystem` routes to a vendor only when `isVendorProven`, so for
+every unproven vendor it credited counties that route elsewhere, **and then subtracted them from the
+TexasFile remainder.** Both errors lean the same way: the unproven vendors looked real and the
+fallback that actually serves those counties looked smaller.
+
+It now walks the authoritative 254-county table calling `getClerkSystem`, so **the summary and the
+router cannot disagree**. The configured sizes survive as `configuredCountyCounts()` — honestly
+named, because Henschen's 16 counties are exactly the R38/R39 work list. Five tests; the control
+re-adds one configured size and fails four of them.
+
+#### ▶ One county worked, and one claim NOT made
+
+Burnet's real records portal — found on the county's own site, not in our config — is **Tyler**, at
+`burnetcountytx-web.tylerhost.net`, which resolves. Tyler is already proven for nine counties.
+
+**Burnet is not routed there.** R37's rule is that a vendor is proven by driving it and reading the
+DOM, never by finding a link, and finding a link is all that has happened. It is recorded in the
+adapter as the next candidate.
+
+Also corrected: a first pass here suspected McLennan was live-misrouted to Kofile at a dead host. It
+is not — 48309 is absent from `KOFILE_FIPS_SET`, so that config entry is dormant and Waco routes to
+the proven Tyler Eagle adapter. The dramatic reading was wrong and the check is what said so.
+
+Worker suite **94 files / 1,540 tests green**; `tsc` and `eslint` clean.
+
+**Still outstanding for R38/R39:** 22 counties across Henschen and Fidlar need their real portals
+found one at a time, the way Burnet was — and then driven.
+
+---
+
+**Correction to the slice table above:** the R4b row still reads *"the remaining **12** AI call
+sites"*. **R4b is at zero** (see the entry earlier in this section). Ninth stale status line.

@@ -69,9 +69,20 @@ export interface FidlarConfig {
 }
 
 /**
- * Known Fidlar county configurations, keyed by 5-digit FIPS code.
+ * Fidlar county configurations, keyed by 5-digit FIPS code.
  *
- * URL sources verified against fidlar.com and publicsearch.us directories.
+ * ⚠ **EVERY HOSTNAME BELOW IS ENOTFOUND. Measured 2026-08-04 (plan R39b)** with
+ * `node worker/scripts/check-adapter-hosts.mjs`, which resolves known-good names first and aborts if
+ * they fail — so this is a real result, not a broken resolver.
+ *
+ * This header used to read *"URL sources **verified** against fidlar.com and publicsearch.us
+ * directories."* Not one of them resolves. Whatever that sentence described, it was not a check that
+ * these names exist — and it is a stronger claim than the Henschen block's "URL sources", which is
+ * why it is worth quoting rather than quietly replacing: **the word "verified" is what stopped
+ * anybody looking again.**
+ *
+ * `fidlar` is not in `PROVEN_VENDORS`, so nothing routes here and no user is affected. Treat this as
+ * a work list for R38/R39, and prove a portal by driving it — not by reading this block.
  */
 export const FIDLAR_CONFIGS: Record<string, FidlarConfig> = {
   '48475': {  // Ward County
