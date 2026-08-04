@@ -113,3 +113,43 @@ describe('the offline page tells the truth', () => {
     expect(offline).toContain('Nothing you saved has been lost');
   });
 });
+
+describe('an installed app updates itself — no reinstall, ever', () => {
+  // Owner's question, 2026-08-04: *"will I have to manually update the app if we make changes and I
+  // already have it downloaded?"* The answer is no, and these are the four properties that make it
+  // true. Each is one line, and losing any one of them strands somebody on an old build with no
+  // symptom except that a fix "did not work".
+
+  it('a new worker takes over immediately instead of waiting for every tab to close', () => {
+    // The default is that a new worker sits in `waiting` until all clients are gone. A home-screen
+    // app is almost never "closed", so without these two the user can sit on a superseded build for
+    // days and there is nothing on screen to say so.
+    expect(sw).toContain('self.skipWaiting()');
+    expect(sw).toContain('self.clients.claim()');
+  });
+
+  it('pages are always fetched fresh — nothing about the app shell is cached', () => {
+    // Navigations are network-only with the offline page as the failure case, so the HTML and every
+    // server-rendered page is current on every load. This is also why the answer is "no" today: with
+    // the PWA flag unset there is no worker at all, and the home-screen icon is a live bookmark.
+    expect(sw).toContain("request.mode === 'navigate'");
+    expect(sw).toContain('fetch(request).catch(() => caches.match(OFFLINE_URL))');
+  });
+
+  it('cached images and fonts refresh in the background', () => {
+    // The gap this closes. `/_next/static/` is content-hashed so a deploy changes the URL, but
+    // `/logo.png` does not — and `VERSION` is a hardcoded `v1` that no deploy bumps, so cache-first
+    // would serve a replaced image forever on every installed device.
+    //
+    // Stale-while-revalidate: the cached copy is served immediately, the network copy replaces it
+    // for next time. One stale render, then correct, with no action from the user.
+    expect(sw).toContain('const network = fetch(request)');
+    expect(sw).toContain('hit || network');
+  });
+
+  it('the offline page itself cannot go stale', () => {
+    // It is the one asset precached under that never-bumped VERSION, so an edit to it would reach
+    // no installed device. `cache: 'reload'` fetches past the HTTP cache when a new worker installs.
+    expect(sw).toContain("cache: 'reload'");
+  });
+});

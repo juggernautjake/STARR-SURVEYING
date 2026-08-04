@@ -38,7 +38,13 @@ const OFFLINE_URL = '/admin/offline.html';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((cache) => cache.addAll([OFFLINE_URL])).then(() => self.skipWaiting()),
+    // `cache: 'reload'` — fetched past the HTTP cache, so a new worker precaches the CURRENT offline
+    // page rather than whatever the browser happens to be holding. Without it the offline screen is
+    // the one true stale asset in this worker: it is precached under a `VERSION` that no deploy
+    // bumps, so an edit to it would never reach an installed device.
+    caches.open(STATIC_CACHE)
+      .then((cache) => cache.add(new Request(OFFLINE_URL, { cache: 'reload' })))
+      .then(() => self.skipWaiting()),
   );
 });
 
@@ -69,16 +75,34 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (isCacheableAsset(url)) {
+    // ── STALE-WHILE-REVALIDATE, not cache-first (2026-08-04) ──────────────────────────────────
+    //
+    // Owner's question: *"will I have to manually update the app if we make changes?"* No — but
+    // cache-first made one part of that answer untrue.
+    //
+    // `/_next/static/` is content-hashed, so a deploy changes the URL and a stale copy can never be
+    // served. **Images and fonts are not.** Replace `/logo.png` and every installed device keeps
+    // serving the old one from cache **forever**, because `VERSION` is a hardcoded `v1` that no
+    // deploy bumps — the activate handler only clears caches from a *different* version, and there
+    // has never been one.
+    //
+    // So: serve the cached copy immediately (the speed the cache is for), and refresh it in the
+    // background. The user sees the old image once and the new one from then on, with no action and
+    // no reinstall. A background failure is ignored on purpose — offline is the case this exists
+    // for, and a fetch that cannot complete must not evict a copy that works.
     event.respondWith(
-      caches.match(request).then((hit) => hit || fetch(request).then((res) => {
-        // Only a real 200 is worth keeping. Caching an opaque or error response serves that error
-        // back forever, which looks exactly like a broken deploy and is diagnosed as one.
-        if (res.ok && res.type === 'basic') {
-          const copy = res.clone();
-          caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
-        }
-        return res;
-      })),
+      caches.match(request).then((hit) => {
+        const network = fetch(request).then((res) => {
+          // Only a real 200 is worth keeping. Caching an opaque or error response serves that error
+          // back forever, which looks exactly like a broken deploy and is diagnosed as one.
+          if (res.ok && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(STATIC_CACHE).then((cache) => cache.put(request, copy));
+          }
+          return res;
+        });
+        return hit || network;
+      }),
     );
     return;
   }
