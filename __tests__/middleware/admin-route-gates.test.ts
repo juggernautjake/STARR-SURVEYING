@@ -35,9 +35,17 @@ const INTENTIONALLY_OPEN: Record<string, string> = {
   // (`/api/admin/me/*`) resolves the row from the session rather than from anything typed.
   'profile': "the user's own profile and appearance settings",
   'my-files': 'the signed-in user\'s own files',
-  'my-jobs': "redirected to /admin/me by LEGACY_REDIRECTS before the role check",
-  'my-hours': 'redirected to /admin/me by LEGACY_REDIRECTS before the role check',
-  'my-pay': 'redirected to /admin/me by LEGACY_REDIRECTS before the role check',
+  // Restored as real pages 2026-08-04 (their panels were never deleted, only their routes). Open
+  // for the same reason as `me`: each renders the signed-in user's own hours, pay and notes, read
+  // from the session rather than from anything typed in the URL.
+  'my-hours': "the signed-in user's own timesheet",
+  'my-pay': "the signed-in user's own pay history",
+  'my-notes': "the signed-in user's own notes",
+  // `my-jobs` still redirects — to /admin/assignments, which carries its own gate. The other two
+  // lines that sat here said "redirected to /admin/me", which stopped being true the moment those
+  // pages came back; duplicate keys in this object silently kept the OLD reason and dropped the new
+  // one, which `tsc` caught and a reader would not have.
+  'my-jobs': 'redirected to /admin/assignments, which is gated on its own',
   'availability': 'a crew member sets their own availability',
   'time-off': 'a crew member files their own request; the approval queue is gated separately',
   'mileage': 'a crew member logs their own mileage',

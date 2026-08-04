@@ -253,7 +253,7 @@ export default function InstallPage() {
             <li>You must be in <strong>Safari</strong> — Chrome on iPhone cannot install apps.</li>
             <li>Tap the <strong>Share</strong> button (the square with an arrow, at the bottom).</li>
             <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
-            <li>Tap <strong>Add</strong>. The Starr icon appears with your other apps.</li>
+            <li>Tap <strong>Add</strong>. The app icon appears with your other apps.</li>
             <li>Open it from that icon — it runs full screen, with no browser bars.</li>
           </ol>
         ) : platform === 'android' ? (
@@ -264,7 +264,7 @@ export default function InstallPage() {
               Tap <strong>Install app</strong> — or <strong>Add to Home screen</strong> on older
               versions.
             </li>
-            <li>Confirm. The Starr icon appears in your app drawer.</li>
+            <li>Confirm. The app icon appears in your app drawer.</li>
           </ol>
         ) : (
           <ol className="admin-install__steps">

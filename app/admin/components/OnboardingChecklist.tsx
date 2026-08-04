@@ -18,6 +18,23 @@ import Link from 'next/link';
 import { ArrowRight, Check, ChevronDown, Circle, Lock } from 'lucide-react';
 import type { OnboardingState } from '@/lib/saas/onboarding';
 
+/**
+ * Tag a step's destination so it knows it was reached from the setup checklist.
+ *
+ * Owner, 2026-08-04: *"whenever I input the firm's details and hit save, there is no like, 'NEXT'
+ * button that will direct me to the next place I need to go."* The checklist sent people out and
+ * had no way to bring them back — every step was a one-way trip ending on a settings page with no
+ * indication that anything followed it.
+ *
+ * A query parameter rather than a wrapper route: the destinations are real pages people also reach
+ * normally, and they must not change for those visitors.
+ */
+function withReturn(href: string): string {
+  return href.includes('#')
+    ? href.replace('#', href.includes('?') ? '&setup=1#' : '?setup=1#')
+    : `${href}${href.includes('?') ? '&' : '?'}setup=1`;
+}
+
 export default function OnboardingChecklist() {
   // ── Owners and admins only (owner request, 2026-08-04) ──────────────────────────────────────
   //
@@ -67,7 +84,21 @@ export default function OnboardingChecklist() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <div style={{ fontSize: 11, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--color-info-text)' }}>
+            {/* NAMES the essentials (owner, 2026-08-04: *"what are the essentials? It doesn't
+                say… and it is showing a lot more than 2 things not done"*).
+                Two of the eight steps are required; the other six are optional and were listed
+                identically, so the count and the list contradicted each other on screen. */}
             Setting up · {requiredDone} of {requiredTotal} essentials done
+            <span style={{ textTransform: 'none', letterSpacing: 0, fontSize: 12 }}>
+              {' '}— the essentials are{' '}
+              {steps.filter((s) => s.required).map((s, i, all) => (
+                <span key={s.id}>
+                  <strong style={{ textDecoration: s.done ? 'line-through' : undefined }}>{s.title}</strong>
+                  {i < all.length - 1 ? ' and ' : ''}
+                </span>
+              ))}
+              . Everything else is optional.
+            </span>
           </div>
           <div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>
             {next ? next.title : 'Almost there'}
@@ -85,7 +116,7 @@ export default function OnboardingChecklist() {
         </div>
         {next && (
           <Link
-            href={next.href}
+            href={withReturn(next.href)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--color-info-text)', color: 'var(--color-bg-card)', textDecoration: 'none', padding: '10px 16px', borderRadius: 8, fontWeight: 600, fontSize: 14 }}
           >
             {next.done ? 'Review' : 'Set up'} <ArrowRight size={15} aria-hidden />
@@ -131,7 +162,7 @@ export default function OnboardingChecklist() {
                   </div>
                 )}
               </div>
-              {!s.done && !s.blocked && <Link href={s.href} style={{ fontSize: 13, fontWeight: 600 }}>Start</Link>}
+              {!s.done && !s.blocked && <Link href={withReturn(s.href)} style={{ fontSize: 13, fontWeight: 600 }}>Start</Link>}
             </li>
           ))}
         </ul>

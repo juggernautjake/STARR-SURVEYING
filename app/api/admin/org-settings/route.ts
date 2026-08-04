@@ -12,6 +12,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { clearTenantProfileCache } from '@/lib/saas/tenant-profile';
 
 export const runtime = 'nodejs';
 
@@ -144,6 +145,12 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
       console.error('[org-settings] org patch failed', error);
       return NextResponse.json({ error: 'Failed to update organization' }, { status: 500 });
     }
+
+    // The firm profile is cached for 60 seconds. Without this, the onboarding check, every invoice
+    // header and every proposal read the OLD row for up to a minute after a save — so a firm that
+    // has just filled in its name is told the name is missing. That is precisely how "I saved it and
+    // it still says to do it" happens, and a write must invalidate what reads it.
+    clearTenantProfileCache();
   }
 
   const settingsPatch: Record<string, unknown> = {};

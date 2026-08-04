@@ -24,6 +24,7 @@ import { orgIdForSession } from '@/lib/saas/org-scope-context';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { CORPUS_BY_ID, corporaFor } from '@/lib/search/corpora';
+import { searchPages } from '@/lib/search/pages';
 import { parseQuery, normaliseFilters, MIN_QUERY_LENGTH, type SearchFilters } from '@/lib/search/query';
 import {
   retrieveSemantic, hydrateSemantic, mergeSemantic, semanticCorpora, type SemanticSkip,
@@ -191,6 +192,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     query: parsed.raw,
     terms: parsed.terms,
     results: finalResults,
+    // ── Pages and tools, alongside the records (owner, 2026-08-04) ────────────────────────────
+    //
+    // Ten corpora, all of them DATA — so "taxes" found receipts about tax and never the tax pages.
+    // In a product with 130-odd admin routes, "where is the thing that does X" is the more common
+    // question, and it had no answer here at all.
+    //
+    // A SEPARATE list, not merged into `results`: a page is not a record — no date, no type, no
+    // document snippet — and forcing it into that shape would mean inventing all three.
+    pages: searchPages(parsed.raw, roles),
     total: finalResults.length,
     truncated: results.length >= filters.limit,
     // Reported on every response, whether it ran or not. The one thing this must never do is stay

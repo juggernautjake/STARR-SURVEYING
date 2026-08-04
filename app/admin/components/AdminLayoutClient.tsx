@@ -17,6 +17,7 @@ import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
 import ShellTheme from './ShellTheme';
 import AdminPageHeader from './nav/AdminPageHeader';
+import SetupReturnBanner from './SetupReturnBanner';
 import { shouldBypassAdminChrome } from '@/lib/admin/chrome-bypass';
 import { ADMIN_ROUTES } from '@/lib/admin/route-registry';
 import { isInternalUser } from '@/lib/saas/internal-user';
@@ -243,6 +244,10 @@ function Inner({ children }: { children: React.ReactNode }) {
           <AdminTopBar title={pageTitle} role={role} onMenuToggle={() => setSidebarOpen((p) => !p)} />
           <div className="admin-layout__content">
             <AdminPageHeader />
+            {/* Renders only for ?setup=1, which the onboarding checklist sets and nothing else does.
+                Mounted once here rather than added to each destination: the steps point at six
+                different pages today and the seventh would be the one somebody forgets. */}
+            <SetupReturnBanner />
             <ErrorBoundary
               pageName={pageTitle}
               userEmail={session.user.email || undefined}

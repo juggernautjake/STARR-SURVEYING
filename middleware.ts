@@ -45,7 +45,11 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // has been uploaded. That is a commercial control, not a work queue.
   { prefix: '/admin/marketing', roles: ['admin'] },
   { prefix: '/admin/hours-approval', roles: ['admin', 'developer', 'tech_support'] },
-  { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  // `researcher` added 2026-08-04, when 'My Jobs' was folded into 'Assignments'. The retired entry
+  // offered it to researchers and pointed at the Hub, which is open to everyone — so the mismatch
+  // only became visible once the link went somewhere real. A researcher assigned to a job needs to
+  // see that they are assigned to it.
+  { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
   { prefix: '/admin/schedule', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
 
   // ── Money & bookkeeping (audit S19) ──

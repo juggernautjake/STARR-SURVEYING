@@ -121,26 +121,30 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // when it came back, so the owner's "Profile + settings" and "Theme + density" menu entries went
   // to the Hub and the settings themselves were unreachable. Registered so ⌘K and the drawer can
   // find it too, not just the avatar menu — one door, findable from anywhere.
-  { href: '/admin/profile',         label: 'Profile & Settings', workspace: 'hub', iconName: 'Settings',    showInRail: false, description: 'Your own details, plus how the app looks to you — theme, density and text size. Applies everywhere, not just the Hub.', keywords: ['settings', 'theme', 'dark mode', 'density', 'font', 'appearance', 'account', 'me'] },
+  { href: '/admin/profile',         label: 'Profile & Settings', workspace: 'hub', iconName: 'Settings',    description: 'Your own details, plus how the app looks to you — theme, density and text size. Applies everywhere, not just the Hub.', keywords: ['settings', 'theme', 'dark mode', 'density', 'font', 'appearance', 'account', 'me', 'my profile', 'preferences', 'persona'] },
   // /admin/dashboard was removed in platform audit Phase 1 item 6 (2026-08-01). It was the second
   // page claiming to be the home, and every figure on it already exists as a hub widget.
   // `LEGACY_REDIRECTS` sends the URL to /admin/me; it is deliberately NOT registered here, so it
   // cannot reappear in the rail, the palette or the mobile drawer — all three derive from this list.
-  { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'Your assigned jobs + tasks.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks'] },
+  { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'The jobs and tasks assigned to you. Reached from the menu as both Assignments and My Jobs.', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks', 'my jobs', 'assigned', 'mine'] },
   { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
   // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-*` +
   // `/admin/profile` page files were deleted; these entries now point
   // at the canonical hub tabs so the nav surface keeps showing the
   // shortcuts. The middleware LEGACY_REDIRECTS table catches external
+  // 'My Jobs' pointed at /admin/me?tab=jobs and was folded into Assignments on 2026-08-04 — one
+  // page, one entry. Its extra role (researcher) and its wording live on the entry above; two rows
+  // for one href is how a menu comes to show the same destination twice under different names.
   // bookmarks at the old URLs.
-  { href: '/admin/me?tab=jobs',     label: 'My Jobs',         workspace: 'hub', iconName: 'FolderOpen',     description: 'Jobs assigned to you.', roles: [...WORK_ROLES, 'researcher', 'tech_support'], internalOnly: true },
-  { href: '/admin/me?tab=hours',    label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Log, fix, or add your hours — clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in'] },
+  { href: '/admin/my-hours',         label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Log, fix, or add your hours — clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in'] },
   { href: '/admin/time-off',        label: 'Time Off',        workspace: 'hub', iconName: 'Palmtree',       description: 'Request time off + view your PTO balance. Managers see the approval queue here too.', internalOnly: true, keywords: ['pto', 'vacation', 'holiday', 'leave'] },
-  { href: '/admin/me?tab=pay',      label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
-  { href: '/admin/me?tab=notes',    label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
+  { href: '/admin/my-pay',           label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
+  { href: '/admin/my-notes',         label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
   { href: '/admin/my-files',        label: 'My Files',        workspace: 'hub', iconName: 'Folder',         description: 'Your file uploads.' },
+  // 'My Profile' pointed at /admin/me?tab=profile and was folded into 'Profile & Settings' on
+  // 2026-08-04. One page, one entry; the old label survives as a keyword so searching it still
+  // finds the page.
   { href: '/admin/files',           label: 'Files',           workspace: 'office', section: 'Documents & records', iconName: 'FolderOpen',     description: 'Company file explorer — browse, upload, organize, and share files with folder permissions.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, keywords: ['files', 'explorer', 'documents', 'folders', 'storage'] },
-  { href: '/admin/me?tab=profile',  label: 'My Profile',      workspace: 'hub', iconName: 'User',           description: 'Account, preferences, persona override.' },
   { href: '/admin/install',         label: 'Get the App',     workspace: 'hub', iconName: 'Smartphone',     description: 'Install the Starr Field mobile app on your phone.', keywords: ['mobile', 'app', 'download', 'install', 'iphone', 'android', 'testflight', 'apk', 'starr field'] },
   { href: '/admin/learn/fieldbook', label: 'My Fieldbook',    workspace: 'hub', iconName: 'BookMarked',     description: 'Field notes + research bookmarks.', keywords: ['notes', 'research'] },
 

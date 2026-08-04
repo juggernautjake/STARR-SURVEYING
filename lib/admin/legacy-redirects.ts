@@ -6,11 +6,24 @@
 // without dragging in next-auth's `next/server` runtime dependency
 // (vitest runs in node + can't resolve next/server in a worker).
 
+// ── FOUR OF THESE WERE REMOVED 2026-08-04 ───────────────────────────────────────────────────────
+//
+// Owner: *"whenever I click 'My Hours' in the nav menu, it takes me to the hub. It almost seems like
+// every nav menu link routes back to the hub. It seems like routing is broken."*
+//
+// Routing was fine. The nav registry pointed five entries at `/admin/me?tab=…` — the Hub — and the
+// `tab` parameter has meant nothing since Slice 189 retired the Hub's tab bar. Every one of those
+// menu items landed on the same undifferentiated page, which is indistinguishable from a broken
+// router and was reported as one.
+//
+// `MyHoursPanel`, `MyPayPanel` and `MyNotesPanel` were never deleted — only their `page.tsx` files
+// were, in the same consolidation that removed `/admin/profile`. Each is a complete component that
+// takes no props and was reachable from nothing but the UX harness. They have their routes back, so
+// these paths are real pages again and must NOT be redirected.
+//
+// `/admin/my-jobs` points at `/admin/assignments`, which already exists and is already registered.
 export const LEGACY_REDIRECTS: Readonly<Record<string, string>> = {
-  '/admin/my-jobs':  '/admin/me?tab=jobs',
-  '/admin/my-hours': '/admin/me?tab=hours',
-  '/admin/my-pay':   '/admin/me?tab=pay',
-  '/admin/my-notes': '/admin/me?tab=notes',
+  '/admin/my-jobs':  '/admin/assignments',
 
   // `/admin/profile` was here until 2026-08-04 and is deliberately NOT any more.
   //

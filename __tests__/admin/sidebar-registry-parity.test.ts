@@ -31,8 +31,21 @@ const LEGACY_SIDEBAR_HREFS = [
   '/admin/learn', '/admin/learn/roadmap', '/admin/learn/modules', '/admin/learn/knowledge-base',
   '/admin/learn/flashcards', '/admin/learn/exam-prep', '/admin/learn/quiz-history',
   '/admin/learn/fieldbook', '/admin/learn/search', '/admin/learn/students', '/admin/learn/manage',
-  '/admin/jobs', '/admin/me?tab=jobs', '/admin/me?tab=hours', '/admin/me?tab=pay',
-  '/admin/me?tab=notes', '/admin/me?tab=profile',
+  '/admin/jobs',
+  // ── The five `?tab=` hrefs became real pages on 2026-08-04 ───────────────────────────────────
+  //
+  // This list is the OLD hand-written drawer, kept so the registry conversion can be proved to have
+  // lost nothing. It faithfully recorded five entries pointing at `/admin/me?tab=…` — the Hub — and
+  // that is what the owner clicked when they reported "every nav menu link routes back to the hub".
+  //
+  // Updated to the destinations that answer them, because the property this file defends is *"the
+  // conversion lost nothing"*, not *"the hrefs never change"*. Leaving the old strings here would make the
+  // guard demand the registry keep pointing five menu items at a page that cannot serve them.
+  '/admin/assignments',   // was ?tab=jobs — folded into the entry that already existed
+  '/admin/my-hours',      // was ?tab=hours — MyHoursPanel had lost its page.tsx, not its code
+  '/admin/my-pay',        // was ?tab=pay
+  '/admin/my-notes',      // was ?tab=notes
+  '/admin/profile',       // was ?tab=profile — folded into 'Profile & Settings'
   '/admin/equipment', '/admin/research', '/admin/cad',
   '/admin/rewards', '/admin/rewards/how-it-works', '/admin/rewards/admin',
   '/admin/payments/inbox', '/admin/payouts/runs', '/admin/invoices/new',
