@@ -21,6 +21,7 @@
 import { useEffect, useState } from 'react';
 import { Sparkles, X, Check, MessageSquare, Loader2 } from 'lucide-react';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
+import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import type {
   AddPointArgs,
   DrawLineBetweenArgs,
@@ -191,7 +192,15 @@ export default function CopilotCard() {
                 disabled={isApplying}
                 className="flex-1 min-w-0 bg-gray-900 border border-gray-600 rounded px-1.5 py-1 text-[11px] text-white outline-none focus:border-blue-500"
               >
-                {layerOrder.map((id) => {
+                {/* CAD_AUDIT Slice S13l — fourteenth destination site. This picks where the AI's
+                    proposed geometry LANDS when the surveyor accepts it, so the reserved sheet-info
+                    layer is excluded like every other destination. Worth noting it is the only one
+                    reached without the surveyor choosing a layer at all: accept the proposal and the
+                    default applies. */}
+                {drawableLayerIds(
+                  layerOrder,
+                  (head.args as { layerId?: string }).layerId ?? activeLayerId,
+                ).map((id) => {
                   const l = layers[id];
                   if (!l) return null;
                   return <option key={id} value={id}>{l.name}</option>;

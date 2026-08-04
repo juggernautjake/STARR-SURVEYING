@@ -1962,3 +1962,39 @@ both cannot pass.
 Dropping the completeness claim was an improvement and **not** sufficient: S13j's replacement was a
 statement about which grep ran, which is a weaker claim than it sounds and still overstated the work.
 The reliable unit is not *"I searched X"* — it is *"I opened Y and Z."*
+
+### ✅ S13l DONE 2026-08-04 — the fourteenth site, found in the sentence that corrected the thirteenth
+
+S13k closed with a lesson: *"the reliable unit is not 'I searched X' — it is 'I opened Y and Z'."*
+The same write-up then listed `CopilotCard` among the files opened and read for this rule. **It had
+only ever appeared in a grep line.**
+
+Opening it found an unfiltered **"Add to layer"** select — the destination for AI-proposed geometry.
+Fourteenth site.
+
+**Naming the right rule is not the same as following it.** The correction and the violation were
+written in the same breath, which is worth recording precisely because the lesson had just been
+learned and stated clearly and still did not take.
+
+This site is also the one with the least deliberate path: the others require a surveyor to open a
+menu and choose. Here, **accepting a proposal applies the default** — so an unfiltered list is not a
+door somebody has to walk through, it is where the geometry goes when nobody looks.
+
+### ▶ The coverage claim, stated the only way that has survived contact
+
+A test now lists the **six destination surfaces explicitly** and asserts each calls
+`drawableLayerIds`. The list is hard-coded rather than globbed, deliberately: a glob would silently
+stop covering a renamed file, and the entire history of this hunt is searches that looked complete.
+
+| | |
+|---|---|
+| Sites found | **14** |
+| Completeness claims made | 3 |
+| Completeness claims that were true | **0** |
+| Sites found by someone reporting a bug | **0** |
+
+Every one was found by re-checking a claim — and the claims got weaker and more careful each round
+while still being wrong, right up to the last one. **The thing that worked was never a better claim;
+it was opening the next file.**
+
+22 tests in this file. 3,440 CAD tests, `npm run build` clean.

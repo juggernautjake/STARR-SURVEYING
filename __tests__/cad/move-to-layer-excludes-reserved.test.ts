@@ -181,3 +181,50 @@ describe('LayerTransferDialog distinguishes destination from selection', () => {
     expect(dlg).toContain("value=\"__new__\"");
   });
 });
+
+// ── S13l: the fourteenth site, found by checking a claim made one message earlier ────────────────
+//
+// S13k's write-up listed CopilotCard among "files I opened and read for this rule". It had only ever
+// appeared in a grep line. Opening it found an unfiltered "Add to layer" select — the destination for
+// AI-proposed geometry.
+//
+// So the correction written in S13k ("the reliable unit is not 'I searched X' but 'I opened Y and
+// Z'") was violated in the same breath as it was written. Naming the right rule is not the same as
+// following it.
+
+describe('the AI proposal card picks a drawable destination', () => {
+  const card = fs.readFileSync(
+    path.join(process.cwd(), 'app/admin/cad/components/CopilotCard.tsx'), 'utf8');
+
+  it('filters the "Add to layer" select', () => {
+    expect(card).toContain('drawableLayerIds(');
+  });
+
+  it('passes the current selection so an existing choice stays visible', () => {
+    expect(card).toMatch(/layerId \?\? activeLayerId/);
+  });
+
+  it('no longer maps the raw layerOrder into options', () => {
+    expect(card).not.toMatch(/\{layerOrder\.map\(\(id\) => \{/);
+  });
+});
+
+describe('every destination surface is covered', () => {
+  // The list is explicit rather than derived: a glob would silently stop covering a file that was
+  // renamed, and this test's whole purpose is to not trust a search.
+  const DESTINATION_SURFACES = [
+    'app/admin/cad/components/PropertyPanel.tsx',
+    'app/admin/cad/components/FeatureContextMenu.tsx',
+    'app/admin/cad/components/FeaturePropertiesDialog.tsx',
+    'app/admin/cad/components/PointDataViewer.tsx',
+    'app/admin/cad/components/LayerTransferDialog.tsx',
+    'app/admin/cad/components/CopilotCard.tsx',
+  ];
+
+  it('each one calls the shared helper', () => {
+    for (const f of DESTINATION_SURFACES) {
+      const txt = fs.readFileSync(path.join(process.cwd(), f), 'utf8');
+      expect(txt, f).toContain('drawableLayerIds');
+    }
+  });
+});
