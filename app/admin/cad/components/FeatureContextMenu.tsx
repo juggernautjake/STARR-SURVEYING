@@ -29,6 +29,7 @@ import {
   Eye,
 } from 'lucide-react';
 import { useMediaStore } from '@/lib/cad/media/media-store';
+import { isReservedDrawLayer } from '@/lib/cad/styles/default-layers';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -273,6 +274,17 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   const clipCount = getClipboardCount();
   const { document: doc } = drawingStore;
   const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+  /** CAD_AUDIT Slice S13i — destinations for a move/copy-to-layer menu.
+   *
+   *  Found by verifying the claim that S13h had closed the last route onto the reserved layer. It
+   *  had not: this file has TWO more — `buildLayerTransferSubmenu` (copy and move) and the
+   *  `moveToLayer` submenu — both built from the unfiltered `layers`, so a right-click still offered
+   *  SURVEY-INFO as a destination for a boundary.
+   *
+   *  Same exception as the Property panel: a feature ALREADY on the reserved layer keeps its current
+   *  layer in the list, or the tick showing where it lives has nothing to sit beside. */
+  const moveTargets = (currentId?: string | null) =>
+    layers.filter((l) => !isReservedDrawLayer(l.id) || l.id === currentId);
 
   // Position the menu next to the cursor, but keep it on-screen: flip
   // horizontally when it would overflow the right edge, prefer opening
@@ -510,7 +522,10 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // means this one point — the full Send-to-Layer dialog covers advanced
   // bring-along.
   function buildLayerTransferSubmenu(keepOriginals: boolean): SubMenuDef[] {
-    const targets = layers.filter((l) => l && !l.locked);
+    // S13i — reserved layers are excluded alongside locked ones. A transfer submenu has no "current"
+    // layer to preserve (it acts on a whole selection that may span several), so nothing is
+    // re-admitted here.
+    const targets = moveTargets().filter((l) => l && !l.locked);
 
     // Create a fresh layer and transfer the selection onto it in one click
     // (no dialog). The layer is auto-named "New Layer N"; rename it later in
@@ -1039,7 +1054,7 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
           id: 'moveToLayer',
           label: 'Move to Layer',
           icon: <Layers size={12} />,
-          submenu: layers.map((l) => ({
+          submenu: moveTargets(feature.layerId).map((l) => ({
             id: `layer_${l.id}`,
             label: l.name,
             icon: <Check size={12} className={l.id === feature.layerId ? 'text-blue-400' : 'opacity-0'} />,

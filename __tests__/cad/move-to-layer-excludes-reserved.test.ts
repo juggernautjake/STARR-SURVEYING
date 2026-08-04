@@ -67,3 +67,39 @@ describe('the exception that keeps it usable', () => {
     expect(moveTargets(ORDER, null).some(isReservedDrawLayer)).toBe(false);
   });
 });
+
+// ── S13i: the context menu had TWO more routes ───────────────────────────────────────────────────
+//
+// Found by verifying S13h's claim that it had closed the last one. It had not. `FeatureContextMenu`
+// carries `buildLayerTransferSubmenu` (copy AND move to layer) and a `moveToLayer` submenu, both
+// built from the unfiltered layer list — so a right-click still offered SURVEY-INFO as a destination
+// for a boundary.
+//
+// Eighth and ninth sites in this family. Asserting the claim is what found them; asserting it again
+// is what keeps them shut.
+
+describe('the right-click menu also excludes the reserved layer', () => {
+  const menu = fs.readFileSync(
+    path.join(process.cwd(), 'app/admin/cad/components/FeatureContextMenu.tsx'), 'utf8');
+
+  it('filters the transfer submenu (copy and move)', () => {
+    expect(menu).toContain('isReservedDrawLayer');
+    expect(menu).toMatch(/moveTargets\(\)\.filter\(\(l\) => l && !l\.locked\)/);
+  });
+
+  it('filters the move-to-layer submenu', () => {
+    expect(menu).toContain('moveTargets(feature.layerId).map');
+  });
+
+  it('no longer builds either submenu from the unfiltered list', () => {
+    // The specific regressions: `layers.filter((l) => l && !l.locked)` and `layers.map((l) => ({`.
+    expect(menu).not.toMatch(/targets = layers\.filter/);
+    expect(menu).not.toMatch(/submenu: layers\.map/);
+  });
+
+  it('keeps excluding LOCKED layers as well — the pre-existing rule', () => {
+    // The reserved filter is additive. Dropping the locked check while adding this one would trade
+    // one silent-destination bug for another.
+    expect(menu).toContain('!l.locked');
+  });
+});

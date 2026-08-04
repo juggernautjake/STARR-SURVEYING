@@ -1855,3 +1855,40 @@ Watched failing. 3,426 CAD tests, `npm run build` clean.
 **Seven sites, one predicate.** S8c, S13, S13d, S13e, S13f, S13g, S13h — every one traceable to
 `if (!layer) return false` in `getVisibleFeatures` and to `layerOrder[0]` being a layer nothing may
 be drawn on. Six of the seven were found by asking *"where else?"*, not by a report.
+
+### ✅ S13i DONE 2026-08-04 — S13h's "last route" claim was wrong, and checking it found two more
+
+S13h closed the Property panel's two move selects and concluded the reserved-layer rule was fully
+swept. **Verifying that claim instead of asserting it found `FeatureContextMenu`**, which carries two
+further routes, both built from the unfiltered layer list:
+
+- `buildLayerTransferSubmenu(keepOriginals)` — **copy** *and* **move** to layer;
+- the `moveToLayer` submenu.
+
+So a right-click still offered SURVEY-INFO as a destination for a boundary. **Eighth and ninth sites.**
+
+Both now filter through a local `moveTargets`. The transfer submenu passes no current layer — it acts
+on a whole selection that may span several layers, so there is no single "current" to re-admit — while
+`moveToLayer` passes `feature.layerId`, keeping the ticked entry visible for a feature already parked
+there.
+
+**The reserved filter is additive, not a replacement.** The transfer submenu already excluded
+**locked** layers; trading one silent-destination bug for another would be a poor fix, so a test pins
+that check too.
+
+### ▶ The pattern, now stated plainly
+
+Nine sites, one predicate. Three claims of completeness, and **two of them were wrong**:
+
+| claim | outcome |
+|---|---|
+| S13d — "the store now says so" | Incomplete: `updateFeature` (S13g) and `loadDocument` (S13f) still open |
+| S13h — "the last route onto the reserved layer" | **Wrong**: two more in the context menu |
+| S13i — swept? | *Unverified.* Stated as a question, deliberately |
+
+**The claim of completeness is the least reliable sentence in any of these notes**, and it is the one
+most likely to be believed by whoever reads next. Every time it has been checked here it has cost
+five minutes and found something. This note therefore ends without one: there may be a tenth site,
+and the way to find out is to go looking rather than to trust this paragraph.
+
+12 tests. 3,430 CAD tests, `npm run build` clean.
