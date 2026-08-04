@@ -15,6 +15,7 @@
 // Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §7
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import {
   computeConfidenceSummary,
   toConfidenceSymbol,
@@ -299,6 +300,16 @@ export class AIContextAnalyzer {
       max_tokens: 4096,
       temperature: 0,
       messages: [{ role: 'user', content: prompt }],
+    });
+
+    // R4b — priced against the ambient run, established by `runPipeline`. No `projectId` parameter
+    // was threaded here: this function is several hops below the pipeline and has no other reason to
+    // know about a run. Recorded BEFORE the response is inspected, because the tokens were spent
+    // whether or not the model returned a usable text block — and the fallback path below is exactly
+    // the case a ceiling must still see.
+    void recordAmbientAiCall('ai-context-analyzer', AI_MODEL, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
     });
 
     const textBlock = response.content.find(c => c.type === 'text');

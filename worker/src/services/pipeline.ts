@@ -12,6 +12,7 @@
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
+import { withRunContext } from '../infra/run-context.js';
 import { normalizeAddress } from './address-utils.js';
 import { searchBisCad, BIS_CONFIGS } from './bis-cad.js';
 import { searchClerkRecords, fetchDocumentImages, hasKofileConfig, getKofileBaseUrl, searchBellClerkOwnerForPlatDeed, searchSuperSearch, searchClerkByAddress, searchClerkForPlats } from './bell-clerk.js';
@@ -453,7 +454,19 @@ function compareBoundaries(a: BoundaryLike, b: BoundaryLike): number {
 
 // ── Main Pipeline ──────────────────────────────────────────────────────────
 
+/**
+ * R4b — every AI call made anywhere beneath this function now knows which run it belongs to.
+ *
+ * The body moved into `runPipelineInner` untouched; this wrapper only establishes the ambient run.
+ * `AsyncLocalStorage` rather than a module-level "current run" because the queue runs
+ * `concurrency: 3`, and a global would file one run's spend against another whenever two overlap —
+ * a ceiling that stops the wrong job while its numbers reconcile to nothing.
+ */
 export async function runPipeline(input: PipelineInput): Promise<PipelineResult> {
+  return withRunContext(input.projectId, () => runPipelineInner(input));
+}
+
+async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
   const startTime = Date.now();
   const logger = new PipelineLogger(input.projectId);
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';

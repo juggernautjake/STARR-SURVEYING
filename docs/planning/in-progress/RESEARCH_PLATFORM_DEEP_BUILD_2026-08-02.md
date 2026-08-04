@@ -4166,3 +4166,45 @@ work upward is a ceiling, and this file exists because an unwatched ceiling drif
 control — a thirteenth entry — fails both the cap and the file-must-exist check.
 
 Worker suite 90 files / 1,497 tests green; `tsc` and `eslint` clean.
+
+### ◑ R4b — the ambient run, so the remaining sites need no threading (2026-08-04)
+
+The previous entry established the real blocker: none of the twelve has `projectId` in scope, and
+seventeen call sites across nine files would each need it threaded from a caller several hops up,
+through functions with no other reason to know a run exists. It also recorded the design conclusion.
+This builds it.
+
+`worker/src/infra/run-context.ts` — `withRunContext(projectId, fn)` and `currentProjectId()` over
+`AsyncLocalStorage`. `runPipeline` now wraps its whole body, so **every AI call beneath it knows which
+run it belongs to without a single parameter being threaded**. The body moved into
+`runPipelineInner` untouched.
+
+**Why not a module-level "current run".** It is the obvious cheap version and it is wrong here:
+`currentRunningRuns()` returns a list and the queue runs `concurrency: 3`, so a single mutable global
+files one run's spend against another whenever two overlap — the normal operating mode, not an edge
+case. **A ceiling that charges the wrong run is worse than one that under-counts**: it looks correct,
+it stops the wrong job, and its numbers reconcile to nothing. The test that matters interleaves two
+runs so the second finishes first; a global passes the sequential case and fails exactly there.
+
+**`recordAmbientAiCall` refuses rather than guesses.** With no ambient run it records nothing, returns
+0, and warns **once per site** with a message saying this is a *tracking gap, not a work failure*. A
+throw would fail a survey a customer is waiting on over bookkeeping; a silent fallback to "the current
+run" is the misattribution the whole design exists to avoid. Code legitimately runs outside a
+pipeline — `receipt-extraction.ts` is a CLI batch over queued receipts with no run at all.
+
+`ai-context-analyzer.ts` is migrated as proof the mechanism works end to end, **12 → 11**, and the
+ratchet tightened to match. Recorded before the response is inspected, because that file falls back to
+default values when the model returns no text block — and a fallback is exactly the case a ceiling
+must still see.
+
+**A test asserted the wrong thing and the code was right.** "Does not warn when there IS a run"
+demanded total silence and failed against `[Pipeline] SUPABASE_URL … not set`, an environment warning
+from the persistence layer with nothing to do with attribution. It now asserts on the *message*: no
+warning may claim an attributable call was unattributable. A check that fails on unrelated noise gets
+muted, and a muted check is not checking anything.
+
+**What remains is now mechanical rather than structural.** The eleven need one `recordAmbientAiCall`
+line each — no signatures change, no callers move. `receipt-extraction.ts` still needs its own
+accounting key rather than a run, and that stays a decision rather than a line.
+
+Worker suite 92 files / 1,521 tests green; `tsc` and `eslint` clean.

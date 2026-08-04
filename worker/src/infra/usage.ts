@@ -25,6 +25,7 @@
 // duration of one failed insert, and the accumulator is the conservative one (it counts what was
 // spent even when the row did not save).
 
+import { currentProjectId } from './run-context.js';
 import { getSupabase } from '../services/pipeline.js';
 
 // ── Pricing ─────────────────────────────────────────────────────────────────────────────────────
@@ -198,4 +199,52 @@ export function recordAiCall(
   metadata?: Record<string, unknown>,
 ): Promise<number> {
   return recordUsage({ projectId, eventType: 'ai_call', model, tokens, metadata });
+}
+
+/**
+ * Price and record an AI call against the ambient run (plan R4b).
+ *
+ * The twelve unmigrated call sites have no `projectId` in scope and no sensible way to obtain one —
+ * they are pure analysis functions several hops below `runPipeline`. This is the bridge: the run is
+ * carried by `AsyncLocalStorage` rather than by a parameter on every function between here and there.
+ *
+ * ── IT REFUSES RATHER THAN GUESSES ──────────────────────────────────────────────────────────────
+ *
+ * With no ambient run it records **nothing** and returns 0, having warned once with the site name.
+ * The alternative — attributing to "the current run" — is a silent misattribution under
+ * `concurrency: 3`, and the whole point of the ceiling is that its number means something.
+ *
+ * A warning rather than a throw: an unattributable AI call is a bookkeeping gap, not a reason to
+ * fail a survey a customer is waiting on. The gap is made loud instead of fatal.
+ */
+export function recordAmbientAiCall(
+  site: string,
+  model: string | null | undefined,
+  tokens: TokenCounts,
+  metadata?: Record<string, unknown>,
+): Promise<number> {
+  const projectId = currentProjectId();
+  if (!projectId) {
+    warnUnattributed(site);
+    return Promise.resolve(0);
+  }
+  return recordAiCall(projectId, model, tokens, { site, ...metadata });
+}
+
+/** One warning per site, not one per call — a deed with forty pages would otherwise bury the log. */
+const warnedSites = new Set<string>();
+function warnUnattributed(site: string): void {
+  if (warnedSites.has(site)) return;
+  warnedSites.add(site);
+  console.warn(
+    `[usage] ${site} made an AI call with no ambient run, so its cost is NOT counted against any ` +
+    `budget ceiling. This is a gap in spend tracking, not an error in the work. If this site runs ` +
+    `inside a pipeline, wrap the entry point in withRunContext(); if it legitimately runs outside ` +
+    `one (a CLI batch, for example), it needs its own accounting key rather than a run.`,
+  );
+}
+
+/** Test seam — the warn-once set is module state and would leak between cases. */
+export function __resetUnattributedWarnings(): void {
+  warnedSites.clear();
 }
