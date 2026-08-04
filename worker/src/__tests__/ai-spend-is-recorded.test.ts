@@ -27,7 +27,24 @@ const SRC = path.join(WORKER, 'src');
 /** A file counts as reporting spend if it reaches `infra/usage` directly OR through
  *  `ai-cost-helpers`, which wraps `recordAiCall`. Checking only the former is the mistake that made
  *  this list 20 instead of 14. */
-const REPORTS_SPEND = /infra\/usage|ai-cost-helpers|recordUsage|recordAiCall|recordAiUsage/;
+const REPORTS_SPEND = /infra\/usage|ai-cost-helpers|recordUsage|recordAiCall|recordAiUsage|recordAmbientAiCall|recordOpsAiCall/;
+
+/**
+ * Comments removed before the predicate runs — and this is not tidiness.
+ *
+ * **Found by a negative control that failed to fire, 2026-08-04.** Migrating the last call site, I
+ * deleted its `import … from '../infra/usage.js'` to prove the ratchet would catch the regression.
+ * Nine tests stayed green. The file still contained the words `infra/usage` **in a comment I had
+ * just written**, and the predicate is a text search.
+ *
+ * So for the length of that check, this guard would have credited any file that merely *mentioned*
+ * the usage module — including one whose only mention was a note explaining that it does not use it.
+ * A guard satisfied by prose is the exact defect guards exist to catch, and the only reason it
+ * surfaced is that the control was run and then verified instead of assumed.
+ */
+function code(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
 
 /** Call sites that construct their own Anthropic client and do NOT price through the one module.
  *
@@ -51,7 +68,17 @@ const UNMIGRATED: Record<string, string> = {
   // job queue runs `concurrency: 3`, so a module-level "current run" would file one run's spend
   // against another — a silent misattribution, which is the failure this whole file exists to stop.
   // `AsyncLocalStorage` is correct under concurrency and is the likely shape of the fix.
-  'src/services/receipt-extraction.ts': 'NOT a research-run call at all: it runs from a CLI batch over queued RECEIPTS and has no project to attribute to. Its cost is real but it is not run spend, so migrating it as-is would file finance work against a research ceiling. Needs its own key, or an explicit exemption.',
+  // ── EMPTY, 2026-08-04 ────────────────────────────────────────────────────────────────────────
+  // The last entry was `receipt-extraction.ts`, and its reason was correct rather than an excuse:
+  // a CLI batch over queued receipts, with no research run to attribute to. Migrating it as-is
+  // would have filed finance work against a research ceiling.
+  //
+  // It is closed by giving it what the reason asked for — `recordOpsAiCall` and an `ops:` accounting
+  // key, which cannot collide with a project UUID and therefore cannot reach a run's ceiling, and
+  // which carries SYSTEM_ACTOR so it cannot reach a customer's bill either.
+  //
+  // Keep this map. It is not decoration: the tests below fail the moment a new unrecorded call site
+  // appears, and an empty inventory is the only state in which the ceiling and the invoice agree.
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -67,11 +94,11 @@ const rel = (abs: string) => path.relative(WORKER, abs).replace(/\\/g, '/');
 
 /** Files that build their own Anthropic client. */
 const callSites = walk(SRC)
-  .filter((f) => /new Anthropic\s*\(/.test(fs.readFileSync(f, 'utf8')))
+  .filter((f) => /new Anthropic\s*\(/.test(code(fs.readFileSync(f, 'utf8'))))
   .map(rel);
 
 const reportsSpend = (relPath: string) =>
-  REPORTS_SPEND.test(fs.readFileSync(path.join(WORKER, relPath), 'utf8'));
+  REPORTS_SPEND.test(code(fs.readFileSync(path.join(WORKER, relPath), 'utf8')));
 
 describe('the sweep is looking at something', () => {
   it('finds the AI call sites at all', () => {
@@ -81,6 +108,27 @@ describe('the sweep is looking at something', () => {
 
   it('finds call sites that DO report, so the predicate is not just always-false', () => {
     expect(callSites.filter(reportsSpend).length).toBeGreaterThan(0);
+  });
+
+  it('is NOT satisfied by a file that only mentions the usage module in a comment', () => {
+    // The bug this file had until 2026-08-04, found by a negative control that reported false green:
+    // the predicate is a text search, and prose counts as text. A file whose only reference to
+    // `infra/usage` was a comment saying it does not use it was credited as migrated.
+    const proseOnly = `
+      // This file deliberately does NOT go through infra/usage — see recordAiCall.
+      /* recordUsage lives elsewhere. */
+      const client = new Anthropic({ apiKey });
+    `;
+    expect(REPORTS_SPEND.test(proseOnly)).toBe(true);        // …the raw text does match,
+    expect(REPORTS_SPEND.test(code(proseOnly))).toBe(false); // …and stripping comments is what saves it.
+  });
+
+  it('still sees a real import after comments are stripped', () => {
+    // The other direction: a comment-stripper that ate too much would mark every migrated file as an
+    // offender, which fails loudly — but it would also be "fixed" by widening the exception list.
+    const real = `import { recordOpsAiCall } from '../infra/usage.js';\nconst c = new Anthropic({});`;
+    expect(REPORTS_SPEND.test(code(real))).toBe(true);
+    expect(/new Anthropic\s*\(/.test(code(real))).toBe(true);
   });
 });
 
@@ -123,6 +171,31 @@ describe('spend the budget cannot see', () => {
     // **Tightened when the count drops, not just when it rises.** Left at 14 it would have allowed
     // two new unrecorded call sites to appear and still pass — a ratchet that does not follow the
     // work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
-    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(1);
+    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(0);
+  });
+});
+
+describe('ops spend is recorded WITHOUT becoming run spend', () => {
+  // The property that let the last entry close. If an ops key could pass for a project id, the fix
+  // would be worse than the gap it closed: a receipt batch would quietly eat a customer's research
+  // budget, and R5 would stop a run for money the run never spent.
+  it('an ops key can never be mistaken for a research project id', async () => {
+    const { opsAccountingKey, isOpsAccountingKey } = await import('../infra/usage.js');
+    const key = opsAccountingKey('receipt-extraction');
+    expect(isOpsAccountingKey(key)).toBe(true);
+    // A project id is a UUID; nothing about it can start with the ops prefix.
+    expect(isOpsAccountingKey('4d1f2b7a-9c3e-4a5b-8d6f-0e1a2b3c4d5e')).toBe(false);
+    expect(key).not.toMatch(/^[0-9a-f]{8}-/i);
+  });
+
+  it('does not add ops spend to a run ceiling', async () => {
+    const { recordOpsAiCall, spendForRun, resetRunSpend, opsAccountingKey } = await import('../infra/usage.js');
+    const project = '4d1f2b7a-9c3e-4a5b-8d6f-0e1a2b3c4d5e';
+    resetRunSpend(project);
+    await recordOpsAiCall('receipt-extraction', 'claude-sonnet-4-5', { input: 100_000, output: 10_000 });
+    // The run has spent nothing, because nothing was spent on the run.
+    expect(spendForRun(project)).toBe(0);
+    // …and the cost is not lost: it accumulated under its own key.
+    expect(spendForRun(opsAccountingKey('receipt-extraction'))).toBeGreaterThan(0);
   });
 });

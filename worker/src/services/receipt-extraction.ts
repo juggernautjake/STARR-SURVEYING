@@ -35,6 +35,9 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
+// R4b's last entry. This batch has no research run to belong to — see `recordOpsAiCall`, which gives
+// it its own accounting key rather than borrowing a project id it would misattribute.
+import { recordOpsAiCall, priceCall } from '../infra/usage.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -47,14 +50,17 @@ const VISION_MODEL = process.env.STARR_FIELD_VISION_MODEL ?? 'claude-sonnet-4-5-
 const MAX_TOKENS = 2048;
 /** Default batch size when caller doesn't pass one. */
 const DEFAULT_BATCH_SIZE = 10;
-/** Sonnet 4.5/4.6 input pricing snapshot: $3/MTok in, $15/MTok out.
- *  Used for the per-receipt `extraction_cost_cents` write. The
- *  ai-usage-tracker singleton uses its own averaged constant for the
- *  circuit breaker — close enough for breaker-decision purposes; the
- *  per-row spend recorded here is the authoritative number for
- *  bookkeeping. */
-const INPUT_PRICE_PER_MTOK = 3.0;
-const OUTPUT_PRICE_PER_MTOK = 15.0;
+// PRICING LIVED HERE, AND IT WAS THE THIRD COPY.
+//
+// This file used to carry `INPUT_PRICE_PER_MTOK = 3.0` / `OUTPUT_PRICE_PER_MTOK = 15.0` beside a
+// comment admitting the ai-usage-tracker singleton uses *its own averaged constant* — two numbers
+// for one question, and `infra/usage.ts`'s MODEL_PRICING is a third. They agree today. They agree
+// only until Anthropic changes a rate, at which point the per-receipt `extraction_cost_cents` write
+// silently keeps billing yesterday's price, and nothing fails.
+//
+// `priceCall` is now the single source, so this file is priced by the same table as everything else
+// and a rate change is one edit. The figure is unchanged today — MODEL_PRICING prices
+// `claude-sonnet-4-5` at exactly $3/$15 per MTok — so this is a de-duplication, not a re-pricing.
 
 /** Watchdog window for crashed-worker detection. A row sitting in
  *  'running' state longer than this is considered abandoned and is
@@ -354,10 +360,15 @@ async function processOne(
   }
 
   // 4. Compute cost in cents and write back.
-  const costUsd =
-    (inputTokens / 1_000_000) * INPUT_PRICE_PER_MTOK +
-    (outputTokens / 1_000_000) * OUTPUT_PRICE_PER_MTOK;
+  const costUsd = priceCall(VISION_MODEL, { input: inputTokens, output: outputTokens });
   const costCents = Math.round(costUsd * 100);
+
+  // The ledger entry. Not fatal and not awaited into the critical path: an extraction a bookkeeper
+  // is waiting on must not fail because a usage row would not save. `recordOpsAiCall` keys it as ops
+  // spend, so it can never be counted against a research run's ceiling or a customer's bill.
+  void recordOpsAiCall('receipt-extraction', VISION_MODEL, { input: inputTokens, output: outputTokens }, {
+    receipt_id: row.id,
+  });
 
   tracker.record({
     service: 'vision-ocr',

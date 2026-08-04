@@ -4314,3 +4314,54 @@ Every AI call site in this worker that belongs to a research run now prices thro
 parallel spend system with its own cost model and its own `canMakeCall()` gate, invisible to
 `spendForRun`. Migrating the last call sites made the ceiling accurate; it did not make it the only
 answer.
+
+### ✅ R4b COMPLETE 2026-08-04 — the last entry, and a ratchet that could be satisfied by a comment
+
+**14 → 0.** Every AI call site in the worker now prices through `infra/usage`.
+
+The last entry was `receipt-extraction.ts`, and its recorded reason was correct rather than an
+excuse: *"a CLI batch over queued receipts, no project to attribute to; migrating it as-is would
+file finance work against a research ceiling."* It is closed by giving it what that reason asked
+for — `recordOpsAiCall` and an `ops:<site>` accounting key.
+
+Two properties make the key safe, and both come from it being **namespaced rather than borrowed**:
+
+- **It cannot reach a run's ceiling.** `spendForRun` is keyed by project id, and an `ops:` key cannot
+  collide with a UUID — so a receipt batch can never eat a customer's research budget, and R5 can
+  never stop a run for money the run did not spend.
+- **It cannot reach a customer's bill.** The billing route filters by `user_email`; these rows carry
+  `SYSTEM_ACTOR`, the same sentinel used for runs nobody triggered.
+
+`research_usage_events.research_project_id` is TEXT with no foreign key — the seed says *"may be temp
+ID"* — so this needed no schema change.
+
+#### ▶ The same file priced AI a THIRD time
+
+`receipt-extraction.ts` carried `INPUT_PRICE_PER_MTOK = 3.0` / `OUTPUT_PRICE_PER_MTOK = 15.0` beside
+a comment admitting the `ai-usage-tracker` singleton uses *its own averaged constant* — two numbers
+for one question, with `MODEL_PRICING` a third. They agree today. They agree only until a rate
+changes, at which point `extraction_cost_cents` silently keeps writing yesterday's price and nothing
+fails. `priceCall` is now the single source; the figure is **unchanged today**, so this is a
+de-duplication and not a re-pricing.
+
+#### ▶ And the ratchet could be satisfied by prose
+
+The negative control reported false green — twice — and chasing why found something worse than the
+control. `REPORTS_SPEND` is a **text search over the whole file**, so a file that merely *mentions*
+`infra/usage` in a comment counted as migrated. The predicate now runs over comment-stripped source,
+with two tests pinning both directions: prose alone must NOT satisfy it, and a real import still must.
+
+Re-running the sweep with the strict predicate credited **exactly the same files**, so no earlier
+migration in this document was ever fake. That is worth stating plainly: the weakness was real and its
+consequences here were not.
+
+Both false greens were flaws in **my control**, not in the guard — the first replaced the import with
+a local stub *of the same name*, the second left one call behind. `grep` after each attempt is what
+showed it, which is this document's standing rule and the third time today it has paid.
+
+Worker suite **93 files / 1,535 tests green**; `tsc` and `eslint` clean.
+
+**What remains under R4 is one question, not one task**: `lib/ai-usage-tracker.ts` is still a parallel
+spend system with its own cost model and its own `canMakeCall()` gate, invisible to `spendForRun`.
+Migrating the call sites made the ceiling accurate; it did not make it the only answer. **Owner's
+call: which tracker is authoritative.**

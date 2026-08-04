@@ -231,6 +231,56 @@ export function recordAmbientAiCall(
   return recordAiCall(projectId, model, tokens, { site, ...metadata });
 }
 
+/**
+ * Price and record an AI call that legitimately belongs to **no research run** (plan R4b, last entry).
+ *
+ * `receipt-extraction.ts` is the case this exists for: a CLI batch over queued receipts. Its AI cost
+ * is real money and was invisible to every ledger, but it is **not run spend** — filing it against a
+ * research project would put finance work inside a research ceiling and make a customer's report
+ * look more expensive than it was.
+ *
+ * ── WHY THIS IS A DIFFERENT FUNCTION AND NOT A DEFAULT PROJECT ID ───────────────────────────────
+ *
+ * Two properties have to hold, and both come from the key being namespaced rather than borrowed:
+ *
+ *   1. **It can never reach a run's ceiling.** `spendForRun` is keyed by project id; `ops:` keys
+ *      cannot collide with a UUID, so no ops call can consume a run's budget or trip its limit.
+ *   2. **It can never reach a customer's bill.** The billing route filters by `user_email`, and
+ *      these rows carry `SYSTEM_ACTOR` — the same sentinel used for runs nobody triggered.
+ *
+ * `research_usage_events.research_project_id` is TEXT with no foreign key, documented in the seed as
+ * *"may be temp ID"*, so an ops key is representable without schema work. The table is the ledger of
+ * what the AI cost us; the run ceiling is a different question asked of the same rows.
+ */
+export function recordOpsAiCall(
+  site: string,
+  model: string | null | undefined,
+  tokens: TokenCounts,
+  metadata?: Record<string, unknown>,
+): Promise<number> {
+  return recordUsage({
+    projectId: opsAccountingKey(site),
+    eventType: 'ai_call',
+    model,
+    tokens,
+    metadata: { site, ops: true, ...metadata },
+  });
+}
+
+/** `ops:receipt-extraction`. Exported so a reader of the table — or a test — can tell ops spend from
+ *  run spend without pattern-matching a convention written down in only one place. */
+export function opsAccountingKey(site: string): string {
+  return `${OPS_KEY_PREFIX}${site}`;
+}
+
+export const OPS_KEY_PREFIX = 'ops:';
+
+/** True for a key produced by `opsAccountingKey`. A UUID can never satisfy it, which is the whole
+ *  safety property: ops spend and run spend cannot be confused for one another. */
+export function isOpsAccountingKey(projectId: string): boolean {
+  return projectId.startsWith(OPS_KEY_PREFIX);
+}
+
 /** One warning per site, not one per call — a deed with forty pages would otherwise bury the log. */
 const warnedSites = new Set<string>();
 function warnUnattributed(site: string): void {
