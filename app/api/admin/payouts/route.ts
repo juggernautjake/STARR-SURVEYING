@@ -8,6 +8,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { readPayouts } from '@/lib/payroll/payout-ledger';
 import { notify } from '@/lib/notifications';
 import { buildPayoutNotification } from '@/lib/notifications/payout';
 
@@ -59,36 +60,48 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const employee = url.searchParams.get('employee');
   const method = url.searchParams.get('method');
 
-  let query = supabaseAdmin
-    .from('employee_payouts')
-    .select('id, user_email, amount_cents, method, reference, period_start, period_end, notes, paid_at, created_by, created_at')
-    .eq('org_id', orgId)
-    .order('paid_at', { ascending: false })
-    .limit(500);
+  // ── ONE LEDGER (C-16, 2026-08-04) ───────────────────────────────────────────────────────
+  //
+  // This route used to read and write `employee_payouts`: twelve columns, no batch, no status,
+  // no failure handling, and nothing else in the platform wrote to it. Meanwhile the ACH export,
+  // the tax report, the finance overview and the per-employee payout tab all read
+  // `payout_batch_items`. Two records of "we paid this person", sharing no rows.
+  //
+  // `payout_batch_items` won because it is the one that can express what actually happens: a
+  // batch, an approval, a dispatch, a per-item status, an external reference, a failure reason,
+  // a void. See `lib/payroll/payout-ledger.ts`.
+  const { payouts: ledgerRows, error } = await readPayouts({
+    orgId,
+    from: fromIso,
+    to: toIso,
+    userEmail: employee ?? undefined,
+  });
 
-  if (fromIso) query = query.gte('paid_at', fromIso);
-  if (toIso) query = query.lte('paid_at', toIso);
-  if (employee) query = query.eq('user_email', employee);
-  if (method) query = query.eq('method', method);
-
-  const { data, error } = await query;
   if (error) {
     console.error('[payouts] list failed', error);
     return NextResponse.json({ error: 'Failed to load payouts' }, { status: 500 });
   }
 
-  const payouts: PayoutRow[] = (data ?? []).map((r: Record<string, unknown>) => ({
-    id: r.id as string,
-    userEmail: r.user_email as string,
-    amountCents: r.amount_cents as number,
-    method: r.method as string,
-    reference: (r.reference as string | null) ?? null,
-    periodStart: (r.period_start as string | null) ?? null,
-    periodEnd: (r.period_end as string | null) ?? null,
-    notes: (r.notes as string | null) ?? null,
-    paidAt: r.paid_at as string,
-    createdBy: r.created_by as string,
-    createdAt: r.created_at as string,
+  // Method is filtered here rather than in the query: it lives on the item, but so does every
+  // other filter, and keeping one of them in SQL and the rest in memory is how a filter quietly
+  // stops applying.
+  const data = method ? ledgerRows.filter((r) => r.method === method) : ledgerRows;
+
+  const payouts: PayoutRow[] = data.map((r) => ({
+    id: r.id,
+    userEmail: r.user_email,
+    amountCents: r.amount_cents,
+    // A ledger row always carries an amount and a person; the rest can legitimately be absent on a
+    // payment that has not gone out yet, so they default rather than being asserted non-null.
+    method: r.method ?? 'unknown',
+    reference: r.reference,
+    periodStart: r.period_start,
+    periodEnd: r.period_end,
+    notes: r.notes,
+    paidAt: r.paid_at ?? '',
+    // `created_by` lives on the batch, not the item — the ledger does not carry it per payment.
+    createdBy: '',
+    createdAt: r.created_at ?? '',
   }));
 
   // Aggregate totals by method (the boss wants this for reconciliation).
@@ -135,27 +148,56 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: `method must be one of: ${VALID_METHODS.join(', ')}` }, { status: 400 });
   }
 
-  const insert: Record<string, unknown> = {
-    org_id: orgId,
-    user_email: userEmail,
-    amount_cents: amountCents,
-    method,
-    reference: body.reference?.trim() || null,
-    period_start: body.periodStart || null,
-    period_end: body.periodEnd || null,
-    notes: body.notes?.trim() || null,
-    paid_at: body.paidAt || new Date().toISOString(),
-    created_by: session.user.email,
-  };
+  // A one-off payout is recorded as a batch of one, so it lands in the same ledger as everything
+  // else. Writing it anywhere else is what produced two records of the same event: a payment made
+  // here would have been invisible to the ACH export, the tax report and the finance overview.
+  const paidAt = body.paidAt || new Date().toISOString();
+
+  const { data: batch, error: batchError } = await supabaseAdmin
+    .from('payout_batches')
+    .insert({
+      org_id: orgId,
+      label: body.notes?.trim() || 'One-off payout',
+      kind: 'manual',
+      week_start: body.periodStart || null,
+      week_end: body.periodEnd || null,
+      // Already paid — this route records a payment that happened, it does not schedule one.
+      status: 'completed',
+      total_cents: amountCents,
+      created_by: session.user.email,
+      approved_by: session.user.email,
+      approved_at: paidAt,
+      completed_at: paidAt,
+    })
+    .select('id')
+    .single();
+
+  if (batchError || !batch) {
+    console.error('[payouts] batch insert failed', batchError);
+    return NextResponse.json({ error: 'Failed to record payout' }, { status: 500 });
+  }
 
   const { data, error } = await supabaseAdmin
-    .from('employee_payouts')
-    .insert(insert)
-    .select('id, amount_cents, method, user_email, paid_at')
+    .from('payout_batch_items')
+    .insert({
+      org_id: orgId,
+      batch_id: batch.id,
+      user_email: userEmail,
+      total_cents: amountCents,
+      method,
+      external_ref: body.reference?.trim() || null,
+      notes: body.notes?.trim() || null,
+      status: 'paid',
+      paid_at: paidAt,
+    })
+    .select('id, total_cents, method, user_email, paid_at')
     .single();
 
   if (error || !data) {
     console.error('[payouts] insert failed', error);
+    // The batch is already in. Left as an empty completed batch it would show a total with no
+    // items behind it, so it is removed rather than left to puzzle somebody reading the ledger.
+    await supabaseAdmin.from('payout_batches').delete().eq('id', batch.id);
     return NextResponse.json({ error: 'Failed to record payout' }, { status: 500 });
   }
 

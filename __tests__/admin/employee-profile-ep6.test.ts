@@ -57,15 +57,19 @@ describe('API /api/admin/profile/compensation (EP6)', () => {
   });
 
   it('fans out 3 reads in parallel + sorts each by recency', () => {
-    expect(SRC).toMatch(/Promise\.all\(\[[\s\S]*?employee_salary_history[\s\S]*?employee_bonuses[\s\S]*?employee_payouts/);
+    // Payouts moved to `readPayouts` (pay consolidation C-16, 2026-08-04). This route used to
+    // select `gross_cents` / `net_cents` from `employee_payouts` — columns that have never existed
+    // on that table — so it returned 500 on every request. The ledger reader owns the ordering now
+    // (it sorts by `paid_at` descending), so what is asserted here is that the route delegates,
+    // not that it writes the ORDER BY itself.
+    expect(SRC).toMatch(/Promise\.all\(\[[\s\S]*?employee_salary_history[\s\S]*?employee_bonuses[\s\S]*?readPayouts/);
     expect(SRC).toMatch(/effective_from'?, \{ ascending: false \}/);
     expect(SRC).toMatch(/awarded_at'?, \{ ascending: false \}/);
-    expect(SRC).toMatch(/paid_at'?, \{ ascending: false \}/);
   });
 
   it('caps bonus list at 50 + payout list at 12 so a long tenure still loads fast', () => {
     expect(SRC).toMatch(/employee_bonuses[\s\S]*?\.limit\(50\)/);
-    expect(SRC).toMatch(/employee_payouts[\s\S]*?\.limit\(12\)/);
+    expect(SRC).toMatch(/readPayouts\(\{[^}]*limit: 12/);
   });
 });
 

@@ -2,7 +2,7 @@
 //
 // employee-pond Slice E13 — typed shapes + table-name constants for
 // the three new activity-history tables (employee_bonuses,
-// employee_salary_history, employee_payouts). E14 consumes these
+// employee_salary_history, payout_batch_items). E14 consumes these
 // to render the admin "everything" page + the employee's own "My
 // history" page.
 //
@@ -14,7 +14,11 @@
 export const ACTIVITY_TABLES = {
   bonuses: 'employee_bonuses',
   salary: 'employee_salary_history',
-  payouts: 'employee_payouts',
+  // The payout ledger, since C-16 (2026-08-04). `employee_payouts` was a second, strictly weaker
+  // copy — no batch, no approval, no status — and the history route now reads this one through
+  // `lib/payroll/payout-ledger.ts`. This constant is what the page cites as its sources, so it has
+  // to name the table actually read, or the footnote lies about where the numbers came from.
+  payouts: 'payout_batch_items',
 } as const satisfies Record<string, string>;
 
 export type ActivityTable = (typeof ACTIVITY_TABLES)[keyof typeof ACTIVITY_TABLES];

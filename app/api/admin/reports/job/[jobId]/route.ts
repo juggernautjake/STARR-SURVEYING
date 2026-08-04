@@ -9,6 +9,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { readPayouts } from '@/lib/payroll/payout-ledger';
 
 export const runtime = 'nodejs';
 
@@ -51,7 +52,14 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
     return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   }
 
-  const [hoursRes, receiptsRes, mileageRes, payoutsRes] = await Promise.all([
+  // Started here and awaited below, so it still runs alongside the three queries without being
+  // inside the `Promise.all` — mixing a typed helper into an array of PostgREST builders collapses
+  // the inferred element type to `any`, and `any` on a money read is how a wrong figure ships.
+  //
+  // Reads `payout_batch_items` via the ledger, not the retired `employee_payouts`.
+  const payoutsPromise = readPayouts({ orgId, limit: 5000 });
+
+  const [hoursRes, receiptsRes, mileageRes] = await Promise.all([
     supabaseAdmin
       .from('job_time_entries')
       .select('id, user_email, duration_minutes, start_time, end_time, billable')
@@ -67,12 +75,9 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
       .select('id, user_email, miles, rate_cents_per_mile, total_cents, entry_date')
       .eq('job_id', jobId)
       .order('entry_date', { ascending: true }),
-    supabaseAdmin
-      .from('employee_payouts')
-      .select('id, user_email, amount_cents, method, reference, paid_at, notes')
-      .eq('org_id', orgId)
-      .eq('notes', `job:${jobId}`),     // convention: payouts referencing a job have notes='job:<id>'
   ]);
+
+  const payoutsRes = await payoutsPromise;
 
   // Pay rates for labor cost
   const { data: profiles } = await supabaseAdmin
@@ -160,10 +165,10 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
     };
   });
 
-  // Payouts referencing this job
+  // Payouts referencing this job. The convention is `notes = 'job:<id>'`; filtered here rather than
+  // in the query because the ledger read owns the batch join that org scoping depends on.
   let payoutsTotalCents = 0;
-  type PayoutRow = { id: string; user_email: string; amount_cents: number; method: string; reference: string | null; paid_at: string; notes: string | null };
-  const payouts = ((payoutsRes.data ?? []) as PayoutRow[]).map((p) => {
+  const payouts = payoutsRes.payouts.filter((p) => p.notes === `job:${jobId}`).map((p) => {
     payoutsTotalCents += p.amount_cents;
     return {
       id: p.id,

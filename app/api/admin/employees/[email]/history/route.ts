@@ -13,6 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { readPayouts } from '@/lib/payroll/payout-ledger';
 import {
   hydrateEmployeePrivacy,
   viewerSeesEverything,
@@ -84,13 +85,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     if (se) console.error('[history GET] salary error:', se);
     else salaryHistory = sd ?? [];
 
-    const { data: pd, error: pe } = await supabaseAdmin
-      .from('employee_payouts')
-      .select('*')
-      .eq('user_email', targetEmailLower)
-      .order('paid_at', { ascending: false });
+    // `payout_batch_items` is the ledger; `employee_payouts` was a strictly weaker second copy with
+    // no batch, status or failure handling. See lib/payroll/payout-ledger.ts.
+    const { payouts: pd, error: pe } = await readPayouts({ userEmail: targetEmailLower });
     if (pe) console.error('[history GET] payouts error:', pe);
-    else payouts = pd ?? [];
+    payouts = pd;
   }
 
   return NextResponse.json({

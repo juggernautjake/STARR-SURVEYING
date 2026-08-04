@@ -153,6 +153,61 @@ describe('pay advances come back out', () => {
   });
 });
 
+describe('there is one record of money paid to a person', () => {
+  // `employee_payouts` was a second, strictly weaker copy of `payout_batch_items`: no batch, no
+  // approval, no status, no failure handling. Five routes read it; ten read the real ledger; the two
+  // sets shared no rows. Retired 2026-08-04 into `lib/payroll/payout-ledger.ts`.
+  //
+  // Nothing stops it being reintroduced. A single `.from('employee_payouts')` in a new route would
+  // typecheck, lint, and split the ledger again — and the split is invisible until somebody compares
+  // a payout report against the bank file.
+  it('no route reads or writes the retired employee_payouts table', () => {
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const found of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+        const relative = `${dir}/${found.name}`;
+        if (found.isDirectory()) { walk(relative); continue; }
+        if (!/\.tsx?$/.test(found.name)) continue;
+        // `lib/saas/org-scope.ts` is a schema inventory of every org-scoped table, not a read. The
+        // table still exists — it is retired, not dropped — so removing it from that list would
+        // make the org-scoping test stop checking a table that is still there.
+        if (relative === 'lib/saas/org-scope.ts') continue;
+        if (code(read(relative)).includes("'employee_payouts'")) offenders.push(relative);
+      }
+    };
+    walk('app');
+    walk('lib');
+
+    expect(
+      offenders,
+      `${offenders.join(', ')} reads employee_payouts. Payouts live in payout_batch_items — ` +
+      'use lib/payroll/payout-ledger.ts.',
+    ).toEqual([]);
+  });
+
+  it('the ledger module is the one that knows the payout tables', () => {
+    const ledger = code(read('lib/payroll/payout-ledger.ts'));
+    expect(ledger).toContain("'payout_batch_items'");
+    expect(ledger).toContain("'payout_batches'");
+  });
+
+  it('a one-off payout is recorded in the same ledger as every other payment', () => {
+    // Recording it anywhere else is what produced two records of the same event: a payment made
+    // through this route would be invisible to the ACH export, the tax report and the finance
+    // overview.
+    const route = code(read('app/api/admin/payouts/route.ts'));
+    expect(route).toContain("from('payout_batch_items')");
+    expect(route).toContain("from('payout_batches')");
+  });
+
+  it('leaves payout_log alone — it is an audit trail, not a payout ledger', () => {
+    // Checked before assuming, because "these look similar" is how a working table gets deleted.
+    // Its columns are old_rate / new_rate / old_role / new_role: it records employee CHANGES, and
+    // `employees/manage` uses it as one.
+    expect(code(read('app/api/admin/employees/manage/route.ts'))).toContain("'payout_log'");
+  });
+});
+
 describe('the parked progression system stays parked', () => {
   it('nothing in the live pay path stacks grade, seniority, credentials or XP', () => {
     // Parked at the owner's request, 2026-08-04: base pay plus a handful of set activity rates.

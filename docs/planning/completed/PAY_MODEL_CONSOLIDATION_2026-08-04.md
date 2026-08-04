@@ -121,11 +121,11 @@ Supporting modules:
 | **C-13** | `parked` flag on the route registry; hidden from rail AND search, still resolves | ✅ Shipped |
 | **C-14** | Payroll runs pay from `daily_time_logs` at model rates, honouring approver decisions; FLSA half-time premium on blended rates | ✅ Shipped |
 | **C-15** | Source guards + negative control: no route may re-implement a rate, progression stays parked | ✅ Shipped |
-| **C-16** | One payout ledger — `payout_log`, `employee_payouts`, `payout_batches`, `balance_transactions` all exist and are empty | ⬜ Not started |
+| **C-16** | One payout ledger: `employee_payouts` retired into `payout_batch_items` via `lib/payroll/payout-ledger.ts`; 8 readers repointed; guarded | ✅ Shipped |
 | **C-17** | Pay advances are recovered from pay: seed 576 (repayment ledger + outstanding view), instalments, protected share of net, mark-paid step, employee sees the balance | ✅ Shipped |
 | **C-19** | Week summary in `lib/payroll/week-summary.ts`: hours not entry counts, adjustments honoured, rejected excluded, approver decisions used, undecided hours surfaced | ✅ Shipped |
 | **C-20** | `UNPRICED_WORK_TYPE` — hours loggable with no rate at all, and that is the picker default | ✅ Shipped |
-| **C-18** | Backfill `employee_profiles.tier_key` (NULL for everybody; `job_title` carries the title) | ⬜ Not started |
+| **C-18** | `tier_key` backfilled from `job_title` through the alias bridge (seed 577, applied); fallback retained for future writes | ✅ Shipped |
 
 ---
 
@@ -179,3 +179,47 @@ that folded them in was removed rather than left dangling.
 - **XP is counted two ways.** `pay-context.ts` counts milestones reached
   (`xp_milestone_achievements`); `/admin/pay-progression/[email]` reads `total_earned`. Noted rather
   than silently reconciled — picking one quietly is how the split started.
+
+---
+
+## 7. Closed — 2026-08-04
+
+Every slice shipped. Moved to `completed/` per the rubric in `docs/planning/README.md`.
+
+### What the platform has now
+
+| Question | Answer, and the one place it lives |
+|---|---|
+| What is an hour worth? | `lib/payroll/resolve-rate.ts` — manual → unpriced → pin → set activity rate → base pay → unset |
+| Where do the inputs come from? | `lib/payroll/pay-context.ts` — one load: `employee_profiles.hourly_rate` + `work_type_rates` |
+| What did the approver decide? | `time_log_pay_decisions` (seed 574) + `lib/payroll/pay-decision.ts` |
+| What does a pay stub say? | `lib/payroll/pay-stub.ts` — approved hours only, FLSA half-time premium on blended rates |
+| What comes back off it? | `lib/payroll/advance-recovery.ts` + `pay_advance_repayments` (seed 576) |
+| What is the week worth? | `lib/payroll/week-summary.ts` |
+| What have we paid people? | `lib/payroll/payout-ledger.ts` over `payout_batch_items` |
+| Who manages it? | `/admin/pay-rates` (what each activity pays) and `/admin/payroll` (what each person is on) |
+
+### Live bugs found and fixed on the way
+
+Each of these was shipped, silent, and would have cost real money:
+
+1. **Payroll runs cut 0-hour stubs and reported success** — read `job_time_entries` (never had a row) while hours live in `daily_time_logs`.
+2. **`/api/admin/profile/compensation` returned 500 on every request** — selected `gross_cents` / `net_cents` from a table that has neither. Verified against the live database.
+3. **Seniority pay was silently dropped** at 1, 2, 4, 6, 9, 14 and 19 years — `years < max_years` against inclusive bracket rows. (Now parked with progression, but fixed.)
+4. **A `survey_technician` profile lost its role bonus** — the inline formula matched `role_key` with no alias bridge.
+5. **Five of six staff were invisible on the payroll page** — it listed `employee_profiles`, which had one row.
+6. **"Add employee" would have overwritten a party chief's $25 with a form default of $18** and returned 200.
+7. **The week summary counted rejected hours as money coming**, counted entries instead of hours, and ignored approver adjustments.
+8. **Advances could go out but never come back** — no repaid amount, no instalments, no link to a stub.
+
+### The pattern, stated once
+
+Seven of those eight are the same defect: **an absence rendering as a legitimate value.** A missing row reads as zero, an empty table reads as "nobody works here", a failed query reads as "no data", a lookup that finds nothing reads as "no bonus". None of them raise anything. The only symptom is a number that is quietly wrong.
+
+That is why every rate in this system now carries a `source`, why `null` is used instead of `0` throughout, and why `__tests__/payroll/one-pay-model.test.ts` reads the live route files rather than trusting that the consolidation holds. Each of its guards was verified by breaking the thing it claims to catch — one of them initially passed with the code deleted, because it matched an identifier that also appears on an import line.
+
+### Deferred, with reasons
+
+- **`balance_transactions` + `withdrawal_requests`** — an earned-balance model (accrue a balance, request a withdrawal against it). Adjacent to advances but a different product, and the firm does not use it. Left intact rather than folded in; consolidating two things that only look alike is how a working feature gets deleted.
+- **`payout_log`** — despite the name it is the employee-change audit trail (`old_rate` / `new_rate` / `old_role` / `new_role`), and `employees/manage` uses it as one. Not a payout ledger; left alone.
+- **Restoring pay progression** — parked at the owner's request, not abandoned. §4 records the question to answer first.

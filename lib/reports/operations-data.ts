@@ -10,6 +10,7 @@
 // route + cron can reuse them without HTTP round-trips).
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { readPayouts } from '@/lib/payroll/payout-ledger';
 
 export interface JobDetail {
   id: string;
@@ -537,19 +538,19 @@ async function loadMileage(orgId: string, fromIso: string, toIso: string, warnin
 }
 
 async function loadPayouts(orgId: string, fromIso: string, toIso: string, warnings: string[], filter: ReportFilter) {
-  let query = supabaseAdmin
-    .from('employee_payouts')
-    .select('id, user_email, amount_cents, method, reference, paid_at, notes')
-    .eq('org_id', orgId)
-    .gte('paid_at', fromIso)
-    .lte('paid_at', toIso)
-    .order('paid_at', { ascending: false });
-  if (filter.employeeEmail) {
-    query = query.eq('user_email', filter.employeeEmail);
-  }
-  const { data, error } = await query;
+  // Reads `payout_batch_items` through the one ledger (C-16, 2026-08-04). This function used to read
+  // `employee_payouts` — a second copy of "we paid this person" that nothing else wrote to. The
+  // owner's operations report and the firm's own ACH file were therefore drawn from different
+  // tables, and would have disagreed the moment either had a row in it.
+  const { payouts: data, error } = await readPayouts({
+    orgId,
+    from: fromIso,
+    to: toIso,
+    userEmail: filter.employeeEmail || undefined,
+  });
+
   if (error) {
-    warnings.push(`payouts query: ${error.message}`);
+    warnings.push(`payouts query: ${error}`);
     return {
       totalCents: 0,
       byMethod: {} as Record<string, number>,
@@ -558,32 +559,26 @@ async function loadPayouts(orgId: string, fromIso: string, toIso: string, warnin
     };
   }
 
-  type Row = {
-    id: string;
-    user_email: string;
-    amount_cents: number;
-    method: string;
-    reference: string | null;
-    paid_at: string;
-    notes: string | null;
-  };
-
   const byMethod: Record<string, number> = {};
   const byEmployeeMap = new Map<string, number>();
   let totalCents = 0;
   const entries: PayoutEntry[] = [];
 
-  for (const r of (data ?? []) as Row[]) {
+  for (const r of data) {
+    // A ledger row can be pending, so `method` and `paid_at` may be absent. Grouping unset methods
+    // under a named bucket keeps them in the totals — dropping them would make an operations report
+    // silently understate what the firm paid out.
+    const payMethod = r.method ?? 'unspecified';
     totalCents += r.amount_cents;
-    byMethod[r.method] = (byMethod[r.method] ?? 0) + r.amount_cents;
+    byMethod[payMethod] = (byMethod[payMethod] ?? 0) + r.amount_cents;
     byEmployeeMap.set(r.user_email, (byEmployeeMap.get(r.user_email) ?? 0) + r.amount_cents);
     entries.push({
       id: r.id,
       userEmail: r.user_email,
       amountCents: r.amount_cents,
-      method: r.method,
+      method: payMethod,
       reference: r.reference,
-      paidAt: r.paid_at,
+      paidAt: r.paid_at ?? '',
       notes: r.notes,
     });
   }

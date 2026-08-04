@@ -26,7 +26,7 @@ describe('ACTIVITY_TABLES — table-name constants', () => {
     expect(ACTIVITY_TABLES).toEqual({
       bonuses: 'employee_bonuses',
       salary: 'employee_salary_history',
-      payouts: 'employee_payouts',
+      payouts: 'payout_batch_items',
     });
   });
 });

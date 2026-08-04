@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { readPayouts } from '@/lib/payroll/payout-ledger';
 import { canSeeOthersPay } from '@/lib/employee-profile/pay-visibility';
 
 // NOTE: Next.js App Router only permits specific named exports
@@ -51,17 +52,6 @@ interface BonusRow {
   notes: string | null;
 }
 
-interface PayoutRow {
-  id: string;
-  period_start: string;
-  period_end: string;
-  gross_cents: number;
-  net_cents: number;
-  paid_at: string;
-  method: string;
-  reference: string | null;
-}
-
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -89,22 +79,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .order('awarded_at', { ascending: false })
       .limit(50)
       .returns<BonusRow[]>(),
-    supabaseAdmin
-      .from('employee_payouts')
-      .select('id, period_start, period_end, gross_cents, net_cents, paid_at, method, reference')
-      .eq('user_email', email)
-      .order('paid_at', { ascending: false })
-      .limit(12)
-      .returns<PayoutRow[]>(),
+    // ── THIS QUERY HAD NEVER SUCCEEDED (C-16, 2026-08-04) ────────────────────────────────────
+    //
+    // It selected `gross_cents` and `net_cents` from `employee_payouts`. **Those columns have
+    // never existed on that table.** PostgREST answers 42703, and the loop below returns 500 on
+    // any query error, so this endpoint returned 500 on every request for as long as it shipped.
+    // Verified against the live database rather than inferred.
+    //
+    // Nobody noticed because the table is empty: a compensation page with no payouts looks exactly
+    // like one that failed to load them. That is the defect shape this codebase keeps producing —
+    // an absence and a failure rendering identically.
+    //
+    // Now reads the real ledger, `payout_batch_items`, through `lib/payroll/payout-ledger.ts`.
+    readPayouts({ userEmail: email, limit: 12 }),
   ]);
 
-  for (const res of [salaryRes, bonusRes, payoutRes]) {
+  for (const res of [salaryRes, bonusRes]) {
     if (res.error) return NextResponse.json({ error: res.error.message }, { status: 500 });
   }
+  if (payoutRes.error) return NextResponse.json({ error: payoutRes.error }, { status: 500 });
 
   return NextResponse.json({
     salary_history: salaryRes.data ?? [],
     bonuses: bonusRes.data ?? [],
-    payouts: payoutRes.data ?? [],
+    payouts: payoutRes.payouts,
   });
 }, { routeName: 'admin/profile/compensation' });

@@ -12,6 +12,7 @@
 import { type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { readPayouts } from '@/lib/payroll/payout-ledger';
 
 export const runtime = 'nodejs';
 
@@ -136,17 +137,17 @@ export async function GET(req: NextRequest): Promise<Response> {
       break;
     }
     case 'payouts': {
-      const { data } = await supabaseAdmin
-        .from('employee_payouts')
-        .select('id, user_email, amount_cents, method, reference, paid_at, period_start, period_end, notes, created_by')
-        .eq('org_id', orgId)
-        .gte('paid_at', fromIso)
-        .lte('paid_at', toIso);
+      // Reads `payout_batch_items` — the ledger the ACH export, the tax report and the finance
+      // overview already use. This export previously read `employee_payouts`, a second copy nothing
+      // else wrote to, so a bookkeeper's payout CSV and the firm's own bank file could not agree.
+      const { payouts } = await readPayouts({ orgId, from: fromIso, to: toIso, limit: 5000 });
       csv = rowsToCsv(
-        ['id', 'user_email', 'amount_cents', 'method', 'reference', 'paid_at', 'period_start', 'period_end', 'notes', 'created_by'],
-        (data ?? []).map((r: Record<string, unknown>) => [
-          r.id, r.user_email, r.amount_cents, r.method, r.reference,
-          r.paid_at, r.period_start, r.period_end, r.notes, r.created_by,
+        ['id', 'user_email', 'amount_cents', 'method', 'reference', 'status', 'paid_at', 'period_start', 'period_end', 'batch', 'notes'],
+        payouts.map((p) => [
+          p.id, p.user_email, p.amount_cents, p.method, p.reference,
+          // Status is now on the export. A failed payment appearing in a payout report with no way
+          // to tell it failed is worse than its absence.
+          p.status, p.paid_at, p.period_start, p.period_end, p.batch_label, p.notes,
         ]),
       );
       break;

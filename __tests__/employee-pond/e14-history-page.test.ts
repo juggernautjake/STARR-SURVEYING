@@ -40,7 +40,11 @@ describe('/api/admin/employees/[email]/history — GET route', () => {
     // populates salaryHistory + payouts in the response.
     expect(SRC).toMatch(/let salaryHistory: unknown\[\] = \[\];[\s\S]*?let payouts: unknown\[\] = \[\];/);
     expect(SRC).toMatch(/from\('employee_salary_history'\)/);
-    expect(SRC).toMatch(/from\('employee_payouts'\)/);
+    // Payouts come from `readPayouts` since the ledger consolidation (C-16, 2026-08-04) —
+    // `employee_payouts` was a second, weaker copy of `payout_batch_items`. What this test actually
+    // guards is unchanged: the read sits inside the `seesEverything` block and nowhere else.
+    expect(SRC).toMatch(/readPayouts\(/);
+    expect(SRC).toMatch(/if \(seesEverything\) \{[\s\S]*?readPayouts\([\s\S]*?\n  \}/);
   });
 
   it("response shape carries viewer_sees_everything + target_email so the page knows what's been gated", () => {
