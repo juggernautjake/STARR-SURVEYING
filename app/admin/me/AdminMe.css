@@ -594,41 +594,41 @@
     gap: 0.25rem;
   }
   .hub-greeting__role-pills-list {
-    /* Swipeable horizontal strip on phones. nowrap + overflow-x: auto
-     * + a touch of overscroll-padding so the last pill isn't flush
-     * against the edge. */
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 0.15rem;
+    /* ── They WRAP on a phone. Owner, 2026-08-04, after seeing both. ─────────────────────────────
+     *
+     * This was a horizontal swipe strip: `nowrap` + `overflow-x: auto` with the scrollbar hidden,
+     * added so that a surveyor with six roles did not get a four-line pill stack pushing the
+     * widgets off the fold. A reasonable trade, and wrong — reported twice, first as "the roles are
+     * cut off" and then, after a fade cue was added to say the strip scrolls, as *"the little role
+     * tags are side by side going off the screen to the right."*
+     *
+     * The second report is the answer: the problem was never that the strip lacked an affordance.
+     * **Anything running off the edge of a phone reads as broken, whether or not it can be
+     * scrolled** — and these are a read-only label, not a control anyone needs to reach. Something
+     * you never interact with should never ask to be swiped.
+     *
+     * So they wrap, and the fold concern is met by making the pills smaller here instead: six roles
+     * fit in two tight lines rather than four loose ones. */
+    flex-wrap: wrap;
+    row-gap: 0.35rem;
     width: 100%;
     max-width: 100%;
-    scrollbar-width: none;
-    /* 2026-08-04, owner screenshot: the strip works and does not LOOK like it does. It hides its
-     * scrollbar (and iOS never shows one), so a role pill sliced by the viewport edge reads as a
-     * layout bug rather than "there is more, swipe". Reported as one.
-     *
-     * A mask rather than a gradient overlay, deliberately: the card behind it is a two-stop
-     * gradient, so any painted fade would have to guess a colour that is only correct at one
-     * horizontal position. A mask fades whatever is actually there to transparent, which is right
-     * on any background — and when the roles fit, there is nothing under the fade to soften, so it
-     * costs nothing in the common case.
-     *
-     * Known limit, accepted: the fade stays when scrolled fully right. Removing it there needs
-     * scroll-driven animation or a scroll listener, and a permanent soft edge is a far smaller
-     * problem than a pill that looks cut in half. */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-    /* The mask must not clip the pills' own focus ring on the left edge. */
-    padding-right: 28px;
-  }
-  .hub-greeting__role-pills-list::-webkit-scrollbar {
-    display: none;
+    /* No mask, no scroll affordance: there is nothing to scroll. The fade added an hour earlier is
+     * gone with the strip it explained — a cue for behaviour that no longer exists is worse than
+     * none, because it tells the reader to try something that will not work. */
   }
   .hub-greeting__role-pill {
-    /* Prevent the flex sizing inside the strip from squashing pills. */
+    /* Each pill keeps its own width — they wrap between pills, never mid-word. A role name broken
+     * across two lines inside one pill is less readable than a fourth line of pills. */
     flex: 0 0 auto;
+    /* Smaller than the desktop pill, which is what pays for wrapping: at 0.72rem/0.5rem an
+     * eleven-role account fits in three lines instead of five, and the widgets stay near the fold.
+     * The strip existed to buy exactly this, and cost legibility to get it. */
+    padding: 0.16rem 0.5rem;
+    font-size: 0.72rem;
+    /* The pill may not be wider than the card. A long role name on a 360px screen was the one case
+     * that could still reach the edge once nowrap was gone. */
+    max-width: 100%;
   }
 }
 

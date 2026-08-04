@@ -135,6 +135,35 @@
   --theme-info:           #1D4ED8;
 }
 
+/* ── forest-dark (earthy, dark) — the night half of forest-light.
+ *
+ * ADDED 2026-08-04. `forest-dark` has been a valid `BuiltinThemeId` and an option in the picker
+ * since the theme system shipped, with **no block here at all** — so choosing it fell through to
+ * the `:root` fallback and did precisely nothing. Selecting a theme and seeing no change is
+ * indistinguishable from a broken picker, and it is why the owner asked whether the themes were
+ * "actually built out".
+ *
+ * Built from forest-light's hues at dark-theme luminance, following slate-dark's structure so the
+ * pair reads as one family: greens desaturated for a dark ground (a saturated green on near-black
+ * vibrates), foreground greens lifted well past AA, and the status colours taken from the other
+ * dark themes rather than re-picked, because a danger red that differs per theme is a hazard. */
+[data-theme="forest-dark"] {
+  --theme-bg-page:        #0C1410;
+  --theme-bg-surface:     #14211A;
+  --theme-bg-elevated:    #1C2E24;
+  --theme-fg-primary:     #ECFDF5;
+  --theme-fg-secondary:   #BBF7D0;
+  --theme-fg-muted:       #86AF97;
+  --theme-accent:         #4ADE80;
+  --theme-accent-fg:      #0C1410;
+  --theme-border:         #1C2E24;
+  --theme-border-strong:  #3F6B51;
+  --theme-success:        #34D399;
+  --theme-warning:        #FBBF24;
+  --theme-danger:         #F87171;
+  --theme-info:           #60A5FA;
+}
+
 /* ── sunset (warm, light) — AM-leaning */
 [data-theme="sunset"] {
   --theme-bg-page:        #FFF7ED;

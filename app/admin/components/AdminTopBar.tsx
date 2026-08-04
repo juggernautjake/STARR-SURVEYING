@@ -157,18 +157,10 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
             >
               Profile + settings
             </Link>
-            {/* Both entries pointed at `/admin/me?tab=profile…` until 2026-08-04. The Hub stopped
-                reading `tab` when its tab bar was retired, so this menu's two most-used entries
-                landed on the widget canvas and read as broken. `/admin/profile` is a real page
-                again; `#themes` scrolls to the picker rather than needing a second route. */}
-            <Link
-              role="menuitem"
-              href="/admin/profile#themes"
-              onClick={() => setOpen(false)}
-              style={MENU_ITEM_DIVIDED}
-            >
-              Theme + density
-            </Link>
+            {/* "Theme + density" was a second entry here until 2026-08-04. Removed at the owner's
+                request — *"it should just be an option that sits in the settings."* Both entries
+                led to the same page, and a menu that lists a page and then one of its sections
+                invites the reader to work out the difference. Settings is the single door. */}
             {/* Install — the PWA install walkthrough had ZERO inbound links until 2026-08-04.
                 Owner: *"how do I download the app to be an app icon on my phone? I would think
                 there would be something in the settings page."* The page existed; nothing pointed

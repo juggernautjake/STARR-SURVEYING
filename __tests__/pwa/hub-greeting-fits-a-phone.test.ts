@@ -56,11 +56,19 @@ function mediaBlock(maxWidth: number): string {
 
 /** The declarations of one selector inside a block, including when it appears in a comma-separated
  *  group — `.a .b, .a .c { … }` is how half of this file is written, and matching only a
- *  selector immediately followed by `{` misses every one of them. */
+ *  selector immediately followed by `{` misses every one of them.
+ *
+ *  **Comments stripped**, and that is not tidiness. A `not.toContain('overflow-x')` assertion here
+ *  failed on the comment explaining why the overflow was REMOVED. Third time today a check has
+ *  confused prose for code — the AI-spend ratchet credited a file for a comment, a reachability
+ *  guard passed on a comment naming its function, and this one failed on a comment describing the
+ *  thing it was checking was gone. **In a codebase that documents its reasoning this heavily, any
+ *  check that reads source must strip comments first.** */
 function rule(block: string, selector: string): string {
+  const code = block.replace(/\/\*[\s\S]*?\*\//g, '');
   const esc = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const re = new RegExp(`(?:^|[,{}])\\s*${esc}\\s*(?:,[^{]*)?\\{([^}]*)\\}`, 'm');
-  return re.exec(block)?.[1] ?? '';
+  return re.exec(code)?.[1] ?? '';
 }
 
 describe('the hub greeting fits on a phone', () => {
@@ -98,13 +106,35 @@ describe('the hub greeting fits on a phone', () => {
       .toContain('position:absolute');
   });
 
-  it('the role strip says it can be scrolled', () => {
-    // Same screenshot: the roles row is a deliberate swipe strip with its scrollbar hidden, so a
-    // pill sliced by the viewport edge reads as a broken layout. A mask fade is the cue — chosen
-    // over a painted gradient because the card behind it is a gradient, and any painted fade would
-    // be the right colour at exactly one horizontal position.
+  it('the role pills WRAP rather than running off the side', () => {
+    // ── Inverted within the hour, on a second report, and the correction is the useful part. ─────
+    //
+    // The roles row was a horizontal swipe strip. First report: "the roles are cut off". I read that
+    // as a missing affordance and added a fade to say *it scrolls* — pinned here as
+    // `overflow-x: auto` + `mask-image`.
+    //
+    // Second report, same person, after seeing the fade: *"the little role tags are side by side
+    // going off the screen to the right."* **The affordance was never the problem.** Anything
+    // running off the edge of a phone reads as broken whether or not it scrolls, and these pills are
+    // a read-only label — nobody needs to reach them, so nothing should ask to be swiped.
+    //
+    // I fixed the cue instead of the layout because the strip's own comment explained why it existed
+    // (a four-line pill stack pushing widgets off the fold) and I took that constraint as fixed. It
+    // was a real constraint with a better answer: smaller pills.
     const decls = rule(mediaBlock(640), '.hub-greeting__role-pills-list');
-    expect(decls).toContain('overflow-x: auto');
-    expect(decls, 'the strip scrolls with no visual cue that it does').toMatch(/mask-image/);
+    expect(decls, 'the pills must wrap; a phone-width row that scrolls sideways reads as broken')
+      .toContain('flex-wrap: wrap');
+    expect(decls, 'nothing here scrolls any more').not.toContain('overflow-x');
+    expect(decls, 'a scroll cue for a layout that no longer scrolls tells the reader to try nothing')
+      .not.toMatch(/mask-image/);
+  });
+
+  it('pays for wrapping by shrinking the pills, not by taking the fold', () => {
+    // The constraint the strip existed to satisfy is still real: an eleven-role account should not
+    // push every widget below the fold. Wrapping alone would have traded one complaint for another.
+    const pill = rule(mediaBlock(640), '.hub-greeting__role-pill');
+    expect(pill, 'no phone-size override — eleven roles would wrap to five desktop-sized lines')
+      .toMatch(/font-size/);
+    expect(pill).toMatch(/max-width/);
   });
 });

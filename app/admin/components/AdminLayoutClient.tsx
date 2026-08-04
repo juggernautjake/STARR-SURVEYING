@@ -15,6 +15,7 @@ import ErrorBoundary from './error/ErrorBoundary';
 import { ToastProvider } from './Toast';
 import CommandPaletteProvider from './nav/CommandPaletteProvider';
 import IconRail from './nav/IconRail';
+import ShellTheme from './ShellTheme';
 import AdminPageHeader from './nav/AdminPageHeader';
 import { shouldBypassAdminChrome } from '@/lib/admin/chrome-bypass';
 import { ADMIN_ROUTES } from '@/lib/admin/route-registry';
@@ -225,6 +226,11 @@ function Inner({ children }: { children: React.ReactNode }) {
       {/* AssistantProvider wraps the layout rather than the dock so any page — and the help drawer's
           fallback (item 15) — can call `openAssistant(question)` without owning a transcript. */}
       <AssistantProvider>
+      {/* The user's theme + density on <html>, so it reaches every admin page — and every dialog,
+          toast and portal, which a wrapper div would miss. Until 2026-08-04 the theme was applied
+          only inside HubProviders, i.e. on the Hub alone: picking "Forest Dark" darkened one page
+          and left the rest of the product default. Renders nothing. */}
+      <ShellTheme />
       <div className="admin-layout admin-layout--nav-v2">
         <IconRail />
         {/* AdminSidebar is the MOBILE DRAWER — hidden on desktop via CSS, where the IconRail above

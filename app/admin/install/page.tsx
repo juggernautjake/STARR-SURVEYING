@@ -220,6 +220,67 @@ export default function InstallPage() {
         </p>
       </header>
 
+      {/* ── ADD TO HOME SCREEN, first, because it is the one that works TODAY ──────────────────
+          Owner, 2026-08-04: *"It is saying I need to set NEXT_PUBLIC_MOBILE_TESTFLIGHT_URL and
+          NEXT_PUBLIC_MOBILE_ANDROID_APK_URL before I can download the app."*
+
+          They did — because this page offered only NATIVE distribution: a TestFlight build and a
+          signed APK, each needing a developer account, a signing key and a release pipeline. None
+          of that exists yet, so the page's answer to "how do I get the app on my phone" was two
+          configuration errors.
+
+          Meanwhile the PWA has been built and shipped since W2: manifest, scoped service worker,
+          offline page, push. **Adding it to the home screen needs no account, no build and no URL**
+          — it installs from the browser you are already reading this in, and it is what the owner
+          actually asked for ("an app icon on my phone").
+
+          So it leads. The native cards stay below, honestly labelled as not set up rather than as
+          the way in. */}
+      <section className="admin-install__card admin-install__card--detected">
+        <div className="admin-install__card-head">
+          <span className="admin-install__card-icon"><Smartphone size={22} /></span>
+          <div>
+            <h2 className="admin-install__card-title">Add to your home screen</h2>
+            <p className="admin-install__card-sub">
+              Works right now — no download, no account, no store
+            </p>
+          </div>
+          <span className="admin-install__badge">Recommended</span>
+        </div>
+
+        {platform === 'ios' ? (
+          <ol className="admin-install__steps">
+            <li>You must be in <strong>Safari</strong> — Chrome on iPhone cannot install apps.</li>
+            <li>Tap the <strong>Share</strong> button (the square with an arrow, at the bottom).</li>
+            <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+            <li>Tap <strong>Add</strong>. The Starr icon appears with your other apps.</li>
+            <li>Open it from that icon — it runs full screen, with no browser bars.</li>
+          </ol>
+        ) : platform === 'android' ? (
+          <ol className="admin-install__steps">
+            <li>You must be in <strong>Chrome</strong>.</li>
+            <li>Tap the <strong>⋮</strong> menu, top right.</li>
+            <li>
+              Tap <strong>Install app</strong> — or <strong>Add to Home screen</strong> on older
+              versions.
+            </li>
+            <li>Confirm. The Starr icon appears in your app drawer.</li>
+          </ol>
+        ) : (
+          <ol className="admin-install__steps">
+            <li>Open this page on your phone, signed in as yourself.</li>
+            <li><strong>iPhone:</strong> in Safari, tap Share → Add to Home Screen.</li>
+            <li><strong>Android:</strong> in Chrome, tap ⋮ → Install app.</li>
+            <li>These steps also appear automatically when you open this page on the phone itself.</li>
+          </ol>
+        )}
+
+        <p className="admin-install__card-sub" style={{ marginTop: '0.75rem' }}>
+          You stay signed in, and it opens straight to your Hub. On iPhone, notifications only work
+          from the home-screen icon — not from Safari — which is the usual reason they seem missing.
+        </p>
+      </section>
+
       <div className="admin-install__cards">
         {iosFirst ? (
           <>
@@ -367,14 +428,20 @@ function ComingSoon({
 }) {
   return (
     <div className="admin-install__soon">
-      <p className="admin-install__soon-title">Not available yet</p>
+      <p className="admin-install__soon-title">Not set up — and you don’t need it</p>
+      {/* Reworded 2026-08-04. This said "your administrator is finalizing this build", which is a
+          statement about work in progress that nobody has started — and it sat above an env-var
+          instruction, so the page's answer to "how do I install the app" read as a configuration
+          error the reader had to solve. Add to Home Screen, above, installs the app today. */}
       <p className="admin-install__muted">
-        Your administrator is finalizing this build. Check back soon.
+        This is the separate <strong>native</strong> app-store build, which needs a paid developer
+        account and a signed release. It does not exist yet, and nothing above depends on it —{' '}
+        <strong>Add to home screen</strong> gives you the app icon and full-screen app right now.
       </p>
       {isOperator && (
         <p className="admin-install__operator">
-          <strong>Operator:</strong> set <code>{envVar}</code> to {hint}, then
-          redeploy to enable this button.
+          <strong>Operator:</strong> only if you later publish a native build — set{' '}
+          <code>{envVar}</code> to {hint}, then redeploy. Not required for the home-screen install.
         </p>
       )}
     </div>

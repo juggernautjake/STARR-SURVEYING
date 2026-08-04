@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 type State =
   | 'checking' | 'unconfigured' | 'no-transport' | 'unsupported' | 'ios-not-installed'
-  | 'denied' | 'ready' | 'subscribing' | 'subscribed' | 'error';
+  | 'denied' | 'ready' | 'subscribing' | 'subscribed' | 'unsubscribing' | 'error';
 
 /** VAPID keys travel as base64url and `PushManager.subscribe` wants raw bytes. */
 function urlBase64ToUint8Array(base64: string): Uint8Array {
@@ -125,6 +125,40 @@ export default function EnableNotifications() {
     }
   }, []);
 
+  /** Turn push off for THIS device. Not for the account: a crew member silencing their own phone
+   *  must not silence the tablet in the truck, and each device holds its own subscription. */
+  const unsubscribe = useCallback(async () => {
+    setState('unsubscribing');
+    setDetail(null);
+    try {
+      const reg = await navigator.serviceWorker.getRegistration('/admin/');
+      const sub = await reg?.pushManager.getSubscription();
+      if (!sub) { setState('ready'); return; }
+
+      const endpoint = sub.endpoint;
+      // Local first — see the note by the button. Once this resolves the device cannot receive a
+      // push, whatever the server thinks.
+      await sub.unsubscribe().catch(() => {});
+
+      const res = await fetch('/api/admin/push/subscribe', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ endpoint }),
+      });
+      setState('ready');
+      if (!res.ok) {
+        // Reported, not swallowed, and NOT treated as a failure to turn off — because it isn't one.
+        setDetail(
+          'Notifications are off on this device. The server record could not be cleared just now; ' +
+          'it is harmless and will be removed automatically on the next send attempt.',
+        );
+      }
+    } catch (err) {
+      setState('error');
+      setDetail(err instanceof Error ? err.message : 'Could not turn notifications off.');
+    }
+  }, []);
+
   // W6g — `unconfigured` used to return null alongside these two, which contradicted this file's own
   // header: it lists four states precisely because collapsing them "would leave a crew member with no
   // idea what to do", and says of this one *"the operator has not set VAPID keys. Nothing the user
@@ -196,11 +230,38 @@ export default function EnableNotifications() {
         </>
       )}
 
+      {/* ── An OFF switch, added 2026-08-04 at the owner's request ──────────────────────────────
+          This said "you can turn them off any time in your browser's site settings" — which is
+          true, buried three levels into a menu most people never open, and impossible on some
+          Android launchers without finding the site entry by hand. Meanwhile the subscribe route
+          has always had a DELETE verb, correctly scoped to the signed-in user, that **nothing
+          called**. The off switch was built and unreachable; this is the button.
+
+          Both halves run, in this order: the browser subscription is dropped first, then the row.
+          If the row delete fails we still stop, because a device that has unsubscribed locally can
+          never receive a push again — leaving the UI saying "on" would be the lie. The row becomes
+          a dead endpoint, which the sender already handles: a 404/410 from the push service is
+          `gone`, and gone rows are cleaned up on the next send. */}
       {state === 'subscribed' && (
-        <p className="admin-install__muted">
-          <strong>Notifications are on for this device.</strong> You can turn them off any time in
-          your browser&apos;s site settings.
-        </p>
+        <>
+          <p className="admin-install__muted">
+            <strong>Notifications are on for this device.</strong> You will get job updates and
+            urgent messages here, even when the app is closed.
+          </p>
+          <button
+            type="button"
+            className="admin-install__btn admin-install__btn--ghost"
+            onClick={() => void unsubscribe()}
+            style={{ marginTop: '0.6rem' }}
+          >
+            Turn notifications off on this device
+          </button>
+          {detail && <p className="admin-install__muted" style={{ marginTop: '0.4rem' }}>{detail}</p>}
+        </>
+      )}
+
+      {state === 'unsubscribing' && (
+        <p className="admin-install__muted">Turning notifications off…</p>
       )}
     </section>
   );
