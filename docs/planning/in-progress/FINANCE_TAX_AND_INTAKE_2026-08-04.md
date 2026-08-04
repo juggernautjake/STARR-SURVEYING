@@ -964,3 +964,54 @@ suites; `tsc` and `eslint` clean.
 
 **Still blocked:** F2b (pass-through recovery on screen) needs the same treatment and `cost_recoveries`
 from seed 573 — the pattern above makes it buildable now too, and it is the obvious next slice.
+
+## ✅ F2b DONE 2026-08-04 — pass-through recovery on screen, and a live check that broke F1b
+
+`/admin/pass-through` + `/api/admin/cost-recoveries`. `lib/finance/cost-recovery.ts` — F2's whole
+argument that **"no net gain" is a conclusion, not a flag** — had no caller until now.
+
+The shape of the query is what carries that argument end to end:
+
+- **The links come with the cost, in one query.** Computing recovery from a cost row alone is
+  exactly the boolean F2 refuses: a cost with its links dropped looks unrecovered, and a screen would
+  then invite billing the customer a second time.
+- **Voided is read from the invoice**, not from a flag beside the link — seed 573 says why, and it is
+  the same rule as everywhere else here: two places to record one thing is how they come to disagree.
+- **The arithmetic stays server-side**, so the browser never holds a second opinion about whether a
+  job made money, and the header total and the rows come from the same module.
+
+On screen, every row states what was paid, what was billed, and the **signed** difference. States are
+visually distinct rather than a uniform list of ticks, because the difference between a wash and an
+almost-wash is the entire point. Voided links are shown with the reason they don't count — an invoice
+raised and voided is a fact, and its absence would read as though nobody ever tried to bill it.
+
+### ▶ F1b's missing-table branch was unreachable, and the check that found it was one HTTP call
+
+F1b shipped yesterday's slice checking `error.code === '42P01'` — correct for Postgres, which is what
+answers a missing relation that way. **We do not talk to Postgres.** Every read here goes through
+PostgREST, which rejects the table name against its schema cache before generating any SQL:
+
+```
+404  {"code":"PGRST205","message":"Could not find the table 'public.payment_cards' in the schema cache"}
+```
+
+So the branch never ran, and the carefully-worded message it guarded would never have rendered — the
+screen would have shown a raw schema-cache string as a 500, which is precisely the failure the design
+existed to avoid. **The distinction was designed right and detected wrong**, which is the harder half
+to notice, because the code reads as though it works and nothing fails until the day it matters.
+
+Found by asking the live database instead of reasoning about it: three tables, one invented for the
+purpose, all answering PGRST205 today. `lib/finance/missing-table.ts` now owns the detection, checks
+**both** codes (42P01 is still what comes back from `apply-seeds.mjs` and any node-pg path, and a
+helper right in one caller and wrong in the next is worse than none), and pins the literal live
+response in its test. A negative control confirmed it: reverting to 42P01-only fails exactly one
+test, the one that pins the real response.
+
+It also refuses the dangerous direction — a permission failure or a dropped connection must not be
+reported as "run the seeds", which sends someone to fix a thing that is not broken.
+
+`tsc` and `eslint` clean; 118 tests across finance + middleware; both routes and both pages compile
+into the production build. `/admin/pass-through` gated `admin`, matching its API exactly.
+
+**With F1b and F2b shipped, every F-item in this document is done except the owner-gated ones**
+(F6b's cold-email decision, F8's which-figure-is-revenue, and applying seeds 572/573).

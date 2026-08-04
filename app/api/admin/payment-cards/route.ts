@@ -15,21 +15,25 @@
 // query fails. So this route handles that ONE failure honestly and works the moment
 // `apply-seeds.mjs` runs — rather than waiting for a session that happens to come after it.
 //
-// Postgres answers a query against a missing relation with **42P01**, which is distinguishable from
-// every other failure. So a not-yet-created table is reported as exactly that, with the command that
-// fixes it — not as "no cards on file", which is a claim, and the one a bookkeeper would act on by
-// registering a card that is already there.
+// A missing table is distinguishable from every other failure, so a not-yet-created table is
+// reported as exactly that, with the command that fixes it — not as "no cards on file", which is a
+// claim, and the one a bookkeeper would act on by registering a card that is already there.
+//
+// **This route first shipped detecting that with `error.code === '42P01'`, and that branch was
+// unreachable.** Postgres answers a missing relation with 42P01; we do not talk to Postgres. Every
+// read here goes through PostgREST, which rejects the name against its schema cache first and
+// answers `PGRST205`. The careful message below would never have rendered — the screen would have
+// shown a raw schema-cache string as a 500. `isMissingTable` now owns the detection and checks both;
+// see the reasoning in `lib/finance/missing-table.ts`.
 
 import { NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { taxTreatmentForCard, type PaymentCard } from '@/lib/finance/payment-cards';
+import { isMissingTable, missingTableMessage } from '@/lib/finance/missing-table';
 
 export const runtime = 'nodejs';
-
-/** Postgres: `relation ... does not exist`. The seed has not been applied. */
-const UNDEFINED_TABLE = '42P01';
 
 interface CardRow {
   id: string;
@@ -57,17 +61,14 @@ export const GET = withErrorHandler(async () => {
     .order('label', { nullsFirst: false });
 
   if (error) {
-    if (error.code === UNDEFINED_TABLE) {
+    if (isMissingTable(error)) {
       // NOT an empty list. "No cards are on file" and "the card registry does not exist yet" look
       // identical on screen and mean opposite things — the first invites you to add a card, the
       // second means nothing you add can be saved.
       return NextResponse.json({
         cards: [],
         registryExists: false,
-        message:
-          'The card registry table has not been created yet. Seeds 572 and 573 are written and ' +
-          'verified but not applied — run `node scripts/apply-seeds.mjs`. Until then no card can be ' +
-          'registered, and this is NOT a statement that no cards exist.',
+        message: missingTableMessage('card registry', 'It comes from seed 572'),
       });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });

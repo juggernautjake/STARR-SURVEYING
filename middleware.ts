@@ -88,6 +88,10 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // there is no nav entry offering it to anyone else, so nothing bounces. (W6c's rule cuts the other
   // way here — the danger is a gate STRICTER than its API, and this one is equal to it.)
   { prefix: '/admin/cards', roles: ['admin'] },
+  // F2b — pass-through recovery. Admin only for the same reason and by the same rule: it matches
+  // `/api/admin/cost-recoveries` exactly. The rows say what a job really cost and what the customer
+  // was really charged, which is the margin on the job stated out loud.
+  { prefix: '/admin/pass-through', roles: ['admin'] },
   { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'teacher', 'student', 'researcher', 'drawer', 'field_crew', 'employee', 'guest', 'tech_support', 'equipment_manager'] },
   { prefix: '/admin/receipts', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/invoicing', roles: ['admin', 'developer', 'tech_support'] },
