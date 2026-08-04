@@ -827,3 +827,53 @@ state loud.
 
 **This also corrects the state line above.** S-6 should read *built and verified live, not wired* —
 and it means the free-source coverage this document claims is one source smaller than it appears.
+
+## ✅ S-6c DONE 2026-08-04 — the plan stops claiming a capability nothing delivers
+
+S-6b surfaced two ways out and called both the owner's decision. **On re-reading, one of them was
+mis-framed as a decision.**
+
+I described "stop claiming the capability" as *quietly downgrading what the run reports*. That was
+wrong. The run was reporting `original_survey` as **covered** while nothing had ever queried GLO —
+so the change does not downgrade a true statement, it **corrects a false one**. Fixing a false
+statement is not a product decision; it is the rule this entire program is built on.
+
+**Wiring the adapter (option 1) remains the real slice and is untouched.** That one is genuinely the
+owner's, because it changes what a run *does*. This changes only what a run *says*.
+
+### ▶ The fix, and why it is a flag rather than a deletion
+
+`ResearchSource.notWiredYet` marks a source whose adapter exists but which no code path reaches.
+`buildPlan` now separates two things the catalogue had conflated:
+
+- what this platform **knows about** — GLO stays in the catalogue, because the adapter is real, tested
+  and was driven live against 1,523 Bell grants;
+- what a run **will actually do** — the steps, from which `covered` and therefore
+  `missingCapabilities` are derived.
+
+Deleting the entry would have lost the first. Leaving it in the steps kept the lie. The flag keeps
+both facts and stops them being confused.
+
+**And the researcher is told which kind of gap it is.** The statement now reads *"Built but not
+connected, so NOT part of this run: Texas GLO land grants."* — because *"no source covers
+original_survey"* alone would send someone hunting for a source we already have, and escalating to
+paid mode will not close it. The gap is ours, not the state's.
+
+### ▶ Three tests broke, and every one of them was pinning the old belief
+
+| test | was | now |
+|---|---|---|
+| **S-6b's own guard** | asserted `original_survey` is reported COVERED | asserts it is reported MISSING |
+| `covers everything desired for a routed county` | `missingCapabilities` is `[]` | `['original_survey']`, plus a second test keeping the half that still holds |
+| `gives Bell its Kofile portal and the statewide sources` | expected `glo` among the steps | expects it **absent**, plus a new test that it is still in the catalogue and still named in the statement |
+
+S-6b's guard was written to fail the day this changed, in either direction, so the fix could not land
+silently. **It failed on the very next slice** — which is the guard working, not a regression, and the
+reason it was worth writing.
+
+None of the three was deleted. Each was inverted with its reason recorded inline, and each carries the
+instruction for the day GLO is wired: clear the flag, and these assertions go back.
+
+93 worker test files / 1,531 tests green; `tsc` and `eslint` clean.
+
+**Still open and unchanged:** the adapter has no caller. S-6 is *built and verified live, not wired*.

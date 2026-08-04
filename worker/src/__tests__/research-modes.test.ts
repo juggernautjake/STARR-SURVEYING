@@ -52,9 +52,21 @@ describe('a plan only includes sources that serve the county', () => {
   it('gives Bell its Kofile portal and the statewide sources', () => {
     const ids = buildPlan('Bell', 'free').steps.map((s) => s.source.id);
     expect(ids).toContain('kofile');
-    expect(ids).toContain('glo');   // statewide
     expect(ids).toContain('cad');   // statewide
     expect(ids).not.toContain('edoctec');   // Coryell/Lampasas only
+
+    // S-6c — `glo` was asserted here as a statewide source in the steps. It is statewide and it is
+    // in the catalogue, but it is flagged `notWiredYet`: no code path reaches the adapter, so it is
+    // deliberately NOT a step. The steps are what the run will do, and this list is that list.
+    expect(ids, 'glo is back in the steps — has it been wired? then clear notWiredYet').not.toContain('glo');
+  });
+
+  it('still knows about GLO, and says so separately', () => {
+    // Excluding it from the steps must not erase it. The platform knowing about a source and a run
+    // using it are different facts, and collapsing them in either direction loses something: hide it
+    // and the researcher hunts for a source we already have; list it as a step and the plan lies.
+    expect(SOURCE_CATALOGUE.some((s) => s.id === 'glo')).toBe(true);
+    expect(buildPlan('Bell', 'free').statement).toContain('Texas GLO land grants');
   });
 
   it('gives Coryell eDocTec and not Kofile', () => {
@@ -80,8 +92,30 @@ describe('the plan says what it cannot reach', () => {
     expect(plan.statement).toContain('No source in this plan covers');
   });
 
-  it('covers everything desired for a routed county', () => {
-    expect(buildPlan('Bell', 'free').missingCapabilities).toEqual([]);
+  it('reports original_survey as MISSING, because nothing queries GLO', () => {
+    // ── Inverted 2026-08-04 (S-6c). This read `missingCapabilities).toEqual([])`. ────────────────
+    //
+    // That assertion was true only because GLO sat in the catalogue, and it was the plan's one false
+    // statement: `GloLandGrantAdapter` has no caller anywhere in the worker, so no run has ever
+    // fetched an original survey. The test was faithfully pinning a lie.
+    //
+    // GLO is now flagged `notWiredYet`, excluded from the steps, and named separately in the
+    // statement — so the plan says what it will actually do. When the adapter is wired, the flag
+    // comes off and this assertion goes back to `[]` in the same commit.
+    const plan = buildPlan('Bell', 'free');
+    expect(plan.missingCapabilities).toEqual(['original_survey']);
+
+    // And the researcher is told the gap is ours, not the state's — escalating to paid will not fix
+    // it, which "no source covers original_survey" alone would not convey.
+    expect(plan.statement).toContain('Built but not connected');
+    expect(plan.statement).toContain('Texas GLO land grants');
+  });
+
+  it('covers everything else desired for a routed county', () => {
+    // The half that still holds: conveyances and appraisal are genuinely covered for Bell.
+    const missing = buildPlan('Bell', 'free').missingCapabilities;
+    expect(missing).not.toContain('conveyances');
+    expect(missing).not.toContain('appraisal');
   });
 
   it('warns in free mode when paid sources exist and are unused', () => {

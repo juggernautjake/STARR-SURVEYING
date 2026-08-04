@@ -59,14 +59,23 @@ describe('S-6b — GLO is in the plan and in no code path', () => {
     expect(DESIRED_CAPABILITIES).toContain('original_survey');
   });
 
-  it('the plan reports original_survey as COVERED, on every run', () => {
-    // The false statement itself, in both modes.
+  it('no longer reports original_survey as covered — FIXED by S-6c', () => {
+    // ── This assertion is inverted from the one this file shipped with, and that is the point. ───
+    //
+    // S-6b pinned the false statement: the plan reported `original_survey` as covered because GLO
+    // was in the catalogue, while nothing queried GLO. It was written to fail the day that changed,
+    // in either direction, so that the fix could not land silently. It failed on S-6c, which is the
+    // guard doing its job rather than a regression.
+    //
+    // GLO now carries `notWiredYet`, so `buildPlan` excludes it from the steps and the capability it
+    // alone provides is correctly reported as missing. The ADAPTER is still unwired — everything
+    // else in this file still holds — but the plan no longer claims otherwise.
     for (const mode of ['free', 'paid'] as const) {
       const plan = buildPlan('Bell', mode);
       expect(
         plan.missingCapabilities,
-        `${mode} mode: the plan says original_survey is covered, and nothing queries GLO`,
-      ).not.toContain('original_survey');
+        `${mode} mode: original_survey must be reported missing while GLO has no caller`,
+      ).toContain('original_survey');
     }
   });
 

@@ -45,6 +45,19 @@ export interface ResearchSource {
   estimatedSeconds: number;
   /** Set when the source needs credentials we may not hold. */
   requiresAccount?: boolean;
+  /**
+   * Set when an adapter exists but **no code path reaches it** (plan S-6c).
+   *
+   * The catalogue is used for two different things and they had been conflated: it describes what
+   * this platform *knows about*, and `buildPlan` derives from it what a run *will actually do*. A
+   * source that is written, tested and unwired belongs in the first and must be excluded from the
+   * second — otherwise the plan reports a capability as covered because a source is on a list.
+   *
+   * Kept as a flag rather than by removing the entry, because the entry is true: the adapter exists,
+   * it was driven against the live site, and deleting it would lose that. What is not true is that a
+   * run will use it.
+   */
+  notWiredYet?: boolean;
 }
 
 /** The catalogue, as of 2026-08-02. Every free entry here was driven in a browser.
@@ -61,6 +74,11 @@ export const SOURCE_CATALOGUE: ResearchSource[] = [
     capabilities: ['original_survey'],
     counties: '*',
     estimatedSeconds: 60,
+    // S-6c — `GloLandGrantAdapter` exists, is tested, and was driven live (1,523 Bell grants). It
+    // has NO caller: nothing in the worker constructs `GLOClient` or imports the adapter. Until it
+    // is wired, a run cannot deliver `original_survey`, and saying otherwise was the plan's only
+    // false statement. Remove this flag in the same commit that wires it.
+    notWiredYet: true,
   },
   {
     id: 'kofile',
@@ -184,7 +202,19 @@ export function buildPlan(
 ): ResearchPlan {
   if (!county?.trim()) throw new Error('[research-modes] A county is required to build a plan.');
 
-  const serving = catalogue.filter((s) => servesCounty(s, county));
+  // S-6c — a source with no code path behind it is not part of the plan.
+  //
+  // This is the line that made the plan lie. `covered` is derived from the steps below, so leaving an
+  // unwired source in them reported its capability as satisfied — `original_survey` was marked
+  // covered on every run because GLO is in the catalogue, while nothing in the worker has ever
+  // queried GLO. `missingCapabilities` exists precisely to say what a run cannot answer, and it was
+  // silent about the one thing only GLO can answer.
+  //
+  // The unwired sources are still surfaced, by name, in the statement below — the researcher should
+  // know the platform *knows about* GLO. What they must not be told is that this run will use it.
+  const known = catalogue.filter((s) => servesCounty(s, county));
+  const notWired = known.filter((s) => s.notWiredYet);
+  const serving = known.filter((s) => !s.notWiredYet);
   const free = serving.filter((s) => s.cost === 'free');
   const paid = mode === 'paid' ? serving.filter((s) => s.cost === 'paid') : [];
 
@@ -210,6 +240,14 @@ export function buildPlan(
   }
   if (mode === 'free' && serving.some((s) => s.cost === 'paid')) {
     parts.push(`Paid sources exist for this county and are NOT being used — escalate to reach them.`);
+  }
+  if (notWired.length > 0) {
+    // Named rather than hidden. "No source covers original_survey" would leave a researcher hunting
+    // for one; saying GLO exists but is not connected tells them the gap is ours, not the state's —
+    // and escalating to paid mode will not close it.
+    parts.push(
+      `Built but not connected, so NOT part of this run: ${notWired.map((s) => s.label).join(', ')}.`,
+    );
   }
 
   return {
