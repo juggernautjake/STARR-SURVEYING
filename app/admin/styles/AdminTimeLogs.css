@@ -69,7 +69,7 @@
 .tl-day-btn--active .tl-day-btn__date { color: white; }
 .tl-day-btn--today { border-color: #D97706; }
 .tl-day-btn--today.tl-day-btn--active { border-color: var(--color-brand-navy); }
-.tl-day-btn--rejected { border-color: #FCA5A5; background: #FEF2F2; }
+.tl-day-btn--rejected { border-color: #FCA5A5; background: var(--theme-bg-elevated, #FEF2F2); }
 .tl-day-btn--approved { border-color: #6EE7B7; background: #F0FDF4; }
 .tl-day-btn__name { font-size: 0.7rem; color: var(--theme-fg-muted, #6B7280); font-weight: 500; text-transform: uppercase; }
 .tl-day-btn__date { font-size: 1.1rem; font-weight: 700; color: var(--theme-fg-primary, #1F2937); }
@@ -575,8 +575,134 @@
   margin-top: 1rem;
 }
 
+/* ---- What the approver decided, as the employee sees it ---- */
+.tl-history-entry__decision {
+  margin-top: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  border-left: 3px solid var(--theme-accent, #2563EB);
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border-radius: 0 6px 6px 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.tl-history-entry__split { display: flex; flex-direction: column; gap: 0.1rem; }
+.tl-history-entry__undecided { color: var(--theme-warning, #B45309); }
+.tl-history-entry__payout-note { margin-top: 0.2rem; font-style: italic; color: var(--theme-fg-muted, #6B7280); }
+/* A figure a person chose reads differently from one a formula produced. */
+.tl-history-entry__pay--decided { text-decoration: none; border-bottom: 2px solid var(--theme-accent, #2563EB); }
+
+/* ---- Set-pay modal (pay consolidation, 2026-08-04) ----
+   Wider than the reject/adjust modal because it carries a table of decisions, and scrollable
+   because a day split five ways must not push Save off the bottom of a phone. */
+.tl-modal--pay {
+  max-width: 720px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.tl-pay-error {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #FEF2F2);
+  border: 1px solid var(--theme-danger, #FECACA);
+  color: var(--theme-danger, #991B1B);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.tl-pay-loading { color: var(--theme-fg-muted, #6B7280); font-size: 0.9rem; }
+.tl-pay-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.4rem;
+  align-items: baseline;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.85rem;
+}
+.tl-pay-who__warn { color: var(--theme-warning, #B45309); font-weight: 600; }
+.tl-pay-who__band {
+  flex-basis: 100%;
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 0.78rem;
+}
+.tl-pay-entry {
+  margin: 0.6rem 0;
+  font-size: 0.85rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+.tl-pay-blocks { display: flex; flex-direction: column; gap: 0.6rem; margin-bottom: 0.6rem; }
+.tl-pay-block {
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+}
+.tl-pay-block__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+.tl-pay-block__row label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; }
+.tl-pay-block__row label span { color: var(--theme-fg-muted, #6B7280); }
+.tl-pay-block__row input,
+.tl-pay-block__row select {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  min-height: 38px;
+}
+.tl-pay-block__hours input { width: 5.5rem; }
+.tl-pay-block__rate input { width: 6.5rem; }
+.tl-pay-block__pricing { flex: 1 1 14rem; min-width: 0; }
+.tl-pay-block__pricing select { width: 100%; }
+.tl-pay-block__subtotal { margin-left: auto; font-weight: 700; font-size: 0.95rem; }
+.tl-pay-block__why {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+.tl-pay-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.8rem;
+  margin-top: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.85rem;
+}
+.tl-pay-total strong { font-size: 1.05rem; }
+/* A split that does not add up cannot be saved, so it must look wrong before Save is pressed. */
+.tl-pay-total--mismatch { border-color: var(--theme-warning, #F59E0B); background: var(--theme-bg-elevated, #FFFBEB); }
+.tl-pay-total__warn { flex-basis: 100%; color: var(--theme-warning, #B45309); font-size: 0.78rem; }
+.tl-pay-total__undecided,
+.tl-pay-total__vs { color: var(--theme-fg-muted, #6B7280); font-size: 0.78rem; }
+.tl-pay-note { display: flex; flex-direction: column; gap: 0.25rem; margin-top: 0.75rem; font-size: 0.78rem; }
+.tl-pay-note span { color: var(--theme-fg-muted, #6B7280); }
+.tl-pay-note textarea {
+  padding: 0.5rem;
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+}
+.tl-pay-prior { margin: 0.5rem 0 0; font-size: 0.75rem; color: var(--theme-fg-muted, #6B7280); }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
+  /* On a phone each control takes a full row — a 5-across block row collapses into unreadable
+     slivers and the subtotal collides with Remove. */
+  .tl-pay-block__row { flex-direction: column; align-items: stretch; }
+  .tl-pay-block__hours input,
+  .tl-pay-block__rate input { width: 100%; }
+  .tl-pay-block__subtotal { margin-left: 0; }
+  .tl-modal--pay { width: 96%; padding: 1rem; }
   .tl-summary-cards { grid-template-columns: repeat(2, 1fr); }
   .tl-entry-card__row { flex-direction: column; }
   .tl-form-group--hours { max-width: none; }
@@ -613,11 +739,11 @@
 .tl-lock-note {
   margin: 0.5rem 0 0;
   padding: 0.5rem 0.75rem;
-  background: #FEF2F2;
-  border: 1px solid #FECACA;
+  background: var(--theme-bg-elevated, #FEF2F2);
+  border: 1px solid var(--theme-danger, #FECACA);
   border-radius: 8px;
   font-size: 0.8rem;
-  color: #991B1B;
+  color: var(--theme-danger, #991B1B);
 }
 
 /* Per-employee conflict/totals flags (H5) */

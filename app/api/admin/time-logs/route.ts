@@ -91,7 +91,37 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .eq('is_active', true)
     .order('sort_order');
 
-  return NextResponse.json({ logs: data || [], work_types: workTypes || [] });
+  // ── ATTACH WHAT WAS ACTUALLY DECIDED ────────────────────────────────────────────────────────
+  //
+  // `daily_time_logs.total_pay` is what the rules priced the entry at when it was submitted. When
+  // an approver has since decided otherwise — a split across rates, a flat amount, part of the day
+  // left undecided — that decision lives in `time_log_pay_decisions`, and it is the number the
+  // employee is actually being paid.
+  //
+  // Returning only the submitted figure would show somebody a total that is not what is going into
+  // their pay, which is worse than showing nothing. Both are returned, so a screen can say "paid
+  // $200, standard rates would have been $244" and the payout note that explains the difference —
+  // *"the boss can add notes to the payout… if they want to make any explanations for why the pay
+  // is what it is."*
+  const logs = (data ?? []) as { id: string }[];
+  let decisions: Record<string, unknown>[] = [];
+  if (logs.length > 0) {
+    const { data: rows, error: decisionError } = await supabaseAdmin
+      .from('time_log_pay_decisions')
+      .select('time_log_id, blocks, total_pay, undecided_hours, payout_note, decided_by, decided_at')
+      .in('time_log_id', logs.map((l) => l.id));
+    // Named, not swallowed: the hours themselves are still worth returning, but a caller that
+    // silently sees no decisions would render every entry as though nobody had decided anything.
+    if (decisionError) console.error('[time-logs] could not read pay decisions:', decisionError.message);
+    decisions = (rows ?? []) as Record<string, unknown>[];
+  }
+
+  const byLog = new Map(decisions.map((d) => [d.time_log_id as string, d]));
+
+  return NextResponse.json({
+    logs: logs.map((log) => ({ ...log, pay_decision: byLog.get(log.id) ?? null })),
+    work_types: workTypes || [],
+  });
 }, { routeName: 'time-logs' });
 
 // POST: Submit daily time log entries

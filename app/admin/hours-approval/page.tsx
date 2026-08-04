@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import { computeHoursFlags } from '@/lib/hours/hours-flags';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
+import PayDecisionModal from './PayDecisionModal';
 
 interface TimeLog {
   id: string;
@@ -118,6 +119,16 @@ export default function HoursApprovalPage() {
   const [weekStart, setWeekStart] = useState(() => getMonday(new Date()).toISOString().split('T')[0]);
   // H6 — whether THIS week (weekStart .. weekStart+6) is locked for editing.
   const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
+
+  // ── SET PAY (owner request, 2026-08-04) ──────────────────────────────────────────────────
+  //
+  // *"The boss might choose to pay the rate for drawing for 2 hours and the field work rate for 6
+  // hours, or he might want to just give them the base pay for the whole time, or he will pay them
+  // some unique amount."*
+  //
+  // Approve / Adjust / Reject could change the HOURS but never the RATE, so an approver who
+  // disagreed with what a day was worth had no move except to reject it. This is the missing verb.
+  const [payLogId, setPayLogId] = useState<string | null>(null);
 
   // Reject/adjust modal
   const [actionModal, setActionModal] = useState<{ type: 'reject' | 'adjust'; logId: string } | null>(null);
@@ -587,6 +598,7 @@ export default function HoursApprovalPage() {
                       {(log.status === 'pending' || log.status === 'disputed') ? (
                         <div className="tl-approval-entry__actions">
                           <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => singleAction(log.id, 'approve')}>Approve</button>
+                          <button className="tl-btn tl-btn--sm" onClick={() => setPayLogId(log.id)}>Set pay</button>
                           <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
                           <button className="tl-btn tl-btn--sm tl-btn--danger" onClick={() => singleAction(log.id, 'reject')}>Reject</button>
                         </div>
@@ -595,6 +607,9 @@ export default function HoursApprovalPage() {
                         // revise any employee's hours (with a reason; they're
                         // notified). H3 of the hours-correction plan.
                         <div className="tl-approval-entry__actions">
+                          {/* Pay stays revisable after approval — a payroll correction is a normal
+                              event, and the decision keeps its own history either way. */}
+                          <button className="tl-btn tl-btn--sm" onClick={() => setPayLogId(log.id)}>Set pay</button>
                           <button className="tl-btn tl-btn--sm" onClick={() => singleAction(log.id, 'adjust')}>Adjust</button>
                         </div>
                       )}
@@ -731,6 +746,16 @@ export default function HoursApprovalPage() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Set-pay modal. Mounted here, next to the action modal, so the "Set pay" buttons above
+          actually open something — an unmounted modal is this codebase's most common defect. */}
+      {payLogId && (
+        <PayDecisionModal
+          timeLogId={payLogId}
+          onClose={() => setPayLogId(null)}
+          onSaved={loadData}
+        />
       )}
 
       {/* Action Modal */}

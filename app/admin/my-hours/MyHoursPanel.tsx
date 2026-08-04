@@ -87,6 +87,19 @@ interface TimeLog {
   created_at: string;
   approved_by: string | null;
   approved_at: string | null;
+  /**
+   * What the approver decided, when they decided anything. Null means nobody has overridden the
+   * rules, so `total_pay` above is the operative figure — the two are kept distinct rather than
+   * merged, because "the rules said so" and "a person said so" are different claims.
+   */
+  pay_decision: {
+    blocks: Array<{ hours: number; label: string; rate: number | null }>;
+    total_pay: number;
+    undecided_hours: number;
+    payout_note: string | null;
+    decided_by: string;
+    decided_at: string;
+  } | null;
 }
 
 interface Advance {
@@ -711,17 +724,53 @@ export default function MyHoursPanel() {
                                   Adjusted: {log.adjusted_hours}h — {log.adjustment_note}
                                 </div>
                               )}
+                              {/*
+                                What was actually decided, and why. The owner asked for the note so
+                                the boss could "make any explanations for why the pay is what it
+                                is" — a note nobody can read would not do that job.
+                              */}
+                              {log.pay_decision && (
+                                <div className="tl-history-entry__decision">
+                                  {log.pay_decision.blocks.length > 1 && (
+                                    <div className="tl-history-entry__split">
+                                      {log.pay_decision.blocks.map((b, i) => (
+                                        <span key={i}>
+                                          {b.hours}h {b.label}
+                                          {b.rate != null ? ` at ${formatCurrency(b.rate)}/hr` : ' — not yet priced'}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {log.pay_decision.undecided_hours > 0 && (
+                                    <div className="tl-history-entry__undecided">
+                                      {log.pay_decision.undecided_hours}h still awaiting a rate.
+                                    </div>
+                                  )}
+                                  {log.pay_decision.payout_note && (
+                                    <div className="tl-history-entry__payout-note">
+                                      &ldquo;{log.pay_decision.payout_note}&rdquo; — {log.pay_decision.decided_by}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="tl-history-entry__right">
                             <span className="tl-history-entry__hours">{log.hours}h</span>
                             <span className={`tl-badge ${badge.cls}`}>{badge.label}</span>
-                            {log.effective_rate && (
+                            {/* The submitted-rate line is suppressed once a decision exists: showing
+                                both without saying which is which is how "$25 or $30.50?" happened
+                                in the first place. */}
+                            {!log.pay_decision && log.effective_rate && (
                               <span className="tl-history-entry__rate">{formatCurrency(log.effective_rate)}/hr</span>
                             )}
-                            {log.total_pay && (
+                            {log.pay_decision ? (
+                              <span className="tl-history-entry__pay tl-history-entry__pay--decided">
+                                {formatCurrency(log.pay_decision.total_pay)}
+                              </span>
+                            ) : log.total_pay ? (
                               <span className="tl-history-entry__pay">{formatCurrency(log.total_pay)}</span>
-                            )}
+                            ) : null}
                             {log.status === 'rejected' && (
                               <button className="tl-btn tl-btn--sm" onClick={() => disputeLog(log.id)}>Dispute</button>
                             )}
