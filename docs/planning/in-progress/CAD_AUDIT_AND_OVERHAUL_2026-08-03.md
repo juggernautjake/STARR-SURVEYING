@@ -1391,3 +1391,55 @@ about **load time**. Heap growth across a long editing session is a browser meas
 heap snapshot, work for ten minutes, snapshot again — and remains open as **S15b**.
 
 3,378 CAD tests, `npm run build` clean.
+
+### ✅ S15b DONE 2026-08-04 — load time and heap, measured against a PRODUCTION build
+
+Dev-mode numbers would have been misleading, so this was measured against `npm run build` +
+`npm start`, not `next dev`.
+
+**Cold load of `/admin/cad`:**
+
+| | |
+|---|---|
+| TTFB | 1,713 ms |
+| DOMContentLoaded | 2,020 ms |
+| **Canvas visible and interactive** | **3,564 ms** |
+| JS requests | 32 |
+| JS transferred | **991 KB** (3,564 KB decoded) |
+| Total transferred | 1,118 KB |
+| Heap after load | 18.2 MB |
+
+Roughly **3.5 s to a usable editor** on localhost with a warm disk cache. Sub-second TTFB is the
+obvious lever if this ever needs to be faster; ~1 MB of compressed JS for an application of this size
+is unremarkable.
+
+### ▶ The heap result, including a reading of my own that was wrong
+
+First run: five rounds of ordinary editor work (open menus, pan, zoom in/out), forcing
+`HeapProfiler.collectGarbage` before every sample. Post-GC heap rose in **all four intervals** —
+16.94 → 18.30 MB, about **0.34 MB per round** — and I wrote down that *monotonic post-GC growth is
+the signature of retention*.
+
+**That was the wrong conclusion, and the longer run settled it.** Twelve further rounds:
+
+```
+18.10 18.09 18.14 18.13 18.16 18.42 18.17 18.19 18.22 18.21 18.23 18.23
+```
+
+Early slope **0.01 MB/round**, late slope **0.003 MB/round** — flat, with a total drift of 0.13 MB
+across twelve rounds. It **plateaued**, which is what a warming cache does and what retention does
+not. The first run had simply not run long enough to tell the two apart, and five samples of a
+rising curve look identical to five samples of a leak.
+
+**So: no leak detected under this workload, and the heap settles at ~18 MB.** The lesson is the one
+this program keeps relearning in a new costume — *a short measurement is a different measurement,
+not a smaller one.* Five points said "leak"; seventeen said "cache".
+
+**What this still does not cover**, stated so it is not mistaken for coverage: this workload does not
+load a large drawing, insert images, or run for hours. The owner's original "freezes and dies"
+symptom is not reproduced by it, and S2b already found and fixed a cause of that
+(269 → 25 ms/frame). A 200k-feature fixture left open for an hour would be the next honest test.
+
+**Also measured and not fixed:** nothing. Both numbers are acceptable; there is no defect here to
+report, which is a legitimate outcome for a measurement slice and is recorded as such rather than
+padded into a change.
