@@ -291,3 +291,45 @@ teaches people to ignore the column.
 
 **`npm run build` clean. Next: F4** (bulk receipt capture) or **F5** (the general invoice builder) —
 both are UI-led and independent of each other.
+
+---
+
+## ✅ F5 — the general invoice builder. **DONE 2026-08-04.** Mostly it already worked.
+
+*Ask: "a full invoice builder so my dad can invoice anyone for anything."*
+
+Checked before building, per the standing rule, and **most of "anyone for anything" was already
+true**: `/api/admin/invoices` requires only a line item, `job_id` is a nullable FK, the customer is
+typed free-form (name, email, phone, billing address), and the composer already has a job typeahead,
+a contact picker, arbitrary line items, tax, due date, notes and the upfront/deposit rule. Nothing
+about it was job-bound. **Eighth feature this session called missing and found present.**
+
+**The one thing it genuinely could not do** was invoice someone whose email you do not have — a
+neighbour paying cash, a contractor you will text the pay link to, anyone handed a printed copy.
+The composer created *and sent* in a single action and demanded an email to do either:
+
+```ts
+if (!customer.customer_email.trim()) {
+  setError('Please enter a customer email so we can send the invoice.');
+```
+
+That restriction lived **entirely in the page**. The API never asked for an email, so the capability
+was there and the form was the thing withholding it — this repo's "built but unreachable" pattern,
+in miniature.
+
+**"Create without sending"** now produces a real invoice with its own number and `public_slug`, so
+the pay link can be copied, texted or printed. It is not a lesser record; it is the same record, not
+emailed. The email check is now conditional on sending. An invoice addressed to *nobody* is still
+refused — not as a formality, but because it cannot be chased, reconciled against a payment, or found
+again in the dashboard.
+
+**And the success screen no longer reports a chosen outcome as a fault.** Its copy said *"email send
+did not complete"* for every unsent invoice, which on this path would call the intended result a
+failure. `notSentByChoice` separates "we didn't try" from "we tried and it failed".
+
+6 tests, including one asserting the early return precedes the send fetch — without that ordering,
+"without sending" would still send. `npm run build` clean.
+
+**Remaining in this document:** F4 (bulk receipt capture), F6 (job intake — verify email delivery,
+role-based notification targeting, and that the full submission is stored), F7 (explanations and
+tutorials), and the UI halves F1b/F2b that put the card registry and pass-through recovery on screen.

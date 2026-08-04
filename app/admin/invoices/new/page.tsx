@@ -93,6 +93,9 @@ export default function NewInvoicePage(): React.ReactElement {
     recipient: string;
     sent: boolean;
     send_error: string | null;
+    /** F5 — true when the invoice was deliberately not emailed, as opposed to a send that failed.
+     *  Without this the success screen reports a chosen outcome as a fault. */
+    notSentByChoice?: boolean;
   } | null>(null);
 
   const totals = useMemo(() => {
@@ -240,8 +243,17 @@ export default function NewInvoicePage(): React.ReactElement {
     setLineItems((rows) => (rows.length === 1 ? rows : rows.filter((_, idx) => idx !== i)));
   }
 
-  async function onCreateAndSend(e: React.FormEvent) {
-    e.preventDefault();
+  /** FINANCE_TAX_AND_INTAKE Slice F5 — create the invoice, and email it only when asked to.
+   *
+   *  The composer previously did both in one action and required an email to do either, which meant
+   *  the one thing it could NOT do was invoice somebody whose email you do not have: a neighbour
+   *  paying cash, a contractor you will text the pay link to, anyone getting a printed invoice. The
+   *  API never required an email — only a line item — so the restriction lived entirely here.
+   *
+   *  `send = false` still produces a real invoice with its own number and `public_slug`, so the pay
+   *  link can be copied, texted or printed. It is not a lesser record; it is the same record, not
+   *  emailed. */
+  async function createInvoice(send: boolean) {
     setError(null);
     setSuccess(null);
 
@@ -250,8 +262,16 @@ export default function NewInvoicePage(): React.ReactElement {
       setError('Please add at least one line item.');
       return;
     }
-    if (!customer.customer_email.trim()) {
-      setError('Please enter a customer email so we can send the invoice.');
+    // Only a requirement of the SEND, not of the invoice. Asking for it when nothing is being
+    // emailed is the check that blocked the whole use case.
+    if (send && !customer.customer_email.trim()) {
+      setError('Please enter a customer email so we can send the invoice — or use “Create without sending”.');
+      return;
+    }
+    if (!send && !customer.customer_name.trim() && !customer.customer_email.trim()) {
+      // Not a formality: an invoice addressed to nobody cannot be chased, reconciled against a
+      // payment, or found again in the dashboard.
+      setError('Please enter at least a name (or an email) so the invoice says who it is for.');
       return;
     }
 
@@ -292,7 +312,26 @@ export default function NewInvoicePage(): React.ReactElement {
       setError((await createRes.json().catch(() => ({}))).error ?? 'Failed to create invoice.');
       return;
     }
-    const { invoice } = (await createRes.json()) as { invoice: { id: string; invoice_number: string } };
+    const { invoice } = (await createRes.json()) as {
+      invoice: { id: string; invoice_number: string; public_slug?: string };
+    };
+
+    if (!send) {
+      // F5 — done. The pay link is built from the slug the API already minted, so a "not sent"
+      // invoice is just as payable as a sent one; the only difference is who pressed send.
+      setSending(false);
+      setSuccess({
+        invoice_number: invoice.invoice_number,
+        pay_link: invoice.public_slug
+          ? `${window.location.origin}/pay/${invoice.public_slug}`
+          : '',
+        recipient: customer.customer_name.trim() || customer.customer_email.trim(),
+        sent: false,
+        send_error: null,
+        notSentByChoice: true,
+      });
+      return;
+    }
 
     const sendRes = await fetch(`/api/admin/invoices/${invoice.id}/send`, {
       method: 'POST',
@@ -322,7 +361,12 @@ export default function NewInvoicePage(): React.ReactElement {
           <p className="invoice-page__lede">
             {success.sent
               ? `Sent to ${success.recipient}.`
-              : `Saved as ${success.invoice_number} — email send did not complete.`}
+              : success.notSentByChoice
+                // F5 — a chosen outcome must not be reported as a fault. The previous copy said
+                // "email send did not complete" for every unsent invoice, which would have read as
+                // a failure on the path where not sending is the whole point.
+                ? `Created for ${success.recipient} — not emailed. Copy the pay link below to text, print, or hand over.`
+                : `Saved as ${success.invoice_number} — email send did not complete.`}
           </p>
           {success.send_error && (
             <p className="invoice-page__error" data-testid="invoice-send-warning" role="alert">
@@ -373,7 +417,10 @@ export default function NewInvoicePage(): React.ReactElement {
 
   return (
     <main className="invoice-page" data-payments-admin data-testid="invoice-create-page">
-      <form className="invoice-page__card" onSubmit={onCreateAndSend}>
+      <form
+        className="invoice-page__card"
+        onSubmit={(e) => { e.preventDefault(); void createInvoice(true); }}
+      >
         <h1 className="invoice-page__title">Create + send invoice</h1>
         <p className="invoice-page__lede">
           The customer gets an email with a one-click payment link.
@@ -719,6 +766,19 @@ export default function NewInvoicePage(): React.ReactElement {
             disabled={sending}
           >
             Cancel
+          </button>
+          {/* F5 — the path that makes "invoice anyone for anything" true. Same invoice, same pay
+              link, no email required; for a customer paying cash, one you will text the link to, or
+              one getting a printed copy. */}
+          <button
+            type="button"
+            className="invoice-btn invoice-btn--ghost"
+            onClick={() => { void createInvoice(false); }}
+            disabled={sending}
+            data-testid="invoice-create-only"
+            title="Creates the invoice and its pay link without emailing anyone. Use this when you don't have an email, or you'll hand it over in person."
+          >
+            {sending ? 'Working…' : 'Create without sending'}
           </button>
           <button
             type="submit"
