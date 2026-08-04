@@ -4014,6 +4014,29 @@ ticked that has not been verified.**
 
 ## Outstanding
 
+> ### ⚠ STALE AS WRITTEN — read this first (2026-08-04)
+>
+> **Three of the five items below were built on `claude/dnd-streamer-audit-2026-08-03`, which this
+> branch has not merged.** The list was correct when written and is now a trap: a session reading it
+> in good faith would build a second copy of work that already exists, which is how this codebase
+> ended up with two overflow detectors and two spatial indexes.
+>
+> | item | real state |
+> |---|---|
+> | P14-8 | **DONE** — `5eba42601`, and it was the *eleventh* stale item: closed by its own "confirm before building" instruction |
+> | P14-9 | **DONE** — `b6a0275bf`. `contact-sheet.mjs --axis rollers` opens the dock, selects each of the four templates, photographs the dock and measures contrast **scoped to it**. 88 cells, 2,218 text elements. This is precisely the approach the bullet below prescribes as future work |
+> | P14-10 | **DONE** — `0a07571e1`. Found ~25% built under another name (`theme.artUrl`, rendering in exactly one place), which changed the design rather than adding a second field |
+> | P14-11 | **AUDITED, not fixed** — `76b26b5d9`. The premise below is *half wrong in the expensive direction*: it is 93 selectors, and **not one** of the 90 `theme.css` streamer rules reaches a PF2 or IG sheet. Every rule needs `.dnd-sheet.skin-streamer` on the same element, and the bespoke roots never carry `dnd-sheet`. So the job is "the skin barely applies", not "the rules target the wrong markup" |
+> | P14-12 | **genuinely open** — and its own instruction says to start it in a fresh session, because step 1 is a **persisted** payload shape and a wrong one can only be migrated, never changed |
+>
+> **This doc cannot honestly close until that branch is merged** — `git merge
+> origin/claude/dnd-streamer-audit-2026-08-03` (13 commits not in this branch). That is left to the
+> owner rather than done here: it is a substantial merge of another session's work, and this repo has
+> already been bitten by concurrent sessions moving branch state under each other.
+>
+> The bullets below are preserved **as originally written**, not edited, so the record of what was
+> believed at the time stays intact.
+
 - [ ] **P14-8 — Manual roll entry.** *"users can record manual rolls if they want"*. `RollFeed.tsx`
       already posts to `/api/dnd/rolls` and `roll-publish.ts` calls it "the manual dice box", but there is
       no visible manual affordance in it today. **Confirm whether one was removed before building a
@@ -4289,3 +4312,33 @@ untested state.
 **To verify:** put Orin or Vashti in a campaign, roll on the sheet, and confirm a row appears in
 `dnd_roll_log` with that campaign id. Until someone does, treat "PF2 and IG rolls reach the feed" as
 implemented but UNPROVEN.
+
+---
+
+## 2026-08-04 — the roll-publishing caveat, given the only instrument it can have
+
+The caveat above states the PF2/IG roll-publishing fix "was typechecked and shipped without being
+run", and that current data cannot exercise it: publishing is correctly skipped for a character with
+no campaign, and the only PF2 character and the only IG character are both unattached.
+
+That is still true — no data was invented to paper over it. But it left a real bug with **no
+instrument at all**, and the bug in question already happened once: the 5e store called `publishRoll`
+and the bespoke sheets never did, so a Pathfinder player rolled, watched it animate, and nothing
+reached the table's Recent Rolls. The panels' own comments describe it in the past tense.
+
+`__tests__/dnd/bespoke-sheets-publish-rolls.test.ts` holds the three links whose breakage reproduces
+it, per sheet: the panel imports `publishRoll`; its `commitRoll` calls it **with a campaign**; and
+`commitRoll` is handed to `RollFeedProvider`, without which it is defined and never invoked. A fourth
+test pins the *other* half of the rule — that a roll with no campaign is still skipped — so a future
+attempt to make this testable cannot simply delete the guard and start posting orphan rolls.
+
+**This is a source-shaped check and is weaker than running the thing**, which is why the caveat above
+stands unedited. It is chosen because the alternative is nothing: `publishRoll` returns void and
+swallows its own failures by design, so a call that is never made is indistinguishable at runtime
+from one that succeeded, and the existing 18 `roll-publish` tests cover `rollPublishBody`, which is
+system-agnostic and passes either way. Neutering the PF2 call site fails the suite by name, which is
+the property that makes it worth keeping.
+
+**Still genuinely blocked, unchanged:** the end-to-end confirmation needs a PF2 or IG character sitting
+at a campaign. That is one row, and it is the owner's to create — this program's rule against
+manufacturing test data to satisfy its own checks is the reason it was not created here.
