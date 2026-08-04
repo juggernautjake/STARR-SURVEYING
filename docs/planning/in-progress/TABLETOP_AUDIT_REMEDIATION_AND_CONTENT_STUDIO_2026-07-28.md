@@ -4584,3 +4584,51 @@ This is a small finding and is recorded as one. The doc's Shipped list held up; 
 outgrew its subject, not a broken feature.
 
 8,945 D&D tests green; `tsc` and `eslint` clean.
+
+## ✅ 2026-08-04 — P14-11 part 1: the streamer's root treatment reaches PF2 and IG
+
+The audit's finding was reproduced in this tree on 2026-08-04: **91 of theme.css's streamer rules
+require `.dnd-sheet`, and the bespoke PF2/IG roots carry `sheet-shell` and deliberately not that.**
+So choosing the streamer skin on a Pathfinder character changed its *name* and almost nothing else.
+
+The obvious remedy is a regression, and `shell-scope-is-deliberate.test.ts` already pins why. **This
+slice takes the other route that entry named** — bringing the root-level treatment across under a
+selector those roots already carry.
+
+### ▶ Which rules moved, and the property that made it safe
+
+Six selectors are now `:is(.dnd-sheet, .sheet-shell).skin-streamer`: the design tokens, the light
+wash, the `variant-blue` swap, the floating pixel-cube field, the sparkle/scanline layer, and
+selection + scrollbar.
+
+**Every one targets the root itself or a universal pseudo-element.** None can reach a child, so none
+can bleed onto panels built for another system — which is the entire hazard T-SHELL-SCOPE exists to
+prevent. That is asserted rather than asserted-in-prose: a test parses each widened selector and
+fails if its tail is anything but empty, `.variant-blue`, or a pseudo-element.
+
+The other **85 stay `.dnd-sheet`-only on purpose.** `.stat .big`, `.ab .score`, `.res-head .rn`,
+`.form-name`, `.inv-name` — all 5e markup. Widening them is exactly the regression the earlier entry
+described, arriving one selector at a time rather than all at once, and a test fails on each of them
+individually with that reason in the message.
+
+### ▶ Two controls, in opposite directions
+
+Because this fix can fail two ways and they look nothing alike:
+
+1. **Un-widen one root rule** — the backdrop arrives and the sparkles do not, which reads as a
+   rendering bug rather than an unfinished port. Fails `leaves no root-level streamer rule behind`.
+2. **Widen one 5e-only rule** — the regression. Fails `does NOT widen the rules that target 5e-only
+   markup`.
+
+Both were run and both failed by name, verified by grepping the file after each edit.
+
+Also updated: `shell-scope-is-deliberate`'s recorded measurement, **91 → 85**, with the six that left
+explained inline — and a new counterpart assertion so that file cannot report "still all gated" after
+the work landed. A measurement nobody updates becomes a stale reason, which this document has now
+collected nine of.
+
+626 D&D test files / **8,950 tests green**; `tsc`, `eslint` and `npm run build` clean.
+
+**P14-11 part 2 remains**: bespoke equivalents for the 85 element rules — PF2 and IG panels need
+their own streamer treatment, not a wider gate. That is a design job, not a selector edit, and it is
+the honest reason this item is not being ticked.

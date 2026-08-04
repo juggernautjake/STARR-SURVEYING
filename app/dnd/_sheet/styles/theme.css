@@ -2735,11 +2735,33 @@
    pressable buttons, a glitching holo name, a floating pixel-cube sparkle field,
    and a segmented pink→gold influence bar. Fully scoped to
    `.dnd-sheet.skin-streamer` so nothing touches Lazzuh or other characters.
+
+   ── P14-11, 2026-08-04: THE ROOT TREATMENT REACHES PF2 AND IG TOO ──────
+   The audit found the streamer skin barely applying to the bespoke PF2/IG
+   sheets: 91 rules here require `.dnd-sheet`, and those roots carry
+   `sheet-shell` (+ `skin-<id>`) and deliberately NOT `dnd-sheet`.
+
+   The obvious remedy — add `dnd-sheet` to those roots — is a regression,
+   and `shell-scope-is-deliberate.test.ts` pins why: it would also unlock
+   every broad `.dnd-sheet` ELEMENT rule in this file onto panels built for
+   other systems. Looks like progress on the first sheet you open, damage
+   on the rest.
+
+   So the ROOT-LEVEL treatment below — tokens, the light wash, the floating
+   pixel cubes, the sparkle/scanline field, selection and scrollbar — is
+   matched on `:is(.dnd-sheet, .sheet-shell).skin-streamer`. Those all
+   target the root itself or universal pseudo-elements; none reaches a
+   child, so nothing bleeds.
+
+   Everything from the "flip the base sheet's headings" block onward stays
+   `.dnd-sheet`-only ON PURPOSE: those DO target 5e markup (`.stat .big`,
+   `.ab .score`, `.res-head .rn`). They need bespoke equivalents, which is
+   the remaining half of P14-11 and a larger piece of work.
    =================================================================== */
 
 /* Bright screen: white→pink→lavender wash + pink/gold/purple glows + a faint
    pixel data-grid (dark-alpha lines so they read on the light ground). */
-.dnd-sheet.skin-streamer {
+:is(.dnd-sheet, .sheet-shell).skin-streamer {
   /* Accent RGB triplets + light-base gradient + monitor darks. The PINK variant is
      the default; `.variant-blue` swaps these (the color TOKENS — --hotpink etc. —
      are swapped separately by the theme applied in App). */
@@ -2769,7 +2791,7 @@
 }
 /* BLUE variant — swap the accent triplets + the light/dark backing colors. Paired
    with the blue color tokens applied on the root by App (streamerThemeBlue). */
-.dnd-sheet.skin-streamer.variant-blue {
+:is(.dnd-sheet, .sheet-shell).skin-streamer.variant-blue {
   --sk-accent: 43, 127, 255;
   --sk-accent2: 34, 196, 255;
   --sk-accent3: 224, 164, 0;
@@ -2786,7 +2808,7 @@
 /* Floating pixel-cube aura — the pink/purple squares "dissolving" off the streamer
    in her art. A fixed field of hard-edged cubes behind the content (z-index below the
    sheet body), gently drifting. Non-interactive. */
-.dnd-sheet.skin-streamer::before {
+:is(.dnd-sheet, .sheet-shell).skin-streamer::before {
   content: '';
   position: fixed;
   inset: 0;
@@ -2817,7 +2839,7 @@
   50% { transform: translateY(-10px); opacity: 0.72; }
 }
 /* Sparkle field + a whisper of scanline, drifting slowly. Non-interactive. */
-.dnd-sheet.skin-streamer::after {
+:is(.dnd-sheet, .sheet-shell).skin-streamer::after {
   content: '';
   position: fixed;
   inset: 0;
@@ -2835,8 +2857,8 @@
   from { background-position: 0 0, 13px 13px, 7px 19px, 0 0; }
   to   { background-position: 26px 26px, 39px 39px, 47px 19px, 0 0; }
 }
-.dnd-sheet.skin-streamer ::selection { background: rgba(var(--sk-accent), 0.28); color: var(--ink); }
-.dnd-sheet.skin-streamer ::-webkit-scrollbar-thumb {
+:is(.dnd-sheet, .sheet-shell).skin-streamer ::selection { background: rgba(var(--sk-accent), 0.28); color: var(--ink); }
+:is(.dnd-sheet, .sheet-shell).skin-streamer ::-webkit-scrollbar-thumb {
   background: linear-gradient(var(--gold), var(--hotpink));
   border: 3px solid var(--sk-scroll-edge);
   border-radius: 0;

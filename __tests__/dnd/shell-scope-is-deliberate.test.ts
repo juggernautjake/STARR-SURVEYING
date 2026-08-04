@@ -92,7 +92,16 @@ describe('T-SHELL-SCOPE — the bespoke roots stay out of .dnd-sheet', () => {
   it('records how many streamer rules are gated behind .dnd-sheet', () => {
     // Not a limit — a measurement, so P14-11's scope is a number rather than an adjective. If this
     // moves a lot, the streamer skin was reworked and the P14-11 note needs re-reading.
+    //
+    // **91 → 85 on 2026-08-04**, and the six that left are the point rather than drift: P14-11 part 1
+    // widened the ROOT-level rules to `:is(.dnd-sheet, .sheet-shell).skin-streamer`, so PF2 and IG
+    // now get the streamer's tokens, backdrop, cubes and sparkles. The 85 that remain are the ones
+    // that target 5e markup and must NOT be widened — see `streamer-root-reaches-bespoke.test.ts`.
     const gated = (theme.match(/\.dnd-sheet\.skin-streamer/g) ?? []).length;
     expect(gated).toBeGreaterThan(50);
+
+    // The counterpart, so this file cannot report "still all gated" after the work landed.
+    const widened = (theme.match(/:is\(\.dnd-sheet, \.sheet-shell\)\.skin-streamer/g) ?? []).length;
+    expect(widened, 'the root-level streamer rules lost their .sheet-shell reach').toBeGreaterThan(0);
   });
 });
