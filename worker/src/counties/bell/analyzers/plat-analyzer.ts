@@ -19,12 +19,15 @@ import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
   accumulateUsage,
   buildUsageFromTokens,
+  recordAiUsage,
   zeroUsage,
 } from './ai-cost-helpers.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface PlatAnalysisInput {
+  /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
+  projectId?: string;
   platRecords: PlatRecord[];
   /** Legal description for cross-validation */
   legalDescription: string | null;
@@ -129,6 +132,27 @@ export async function analyzeBellPlats(
   // ── Compute confidence ─────────────────────────────────────────────
   const hasAnalysis = analyzedPlats.some(p => p.aiAnalysis !== null);
   const hasCrossVal = crossValidation.length > 0;
+
+  // Write this run's spend where the budget can see it.
+  //
+  // See the same note in `deed-analyzer.ts`: these analyzers accumulated a usage summary that was
+  // displayed and never persisted, because `recordAiUsage` had no callers anywhere in the repo. The
+  // spend ratchet credited them for importing `ai-cost-helpers` — importing a recorder is not
+  // calling one.
+  //
+  // Inlined rather than wrapped in a helper, deliberately. A `recordPlatSpend()` function would keep
+  // the words `recordAiUsage(` in this file even after its only call site was deleted, so the guard
+  // would still pass — which is exactly the defect being fixed here, one level up. Verified by
+  // deleting this line and watching the ratchet fail.
+  if (input.projectId && usage.totalCalls > 0) {
+    recordAiUsage(
+      input.projectId,
+      modelFor('read_scan').model,
+      usage.totalInputTokens,
+      usage.totalOutputTokens,
+      { analyzer: 'bell-plat', calls: usage.totalCalls },
+    );
+  }
 
   return {
     section: {

@@ -79,6 +79,36 @@ const UNMIGRATED: Record<string, string> = {
   //
   // Keep this map. It is not decoration: the tests below fail the moment a new unrecorded call site
   // appears, and an empty inventory is the only state in which the ceiling and the invoice agree.
+  //
+  // ── NOT EMPTY AFTER ALL, 2026-08-04 ──────────────────────────────────────────────────────────
+  //
+  // The note above was wrong, and the guard that should have caught it was the reason it survived.
+  //
+  // Six Bell analyzers accumulate a usage summary, return it in their report, and the orchestrator
+  // rolls it up for display. **Nothing ever wrote it to `research_usage_events`.** `recordAiUsage`
+  // — the one function whose entire job is that write — was defined in `ai-cost-helpers.ts` and
+  // called from nowhere at all.
+  //
+  // They passed anyway because `REPORTS_SPEND` is a text search and they import `ai-cost-helpers`.
+  // Importing a recorder is not calling one. So the inventory read "empty" while the heaviest AI
+  // work in the platform was invisible to R5's ceiling — a run could pass every budget check and
+  // overspend, which is precisely the failure this file exists to prevent.
+  //
+  // `deed-analyzer` and `plat-analyzer` are now migrated (projectId threaded from the orchestrator,
+  // one accurate record per run since every call goes through `modelFor('read_scan')`). The four
+  // below are listed because their reasons are real, not because listing them is easier.
+  'src/counties/bell/analyzers/gis-quality-analyzer.ts':
+    'Usage rolls into the orchestrator report but is never persisted. Needs projectId threaded from '
+    + 'the GIS phase, which calls it through two hops. Same shape as the deed/plat fix.',
+  'src/counties/bell/analyzers/lot-correlator.ts':
+    'No projectId in scope and no caller that has one nearby — it is invoked from the subdivision '
+    + 'isolator, which is itself called from three places. Needs the thread built before the record.',
+  'src/counties/bell/analyzers/document-relevance-validator.ts':
+    'Called per document inside a page loop; recording per call needs projectId threaded through the '
+    + 'validator signature, and recording per run needs a run-scoped accumulator this file does not have.',
+  'src/counties/bell/analyzers/screenshot-classifier.ts':
+    'Dynamically imported at the call site with no projectId passed. Cheapest of the six by token '
+    + 'volume, so it is last rather than first.',
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -92,13 +122,41 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const rel = (abs: string) => path.relative(WORKER, abs).replace(/\\/g, '/');
 
-/** Files that build their own Anthropic client. */
+/**
+ * Files that talk to the model — by constructing a client **or** by invoking one.
+ *
+ * ── WHY BOTH, ADDED 2026-08-04 ────────────────────────────────────────────────────────────────
+ *
+ * This swept `new Anthropic(` alone. Measured today, every file that invokes the model also
+ * constructs one, so the population happened to be complete — but nothing made that true and
+ * nothing would have noticed when it stopped being true.
+ *
+ * The moment somebody extracts a shared client module (the obvious next refactor: one place for the
+ * API key, retries and timeouts), every caller invoking it stops constructing one. The sweep would
+ * go blind, this file would stay green, and R5's ceiling would silently under-count again — the
+ * exact failure this test exists to prevent, reintroduced by a tidy-up.
+ *
+ * Matching invocation as well means the check survives that refactor.
+ */
 const callSites = walk(SRC)
-  .filter((f) => /new Anthropic\s*\(/.test(code(fs.readFileSync(f, 'utf8'))))
+  .filter((f) => {
+    const c = code(fs.readFileSync(f, 'utf8'));
+    return /new Anthropic\s*\(/.test(c) || /\.messages\.(create|stream)\s*\(/.test(c);
+  })
   .map(rel);
 
 const reportsSpend = (relPath: string) =>
   REPORTS_SPEND.test(code(fs.readFileSync(path.join(WORKER, relPath), 'utf8')));
+
+/**
+ * Does the file actually CALL a recorder, rather than merely import one?
+ *
+ * `REPORTS_SPEND` is a text search, so an import left behind by a refactor satisfies it while the
+ * call it used to serve is gone. That is a file reporting no spend and testing as though it does.
+ */
+const RECORDER_CALL = /\brecord(AiCall|Usage|AiUsage|AmbientAiCall|OpsAiCall)\s*\(/;
+const callsRecorder = (relPath: string) =>
+  RECORDER_CALL.test(code(fs.readFileSync(path.join(WORKER, relPath), 'utf8')));
 
 describe('the sweep is looking at something', () => {
   it('finds the AI call sites at all', () => {
@@ -142,11 +200,67 @@ describe('spend the budget cannot see', () => {
       : '').toEqual([]);
   });
 
+  it('every call site that claims to report spend actually invokes a recorder', () => {
+    // An import is not a call. A refactor that removes the last `recordAiCall(...)` but leaves the
+    // import line behind would keep this file green while the ceiling stopped seeing that path.
+    const importOnly = callSites
+      .filter((f) => !(f in UNMIGRATED))
+      .filter(reportsSpend)
+      .filter((f) => !callsRecorder(f));
+
+    expect(importOnly, importOnly.length
+      ? 'These import the usage module but never call a recorder, so they report no spend while\n'
+        + `testing as though they do:\n  ${importOnly.join('\n  ')}`
+      : '').toEqual([]);
+  });
+
+  it('the invocation sweep is not vacuous', () => {
+    // The widening above is only worth anything if it matches. A control, because a broader pattern
+    // that happens to match nothing looks identical to one that is doing its job.
+    const invokers = callSites.filter((f) =>
+      /\.messages\.(create|stream)\s*\(/.test(code(fs.readFileSync(path.join(WORKER, f), 'utf8'))));
+    expect(invokers.length).toBeGreaterThan(10);
+  });
+
+  it('the orchestrator threads projectId into the analyzers that record', () => {
+    // `projectId` is optional on those inputs — correctly, since not every caller has a run — so
+    // deleting it from a call site still compiles, still passes every other test here, and silently
+    // turns the recording back off. The analyzer would go on accumulating a summary nobody writes,
+    // which is the exact state this whole slice was fixing.
+    //
+    // Found because the negative control for this thread did NOT fire: the two recorder guards above
+    // caught their breaks and this one sailed through.
+    const orch = code(fs.readFileSync(path.join(SRC, 'counties/bell/orchestrator.ts'), 'utf8'));
+
+    const deedCalls = orch.split('analyzeBellDeeds(').slice(1);
+    expect(deedCalls.length, 'analyzeBellDeeds is no longer called from the orchestrator').toBeGreaterThan(0);
+    for (const [i, call] of deedCalls.entries()) {
+      expect(
+        call.slice(0, 400),
+        `analyzeBellDeeds call #${i + 1} does not pass projectId — its AI spend will not reach the ceiling`,
+      ).toContain('projectId');
+    }
+
+    const platCalls = orch.split('analyzeBellPlats(').slice(1);
+    expect(platCalls.length, 'analyzeBellPlats is no longer called from the orchestrator').toBeGreaterThan(0);
+    for (const [i, call] of platCalls.entries()) {
+      expect(
+        call.slice(0, 400),
+        `analyzeBellPlats call #${i + 1} does not pass projectId — its AI spend will not reach the ceiling`,
+      ).toContain('projectId');
+    }
+  });
+
   it('has no stale entry — a file on the list that DID get migrated', () => {
     // An inventory nobody prunes stops being read, and the count stops meaning anything.
+    //
+    // Uses `callsRecorder`, not `reportsSpend`. The weak predicate is satisfied by an import, and
+    // every file on this list imports `ai-cost-helpers` — that is exactly how they came to be
+    // credited as migrated while recording nothing. Checking migration with the same predicate that
+    // was fooled would prune the list of the files that most need to be on it.
     const stale = Object.keys(UNMIGRATED)
       .filter((f) => fs.existsSync(path.join(WORKER, f)))
-      .filter(reportsSpend);
+      .filter(callsRecorder);
     expect(stale, stale.length
       ? `These now report spend — remove them from UNMIGRATED:\n  ${stale.join('\n  ')}`
       : '').toEqual([]);
@@ -163,15 +277,23 @@ describe('spend the budget cannot see', () => {
   });
 
   it('does not let the backlog grow past where it stands today', () => {
-    // The ratchet. R4's own note claimed 21; the measured figure was 14. On 2026-08-04 the deed and
-    // plat analyzers came off, then — once `withRunContext` made attribution possible without
-    // threading — ai-context-analyzer, adaptive-vision, address-normalizer,
-    // property-validation-pipeline, geo-reconcile, subdivision-lot-isolator, bis-cad and ai-extraction. Four left.
+    // The ratchet. R4's own note claimed 21; the measured figure was 14, then 0 — and 0 was wrong.
     //
-    // **Tightened when the count drops, not just when it rises.** Left at 14 it would have allowed
-    // two new unrecorded call sites to appear and still pass — a ratchet that does not follow the
-    // work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
-    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(0);
+    // ── RAISED 0 → 4, AND WHY THAT IS NOT A REGRESSION ────────────────────────────────────────
+    //
+    // Nothing was un-migrated. The backlog was never 0: six Bell analyzers had been counted as
+    // migrated because they IMPORT `ai-cost-helpers`, while `recordAiUsage` — the only function in
+    // that module which writes anything — had no callers anywhere in the repository. Their spend
+    // was accumulated, displayed in the report, and never persisted.
+    //
+    // Two of the six are genuinely migrated now. The other four are listed with the specific reason
+    // each is hard, so this number counts real work remaining instead of describing a hole nobody
+    // had looked into. A ratchet whose measurement is wrong is worse than no ratchet: it reports
+    // completion.
+    //
+    // **Tightened when the count drops, not just when it rises** — a ratchet that does not follow
+    // the work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
+    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(4);
   });
 });
 

@@ -19,12 +19,15 @@ import { computeConfidence, SOURCE_RELIABILITY } from '../types/confidence.js';
 import {
   accumulateUsage,
   buildUsageFromTokens,
+  recordAiUsage,
   zeroUsage,
 } from './ai-cost-helpers.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
 export interface DeedAnalysisInput {
+  /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
+  projectId?: string;
   /** Deed records with page images from the clerk scraper */
   deedRecords: DeedRecord[];
   /** Legal description from CAD/GIS */
@@ -167,6 +170,34 @@ export async function analyzeBellDeeds(
   });
 
   progress(`Deed analysis complete: ${chainOfTitle.length} links in chain`);
+
+  /**
+   * Write this run's spend where the budget can see it.
+   *
+   * ── WHY THIS WAS MISSING (R4b, found 2026-08-04) ─────────────────────────────────────────────
+   *
+   * These analyzers accumulated a usage summary, returned it in their report, and the orchestrator
+   * rolled it up for display. **Nothing ever wrote it to `research_usage_events`.** `recordAiUsage`
+   * — the function whose entire job is that write — was defined and never called from anywhere.
+   *
+   * The spend ratchet credited these files anyway, because its predicate is a text search and they
+   * import `ai-cost-helpers`. Importing a recorder is not calling one. So R5's ceiling could not see
+   * the heaviest AI work in the platform, and a run could pass every budget check while overspending.
+   *
+   * One record per analyzer run rather than per call: every request here goes through
+   * `modelFor('read_scan')`, so a single model priced against the run's real token totals is exact,
+   * not an average. If this analyzer ever uses a second model, record per call instead — a blended
+   * total across two price points would be a quiet misprice.
+   */
+  if (input.projectId && usage.totalCalls > 0) {
+    recordAiUsage(
+      input.projectId,
+      modelFor('read_scan').model,
+      usage.totalInputTokens,
+      usage.totalOutputTokens,
+      { analyzer: 'bell-deed', calls: usage.totalCalls },
+    );
+  }
 
   return {
     section: {

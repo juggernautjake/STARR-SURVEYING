@@ -1072,6 +1072,9 @@ export async function orchestrateBellResearch(
   const [deedAnalysisResult, platAnalysisResult] = await Promise.allSettled([
     analyzeBellDeeds(
       {
+        // Threaded so the analyzer can record its spend against this run. Without it the AI work
+        // below is invisible to R5''s ceiling.
+        projectId: input.projectId,
         deedRecords: filteredDeedRecords,
         cadLegalDescription: property.legalDescription,
         currentOwner: property.ownerName,
@@ -1088,7 +1091,7 @@ export async function orchestrateBellResearch(
       (p) => progress('Phase 3', `Deeds: ${p.message}`, 65),
     ),
     analyzeBellPlats(
-      { platRecords: filteredPlats, legalDescription: property.legalDescription, deedCalls },
+      { projectId: input.projectId, platRecords: filteredPlats, legalDescription: property.legalDescription, deedCalls },
       anthropicApiKey,
       (p) => progress('Phase 3', `Plats: ${p.message}`, 75),
     ),
@@ -1241,6 +1244,7 @@ export async function orchestrateBellResearch(
 
           const historicalAnalysis = await analyzeBellDeeds(
             {
+              projectId: input.projectId,
               deedRecords: historicalDeedRecords,
               cadLegalDescription: property.legalDescription,
               currentOwner: property.ownerName,
