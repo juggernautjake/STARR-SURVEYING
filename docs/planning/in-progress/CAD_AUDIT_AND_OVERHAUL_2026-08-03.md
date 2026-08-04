@@ -1626,3 +1626,30 @@ module that has since been wired or deleted — because a list that silently sto
 worse than no list. A third rejects a reason too short to act on; "TODO" is not a reason.
 
 Watched failing by planting an orphan module, which the guard named. 3,416 CAD tests, `tsc` clean.
+
+### ✅ S18b DONE 2026-08-04 — the same sweep over all of `lib/`: 56 of 978
+
+S18 guarded `lib/cad` with a triaged ten-entry inventory. Running the identical sweep over **all** of
+`lib/` found **56 modules with no production importer, out of 978** — the same defect that hid
+`diffFingerprints` until R10 wired it earlier today.
+
+**Recorded as a measured set, not a triaged inventory, and that distinction is deliberate.** Giving
+each of 56 modules a real reason means investigating 56 modules. Writing 46 plausible sentences
+without doing that would be worse than writing nothing — it converts an honest backlog into a list
+that *looks* reviewed, which is the exact failure this program keeps finding in other people's
+documentation. The triage is left as work.
+
+It stores the **set**, not a count: a count lets a newly-dead module cancel out a newly-wired one and
+report no change, which is the failure mode of every metric that averages.
+
+**Two clusters worth someone's attention, stated as questions rather than claims** — neither was
+investigated, and saying more than was checked is the habit these guards exist to discourage:
+
+- **`hub/themes/*`** — eleven theme modules *plus* `register-builtins.ts`, and the registrar is
+  itself unreachable. Either the whole registry is dead, or themes are registered by a mechanism an
+  import graph cannot see.
+- **`research/prioritized-pipeline{,.service}.ts`** — a pipeline and its service, both unreferenced,
+  in a subsystem that already has its own reachability guard. Worth checking whether that guard's
+  `KNOWN_UNREACHABLE` covers them or misses them.
+
+Watched failing by planting a dead module, which both assertions named. `tsc` clean.
