@@ -57,7 +57,19 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   'ai/mock-proposer.ts': 'test/dev double for the AI proposer',
   'geometry/compound-curve.ts': 'compound-curve solving, built ahead of a UI that can express it',
   'geometry/spline-to-arc.ts': 'spline→arc conversion, for a DXF export path not yet taken',
-  'io/trv-bearings.ts': 'TRV bearing helpers superseded by the parser doing it inline',
+  // 'io/trv-bearings.ts' was here, described as "superseded by the parser doing it inline". Deleted
+  // 2026-08-04 (S4c) with its two test files, once the supersession was actually traced:
+  //
+  //   · Bearing maths has a canonical home — `geometry/bearing.ts` (`formatBearing`) plus
+  //     `labels/generate-labels.ts` (`formatBearingForDisplay`, preference-aware). Both tested.
+  //   · TRV segment labels are not computed at all any more: `io/trv-drawing-elements.ts`
+  //     (`extractLineLabels`) READS the labels the .TRV file already carries.
+  //
+  // The second is the interesting half. This module derived a label from geometry; the live path
+  // takes the instrument's own label instead — which is not merely a different implementation, it is
+  // a better answer to the question, because a recomputed bearing can disagree with what the
+  // surveyor's software wrote and the file is the record.
+
   'persistence/native-autosave.ts': 'Tauri desktop autosave; unreachable until the desktop build ships',
 
   // ── Barrels ───────────────────────────────────────────────────────────────────────────────────

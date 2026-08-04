@@ -64,10 +64,8 @@ const KNOWN_ORPHANS: readonly string[] = [
   'cad/ai/mock-proposer.ts',
   'cad/ai-engine/index.ts',
   'cad/codes/index.ts',
-  'cad/geo/texas-state-plane.ts',
   'cad/geometry/compound-curve.ts',
   'cad/geometry/spline-to-arc.ts',
-  'cad/io/trv-bearings.ts',
   'cad/persistence/native-autosave.ts',
   'cad/platform/index.ts',
   'dnd/ai-scope.ts',
@@ -176,5 +174,50 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
     // Belt and braces with the check above: that one catches a new PATH, this one catches the set
     // getting bigger by any route at all.
     expect(findUnreachable().length).toBeLessThanOrEqual(KNOWN_ORPHANS.length);
+  });
+
+  it('lists no module that has since been WIRED', () => {
+    // The other half, and the one that had actually gone wrong. `cad/geo/texas-state-plane.ts` sat in
+    // this list after S16b wired it into all four exporters, and every existing check was blind to
+    // it: it is not new, and its file still exists.
+    //
+    // A wired module left on the list is worse than untidy. `never grows the total` compares against
+    // `KNOWN_ORPHANS.length`, so each stale entry silently buys headroom for one genuinely dead
+    // module to appear without failing anything. The allowance has to shrink as the work lands.
+    //
+    // `cad-modules-are-reachable` has always had this check; this file was written without it.
+    const stillDead = new Set(findUnreachable());
+    const wired = KNOWN_ORPHANS
+      .filter((m) => fs.existsSync(path.join(process.cwd(), 'lib', m)))
+      .filter((m) => !stillDead.has(m));
+    expect(
+      wired,
+      wired.length
+        ? `These are listed as unreachable but now have a production importer. Remove them — every ` +
+          `stale entry raises the allowance in "never grows the total" by one:\n  ${wired.join('\n  ')}`
+        : undefined,
+    ).toEqual([]);
+  });
+
+  it('lists no module that has since been deleted', () => {
+    // Added 2026-08-04 (S4c) after this ratchet went on passing with `cad/io/trv-bearings.ts` in its
+    // list for a file that had just been removed. Every other check here asks "is anything NEW
+    // unreachable", and a deleted entry is invisible to all of them: the file cannot appear in
+    // `findUnreachable()`, so it silently pads the allowance instead — each stale entry buying room
+    // for one real orphan to slip in under `never grows the total`.
+    //
+    // Same check `cad-modules-are-reachable` and `no-orphan-modules` already carry. This one was
+    // written without it, and the gap only showed when an entry was finally retired.
+    const gone = KNOWN_ORPHANS.filter(
+      (m) => !fs.existsSync(path.join(process.cwd(), 'lib', m)),
+    );
+    expect(
+      gone,
+      gone.length
+        ? `KNOWN_ORPHANS names ${gone.length} file(s) that no longer exist. Remove them — a stale ` +
+          `entry raises the allowance in "never grows the total" without protecting anything:\n  ` +
+          gone.join('\n  ')
+        : undefined,
+    ).toEqual([]);
   });
 });

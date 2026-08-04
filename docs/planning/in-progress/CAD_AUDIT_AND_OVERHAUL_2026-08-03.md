@@ -2343,3 +2343,46 @@ adjectives:** the file quotes `it.skipIf(` and the dead upload path in its heade
 missed the four `describe.skipIf` blocks entirely. Excluding self and counting both forms gives 19.
 
 CAD suite 3,449 green, 13 still skipped — and now countable.
+
+### ✅ S4c DONE 2026-08-04 — a superseded module deleted, and the ratchet that was quietly padding its own allowance
+
+Following S4b's method — take an inventory entry that asks for a *decision* and make it — the next
+clear one was `lib/cad/io/trv-bearings.ts`, listed as *"superseded by the parser doing it inline"*.
+
+**The supersession was traced before deleting, and it is real in two directions:**
+
+- Bearing maths has a canonical home: `geometry/bearing.ts` (`formatBearing`) and
+  `labels/generate-labels.ts` (`formatBearingForDisplay`, preference-aware). Both tested — 7 other
+  assertions reference `formatBearing`, plus its own `bearing.test.ts`.
+- **TRV segment labels are not computed any more at all.** `io/trv-drawing-elements.ts`
+  (`extractLineLabels`) *reads the labels the `.TRV` file already carries*.
+
+That second point is the interesting half and the reason this is not merely tidying. The deleted
+module derived a label from geometry; the live path takes the instrument's own label. **That is a
+better answer to the question, not just a different implementation** — a recomputed bearing can
+disagree with what the surveyor's software wrote, and the file is the record.
+
+Deleted with its two test files. Recoverable from git.
+
+### ▶ The ratchet was buying itself headroom, twice over
+
+Pruning the entry exposed two gaps in `lib-orphan-ratchet`, both of which let a stale entry sit
+undetected — and a stale entry there is not cosmetic. `never grows the total` compares the live count
+against `KNOWN_ORPHANS.length`, so **every stale entry silently buys room for one genuinely dead
+module to appear without failing anything.**
+
+| gap | what it hid |
+|---|---|
+| No *"file still exists"* check | `cad/io/trv-bearings.ts` stayed listed after deletion, and the suite passed |
+| No *"still actually unreachable"* check | **`cad/geo/texas-state-plane.ts` sat there after S16b wired it into all four exporters** — invisible to every existing assertion, because it is not new and its file still exists |
+
+The second was found by reading the list rather than by any check failing, and confirmed by sweeping
+all 43 entries for a production importer: exactly one had gained one. Both checks now exist, both were
+watched failing, and the list is down to **41**.
+
+`cad-modules-are-reachable` has carried both checks all along — it is what failed loudly when S16b
+wired the zone table. This file was written later, without them. **Two guards for the same class of
+defect, and only one of them complete**, which is the same shape as the two spatial indexes S4b
+deleted.
+
+CAD suite 3,430 green; `tsc` and `eslint` clean.
