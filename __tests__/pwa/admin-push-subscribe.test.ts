@@ -28,6 +28,9 @@ const seed = read('seeds/571_admin_push_subscriptions.sql');
  *  merely DESCRIBES a decision pass as though it implemented one. */
 const seedCode = seed.split('\n').filter((l) => !l.trim().startsWith('--')).join('\n');
 const installPage = read('app/admin/install/page.tsx');
+/** W4c — the transport half. */
+const pushLib = read('lib/push/web-push.ts');
+const statusRoute = read('app/api/admin/push/status/route.ts');
 
 describe('the table keeps its own identity, separate from the studio', () => {
   it('references the admin user table, not the studio one', () => {
@@ -149,6 +152,67 @@ describe('the UI tells the truth about why it cannot help', () => {
     expect(ui).toMatch(/not switched on yet/i);
     expect(ui, 'the explanation should name what is missing, not just say "unavailable"')
       .toMatch(/VAPID|notification keys/i);
+  });
+});
+
+describe('W4c — keys set is not the same as able to send', () => {
+  // The state W6g's fix could not see. `web-push` is deliberately not a dependency of this repo, so
+  // with VAPID keys present and the package absent, EVERY check a browser can make passes: the
+  // public key is there, the worker registers, the subscription saves, and the UI says notifications
+  // are on. `sendPush` returns [] forever and nothing is ever delivered.
+  //
+  // It is the same failure the subscribe route already refuses for its own case — "a row that looks
+  // like an enabled device and can never receive a notification… worse than a visible failure here"
+  // — one layer up, and it is worse than the unconfigured case because the user has actively opted
+  // in and been told yes.
+
+  it('reports the two reasons push cannot send as different answers', () => {
+    // `loadWebPush()` returns null for both, which is right for a sender and useless for a UI: the
+    // remedies are "set two env vars" and "npm i web-push", and telling someone to check keys that
+    // are already correct is how a real problem gets looked past.
+    expect(pushLib).toContain("export type PushStatus = 'ready' | 'no-keys' | 'no-transport';");
+    expect(pushLib).toContain('export function pushTransportInstalled()');
+    // The transport check must NOT be gated on the keys, or it can never observe the state it exists
+    // to observe — that gating is exactly what made `loadWebPush` unable to answer this.
+    const fn = pushLib.slice(pushLib.indexOf('export function pushTransportInstalled'));
+    expect(
+      fn.slice(0, fn.indexOf('}\n\n')),
+      'pushTransportInstalled must not short-circuit on pushConfigured — with no keys it would ' +
+        'report the package missing, which is a different problem with a different fix',
+    ).not.toContain('pushConfigured');
+  });
+
+  it('asks the server before offering the button, not after a subscription exists', () => {
+    // Order is the whole slice. Discovering this after subscribing means the device is already in
+    // the state the subscribe route calls worse than a visible failure.
+    expect(ui).toContain("fetch('/api/admin/push/status')");
+    const effect = ui.slice(ui.indexOf('useEffect(() => {'), ui.indexOf('const subscribe'));
+    expect(
+      effect.indexOf("fetch('/api/admin/push/status')"),
+      'the status check must happen inside the mount effect, before any Enable affordance renders',
+    ).toBeGreaterThan(-1);
+  });
+
+  it('does not collapse no-transport into unconfigured', () => {
+    expect(ui).toContain("state === 'no-transport'");
+    expect(ui, 'name the actual remedy — the person reading it is the one who can run it')
+      .toMatch(/npm i web-push/);
+  });
+
+  it('still works when the status route cannot be reached', () => {
+    // A diagnostic that can break the feature it diagnoses is a worse bug than the one it reports.
+    // On a failed fetch the component falls back to the device check rather than withholding the
+    // button from a deployment that is perfectly capable of sending.
+    expect(ui).toContain('.catch(() => { void decideFromDevice(); })');
+  });
+
+  it('the status route reports a capability and never a key', () => {
+    // A status endpoint is exactly where a secret gets leaked by being helpful.
+    expect(statusRoute).toContain('pushStatus()');
+    expect(statusRoute).not.toMatch(/vapidPrivateKey|PUSH_VAPID_PRIVATE_KEY/);
+    // Session-gated, matching the subscribe route: anyone who can be notified may ask whether
+    // notifications work.
+    expect(statusRoute).toContain("if (!session?.user?.email)");
   });
 });
 

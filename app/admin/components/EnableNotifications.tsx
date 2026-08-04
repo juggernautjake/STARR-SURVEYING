@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
 type State =
-  | 'checking' | 'unconfigured' | 'unsupported' | 'ios-not-installed'
+  | 'checking' | 'unconfigured' | 'no-transport' | 'unsupported' | 'ios-not-installed'
   | 'denied' | 'ready' | 'subscribing' | 'subscribed' | 'error';
 
 /** VAPID keys travel as base64url and `PushManager.subscribe` wants raw bytes. */
@@ -64,11 +64,28 @@ export default function EnableNotifications() {
     if (isIOS() && !isStandalone()) { setState('ios-not-installed'); return; }
     if (Notification.permission === 'denied') { setState('denied'); return; }
 
-    // Already subscribed on this device? Say so rather than offering a button that re-does it.
-    navigator.serviceWorker.getRegistration('/admin/')
-      .then((reg) => reg?.pushManager.getSubscription())
-      .then((sub) => setState(sub ? 'subscribed' : 'ready'))
-      .catch(() => setState('ready'));
+    // W4c — the public key proves the operator set keys, NOT that the server can send. `web-push` is
+    // deliberately not a dependency, so with keys set and the package absent every check above
+    // passes, the browser subscribes, the row saves, and nothing is ever delivered. Asking the
+    // server is the only way to know, and it is asked BEFORE the button is offered rather than
+    // after a subscription exists.
+    const decideFromDevice = () =>
+      navigator.serviceWorker.getRegistration('/admin/')
+        .then((reg) => reg?.pushManager.getSubscription())
+        .then((sub) => setState(sub ? 'subscribed' : 'ready'))
+        .catch(() => setState('ready'));
+
+    fetch('/api/admin/push/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { status?: string } | null) => {
+        if (j?.status === 'no-transport') { setState('no-transport'); return; }
+        if (j?.status === 'no-keys') { setState('unconfigured'); return; }
+        // Unreachable status route (offline, or a deploy without it): fall through to the device
+        // check rather than blocking a working setup on a diagnostic. Withholding the button here
+        // would turn a failed side-question into a broken feature.
+        void decideFromDevice();
+      })
+      .catch(() => { void decideFromDevice(); });
   }, []);
 
   const subscribe = useCallback(async () => {
@@ -130,6 +147,20 @@ export default function EnableNotifications() {
           the server has no notification keys set. Nothing to do on this device; it needs the
           <code> PUSH_VAPID_PUBLIC_KEY</code> and <code>PUSH_VAPID_PRIVATE_KEY</code> environment
           variables set once, by whoever administers the deployment.
+        </p>
+      )}
+
+      {/* W4c. Keys are set, so everything the browser can check says "go" — and the server has no
+          way to send. Deliberately NOT collapsed into `unconfigured`: the remedy is a different
+          command run by the same person, and "set the keys" would send them to look at keys that
+          are already correct. */}
+      {state === 'no-transport' && (
+        <p className="admin-install__muted">
+          Push notifications are <strong>configured but cannot be delivered yet</strong> — the
+          notification keys are set, but the server is missing the <code>web-push</code> package that
+          sends them. Nothing to do on this device. Whoever administers the deployment needs to run
+          <code> npm i web-push</code> and redeploy; turning notifications on before then would say
+          alerts are working when nothing would arrive.
         </p>
       )}
 

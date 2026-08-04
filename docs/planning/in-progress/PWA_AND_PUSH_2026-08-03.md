@@ -603,3 +603,56 @@ alongside 572/573 when `apply-seeds.mjs` runs.
 serving an authenticated page from cache, which W2 refuses by design. The app-shell route that would
 honour both is a real widening of exposure — an unlocked, still-signed-in tablet in a truck — and no
 implementation resolves that tension.
+
+### ✅ W4c DONE 2026-08-04 — keys set is not the same as able to send
+
+W6g fixed the state where a deployment has no VAPID keys and the install page said nothing. **There
+is a second state, and it is worse**, because the user has actively opted in and been told yes.
+
+`web-push` is deliberately not a dependency of this repo. With the keys set and the package absent,
+**every check a browser can make passes**: the public key is there, the worker registers, the
+permission prompt appears, the subscription saves, and the UI says notifications are on. `sendPush`
+returns `[]` forever and nothing is ever delivered.
+
+That is precisely what the subscribe route already refuses on its own terms — *"a row that looks like
+an enabled device and can never receive a notification… the user would believe alerts are on and
+simply never get one, which is worse than a visible failure here"* — **one layer up, where nothing
+was checking.**
+
+#### ▶ Why `loadWebPush()` could not answer this
+
+It returns null for *both* reasons, which is right for a sender and useless for a screen: it starts
+with `if (!pushConfigured()) return null`, so it can never distinguish "no keys" from "no package".
+`pushTransportInstalled()` asks the package question **without** the key gate, and a test pins that
+it does — gating it would make it unable to observe the one state it exists for. `pushStatus()`
+returns one of `ready` / `no-keys` / `no-transport`.
+
+The two remedies are different commands run by the same person: set two env vars, or `npm i
+web-push`. Collapsing them would send someone to check keys that are already correct.
+
+#### ▶ Three decisions inside the fix
+
+1. **Asked before the button is offered, not after subscribing.** Discovering this afterwards leaves
+   the device in exactly the state the subscribe route calls worse than a visible failure.
+2. **A failed status check does not withhold the button.** A diagnostic that can break the feature it
+   diagnoses is a worse bug than the one it reports, so an unreachable route falls through to the
+   device check.
+3. **The route reports a capability and never a key.** A status endpoint is exactly where a secret
+   gets leaked by being helpful. Session-gated, matching subscribe: anyone who can be notified may
+   ask whether notifications work.
+
+`pushTransportInstalled` reuses `loadWebPush`'s `eval('require')` indirection, so it answers correctly
+in the same place the sender does — the node runtime, which is where the route runs.
+
+29 PWA tests green. Two controls: collapsing `no-transport` into `unconfigured`, and gating the
+transport check on `pushConfigured`, each fail by name.
+
+#### ▶ And a type error I shipped four commits ago
+
+`tsc --noEmit` caught `style: {}` in S19a's new CAD test — `FeatureStyle` has eleven required fields.
+It reached `main` because **I ran `tsc` before writing that file and never again**: vitest does not
+typecheck, and `npm run build` does not read test files, so the test passed, the suite was green, and
+the build compiled. Now `{ ...DEFAULT_FEATURE_STYLE }`.
+
+Worth recording as a sequencing rule, not a slip: **`tsc` last, after the tests are written** — it is
+the only one of the three checks that reads them.

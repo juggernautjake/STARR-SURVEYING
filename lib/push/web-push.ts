@@ -86,6 +86,38 @@ export function loadWebPush(): WebPushModule | null {
   }
 }
 
+/**
+ * Is the `web-push` package actually present? Asked WITHOUT the key check, which is the whole point.
+ *
+ * `loadWebPush()` returns null for two unrelated reasons — no VAPID keys, or no package — and a
+ * caller that only sees null cannot tell a deployment that has not been switched on from one that
+ * has been switched on incorrectly. Those need opposite remedies (set two env vars vs `npm i
+ * web-push`), and only the second can happen while the UI is confidently offering an Enable button.
+ */
+export function pushTransportInstalled(): boolean {
+  try {
+    const load = eval('require') as (id: string) => unknown;
+    load('web-push');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** What the deployment can actually do about push, as one word.
+ *
+ *  `no-transport` is the dangerous state and the reason this function exists: the keys are set, so
+ *  every client-side check passes, the browser subscribes, the row saves, and the UI says
+ *  notifications are on — while nothing can ever be sent. That is the same failure the subscribe
+ *  route already refuses on its own terms ("a row that looks like an enabled device and can never
+ *  receive a notification… worse than a visible failure here"), one layer further up. */
+export type PushStatus = 'ready' | 'no-keys' | 'no-transport';
+
+export function pushStatus(): PushStatus {
+  if (!pushConfigured()) return 'no-keys';
+  return pushTransportInstalled() ? 'ready' : 'no-transport';
+}
+
 /** Classify a failure. 404 and 410 are the push service saying the endpoint is dead for good. */
 export function isGone(err: unknown): boolean {
   const status = (err as { statusCode?: number })?.statusCode;

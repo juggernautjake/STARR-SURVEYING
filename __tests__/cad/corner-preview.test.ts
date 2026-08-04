@@ -30,6 +30,7 @@ import { computeFilletPreview, computeChamferPreview, keepEndOf } from '@/lib/ca
 import { filletTwoLines, chamferTwoLines } from '@/lib/cad/operations';
 import { useDrawingStore } from '@/lib/cad/store';
 import { isReservedDrawLayer } from '@/lib/cad/styles/default-layers';
+import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import type { Feature, Point2D } from '@/lib/cad/types';
 
 const line = (id: string, start: Point2D, end: Point2D, layerId: string): Feature => ({
@@ -37,7 +38,12 @@ const line = (id: string, start: Point2D, end: Point2D, layerId: string): Featur
   type: 'LINE',
   geometry: { type: 'LINE', start, end },
   layerId,
-  style: {},
+  // The real default, not `{}`. `FeatureStyle` has eleven required fields, and `{}` is what the
+  // other store-driving tests get away with by casting the whole feature `as never` — which is how
+  // a wrong shape reaches an operation and gets refused for a reason that has nothing to do with
+  // the geometry under test. (`{}` shipped here for one commit: vitest does not typecheck, and
+  // `npm run build` does not read test files, so only `tsc --noEmit` catches it.)
+  style: { ...DEFAULT_FEATURE_STYLE },
   properties: {},
 });
 
