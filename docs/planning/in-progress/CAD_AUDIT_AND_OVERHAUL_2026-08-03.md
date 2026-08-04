@@ -1653,3 +1653,29 @@ investigated, and saying more than was checked is the habit these guards exist t
   `KNOWN_UNREACHABLE` covers them or misses them.
 
 Watched failing by planting a dead module, which both assertions named. `tsc` clean.
+
+#### ▶ Corrected within the hour — the number was 56 because the detector was wrong
+
+Chasing the first cluster the guard flagged, instead of leaving the question open, found the bug
+**in the guard itself**. It matched only `from '…path'`, so **bare side-effect imports were
+invisible**:
+
+```ts
+import '@/lib/hub/themes/register-builtins';   // registers every built-in theme
+import './starr-default';                       // …which each register themselves
+```
+
+That is a real and deliberate pattern — the registrar exists precisely so a consumer can pull the
+whole registry in with one side-effect import — and it made **twelve live modules look dead**: the
+eleven themes plus their registrar.
+
+The original note had offered two possibilities for that cluster, and *"themes are registered by a
+mechanism an import graph cannot see"* was the right one. **The mechanism was an import form the
+regex could not read.**
+
+**Corrected 56 → 44**, the detector now accepts both forms, and it is verified in **both**
+directions: a genuinely dead module is still flagged, and a side-effect-imported one is not.
+
+Sixth structural check broken on first write today, and **the only one already committed when it was
+caught**. A checker that is confidently wrong is worse than no checker, and the way to find out is to
+take one of its answers and chase it.

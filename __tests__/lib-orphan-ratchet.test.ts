@@ -1,11 +1,27 @@
 // A ratchet on unreachable modules across the whole of `lib/`.
 //
 // S18 added a reachability guard for `lib/cad` with a triaged, ten-entry inventory. Running the same
-// sweep over ALL of `lib/` found **56 modules with no production importer, out of 978** — the same
+// sweep over ALL of `lib/` finds **44 modules with no production importer, out of 978** — the same
 // defect that hid `diffFingerprints` in `lib/research/dom-fingerprint` until R10 wired it today.
 //
+// ── THE FIRST VERSION OF THIS FILE SAID 56, AND IT WAS WRONG ────────────────────────────────────
+// It matched only `from '…path'`, so **bare side-effect imports were invisible to it**:
+//
+//     import '@/lib/hub/themes/register-builtins';   // registers every built-in theme
+//     import './starr-default';                       // …which each register themselves
+//
+// That is a real and deliberate pattern — the registrar exists precisely so a consumer can pull the
+// registry in with one side-effect import — and it made twelve live modules look dead: the eleven
+// themes plus their registrar. The first version even flagged that cluster as "worth a look, either
+// the registry is dead or themes register by a mechanism an import graph cannot see". **The second
+// horn was right, and the mechanism was an import this file could not read.**
+//
+// Corrected within the hour, by investigating the cluster instead of leaving the question open. The
+// lesson is the one this codebase keeps paying for: **a checker that is confidently wrong is worse
+// than no checker**, and the way to find out is to take one of its answers and chase it.
+//
 // ── WHY A MEASURED LIST AND NOT A TRIAGED INVENTORY ─────────────────────────────────────────────
-// Giving each of 56 modules a real reason means investigating 56 modules. Writing 46 plausible
+// Giving each of 44 modules a real reason means investigating 44 modules. Writing plausible
 // sentences without doing that would be worse than writing nothing: it would turn an honest backlog
 // into a list that LOOKS reviewed, and the rule this repo keeps relearning is that a reason nobody
 // checked is not a reason. So this records exactly what was measured and leaves the triage as work.
@@ -13,16 +29,11 @@
 // It stores the SET, not a count. A count would let a newly-dead module cancel out a newly-wired one
 // and report no change — which is the failure mode of every metric that averages.
 //
-// ── TWO CLUSTERS IN THE LIST WORTH A LOOK, STATED AS QUESTIONS ──────────────────────────────────
-// Not claims — neither was investigated, and saying more than was checked is the habit this file
-// exists to discourage:
-//
-//   * **`hub/themes/*`** — eleven theme modules plus `register-builtins.ts`, and the registrar is
-//     itself unreachable. Either the whole registry is dead, or themes are registered by a mechanism
-//     an import graph cannot see (a dynamic import, a string key, a build step).
-//   * **`research/prioritized-pipeline{,.service}.ts`** — a pipeline and its service, both
-//     unreferenced, in a subsystem whose own guard (`research-modules-are-reachable`) already exists.
-//     Worth checking whether that guard's `KNOWN_UNREACHABLE` covers them or misses them.
+// ── ONE CLUSTER STILL WORTH A LOOK, STATED AS A QUESTION ────────────────────────────────────────
+// `research/prioritized-pipeline{,.service}.ts` — a pipeline and its service, both unreferenced by
+// either import form, in a subsystem whose own guard (`research-modules-are-reachable`) already
+// exists. Worth checking whether that guard's `KNOWN_UNREACHABLE` covers them or misses them. Not
+// investigated, so not claimed.
 //
 // ── WHAT THIS CANNOT SEE ────────────────────────────────────────────────────────────────────────
 // Reachability by import is not the same as being exercised. `lib/finance/payment-cards` and
@@ -60,19 +71,7 @@ const KNOWN_ORPHANS: readonly string[] = [
   'hub/grid-resize.ts',
   'hub/performance-budget.ts',
   'hub/quick-actions-validator.ts',
-  'hub/themes/forest-light.ts',
-  'hub/themes/high-contrast-dark.ts',
-  'hub/themes/high-contrast-light.ts',
-  'hub/themes/ocean.ts',
-  'hub/themes/plum.ts',
-  'hub/themes/register-builtins.ts',
-  'hub/themes/slate-dark.ts',
-  'hub/themes/slate-light.ts',
-  'hub/themes/starr-dark.ts',
-  'hub/themes/starr-default.ts',
-  'hub/themes/sunset.ts',
   'hub/widget-refresh.ts',
-  'hub/widgets/register-all.ts',
   'learn/trigger-credential.ts',
   'payments/allocation-reports.ts',
   'payments/customer-snapshot.ts',
@@ -129,7 +128,7 @@ function findUnreachable(): string[] {
     const base = path.basename(f).replace(/\.ts$/, '');
     // A barrel is imported by its DIRECTORY name, not "index".
     const needle = base === 'index' ? path.basename(path.dirname(f)) : base;
-    const re = new RegExp(`from\\s+['"][^'"]*${esc(needle)}['"]`);
+    const re = new RegExp(`(?:from|import)\\s+['"][^'"]*${esc(needle)}['"]`);
     let found = false;
     for (const [g, txt] of texts) {
       if (g === f) continue;
