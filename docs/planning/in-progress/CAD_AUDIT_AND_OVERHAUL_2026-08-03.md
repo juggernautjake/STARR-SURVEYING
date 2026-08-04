@@ -1066,3 +1066,52 @@ Recorded verbatim in intent so a later session does not re-scope them.
   S2b fixed the frame cost (269 → 25 ms). Not yet measured: heap growth over a long editing session,
   listener/texture accumulation, and the CAD bundle's load time. The perf overlay measures frames,
   not leaks — this needs a different instrument.
+
+---
+
+### ✅ S13a/S13b DONE 2026-08-04 — and they found the worst bug in the program
+
+**S13a, the inventory.** `ToolBar.tsx` carries **51 distinct tools across 18 palette groups**. Every
+one already has a `label`, an instruction-shaped `description` ("Click start point, then end point to
+draw a solid line segment"), and mostly a keyboard shortcut. The *explanation* layer the owner asked
+for largely exists — so S13c is about arrangement, not about writing text.
+
+**S13b, the mechanics — and the finding.**
+
+> **On a freshly opened `/admin/cad`, nothing you draw appears.**
+
+The line tool showed a correct live readout — `Len: 324.937 ft · Bearing: S 74°30'07" E · ΔN 86.824
+S ΔE 313.122 E` — which is what makes it so bad: the tool looks like it is working. Then no line.
+Three attempts, empty canvas. **Select All reported "3 SELECTED — Editing 3 lines together."**
+
+The features were being created, stored and selected, and never rendered.
+
+`createFeature` stamps `layerId: activeLayerId`, and the store's **initial state** hardcoded
+`activeLayerId: ''`, so every feature landed on a layer that does not exist —
+and `getVisibleFeatures` drops exactly those (`if (!layer) return false`), the same predicate behind
+S8c.
+
+**The part worth keeping is that this bug was already known and already fixed — in the wrong
+places.** `newDocument()` carries a comment from `cad-domain-audit` Slice D:
+
+> *"newDocument used to leave the active layer as the empty string, so the very first geometry the
+> surveyor placed landed on `layerId: ''` and was orphaned."*
+
+That fix went into `newDocument` and `loadDocument`. It did not go into the **initial state** — the
+path that runs when you just open the editor, which is the most common entry point in the whole
+program. A fix applied to the derived paths and not to the default one is a distinct failure shape
+from the four already catalogued here, and it survived because every test that exercised the store
+called `newDocument()` first, i.e. tested its way *around* the broken path.
+
+Also fixed: the hidden-layer and locked-layer guards in the draw handler are both written
+`if (activeLayer && …)`, so an empty or dangling `activeLayerId` slipped past both. There is now a
+`!activeLayer` branch — it adopts the first layer and says so, or refuses when the drawing genuinely
+has no layers. Second line of defence only; the store seeding is the fix.
+
+4 regression tests, including the one that matters: a feature stamped with the active layer survives
+`getVisibleFeatures`, **and** a feature on a non-existent layer does not — without the second half,
+the test would still pass if the renderer simply stopped filtering. The seeding assertion was watched
+failing.
+
+**Verified in the browser:** fresh load shows `Layer: Survey Info` instead of `Layer: —`, and a line
+and a point both draw.

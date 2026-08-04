@@ -10027,6 +10027,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       if (activeTool.startsWith('DRAW_')) {
         const dStore = useDrawingStore.getState();
         const activeLayer = dStore.document.layers[dStore.activeLayerId];
+        // S13 — no valid active layer at all. Both guards below are written `if (activeLayer && …)`,
+        // so an EMPTY or dangling `activeLayerId` slipped past both and the geometry was created on
+        // `layerId: ''` — where `getVisibleFeatures` silently drops it. The store now seeds a real
+        // active layer, which is the actual fix; this is the second line of defence for a document
+        // whose layers were all deleted, because "the drawing tool did nothing and said nothing" is
+        // the single worst failure this editor can present.
+        if (!activeLayer) {
+          const first = dStore.document.layerOrder[0];
+          if (first) {
+            dStore.setActiveLayer(first);
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: `No layer was active — drawing on "${dStore.document.layers[first]?.name ?? first}". Pick a different layer in the Layers panel if that is not where this belongs.` },
+            }));
+          } else {
+            window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+              detail: { text: 'This drawing has no layers, so there is nowhere to put new geometry. Create one with "New Layer" in the Layers panel first.' },
+            }));
+            return;
+          }
+        }
         if (activeLayer && activeLayer.visible === false) {
           window.dispatchEvent(new CustomEvent('cad:commandOutput', {
             detail: { text: `Layer "${activeLayer.name}" is hidden — you can't draw on it. Unhide it in the Layers panel, or pick a different (visible) active layer first.` },
