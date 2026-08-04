@@ -106,6 +106,44 @@ export const REMAINING_COUNTY_SURVEY: Record<string, CountySurvey> = {
       'appears to have NO online land-records portal — a different fact from "we have not found it". ' +
       'The path here is TexasFile or the courthouse in Giddings.',
   },
+  // ── The owner's last two counties without a free route (R38, 2026-08-04) ────────────────────
+  //
+  // Of the thirteen counties the owner's place list resolved to, eleven route to a proven free
+  // vendor. Harrison and Trinity fell through to TexasFile — which answers, but is a paywall we
+  // have no credentials for. Both were hunted the R39 way: from the county's own clerk page.
+  Harrison: {
+    fips: '48203',
+    status: 'open_partial',
+    url: 'https://kofilequicklinks.com/Harrison/',
+    freeCoverage: '1880–1907 index books, WITH A HOLE at 1888–1896 (Deeds, Deed of Trust, Probate Minutes)',
+    blocker:
+      'Modern records are not free online. The clerk page offers only eRecording SUBMISSION vendors ' +
+      '(CSC, Simplifile, EPN, Indecomm) — those file documents, they do not search them.',
+    note:
+      'FOUND 2026-08-04. Kofile QuickLink, the same free historical product Bosque has, and it opens ' +
+      'with NO login — party search by last/first name, plus direct Book/Volume/Page retrieval. ' +
+      'THE COUNTY OVERSTATES ITS OWN COVERAGE: the clerk page advertises "Land Records 1840-1920"; ' +
+      'the portal\'s own year dropdown offers 1880-1884, 1884-1888, 1896-1899, 1899-1902, 1902-1904, ' +
+      '1904-1905, 1905-1907. That is 1880–1907, not 1840–1920, and 1888–1896 is missing from the ' +
+      'middle. Quote the dropdown, never the banner. ' +
+      'Also on that page and NOT land records: portal-txharrison.tylertech.cloud is Odyssey judicial ' +
+      'and probate — the same trap iDocket set — and http://eagle1:8080/kiosk is an in-office kiosk ' +
+      'on a hostname only reachable inside the courthouse.',
+  },
+  Trinity: {
+    fips: '48455',
+    status: 'no_online_portal',
+    url: 'https://www.co.trinity.tx.us/page/trinity.County.Clerk2',
+    note:
+      'FOUND 2026-08-04 — or rather, confirmed absent. The County Clerk page carries no records ' +
+      'search of any kind: its external links are the appraisal district, online PAYMENTS, vital ' +
+      'records ordering and general county resources. kofilequicklinks.com/Trinity is a hard 404, so ' +
+      'it is not on the free Kofile product either. ' +
+      'This is the same conclusion as Lee and San Saba, reached the same way, and it is a claim about ' +
+      'Trinity County rather than about our search. What would overturn it: a vendor portal linked ' +
+      'from somewhere other than the clerk page, or the clerk publishing one. TexasFile or the ' +
+      'courthouse in Groveton until then.',
+  },
   'San Saba': {
     fips: '48411',
     status: 'no_online_portal',
@@ -227,6 +265,55 @@ export function bosqueGapWarning(year: number): string | null {
     `iDocMarket begins 2012. BOTH will return nothing, and two empty results are not evidence the ` +
     `deed does not exist. Records for ${BOSQUE_GAP.from}–${BOSQUE_GAP.to} must be obtained from the ` +
     `clerk in Meridian or through a paid iDocMarket subscription.`
+  );
+}
+
+/** What Harrison's free index actually covers — read off the portal's own dropdown, 2026-08-04.
+ *
+ *  The clerk page advertises "Land Records 1840-1920". The portal offers seven ranges spanning
+ *  1880–1907, with 1888–1896 absent from the middle. The banner is wrong at both ends and in the
+ *  middle, and quoting it would tell a surveyor a deed should be there when it cannot be.
+ *
+ *  Same lesson as Falls's coverage banner and the USLR `disputedFrom` cases: when a county's prose
+ *  and its data disagree, the data is what exists. */
+export const HARRISON_QUICKLINK_RANGES = [
+  { from: 1880, to: 1884 },
+  { from: 1884, to: 1888 },
+  { from: 1896, to: 1899 },
+  { from: 1899, to: 1902 },
+  { from: 1902, to: 1904 },
+  { from: 1904, to: 1905 },
+  { from: 1905, to: 1907 },
+] as const;
+
+export const HARRISON_CLAIMED_COVERAGE = { from: 1840, to: 1920 } as const;
+
+/** Is this year inside a range the Harrison portal actually serves? */
+export function harrisonYearIsIndexed(year: number): boolean {
+  return HARRISON_QUICKLINK_RANGES.some((r) => year >= r.from && year <= r.to);
+}
+
+/**
+ * Warn when a Harrison search year is outside the free index.
+ *
+ * Returns null when the year IS covered, so a caller can use the presence of a warning as the
+ * signal. Distinguishes the three ways a year can be missing, because they are different facts:
+ * before the index starts, after it ends, and the hole in the middle that the county's own banner
+ * denies exists.
+ */
+export function harrisonCoverageWarning(year: number): string | null {
+  if (harrisonYearIsIndexed(year)) return null;
+
+  const where =
+    year < 1880 ? `before the free index begins (its earliest book is 1880, NOT the ${HARRISON_CLAIMED_COVERAGE.from} the clerk page claims)`
+    : year > 1907 ? `after the free index ends (its latest book is 1907, NOT the ${HARRISON_CLAIMED_COVERAGE.to} the clerk page claims)`
+    : 'inside the 1888–1896 gap between the portal\'s own index books';
+
+  return (
+    `Harrison: ${year} is ${where}. A search will return nothing, and that nothing is a fact about ` +
+    `the free index rather than about the land. Modern records are not online free here — the clerk ` +
+    `page lists only eRecording SUBMISSION vendors, which file documents and do not search them. ` +
+    `Use TexasFile or the clerk in Marshall.`
   );
 }
 

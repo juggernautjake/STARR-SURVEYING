@@ -73,7 +73,7 @@ that *no* county of an unproven vendor routes to it.
 |---|---|---|
 | ~~R14~~ | **DONE 2026-08-03** — errands run by citation, five outcomes, and "could not be searched" never reported as "not found" | — |
 | ~~R18~~ | **DONE 2026-08-02** — one assessor, enforced on both paths | — |
-| R38 | Prove the remaining vendors the way Kofile was proven: locate each portal from the county's own site, drive it, read the DOM | Blocked per county on finding the portal; the Tyler/Henschen/iDocket/Fidlar URL patterns are all dead |
+| ~~R38~~ | **DONE 2026-08-04.** Measured: 11 of the 13 counties the owner named already route to a proven FREE vendor (7 Kofile, 2 Tyler Eagle, 1 eDocTec, 1 Avenu). The two that did not — Harrison and Trinity — were hunted from their own clerk pages. Harrison has a free Kofile QuickLink whose real coverage is 1880–1907 with a 1888–1896 hole, against a banner claiming 1840–1920; Trinity has no online portal at all. Neither is routed, and both say why | The remaining vendor work is not findable offline: Henschen, iDocket and Fidlar were browser-confirmed dead, Limestone needs credentials, Hays is captcha-refused |
 | R39 | Hunt each remaining county's portal individually — the only method left once no URL pattern generalises | 3 unknown vendors found + driven: eDocTec (Coryell, Lampasas), Tyler Eagle (9 incl. McLennan/Waco), Avenu 20/20 (Falls, Robertson). Verified counties 7 → 20. **Hays closed 2026-08-04** — located (Tyler Eagle on a county-owned host the pattern cannot produce) and REFUSED: reCAPTCHA gates the disclaimer, so per R12 it stays unrouted. No county in the survey is now merely 'not found' |
 | ~~R25~~ | **DONE 2026-08-03** — the picker was already built (stale item); page images embedded, with every absence stated. Annotated drawings deferred: needs a server-side raster of R24's layers, a canvas job rather than a packet one | — |
 | R13 | TitlePoint/DataTree-class vendors and Regrid behind the purchase interface | Larger than a slice; the library and cost policy they plug into are done |
@@ -4530,3 +4530,36 @@ a future edit cannot "fix" Hays by undoing a policy.
 **Remaining after this: nothing findable offline.** Lee and San Saba publish nothing online,
 Limestone needs credentials, Bosque is routed with its gap stated, Bastrop is driven. Worker 1,567
 green.
+
+#### R38 closed — the owner's last two counties, and one county that misdescribes itself
+
+Measured rather than assumed: of the **thirteen counties** the owner's place list resolved to,
+**eleven already route to a proven free vendor** — 7 Kofile, 2 Tyler Eagle, 1 eDocTec, 1 Avenu.
+Only **Harrison** and **Trinity** fell through to TexasFile, which answers but is a paywall we have
+no credentials for. Both were hunted the R39 way, from the county's own clerk page.
+
+**Harrison has a free portal, and the county overstates it.** `kofilequicklinks.com/Harrison/` opens
+with **no login** — party search plus direct Book/Volume/Page — the same product Bosque has. The
+clerk page advertises *"Land Records 1840-1920"*. The portal's own year dropdown offers seven index
+books: 1880–1884, 1884–1888, **1896**–1899, 1899–1902, 1902–1904, 1904–1905, 1905–1907.
+
+That is **1880–1907, not 1840–1920, with 1888–1896 missing from the middle** — wrong at both ends
+and in the centre. A continuous-looking range that is not continuous is the worst shape of this
+defect: nothing on screen suggests the hole, so a surveyor is told a deed should be there when it
+cannot be. `harrisonCoverageWarning()` distinguishes all three cases, because "before the index
+starts", "after it ends" and "in the gap the banner denies" are different facts.
+
+Two things on that page that are **not** land records, recorded so nobody re-finds them:
+`portal-txharrison.tylertech.cloud` is Odyssey judicial and probate — the trap iDocket set — and
+`http://eagle1:8080/kiosk` is an in-office kiosk on a hostname only resolvable inside the courthouse.
+The eRecording links (CSC, Simplifile, EPN, Indecomm) **file** documents; they do not search them.
+
+**Trinity has no online portal.** Its County Clerk page carries no records search of any kind — the
+external links are the appraisal district, online payments and vital-records ordering — and
+`kofilequicklinks.com/Trinity` is a hard 404. That is the same conclusion as Lee and San Saba,
+reached the same way, and it is a claim about Trinity County rather than about our search. What
+would overturn it is written down: a vendor portal linked from somewhere other than the clerk page,
+or the clerk publishing one.
+
+Neither is routed. Harrison's free window is historical-only with no adapter, and saying otherwise
+would be the routing table claiming a county it cannot serve. Worker 1,579 green.
