@@ -37,7 +37,7 @@
 }
 
 .contact-hero__card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -75,7 +75,7 @@
    ============================================================================= */
 .contact-info {
   padding: 4rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -316,7 +316,7 @@ a.contact-info__card-value:hover {
 
 /* Form Styles */
 .contact-form {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 2rem;
   border: 2px solid var(--border-color);
@@ -371,7 +371,7 @@ a.contact-info__card-value:hover {
   padding: 0.75rem 1rem;
   border: 2px solid var(--border-color);
   border-radius: var(--radius-md);
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-dark);
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   width: 100%;
@@ -388,7 +388,7 @@ a.contact-info__card-value:hover {
 
 .contact-form__input::placeholder,
 .contact-form__textarea::placeholder {
-  color: #9CA3AF;
+  color: var(--theme-fg-muted, #9CA3AF);
 }
 
 .contact-form__textarea {
@@ -548,7 +548,7 @@ a.contact-info__card-value:hover {
    ============================================================================= */
 .contact-area {
   padding: 3rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -680,7 +680,7 @@ a.contact-info__card-value:hover {
 }
 
 .contact-cta__btn--primary {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }
@@ -698,7 +698,7 @@ a.contact-info__card-value:hover {
 }
 
 .contact-cta__btn--secondary:hover {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);

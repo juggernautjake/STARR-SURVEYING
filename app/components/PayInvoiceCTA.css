@@ -11,7 +11,7 @@
   gap: 1rem;
   border-radius: 14px;
   text-align: left;
-  color: #1F2937;
+  color: var(--theme-fg-primary, #1F2937);
 }
 
 /* ── Ribbon — full-width hero-style bar ───────────────────────────── */
@@ -38,7 +38,7 @@
 .pay-cta--ribbon .pay-cta__body {
   margin: 0;
   font-size: 0.95rem;
-  color: #4B5563;
+  color: var(--theme-fg-secondary, #4B5563);
   line-height: 1.5;
   max-width: 56ch;
 }
@@ -60,7 +60,7 @@
   margin: 0;
   font-weight: 600;
   font-size: 0.88rem;
-  color: #1F2937;
+  color: var(--theme-fg-primary, #1F2937);
 }
 
 .pay-cta--inline .pay-cta__body { display: none; }
@@ -89,7 +89,7 @@
 .pay-cta--chip .pay-cta__body {
   margin: 0;
   font-size: 0.78rem;
-  color: #4B5563;
+  color: var(--theme-fg-secondary, #4B5563);
 }
 
 /* ── Shared CTA link styling ──────────────────────────────────────── */

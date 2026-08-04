@@ -31,7 +31,7 @@
   --theme-fg-muted:       #64748B;
   --theme-accent:         #1D3095;
   --theme-accent-fg:      #FFFFFF;
-  --theme-border:         #E2E8F0;
+  --theme-border:         var(--theme-border, #E2E8F0);
   --theme-border-strong:  #94A3B8;
   --theme-success:        #10B981;
   --theme-warning:        #F59E0B;
@@ -54,7 +54,7 @@
   --theme-fg-muted:       #64748B;
   --theme-accent:         #1D3095;
   --theme-accent-fg:      #FFFFFF;
-  --theme-border:         #E2E8F0;
+  --theme-border:         var(--theme-border, #E2E8F0);
   --theme-border-strong:  #94A3B8;
   --theme-success:        #10B981;
   --theme-warning:        #F59E0B;

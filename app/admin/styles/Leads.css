@@ -24,7 +24,7 @@
   padding: 1rem;
   padding-left: calc(1rem + 4px); /* leave room for the accent bar */
   background: var(--color-bg-card);
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 0.5rem;
   transition: border-color 120ms ease, box-shadow 120ms ease;
   min-height: 9rem;
@@ -134,7 +134,7 @@
   padding: 0 0.85rem;
   height: 34px;
   border-radius: 0.45rem;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   background: var(--color-bg-card);
   color: var(--color-text-primary, #111827);
   font-size: 0.78rem;
@@ -173,7 +173,7 @@
   font-size: 0.78rem;
   padding: 0 0.55rem;
   border-radius: 0.45rem;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   background: var(--color-bg-card);
   color: var(--color-text-primary, #111827);
   /* Match the buttons' explicit height so the toolbar row reads as

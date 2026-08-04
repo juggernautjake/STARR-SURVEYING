@@ -36,7 +36,7 @@
   border-radius: 6px;
   font-size: 0.9rem;
   line-height: 1.2;
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
   box-sizing: border-box;
 }
 .audit-filters input[type="text"]:focus {
@@ -51,7 +51,7 @@
   border-radius: 6px;
   font-size: 0.9rem;
   line-height: 1.2;
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
   box-sizing: border-box;
   /* Reset the native chevron + draw our own with the right room so
    * the text below the baseline never bumps the caret. */
@@ -85,7 +85,7 @@
   width: 100%;
   border-collapse: collapse;
   font-size: 0.85rem;
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
   border: 1px solid var(--color-border, #E5E7EB);
   border-radius: 8px;
   overflow: hidden;

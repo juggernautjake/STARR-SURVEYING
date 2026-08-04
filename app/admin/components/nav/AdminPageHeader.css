@@ -16,7 +16,7 @@
   border-bottom: 1px solid #EEF0F4;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 0.78rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -40,9 +40,9 @@
   flex-shrink: 0;
   height: 26px;
   padding: 0 0.5rem 0 0.3rem;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 6px;
-  background: #FFF;
+  background: var(--theme-bg-surface, #FFF);
   color: var(--color-brand-navy, #1d3095);
   font-size: 0.74rem;
   font-weight: 500;
@@ -52,7 +52,7 @@
 }
 
 .admin-page-header__back:hover {
-  background: #F3F4F6;
+  background: var(--theme-bg-elevated, #F3F4F6);
   border-color: #D1D5DB;
 }
 
@@ -87,7 +87,7 @@
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   text-decoration: none;
 }
 
@@ -113,9 +113,9 @@
   width: 40px;
   height: 40px;
   border-radius: 6px;
-  border: 1px solid #E5E7EB;
-  background: #FFF;
-  color: #9CA3AF;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-muted, #9CA3AF);
   cursor: pointer;
   transition: color 0.15s, background 0.15s, border-color 0.15s;
 }

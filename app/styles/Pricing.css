@@ -40,7 +40,7 @@
 }
 
 .pricing-hero__card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -158,7 +158,7 @@
 }
 
 .pricing-calculator-highlight__badge {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-green-dark);
   font-family: 'Sora', sans-serif;
   font-size: 0.7rem;
@@ -209,7 +209,7 @@
    ============================================================================= */
 .pricing-calculator {
   padding: 1.5rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -325,7 +325,7 @@
 
 /* Calculator Form */
 .pricing-calculator__form {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: 10px;
   padding: 1.5rem;
   border: 2px solid var(--border-color);
@@ -360,7 +360,7 @@
   font-size: 0.9rem;
   border: 2px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-dark);
   transition: border-color var(--transition-fast);
   box-sizing: border-box;
@@ -373,7 +373,7 @@
 }
 
 .pricing-calculator__input::placeholder {
-  color: #9CA3AF;
+  color: var(--theme-fg-muted, #9CA3AF);
 }
 
 .pricing-calculator__checkboxes {
@@ -625,7 +625,7 @@
 .pricing-grid__note {
   margin-top: 1.5rem;
   padding: 1rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-md);
   border-left: 4px solid var(--text-muted);
 }
@@ -640,7 +640,7 @@
 
 /* Pricing Card */
 .pricing-card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: 10px;
   padding: 1.5rem;
   border: 2px solid var(--border-color);
@@ -727,7 +727,7 @@
    ============================================================================= */
 .pricing-factors {
   padding: 3.5rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -818,7 +818,7 @@
 }
 
 .pricing-volume__card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 2rem;
   text-align: center;
@@ -995,7 +995,7 @@
 }
 
 .pricing-cta__btn--primary {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }
@@ -1013,7 +1013,7 @@
 }
 
 .pricing-cta__btn--secondary:hover {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -1024,7 +1024,7 @@
    ============================================================================= */
 .pricing-bottom-disclaimer {
   padding: 1.5rem 2rem;
-  background: #F3F4F6;
+  background: var(--theme-bg-elevated, #F3F4F6);
   border-top: 2px solid var(--border-color);
   overflow-x: hidden;
 }

@@ -24,7 +24,7 @@
 
 .cmdk-modal {
   width: min(640px, 100%);
-  background: #FFF;
+  background: var(--theme-bg-surface, #FFF);
   border-radius: 12px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   display: flex;
@@ -39,15 +39,15 @@
   align-items: center;
   gap: 0.65rem;
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
 }
 
 .cmdk-search__icon {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.72rem;
   font-weight: 600;
-  color: #6B7280;
-  background: #F3F4F6;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-elevated, #F3F4F6);
   padding: 0.2rem 0.4rem;
   border-radius: 4px;
 }
@@ -62,15 +62,15 @@
 }
 
 .cmdk-search__input::placeholder {
-  color: #9CA3AF;
+  color: var(--theme-fg-muted, #9CA3AF);
 }
 
 .cmdk-search__hint {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.7rem;
-  color: #6B7280;
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-elevated, #F3F4F6);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-bottom-width: 2px;
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
@@ -93,7 +93,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   padding: 0.4rem 1rem 0.25rem;
 }
 
@@ -110,7 +110,7 @@
   cursor: pointer;
   font-family: inherit;
   font-size: 0.88rem;
-  color: #1F2937;
+  color: var(--theme-fg-primary, #1F2937);
 }
 
 .cmdk-row:hover,
@@ -127,7 +127,7 @@
 .cmdk-row__meta {
   flex: 1 1 auto;
   font-size: 0.78rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   text-align: right;
   white-space: nowrap;
   overflow: hidden;
@@ -141,7 +141,7 @@
 .cmdk-empty {
   padding: 1.25rem 1rem;
   font-size: 0.88rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   text-align: center;
 }
 
@@ -150,17 +150,17 @@
   align-items: center;
   gap: 1rem;
   padding: 0.5rem 1rem;
-  border-top: 1px solid #E5E7EB;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
   background: #FAFAFA;
   font-size: 0.72rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 .cmdk-footer kbd {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.68rem;
-  background: #FFF;
-  border: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface, #FFF);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-bottom-width: 2px;
   padding: 0.1rem 0.3rem;
   border-radius: 4px;

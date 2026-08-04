@@ -60,7 +60,7 @@
 .email-compose__field input,
 .email-compose__field textarea {
   width: 100%;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: var(--radius-md);
   background: var(--color-bg-input);
   color: var(--color-text-primary);
@@ -97,7 +97,7 @@
 .email-sent__empty { color: var(--color-text-tertiary); font-size: var(--text-sm); }
 .email-sent__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
 .email-sent__row {
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: var(--radius-md);
   padding: var(--space-3);
   background: var(--color-bg-card, #fff);
@@ -126,7 +126,7 @@
 /* EM3 — template picker */
 .email-compose__template-select {
   width: 100%;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: var(--radius-md);
   background: var(--color-bg-input);
   color: var(--color-text-primary);
@@ -157,7 +157,7 @@
 .email-compose__to-row input { flex: 1; min-width: 0; }
 .email-compose__pick-btn {
   flex: 0 0 auto;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   background: var(--color-bg-input);
   color: var(--color-brand-navy);
   border-radius: var(--radius-md);
@@ -171,14 +171,14 @@
 .email-compose__pick-btn:hover { border-color: var(--color-brand-navy); }
 .email-compose__picker {
   margin-top: var(--space-2);
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: var(--radius-md);
   background: var(--color-bg-card, #fff);
   overflow: hidden;
 }
 .email-compose__picker-tabs {
   display: flex;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
 }
 .email-compose__picker-tab {
   flex: 1;
@@ -200,7 +200,7 @@
 .email-compose__picker-search {
   width: 100%;
   border: none;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
   padding: var(--space-2) var(--space-3);
   min-height: 44px;
   font: inherit;

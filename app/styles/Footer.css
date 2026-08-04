@@ -242,7 +242,7 @@
 }
 
 .footer__cta:hover {
-  background-color: #FFFFFF;
+  background-color: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
@@ -265,7 +265,7 @@
 }
 
 .footer__cta--pay:hover {
-  background-color: #FFFFFF;
+  background-color: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-blue, #1d4ed8);
 }
 
@@ -388,7 +388,7 @@
 }
 
 .footer__reviews-link:hover {
-  background-color: #FFFFFF;
+  background-color: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   border-color: #FFFFFF;
 }
@@ -1271,7 +1271,7 @@
 }
 
 .review-widget__btn--primary:hover {
-  background-color: #FFFFFF;
+  background-color: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -1312,7 +1312,7 @@
 }
 
 .review-widget__qr-box {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   padding: 12px;
   border-radius: var(--radius-sm);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);

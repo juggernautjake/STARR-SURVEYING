@@ -31,9 +31,9 @@
 .ws-landing__shortcut {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.78rem;
-  color: #6B7280;
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-elevated, #F3F4F6);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-bottom-width: 2px;
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
@@ -42,7 +42,7 @@
 .ws-landing__subtitle {
   margin: 0 0 1.5rem;
   font-size: 0.9rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 /* At-a-glance strip (platform audit §2.1 — the "Phase 4 widgets" the subtitle
@@ -102,9 +102,9 @@
 .ws-landing__empty {
   padding: 1rem;
   font-size: 0.88rem;
-  color: #6B7280;
-  background: #F9FAFB;
-  border: 1px solid #E5E7EB;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 8px;
 }
 
@@ -136,9 +136,9 @@
   flex-direction: column;
   gap: 0.25rem;
   padding: 0.95rem 1.1rem;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 8px;
-  background: #FFF;
+  background: var(--theme-bg-surface, #FFF);
   text-decoration: none;
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
 }
@@ -152,7 +152,7 @@
 .ws-landing__card-label {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #1F2937;
+  color: var(--theme-fg-primary, #1F2937);
 }
 
 .ws-landing__card:hover .ws-landing__card-label {
@@ -161,5 +161,5 @@
 
 .ws-landing__card-meta {
   font-size: 0.8rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }

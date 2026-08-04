@@ -57,7 +57,7 @@
   --radius-pill: 999px;   /* pills, status chips */
 
   /* ── Borders ───────────────────────────────────────────────────────── */
-  --border-light:  1px solid #E5E7EB;   /* subtle dividers */
+  --border-light:  1px solid var(--theme-border, #E5E7EB);   /* subtle dividers */
   --border-normal: 1px solid #D1D5DB;   /* inputs, buttons */
   --border-strong: 1px solid #9CA3AF;   /* emphasis */
   --border-focus:  2px solid #1D3095;   /* :focus ring */
@@ -81,7 +81,7 @@
    * shorthands (`1px solid …`), which cannot be used where only the colour
    * varies — `border-bottom-color`, a one-sided rule, a dashed divider. Every
    * such place was writing #E5E7EB inline instead. (Platform audit item 17.) */
-  --color-border:        #E5E7EB;
+  --color-border:        var(--theme-border, #E5E7EB);
   --color-border-strong: #D1D5DB;
 
   /* Surface aliases. `--color-bg-card` is the same white; these names exist

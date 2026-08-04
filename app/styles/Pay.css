@@ -53,7 +53,7 @@
   position: sticky;
   top: 0;
   z-index: 20;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-bottom: 1px solid #E4E7EE;
   box-shadow: 0 2px 8px rgba(21, 32, 80, 0.04);
 }
@@ -132,7 +132,7 @@
 .pay-skeleton__title { width: 70%; height: 26px; }
 .pay-skeleton__pill { width: 35%; height: 22px; border-radius: 999px; }
 .pay-skeleton__card {
-  background: #ffffff;
+  background: var(--theme-bg-surface, #ffffff);
   border-radius: 14px;
   border: 1px solid #e4e7ee;
   padding: 1.25rem 1.5rem;
@@ -167,7 +167,7 @@
 .pay-hero--compact { padding-bottom: 2rem; }
 
 .pay-hero__card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: 16px;
   padding: 2rem 1.5rem;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
@@ -222,7 +222,7 @@
   border: 2px solid var(--brand-blue, #1D3095);
   border-radius: 10px;
   color: var(--brand-blue, #1D3095);
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
   font-weight: 700;
   text-decoration: none;
   transition: background 0.15s ease, color 0.15s ease;
@@ -257,7 +257,7 @@
   padding: 0.85rem 1rem;
   border: 2px solid var(--brand-blue, #1D3095);
   border-radius: 10px;
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
   color: var(--brand-dark, #152050);
   letter-spacing: 0.04em;
 }
@@ -341,7 +341,7 @@
 }
 
 .pay-card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: 14px;
   padding: 1.5rem;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
@@ -439,7 +439,7 @@
   border: 2px solid #E4E7EE;
   border-radius: 10px;
   padding: 0.5rem 0.75rem;
-  background: #FFF;
+  background: var(--theme-bg-surface, #FFF);
   max-width: 14rem;
   font-size: 1.15rem;
   font-weight: 600;
@@ -546,7 +546,7 @@
   padding: 0.6rem 0.75rem;
   border: 1px solid #d6d9e3;
   border-radius: 8px;
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
 }
 .pay-methods__confirm-email input:focus {
   outline: 2px solid rgba(29, 48, 149, 0.25);
@@ -667,7 +667,7 @@
   padding: 0.5rem 0.75rem;
   border: 1px solid #d6d9e3;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--theme-bg-surface, #ffffff);
   cursor: pointer;
 }
 .pay-methods__pledge-delivery label:hover { border-color: var(--brand-blue, #1D3095); }
@@ -731,7 +731,7 @@
   padding: 0.7rem 0.85rem;
   border: 1px solid #d6d9e3;
   border-radius: 10px;
-  background: #ffffff;
+  background: var(--theme-bg-surface, #ffffff);
 }
 .pay-paid__receipt-input:focus {
   outline: 2px solid rgba(31, 109, 60, 0.25);
@@ -769,7 +769,7 @@
   display: inline-block;
   margin: 0.5rem 0 0.85rem;
   padding: 0.6rem 0.95rem;
-  background: #ffffff;
+  background: var(--theme-bg-surface, #ffffff);
   border: 2px solid #1f6d3c;
   color: #1f6d3c;
   text-decoration: none;

@@ -948,3 +948,42 @@ the echo. Eight assertions; the control deletes the listener and fails by name. 
 found its own bug on first run (`indexOf` matched the *import*, not the call).
 
 22,679 tests pass; `tsc`, `eslint` and `npm run build` clean.
+
+### ✅ W9f DONE 2026-08-04 — the sweep finished, and it themed a print stylesheet
+
+36 more stylesheets converted with the same round-trip proof. **4,199 → 2,291 hardcoded, 0 → 2,427
+themed.** Eight sheets that the first pass missed entirely had zero theme variables and real page
+surfaces: assignments, discussions, my-notes, schedule, users, login, calendar, command palette.
+
+After it, exactly **one** file over five declarations still had no theme variable at all —
+`AdminAssistant.css`, whose six colours are all amber/red status tints, which are deliberately never
+mapped. The sweep is finished, not abandoned.
+
+#### ▶ It themed a print stylesheet, and three tests caught it
+
+`background: #FFF` inside `@media print` became `var(--theme-bg-surface, #FFF)`. **Paper is not
+themed.** A dark palette would print a black page, and the calendar's print block exists precisely to
+force white background and black text *regardless* of what is on screen — the one context where
+"follow the user's theme" is exactly wrong.
+
+Six declarations across two files reverted to literals. The count therefore went **2,291 → 2,297**,
+and the ratchet was raised to match with the reason recorded: **this number's floor is not zero.**
+Print blocks, brand colours, status colours and white-on-dark button text are all correctly
+hardcoded, and a ratchet implying otherwise would push somebody to convert the six that must not be.
+
+The revert script found nothing on its first run — it handled the **first** `@media print` block and
+`Calendar.css` has three. Same first-match trap as the CSS rule earlier today; found by the tests
+still failing rather than by reading the script.
+
+#### ▶ And one test was pinning a literal that should follow the theme
+
+The cheat-sheet `<kbd>` border asserted `border: 1px solid #E5E7EB`. Themed, that keycap edge stops
+glowing light-grey on a dark modal — a genuine improvement, so the test was updated to require the
+themed form **with the literal still present as its fallback**, keeping the assertion about the
+appearance rather than about a variable existing.
+
+Two opposite calls in one stylesheet, in one pass: **the keycap should follow the theme and the
+printout must not.** No find-and-replace can know the difference, which is the honest reason the
+remaining 2,297 are one-at-a-time work.
+
+22,679 tests pass; `tsc`, `eslint` and `npm run build` clean.

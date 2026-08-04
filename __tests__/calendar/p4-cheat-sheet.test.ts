@@ -96,7 +96,17 @@ describe('Calendar.css — P4 modal styling', () => {
 
   it('<kbd> chip uses mono font + subtle border for the keycap look', () => {
     expect(CSS).toMatch(
-      /\.calendar-page__cheat-sheet-list kbd \{[\s\S]*?font-family: var\(--font-mono\);[\s\S]*?border: 1px solid #E5E7EB;/,
+      // The border is now `var(--theme-border, #E5E7EB)` — themed, with the original literal as its
+      // fallback, so the default look is byte-identical and a dark palette does not leave a
+      // light-grey keycap edge glowing on a dark modal. The literal is still required to be present
+      // as the fallback, which is what keeps this assertion about the *appearance* rather than
+      // merely about a variable existing.
+      //
+      // NOTE the contrast with the print block in the same stylesheet, reverted in the same pass:
+      // paper is deliberately NOT themed, because a dark palette would print a black page. "Follows
+      // the theme" is right for a keycap and wrong for a printout, and the difference is not
+      // something a find-and-replace can know.
+      /\.calendar-page__cheat-sheet-list kbd \{[\s\S]*?font-family: var\(--font-mono\);[\s\S]*?border: 1px solid var\(--theme-border, #E5E7EB\);/,
     );
   });
 

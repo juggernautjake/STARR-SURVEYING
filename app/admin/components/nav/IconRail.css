@@ -161,8 +161,8 @@
   left: calc(100% + 4px);
   min-width: 260px;
   max-width: 320px;
-  background: #FFF;
-  border: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface, #FFF);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(15, 20, 25, 0.15);
   padding: 0.4rem 0;
@@ -212,9 +212,9 @@
 .admin-rail__flyout-shortcut {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.7rem;
-  color: #6B7280;
-  background: #F3F4F6;
-  border: 1px solid #E5E7EB;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-elevated, #F3F4F6);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 4px;
   padding: 0.05rem 0.3rem;
 }
@@ -231,7 +231,7 @@
   gap: 0.1rem;
   padding: 0.4rem 0.85rem;
   text-decoration: none;
-  color: #1F2937;
+  color: var(--theme-fg-primary, #1F2937);
   border-left: 3px solid transparent;
 }
 
@@ -248,7 +248,7 @@
 
 .admin-rail__flyout-link-meta {
   font-size: 0.72rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 .admin-rail__flyout-link:hover .admin-rail__flyout-link-meta {

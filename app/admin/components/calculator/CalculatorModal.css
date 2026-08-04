@@ -107,7 +107,7 @@
 .calc-tabstrip__fav {
   background: transparent;
   border: 1px solid transparent;
-  color: #9CA3AF;
+  color: var(--theme-fg-muted, #9CA3AF);
   font-size: 1.05rem;
   line-height: 1;
   padding: 0 0.35rem;
@@ -854,7 +854,7 @@
   height: 100%;
   box-sizing: border-box;
   font-family: 'Inter', system-ui, sans-serif;
-  color: #1F2937;
+  color: var(--theme-fg-primary, #1F2937);
 }
 .bearing-az__row {
   display: flex;
@@ -866,12 +866,12 @@
   height: 36px;
   padding: 0 0.6rem;
   border: 1px solid #CBD5E1;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: 8px;
   font: inherit;
   font-weight: 600;
   font-size: 0.85rem;
-  color: #475569;
+  color: var(--theme-fg-secondary, #475569);
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
 }
@@ -922,8 +922,8 @@
   font-size: 0.95rem;
   font-variant-numeric: tabular-nums;
   outline: none;
-  background: #FFFFFF;
-  color: #0F172A;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #0F172A);
   box-sizing: border-box;
   transition: border-color 120ms ease;
 }
@@ -934,14 +934,14 @@
   position: absolute;
   right: 0.55rem;
   font-size: 0.85rem;
-  color: #94A3B8;
+  color: var(--theme-fg-muted, #94A3B8);
   pointer-events: none;
 }
 .bearing-az__output {
   border: 1px solid #CBD5E1;
   border-radius: 10px;
   padding: 0.65rem 0.85rem;
-  background: #F8FAFC;
+  background: var(--theme-bg-elevated, #F8FAFC);
 }
 .bearing-az__output--warn {
   border-color: #F59E0B;
@@ -959,7 +959,7 @@
   font-size: 1.15rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: #0F172A;
+  color: var(--theme-fg-primary, #0F172A);
 }
 .bearing-az__warn {
   margin-top: 0.4rem;

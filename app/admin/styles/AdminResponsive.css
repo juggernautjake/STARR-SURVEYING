@@ -764,7 +764,7 @@
     max-height: 45vh;
     min-width: 0;
     border-left: none;
-    border-top: 1px solid #E5E7EB;
+    border-top: 1px solid var(--theme-border, #E5E7EB);
     border-radius: 0;
   }
   .research-element-panel__header { padding: 0.75rem 0.85rem; }
@@ -1002,13 +1002,13 @@
     max-height: none;
     border-radius: 0 0 8px 8px;
     order: 2;
-    border-top: 1px solid #E5E7EB;
+    border-top: 1px solid var(--theme-border, #E5E7EB);
     border-bottom: none;
   }
   .research-tools__undo-redo {
     flex-direction: row;
     border-bottom: none;
-    border-right: 1px solid #E5E7EB;
+    border-right: 1px solid var(--theme-border, #E5E7EB);
     padding: 0 0.3rem 0 0;
     margin-right: 0.15rem;
   }
@@ -1034,7 +1034,7 @@
     max-height: 40vh;
     min-width: 0;
     border-left: none;
-    border-top: 1px solid #E5E7EB;
+    border-top: 1px solid var(--theme-border, #E5E7EB);
     order: 3;
   }
   .research-element-panel__header { padding: 0.6rem 0.75rem; }
@@ -2060,7 +2060,7 @@
   .admin-card__label { font-size: 0.72rem; }
 
   /* Improve contrast on light backgrounds */
-  .admin-card__footer { color: #6B7280; }
+  .admin-card__footer { color: var(--theme-fg-muted, #6B7280); }
 
   /* Discussion panel improves on tablets */
   .discussion-panel { width: 340px; max-height: 75vh; }

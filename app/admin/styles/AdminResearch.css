@@ -10193,7 +10193,7 @@
     height: auto;
   }
   .research-final-doc__section--editable {
-    background: var(--theme-bg-surface, #fff) !important;
+    background: #fff !important;
     border: 1px solid #ccc !important;
   }
 }

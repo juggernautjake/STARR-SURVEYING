@@ -39,7 +39,7 @@
 }
 
 .services-hero__card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -77,7 +77,7 @@
    ============================================================================= */
 .services-grid {
   padding: 3.5rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -197,7 +197,7 @@
 
 /* Detail Card */
 .services-detail {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 1.75rem;
   border: 2px solid var(--border-color);
@@ -417,7 +417,7 @@
 }
 
 .services-cta__btn--primary {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }
@@ -435,7 +435,7 @@
 }
 
 .services-cta__btn--secondary:hover {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-blue);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);

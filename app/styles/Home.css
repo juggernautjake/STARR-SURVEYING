@@ -36,7 +36,7 @@
 }
 
 .home-hero__card {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-radius: var(--radius-lg);
   padding: 2.5rem;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -113,7 +113,7 @@
 }
 
 .home-hero__btn--secondary:hover {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-color: var(--brand-blue);
   color: var(--brand-blue);
 }
@@ -230,7 +230,7 @@
   font-weight: 700;
   text-decoration: none;
   border-radius: var(--radius-md);
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-green-dark);
   border: 3px solid #FFFFFF;
   transition: all var(--transition-normal);
@@ -250,7 +250,7 @@
    ============================================================================= */
 .home-services {
   padding: 3.5rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -636,7 +636,7 @@
 }
 
 .home-area__cta-btn--secondary:hover {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-blue);
 }
 
@@ -645,7 +645,7 @@
    ============================================================================= */
 .home-contact {
   padding: 3rem 2rem;
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   border-top: 4px solid var(--brand-blue);
   overflow-x: hidden;
 }
@@ -800,7 +800,7 @@
   padding: 0.65rem 0.9rem;
   border: 2px solid var(--border-color);
   border-radius: var(--radius-sm);
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--text-primary);
   transition: border-color var(--transition-fast);
   width: 100%;
@@ -1050,7 +1050,7 @@
 }
 
 .home-cta__btn--primary {
-  background: #FFFFFF;
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--brand-red);
   border: 2px solid #FFFFFF;
 }

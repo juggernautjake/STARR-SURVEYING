@@ -88,16 +88,27 @@ describe('the themes are actually consumed', () => {
     // Measured 4,199 on 2026-08-04, before any conversion. Tighten this number as pages are
     // converted; it must never be raised. A ratchet that follows the work down is the only kind
     // that keeps meaning anything — this repo has already found one quietly buying itself headroom.
-    // **4,199 → 2,579 the same day**, across eleven stylesheets. Tightened here rather than left at
-    // the old figure: a ratchet that does not follow the work down is a ceiling, and this repo has
-    // already caught one quietly buying itself headroom.
+    // **4,199 → 2,579 → 2,291 the same day**, across 47 stylesheets. Tightened as the work lands
+    // rather than left at the old figure: a ratchet that does not follow the work down is a
+    // ceiling, and this repo has already caught one quietly buying itself headroom.
+    //
+    // **Then back up to 2,297, deliberately.** Six declarations inside `@media print` blocks were
+    // converted by the sweep and then returned to literals: **paper is not themed.** A dark palette
+    // would print a black page — and the calendar's print stylesheet exists precisely to force
+    // white background and black text regardless of what is on screen. Three tests caught it, which
+    // is the print rule defending itself.
+    //
+    // So this number is not "how much is left to do". It is "how much is still hardcoded", and a
+    // small part of that is correct and must stay: print blocks, brand colours, status colours, and
+    // white text on dark buttons. **The floor is not zero**, and pretending otherwise would push
+    // somebody to convert the six that must not be.
     const { hardcoded } = counts();
     expect(
       hardcoded,
       `Hardcoded colours in admin CSS rose to ${hardcoded}. Every one is a surface that will NOT ` +
         `follow the user's theme. New styling should use var(--theme-*) with the literal as its ` +
         `fallback, which is how the shell and the eleven converted sheets were done.`,
-    ).toBeLessThanOrEqual(2579);
+    ).toBeLessThanOrEqual(2297);
   });
 
   it('never wraps a fallback inside another fallback', () => {

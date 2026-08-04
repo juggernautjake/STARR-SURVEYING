@@ -151,7 +151,7 @@
   width: 96px;
   height: 96px;
   border-radius: var(--radius-sm, 0.5rem);
-  background: #fff;
+  background: var(--theme-bg-surface, #fff);
   padding: 4px;
   border: 1px solid var(--border-light);
   flex-shrink: 0;

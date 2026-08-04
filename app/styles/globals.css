@@ -25,7 +25,7 @@
   --text-muted: #6B7280;
 
   /* ── Borders ── */
-  --border-color: #E5E7EB;
+  --border-color: var(--theme-border, #E5E7EB);
 
   /* ── Border Radius ── */
   --radius-sm: 6px;
