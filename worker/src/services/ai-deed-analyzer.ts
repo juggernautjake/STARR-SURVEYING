@@ -11,6 +11,7 @@
 // Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §6
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAiCall } from '../infra/usage.js';
 import { extractDocuments } from './ai-extraction.js';
 import { completeBoundaryCallCurve } from '../lib/curve-params.js';
 import { toConfidenceSymbol } from '../models/property-intelligence.js';
@@ -189,7 +190,7 @@ export class AIDeedAnalyzer {
 
     // ── Step 4: Structured metadata extraction (grantor/grantee/calledFrom) ─
     this.logger.info('AIDeedAnalyzer', `[${label}] Step 4: Structured deed metadata extraction`);
-    const metadata = await this.extractDeedMetadata(allText, label);
+    const metadata = await this.extractDeedMetadata(allText, label, projectId);
     totalApiCalls += 1;
 
     // ── Assemble result ────────────────────────────────────────────────────
@@ -355,6 +356,9 @@ export class AIDeedAnalyzer {
   private async extractDeedMetadata(
     text: string,
     label: string,
+    /** R4b — the run this call belongs to. Required, not optional: a cost that cannot be attributed
+     *  to a run is invisible to `spendForRun`, which is the number the budget ceiling reads. */
+    projectId: string,
   ): Promise<{
     grantor?: string;
     grantee?: string;
@@ -407,6 +411,21 @@ export class AIDeedAnalyzer {
           content: `${DEED_METADATA_PROMPT}\n\n=== DEED TEXT ===\n${text.substring(0, 15000)}`,
         }],
       });
+
+      // R4b — price this call through the one module that knows what a model costs. Deliberately
+      // BEFORE the parse: the tokens were spent whether or not the JSON turns out to be readable,
+      // and recording only on the happy path is how a ceiling drifts in the direction nobody
+      // watches. Fire-and-forget by design (see infra/usage.ts) — a deed read must not await a
+      // metrics insert.
+      void recordAiCall(
+        projectId,
+        AI_MODEL,
+        {
+          input:  response.usage?.input_tokens  ?? 0,
+          output: response.usage?.output_tokens ?? 0,
+        },
+        { site: 'ai-deed-analyzer', method: 'deed-metadata', label },
+      );
 
       const textBlock = response.content.find(c => c.type === 'text');
       const raw = textBlock?.type === 'text' ? textBlock.text : '{}';

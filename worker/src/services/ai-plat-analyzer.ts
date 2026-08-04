@@ -12,6 +12,7 @@
 // Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §5
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAiCall } from '../infra/usage.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
 import { analyzeVisualGeometry, reconcileGeometry } from './geo-reconcile.js';
 import { completeCurveParams } from '../lib/curve-params.js';
@@ -241,6 +242,7 @@ export class AIPlatAnalyzer {
           imageBuffers[i],
           i + 1,
           imageBuffers.length,
+          projectId,
         );
         pageResults.push(result);
       } catch (err) {
@@ -277,6 +279,8 @@ export class AIPlatAnalyzer {
     imageBuffer: Buffer,
     pageNum: number,
     totalPages: number,
+    /** R4b — threaded from `analyzePlat` so the synthesis call below can be attributed to the run. */
+    projectId: string,
   ): Promise<PlatAnalysisResult> {
     const label = `plat-p${pageNum}`;
     let apiCalls = 0;
@@ -343,6 +347,7 @@ export class AIPlatAnalyzer {
       ocrResult.mergedText,
       reconciliation,
       label,
+      projectId,
     );
     apiCalls += 1; // synthesis is one API call
 
@@ -421,6 +426,8 @@ export class AIPlatAnalyzer {
     ocrText: string,
     reconciliation: ReconciliationResult,
     label: string,
+    /** R4b — the run this call belongs to; `spendForRun` sums only what carries one. */
+    projectId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<any> {
     const reconcSummary = this.buildReconciliationSummary(reconciliation);
@@ -444,6 +451,19 @@ export class AIPlatAnalyzer {
         temperature: 0,
         messages: [{ role: 'user', content: prompt }],
       });
+
+      // R4b — recorded before the parse, because the tokens were spent whether or not the JSON is
+      // readable. Plat synthesis carries a 12k-character OCR prompt, so this is one of the two call
+      // sites whose absence skewed the run ceiling most.
+      void recordAiCall(
+        projectId,
+        AI_MODEL,
+        {
+          input:  response.usage?.input_tokens  ?? 0,
+          output: response.usage?.output_tokens ?? 0,
+        },
+        { site: 'ai-plat-analyzer', method: 'plat-synthesis', label },
+      );
 
       const textBlock = response.content.find(c => c.type === 'text');
       const raw = textBlock?.type === 'text' ? textBlock.text : '{}';

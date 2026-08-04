@@ -81,7 +81,7 @@ that *no* county of an unproven vendor routes to it.
 | ~~R28/R29~~ | **DONE 2026-08-03** — the poller runs at boot behind `RESEARCH_QUEUE_POLLER`, default off. The loop was code, not deployment; enabling it is now configuration | — |
 | ~~R15~~ | **DONE 2026-08-03** — the packet says which plats it actually contains; the attachment path already existed, the join did not | — |
 | R26 | The native mobile job view and true offline document caching | Device-runtime work this repo tests on hardware, not here |
-| R4b | Route the remaining **14** AI call sites through `infra/usage` — measured, ratcheted by `ai-spend-is-recorded.test.ts` 2026-08-03. Until then R5's spend ceiling under-counts and a run can overspend silently | Paired with R6's cheap-first rewrite so the same 14 files are not touched twice |
+| R4b | Route the remaining **12** AI call sites through `infra/usage` — was 14; the deed and plat analyzers migrated 2026-08-04, see below. Ratcheted by `ai-spend-is-recorded.test.ts`. Until the rest land, R5's spend ceiling under-counts and a run can overspend silently | Paired with R6's cheap-first rewrite so the same files are not touched twice — the two migrated are the ones whose skew was worst, and neither is a cheap-first candidate |
 
 ### Owner requests added after the original 30 slices
 | Added | What | Where |
@@ -4094,3 +4094,38 @@ are coverage — the neighbours and the counties this firm actually works. **Pha
 kind**: A–H are all about making a document *arrive*, and I is the first phase about reading one as a
 survey. Its remaining slices (S5–S8) are the highest-value work left in this document, because every
 county added by G and H only pays off once the file that county holds can be read properly.
+
+### ◑ R4b PROGRESS 2026-08-04 — the two call sites that skewed the ceiling most, 14 → 12
+
+R4b's own note names the two largest token consumers on the unmigrated list: the deed analyzer
+("one of the largest token consumers here, so its absence skews the ceiling most") and the plat
+analyzer ("large prompts, same skew"). Both now price through `infra/usage`.
+
+**Why these two and not a bulk sweep.** The remaining twelve are held back for a stated reason —
+R6's cheap-first rewrite touches the same files, and doing both at once avoids editing each twice.
+That reason does not apply here: neither analyzer is a cheap-first candidate (both read scans with
+large prompts and will keep doing so), so migrating them now costs nothing later. The entries whose
+note says *"the clearest cheap-first candidate, so R6 owns it"* were deliberately left alone.
+
+**Two decisions inside the change, both about when to record:**
+
+- **`projectId` is threaded, not made optional.** `spendForRun(projectId)` sums only events that
+  carry one, so an optional parameter would produce calls that are recorded and still invisible to
+  the ceiling — the exact failure R4b exists to close, wearing the costume of a fix. The plat path
+  needed two hops (`analyzePlat` → `analyzeSinglePlatPage` → `runSynthesisExtraction`).
+- **Recorded BEFORE the JSON parse, not after.** Both sites parse the model's reply and bail on
+  malformed JSON. Recording after the parse would drop the cost of exactly the calls that failed —
+  and a ceiling that under-counts its own failures drifts in the direction nobody watches, because
+  a run that retries a broken response is a run spending more, not less.
+
+**The ratchet was made to fail both ways before the entries were removed.** Re-adding
+`ai-deed-analyzer.ts` to `UNMIGRATED` fails the stale-entry test by name, which is what proves the
+migration is real rather than the list merely being shorter. Worker suite: 90 files / 1,497 tests
+green; `tsc` and `eslint` clean on both projects.
+
+**Also corrected, before it became a slice:** this pass began by concluding that
+`worker/src/services/ocr-legibility.ts` had no production caller, from a `grep` truncated at ten
+lines where `lib/` sorted after `worker/`. It is fully wired — **R18 already did it**
+(`lib/research/document.service.ts` line 5 imports `assessCapture`/`chooseTiles`, line 470 and 820
+call the latter on both tiling paths). Eighth feature this program has called missing and found
+present; recorded because the near-miss was a truncated instrument, not a misreading of the code.
