@@ -13,8 +13,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { assemblePacket, type PacketSources } from '@/lib/research/packet';
 import { fieldBrief } from '@/lib/research/job-packet';
+import { readSource } from '../_helpers/source';
 
-const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+// Reads with line endings normalised — see __tests__/_helpers/source.ts for why every
+// source-reading assertion in this repo has to.
+const read = readSource;
 
 const sources = (over: Partial<PacketSources> = {}): PacketSources => ({
   facts: [], documents: [], conflicts: [], planSummary: null, documentLabels: {}, ...over,
@@ -122,11 +125,10 @@ describe('an old approved packet does not claim it is clean', () => {
   it('the crew view says so rather than showing an empty warning list', () => {
     const cmp = read('app/admin/jobs/[id]/JobResearchPacket.tsx');
     expect(cmp).toContain('data.brief.warningsUnknown');
-    // Line endings normalised. The literal carries a bare `\n` and the working tree is CRLF, so
-    // this could only pass on the machine that wrote it. Eighth instance of this trap in the repo
-    // today across three shapes — silent negative controls, a source-slice that swallowed a whole
-    // file, and exact-match assertions like this one.
-    expect(cmp.replace(/\r\n/g, '\n')).toContain('not the\n                same as it having none');
+    // The bare `\n` here could only match on an LF checkout; the working tree is CRLF. Normalised
+    // by `read` (= `readSource`) rather than inline, so the helper is what this depends on — see
+    // __tests__/_helpers/source.ts.
+    expect(cmp).toContain('not the\n                same as it having none');
   });
 });
 

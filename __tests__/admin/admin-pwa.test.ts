@@ -12,8 +12,11 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { readSource } from '../_helpers/source';
 
-const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
+// Reads with line endings normalised — see __tests__/_helpers/source.ts for why every
+// source-reading assertion in this repo has to.
+const read = readSource;
 const sw = read('public/admin/sw.js');
 const reg = read('app/admin/components/RegisterAdminPWA.tsx');
 const layout = read('app/admin/layout.tsx');
@@ -94,14 +97,16 @@ describe('the offline page tells the truth', () => {
   });
 
   it('does not promise data that is deliberately not cached', () => {
-    // Line endings normalised before matching. The literal carried a bare `\n`, which cannot match
-    // a working tree checked out with CRLF — so this passed when written and failed the moment git
-    // normalised the file, with nothing about the page having changed.
+    // The bare `\n` in this literal cannot match a CRLF checkout, so this passed when written and
+    // failed the moment git normalised the file — nothing about the page having changed. It is one
+    // of eight instances of that trap found in a single day, in three shapes: negative controls
+    // that silently did nothing, a source-slice that swallowed a whole file, and exact matches like
+    // this one.
     //
-    // Seventh CRLF trap in this repo today, across three different shapes: negative controls that
-    // silently did nothing, a source-slice that swallowed the whole file, and now an exact-match
-    // assertion. **Any check that matches multi-line source text must normalise first.**
-    expect(offline.replace(/\r\n/g, '\n')).toContain('live on the\n      server, not on this device');
+    // No `.replace()` here on purpose: `read` is `readSource`, which normalises. Leaving a manual
+    // fix beside the helper would make it unclear which one is doing the work — and if the helper
+    // ever stopped, a redundant guard would hide it.
+    expect(offline).toContain('live on the\n      server, not on this device');
   });
 
   it('tells a crew member their work is not lost, which is what they will fear', () => {
