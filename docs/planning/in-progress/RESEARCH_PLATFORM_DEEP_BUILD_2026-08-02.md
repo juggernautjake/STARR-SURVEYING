@@ -2311,9 +2311,23 @@ Getting there surfaced **three more ways to manufacture an empty answer**, all t
    matter how many came back — 239 rows read as one document. Records are now cut at each date cell,
    the only reliable boundary.
 
-**Still open, and reported rather than hidden:** the grid pages at 20 and only page one is read.
-Every result carries *"this is ONE PAGE of a larger result set — page through before concluding"*.
-Paging is the next slice; silently returning 20 of 239 would be this defect again.
+**Closed 2026-08-04.** The grid pages at 20 and only page one was read; every result carried *"this
+is ONE PAGE of a larger result set"*. The adapter now switches the grid to 100 rows per page, walks
+the pager to the end (bounded at `USLR_MAX_PAGES = 100`), deduplicates across pages on
+`citation::date`, and reports completeness from the whole walk rather than one page — so Robertson's
+239 rows come back as 239, not 20.
+
+Three things that would each have looked like paging and were not: reading page two as well (40 of
+239); treating a failed pager click as the end of the results (it means the pager did not move, not
+that there is nothing left); and reading the grid immediately after an ASP.NET postback, which
+returns the *previous* page's rows, dedupes to nothing, and reads as the end.
+
+`describeUslrCompleteness` was already well tested — and every one of those tests passed whether or
+not the adapter paged at all, because they call the reporter directly. That gap is now closed by
+`uslandrecords-paging-is-wired.test.ts`, five of whose assertions were verified by breaking the
+thing they claim to catch. One of them initially did **not** fire: it matched `setPageSize100(`,
+which is satisfied by the method's own definition, so deleting the only call left it green — the
+same defect it was written to guard against.
 
 Also worth keeping: this vendor publishes **no instrument numbers**. A document's identity is its
 `SERIES/VOLUME/PAGE` citation, and 19th-century volumes are **lettered** (`OR/0000U/271`) — so the
