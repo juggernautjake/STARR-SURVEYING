@@ -2587,3 +2587,29 @@ by name while every other test stays green.
 
 **Also corrected in §4:** the State section still read *"Not started: S1b+, S5, S9c"* — all three
 shipped the day that line was written. Seventh stale status line in these documents.
+
+### ✅ S19b DONE 2026-08-04 — the second extraction, and the OTHER cost of a 15k-line file
+
+`hitTestTBElementPure` — twenty lines of rectangle arithmetic — was already exported from
+`CanvasViewport.tsx`, so its test imported a **15,000-line `'use client'` component**, dragging Pixi,
+the drawing store and the tooltip context into the module graph to answer "is this point inside that
+box".
+
+That is the mirror image of S19a's finding. There, code inside the file could not be tested at all;
+here, code that *could* be tested cost a renderer to reach. Both are the file's size, not its
+contents. Now `lib/cad/sheet/title-block-hit-test.ts`; the component imports it and re-exports it so
+the old import path keeps working.
+
+**And the extraction earned a real assertion.** The order the elements are tested in *is* the
+behaviour — the seal label sits inside the signature block, and the certification and notes blocks
+are large and sit under everything — but every existing case pinned one **pair**. A reordering that
+still satisfies each pair individually would pass all of them, and the symptom is a small target that
+becomes permanently unclickable: the sheet still works, and one thing is simply never grabbable.
+Nobody files that as a bug.
+
+`TB_HIT_PRIORITY` now states the sequence, and a test walks it — overlapping every element on one
+point and removing the winner each round, so the list must match what the function does rather than
+what it says. Control: swapping the seal label below its container fails both that test and the
+original pair case.
+
+15,337 → 15,304 lines. CAD suite **3,457 green**; `tsc` and `eslint` clean.

@@ -516,48 +516,14 @@ function drawTransformedFeaturePreview(
 // element bounds. Extracted so the test suite can lock the priority
 // ordering (officialSealLabel above signature, etc.) without
 // mounting Pixi. Returns the element under the screen point, or null.
-export type TBElementBounds = {
-  northArrow:        { screenX: number; screenY: number; w: number; h: number } | null;
-  titleBlock:        { screenX: number; screenY: number; w: number; h: number } | null;
-  scaleBar:          { screenX: number; screenY: number; w: number; h: number } | null;
-  signatureBlock:    { screenX: number; screenY: number; w: number; h: number } | null;
-  officialSealLabel: { screenX: number; screenY: number; w: number; h: number } | null;
-  certification:     { screenX: number; screenY: number; w: number; h: number } | null;
-  notes:             { screenX: number; screenY: number; w: number; h: number } | null;
-};
+// S19b — moved to lib/cad/sheet/title-block-hit-test.ts. Imported for this file's own use, and
+// re-exported because a test imported it FROM here, which pulled Pixi and the whole editor into the
+// module graph to check rectangle maths. The re-export keeps that importer working while it moves.
+import { hitTestTBElementPure } from '@/lib/cad/sheet/title-block-hit-test';
+import type { TBElementBounds, TBHitTarget } from '@/lib/cad/sheet/title-block-hit-test';
+export { hitTestTBElementPure, TB_HIT_PRIORITY } from '@/lib/cad/sheet/title-block-hit-test';
+export type { TBElementBounds, TBHitTarget, TBRect } from '@/lib/cad/sheet/title-block-hit-test';
 
-export type TBHitTarget =
-  | 'northArrow'
-  | 'titleBlock'
-  | 'scaleBar'
-  | 'signatureBlock'
-  | 'officialSealLabel'
-  | 'certification'
-  | 'notes';
-
-export function hitTestTBElementPure(
-  sx: number,
-  sy: number,
-  b: TBElementBounds,
-): TBHitTarget | null {
-  function inside(r: { screenX: number; screenY: number; w: number; h: number } | null): boolean {
-    if (!r) return false;
-    return sx >= r.screenX && sx <= r.screenX + r.w
-        && sy >= r.screenY && sy <= r.screenY + r.h;
-  }
-  if (inside(b.northArrow)) return 'northArrow';
-  if (inside(b.titleBlock)) return 'titleBlock';
-  if (inside(b.scaleBar))   return 'scaleBar';
-  // Sub-elements above their containing signature block so they
-  // take priority on the way in.
-  if (inside(b.officialSealLabel)) return 'officialSealLabel';
-  if (inside(b.signatureBlock))    return 'signatureBlock';
-  // Slice 226 — paper-furniture blocks tested last so they don't
-  // shadow the more-specific TB elements on overlap.
-  if (inside(b.certification)) return 'certification';
-  if (inside(b.notes))         return 'notes';
-  return null;
-}
 
 export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsumed }: CanvasViewportProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
