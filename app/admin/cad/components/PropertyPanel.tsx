@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { useDrawingStore, useSelectionStore, useUndoStore, useInverseStore } from '@/lib/cad/store';
+import { isReservedDrawLayer } from '@/lib/cad/styles/default-layers';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
 import type { Feature, FillLayer, FillPattern } from '@/lib/cad/types';
@@ -547,7 +548,25 @@ export default function PropertyPanel() {
     return [{ ...v0 }, nv1, nv2, nv3];
   }
 
-  const layers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+  // CAD_AUDIT Slice S13h — the reserved sheet-info layer is not a move destination.
+  //
+  // The last gap in the reserved-layer rule. S13 stopped you DRAWING on SURVEY-INFO and S13e stopped
+  // a deleted layer's geometry MIGRATING onto it — but both "move to layer" dropdowns here listed
+  // every layer in `layerOrder`, and `layerOrder[0]` is SURVEY-INFO. So the one route that remained
+  // open was the most deliberate one: selecting a boundary and choosing it from a menu.
+  //
+  // Geometry parked there is invisible the moment someone toggles the sheet furniture off, which is
+  // the ordinary way to look at a drawing without the title block.
+  //
+  // A feature ALREADY on the reserved layer (older drawings, an AI edit, an import that predates
+  // these rules) still shows its current layer in the list, or the select would render blank and the
+  // surveyor would have no way to see where it is — let alone move it off.
+  const allLayers = doc.layerOrder.map((id) => doc.layers[id]).filter(Boolean);
+  /** Destinations offered for a "move to layer" select, given what it is currently showing.
+   *  `currentId` is always included even when reserved — otherwise the select renders blank for a
+   *  feature already on SURVEY-INFO and the surveyor cannot see where it is, let alone move it off. */
+  const moveTargets = (currentId: string | null | undefined) =>
+    allLayers.filter((l) => !isReservedDrawLayer(l.id) || l.id === currentId);
   const displayPrefs = doc.settings.displayPreferences ?? DEFAULT_DISPLAY_PREFERENCES;
   const originN = displayPrefs.originNorthing ?? 0;
   const originE = displayPrefs.originEasting ?? 0;
@@ -846,7 +865,7 @@ export default function PropertyPanel() {
                 onChange={(e) => handleBulkLayerChange(e.target.value)}
               >
                 {mixedLayers && <option value="" disabled>— mixed —</option>}
-                {layers.map((l) => (
+                {moveTargets(sharedLayerId).map((l) => (
                   <option key={l.id} value={l.id}>{l.name}</option>
                 ))}
               </select>
@@ -967,7 +986,7 @@ export default function PropertyPanel() {
               value={feature.layerId}
               onChange={(e) => handleLayerChange(e.target.value)}
             >
-              {layers.map((l) => (
+              {moveTargets(feature.layerId).map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.name}
                 </option>

@@ -1819,3 +1819,39 @@ others: Playwright "could not reach localhost" (a redirect to a dead port), a ph
 reporting `0 px overflow` on a blank page (`.next` clobbered under a live dev server), and an orphan
 detector blind to side-effect imports. The habit that caught all four is the same one — **take the
 instrument, feed it a case whose answer you already know, and see if it agrees.**
+
+### ✅ S13h DONE 2026-08-04 — the last route onto the reserved layer, and it was the front door
+
+Seventh site in this family, and the most deliberate one. S13 stopped a surveyor **drawing** on
+SURVEY-INFO; S13e stopped a deleted layer's geometry **migrating** onto it. Both "move to layer"
+selects in the Property panel still listed **every** layer in `layerOrder` — and `layerOrder[0]` is
+SURVEY-INFO. So the route that stayed open was simply *selecting a boundary and choosing it from a
+menu*.
+
+Geometry parked there disappears the moment someone toggles the sheet furniture off, which is the
+ordinary way to look at a drawing without its title block.
+
+**Both selects** — the bulk one and the single-feature one — now filter through `moveTargets`.
+
+**With one exception, and it is the interesting part.** A feature *already* on the reserved layer —
+an older drawing, an AI edit, an import predating these rules — still sees its current layer in the
+list. Filtering it out unconditionally renders the select **blank**, so the surveyor cannot see where
+the geometry is, let alone move it off. A rule that makes the illegal state unreachable *and*
+unescapable is worse than the state.
+
+**A comment that disagreed with its code, caught in the writing.** The first version of this fix
+carried a comment claiming exactly that exception while the code filtered unconditionally — the same
+defect this session found twice in other people's work (`lib/leads/intake.ts` calling shipped
+attachment persistence "a follow-up slice", and the upload route's header advertising a return shape
+it does not use). Caught by re-reading the diff before committing, which is the only reason it is not
+a third instance.
+
+8 tests: four pinning the wiring, four reimplementing the predicate so the **rule** is asserted and
+not just the source text — including that a feature on the reserved layer still has somewhere to move
+**to**, since offering only its current layer would be a select that does nothing.
+
+Watched failing. 3,426 CAD tests, `npm run build` clean.
+
+**Seven sites, one predicate.** S8c, S13, S13d, S13e, S13f, S13g, S13h — every one traceable to
+`if (!layer) return false` in `getVisibleFeatures` and to `layerOrder[0]` being a layer nothing may
+be drawn on. Six of the seven were found by asking *"where else?"*, not by a report.
