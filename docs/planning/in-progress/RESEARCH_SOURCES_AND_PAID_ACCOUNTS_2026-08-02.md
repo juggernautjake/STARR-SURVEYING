@@ -545,3 +545,62 @@ three **failed by passing**, and none would have been caught by reading them.
 **State of this document:** S-6, S-7, S-8, S-10, S-11, S-12, S-13, S-14, S-15 and S-16 are done.
 **S-9 (Stripe SetupIntent + the charge) is the only slice left and it is owner-gated** — the limits
 form exists and the numbers can be entered today; what remains needs a live-payments decision.
+
+---
+
+## S-9b DONE 2026-08-04 — what auto top-up would do, charging nothing
+
+S-9 has stood as "blocked on the owner: amounts, ceiling". Part of that was self-inflicted and was
+fixed on 2026-08-03 by building the form. This closes the second self-inflicted part.
+
+`decideTopup()` shipped complete — the monthly ceiling, the minimum interval, refusal on an inferred
+or stale balance, all of it — with **no production caller**. The only mention of it outside its own
+module and tests was a comment at the top of the vendor-accounts route describing behaviour that
+route did not have. Authored-but-not-wired, with a comment on top asserting otherwise.
+
+The charge itself is genuinely blocked: the SetupIntent and the off-session PaymentIntent need a live
+Stripe decision. **The decision is not blocked.** `GET /api/admin/research/vendor-accounts` now
+returns a `topupDryRun` block — per account, whether it would top up, for how much, and if not, which
+guard rail stopped it. Nothing is charged and nothing can be.
+
+That turns "amounts, ceiling — owner decides" from an abstract question into a concrete one: the
+owner sees what would be charged today against the numbers they entered. It is also the only honest
+way to exercise a payment loop before it is able to spend money.
+
+`chargedThisMonthUsd: 0` is a deliberate under-count, and the payload says so (`monthToDateKnown:
+false`) rather than hiding it — there have been no charges because nothing can charge. When the
+charge path lands it must supply the real figure; passing 0 then would disable the ceiling, the one
+guard rail whose failure is unbounded.
+
+### ▶ The bundling defect this uncovered, which no ordinary check could see
+
+Importing `decideTopup` into the route **failed the production build**, while `tsc` passed, the
+worker's 1,497 tests passed, and the research suite's 969 passed.
+
+`vendor-accounts.ts` reaches `pipeline.js` for a database handle, and `pipeline.js` is the entire
+worker — clerk scrapers, Playwright adapters, AI extractors. Webpack tried to bundle all of it into
+the route and died with `Module parse failed: Unexpected character` naming a file nobody wrote.
+
+**Making the import lazy did not fix it.** A dynamic `await import()` is still walked when webpack
+builds the module graph — a correction worth recording, because it is the obvious first fix and it
+costs a five-minute build to disprove.
+
+The fix was to give the pure rules their own import-free home, `vendor-accounts-policy.ts`, exactly
+the shape `ocr-legibility.ts` has always had — which is why the app has always been able to import
+*that* one. `vendor-accounts.ts` re-exports every symbol, so no existing importer changed.
+
+**Now enforced by construction**, because this cost three build cycles and the error names a
+transitive file rather than the import that caused it: `__tests__/research/worker-imports-stay-
+bundleable.test.ts` walks the import graph from every `@/worker/...` module the app or lib imports
+(~18 of them) and fails if any reaches `services/pipeline.ts`. It reproduces the failure in **8 ms
+instead of five minutes**, and prints the path that gets there.
+
+Its first run flagged two false positives — `pipeline-version-store` and `pipeline-diff-engine`,
+caught by substring — which the app imports today and which build fine. Matching whole path endings
+instead: a guard that flags working code is a guard someone switches off.
+
+**Still blocked on the owner, unchanged:** the Stripe SetupIntent and charge execution, the per-vendor
+amounts and thresholds, the monthly ceiling, and which vendors to open accounts with.
+
+**Verification:** production build compiles; 22,574 root tests, 1,497 worker tests, 972 research
+tests green; `tsc` and `eslint` clean.

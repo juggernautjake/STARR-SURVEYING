@@ -25,6 +25,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+// The POLICY module, deliberately — not `vendor-accounts.ts`, which re-exports these but also
+// reaches `pipeline.js` for a database handle and would drag the entire worker (Playwright adapters,
+// clerk scrapers, AI extractors) into this route's bundle. That import failed the production build
+// while `tsc` and the worker suite stayed green, which is why this line names the narrower file.
+import {
+  decideTopup,
+  describeBalance,
+  toVendorAccount,
+} from '@/worker/src/services/vendor-accounts-policy';
 
 export const runtime = 'nodejs';
 
@@ -58,9 +67,52 @@ export const GET = withErrorHandler(async () => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // S-9b — what auto top-up WOULD do right now, per account, charging nothing.
+  //
+  // `decideTopup()` shipped with every guard rail the spec asked for — ceiling, minimum interval,
+  // refusal on an inferred or stale balance — and **no production caller**. The only mention of it
+  // outside its own module and tests was the comment at the top of this file, describing behaviour
+  // this route did not have. That is the authored-but-not-wired defect with a comment on top of it.
+  //
+  // It cannot be wired to an actual charge yet: the SetupIntent and the off-session PaymentIntent
+  // are the genuinely owner-blocked half of S-9. But the DECISION is not blocked, and surfacing it
+  // is what turns "amounts, ceiling — owner decides" from an abstract question into a concrete one:
+  // the owner sees exactly what would be charged, and exactly which accounts are refusing to act and
+  // why. A dry run is also the only honest way to test a payment loop before it can spend money.
+  //
+  // `chargedThisMonthUsd: 0` is a deliberate under-count and is labelled as one in the payload
+  // rather than hidden: the monthly total comes from charges, and there have been none because
+  // nothing can charge yet. When the charge path lands it must supply the real figure — passing 0
+  // then would disable the ceiling, which is the one guard rail whose failure is unbounded.
+  const now = new Date();
+  type AccountRow = Parameters<typeof toVendorAccount>[0];
+  const decisions = (data ?? []).map((row: AccountRow) => {
+    const account = toVendorAccount(row);
+    const decision = decideTopup(account, { now, chargedThisMonthUsd: 0 });
+    return {
+      vendorId: account.vendorId,
+      balance: describeBalance(account, now),
+      wouldTopUp: decision.topUp,
+      amountUsd: decision.amountUsd,
+      reason: decision.reason,
+      blocked: decision.blocked,
+    };
+  });
+
   // No secret ever leaves this route. `credential_env_var` is the NAME of an environment variable,
   // never its value — the value lives in the secret store and is not readable from here by design.
-  return NextResponse.json({ accounts: data ?? [] });
+  return NextResponse.json({
+    accounts: data ?? [],
+    topupDryRun: {
+      decisions,
+      chargesNothing: true,
+      monthToDateKnown: false,
+      note:
+        'What auto top-up would decide right now. Nothing is charged — the card flow is not built. ' +
+        'Month-to-date spend is counted as $0 because no charge path exists yet, so the monthly ' +
+        'ceiling is not being tested by these results.',
+    },
+  });
 });
 
 export const PATCH = withErrorHandler(async (req: NextRequest) => {
