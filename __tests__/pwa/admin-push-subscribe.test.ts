@@ -174,9 +174,19 @@ describe('W4c — keys set is not the same as able to send', () => {
     expect(pushLib).toContain('export function pushTransportInstalled()');
     // The transport check must NOT be gated on the keys, or it can never observe the state it exists
     // to observe — that gating is exactly what made `loadWebPush` unable to answer this.
-    const fn = pushLib.slice(pushLib.indexOf('export function pushTransportInstalled'));
+    // Body extracted line-wise rather than by slicing to `'}\n\n'`. That literal cannot match a
+    // working tree with CRLF endings — `indexOf` returns -1, `slice(0, -1)` keeps nearly the whole
+    // file, and the assertion then reads `pushStatus`'s legitimate `pushConfigured` call and fails.
+    // It passed when written (the file was freshly created with LF) and broke the moment git
+    // normalised it. Third CRLF trap today; the other two were negative controls that silently did
+    // nothing. **Any source-scanning check in this repo must be line-ending agnostic.**
+    const lines = pushLib.split(/\r?\n/);
+    const start = lines.findIndex((l) => l.startsWith('export function pushTransportInstalled'));
+    const end = lines.findIndex((l, i) => i > start && l === '}');
+    const fn = lines.slice(start, end + 1).join('\n');
+    expect(fn, 'the function body was not found — has it been renamed?').toContain('return true');
     expect(
-      fn.slice(0, fn.indexOf('}\n\n')),
+      fn,
       'pushTransportInstalled must not short-circuit on pushConfigured — with no keys it would ' +
         'report the package missing, which is a different problem with a different fix',
     ).not.toContain('pushConfigured');

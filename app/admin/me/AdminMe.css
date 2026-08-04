@@ -605,6 +605,23 @@
     width: 100%;
     max-width: 100%;
     scrollbar-width: none;
+    /* 2026-08-04, owner screenshot: the strip works and does not LOOK like it does. It hides its
+     * scrollbar (and iOS never shows one), so a role pill sliced by the viewport edge reads as a
+     * layout bug rather than "there is more, swipe". Reported as one.
+     *
+     * A mask rather than a gradient overlay, deliberately: the card behind it is a two-stop
+     * gradient, so any painted fade would have to guess a colour that is only correct at one
+     * horizontal position. A mask fades whatever is actually there to transparent, which is right
+     * on any background — and when the roles fit, there is nothing under the fade to soften, so it
+     * costs nothing in the common case.
+     *
+     * Known limit, accepted: the fade stays when scrolled fully right. Removing it there needs
+     * scroll-driven animation or a scroll listener, and a permanent soft edge is a far smaller
+     * problem than a pill that looks cut in half. */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+    /* The mask must not clip the pills' own focus ring on the left edge. */
+    padding-right: 28px;
   }
   .hub-greeting__role-pills-list::-webkit-scrollbar {
     display: none;

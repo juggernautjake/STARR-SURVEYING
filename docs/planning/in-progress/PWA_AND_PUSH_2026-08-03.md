@@ -656,3 +656,53 @@ the build compiled. Now `{ ...DEFAULT_FEATURE_STYLE }`.
 
 Worth recording as a sequencing rule, not a slip: **`tsc` last, after the tests are written** — it is
 the only one of the three checks that reads them.
+
+### ✅ W6h DONE 2026-08-04 — the owner's phone screenshot, and why the audit script never saw it
+
+Reported with a picture: **the Enter Work Mode button hung off the LEFT edge of the phone** — the
+primary action on the first screen anyone sees after signing in.
+
+The desktop rule pins the actions column with `position: absolute; right: 2.5rem`. The mobile block
+set `width: 100%` and **never unset the positioning**, so a full-card-width box anchored 2.5 rem from
+the right starts 2.5 rem *past* the left edge. The card cannot clip it; it simply leaves the screen.
+
+`width: 100%` is the giveaway — it only means anything in normal flow. The mobile rule was written
+for a static element and the absolute positioning arrived later, in a different slice, and nothing
+connected the two. **That is the class worth guarding: a mobile override inheriting a `position` it
+was not written for.**
+
+Also fixed from the same screenshot: the role-pill strip. It is a deliberate horizontal swipe strip
+with its scrollbar hidden — and on a phone a pill sliced by the viewport edge reads as a broken
+layout, which is exactly how it was reported. A **mask** fade now marks it scrollable, chosen over a
+painted gradient because the card behind it is a two-stop gradient and any painted fade would be the
+right colour at exactly one horizontal position. A mask fades whatever is there to transparent, and
+when the roles fit there is nothing under it to soften.
+
+**Checked and NOT changed:** the floating green pill. It is `position: fixed` bottom-right with a
+96 px content clearance below 1023 px, which is correct FAB behaviour — it overlaps content while
+scrolling by design. Reporting it as fixed would have been a claim.
+
+#### ▶ Why `scripts/audit-mobile.mjs` did not catch this
+
+It measures real overflow in a real browser at 360/390/414 px, and it is the better instrument. **It
+covers `/dnd` routes only** — the admin hub sits behind a session the script does not mint. So the
+one route every employee lands on is the one route the mobile audit has never looked at. Extending it
+is the follow-up; W6c–W6f's "zero on every reachable route" was always scoped by that word.
+
+Five source-level assertions pin the specific mistake meanwhile, including one that checks the
+**desktop** rule is still `absolute` — without that premise the others would pass while defending
+nothing.
+
+#### ▶ And a third CRLF trap, this time inside a test I shipped today
+
+W4c's guard sliced source to `'}\n\n'`. That literal cannot match a working tree with CRLF endings:
+`indexOf` returns −1, `slice(0, -1)` keeps nearly the whole file, and the assertion then read a
+*legitimate* `pushConfigured` call in the next function and failed. **It passed when written — the
+file was freshly created with LF — and broke the moment git normalised it.**
+
+The other two CRLF traps today were negative controls that silently did nothing. Same root cause,
+opposite symptom: one hid a failure, this one invented one. **Rule: every source-scanning check in
+this repo must be line-ending agnostic** — split on `/\r?\n/`, never match a literal `\n` run. The
+repaired assertion still fails when the short-circuit is reintroduced.
+
+47 PWA + middleware tests green; `tsc`, `eslint` and `npm run build` clean.
