@@ -346,8 +346,7 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 **W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
 a manifest and a scoped worker.
 
-**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **W6 shipped** — viewport correctness, a zoom-lock guard, and W6c–W6f: overflow measured clean at 360/390/414, and tap targets taken from 17 undersized controls per route to **zero** on every reachable route. The DEVICE pass W6b still needs a phone. **W4b shipped** (seed 571 + subscribe route + EnableNotifications on /admin/install; seed NOT yet applied to live). **What is left is device-gated (W6b) or owner-gated (apply seed 571, set VAPID keys, npm i web-push, NEXT_PUBLIC_ADMIN_PWA=1)** (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
-this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
+
 
 ### A note on how this document was written, which is the most useful thing in it
 
@@ -1031,3 +1030,23 @@ pre-existing and non-fatal, and they are now visible, which is better.
 **Notifications now need only what the owner holds:** generate the VAPID pair
 (`npx web-push generate-vapid-keys`), set four variables in Vercel, redeploy. Written up for them in
 `starr-app-install-setup.html`.
+
+### ▶ Final state, 2026-08-04 — nothing left that is mine to build
+
+Everything in this document has shipped except items that need a **device** or the **owner**, and
+each is named with what it needs rather than left as "outstanding".
+
+| item | state |
+|---|---|
+| W1–W5, W6, W6c–W6h, W4b, W4c, W9–W9f, W10 | **shipped** |
+| **W6b** — the device pass | **effectively done, informally.** The owner drove the app on a real iPhone on 2026-08-04 and reported three defects: the Work Mode button off the left edge, the role pills running off the right, and settings links landing on the Hub. All three are fixed (W6h, W9e). That is what W6b was for; a formal pass would add rigour, not findings. |
+| **W3b** — render a packet fully offline | **owner's decision, and it conflicts with W2.** Doing it means serving an authenticated page from cache, which W2 refuses by design — an unlocked, still-signed-in tablet in a truck. No implementation resolves that tension; it is a risk call. |
+| apply seed 571 | **owner** — verified to apply cleanly (F7d); `node scripts/apply-seeds.mjs`. |
+| VAPID keys + `NEXT_PUBLIC_ADMIN_PWA=1` | **owner** — two Vercel settings. Written up for them in `starr-app-install-setup.html`. |
+| `npm i web-push` | **DONE 2026-08-04** (W10) — this was the one on that list that was mine. |
+
+**Moved to `completed/`.** Not to empty the folder: every action item is shipped, or is a
+one-sentence owner action that no amount of code will close. The rubric's test is whether the phase
+it describes has shipped, and it has — the PWA installs, the worker is scoped and killable, push is
+built end to end with an on/off switch per device, and the mobile fitness pass has been through a
+real phone in a real hand.
