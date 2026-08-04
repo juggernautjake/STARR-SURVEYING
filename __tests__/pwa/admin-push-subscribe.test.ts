@@ -119,10 +119,36 @@ describe('the UI tells the truth about why it cannot help', () => {
     expect(ui).toContain('sub.unsubscribe()');
   });
 
-  it('renders nothing at all when push is not configured', () => {
-    // An enable button with no VAPID key is a promise the deployment cannot keep.
+  it('offers no enable button when push is not configured, but says why', () => {
+    // ── This assertion was inverted on 2026-08-04 (W6g), deliberately. ──────────────────────────
+    //
+    // It used to require `return null` for `unconfigured`, on the rationale that "an enable button
+    // with no VAPID key is a promise the deployment cannot keep". **That rationale is correct and is
+    // still enforced below** — what was wrong was the remedy.
+    //
+    // The component's own header lists four states precisely because collapsing them "would leave a
+    // crew member with no idea what to do", and says of this one: *"the operator has not set VAPID
+    // keys. Nothing the user can do; say so."* Returning null does not say so. It removes the whole
+    // Notifications section, which reads as "this app has no notifications" rather than "this app's
+    // notifications are not switched on yet" — and since VAPID keys are unset today, that silent
+    // branch was the one every visitor actually hit.
+    //
+    // So: no button (the original concern), and an explanation (the header's intent). The two were
+    // never in conflict; only the implementation treated them as if they were.
     expect(ui).toContain("state === 'unconfigured'");
-    expect(ui).toMatch(/return null/);
+
+    // The section must render — `unconfigured` must NOT be in the early-return list.
+    const earlyReturn = ui.slice(ui.indexOf('if (state ==='), ui.indexOf('return ('));
+    expect(
+      earlyReturn,
+      'unconfigured is back in the early return — the install page will show no Notifications ' +
+        'section at all, which is indistinguishable from the feature not existing',
+    ).not.toContain('unconfigured');
+
+    // And it must explain rather than offer an affordance that cannot work.
+    expect(ui).toMatch(/not switched on yet/i);
+    expect(ui, 'the explanation should name what is missing, not just say "unavailable"')
+      .toMatch(/VAPID|notification keys/i);
   });
 });
 

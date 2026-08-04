@@ -346,7 +346,7 @@ requirements are HTTPS (Vercel gives you that), a correct manifest, and a regist
 **W2 is DONE** (2026-08-03), shipped dark behind `NEXT_PUBLIC_ADMIN_PWA=1`. All three areas now have
 a manifest and a scoped worker.
 
-**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **W6 partly shipped** (viewport correctness + a zoom-lock guard; the DEVICE pass W6b still needs a phone). **W4b shipped** (seed 571 + subscribe route + EnableNotifications on /admin/install; seed NOT yet applied to live). **What is left is device-gated (W6b) or owner-gated (apply seed 571, set VAPID keys, npm i web-push, NEXT_PUBLIC_ADMIN_PWA=1)** (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
+**W5 shipped**; **W4 shipped** (one transport, self-hosted). **W3 shipped** (cache inventory + clear-on-sign-out; W3b is an owner decision — it conflicts with W2). **W6 shipped** — viewport correctness, a zoom-lock guard, and W6c–W6f: overflow measured clean at 360/390/414, and tap targets taken from 17 undersized controls per route to **zero** on every reachable route. The DEVICE pass W6b still needs a phone. **W4b shipped** (seed 571 + subscribe route + EnableNotifications on /admin/install; seed NOT yet applied to live). **What is left is device-gated (W6b) or owner-gated (apply seed 571, set VAPID keys, npm i web-push, NEXT_PUBLIC_ADMIN_PWA=1)** (subscribe UI + a table per area) and W6 (mobile fitness). Previously read: **Next: W5**, the iOS install walkthrough — without it, iOS push is built and unreachable, which is
 this codebase's signature defect. Then W3 (offline the field packet) and W4 (one push backend).
 
 ### A note on how this document was written, which is the most useful thing in it
@@ -559,3 +559,47 @@ results.
 **W6b is unchanged and still needs a phone.** Every number in W6d–W6f is geometry in a desktop
 browser at a phone width. It cannot tell you whether 40px is comfortable in a gloved hand, whether the
 standalone shell hides something, or what iOS Safari's chrome does to the viewport.
+
+### ✅ W6g DONE 2026-08-04 — the install page said nothing about the state it is actually in
+
+Checking whether the push blockers were the *real* ones (the method that found S-9's missing balance
+reader) confirmed two and found a third that was not on the list.
+
+**Confirmed, and well built.** `lib/push/web-push.ts` is a shared transport already in use by the
+voice studio. `web-push` is deliberately **not** a dependency: it is resolved at runtime through an
+opaque specifier, because a bare `require` in a try/catch is still statically analysed by webpack and
+emits "Module not found" on every build for a package meant to be absent. `loadWebPush()` returns
+`null` when it is missing and callers treat push as best-effort, having already persisted whatever
+they were notifying about. `npm i web-push` is an accurate blocker, not an understated one.
+
+**The third thing was on screen.** `EnableNotifications.tsx` opens with a paragraph explaining that it
+distinguishes four states *because* collapsing them "would leave a crew member with no idea what to
+do", and says of the first: **"the operator has not set VAPID keys. Nothing the user can do; say
+so."**
+
+It did not say so. `unconfigured` sat in the same early return as `checking` and `unsupported`, so the
+component rendered **nothing** — no Notifications section on `/admin/install` at all. And since VAPID
+keys are unset today, **that silent branch is the one every visitor actually hits**. The page reads as
+"this app has no notifications" rather than "this app's notifications are not switched on yet". Fourth
+comment-describing-absent-behaviour found this session, and the first inside a component whose own
+header warns against exactly it.
+
+**A deliberate, tested behaviour was inverted — carefully.** A test asserted *"renders nothing at all
+when push is not configured"*, on the rationale that *"an enable button with no VAPID key is a promise
+the deployment cannot keep."* **That rationale is right and still holds**: what was wrong was the
+remedy. There is now an explanation and still no button — the two were never in conflict, only the
+implementation treated them as if they were. The test now asserts both halves and is stricter than
+before; its control puts `unconfigured` back in the early return and fails by name.
+
+The message names `PUSH_VAPID_PUBLIC_KEY` / `PUSH_VAPID_PRIVATE_KEY` rather than saying "unavailable",
+because the person most likely to read that page is the one who can set them.
+
+24 PWA tests green; `tsc`, `eslint` and `npm run build` clean.
+
+**Also verified:** seed 571 is covered by the new all-seeds FK sweep (F7d) — it will apply cleanly
+alongside 572/573 when `apply-seeds.mjs` runs.
+
+**W3b remains the owner's call and is correctly stated**: fully rendering a packet offline means
+serving an authenticated page from cache, which W2 refuses by design. The app-shell route that would
+honour both is a real widening of exposure — an unlocked, still-signed-in tablet in a truck — and no
+implementation resolves that tension.

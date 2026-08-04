@@ -108,11 +108,30 @@ export default function EnableNotifications() {
     }
   }, []);
 
-  if (state === 'checking' || state === 'unconfigured' || state === 'unsupported') return null;
+  // W6g — `unconfigured` used to return null alongside these two, which contradicted this file's own
+  // header: it lists four states precisely because collapsing them "would leave a crew member with no
+  // idea what to do", and says of this one *"the operator has not set VAPID keys. Nothing the user
+  // can do; say so."* It did not say so — it rendered nothing, so the install page showed no
+  // Notifications section at all, which reads as "this app has no notifications" rather than "this
+  // app's notifications are not switched on yet".
+  //
+  // That is the state the app is in right now (VAPID keys are unset), so the silent branch was the
+  // one every visitor actually hit. `checking` and `unsupported` still render nothing, and that is
+  // right: the first is transient, and the second is a browser limitation with no remedy to offer.
+  if (state === 'checking' || state === 'unsupported') return null;
 
   return (
     <section className="admin-install__card">
       <h2>Notifications</h2>
+
+      {state === 'unconfigured' && (
+        <p className="admin-install__muted">
+          Push notifications are built into this app but are <strong>not switched on yet</strong> —
+          the server has no notification keys set. Nothing to do on this device; it needs the
+          <code> PUSH_VAPID_PUBLIC_KEY</code> and <code>PUSH_VAPID_PRIVATE_KEY</code> environment
+          variables set once, by whoever administers the deployment.
+        </p>
+      )}
 
       {state === 'ios-not-installed' && (
         <p className="admin-install__muted">
