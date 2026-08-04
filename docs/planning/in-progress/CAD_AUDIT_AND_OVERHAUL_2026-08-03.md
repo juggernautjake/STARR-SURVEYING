@@ -1209,3 +1209,47 @@ quietly drop it and send state-plane jobs back off the sheet.
 **Still open for S16:** whether zone selection, grid-vs-ground scale factor and convergence are
 genuinely handled, or whether the survey-notes line about the Texas State Plane Coordinate System is
 the only part of that claim which is true. That needs a golden instrument file, not a code read.
+
+### ✅ S16a DONE 2026-08-04 — the zone table, and a mislabel that could have cost a resurvey
+
+Looking for state-plane support found something better than an absence: **a disagreement.**
+
+`EPSG:2277` was hardcoded in five places as the coordinate system for everything this software
+exports — the GeoJSON `crs` member, the LandXML `<CoordinateSystem epsgCode>`, the Traverse PC
+bundle README, the Orbit sync source CRS — and it was **described differently in two of them**.
+`lib/research/bell-cad-arcgis.service.ts` called WKID 2277 *"NAD83 Texas **North Central**"*; the CAD
+writers called it *"Texas **Central**"*.
+
+They cannot both be right. **2277 is Central. North Central is 2276.** The CAD writers were correct
+and the research service's comment was wrong, in two places.
+
+**Why a comment is worth a slice here.** The zone is stamped into files handed to clients and to
+other surveyors' software. A receiving system that trusts the label re-projects from the wrong zone
+and lands the parcel some thousands of feet from where it belongs — with no error anywhere, because
+every number involved is individually plausible. It is the same failure shape as the varas and the
+closure ratios that `survey-primitives-are-not-duplicated` was written to stop: a constant copied to
+five places drifts, and the drift is invisible until it is expensive.
+
+`lib/cad/geo/texas-state-plane.ts` is now the single source: all five zones with their EPSG codes
+(2275–2279), their SPCS/FIPS zone numbers (4201–4205, which instrument firmware uses and which are
+the *other* easy thing to transpose), and unit-explicit labels. Central stays the default, because
+every existing export already stamped 2277 and changing the effective default while consolidating a
+constant would silently relabel files that were previously correct.
+
+`zoneByEpsg` returns **null** for an unrecognised code rather than falling back to Central —
+defaulting an unknown zone is precisely how the original mislabel would recur. `zoneByKey` does fall
+back, because a missing key means "the drawing did not say", which has a right answer.
+
+NAD27 (EPSG 32037–32041) is deliberately absent: an old deed may be *referenced* to NAD27, but this
+software does not convert datums, and listing it would imply it does.
+
+8 tests, the first of which pins the exact confusion found.
+
+**Still open, and deliberately not approximated:** the combined (grid-to-ground) scale factor and the
+convergence angle. Both need a geodetic position and an ellipsoid model, and there is no projection
+library in this repo — adding one is a real decision, not a side effect of tidying a constant. A grid
+distance labelled as a ground distance is the confident-wrong-answer failure this codebase's rules
+exist to prevent, so it stays an open question rather than an estimate. **What was missing was never
+the maths — coordinates already flow through the editor untouched at native state-plane values, which
+is right for a firm working in one zone. What was missing was the ability to *declare* the zone
+instead of assuming Central.**

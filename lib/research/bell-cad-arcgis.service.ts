@@ -19,7 +19,7 @@
 //   9  Bell County Boundary (Polygon) — county outline
 //  10  Texas Counties    (Polygon)  — all TX county outlines
 //
-// Spatial Reference: WKID 2277 (NAD83 Texas North Central, US Feet)
+// Spatial Reference: WKID 2277 (NAD83 Texas CENTRAL, US Feet — 2276 is North Central; see lib/cad/geo/texas-state-plane.ts)
 // Max Record Count: 2,000 (32,000 without geometry)
 // Export Formats: CSV, Shapefile, GeoJSON, KML, GeoPackage, FileGDB, Excel
 
@@ -1204,7 +1204,7 @@ export function buildExportUrl(
 
 /**
  * Convert Bell CAD parcel geometry rings to GeoJSON polygon coordinates.
- * Bell CAD uses WKID 2277 (NAD83 Texas North Central, US Feet).
+ * Bell CAD uses WKID 2277 (NAD83 Texas CENTRAL, US Feet — 2276 is North Central; see lib/cad/geo/texas-state-plane.ts).
  * This returns coordinates in the native projection — use a transform for WGS84.
  */
 export function parcelToGeoJSON(parcel: BellCadParcel): { type: 'Feature'; properties: Record<string, unknown>; geometry: { type: 'Polygon'; coordinates: number[][][] } } | null {
