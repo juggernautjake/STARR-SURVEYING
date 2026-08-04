@@ -1253,3 +1253,50 @@ exist to prevent, so it stays an open question rather than an estimate. **What w
 the maths — coordinates already flow through the editor untouched at native state-plane values, which
 is right for a firm working in one zone. What was missing was the ability to *declare* the zone
 instead of assuming Central.**
+
+---
+
+### ✅ S14a DONE 2026-08-04 — N records agreed into one figure (the core; the UI is S14b)
+
+`lib/cad/compare/survey-reconcile.ts`, 18 tests.
+
+S9 compares **two** readings and *reports*, leading with the basis rotation so a change of frame is
+not presented as eighteen errors. S14 is the step past it: take **N** sources — a deed, the plat, a
+prior survey, an adjoiner's description — agree them call by call, and emit the figure to start
+drawing from.
+
+**The whole risk is that a drawing built this way looks equally authoritative whether four records
+agreed on a line or two contradicted each other and something picked one.** So a reconciled call is
+never a silent average. Every call carries its agreement state — `consensus`, `disputed`,
+`single-source`, `missing` — every competing value is kept with the record that stated it, and the
+spread is reported.
+
+**A value is still produced for a disputed call**, deliberately: refusing to emit anything leaves the
+surveyor with nothing to start from, which is worse than a marked-up figure. The marking is what
+makes it honest.
+
+**Four refusals, each pinned by a test:**
+
+| refusal | why |
+|---|---|
+| One record is never "agreement" | It cannot corroborate itself. `fullyAgreed` requires ≥2 records, no disputes, **and** no uncorroborated calls — otherwise a figure every call of which came from one deed reads as agreed when it is merely uncontradicted |
+| Differing call counts are named, never truncated | Usually one record splits a line another runs through. Truncating to the shortest silently drops boundary; the reconciled figure is as long as the **longest** record |
+| A missing bearing is never read as 0 | 0 is a real azimuth. `typeof` rather than truthiness, the same refusal S9a pins |
+| The walk **stops** at an unusable call | Skipping does not leave a gap — it produces a different, closed-looking shape. Same rule as S8a: a boundary drawn from 8 of 10 calls is not a boundary with two gaps |
+
+**The median, not the mean** — and it matters more here than in S9 because there can be more than two
+sources. One transposed digit (234.56 read as 243.56) moves a mean to a value *no record states* and
+quietly corrupts a course the other two agree on exactly.
+
+**The seam bug, avoided and tested.** A naive median of bearings `[359°, 1°]` is **180°** — a call
+pointing due south, invented from two that both point within a degree of north. Values are rotated
+away from the seam before the median and rotated back.
+
+**A known basis offset is applied but never re-derived here.** `compareSurveys` owns basis
+estimation; doing it in two places is how the two come to disagree. A 1952 magnetic-north deed
+against a 1998 grid survey reconciles to zero disputes once its offset is supplied.
+
+**S14b — what remains:** the UI. Pick several research readings, run the reconciliation, show the
+disputed calls, and hand the agreed figure to the CAD import path that S8c/S8d already made correct.
+A core with no caller is this repo's most frequent defect, so S14b should be picked up promptly
+rather than left.
