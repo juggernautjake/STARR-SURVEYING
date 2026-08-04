@@ -647,7 +647,23 @@ export default function ToolBar() {
           <div key={group.mainTool} className="relative group">
             <Tooltip
               label={`${group.label}${hasVariants ? ' ▸' : ''}`}
-              description={group.description}
+              // CAD_AUDIT Slice S13c — say how to reach the variants, rather than signalling it.
+              //
+              // The palette holds 51 tools across these 18 buttons, and every tool past the first in
+              // a group is reachable ONLY by right-clicking. The affordance was a `▸` in the label
+              // and an `aria-hidden` chevron in the corner — both of which announce "there is more
+              // here" to someone who already knows, and neither of which says how. A surveyor who
+              // left-clicks gets the main tool and no reason to suspect the other four exist.
+              //
+              // The descriptions themselves were already good and already reachable (checked before
+              // changing anything — the rich Tooltip renders `description` and `shortcut`). What was
+              // missing was one sentence naming the gesture, so the count is included too: "4 more"
+              // is a reason to try, where a bare chevron is decoration.
+              description={
+                hasVariants
+                  ? `${group.description ?? ''}${group.description ? ' ' : ''}Right-click for ${group.variants.length} more.`
+                  : group.description
+              }
               shortcut={group.shortcut}
               side="right"
               delay={500}

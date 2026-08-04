@@ -1443,3 +1443,32 @@ symptom is not reproduced by it, and S2b already found and fixed a cause of that
 **Also measured and not fixed:** nothing. Both numbers are acceptable; there is no defect here to
 report, which is a legitimate outcome for a measurement slice and is recorded as such rather than
 padded into a change.
+
+### ✅ S13c DONE 2026-08-04 — the palette says how to reach its own tools
+
+S13a counted **51 tools across 18 palette groups**. Every tool past the first in a group is reachable
+**only by right-clicking** its button, and the affordances were a `▸` appended to the tooltip label
+and an `aria-hidden` chevron in the button's corner. Both announce *"there is more here"* to someone
+who already knows, and neither says how. A surveyor who left-clicks gets the main tool and no reason
+to suspect the other four exist.
+
+**Checking first changed what the slice was.** The assumption going in was that the tool descriptions
+never reached the user — the palette button carries only `title={group.label}`, i.e. "Line". That was
+wrong: the button is wrapped in a rich `Tooltip` that renders `description` **and** `shortcut`, and
+the descriptions are already instruction-shaped ("Click start point, then end point to draw a solid
+line segment"). **The explanation layer was not broken.** Had I "fixed" it, I would have added a
+second tooltip competing with a working one.
+
+What was missing was one sentence naming the gesture — with the **count**, because *"Right-click for
+4 more"* is a reason to try where a bare chevron is decoration. Added only for groups that actually
+have variants: telling someone to right-click a button with nothing behind it teaches them the hint
+is noise.
+
+7 tests, including three that pin the *pre-existing* behaviour this depends on — the right-click
+handler, the chevron, and descriptions reaching the Tooltip at all. If any of those went away the
+new sentence would become a lie, and nothing else would have noticed. Watched failing by replacing
+the sentence with a vague "More options available."
+
+**S5 (menu condensation) remains genuinely blocked** on splitting the 15,403-line
+`CanvasViewport.tsx`, which should be sequenced deliberately rather than attempted alongside a
+behavioural change.
