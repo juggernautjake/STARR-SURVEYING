@@ -4422,3 +4422,44 @@ evidence, and doing it again would create a merge conflict in a document whose o
 read. A duplicated warning costs nothing; a duplicated tick costs a conflict.
 
 8,934 D&D tests green, `tsc` and `eslint` clean.
+
+---
+
+## 2026-08-04 — the ten reachability guards were audited, and one had a blind direction
+
+This document's remaining work is either on the unmerged branch or reserved by its own instruction
+(P14-12's persisted payload shape, which says to start it fresh). So this pass checked the thing
+everything else here rests on instead: **the guards.**
+
+`lib/dnd` is protected by **ten** reachability tests. They are in good health — `no-orphan-modules`
+has honoured **four** exemption expiries, its `EXEMPT` entries each carry a reason, and a synthetic
+orphan module dropped into `lib/dnd` was caught **by name** on the next run. `derive.ts`'s
+"EXPIRES WITH P13-3" exemption was checked and is still legitimate: nothing imports it yet.
+
+**The blind direction.** `no-orphan-modules` asserted that its resolver *can return zero* — so
+"everything is reachable" is not vacuous — but never that it can **find** an import. Both of this
+file's historic bugs lived in that direction: basename matching counted an unrelated `eligibility.ts`
+as an importer (under-reporting orphans), and failing to strip the extension from a specifier made
+three `.mjs`-imported modules look orphaned (over-reporting). A resolver that mis-resolves a *subset*
+fails quietly, and quietly is how both behaved.
+
+**The first version of the new assertion was too weak, and the control proved it.** It checked only
+that the importer count was above zero. Disabling `@/`-absolute resolution entirely **still passed
+it**, because `currency.ts` also has relative importers — the working branch satisfied the assertion
+while the broken one went unnoticed. It now asserts a *specific* `@/`-form importer by path, and the
+same control fails it by name.
+
+The aggregate test does catch that break, by reporting most of `lib/dnd` as orphaned. But *"everything
+is broken"* is a different signal from *"this resolution form is broken"*, and only the second tells
+the next reader where to look.
+
+Also worth recording: **the first attempt at that control did not run at all.** A `node -e` string
+replace silently failed to match and printed its own success message, so the test "passed" against
+unmodified code. Third time this session a control has reported false green — twice from string
+replacement, once from a missing interpreter. `grep` the file before believing a control fired.
+
+8,935 D&D tests green, `tsc` and `eslint` clean.
+
+**Unchanged and still blocking this doc:** the merge of `claude/dnd-streamer-audit-2026-08-03`, and
+P14-11's fix — whose audit lives in a commit message on that branch rather than in this tree, which is
+itself an argument for merging before starting it.

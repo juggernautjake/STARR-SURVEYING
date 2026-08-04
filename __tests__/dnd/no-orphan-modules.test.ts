@@ -189,6 +189,30 @@ describe('no lib/dnd module is an orphan', () => {
     expect(importersOf('lib/dnd/definitely-not-a-real-module.ts')).toEqual([]);
   });
 
+  it('the resolver can actually FIND an import', () => {
+    // The other direction, and the one both of this file's historic resolver bugs lived in. Matching
+    // by basename silently counted an unrelated `eligibility.ts` as an importer (under-reporting
+    // orphans); not stripping the extension from the specifier made three `.mjs`-imported modules
+    // look orphaned (over-reporting). A resolver that returns [] for genuine imports would leave
+    // "every orphan is a KNOWN one" failing loudly, but one that mis-resolves a SUBSET fails
+    // quietly — and quietly is how both real bugs behaved.
+    //
+    // Asserted on a SPECIFIC `@/`-form importer, not just "found something". The first version
+    // checked only that the count was above zero, and a control that disabled `@/` resolution
+    // entirely still passed it — `currency.ts` also has relative importers, so the weaker assertion
+    // was satisfied by the branch that still worked while the broken one went unnoticed.
+    //
+    // The aggregate test below does catch that break, by reporting most of lib/dnd as orphaned. But
+    // "everything is broken" is a different signal from "this resolution form is broken", and only
+    // the second one tells the next reader where to look.
+    const importers = importersOf('lib/dnd/currency.ts');
+    expect(
+      importers,
+      'the resolver did not resolve an `@/`-absolute import it should have. Every "reachable" ' +
+        'verdict that depends on that form is suspect until it is fixed.',
+    ).toContain('app/dnd/_sheet/components/Inventory.tsx');
+  });
+
   const orphans = MODULES.filter((m) => importersOf(m).length === 0);
 
   it('every orphan is a KNOWN one', () => {
