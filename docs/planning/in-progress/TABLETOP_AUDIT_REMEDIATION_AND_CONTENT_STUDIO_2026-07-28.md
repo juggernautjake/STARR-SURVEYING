@@ -4546,3 +4546,41 @@ the day someone builds it — at which point the guard and the Shipped line get 
 rather than the line quietly becoming true years after it was written.
 
 8,944 D&D tests green; `tsc` and `eslint` clean.
+
+---
+
+## 2026-08-04 — the style catalogue promised more than the streamer delivers
+
+S-6c (research sources) corrected a catalogue that claimed a capability nothing delivered. The same
+question here found a smaller version of it, and the answer is more nuanced than that one.
+
+`lib/dnd/sheet-styles.ts` is what the style picker reads. Its header said, flatly:
+
+> *Every style works with every game system.*
+
+**That is right about what a style mostly is, and wrong about one skin.** A Pathfinder or Intuitive
+Games sheet picking `streamer` genuinely recolours — `skinHxVars` feeds the bespoke panels' `--hx-*`,
+`shellThemeVars` feeds the shared shells, and `skinAccents.css` adds the CRT scanline. The tokens
+travel to every system, exactly as claimed.
+
+What does not travel is the streamer's **bespoke treatment**: `theme.css` carries **91**
+`.dnd-sheet.skin-streamer` rules, each needing both classes on one element, and the bespoke roots
+carry `sheet-shell` without `dnd-sheet` — deliberately, per T-SHELL-SCOPE.
+
+**So `streamer` is a palette on a bespoke sheet and a palette plus 91 rules of broadcast styling on a
+5e one.** Both are "working"; they are not the same thing, and a player choosing "Magical Streamer"
+from a gallery card is choosing the second.
+
+The header now says that, with the measurement and a pointer to where it is checked. Deliberately NOT
+changed: the picker still offers every style to every system, because it should — the recolour is
+real, and hiding a style would be a bigger lie than an imprecise sentence.
+
+The claim is pinned in `shell-scope-is-deliberate.test.ts` rather than left as prose, because **a
+claim in one file contradicting a measurement in another is exactly how P14-11 got its optimistic
+phrasing in the first place**. The control restores the unqualified sentence and the guard fails by
+name.
+
+This is a small finding and is recorded as one. The doc's Shipped list held up; this is a comment that
+outgrew its subject, not a broken feature.
+
+8,945 D&D tests green; `tsc` and `eslint` clean.

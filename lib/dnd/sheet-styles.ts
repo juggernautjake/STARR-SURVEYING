@@ -3,8 +3,24 @@
 // A small, server+client-safe list of the picker-selectable `sheet_type` styles (the
 // registry skins) with a preview palette for the gallery — decoupled from the heavy
 // `_sheet` React engine so both the API (to validate a chosen `sheet_type`) and the
-// browser UI can import it. Every style works with every game system; NPCs can pick any
-// of them too. `custom` (AI-built) is intentionally NOT here — it's generated, not picked.
+// browser UI can import it. NPCs can pick any of them too. `custom` (AI-built) is
+// intentionally NOT here — it's generated, not picked.
+//
+// ── "EVERY STYLE WORKS WITH EVERY GAME SYSTEM" — TRUE, WITH ONE MEASURED EXCEPTION ──────────────
+//
+// That sentence used to stand unqualified here. It is right about what a style mostly IS: the
+// tokens travel to every system, so a Pathfinder or Intuitive Games sheet picking `streamer`
+// genuinely recolours — `skinHxVars` feeds the bespoke panels' `--hx-*`, `shellThemeVars` feeds the
+// shared shells, and `skinAccents.css` adds the CRT scanline.
+//
+// What does NOT travel is the streamer's bespoke treatment. `theme.css` carries **91**
+// `.dnd-sheet.skin-streamer` rules, and every one needs both classes on the same element — while the
+// PF2 and IG roots carry `sheet-shell` without `dnd-sheet`, deliberately (T-SHELL-SCOPE: those broad
+// element rules must not bleed onto bespoke panels). Measured 2026-08-04.
+//
+// So on a bespoke sheet `streamer` is a palette, and on a 5e sheet it is a palette plus 91 rules of
+// broadcast styling. That gap is P14-11, and it is not closed by adding `dnd-sheet` to those roots —
+// see `__tests__/dnd/shell-scope-is-deliberate.test.ts` for why that is the wrong fix.
 export interface SheetStyle {
   id: string;
   label: string;

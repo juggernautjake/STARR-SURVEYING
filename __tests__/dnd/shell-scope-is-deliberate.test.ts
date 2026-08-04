@@ -75,6 +75,20 @@ describe('T-SHELL-SCOPE — the bespoke roots stay out of .dnd-sheet', () => {
     });
   }
 
+  it('the style catalogue does not claim the streamer reaches every system unqualified', () => {
+    // `sheet-styles.ts` is what the picker reads, and its header used to say flatly "Every style
+    // works with every game system". That is right about the TOKENS — a PF2 sheet picking `streamer`
+    // really does recolour, via `skinHxVars`, `shellThemeVars` and the scanline in `skinAccents.css`
+    // — and wrong about the 91 rules that make the streamer look like the streamer.
+    //
+    // Pinned here rather than in a comment because the gap is measured in THIS file, and a claim in
+    // one file contradicting a measurement in another is how P14-11 got its optimistic phrasing.
+    const catalogue = read('lib/dnd/sheet-styles.ts');
+    expect(catalogue, 'the unqualified claim is back — the streamer is a palette on bespoke sheets')
+      .not.toMatch(/Every style works with every game system; NPCs/);
+    expect(catalogue, 'the exception should point at where it is measured').toMatch(/T-SHELL-SCOPE/);
+  });
+
   it('records how many streamer rules are gated behind .dnd-sheet', () => {
     // Not a limit — a measurement, so P14-11's scope is a number rather than an adjective. If this
     // moves a lot, the streamer skin was reworked and the P14-11 note needs re-reading.
