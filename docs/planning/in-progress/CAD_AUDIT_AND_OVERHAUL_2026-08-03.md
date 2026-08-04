@@ -2386,3 +2386,56 @@ defect, and only one of them complete**, which is the same shape as the two spat
 deleted.
 
 CAD suite 3,430 green; `tsc` and `eslint` clean.
+
+### ✅ S1b DONE 2026-08-04 — every panel can be opened, and the probe was wrong twice proving it
+
+S1a's whole value was finding COGO: a complete, working solver filed under **AI**, where no surveyor
+would look. Nothing missing, nothing broken, the capability effectively absent. S1b generalises that
+check rather than continuing the catalogue: **`CADLayout` listens for 24 `cad:open…` events, and a
+listener nobody dispatches is a panel that exists and cannot be reached.**
+
+**Result: all 26 dialogs and every listened-for panel are reachable.** That is the finding, and it is
+worth stating plainly — a verification pass that only reports failures is not one.
+
+#### ▶ The probe produced two false findings before it produced a true one
+
+Both from the instrument, neither from the code, and each caught by checking a single instance:
+
+1. **"Twelve dialogs have no menu entry."** They do. `MenuBar` dispatches **events**; it never imports
+   dialog components, so searching it for a component name finds nothing *by construction*. Reporting
+   that would have sent someone to add twelve menu items that already exist.
+
+2. **"`FeatureLabelPreferencesPanel` is unreachable."** It is not. The context menu carries
+   *"Edit Label Preferences…"* and dispatches the event — **across two lines**:
+
+   ```
+   window.dispatchEvent(
+     new CustomEvent('cad:openFeatureLabelPrefs', { detail: { featureId } }),
+   ```
+
+   A line-based `grep` for `dispatchEvent(new CustomEvent('…'` cannot see that. **Every
+   multi-line dispatch in this codebase was invisible to the first version of the check**, and the
+   panel's own header — *"Accessed via right-click → 'Edit Label Preferences…'"* — was accurate all
+   along. That was nearly the fifth "comment describing absent behaviour" of the session; it was not
+   one.
+
+The kept check therefore reads whole files and matches the event **name**, not a call shape. It
+cannot distinguish a dispatch from a mention in a comment, and that trade is deliberate: it errs
+toward "reachable", because a false *unreachable* is the expensive direction — it sends someone to
+build an affordance that already exists, as it twice nearly did here.
+
+#### ▶ One real, small finding: a dead listener
+
+`cad:openCompletenessPanel` is dispatched by nothing. The **panel is still reachable** — it opens via
+`onOpenCompletenessPanel` / `onToggleCompletenessPanel` props passed to children, which call the
+setter directly. So the panel is fine and **the listener is dead code**: two mechanisms for one job,
+one of them unused.
+
+Recorded in `OPENED_ANOTHER_WAY` rather than deleted, because removing a listener is a behaviour
+change and the redundancy is the more interesting fact. The test asserts it in **both** directions —
+if a dispatcher ever appears, it fails and the exemption goes.
+
+The control renames the context menu's event and the guard fails by name, on the exact panel the
+probe had wrongly accused.
+
+CAD suite 3,429 green; `tsc` and `eslint` clean.
