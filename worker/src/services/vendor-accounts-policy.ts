@@ -293,3 +293,76 @@ export function reconcile(
   };
 }
 
+
+// ── The two facts `decideTopup` needs from the top-up ledger ─────────────────────────────────────
+
+/** One row of `research_vendor_topups`, as the database returns it. */
+export interface TopupRow {
+  amount_usd: number | string | null;
+  status: 'attempted' | 'succeeded' | 'failed' | 'refunded';
+  attempted_at: string;
+}
+
+/**
+ * Turn the ledger into the two numbers `decideTopup` asks for (plan S-9c).
+ *
+ * `TopupContext` has always required `chargedThisMonthUsd` and `hasUnsettledTopup`, and nothing read
+ * them: S-9b's dry run passed `0` and omitted the second, so the monthly ceiling and the
+ * crash-mid-charge guard — two of the three rails S-4 specifies — were being *declared* and never
+ * exercised. A guard rail nothing feeds is decoration.
+ *
+ * ── WHICH STATUSES COUNT, AND WHY IT IS NOT SYMMETRIC ───────────────────────────────────────────
+ *
+ * **`succeeded` counts.** Money moved.
+ *
+ * **`attempted` counts.** We do not know whether it moved. For a ceiling the safe direction is to
+ * OVER-count: an over-count refuses a charge that might have been fine, and an under-count permits a
+ * second charge on top of one that already landed. The first is an inconvenience; the second is the
+ * runaway loop the ceiling exists to stop.
+ *
+ * **`failed` does not.** The vendor said no; nothing left the card. Counting it would let a string of
+ * declines exhaust a budget that was never spent, which turns one outage into a month of refusals.
+ *
+ * **`refunded` does not.** The money came back, so net spend for the month is zero, and a refund is a
+ * deliberate act by a person rather than an ambiguous machine state. Counting it would let a
+ * correctly-reversed charge keep blocking the account it was reversed on.
+ *
+ * ── AND WHY AN OLD `attempted` ROW STILL BLOCKS ─────────────────────────────────────────────────
+ *
+ * `hasUnsettledTopup` is true for ANY row still at `attempted`, regardless of age — deliberately. The
+ * seed comment calls a long-stale one "the crash-mid-charge case, and it is meant to be visible".
+ * An unresolved charge is exactly when a person should look before the machine charges again, and
+ * `decideTopup` already fails closed rather than guessing. Ageing them out would quietly restore the
+ * double-spend this rail was written to prevent.
+ */
+export function summariseTopups(
+  rows: readonly TopupRow[],
+  now: Date,
+): { chargedThisMonthUsd: number; hasUnsettledTopup: boolean } {
+  const y = now.getUTCFullYear();
+  const m = now.getUTCMonth();
+
+  let charged = 0;
+  let unsettled = false;
+
+  for (const r of rows) {
+    if (r.status === 'attempted') unsettled = true;
+    if (r.status !== 'succeeded' && r.status !== 'attempted') continue;
+
+    const at = new Date(r.attempted_at);
+    if (Number.isNaN(at.getTime())) continue;
+    // Calendar month, in UTC — the same clock the timestamps are stored in. Using local time would
+    // move the ceiling's reset by hours and make a month-end charge land in whichever month the
+    // server happened to think it was.
+    if (at.getUTCFullYear() !== y || at.getUTCMonth() !== m) continue;
+
+    const amt = r.amount_usd === null || r.amount_usd === undefined ? 0 : Number(r.amount_usd);
+    if (Number.isFinite(amt)) charged += amt;
+  }
+
+  return {
+    // Two decimals: this is money, and a float sum of dollar amounts drifts.
+    chargedThisMonthUsd: Math.round(charged * 100) / 100,
+    hasUnsettledTopup: unsettled,
+  };
+}

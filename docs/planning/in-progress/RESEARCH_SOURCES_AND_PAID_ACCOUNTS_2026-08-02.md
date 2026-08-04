@@ -604,3 +604,54 @@ amounts and thresholds, the monthly ceiling, and which vendors to open accounts 
 
 **Verification:** production build compiles; 22,574 root tests, 1,497 worker tests, 972 research
 tests green; `tsc` and `eslint` clean.
+
+## S-9c DONE 2026-08-04 — two of the three guard rails were declared and never fed
+
+S-9b wired `decideTopup()` into a dry run and passed `chargedThisMonthUsd: 0`, omitting
+`hasUnsettledTopup` entirely, because nothing read the ledger. It labelled the under-count rather than
+hiding it — but that meant **the monthly ceiling and the crash-mid-charge guard, two of the three
+rails S-4 specifies, were being declared and never exercised**. A guard rail nothing feeds is
+decoration.
+
+`research_vendor_topups` has existed since seed 569, with `status`, `amount_usd` and `attempted_at`
+and an index specifically for finding rows stuck at `attempted`. What was missing was the reader.
+`summariseTopups()` is it — pure, in the policy module, so the route can import it without dragging
+the worker into the bundle (see S-9b).
+
+### ▶ Which statuses count, and why the rule is not symmetric
+
+Each of these is defensible in isolation; only the asymmetry is correct, so each is pinned by its own
+named test rather than by a comment.
+
+| status | counts? | why |
+|---|---|---|
+| `succeeded` | **yes** | Money moved. |
+| `attempted` | **yes** | We do not know whether it moved. For a *ceiling* the safe direction is to over-count: over-counting refuses a charge that might have been fine, under-counting permits a **second** charge on top of one that already landed. The first is an inconvenience; the second is the runaway loop the ceiling exists to stop. |
+| `failed` | no | The vendor said no and nothing left the card. Counting declines would let one outage exhaust a budget that was never spent and turn it into a month of refusals. |
+| `refunded` | no | The money came back, so net spend is zero — and a refund is a deliberate act by a person, not an ambiguous machine state. Counting it would let a correctly-reversed charge keep blocking the account it was reversed on. |
+
+**An old `attempted` row still blocks, deliberately.** It is not aged out: the seed calls a long-stale
+one *"the crash-mid-charge case, and it is meant to be visible"*, and an unresolved charge is exactly
+when a person should look before the machine charges again. Ageing them out would quietly restore the
+double-spend the rail was written to prevent.
+
+**A failed ledger read is not a quiet month.** `chargedThisMonthUsd: 0` from an unreadable table is
+indistinguishable from genuine inactivity and silently disables the ceiling — the one rail whose
+failure is unbounded. When the query errors, every decision is reported `blocked` with that as the
+reason and `monthToDateKnown: false`, which is the direction `decideTopup` itself already fails in.
+
+The totals are per-vendor. A ceiling summed across vendors would let one account's spending block
+another's, and `hasUnsettledTopup` has to mean "*this* vendor has a charge whose outcome we do not
+know".
+
+### ▶ The code caught the test, not the other way round
+
+The first fixture left `cardLast4: null` and two assertions failed with *"no card on file"* — a
+**fourth** guard rail beyond the three S-4 names, which the refusal had been about to be mistaken for
+a ceiling result. The code was right and the test was wrong; the fixture now carries a card and says
+why. The negative control (making `attempted` stop counting) fails the assertion that names it.
+
+16 tests here, 1,513 in the worker suite, `tsc` and `eslint` clean, production build compiles.
+
+**Still owner-blocked, unchanged:** the SetupIntent and the off-session PaymentIntent, the per-vendor
+amounts and thresholds, the monthly ceiling figure, and which vendors to open accounts with.

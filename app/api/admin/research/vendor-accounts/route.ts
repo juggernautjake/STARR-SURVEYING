@@ -33,6 +33,8 @@ import {
   decideTopup,
   describeBalance,
   toVendorAccount,
+  summariseTopups,
+  type TopupRow,
 } from '@/worker/src/services/vendor-accounts-policy';
 
 export const runtime = 'nodejs';
@@ -67,6 +69,17 @@ export const GET = withErrorHandler(async () => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // S-9c — the top-up ledger, which S-9b's dry run declared and never read.
+  //
+  // A failed read is NOT treated as "no top-ups". `chargedThisMonthUsd: 0` from an unreadable ledger
+  // is indistinguishable from a genuinely quiet month, and it silently disables the monthly ceiling
+  // — the one rail whose failure is unbounded. When this query fails the dry run says so and every
+  // decision is reported as blocked, the same direction `decideTopup` itself fails in.
+  const { data: topupRows, error: topupError } = await supabaseAdmin
+    .from('research_vendor_topups')
+    .select('vendor_id, amount_usd, status, attempted_at')
+    .order('attempted_at', { ascending: false });
+
   // S-9b — what auto top-up WOULD do right now, per account, charging nothing.
   //
   // `decideTopup()` shipped with every guard rail the spec asked for — ceiling, minimum interval,
@@ -80,15 +93,33 @@ export const GET = withErrorHandler(async () => {
   // the owner sees exactly what would be charged, and exactly which accounts are refusing to act and
   // why. A dry run is also the only honest way to test a payment loop before it can spend money.
   //
-  // `chargedThisMonthUsd: 0` is a deliberate under-count and is labelled as one in the payload
-  // rather than hidden: the monthly total comes from charges, and there have been none because
-  // nothing can charge yet. When the charge path lands it must supply the real figure — passing 0
-  // then would disable the ceiling, which is the one guard rail whose failure is unbounded.
+  // S-9c — the month-to-date figure and the unsettled flag now come from the ledger rather than
+  // being hardcoded to 0 and omitted. Both are per-vendor: a ceiling summed across vendors would
+  // let one account's spending block another's, and `hasUnsettledTopup` means "THIS vendor has a
+  // charge whose outcome we do not know".
   const now = new Date();
+  const ledgerReadable = !topupError;
+  const rowsByVendor = new Map<string, TopupRow[]>();
+  for (const r of (topupRows ?? []) as (TopupRow & { vendor_id: string })[]) {
+    const list = rowsByVendor.get(r.vendor_id) ?? [];
+    list.push(r);
+    rowsByVendor.set(r.vendor_id, list);
+  }
+
   type AccountRow = Parameters<typeof toVendorAccount>[0];
   const decisions = (data ?? []).map((row: AccountRow) => {
     const account = toVendorAccount(row);
-    const decision = decideTopup(account, { now, chargedThisMonthUsd: 0 });
+    const ledger = summariseTopups(rowsByVendor.get(account.vendorId) ?? [], now);
+    const decision = ledgerReadable
+      ? decideTopup(account, { now, ...ledger })
+      : {
+          topUp: false,
+          amountUsd: null,
+          blocked: true,
+          reason:
+            `${account.vendorId}: the top-up ledger could not be read, so month-to-date spend and ` +
+            `any unsettled charge are unknown. Refusing to decide rather than assuming $0 spent.`,
+        };
     return {
       vendorId: account.vendorId,
       balance: describeBalance(account, now),
@@ -106,11 +137,18 @@ export const GET = withErrorHandler(async () => {
     topupDryRun: {
       decisions,
       chargesNothing: true,
-      monthToDateKnown: false,
-      note:
-        'What auto top-up would decide right now. Nothing is charged — the card flow is not built. ' +
-        'Month-to-date spend is counted as $0 because no charge path exists yet, so the monthly ' +
-        'ceiling is not being tested by these results.',
+      // S-9c — no longer a fixed `false`. The ceiling is now tested against the real ledger, and
+      // when the ledger cannot be read the dry run says the figure is unknown instead of quietly
+      // reporting a decision made against an assumed $0.
+      monthToDateKnown: ledgerReadable,
+      note: ledgerReadable
+        ? 'What auto top-up would decide right now, against the real top-up ledger. Nothing is ' +
+          'charged — the card flow is not built. Month-to-date spend counts succeeded and ' +
+          'attempted charges; an attempted charge of unknown outcome counts toward the ceiling ' +
+          'because over-counting refuses a charge while under-counting permits a second one.'
+        : 'The top-up ledger could not be read, so every decision below is reported as blocked. ' +
+          'Month-to-date spend is UNKNOWN, not $0 — treating it as $0 would disable the monthly ' +
+          'ceiling exactly when the data behind it is missing.',
     },
   });
 });
