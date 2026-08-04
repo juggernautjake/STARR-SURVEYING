@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { fingerprintHtml } from '@/lib/research/dom-fingerprint';
+import { fingerprintHtml, diffFingerprints, type FingerprintDiff } from '@/lib/research/dom-fingerprint';
 import {
   classifySweepStatus,
   describeProbe,
@@ -52,6 +52,7 @@ interface AdapterRow {
 interface CanaryRow {
   adapter_id: string;
   baseline_dom_skeleton: string | null;
+  baseline_dom_hash: string | null;
 }
 
 async function authGate(): Promise<
@@ -134,7 +135,7 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
   //    when there's a baseline.
   const { data: canaries } = await supabaseAdmin
     .from('research_adapter_canaries')
-    .select('adapter_id, baseline_dom_skeleton')
+    .select('adapter_id, baseline_dom_skeleton, baseline_dom_hash')
     .in('adapter_id', adapterRows.map((a) => a.id))
     .eq('is_active', true);
   const canaryByAdapter = new Map<string, CanaryRow>();
@@ -157,6 +158,8 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
     let error: string | null = null;
     let bodySnippet: string | null = null;
     let fingerprintMatch: boolean | null = null;
+    // R10 — the structural diff for this probe, when a baseline existed to compare against.
+    let fingerprintDiff: FingerprintDiff | null = null;
 
     try {
       const controller = new AbortController();
@@ -176,6 +179,22 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
         if (canary?.baseline_dom_skeleton) {
           const live = fingerprintHtml(body);
           fingerprintMatch = live.skeleton === canary.baseline_dom_skeleton;
+          // R10 — say WHAT changed, not just THAT something did.
+          //
+          // `diffFingerprints` has existed since the fingerprint module was written and had **no
+          // callers anywhere in the repo** — the eleventh instance of this codebase's signature
+          // defect, and the exact capability R10 asks for ("a what-changed-on-their-site diff
+          // view"). The boolean above is all a reviewer got: "structure no longer matches our
+          // baseline", with no way to tell a renamed wrapper div from a search form replaced by a
+          // captcha wall without opening the site by hand.
+          //
+          // No schema change is needed. `diffFingerprints` compares SKELETONS, and the canary
+          // already stores `baseline_dom_skeleton`; `element_count` is not read by it, so the
+          // reconstructed baseline is faithful for this comparison.
+          fingerprintDiff = diffFingerprints(
+            { hash: canary.baseline_dom_hash ?? '', skeleton: canary.baseline_dom_skeleton, element_count: 0 },
+            live,
+          );
         } else {
           fingerprintMatch = null;
         }
@@ -255,6 +274,7 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
         probe_summary: summary,
         prior_config: adapter.config ?? {},
         prior_field_map: adapter.field_map ?? {},
+        fingerprint_diff: fingerprintDiff,
       });
       void supabaseAdmin
         .from('research_adapter_change_proposals')

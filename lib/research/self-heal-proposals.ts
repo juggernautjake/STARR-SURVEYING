@@ -21,6 +21,8 @@
 // Pure description / shape helpers live here. The DB write happens at
 // the route layer.
 
+import type { FingerprintDiff } from './dom-fingerprint';
+
 import type { SweepStatus } from './self-heal-sweep';
 
 export interface BreakageProposalInput {
@@ -36,6 +38,9 @@ export interface BreakageProposalInput {
    *  edit so the proposal is reversible per §9.5. */
   prior_config: Record<string, unknown>;
   prior_field_map: Record<string, unknown>;
+  /** R10 — the structural before/after, when a canary baseline existed to compare against. Null
+   *  when there is no baseline yet, which is a different thing from "nothing changed". */
+  fingerprint_diff?: FingerprintDiff | null;
 }
 
 export interface BreakageProposalRow {
@@ -78,7 +83,22 @@ export function buildBreakageProposal(input: BreakageProposalInput): BreakagePro
     detected.push(`Site returned ${input.http_status ?? 'an error'}.`);
   }
   if (input.fingerprint_match === false) {
-    detected.push('Live page structure no longer matches our baseline fingerprint.');
+    // R10 — name what changed, when the sweep was able to work it out.
+    //
+    // "No longer matches our baseline fingerprint" is true of a renamed wrapper div and of a search
+    // form replaced by a captcha wall, and a reviewer cannot tell those apart without opening the
+    // site by hand — which is the whole cost this queue exists to remove. `diffFingerprints` had
+    // been written for exactly this and had no callers anywhere in the repo.
+    const d = input.fingerprint_diff;
+    if (d) {
+      const pct = Math.round(d.similarity * 100);
+      const bits = [`Live page structure changed (${pct}% similar to baseline, ${d.severity}).`];
+      if (d.removed.length > 0) bits.push(`Gone: ${d.removed.slice(0, 6).join(', ')}${d.removed.length > 6 ? ` +${d.removed.length - 6} more` : ''}.`);
+      if (d.added.length > 0) bits.push(`New: ${d.added.slice(0, 6).join(', ')}${d.added.length > 6 ? ` +${d.added.length - 6} more` : ''}.`);
+      detected.push(bits.join(' '));
+    } else {
+      detected.push('Live page structure no longer matches our baseline fingerprint.');
+    }
   }
   if (input.status === 'error') {
     detected.push('Network probe failed.');
@@ -106,6 +126,9 @@ export function buildBreakageProposal(input: BreakageProposalInput): BreakagePro
         fingerprint_match: input.fingerprint_match,
         duration_ms: input.duration_ms,
       },
+      // Kept structured as well as prose so a later UI can render the token lists directly rather
+      // than re-parsing the sentence above.
+      fingerprint: input.fingerprint_diff ?? null,
     },
     rationale,
     confidence: 0,

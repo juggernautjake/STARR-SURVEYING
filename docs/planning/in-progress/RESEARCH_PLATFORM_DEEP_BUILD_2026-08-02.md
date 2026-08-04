@@ -604,7 +604,39 @@ polish — nothing else in this plan can be trusted while the engine is down and
   extraction would pin today's mistakes as tomorrow's truth — so it is an owner/RPLS task, not a
   coding one.
 
-- **R10. Self-heal on real data, review-required.**
+- **R10. Self-heal on real data, review-required.** ◑ **PARTLY DONE 2026-08-04 — the diff view shipped; auto-apply stays off.**
+
+  #### The eleventh dead module, found by checking the premise
+
+  R10 asks for "a *what changed on their site* diff view". Checking before building found the
+  pipeline already substantial — sweep, proposals, apply-evaluator, apply-runner, settings, four API
+  routes and a 620-line review page at `/admin/research/self-heal`.
+
+  It also found **`diffFingerprints` with no callers anywhere in the repo.** Written for exactly
+  this, never wired. The sweep computed `live.skeleton === canary.baseline_dom_skeleton`, kept the
+  boolean, and threw the structure away — so every proposal said the same sentence:
+
+  > *"Live page structure no longer matches our baseline fingerprint."*
+
+  **That sentence is equally true of a renamed wrapper div and of a search form replaced by a captcha
+  wall.** A reviewer could not tell those apart without opening the site by hand, which is the entire
+  cost this queue exists to remove.
+
+  **Now wired, with no schema change.** `diffFingerprints` compares *skeletons*, and the canary
+  already stores `baseline_dom_skeleton` and `baseline_dom_hash`; `element_count` is not read by the
+  comparison, so the reconstructed baseline is faithful. A proposal now reads:
+
+  > *"Live page structure changed (38% similar to baseline, broken). Gone: form, input, select. New: div, p."*
+
+  The structured diff is stored beside the prose in `diff.fingerprint` so a later UI can render the
+  token lists without re-parsing a sentence. When there is **no** baseline the old wording is kept —
+  no canary is a different thing from "nothing changed", and inventing a diff would be worse than the
+  bare sentence. 7 tests.
+
+  **Still open in R10:** the screenshot pair, and the one-click accept that re-runs the canary.
+  Auto-apply remains off by design — the review queue is the product.
+
+  *Original slice text:*
   With R8+R9 the existing proposal/apply pipeline finally has inputs. Keep auto-apply **off**; the
   review queue is the product. Add a "what changed on their site" diff view (DOM fingerprint before/
   after, screenshot pair).
