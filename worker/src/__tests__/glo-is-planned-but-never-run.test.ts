@@ -50,6 +50,23 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 const workerFiles = walk(SRC);
 
+/**
+ * Source with comments removed, before any "is it wired?" question is asked of it.
+ *
+ * ── I MADE THIS EXACT MISTAKE THREE SLICES EARLIER AND AGAIN HERE ───────────────────────────────
+ *
+ * R4b's spend ratchet credited a file as migrated because a **comment** mentioned the module it was
+ * supposed to import. That was found and fixed the same day. Writing this guard, I searched raw
+ * source for `findOriginalSurvey` — and `research-modes.ts` matched, because a comment I had just
+ * written there says the function "is called from the Bell orchestrator".
+ *
+ * So the negative control passed with the caller deleted, and the guard was defending nothing.
+ * **A guard that greps for a name is satisfied by anyone talking about the name**, and in a codebase
+ * that documents its reasoning as heavily as this one that is not an edge case — it is the norm.
+ */
+const code = (src: string) =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
 describe('S-6b — GLO is in the plan and in no code path', () => {
   it('GLO is the only source offering original_survey', () => {
     // If this ever fails, another source has taken the capability on and the rest of this file needs
@@ -59,51 +76,71 @@ describe('S-6b — GLO is in the plan and in no code path', () => {
     expect(DESIRED_CAPABILITIES).toContain('original_survey');
   });
 
-  it('no longer reports original_survey as covered — FIXED by S-6c', () => {
-    // ── This assertion is inverted from the one this file shipped with, and that is the point. ───
+  it('reports original_survey as covered IN BELL, because a Bell run now queries GLO — S-6d', () => {
+    // ── Inverted a second time, and the direction is the whole story of this file. ───────────────
     //
-    // S-6b pinned the false statement: the plan reported `original_survey` as covered because GLO
-    // was in the catalogue, while nothing queried GLO. It was written to fail the day that changed,
-    // in either direction, so that the fix could not land silently. It failed on S-6c, which is the
-    // guard doing its job rather than a regression.
+    // Shipped asserting `original_survey` was reported COVERED while nothing queried GLO — the
+    // defect. S-6c inverted it to MISSING when the plan stopped claiming what it could not do.
+    // S-6d inverts it back, because the claim is now TRUE for Bell: `findOriginalSurvey` is called
+    // from the Bell orchestrator once the abstract number is known.
     //
-    // GLO now carries `notWiredYet`, so `buildPlan` excludes it from the steps and the capability it
-    // alone provides is correctly reported as missing. The ADAPTER is still unwired — everything
-    // else in this file still holds — but the plan no longer claims otherwise.
+    // Both inversions were the guard working. It was written to fail the day this changed *in
+    // either direction*, and it has now caught the fix as well as the defect — which is the only
+    // way a test can tell "we fixed it" from "we broke it back".
     for (const mode of ['free', 'paid'] as const) {
       const plan = buildPlan('Bell', mode);
       expect(
         plan.missingCapabilities,
-        `${mode} mode: original_survey must be reported missing while GLO has no caller`,
-      ).toContain('original_survey');
+        `${mode} mode: Bell queries GLO now, so original_survey must NOT be reported missing`,
+      ).not.toContain('original_survey');
     }
   });
 
-  it('and nothing in the worker actually queries GLO', () => {
-    // The other half. Asserted by reachability rather than by reading the pipeline, because the
-    // question is "does ANY path reach it", which no single file can answer.
-    const adapterImporters = workerFiles.filter(
-      (f) => !f.endsWith('glo-land-grant-adapter.ts') && /glo-land-grant-adapter/.test(fs.readFileSync(f, 'utf8')),
-    );
+  it('still reports it MISSING for a county whose pipeline does not call GLO', () => {
+    // The half that stops S-6b's defect coming back one county at a time. GLO serves the whole
+    // state and is called from ONE county's orchestrator, so "wired" is true per county — and a
+    // Travis run must not inherit Bell's coverage just because the adapter finally has an importer.
+    const plan = buildPlan('Travis', 'free');
     expect(
-      adapterImporters,
-      'the GLO adapter gained an importer — if it is now wired, delete this test and tick S-6',
-    ).toEqual([]);
-
-    // `sources/glo-client.ts` IS imported by index.ts — but never constructed. An import that is
-    // never used is the weakest possible evidence of a feature, and it is what made this look wired.
-    const index = read('index.ts');
-    expect(index, 'index.ts imports GLOClient').toContain('GLOClient');
-    expect(
-      /new\s+GLOClient/.test(index),
-      'GLOClient is now constructed in index.ts — GLO may be wired; re-check S-6 and this test',
-    ).toBe(false);
+      plan.missingCapabilities,
+      'Travis has no GLO caller, so original_survey is still a gap there',
+    ).toContain('original_survey');
+    // …and it is named as OUR gap, not the state's, so nobody escalates to paid mode to fix it.
+    expect(plan.statement).toMatch(/Built but not connected/i);
   });
 
-  it('states the two ways out, so neither is chosen by accident', () => {
-    // Documentation-as-assertion: the fix is either to wire the adapter or to stop claiming the
-    // capability, and they are not interchangeable. Kept as a test so it is read with the rest.
-    const options = ['wire the adapter into the pipeline', 'stop claiming the capability'];
-    expect(options).toHaveLength(2);
+  it('the worker really does query GLO now', () => {
+    // The other half, inverted with it. Asserted by reachability rather than by reading the
+    // pipeline, because the question is "does ANY path reach it", which no single file can answer.
+    const adapterImporters = workerFiles.filter(
+      (f) => !f.endsWith('glo-land-grant-adapter.ts') && /glo-land-grant-adapter/.test(code(fs.readFileSync(f, 'utf8'))),
+    );
+    expect(
+      adapterImporters.length,
+      'the GLO adapter lost its importer — original_survey would be a false claim again',
+    ).toBeGreaterThan(0);
+
+    // And the importer is reached in turn. A service nothing calls is the same defect one level up,
+    // which is precisely how `frameParcel` and `chooseTiles` were "wired" and delivered nothing.
+    //
+    // `code()` matters here specifically: without it this passed with the orchestrator's call
+    // deleted, because a comment in research-modes.ts names the function. See the note on `code`.
+    const callers = workerFiles.filter(
+      (f) => !f.endsWith('original-survey.ts') && /findOriginalSurvey\s*\(/.test(code(fs.readFileSync(f, 'utf8'))),
+    );
+    expect(callers.length, 'findOriginalSurvey has no caller — the chain stops one link short')
+      .toBeGreaterThan(0);
+  });
+
+  it('does not claim the grant lookup succeeded when it could not run', () => {
+    // The distinction the service exists to preserve, pinned here because it is the thing a
+    // surveyor would be misled by: "GLO holds no grant" and "we could not ask GLO" are opposite
+    // statements, and an empty grants array is compatible with both.
+    const src = read('services/original-survey.ts');
+    for (const outcome of ["'found'", "'none'", "'not_identified'", "'error'"]) {
+      expect(src, `the ${outcome} outcome must stay distinguishable`).toContain(outcome);
+    }
+    // A county-only search returns Bell's whole 1,523-grant index; refusing it is not a limitation.
+    expect(src).toMatch(/returns the whole grant index/i);
   });
 });

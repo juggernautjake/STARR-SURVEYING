@@ -55,18 +55,28 @@ describe('a plan only includes sources that serve the county', () => {
     expect(ids).toContain('cad');   // statewide
     expect(ids).not.toContain('edoctec');   // Coryell/Lampasas only
 
-    // S-6c — `glo` was asserted here as a statewide source in the steps. It is statewide and it is
-    // in the catalogue, but it is flagged `notWiredYet`: no code path reaches the adapter, so it is
-    // deliberately NOT a step. The steps are what the run will do, and this list is that list.
-    expect(ids, 'glo is back in the steps — has it been wired? then clear notWiredYet').not.toContain('glo');
+    // S-6d — `glo` is a step again, and this time truthfully. S-6c removed it because nothing
+    // reached the adapter; the Bell orchestrator now calls `findOriginalSurvey`, so a Bell run does
+    // what this list says it does. The steps are what the run will do, and this list is that list.
+    expect(ids, 'glo left Bell\'s steps — did the orchestrator lose its call?').toContain('glo');
   });
 
-  it('still knows about GLO, and says so separately', () => {
-    // Excluding it from the steps must not erase it. The platform knowing about a source and a run
-    // using it are different facts, and collapsing them in either direction loses something: hide it
-    // and the researcher hunts for a source we already have; list it as a step and the plan lies.
+  it('does NOT give an unwired county the same source', () => {
+    // The property that keeps S-6b's defect from returning county by county. GLO serves the whole
+    // state, and exactly one county's pipeline calls it — so `wiredCounties` narrows the step list,
+    // and Travis is told plainly that we have the source and do not use it there yet.
+    const travis = buildPlan('Travis', 'free');
+    expect(travis.steps.map((s) => s.source.id)).not.toContain('glo');
+    expect(travis.statement).toContain('Texas GLO land grants');
+  });
+
+  it('still knows about GLO everywhere, and says so separately where it is unwired', () => {
+    // Excluding it from a county's steps must not erase it. The platform knowing about a source and
+    // a run using it are different facts, and collapsing them in either direction loses something:
+    // hide it and the researcher hunts for a source we already have; list it as a step and the plan
+    // lies about that county.
     expect(SOURCE_CATALOGUE.some((s) => s.id === 'glo')).toBe(true);
-    expect(buildPlan('Bell', 'free').statement).toContain('Texas GLO land grants');
+    expect(buildPlan('Travis', 'free').statement).toContain('Texas GLO land grants');
   });
 
   it('gives Coryell eDocTec and not Kofile', () => {
@@ -92,21 +102,26 @@ describe('the plan says what it cannot reach', () => {
     expect(plan.statement).toContain('No source in this plan covers');
   });
 
-  it('reports original_survey as MISSING, because nothing queries GLO', () => {
-    // ── Inverted 2026-08-04 (S-6c). This read `missingCapabilities).toEqual([])`. ────────────────
+  it('reports nothing missing for Bell, because Bell now queries GLO', () => {
+    // ── Inverted TWICE, and the history is worth keeping in one place. ───────────────────────────
     //
-    // That assertion was true only because GLO sat in the catalogue, and it was the plan's one false
-    // statement: `GloLandGrantAdapter` has no caller anywhere in the worker, so no run has ever
-    // fetched an original survey. The test was faithfully pinning a lie.
+    // Originally `toEqual([])` — true only because GLO sat in the catalogue, while the adapter had
+    // no caller anywhere in the worker. The test was faithfully pinning a lie.
+    // S-6c made it `['original_survey']`, matching a plan that had stopped claiming what it could
+    // not do. S-6d returns it to `[]` — and this time the empty array is earned, because the Bell
+    // orchestrator calls `findOriginalSurvey`.
     //
-    // GLO is now flagged `notWiredYet`, excluded from the steps, and named separately in the
-    // statement — so the plan says what it will actually do. When the adapter is wired, the flag
-    // comes off and this assertion goes back to `[]` in the same commit.
+    // Same assertion text, three different meanings. Which is why the *reason* is recorded here and
+    // not just the expectation: `toEqual([])` on its own cannot tell you whether it is true.
     const plan = buildPlan('Bell', 'free');
-    expect(plan.missingCapabilities).toEqual(['original_survey']);
+    expect(plan.missingCapabilities).toEqual([]);
+  });
 
-    // And the researcher is told the gap is ours, not the state's — escalating to paid will not fix
-    // it, which "no source covers original_survey" alone would not convey.
+  it('still names the gap as OURS for a county where GLO is unwired', () => {
+    // Escalating to paid mode cannot fix a source we have and do not call, so the statement must
+    // distinguish that from "no source exists" — otherwise a researcher spends money on it.
+    const plan = buildPlan('Travis', 'free');
+    expect(plan.missingCapabilities).toContain('original_survey');
     expect(plan.statement).toContain('Built but not connected');
     expect(plan.statement).toContain('Texas GLO land grants');
   });

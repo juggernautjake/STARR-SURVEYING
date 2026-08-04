@@ -1033,6 +1033,31 @@ export async function orchestrateBellResearch(
     }
   }
 
+  // ── The original survey, from the State that issued it (plan S-6d) ──────────────────────────
+  //
+  // `GloLandGrantAdapter` was built in S-6, driven live against 1,523 Bell grants, and had NO
+  // CALLER for two days while the run reported `original_survey` as a covered capability. S-6c
+  // stopped the run claiming it; this is the call that makes the claim true.
+  //
+  // HERE, and not earlier, because this is the first point at which the abstract number and survey
+  // name are known — and `findOriginalSurvey` refuses a county-only search, which would return
+  // Bell's entire 1,523-grant index truncated to one page of unrelated grants. Free, so it runs in
+  // both modes; best-effort, so a slow state website cannot cost a run that already has its deeds.
+  let originalSurvey: import('../../services/original-survey.js').OriginalSurveyResult | null = null;
+  try {
+    const { findOriginalSurvey } = await import('../../services/original-survey.js');
+    originalSurvey = await findOriginalSurvey({
+      county: 'Bell',
+      abstractNumber: propertyIds.abstractNumber,
+      surveyName: propertyIds.surveyName,
+    });
+    progress('Phase 3', originalSurvey.statement);
+  } catch (err) {
+    // The service already refuses to throw; this catches the import itself, so a missing module
+    // cannot take down a run either.
+    recordError('Phase 3', 'GLO', `Original-survey lookup could not run: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
   progress('Phase 3', `Analyzing ${filteredDeedRecords.length} deed(s) + ${filteredPlats.length} plat(s)...`, 62);
 
   // Extract bearing/distance calls from deed legal descriptions for plat cross-validation
@@ -1715,6 +1740,22 @@ export async function orchestrateBellResearch(
     discrepancies,
     adjacentProperties,
     siteIntelligence: siteIntelligence ?? [],
+    // Carried into the report, not just logged. A lookup whose result only reaches the run log is
+    // the same defect as one with no caller — R16's `frameParcel` and R18's `chooseTiles` were both
+    // computed on every document and discarded, and neither showed up as broken.
+    ...(originalSurvey ? {
+      originalSurvey: {
+        outcome: originalSurvey.outcome,
+        statement: originalSurvey.statement,
+        grants: originalSurvey.grants.map((g) => ({
+          abstractNumber: g.abstractNumber,
+          originalGrantee: g.originalGrantee,
+          county: g.county,
+          detailUrl: g.detailUrl,
+          recordId: g.recordId,
+        })),
+      },
+    } : {}),
     gisQualityReport,
     researchCompleteness: completeness,
 

@@ -877,3 +877,69 @@ instruction for the day GLO is wired: clear the flag, and these assertions go ba
 93 worker test files / 1,531 tests green; `tsc` and `eslint` clean.
 
 **Still open and unchanged:** the adapter has no caller. S-6 is *built and verified live, not wired*.
+
+## ✅ S-6d DONE 2026-08-04 — GLO is wired, and "wired" turned out to be per county
+
+S-6 built `GloLandGrantAdapter`, tested it, drove it live against **1,523 Bell grants** — and left it
+with no caller. S-6b found the run reporting `original_survey` as covered anyway; S-6c stopped the
+plan claiming it. **This is the half that makes the claim true.**
+
+`worker/src/services/original-survey.ts` is the caller, and the Bell orchestrator calls it at the
+first point the abstract number and survey name exist.
+
+### ▶ The refusal is the design, not a limitation
+
+The adapter's own docstring carries the deciding warning: *"At least one criterion beyond county is
+strongly advised: Bell alone returns 1,523 grants, and GLO pages them."*
+
+A county-only search is not a weaker search — it is a **useless one that costs 60 seconds and returns
+a phone book**, truncated, whose first page of unrelated grants is exactly the shape something
+downstream would treat as *"the original survey for this property"*. **A wrong grant attached to a
+survey is worse than no grant.** So the service refuses without an identifying criterion, and says
+which kind of gap that is: *"a gap in what we know about the property, NOT a finding that the State
+has no record of its original survey."*
+
+Four outcomes stay distinguishable for the same reason — `found`, `none`, `not_identified`, `error`.
+An empty grant list is compatible with all four, and a failed lookup reported as "no grant exists"
+would tell a surveyor the State holds nothing about a survey it may well hold.
+
+When no abstract is known the survey name becomes the grantee search — *"John Smith Survey, A-123"* →
+`JOHN SMITH` — because a survey is nearly always named for its original grantee, and that is the one
+name GLO indexes.
+
+### ▶ S-6c said "clear the flag when you wire it". That would have re-made the original defect
+
+GLO is a **statewide** index; the call sits in the **Bell** orchestrator. Clearing `notWiredYet`
+would have had every other county's plan claim `original_survey` on the strength of a caller that
+only runs in Bell — S-6b's defect exactly, arriving one county at a time.
+
+So the fact is recorded at the resolution it is true at: `wiredCounties: ['Bell']`. Travis is still
+told *"Built but not connected, so NOT part of this run: Texas GLO land grants"*, which stops anyone
+escalating to paid mode over a gap that is ours.
+
+### ▶ Three assertions inverted a second time — and the guard caught the FIX
+
+S-6b's guard was written to fail the day this changed **in either direction**. It failed on S-6c
+(the plan stopped claiming) and it failed again here (the run started delivering). One assertion has
+now read `[]`, then `['original_survey']`, then `[]` — **same text, three different meanings**,
+which is why each carries its reason inline. `toEqual([])` alone cannot tell you whether it is true.
+
+### ▶ And I wrote the comment-satisfies-the-guard bug into a brand-new guard
+
+Three slices ago I found R4b's spend ratchet crediting a file because a **comment** named the module
+it should import. Writing this slice's guard I grepped raw source for `findOriginalSurvey` — and
+`research-modes.ts` matched, because a comment *I had just written there* says the function "is
+called from the Bell orchestrator".
+
+**The negative control passed with the caller deleted.** The guard was defending nothing, in the
+first commit of its life, for the same reason as the one I had already fixed. It now strips comments
+and matches a call rather than a name; the control deletes the orchestrator's call and it fails by
+name.
+
+A guard that greps for an identifier is satisfied by anyone *talking about* that identifier — and in
+a codebase that documents its reasoning this heavily, that is the normal case rather than an edge one.
+
+Worker suite **94 files / 1,543 tests green**; `tsc` and `eslint` clean.
+
+**S-6 is complete.** Remaining in this document: S-9's Stripe SetupIntent (owner: live-payments
+decision), and wiring GLO for counties beyond Bell as their pipelines are built.

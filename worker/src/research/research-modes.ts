@@ -58,6 +58,24 @@ export interface ResearchSource {
    * run will use it.
    */
   notWiredYet?: boolean;
+
+  /**
+   * Counties where a code path actually reaches this source (plan S-6d).
+   *
+   * Absent means "wired wherever `counties` says it serves" — the ordinary case. Present narrows it.
+   *
+   * ── WHY A LIST AND NOT CLEARING `notWiredYet` ───────────────────────────────────────────────
+   *
+   * S-6c's note said to remove the flag "in the same commit that wires it". Wiring turned out not to
+   * be all-or-nothing: GLO is a **statewide** index, and the call sits in the **Bell** orchestrator.
+   * Clearing the boolean would have re-made S-6b's exact defect one county at a time — every other
+   * county's plan claiming `original_survey` because a source that serves `*` now has a caller
+   * somewhere.
+   *
+   * So the fact is recorded at the resolution it is true at: GLO serves the state, and a run uses it
+   * in Bell. Add counties here as their pipelines call it.
+   */
+  wiredCounties?: string[];
 }
 
 /** The catalogue, as of 2026-08-02. Every free entry here was driven in a browser.
@@ -74,11 +92,11 @@ export const SOURCE_CATALOGUE: ResearchSource[] = [
     capabilities: ['original_survey'],
     counties: '*',
     estimatedSeconds: 60,
-    // S-6c — `GloLandGrantAdapter` exists, is tested, and was driven live (1,523 Bell grants). It
-    // has NO caller: nothing in the worker constructs `GLOClient` or imports the adapter. Until it
-    // is wired, a run cannot deliver `original_survey`, and saying otherwise was the plan's only
-    // false statement. Remove this flag in the same commit that wires it.
-    notWiredYet: true,
+    // S-6d — WIRED, for Bell. `findOriginalSurvey` is called from the Bell orchestrator once the
+    // abstract number and survey name are known, so a Bell run now genuinely delivers
+    // `original_survey`. Everywhere else this is still the S-6c situation — the adapter exists and
+    // nothing calls it — which is why the county list is here rather than the flag being deleted.
+    wiredCounties: ['Bell'],
   },
   {
     id: 'kofile',
@@ -212,9 +230,15 @@ export function buildPlan(
   //
   // The unwired sources are still surfaced, by name, in the statement below — the researcher should
   // know the platform *knows about* GLO. What they must not be told is that this run will use it.
+  // S-6d — "wired" is per county, not per source. A statewide source called from one county's
+  // pipeline is wired THERE and nowhere else, and treating it as wired everywhere would re-make
+  // S-6b's defect county by county.
+  const isWired = (s: ResearchSource) =>
+    !s.notWiredYet && (!s.wiredCounties || s.wiredCounties.some((c) => c.toLowerCase() === county.trim().toLowerCase()));
+
   const known = catalogue.filter((s) => servesCounty(s, county));
-  const notWired = known.filter((s) => s.notWiredYet);
-  const serving = known.filter((s) => !s.notWiredYet);
+  const notWired = known.filter((s) => !isWired(s));
+  const serving = known.filter(isWired);
   const free = serving.filter((s) => s.cost === 'free');
   const paid = mode === 'paid' ? serving.filter((s) => s.cost === 'paid') : [];
 

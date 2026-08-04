@@ -31,6 +31,26 @@ export interface BellResearchResult {
   discrepancies: DiscrepancyItem[];
   adjacentProperties: AdjacentProperty[];
   siteIntelligence: SiteIntelligenceNote[];
+  /**
+   * The original land grant from the Texas GLO (plan S-6d), or the reason it was not looked up.
+   *
+   * Optional on the type rather than required, because reports produced before this shipped do not
+   * carry it and a required field would make every one of them invalid on read. `outcome`
+   * distinguishes the four cases a surveyor needs kept apart — found, none, not identified, and
+   * error — since "we could not ask" and "the State holds no grant" mean opposite things when you
+   * are tracing a boundary back to its senior call.
+   */
+  originalSurvey?: {
+    outcome: 'found' | 'none' | 'not_identified' | 'error';
+    statement: string;
+    grants: Array<{
+      abstractNumber?: string;
+      originalGrantee?: string;
+      county?: string;
+      detailUrl?: string;
+      recordId?: string;
+    }>;
+  };
   /** GIS screenshot quality analysis report */
   gisQualityReport?: {
     summary: string;
