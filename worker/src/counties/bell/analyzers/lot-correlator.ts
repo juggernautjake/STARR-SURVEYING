@@ -16,7 +16,7 @@ import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call decides which lot a description matches.
 import { modelFor } from '../../../infra/model-router.js';
-import { buildUsageFromTokens } from './ai-cost-helpers.js';
+import { buildUsageFromTokens, recordAiUsage } from './ai-cost-helpers.js';
 // The frame is fitted to the parcel rather than fixed at zoom 19 (research plan R16).
 import { frameParcel } from '../../../services/imagery-plan.js';
 import type { AiUsageSummary } from '../types/research-result.js';
@@ -73,6 +73,8 @@ export async function correlateTargetLot(
   platAnalysis: { lotDimensions?: string[]; narrative?: string; adjacentReferences?: string[] } | null,
   anthropicApiKey: string,
   onProgress: (msg: string) => void,
+  /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
+  projectId?: string,
 ): Promise<LotCorrelationResult> {
   onProgress(`Correlating target lot on plat "${platName}"...`);
 
@@ -141,6 +143,7 @@ export async function correlateTargetLot(
         neighborContext,
         googleMapsImages,
         anthropicApiKey,
+        projectId,
       );
       onProgress(`✓ AI lot correlation: ${aiResult.identifiedLot ? `Lot ${aiResult.identifiedLot}` : 'could not determine'} (${aiResult.confidence}% confidence) — ${aiResult.reasoning}`);
       return { ...aiResult, parcelMapImage };
@@ -408,6 +411,8 @@ async function aiLotCorrelation(
   neighborContext: string,
   googleMapsImages: { satellite: string | null; street: string | null },
   apiKey: string,
+  /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
+  projectId?: string,
 ): Promise<LotCorrelationResult> {
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
@@ -556,10 +561,23 @@ Respond in JSON:
   });
 
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
-  const callUsage = buildUsageFromTokens(
-    response.usage?.input_tokens ?? 0,
-    response.usage?.output_tokens ?? 0,
-  );
+  // Recorded at the call, not at a return: this analyzer has no accumulator, and there are two
+  // return paths below. Recording once here covers both, and cannot be missed by adding a third.
+  //
+  // Until 2026-08-04 nothing persisted this at all — `recordAiUsage` had no callers anywhere, and
+  // the ratchet credited the file for importing the module that defines it.
+  const callUsage = projectId
+    ? recordAiUsage(
+        projectId,
+        modelFor('reconcile').model,
+        response.usage?.input_tokens ?? 0,
+        response.usage?.output_tokens ?? 0,
+        { analyzer: 'bell-lot-correlator', plat: platName },
+      )
+    : buildUsageFromTokens(
+        response.usage?.input_tokens ?? 0,
+        response.usage?.output_tokens ?? 0,
+      );
 
   if (textBlock) {
     try {

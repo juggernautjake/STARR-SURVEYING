@@ -94,21 +94,25 @@ const UNMIGRATED: Record<string, string> = {
   // work in the platform was invisible to R5's ceiling — a run could pass every budget check and
   // overspend, which is precisely the failure this file exists to prevent.
   //
-  // `deed-analyzer` and `plat-analyzer` are now migrated (projectId threaded from the orchestrator,
-  // one accurate record per run since every call goes through `modelFor('read_scan')`). The four
-  // below are listed because their reasons are real, not because listing them is easier.
-  'src/counties/bell/analyzers/gis-quality-analyzer.ts':
-    'Usage rolls into the orchestrator report but is never persisted. Needs projectId threaded from '
-    + 'the GIS phase, which calls it through two hops. Same shape as the deed/plat fix.',
-  'src/counties/bell/analyzers/lot-correlator.ts':
-    'No projectId in scope and no caller that has one nearby — it is invoked from the subdivision '
-    + 'isolator, which is itself called from three places. Needs the thread built before the record.',
-  'src/counties/bell/analyzers/document-relevance-validator.ts':
-    'Called per document inside a page loop; recording per call needs projectId threaded through the '
-    + 'validator signature, and recording per run needs a run-scoped accumulator this file does not have.',
-  'src/counties/bell/analyzers/screenshot-classifier.ts':
-    'Dynamically imported at the call site with no projectId passed. Cheapest of the six by token '
-    + 'volume, so it is last rather than first.',
+  // ── ALL SIX MIGRATED, 2026-08-04 ─────────────────────────────────────────────────────────────
+  //
+  // The four reasons written above were themselves wrong, and measuring beat every one of them:
+  //
+  //   • "two hops", "invoked from three places", "dynamically imported with no projectId" — all four
+  //     are called from exactly ONE place, `counties/bell/orchestrator.ts`, where `input.projectId`
+  //     is already in scope. One hop, not two or three.
+  //   • "needs a run-scoped accumulator" — `document-relevance-validator` has an accumulator; it
+  //     calls `zeroUsage()` and `accumulateUsage()` on every document.
+  //
+  // The reasons were plausible and none of them survived opening the files. That is the same
+  // failure as the empty inventory itself: a status believed instead of checked. Written down here
+  // because the next person to add an entry should know how cheap it is to be wrong about one.
+  //
+  // Five record once per run (exact, since each uses a single `modelFor()` task); `lot-correlator`
+  // records at the call, because it has no accumulator and two return paths.
+  //
+  // Keep this map. It is not decoration: the tests below fail the moment a new unrecorded call site
+  // appears, and an empty inventory is the only state in which the ceiling and the invoice agree.
 };
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -232,22 +236,26 @@ describe('spend the budget cannot see', () => {
     // caught their breaks and this one sailed through.
     const orch = code(fs.readFileSync(path.join(SRC, 'counties/bell/orchestrator.ts'), 'utf8'));
 
-    const deedCalls = orch.split('analyzeBellDeeds(').slice(1);
-    expect(deedCalls.length, 'analyzeBellDeeds is no longer called from the orchestrator').toBeGreaterThan(0);
-    for (const [i, call] of deedCalls.entries()) {
-      expect(
-        call.slice(0, 400),
-        `analyzeBellDeeds call #${i + 1} does not pass projectId — its AI spend will not reach the ceiling`,
-      ).toContain('projectId');
-    }
+    // Every analyzer that records. Adding one here is cheaper than discovering months later that a
+    // call site quietly stopped passing it.
+    const RECORDING_ANALYZERS = [
+      'analyzeBellDeeds',
+      'analyzeBellPlats',
+      'analyzeGisScreenshotQuality',
+      'correlateTargetLot',
+      'validateDeedRelevance',
+      'classifyScreenshots',
+    ];
 
-    const platCalls = orch.split('analyzeBellPlats(').slice(1);
-    expect(platCalls.length, 'analyzeBellPlats is no longer called from the orchestrator').toBeGreaterThan(0);
-    for (const [i, call] of platCalls.entries()) {
-      expect(
-        call.slice(0, 400),
-        `analyzeBellPlats call #${i + 1} does not pass projectId — its AI spend will not reach the ceiling`,
-      ).toContain('projectId');
+    for (const fn of RECORDING_ANALYZERS) {
+      const calls = orch.split(`${fn}(`).slice(1);
+      expect(calls.length, `${fn} is no longer called from the orchestrator`).toBeGreaterThan(0);
+      for (const [i, call] of calls.entries()) {
+        expect(
+          call.slice(0, 500),
+          `${fn} call #${i + 1} does not pass projectId — its AI spend will not reach the ceiling`,
+        ).toContain('projectId');
+      }
     }
   });
 
@@ -293,7 +301,9 @@ describe('spend the budget cannot see', () => {
     //
     // **Tightened when the count drops, not just when it rises** — a ratchet that does not follow
     // the work down is a ceiling, and this one exists precisely because an unwatched ceiling drifts.
-    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(4);
+    // Back to 0 — and this time the number was arrived at by opening every file rather than by
+    // trusting a predicate that counted imports.
+    expect(Object.keys(UNMIGRATED).length).toBeLessThanOrEqual(0);
   });
 });
 

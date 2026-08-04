@@ -20,7 +20,7 @@ import type { DeedRecord } from '../types/research-result.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call is this document about our property.
 import { modelFor } from '../../../infra/model-router.js';
-import { accumulateUsage, buildUsageFromTokens, zeroUsage } from './ai-cost-helpers.js';
+import { accumulateUsage, buildUsageFromTokens, recordAiUsage, zeroUsage } from './ai-cost-helpers.js';
 import type { AiUsageSummary } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -67,6 +67,8 @@ export async function validateDeedRelevance(
   property: PropertyIdentifiers,
   anthropicApiKey: string,
   onProgress: (msg: string) => void,
+  /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
+  projectId?: string,
 ): Promise<{ relevant: DeedRecord[]; summary: ValidationSummary }> {
   const usage = zeroUsage();
   const warnings: string[] = [];
@@ -155,6 +157,25 @@ export async function validateDeedRelevance(
     onProgress(`✓ Relevance check: all ${deeds.length} deed(s) appear related to target property`);
   }
 
+  // Write this run's spend where the budget can see it.
+  //
+  // Until 2026-08-04 this analyzer accumulated a usage summary, returned it, and nothing ever
+  // persisted it — `recordAiUsage` had no callers anywhere in the repository. The spend
+  // ratchet credited the file for importing `ai-cost-helpers`; importing a recorder is not
+  // calling one, so R5's ceiling could not see this work at all.
+  //
+  // Inlined rather than wrapped in a helper: a helper keeps the words `recordAiUsage(` in the
+  // file after its only call site is deleted, so the guard would still pass — which is the
+  // same defect, one level up.
+  if (projectId && usage.totalCalls > 0) {
+    recordAiUsage(
+      projectId,
+      modelFor('classify').model,
+      usage.totalInputTokens,
+      usage.totalOutputTokens,
+      { analyzer: 'bell-doc-relevance', calls: usage.totalCalls },
+    );
+  }
   return {
     relevant,
     summary: {

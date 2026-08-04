@@ -16,7 +16,7 @@ import type { ScreenshotCapture } from '../types/research-result.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call what kind of screenshot is this.
 import { modelFor } from '../../../infra/model-router.js';
-import { buildUsageFromTokens, zeroUsage, accumulateUsage } from './ai-cost-helpers.js';
+import { buildUsageFromTokens, recordAiUsage, zeroUsage, accumulateUsage } from './ai-cost-helpers.js';
 import type { AiUsageSummary } from '../types/research-result.js';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -106,6 +106,8 @@ export async function classifyScreenshots(
   screenshots: ScreenshotCapture[],
   anthropicApiKey: string,
   onProgress: (msg: string) => void,
+  /** The research run this work belongs to. Without it the spend cannot reach R5's ceiling. */
+  projectId?: string,
 ): Promise<ClassificationResult> {
   const usage = zeroUsage();
   const useful: ScreenshotCapture[] = [];
@@ -167,6 +169,25 @@ export async function classifyScreenshots(
     }
   }
 
+  // Write this run's spend where the budget can see it.
+  //
+  // Until 2026-08-04 this analyzer accumulated a usage summary, returned it, and nothing ever
+  // persisted it — `recordAiUsage` had no callers anywhere in the repository. The spend
+  // ratchet credited the file for importing `ai-cost-helpers`; importing a recorder is not
+  // calling one, so R5's ceiling could not see this work at all.
+  //
+  // Inlined rather than wrapped in a helper: a helper keeps the words `recordAiUsage(` in the
+  // file after its only call site is deleted, so the guard would still pass — which is the
+  // same defect, one level up.
+  if (projectId && usage.totalCalls > 0) {
+    recordAiUsage(
+      projectId,
+      modelFor('classify').model,
+      usage.totalInputTokens,
+      usage.totalOutputTokens,
+      { analyzer: 'bell-screenshot-classifier', calls: usage.totalCalls },
+    );
+  }
   onProgress(`Classification complete: ${useful.length} useful, ${misc.length} misc`);
   return { useful, misc, aiUsage: usage };
 }

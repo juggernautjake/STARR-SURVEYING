@@ -1313,6 +1313,7 @@ export async function orchestrateBellResearch(
         propertyIds,
         anthropicApiKey,
         (msg) => progress('Phase 3C', msg),
+        input.projectId,
       );
 
       if (deedValidation.summary.removed > 0) {
@@ -1399,6 +1400,7 @@ export async function orchestrateBellResearch(
           plat.aiAnalysis,
           anthropicApiKey,
           (msg) => progress('Phase 3D', msg),
+          input.projectId,
         );
 
         // Store result in plat analysis
@@ -1520,6 +1522,7 @@ export async function orchestrateBellResearch(
         anthropicApiKey,
         property.propertyId ?? null,
         (msg) => progress('Phase 3', `GIS Quality: ${msg}`),
+        input.projectId,
       );
       gisQualityReport = {
         summary: report.summary,
@@ -1576,6 +1579,7 @@ export async function orchestrateBellResearch(
       allScreenshots,
       anthropicApiKey,
       (msg) => progress('Phase 3', `Screenshots: ${msg}`),
+      input.projectId,
     );
 
     // Tag each screenshot with its classification
