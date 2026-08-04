@@ -1341,3 +1341,53 @@ directions), and now an ordering comparison that treats "absent" as "earliest". 
 property — **each failed by passing** — which is why watching a new check fail is not optional here.
 
 3,372 CAD tests, `npm run build` clean.
+
+---
+
+### ✅ S15a DONE 2026-08-04 — the leak audit, and the one real leak it found
+
+*Ask: "make sure that loading and rendering times are fast and that we don't have memory leaks or any
+kind of issues like that which would slow things down unnecessarily."*
+
+**The perf overlay is the wrong instrument for this.** It measures frames; a resource acquired and
+never released costs nothing per frame and everything over an afternoon. So this is a different
+instrument: `__tests__/cad/resource-cleanup.test.ts`, over all **117** files under `app/admin/cad`.
+
+**What was already clean** — and this is the useful negative result. Event listeners balance
+everywhere, including the **41 pairs in `CanvasViewport.tsx`**, and they balance **by event name**,
+which is the check that catches adding `cad:foo` while removing `cad:bar` — counts match, one
+listener leaks and another is orphaned. `setInterval`/`clearInterval` balance everywhere too.
+
+**The one real leak: `ImageInsertDialog.tsx` created an object URL and never revoked it.** Digging in,
+the leak was the *lesser* of two bugs:
+
+1. the object URL was stored in `preview` state and never revoked, pinning an entire
+   multi-megabyte image blob for the life of the page — in an app people keep open all day;
+2. **worse, the pasted image did not survive a reload.** `handleInsert` posts `preview` to the upload
+   API as `dataUrl`; a `blob:` URL is meaningless to the server, so the upload fails and the fallback
+   stores that blob URL **in the drawing**. Blob URLs die with the page, so the image silently
+   disappeared the next time the drawing was opened.
+
+**Three of the four entry paths were already right.** The file picker, drag-drop and the Ctrl+V
+handler all convert through `readFileAsDataUrl`; only the *"Paste from clipboard" button* did its own
+thing. So the fix was to **stop having a second path**, not to add a `revokeObjectURL` to it.
+
+**A ratchet, not a sweep.** A sweep that finds nothing is worth almost nothing the day after it runs.
+All three balances are currently exact across the subsystem, which makes "exact" cheap to hold, and
+the moment it stops being exact the offending file is named. **Watched failing** by planting a probe
+file that leaked all three ways — every check fired and named it.
+
+**And it tripped on its own explanation first**, which is now the *fourth* time a source-scanning
+check here has failed against the prose describing the fix. The stripper drops `//` lines and
+deliberately does **no** block-comment regex, because both earlier attempts at one broke in opposite
+directions.
+
+### ▶ What S15 still needs a browser for, stated so this is not mistaken for coverage
+
+Counting acquisitions and releases proves neither that they pair at **runtime** nor that they act on
+the same object; a listener added in one effect and removed in another still balances. It says
+nothing about **Pixi textures, retained closures, growing stores, or the undo stack**, and nothing
+about **load time**. Heap growth across a long editing session is a browser measurement — take a
+heap snapshot, work for ten minutes, snapshot again — and remains open as **S15b**.
+
+3,378 CAD tests, `npm run build` clean.

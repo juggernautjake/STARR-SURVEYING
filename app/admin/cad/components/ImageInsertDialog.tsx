@@ -115,8 +115,25 @@ export default function ImageInsertDialog({ worldX, worldY, onClose, onInsert }:
         const imgType = item.types.find((t) => t.startsWith('image/'));
         if (imgType) {
           const blob = await item.getType(imgType);
-          const url = URL.createObjectURL(blob);
-          await processDataUrl(url, 'Pasted Image');
+          // CAD_AUDIT Slice S15 — go through `processFile` like every other entry path.
+          //
+          // This used to call `URL.createObjectURL(blob)` and hand the result to `processDataUrl`,
+          // which was wrong twice over and was the only unbalanced `createObjectURL` in the whole
+          // CAD tree:
+          //
+          //   1. **It leaked.** The object URL was stored in `preview` state and never revoked, so
+          //      every clipboard paste pinned the entire image blob in memory for the life of the
+          //      page — in an app people keep open all day.
+          //   2. **Worse, the image did not survive a reload.** `handleInsert` posts `preview` to
+          //      the upload API as `dataUrl`; a `blob:` URL is meaningless to the server, so the
+          //      upload fails and the fallback stores that blob URL *in the drawing*. Blob URLs die
+          //      with the page, so the image silently disappeared the next time the drawing opened.
+          //
+          // The file picker, drag-drop and the Ctrl+V handler all already converted through
+          // `readFileAsDataUrl`. This was the one path that did not, so the fix is to stop having a
+          // second path rather than to add a `revokeObjectURL` to this one.
+          const file = new File([blob], 'pasted-image', { type: imgType });
+          await processFile(file);
           return;
         }
       }
