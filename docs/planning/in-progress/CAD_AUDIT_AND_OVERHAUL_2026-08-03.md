@@ -2081,3 +2081,34 @@ and the suite-wide grep the reporter swallowed. Checking `document.elementFromPo
 took under a minute and named it.
 
 3,445 CAD tests, `npm run build` clean, and now a browser that agrees with them.
+
+### ✅ S14c DONE 2026-08-04 — reconciliation driven end to end in a production build
+
+S14a shipped the core and S14b the menu entry, both verified by source-level tests only. The feature
+the owner asked for by name — *gather bearings and distances from every record we can find, check
+they agree, and use that to make the initial drawing* — had never been run.
+
+Driven against `npm run build` + `npm start`:
+
+| step | result |
+|---|---|
+| **Survey → "⚖ Reconcile several records into a drawing…"** | present in the menu |
+| Clicking it | **opens the file picker** — the handler is wired, not merely rendered |
+| Two research readings selected | reconciled |
+| Confirmation dialog | *"Every record agrees — 4 course(s) from 2 record(s) · every record agrees."* |
+| Basis / relative-coordinate statement | shown: *"Coordinates are relative to the point of beginning; this is not tied to the state plane."* |
+| **"Draw the agreed figure"** | **Research Boundary layer created with 1 feature** |
+| Page errors | **none** |
+
+The course count is right and worth stating: five corners → **four courses**, and both fixtures carry
+the same corners, so *"every record agrees"* is the correct verdict rather than a default one. The
+figure was drawn through the S8a adapter — which is why a `Research Boundary` layer appears at all,
+confirming S14b reuses the corrected import path (S8c's layer creation) instead of building geometry
+itself.
+
+**Three of today's slices are now verified in a browser rather than only in tests**: the layer family
+(S13n), the reconciliation (this), and the research import (S8c/S8d, verified when they shipped).
+
+The remaining unverified UI work from today is the **finance** side — F4's bulk receipt queue, F5's
+"Create without sending", F3b/F7a's tax summary on the receipt panel. Recorded rather than claimed:
+those have unit and wiring tests and **have not been opened in a browser**.
