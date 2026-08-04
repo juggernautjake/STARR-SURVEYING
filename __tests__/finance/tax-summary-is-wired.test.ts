@@ -19,13 +19,26 @@ describe('the receipts queue shows the tax consequence', () => {
   it('calls the shared summary rather than re-deriving one inline', () => {
     // A second implementation of "what does this mean at tax time" is how the two come to disagree,
     // and the screen is the copy people would believe.
+    //
+    // F7c moved the call one step further out: the page used to build the summary in an IIFE inside
+    // its JSX, which is why F3b/F7a shipped unverifiable — nothing could invoke it without a real
+    // receipt row in a browser. It now calls `receiptTaxLine(row)`, and the field mapping that used
+    // to be visible here is asserted directly in `receipt-tax-line.test.ts`, against fixtures.
+    //
+    // The INTENT of this assertion is unchanged and deliberately not weakened: the page must not
+    // carry its own copy of the rule. It is now checked by the absence of one rather than the
+    // presence of a call.
     expect(page).toContain("from '@/lib/finance/tax-summary'");
-    expect(page).toContain('taxSummaryFor({');
+    expect(page).toContain('receiptTaxLine(row)');
+    expect(page, 'the page is deriving the summary itself again').not.toContain('taxSummaryFor({');
   });
 
-  it('feeds it the fields that exist on the row today', () => {
-    expect(page).toContain('promoted_to_equipment_id');
-    expect(page).toContain('tax_deductible_flag');
+  it('feeds it the row, so every field the summary reads travels with it', () => {
+    // Was: assert the page mentions `promoted_to_equipment_id` and `tax_deductible_flag`. Passing
+    // the whole row makes that check impossible AND unnecessary — the mapping moved into
+    // `receiptTaxLine`, where `receipt-tax-line.test.ts` pins each field to the sentence it changes,
+    // which is a stronger check than a substring in a 700-line page.
+    expect(page).toMatch(/receiptTaxLine\(\s*row\s*\)/);
   });
 });
 

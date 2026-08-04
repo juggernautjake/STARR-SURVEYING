@@ -20,7 +20,7 @@ import { usePageError } from '../hooks/usePageError';
 import type { AdminReceiptRow } from './receipt-types';
 import { MaintenancePicker, maintLinkStateChip, maintLinkStyles } from './MaintenanceLink';
 import { PromoteToAssetPanel } from './PromoteToAsset';
-import { taxSummaryFor, explainBasis, type DeductibleFlag } from '@/lib/finance/tax-summary';
+import { receiptTaxLine } from '@/lib/finance/tax-summary';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -631,21 +631,12 @@ function ReceiptRow({
                 Card role (F1) and pass-through recovery (F2) are not passed yet — those columns
                 arrive with seeds 572/573. The summary is honest about that: with no card it simply
                 answers the questions it CAN, rather than assuming company money. */}
-            <Field
-              label="Tax summary"
-              value={(() => {
-                const t = taxSummaryFor({
-                  promotedToAsset: !!row.promoted_to_equipment_id,
-                  deductibleFlag: (row.tax_deductible_flag as DeductibleFlag) ?? null,
-                  category: row.category,
-                });
-                // F7a — the verdict AND the rule that produced it. The precedence is genuinely
-                // surprising the first time you meet it (a "fully deductible" category can
-                // correctly read "not our transaction"), and without the reason the reader's only
-                // options are to trust the sentence or go and read the source.
-                return `${t.summary}\n${explainBasis(t.basis)}`;
-              })()}
-            />
+            {/* F7c — was an IIFE here. Moved to `receiptTaxLine()` because inline meant the only
+                way to see its output was to expand a real receipt row in a browser, and F3b/F7a
+                went out recorded as shipped-but-unverified for exactly that reason. The verdict AND
+                the rule behind it, because the precedence is surprising the first time you meet it:
+                a "fully deductible" category can correctly read "not our transaction". */}
+            <Field label="Tax summary" value={receiptTaxLine(row)} />
             <Field label="Notes" value={row.notes} />
             <Field label="Submitted by" value={row.submitted_by_email} />
             <Field label="Submitted at" value={formatDateTime(row.created_at)} />

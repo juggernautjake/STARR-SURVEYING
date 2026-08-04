@@ -164,3 +164,43 @@ export function taxSummaryFor(input: TaxSummaryInput): TaxSummary {
       };
   }
 }
+
+// ── The receipt row's own line ───────────────────────────────────────────────────────────────────
+
+/** The subset of a `receipts` row the tax summary reads. Named so the mapping is checkable. */
+export interface ReceiptTaxRow {
+  /** Set when the receipt was turned into a capital asset — depreciated, not deducted this year. */
+  promoted_to_equipment_id?: string | null;
+  tax_deductible_flag?: string | null;
+  category?: string | null;
+}
+
+/**
+ * The two-line tax summary shown on an expanded receipt row: the verdict, then the rule behind it.
+ *
+ * ── WHY THIS IS A FUNCTION AND NOT AN INLINE IIFE (F7c) ─────────────────────────────────────────
+ *
+ * It used to be an arrow function invoked inside JSX, in the middle of a 700-line client page. That
+ * had one consequence worth a slice: **the only way to see its output was to expand a real receipt
+ * row in a browser**, and this environment has no receipt data. F3b and F7a were therefore recorded
+ * as *shipped but unverified* — honest, and not something to leave standing when the fix is to move
+ * three lines somewhere they can be called.
+ *
+ * The mapping is the part that unit tests of `taxSummaryFor` cannot protect. Those prove the
+ * sentences; nothing proved that the PAGE hands over the right three fields. Passing `category_source`
+ * where `category` belongs, or forgetting `promoted_to_equipment_id`, would produce a wrong verdict
+ * that still reads perfectly — which is exactly the failure this summary exists to prevent, wearing
+ * the summary's own voice.
+ *
+ * Card role (F1) and pass-through recovery (F2) are deliberately not passed: those columns arrive
+ * with seeds 572/573. `taxSummaryFor` answers what it can without them rather than assuming company
+ * money, and this function inherits that.
+ */
+export function receiptTaxLine(row: ReceiptTaxRow): string {
+  const t = taxSummaryFor({
+    promotedToAsset: !!row.promoted_to_equipment_id,
+    deductibleFlag: (row.tax_deductible_flag as DeductibleFlag) ?? null,
+    category: row.category ?? null,
+  });
+  return `${t.summary}\n${explainBasis(t.basis)}`;
+}

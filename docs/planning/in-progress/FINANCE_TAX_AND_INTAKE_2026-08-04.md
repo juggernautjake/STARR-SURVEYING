@@ -688,3 +688,52 @@ made it honest.
 
 **Still open in F7:** the card-registry and pass-through walkthroughs, unchanged — blocked on seeds
 572/573, not on effort.
+
+## ✅ F7c — F3b/F7a are no longer unverified, and the reason they were is instructive
+
+The verification note above records F3b and F7a as **shipped but unverified**: the tax summary renders
+only inside an expanded receipt row, and no environment available to this program has receipt data.
+That was honest, and it stood for two sessions.
+
+**The blocker turned out to be self-inflicted.** The summary was an arrow function invoked inside JSX,
+in the middle of a 700-line client page. Nothing could call it — not a test, not a script, only a
+browser with a real row to expand. The data was never the whole problem; the *shape* was.
+
+`receiptTaxLine(row)` is the same three lines, in `lib/finance/tax-summary.ts`, where a fixture can
+reach them. **No data was invented to satisfy a check** — a fixture row is not a claim about
+production, and every assertion is about the field mapping and the wording, both properties of the
+code rather than of the database.
+
+### ▶ What these tests protect that `taxSummaryFor`'s own tests cannot
+
+Those prove the sentences. **Nothing proved the page handed over the right three fields.** Passing
+`category_source` where `category` belongs, or dropping `promoted_to_equipment_id`, produces a wrong
+verdict that still reads perfectly — the exact failure this summary exists to prevent, speaking in the
+summary's own voice. Each field is now pinned to the sentence it changes:
+
+- `promoted_to_equipment_id` present → *capital asset*; null → not. It is an id column, so the check
+  is presence rather than a boolean, and getting it wrong double-counts real money: a capital asset is
+  depreciated rather than deducted **and** excluded from the Schedule C total.
+- `tax_deductible_flag` → a bookkeeper's inline override must change the sentence.
+- `category` → two categories must not produce the same line.
+- An **empty row** — the state every receipt is in between upload and extraction — still yields a
+  labelled two-line answer. A blank panel would read as "no tax consequence", which is a claim.
+- With no card known it must not say *company card*: card role arrives with seed 572, and assuming
+  company money would be invisible and wrong about half the time at a firm that also spends from
+  personal cards.
+
+### ▶ An existing test broke, and its intent was kept rather than its assertion
+
+`tax-summary-is-wired.test.ts` asserted the page contains `taxSummaryFor({` — true of the old inline
+IIFE, false once the call moved. The fix was **not** to delete it. Its intent — *the page must not
+carry its own copy of the rule* — is now checked by the **absence** of one (`not.toContain
+('taxSummaryFor({')`) plus the presence of `receiptTaxLine(row)`. Weakening a test because a refactor
+tripped it is how a suite stops meaning anything; this one is now stricter than it was.
+
+The negative control re-derives the summary inside the page and fails by name.
+
+8 new tests, 94 finance tests, `tsc` and `eslint` clean, production build compiles.
+
+**Still genuinely blocked:** F1b/F2b and the card-registry/pass-through walkthroughs, on seeds
+572/573. `lib/finance/payment-cards.ts` and `cost-recovery.ts` have zero callers *for that reason* —
+recorded here so the next reachability sweep reads it as a known gate rather than a new defect.
