@@ -14,6 +14,7 @@
 // Spec: docs/planning/in-progress/STARR_RECON/PHASE_04_SUBDIVISION.md §4.6
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -132,6 +133,12 @@ async function detectLotRegions(
       }],
     });
 
+    // R4b — priced against the ambient run, recorded before the response is parsed.
+    void recordAmbientAiCall('subdivision-lot-isolator', AI_MODEL, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
+    }, { site: 'lot-isolate' });
+
     const textBlock = response.content.find((c: { type: string }) => c.type === 'text');
     const raw = textBlock?.type === 'text' ? textBlock.text : '{}';
     const cleaned = raw.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '').trim();
@@ -241,6 +248,12 @@ async function extractIsolatedLot(
         ],
       }],
     });
+
+    // R4b — priced against the ambient run, recorded before the response is parsed.
+    void recordAmbientAiCall('subdivision-lot-isolator', AI_MODEL, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
+    }, { site: 'lot-refine' });
 
     const textBlock = response.content.find((c: { type: string }) => c.type === 'text');
     return textBlock?.type === 'text' ? textBlock.text : '';

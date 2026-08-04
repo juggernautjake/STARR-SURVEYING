@@ -24,6 +24,7 @@
 //          line map with [ESTIMATED]/[VERIFY]/[MISSING] confidence tags.
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import type { ExtractedBoundaryData, BoundaryCall } from '../types/index.js';
 import type { PipelineLogger } from '../lib/logger.js';
 
@@ -349,6 +350,13 @@ async function callClaudeVision(
         }],
       });
 
+      // R4b — priced against the ambient run. Recorded before the response is read, because the
+      // tokens were spent whether or not the text block parses.
+      void recordAmbientAiCall('geo-reconcile', process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6', {
+        input:  response.usage?.input_tokens  ?? 0,
+        output: response.usage?.output_tokens ?? 0,
+      }, { site: 'image-reconcile' });
+
       const text = response.content.map(c => c.type === 'text' ? c.text : '').join('\n');
       const elapsed = ((Date.now() - attemptStart) / 1000).toFixed(1);
       const usage = (response as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
@@ -483,6 +491,13 @@ export async function analyzeVisualGeometry(
         }],
       }],
     });
+
+    // R4b — priced against the ambient run. Recorded before the response is read, because the
+    // tokens were spent whether or not the text block parses.
+    void recordAmbientAiCall('geo-reconcile', process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6', {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
+    }, { site: 'plat-vision' });
 
     const textBlock = response.content.find(c => c.type === 'text');
     const raw = textBlock?.type === 'text' ? textBlock.text : '';
@@ -846,6 +861,13 @@ Format as a structured report for surveyor review.`;
         temperature: 0,
         messages: [{ role: 'user', content: promptContent }],
       });
+
+      // R4b — priced against the ambient run. Recorded before the response is read, because the
+      // tokens were spent whether or not the text block parses.
+      void recordAmbientAiCall('geo-reconcile', process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6', {
+        input:  response.usage?.input_tokens  ?? 0,
+        output: response.usage?.output_tokens ?? 0,
+      }, { site: 'map-synthesis' });
 
       const mapText = response.content.map(c => c.type === 'text' ? c.text : '').join('\n');
       const elapsed = ((Date.now() - attemptStart) / 1000).toFixed(1);

@@ -4237,3 +4237,26 @@ sites, the largest single job), `geo-reconcile.ts` (three), `subdivision-lot-iso
 `bis-cad.ts` (two), the three Bell files, and `receipt-extraction.ts` — which still needs its own
 accounting key rather than a run, because it is a CLI batch over queued receipts and has no run to
 belong to.
+
+### ◑ R4b — seven more call sites, 8 → 5 (2026-08-04)
+
+`geo-reconcile` (three), `subdivision-lot-isolator` (two) and `bis-cad` (two). All seven priced
+against the ambient run, none needing a signature change — which is what `withRunContext` was for.
+
+**Checked for double-counting before claiming it done, and found a second spend tracker.**
+`bis-cad` imports `getGlobalAiTracker` from `lib/ai-usage-tracker.ts`, so the obvious risk was
+recording the same call twice. It does not: the tracker's `record()` calls sit at lines 2389 and 2431,
+and the two sites instrumented here are 1561 and 2021, with nothing in between.
+
+But the check turned up something worth writing down. **`ai-usage-tracker.ts` has zero references to
+`infra/usage`** — it is a completely parallel spend system, with its own cost model and its own
+`canMakeCall()` budget gate. So the worker has *two* answers to "what has this cost", and R5's ceiling
+reads only one of them. That is the two-copies-drift defect applied to money, and it is a bigger
+question than the eight remaining call sites — recorded here rather than resolved, because deciding
+which system survives is the same kind of decision S4b made for the spatial indexes, and it wants its
+own slice.
+
+Ratchet tightened **8 → 5**. Worker suite 92 files / 1,525 tests green; `tsc` and `eslint` clean.
+
+**Remaining 5:** `ai-extraction.ts` (five call sites in one file, the largest single job), the three
+Bell files, and `receipt-extraction.ts` — which still needs its own accounting key rather than a run.

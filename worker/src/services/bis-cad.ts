@@ -7,6 +7,7 @@
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics, DeedHistoryEntry } from '../types/index.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call pulls property fields from a CAD page.
 import { modelFor } from '../infra/model-router.js';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
@@ -1558,6 +1559,12 @@ Return ONLY valid JSON array, no markdown. If NO results visible, return [].`,
       ],
     });
 
+    // R4b — priced against the ambient run, recorded before the response is parsed.
+    void recordAmbientAiCall('bis-cad', process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6', {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
+    }, { site: 'cad-search-results' });
+
     const text = response.content.find((c) => c.type === 'text');
     if (!text || text.type !== 'text') {
       finish({ status: 'fail', error: 'No text in Vision response' });
@@ -2017,6 +2024,12 @@ Example: [{"streetNumber":"3779","streetName":"FM 436"},{"streetNumber":"3779","
 Important: Do NOT repeat variants already tried. Only return NEW variants not in the list above.`,
       }],
     });
+
+    // R4b — priced against the ambient run, recorded before the response is parsed.
+    void recordAmbientAiCall('bis-cad', modelFor('extract').model, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
+    }, { site: 'extract' });
 
     const text = response.content.find((c) => c.type === 'text');
     if (!text || text.type !== 'text') {
