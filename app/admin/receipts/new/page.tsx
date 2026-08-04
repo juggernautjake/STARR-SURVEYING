@@ -468,28 +468,26 @@ export default function NewReceiptPage() {
             partial batch hides exactly the rows that need a person. */}
         {batch && batch.total > 0 && (
           <div style={styles.previewWrap}>
-            <p style={{ fontWeight: 600, margin: '0 0 .5rem' }} role="status">
+            <p style={styles.batchSummary} role="status">
               {batchSummary(batch)}
             </p>
-            <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.35rem' }}>
+            <ul style={styles.batchList}>
               {batch.items.map((it) => (
                 <li
                   key={it.id}
                   style={{
-                    display: 'flex', justifyContent: 'space-between', gap: '.75rem',
-                    fontSize: '.85rem', padding: '.35rem .5rem', borderRadius: 6,
-                    background:
-                      it.status === 'done' ? '#E7F6EC'
-                        : it.status === 'failed' || it.status === 'rejected' ? '#FDECEC'
-                          : it.status === 'uploading' ? '#EAF0FB' : '#F3F4F6',
+                    ...styles.batchRow,
+                    ...(it.status === 'done' ? styles.batchRowDone
+                      : it.status === 'failed' || it.status === 'rejected' ? styles.batchRowFailed
+                        : it.status === 'uploading' ? styles.batchRowUploading : {}),
                   }}
                 >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={styles.batchName}>
                     {it.fileName}
                   </span>
                   {/* The reason travels with the row. "3 uploads failed" does not tell anyone which
                       three, and a person cannot re-photograph an unnamed receipt. */}
-                  <span style={{ flexShrink: 0, fontWeight: 600 }}>
+                  <span style={styles.batchStatus}>
                     {it.status === 'done' ? 'Uploaded'
                       : it.status === 'uploading' ? 'Uploading…'
                         : it.status === 'queued' ? 'Waiting'
@@ -754,6 +752,25 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '0.5rem',
   },
   captureBtnIcon: { fontSize: '1.25rem', lineHeight: 1 },
+  // F4 — batch rows. Named entries rather than inline hex so the colours can be reached by a token,
+  // a media query, the print stylesheet and a contrast audit — which is what the inline-style-hex
+  // ratchet exists to enforce, and which the first version of this panel broke (0 → 4).
+  batchList: { listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: '.35rem' },
+  batchRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '.75rem',
+    fontSize: '.85rem',
+    padding: '.35rem .5rem',
+    borderRadius: 6,
+    background: 'var(--color-bg-subtle, #f3f4f6)',
+  },
+  batchRowDone:      { background: 'var(--color-success-bg, #e7f6ec)' },
+  batchRowFailed:    { background: 'var(--color-danger-bg, #fdecec)' },
+  batchRowUploading: { background: 'var(--color-info-bg, #eaf0fb)' },
+  batchName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  batchStatus: { flexShrink: 0, fontWeight: 600 },
+  batchSummary: { fontWeight: 600, margin: '0 0 .5rem' },
   clearBtn: {
     alignSelf: 'center',
     marginTop: '0.5rem',
