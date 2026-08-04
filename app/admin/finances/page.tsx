@@ -786,7 +786,7 @@ const styles: Record<string, React.CSSProperties> = {
   // `height` owns the vertical size so a 1px border difference between
   // an <input> and a borderless <button> can't knock them out of line.
   input: {
-    height: 38,
+    height: 40, // W6f — shared toolbar height, raised from 38 to clear the 40px tap floor
     boxSizing: 'border-box',
     padding: '0 10px',
     border: '1px solid #E2E5EB',
@@ -795,7 +795,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 160,
   },
   refreshBtn: {
-    height: 38,
+    height: 40, // W6f — shared toolbar height, raised from 38 to clear the 40px tap floor
     boxSizing: 'border-box',
     background: 'transparent',
     border: '1px solid #E2E5EB',
@@ -805,7 +805,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   exportBtn: {
-    height: 38,
+    height: 40, // W6f — shared toolbar height, raised from 38 to clear the 40px tap floor
     boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
     color: '#FFFFFF',
@@ -817,7 +817,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
   },
   lockBtn: {
-    height: 38,
+    height: 40, // W6f — shared toolbar height, raised from 38 to clear the 40px tap floor
     boxSizing: 'border-box',
     background: '#15803D',
     color: '#FFFFFF',

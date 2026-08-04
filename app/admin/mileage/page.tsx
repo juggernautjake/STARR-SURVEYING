@@ -444,11 +444,14 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  // toolbar-alignment-fix 2026-05-30 — shared 38px height + border-box
-  // so labeled fields + unlabeled buttons bottom-align cleanly (same
-  // fix as /admin/finances).
+  // toolbar-alignment-fix 2026-05-30 — shared height + border-box so labeled fields + unlabeled
+  // buttons bottom-align cleanly (same fix as /admin/finances).
+  //
+  // W6f — the shared height moved 38 → 40. It is an ALIGNMENT contract, so all three move together:
+  // raising only the inputs would meet the tap floor by breaking the thing this block exists for.
+  // 38 was two pixels under, which is exactly the kind of near-miss that survives review.
   input: {
-    height: 38,
+    height: 40,
     boxSizing: 'border-box',
     padding: '0 10px',
     border: '1px solid #E2E5EB',
@@ -457,7 +460,7 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 160,
   },
   refreshBtn: {
-    height: 38,
+    height: 40,
     boxSizing: 'border-box',
     background: 'transparent',
     border: '1px solid #E2E5EB',
@@ -467,7 +470,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
   },
   exportBtn: {
-    height: 38,
+    height: 40,
     boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
     color: '#FFFFFF',

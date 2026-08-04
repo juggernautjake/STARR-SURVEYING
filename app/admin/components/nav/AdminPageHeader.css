@@ -81,6 +81,12 @@
 }
 
 .admin-page-header__crumb {
+  /* W6f — 20px tall, under the 24px LINK floor (WCAG 2.5.8). A breadcrumb is a genuine navigation
+   * target on a phone, and 24 rather than 40 because the auditor holds links to the lower floor:
+   * padding a crumb trail to 40 each would build the whitespace wall that rule exists to avoid. */
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   color: #6B7280;
   text-decoration: none;
 }
@@ -98,12 +104,14 @@
   color: #D1D5DB;
 }
 
+/* W6f — 28px, under the 40px control floor. This is the pin-to-hub toggle and it appears in the
+ * header of every admin page, so one rule moves it everywhere. */
 .admin-page-header__star {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   border-radius: 6px;
   border: 1px solid #E5E7EB;
   background: #FFF;

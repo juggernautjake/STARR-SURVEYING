@@ -101,6 +101,17 @@ const dismissButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
   color: 'var(--theme-fg-secondary)',
   fontSize: '1.25rem',
+  // W6f — measured 28×**21** on a phone: the narrowest control in the app, and the one whose miss is
+  // most annoying, because the tip it dismisses covers the hub every time until it is dismissed. A
+  // bare "×" with 4px of padding is the classic version of this — the glyph looks like a target and
+  // the box around it is smaller than the glyph suggests.
+  //
+  // Centred rather than padded, so the × stays where it renders today and only the hit area grows.
+  minWidth: 40,
+  minHeight: 40,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
   padding: 4,
   lineHeight: 1,
   flexShrink: 0,

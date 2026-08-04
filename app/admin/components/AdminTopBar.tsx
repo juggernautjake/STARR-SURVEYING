@@ -108,6 +108,15 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
+            // W6f — the button was exactly the avatar: 34×34, under the 40px floor. The AVATAR stays
+            // 34 so the topbar looks unchanged; the button around it grows to 40. That distinction
+            // is the whole fix — enlarging the avatar would be a visual change nobody asked for,
+            // while enlarging the target is the thing a thumb needs.
+            //
+            // It matters more than its size suggests: this button is the only way into the account
+            // menu, which is the only way to Sign out.
+            minWidth: 40,
+            minHeight: 40,
             padding: 0,
             border: 'none',
             background: 'transparent',

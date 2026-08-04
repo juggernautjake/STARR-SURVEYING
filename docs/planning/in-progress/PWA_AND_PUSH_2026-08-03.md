@@ -519,3 +519,43 @@ next pass starts from measurement.
 
 **W6b unchanged and still needs a phone**: a viewport measures geometry, not whether 40px is
 comfortable in a gloved hand.
+
+### ✅ W6f DONE 2026-08-04 — the tap-target sweep reaches zero on every route it can reach
+
+W6e left four per route and deferred them as page-level. This finishes them, and the last two turned
+out to be chrome after all.
+
+| control | was | now | note |
+|---|---|---|---|
+| Account avatar (`AdminTopBar`) | 34×34 | **40×40 button, 34px avatar** | The button grew, the avatar did not. Enlarging the avatar would be a visual change nobody asked for; enlarging the target is what a thumb needs. It is the only way into the account menu, which is the only way to Sign out. |
+| Welcome-tip dismiss | 28×**21** | 40×40 | The narrowest control in the app. A bare `×` with 4px of padding is the classic version: the glyph looks like a target and the box is smaller than the glyph suggests. |
+| `admin-page-header__star` | 28px | 40px | Pin-to-hub, in the header of **every** admin page. |
+| `admin-page-header__crumb` | 20px | 24px | Link floor, not button floor — padding a crumb trail to 40 each is the whitespace wall that rule exists to avoid. |
+| `"All steps"` | 39px | 40px | One pixel under. Fixed rather than rounded down: **a rule with a tolerance is a rule nobody can check.** |
+| `"Browse pages"` | 20px | 24px | Fixed at the call site, not in `WidgetEmpty` — it is the only widget passing a `cta`, and since `cta` is an arbitrary node the wrapper cannot grow the anchor's hit area anyway. |
+| Mileage + finances toolbars ×7 | 38px | 40px | See below. |
+
+**The 38px toolbars were an alignment contract, not an oversight.** Both pages carry a comment
+explaining that a shared height plus `border-box` is what makes labelled fields and unlabelled buttons
+bottom-align. So all of them moved together: **raising only the inputs would have met the tap floor by
+breaking the thing the block exists for.** `/admin/finances` carried the identical pattern — the
+mileage comment even says so — and was fixed in the same pass rather than left to be rediscovered.
+
+**Result: 6 of 6 reachable routes report zero undersized controls**, and overflow is still clean at
+360 and 390 after every change. Across W6d–W6f: **17 per route → 0**.
+
+#### ▶ What was NOT measured, and why
+
+`/admin/finances` and `/admin/notifications` could not be swept: they answer **307** for this
+session's cookie and the redirect resolves through `AUTH_URL`'s dead `localhost:3000`. That is not a
+failure — it is **S19's gate working**, since `/admin/finances` is now `admin, developer,
+tech_support` and the smoke session is an `employee`. The auditor reported it as *"a load failure, not
+a layout result"*, which is the distinction that keeps this honest.
+
+So the finances toolbar fix is **reasoned, not measured**: it is the same seven-line block as
+mileage's, and mileage's fix *is* verified. Recorded as such rather than counted among the measured
+results.
+
+**W6b is unchanged and still needs a phone.** Every number in W6d–W6f is geometry in a desktop
+browser at a phone width. It cannot tell you whether 40px is comfortable in a gloved hand, whether the
+standalone shell hides something, or what iOS Safari's chrome does to the viewport.

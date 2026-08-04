@@ -43,7 +43,16 @@ function PinnedPagesWidget({ size, content }: WidgetProps<PinnedPagesContent>) {
         icon="📌"
         title="No pinned pages yet"
         description="Pin pages you visit often from any admin page."
-        cta={<Link href="/admin/work">Browse pages</Link>}
+        // W6f — 20px tall, under the 24px LINK floor (WCAG 2.5.8). Fixed here rather than in
+        // `WidgetEmpty` because this is the only widget in the hub that passes a `cta`, so a rule in
+        // the shared component would be a rule with one caller — and `cta` is an arbitrary node, so
+        // the wrapper cannot grow the anchor's hit area anyway. 24 and not 40: it is a link, and the
+        // auditor holds links to the lower floor deliberately.
+        cta={
+          <Link href="/admin/work" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 24 }}>
+            Browse pages
+          </Link>
+        }
       />
     );
   }

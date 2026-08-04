@@ -70,7 +70,10 @@ export default function OnboardingChecklist() {
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          style={{ background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}
+          // PWA W6f — 39px, one pixel under the 40px control floor. Worth the line rather than
+          // rounding down to "close enough": the floor is a floor, and a rule with a tolerance is a
+          // rule nobody can check. `minHeight` leaves the padding and the text where they are.
+          style={{ background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 8, minHeight: 40, padding: '8px 12px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13 }}
         >
           All steps <ChevronDown size={14} aria-hidden style={{ transform: expanded ? 'rotate(180deg)' : undefined }} />
         </button>
