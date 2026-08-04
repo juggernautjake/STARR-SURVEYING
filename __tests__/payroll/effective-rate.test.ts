@@ -81,6 +81,50 @@ describe('findSeniorityBracket', () => {
   it('extends the open bracket past max_years=null', () => {
     expect(findSeniorityBracket(SENIORITY, 25)?.bonus_per_hour).toBe(8);
   });
+
+  // ── Regression, 2026-08-04 ────────────────────────────────────────────────────────────────
+  //
+  // The fixtures above are half-open (0–1, 1–3, 3–5). The firm's LIVE `seniority_brackets` rows
+  // are inclusive (0–0, 1–1, 2–2, 3–4, 5–6, 7–9, 10–14, 15–19, 20–null), and against those the
+  // old `years < max_years` test matched nothing at 1, 2, 4, 6, 9, 14 and 19 years — three of
+  // the nine brackets could never match anybody, because their min equals their max.
+  //
+  // A null bracket is a $0 bonus with no error anywhere, so the only symptom was somebody being
+  // paid less. Both shapes are exercised here so neither can regress the other.
+  const LIVE_BRACKETS = [
+    { min_years: 0, max_years: 0, bonus_per_hour: 0 },
+    { min_years: 1, max_years: 1, bonus_per_hour: 0.5 },
+    { min_years: 2, max_years: 2, bonus_per_hour: 1 },
+    { min_years: 3, max_years: 4, bonus_per_hour: 2 },
+    { min_years: 5, max_years: 6, bonus_per_hour: 3.5 },
+    { min_years: 7, max_years: 9, bonus_per_hour: 5 },
+    { min_years: 10, max_years: 14, bonus_per_hour: 7 },
+    { min_years: 15, max_years: 19, bonus_per_hour: 9 },
+    { min_years: 20, max_years: null, bonus_per_hour: 12 },
+  ];
+
+  it('treats max_years as inclusive, which is how the live brackets are written', () => {
+    expect(findSeniorityBracket(LIVE_BRACKETS, 1)?.bonus_per_hour).toBe(0.5);
+    expect(findSeniorityBracket(LIVE_BRACKETS, 2)?.bonus_per_hour).toBe(1);
+    expect(findSeniorityBracket(LIVE_BRACKETS, 4)?.bonus_per_hour).toBe(2);
+    expect(findSeniorityBracket(LIVE_BRACKETS, 6)?.bonus_per_hour).toBe(3.5);
+    expect(findSeniorityBracket(LIVE_BRACKETS, 9)?.bonus_per_hour).toBe(5);
+    expect(findSeniorityBracket(LIVE_BRACKETS, 19)?.bonus_per_hour).toBe(9);
+  });
+
+  it('leaves no year in the ladder without a bracket', () => {
+    for (let year = 0; year <= 30; year++) {
+      expect(findSeniorityBracket(LIVE_BRACKETS, year), `year ${year}`).not.toBeNull();
+    }
+  });
+
+  it('prefers the most specific bracket when half-open rows overlap', () => {
+    // Year 3 sits in both 1–3 and 3–5 once max_years is inclusive. The higher min_years wins, so
+    // half-open tables keep answering exactly as they did before this fix.
+    expect(findSeniorityBracket(SENIORITY, 3)?.bonus_per_hour).toBe(2);
+    expect(findSeniorityBracket(SENIORITY, 5)?.bonus_per_hour).toBe(3.5);
+    expect(findSeniorityBracket(SENIORITY, 10)?.bonus_per_hour).toBe(8);
+  });
 });
 
 describe('computeEffectiveRate — base + role', () => {

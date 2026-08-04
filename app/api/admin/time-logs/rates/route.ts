@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { computeEffectiveRate } from '@/lib/payroll/effective-rate';
+import { loadPayConfig, loadPersonPayFacts, rateMenuFor } from '@/lib/payroll/pay-context';
 
 // GET: Fetch all rate configuration tables
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -63,64 +63,59 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // hours, it shows a bunch of different roles at different pay rates and it doesn't show the $25.
   // This is inconsistent."*
   //
-  // Three numbers answer one question, and nothing reconciled them:
+  // It was inconsistent because three models answered that one question off three sets of tables —
+  // the full account is in the header of `lib/payroll/resolve-rate.ts`. The picker was not showing a
+  // *wrong* number; it was showing a *different* one from the number the person had been told they
+  // earn, with nothing on screen to say either was partial.
   //
-  //   1. `employee_profiles.hourly_rate` — $25. What My Pay shows.
-  //   2. `work_type_rates.base_rate` — $20 field work, $23 drafting, $16 driving. What the hours
-  //      picker showed, **identically for everybody**, so a party chief and an intern saw the same
-  //      list.
-  //   3. `computeEffectiveRate()` — the designed model: activity rate + role tier bonus + seniority
-  //      + credentials + XP, capped. **It existed and was used by the pay-progression pages only.**
+  // `menu` now comes from the consolidated model, so this endpoint, the approval screen and the
+  // payroll run cannot drift apart again. Each entry carries the rate, which rule produced it, and a
+  // sentence explaining it, so the picker can show
+  // "$30.50/hr — $20.00 field work + $10.00 party chief + $0.50 seniority" rather than a bare figure
+  // the reader has to take on trust.
   //
-  // So the hours picker was not showing a wrong number; it was showing a *different* number from the
-  // one the person had been told they earn, with no indication that either was partial. That reads
-  // as the system disagreeing with itself, which is exactly what it was doing.
+  // `menu.base` is the no-activity option: the agreed base pay. That is the row for *"we should also
+  // be able to apply the base pay too"* and for *"submit the hours without any payment option"*.
   //
-  // `effective` now returns, per work type, what THIS person earns for that work — with the
-  // breakdown, so the picker can show "$30.00/hr — $20 field work + $10 party chief" rather than a
-  // bare figure the reader has to trust.
+  // Permission note: `effective_for` is already covered by the self-or-admin gate at the top of this
+  // handler via the `email` param, but that gate keys off `email`, not this one. Checking it
+  // explicitly here means adding a parameter cannot quietly widen who can read whose pay.
   const forEmail = searchParams.get('effective_for') ?? session.user.email;
+  if (!isAdmin(session.user.roles) && forEmail !== session.user.email) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
   if (forEmail && !table) {
-    const [{ data: profile }, { data: earned }] = await Promise.all([
-      supabaseAdmin.from('employee_profiles').select('job_title, hire_date').eq('user_email', forEmail).maybeSingle(),
-      supabaseAdmin.from('employee_earned_credentials').select('credential_key').eq('user_email', forEmail),
-    ]);
+    const config = await loadPayConfig();
+    const person = await loadPersonPayFacts(forEmail, config);
+    const menu = rateMenuFor(person, config, searchParams.get('role_on_job'));
 
-    const p = profile as { job_title: string | null; hire_date: string | null } | null;
-    const tiers = (results.role_tiers ?? []) as { role_key: string }[];
-    const tier = tiers.find((t) => t.role_key === p?.job_title) ?? null;
-
-    // Years employed, floored. A hire date that has not been set yields 0 — the new-hire bracket —
-    // rather than a guess, because inventing tenure inflates somebody's pay.
-    const years = p?.hire_date
-      ? Math.max(0, Math.floor((Date.now() - new Date(p.hire_date).getTime()) / 31_557_600_000))
-      : 0;
-
-    // `work_types`, which is the key set above — NOT `work_type_rates`, the table name. Reading the
-    // wrong key would have produced an empty list and an `effective` array of zero entries, which on
-    // screen is indistinguishable from "this person earns nothing for any work".
-    const workTypes = (results.work_types ?? []) as Record<string, unknown>[];
-    results.effective = workTypes.map((wt) => {
-      const breakdown = computeEffectiveRate({
-        workType: wt as never,
-        tier: tier as never,
-        yearsEmployed: years,
-        seniority: (results.seniority_brackets ?? []) as never,
-        earnedCredentialKeys: ((earned ?? []) as { credential_key: string }[]).map((c) => c.credential_key),
-        credentials: (results.credential_bonuses ?? []) as never,
-        totalXp: 0,
-        xpMilestones: [],
-      });
-      return { work_type: wt.work_type, label: wt.label, ...breakdown };
-    });
-
+    results.menu = menu;
     results.effective_for = forEmail;
-    // Stated rather than assumed: without a profile there is no role and no tenure, so every
-    // effective rate is just the activity's base. Saying so stops "why is mine the same as the
-    // intern's" being a mystery.
-    results.effective_basis = p
-      ? { job_title: p.job_title, years_employed: years }
-      : { job_title: null, years_employed: 0, note: 'No employee profile — showing base activity rates only.' };
+    // Stated rather than assumed. Without a profile there is no grade and no tenure, so every rate
+    // is the activity's list price — saying so stops "why is mine the same as the intern's" from
+    // being a mystery the reader has to solve.
+    results.effective_basis = {
+      job_title: person.tierKey,
+      tier_label: person.tierLabel,
+      years_employed: person.yearsEmployed,
+      base_pay: person.basePay,
+      band: person.band,
+      note: person.hasProfile
+        ? null
+        : 'No employee profile — showing list rates only, with no grade, seniority or agreed base pay.',
+    };
+
+    // Kept under its original key so existing callers keep working while they move over. It is the
+    // same numbers, flattened.
+    results.effective = menu.activities.map((entry) => ({
+      work_type: entry.work_type,
+      label: entry.label,
+      effectiveRate: entry.resolved.rate,
+      source: entry.resolved.source,
+      explanation: entry.resolved.explanation,
+      ...(entry.resolved.breakdown ?? {}),
+    }));
   }
 
   return NextResponse.json(results);

@@ -10,155 +10,32 @@ import {
 } from '@/lib/notifications/hours-decision';
 import { isDateLocked } from '@/lib/hours/period-lock';
 import { canEmployeeEdit, canEmployeeDelete } from '@/lib/hours/permissions';
+import { loadPayConfig, loadPersonPayFacts, rateFor } from '@/lib/payroll/pay-context';
+import { UNSPECIFIED_WORK_TYPE } from '@/lib/payroll/resolve-rate';
 
 const LOCKED_MSG =
   'That pay period is locked. Ask a manager to adjust these hours — they can revise locked entries.';
 
-interface WorkTypeRate { work_type: string; label: string; base_rate: number; icon: string; max_bonus_cap: number | null; bonus_multiplier: number | null }
-interface RoleTier { role_key: string; label: string; base_bonus: number; max_effective_rate: number | null }
-interface SeniorityBracket { min_years: number; max_years: number | null; bonus_per_hour: number }
-interface CredentialBonus { credential_key: string; bonus_per_hour: number }
-interface PayConfig { key: string; value: number }
-
-async function getPayConfig(): Promise<Record<string, number>> {
-  try {
-    const { data } = await supabaseAdmin.from('pay_system_config').select('key, value');
-    const cfg: Record<string, number> = {};
-    if (data) (data as PayConfig[]).forEach(r => { cfg[r.key] = Number(r.value); });
-    return cfg;
-  } catch {
-    // Table may not exist yet — return sensible defaults
-    return { max_credential_stack: 8, max_xp_milestone_bonus: 3, max_course_bonus: 3, xp_milestone_bonus: 0.50, course_bonus: 0.50 };
-  }
-}
-
-async function calculateEffectiveRate(
-  userEmail: string,
-  workType: string
-): Promise<{
-  base_rate: number;
-  role_bonus: number;
-  seniority_bonus: number;
-  credential_bonus: number;
-  effective_rate: number;
-}> {
-  // 0. Load pay system config
-  const config = await getPayConfig();
-  const maxCredStack = config.max_credential_stack ?? 8;
-  const maxXpBonus = config.max_xp_milestone_bonus ?? 3;
-  const maxCourseBonus = config.max_course_bonus ?? 3;
-
-  // 1. Get work type base rate + bonus cap + multiplier
-  const { data: wtr } = await supabaseAdmin
-    .from('work_type_rates')
-    .select('base_rate, max_bonus_cap, bonus_multiplier')
-    .eq('work_type', workType)
-    .eq('is_active', true)
-    .single();
-  const baseRate = (wtr as WorkTypeRate | null)?.base_rate ?? 15;
-  const bonusMultiplier = Number((wtr as WorkTypeRate | null)?.bonus_multiplier ?? 1.0);
-  const maxBonusCap = Number((wtr as WorkTypeRate | null)?.max_bonus_cap ?? 999);
-
-  // 2. Get employee profile for role and hire date
-  const { data: profile } = await supabaseAdmin
-    .from('employee_profiles')
-    .select('job_title, hire_date')
-    .eq('user_email', userEmail)
-    .single();
-
-  // 3. Get role tier bonus + ceiling
-  let roleBonus = 0;
-  let maxEffectiveRate: number | null = null;
-  if (profile?.job_title) {
-    const { data: tier } = await supabaseAdmin
-      .from('role_tiers')
-      .select('base_bonus, max_effective_rate')
-      .eq('role_key', profile.job_title)
-      .single();
-    roleBonus = (tier as RoleTier | null)?.base_bonus ?? 0;
-    maxEffectiveRate = (tier as RoleTier | null)?.max_effective_rate ?? null;
-  }
-
-  // 4. Calculate seniority bonus
-  let seniorityBonus = 0;
-  if (profile?.hire_date) {
-    const hireDate = new Date(profile.hire_date);
-    const years = Math.floor((Date.now() - hireDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-    const { data: brackets } = await supabaseAdmin
-      .from('seniority_brackets')
-      .select('min_years, max_years, bonus_per_hour')
-      .order('min_years', { ascending: true });
-    if (brackets) {
-      for (const b of brackets as SeniorityBracket[]) {
-        if (years >= b.min_years && (b.max_years === null || years <= b.max_years)) {
-          seniorityBonus = b.bonus_per_hour;
-          break;
-        }
-      }
-    }
-  }
-
-  // 5. Sum credential bonuses (verified only) — capped at max_credential_stack
-  let credentialBonus = 0;
-  const { data: earnedCreds } = await supabaseAdmin
-    .from('employee_earned_credentials')
-    .select('credential_key')
-    .eq('user_email', userEmail)
-    .eq('verified', true);
-  if (earnedCreds && earnedCreds.length > 0) {
-    const keys = (earnedCreds as { credential_key: string }[]).map((c) => c.credential_key);
-    const { data: credBonuses } = await supabaseAdmin
-      .from('credential_bonuses')
-      .select('credential_key, bonus_per_hour')
-      .in('credential_key', keys);
-    if (credBonuses) {
-      credentialBonus = Math.min(
-        (credBonuses as CredentialBonus[]).reduce((sum, c) => sum + c.bonus_per_hour, 0),
-        maxCredStack
-      );
-    }
-  }
-
-  // 6. XP milestone bonus — capped
-  let xpBonus = 0;
-  try {
-    const { count } = await supabaseAdmin
-      .from('xp_milestone_achievements')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_email', userEmail);
-    xpBonus = Math.min((count || 0) * (config.xp_milestone_bonus ?? 0.50), maxXpBonus);
-  } catch { /* table may not exist yet */ }
-
-  // 7. Course completion bonus — capped
-  let courseBonus = 0;
-  try {
-    const { count } = await supabaseAdmin
-      .from('education_courses')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_email', userEmail)
-      .eq('status', 'passed');
-    courseBonus = Math.min((count || 0) * (config.course_bonus ?? 0.50), maxCourseBonus);
-  } catch { /* table may not exist yet */ }
-
-  // 8. Calculate total raw bonus, then apply work-type multiplier and cap
-  const rawTotalBonus = roleBonus + seniorityBonus + credentialBonus + xpBonus + courseBonus;
-  const adjustedBonus = rawTotalBonus * bonusMultiplier;
-  const cappedBonus = Math.min(adjustedBonus, maxBonusCap);
-
-  // 9. Calculate effective rate with role ceiling
-  let effectiveRate = baseRate + cappedBonus;
-  if (maxEffectiveRate !== null && effectiveRate > maxEffectiveRate) {
-    effectiveRate = maxEffectiveRate;
-  }
-
-  return {
-    base_rate: baseRate,
-    role_bonus: roleBonus,
-    seniority_bonus: seniorityBonus,
-    credential_bonus: credentialBonus + xpBonus + courseBonus,
-    effective_rate: Math.round(effectiveRate * 100) / 100,
-  };
-}
+// ── THE FOURTH COPY OF THE PAY FORMULA, RETIRED (owner request, 2026-08-04) ──────────────────
+//
+// *"We need one central consolidated model for all payments."*
+//
+// This file used to carry ~127 lines of private `getPayConfig` + `calculateEffectiveRate`: the
+// fourth independent implementation of "what does this hour cost", and the one that actually
+// stamped a rate onto submitted hours. It differed from the designed model in ways nobody could
+// see from the outside:
+//
+//   • It matched a tier with `.eq('role_key', profile.job_title)` and **no alias bridge**, so a
+//     profile reading 'survey_technician' matched no row in `role_tiers` (whose key is
+//     'survey_tech') and silently lost its $6/hr role bonus.
+//   • It ignored `user_pay_overrides` entirely, so a person on a pinned custom rate had their
+//     hours logged at the formula rate anyway.
+//   • It never consulted `employee_profiles.hourly_rate`, so an agreed $25 could be logged at the
+//     $16 driving rate.
+//   • It issued six sequential queries per entry, so a five-line timesheet was thirty round-trips.
+//
+// It is now `lib/payroll/resolve-rate.ts` through `lib/payroll/pay-context.ts`, the same call the
+// rate picker and the approval screen make. See the header of `resolve-rate.ts` for the model.
 
 // GET: List time logs — employees see own, admins see all (with filters)
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -226,12 +103,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { entries } = body as {
     entries: Array<{
       log_date: string;
-      work_type: string;
+      work_type?: string | null;
       hours: number;
       job_id?: string;
       job_name?: string;
       description: string;
       notes?: string;
+      role_on_job?: string | null;
     }>;
   };
 
@@ -242,8 +120,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Validate total hours per date don't exceed 24
   const hoursByDate = new Map<string, number>();
   for (const e of entries) {
-    if (!e.log_date || !e.work_type || !e.hours || !e.description) {
-      return NextResponse.json({ error: 'Each entry needs log_date, work_type, hours, and description' }, { status: 400 });
+    // ── work_type IS NO LONGER REQUIRED (owner request, 2026-08-04) ─────────────────────────
+    //
+    // *"We should also be able to submit the hours without any payment option and the boss can
+    // decide what is fair."*
+    //
+    // Requiring an activity forced everybody to pick a rate at submission time — which is the
+    // moment they know least about how the day should be paid, and the least authority to decide.
+    // An entry with no activity is now legitimate: it resolves to the person's agreed base pay, or
+    // to `unset` if they have none, and lands in front of whoever approves it either way.
+    if (!e.log_date || !e.hours || !e.description) {
+      return NextResponse.json({ error: 'Each entry needs log_date, hours, and description' }, { status: 400 });
     }
     if (e.hours <= 0 || e.hours > 24) {
       return NextResponse.json({ error: 'Hours must be between 0 and 24' }, { status: 400 });
@@ -265,29 +152,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
+  // Config and the submitter's facts are read ONCE for the whole timesheet, not once per entry per
+  // table. The retired inline calculator did six sequential queries per entry.
+  const payConfig = await loadPayConfig();
+  const payFacts = await loadPersonPayFacts(session.user.email, payConfig);
+
   const results = [];
   for (const entry of entries) {
-    // Calculate pay rate for this entry
-    const rates = await calculateEffectiveRate(session.user.email, entry.work_type);
+    const resolved = rateFor(payFacts, payConfig, {
+      workType: entry.work_type,
+      roleOnJob: entry.role_on_job,
+    });
+    const breakdown = resolved.breakdown;
 
     const { data, error } = await supabaseAdmin
       .from('daily_time_logs')
       .insert({
         user_email: session.user.email,
         log_date: entry.log_date,
-        work_type: entry.work_type,
+        // NOT NULL in the schema, so an entry with no activity is stored as the explicit sentinel
+        // rather than as an empty string. 'unspecified' matches no row in `work_type_rates`, which
+        // is exactly what makes it resolve to base pay.
+        work_type: entry.work_type || UNSPECIFIED_WORK_TYPE,
         hours: entry.hours,
         job_id: entry.job_id || null,
         job_name: entry.job_name || null,
         description: entry.description,
         notes: entry.notes || null,
         status: 'pending',
-        base_rate: rates.base_rate,
-        role_bonus: rates.role_bonus,
-        seniority_bonus: rates.seniority_bonus,
-        credential_bonus: rates.credential_bonus,
-        effective_rate: rates.effective_rate,
-        total_pay: rates.effective_rate * entry.hours,
+        base_rate: breakdown?.baseRate ?? null,
+        role_bonus: breakdown?.roleBonus ?? null,
+        seniority_bonus: breakdown?.seniorityBonus ?? null,
+        credential_bonus: (breakdown?.credentialBonusCapped ?? 0) + (breakdown?.xpBonusCapped ?? 0) || null,
+        effective_rate: resolved.rate,
+        // Null, not zero, when no rate is set. A zero here would total into a pay period as
+        // "worked for free" instead of "waiting on a decision", and the difference is somebody's
+        // wages.
+        total_pay: resolved.rate === null ? null : Math.round(resolved.rate * entry.hours * 100) / 100,
       })
       .select()
       .single();

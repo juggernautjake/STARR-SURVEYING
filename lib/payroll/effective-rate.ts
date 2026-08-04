@@ -90,13 +90,35 @@ export interface EffectiveRateBreakdown {
 const DEFAULT_CREDENTIAL_CAP = 8;
 const DEFAULT_XP_CAP = 3;
 
-/** Pick the seniority bracket whose [min_years, max_years] contains years. */
+/**
+ * Pick the seniority bracket whose [min_years, max_years] contains years.
+ *
+ * ── max_years IS INCLUSIVE (fixed 2026-08-04) ─────────────────────────────────────────────────
+ *
+ * This was `years < b.max_years`, which tiles correctly against half-open brackets (0–1, 1–3, 3–5)
+ * — the shape this function's own unit-test fixtures used. **The firm's live `seniority_brackets`
+ * rows are inclusive ranges**: 0–0, 1–1, 2–2, 3–4, 5–6, 7–9, 10–14, 15–19, 20–null.
+ *
+ * Against those rows the exclusive test matched nothing at 1, 2, 4, 6, 9, 14 and 19 years, so
+ * `findSeniorityBracket` returned null and the bonus silently became $0. The firm's one employee —
+ * hired 2025-07-15, one year in — was losing $0.50/hr this way, and any bracket whose min equals
+ * its max (three of the nine) could never match anybody at all.
+ *
+ * That is the failure this codebase keeps producing: a lookup that finds nothing returns an absence
+ * that renders as a legitimate zero. Nobody sees an error; somebody just gets paid less.
+ *
+ * Inclusive alone is not enough, because half-open rows then overlap (year 3 sits in both 1–3 and
+ * 3–5). So the most specific match wins: the highest `min_years` among the brackets that contain
+ * the year. That reproduces the previous answers for half-open data and is correct for inclusive
+ * data, which means both shapes can coexist in the table without a migration.
+ */
 export function findSeniorityBracket(brackets: SeniorityBracketRow[], years: number): SeniorityBracketRow | null {
+  let best: SeniorityBracketRow | null = null;
   for (const b of brackets) {
-    const inRange = years >= b.min_years && (b.max_years === null || years < b.max_years);
-    if (inRange) return b;
+    const inRange = years >= b.min_years && (b.max_years === null || years <= b.max_years);
+    if (inRange && (best === null || b.min_years > best.min_years)) best = b;
   }
-  return null;
+  return best;
 }
 
 /** Compute the effective hourly rate per §3.1 of the plan. */

@@ -21,6 +21,41 @@ interface WorkType {
   is_active: boolean;
 }
 
+/** One rate as the consolidated model resolves it. Mirrors `ResolvedRate` in lib/payroll. */
+interface ResolvedRate {
+  rate: number | null;
+  source: 'manual' | 'override' | 'activity' | 'base' | 'unset';
+  explanation: string;
+  floorApplied: boolean;
+}
+
+/** `/api/admin/time-logs/rates` → `menu`: every option, priced for the person asking. */
+interface RateMenu {
+  base: ResolvedRate;
+  activities: Array<{
+    work_type: string;
+    label: string;
+    icon: string | null;
+    base_rate: number;
+    resolved: ResolvedRate;
+  }>;
+}
+
+interface PayBasis {
+  job_title: string | null;
+  tier_label: string | null;
+  years_employed: number;
+  base_pay: number | null;
+  note: string | null;
+}
+
+/**
+ * The value the activity dropdown carries when the submitter does not want to pick a rate —
+ * *"submit the hours without any payment option and the boss can decide what is fair."* Sent as an
+ * empty `work_type`, which the API stores as its `UNSPECIFIED_WORK_TYPE` sentinel.
+ */
+const NO_ACTIVITY = '';
+
 interface TimeEntry {
   work_type: string;
   hours: number;
@@ -97,6 +132,8 @@ export default function MyHoursPanel() {
   const { safeFetch, safeAction, reportPageError } = usePageError('MyHoursPage');
   const [tab, setTab] = useState<ViewTab>('log');
   const [workTypes, setWorkTypes] = useState<WorkType[]>([]);
+  const [rateMenu, setRateMenu] = useState<RateMenu | null>(null);
+  const [payBasis, setPayBasis] = useState<PayBasis | null>(null);
   const [logs, setLogs] = useState<TimeLog[]>([]);
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,20 +174,33 @@ export default function MyHoursPanel() {
         setAdvances(data.advances || []);
       }
 
-      // Load work types if not loaded
-      if (workTypes.length === 0) {
-        const ratesRes = await fetch('/api/admin/time-logs/rates?table=work_types');
-        if (ratesRes.ok) {
-          const data = await ratesRes.json();
-          if (data.work_types?.length) setWorkTypes(data.work_types);
+      // ── PRICED FOR THIS PERSON, NOT THE LIST PRICE (owner report, 2026-08-04) ─────────────
+      //
+      // *"On my payment page it shows my base pay is $25 an hour, but when I go to my hours to log
+      // hours, it shows a bunch of different roles and stuff all at different pay rates… but it
+      // doesn't show the $25. This is inconsistent."*
+      //
+      // The old call was `?table=work_types`, which returns the raw `work_type_rates` rows — the
+      // firm's list prices, identical for a party chief and an intern, and with the person's own
+      // agreed rate nowhere on the screen.
+      //
+      // Dropping the `table` filter is what turns the response into the consolidated menu: the same
+      // activities, each priced for whoever is asking, plus a `base` entry for the agreed rate.
+      const ratesRes = await fetch('/api/admin/time-logs/rates');
+      if (ratesRes.ok) {
+        const data = await ratesRes.json();
+        if (data.menu) {
+          setRateMenu(data.menu);
+          setPayBasis(data.effective_basis ?? null);
         }
+        if (data.work_types?.length) setWorkTypes(data.work_types);
       }
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error('Failed to load data'));
     } finally {
       setLoading(false);
     }
-  }, [weekStart, reportPageError, workTypes.length]);
+  }, [weekStart, reportPageError]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -178,7 +228,10 @@ export default function MyHoursPanel() {
 
   const addEntry = () => {
     setEntries((prev) => [...prev, {
-      work_type: workTypes[0]?.work_type || 'field_work',
+      // Defaults to no activity, not to whichever work type happens to sort first. Picking a rate
+      // is a decision, and pre-selecting one on the submitter's behalf is how "field work" ended up
+      // on hours that were nothing of the sort.
+      work_type: NO_ACTIVITY,
       hours: 0,
       description: '',
       notes: '',
@@ -432,6 +485,30 @@ export default function MyHoursPanel() {
             submit them — your manager approves them at the end of the pay period.
           </p>
 
+          {/*
+            The facts every rate on this page is computed from, stated on the page that uses them.
+            Without this, the person sees numbers that differ from the one figure they were told
+            they earn and has no way to tell which is right — which is exactly the report that
+            started this work.
+          */}
+          {payBasis && (
+            <div className="tl-pay-basis">
+              {payBasis.base_pay != null && (
+                <span><strong>{formatCurrency(payBasis.base_pay)}/hr</strong> agreed base pay</span>
+              )}
+              {payBasis.tier_label && <span>{payBasis.tier_label}</span>}
+              {payBasis.base_pay != null && (
+                <span>{payBasis.years_employed} {payBasis.years_employed === 1 ? 'year' : 'years'} in</span>
+              )}
+              {payBasis.note && <span className="tl-pay-basis__note">{payBasis.note}</span>}
+              {payBasis.base_pay != null && (
+                <span className="tl-pay-basis__note">
+                  Activity rates below include your grade and seniority, and never pay below your agreed base.
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Locked hours (approved / adjusted / disputed) — read-only. */}
           {lockedForDate.length > 0 && (
             <div className="tl-locked-list">
@@ -463,6 +540,12 @@ export default function MyHoursPanel() {
 
           {entries.map((entry, idx) => {
             const wt = workTypes.find((w) => w.work_type === entry.work_type);
+            // The rate THIS person earns for the selected activity — or, with nothing selected, the
+            // agreed base pay. Falls back to null (rather than a list price) when the menu has not
+            // loaded, so a stale number never stands in for the real one.
+            const resolved = entry.work_type
+              ? rateMenu?.activities.find((a) => a.work_type === entry.work_type)?.resolved ?? null
+              : rateMenu?.base ?? null;
             return (
               <div key={idx} className="tl-entry-card">
                 <div className="tl-entry-card__header">
@@ -477,11 +560,30 @@ export default function MyHoursPanel() {
                         value={entry.work_type}
                         onChange={(e) => updateEntry(idx, 'work_type', e.target.value)}
                       >
-                        {workTypes.filter((w) => w.is_active).map((w) => (
-                          <option key={w.work_type} value={w.work_type}>
-                            {w.icon} {w.label} ({formatCurrency(w.base_rate)}/hr base)
-                          </option>
-                        ))}
+                        {/*
+                          First, and selectable — the owner asked for both halves of this: "we
+                          should also be able to just apply the base pay too" and "we should be able
+                          to submit the hours without any payment option and the boss can decide
+                          what is fair". Those are the same row: no activity, agreed base pay, and a
+                          decision left to whoever approves it.
+                        */}
+                        <option value={NO_ACTIVITY}>
+                          {rateMenu?.base.source === 'unset'
+                            ? 'Not specified — let the boss decide'
+                            : `Base pay${rateMenu?.base.rate != null ? ` (${formatCurrency(rateMenu.base.rate)}/hr)` : ''} — no specific activity`}
+                        </option>
+                        {workTypes.filter((w) => w.is_active).map((w) => {
+                          // The person's own rate for this activity, not the firm's list price.
+                          const mine = rateMenu?.activities.find((a) => a.work_type === w.work_type)?.resolved;
+                          return (
+                            <option key={w.work_type} value={w.work_type}>
+                              {w.icon} {w.label}
+                              {mine?.rate != null
+                                ? ` (${formatCurrency(mine.rate)}/hr)`
+                                : ` (${formatCurrency(w.base_rate)}/hr base)`}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                     <div className="tl-form-group tl-form-group--hours">
@@ -497,6 +599,24 @@ export default function MyHoursPanel() {
                       />
                     </div>
                   </div>
+                  {/*
+                    The working, shown rather than implied. "$30.50/hr — $20.00 field work + $10.00
+                    party chief + $0.50 seniority" is checkable; a bare $30.50 next to a $25 on the
+                    My Pay page is what made this look like two systems disagreeing.
+                  */}
+                  {resolved && (
+                    <div className={`tl-entry-card__rate tl-entry-card__rate--${resolved.source}`}>
+                      <span className="tl-entry-card__rate-amount">
+                        {resolved.rate != null ? `${formatCurrency(resolved.rate)}/hr` : 'Rate not set'}
+                      </span>
+                      <span className="tl-entry-card__rate-why">{resolved.explanation}</span>
+                      {resolved.rate != null && entry.hours > 0 && (
+                        <span className="tl-entry-card__rate-total">
+                          = {formatCurrency(resolved.rate * entry.hours)} for {entry.hours}h
+                        </span>
+                      )}
+                    </div>
+                  )}
                   {wt?.description && (
                     <div className="tl-entry-card__type-desc">{wt.description}</div>
                   )}

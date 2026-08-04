@@ -275,6 +275,69 @@
   border-radius: 6px;
 }
 
+/* ---- Resolved rate, with its working (pay consolidation, 2026-08-04) ----
+   The rate the person actually earns for the selected activity, plus the sentence explaining where
+   it came from. Themed via var() like the rest of this sheet so it survives every skin. */
+.tl-entry-card__rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.6rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #F9FAFB);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.tl-entry-card__rate-amount {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--theme-fg, #111827);
+}
+.tl-entry-card__rate-why { color: var(--theme-fg-muted, #6B7280); }
+.tl-entry-card__rate-total {
+  margin-left: auto;
+  font-weight: 600;
+  color: var(--theme-fg, #111827);
+}
+/* An undecided rate should read as undecided, not as a normal figure. */
+.tl-entry-card__rate--unset {
+  border-style: dashed;
+  border-color: var(--theme-warning, #D97706);
+}
+.tl-entry-card__rate--unset .tl-entry-card__rate-amount { color: var(--theme-warning, #B45309); }
+/* A pinned or hand-set rate is a human decision — worth marking as one. */
+.tl-entry-card__rate--override,
+.tl-entry-card__rate--manual { border-color: var(--theme-accent, #2563EB); }
+
+/* ---- What the rates are computed from ---- */
+.tl-pay-basis {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.9rem;
+  margin: 0 0 0.85rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #F9FAFB);
+  font-size: 0.82rem;
+  color: var(--theme-fg, #111827);
+}
+.tl-pay-basis__note {
+  flex-basis: 100%;
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  /* On a phone the total must not be pushed onto its own far-right column, where it collides with
+     the explanation. Stack instead. */
+  .tl-entry-card__rate-total { margin-left: 0; }
+}
+
 /* ---- Log Footer ---- */
 .tl-log-footer {
   display: flex;
