@@ -26,6 +26,9 @@ import { computeBounds } from '@/lib/cad/geometry/bounds';
 import { featuresFromSurveyReading, researchLayersToCreate, type SurveyReadingLike } from '@/lib/cad/import/from-survey-reading';
 // S9b — compare two records of the same parcel; the basis difference is the headline finding.
 import { compareSurveys, callsFromPoints } from '@/lib/cad/compare/survey-compare';
+import {
+  reconcileSurveys, pointsFromReconciled, type ReconcileSource,
+} from '@/lib/cad/compare/survey-reconcile';
 import { reverseFeature, explodeFeature, smoothPolyline, simplifyPolylineFeature } from '@/lib/cad/operations';
 import { cadLog } from '@/lib/cad/logger';
 import { validateAndMigrateDocument } from '@/lib/cad/validate';
@@ -1081,6 +1084,129 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
     input.click();
   }
 
+  /** CAD_AUDIT Slice S14b — reconcile SEVERAL records into the drawing to start from.
+   *
+   *  S9b compares exactly two readings and reports. This takes as many as the surveyor has — a deed,
+   *  the plat, a prior survey, an adjoiner's description — agrees them course by course, and draws
+   *  the agreed figure.
+   *
+   *  THE CONFIRMATION IS THE FEATURE, not a formality. A reconciled boundary looks exactly as
+   *  authoritative whether four records agreed on every course or two contradicted each other and
+   *  the median picked one. So the disputed courses are listed BEFORE anything lands, the same way
+   *  S8b puts its `notDrawn` list in front of the surveyor rather than in the console — the one
+   *  person who needs it is otherwise the one least likely to see it. */
+  async function openReconcileSurveys() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,application/json';
+    input.multiple = true;
+    input.onchange = async () => {
+      const files = Array.from(input.files ?? []);
+      if (files.length < 2) {
+        void alertAction({
+          title: 'Pick at least two records',
+          message: 'Select two or more research readings of the same land. One record cannot be '
+            + 'reconciled — there is nothing to agree with.',
+        });
+        return;
+      }
+      try {
+        const sources: ReconcileSource[] = [];
+        const unusable: string[] = [];
+        for (const f of files) {
+          const reading = JSON.parse(await f.text()) as { traverse?: { points?: Array<{ x: number; y: number }> } | null };
+          const points = reading?.traverse?.points ?? [];
+          // Named rather than dropped: a file that vanishes silently reads as one the surveyor
+          // forgot to pick, and they will not add it again.
+          if (points.length < 2) { unusable.push(f.name); continue; }
+          sources.push({ label: f.name, calls: callsFromPoints(points) });
+        }
+        if (sources.length < 2) {
+          void alertAction({
+            title: 'Not enough traversable records',
+            message: `Only ${sources.length} of those files has a traversable boundary. A `
+              + 'lot-and-block or reference-only description cannot be reconciled course by course.'
+              + (unusable.length ? `\n\nNot traversable:\n${unusable.map((u) => `• ${u}`).join('\n')}` : ''),
+          });
+          return;
+        }
+
+        const rec = reconcileSurveys(sources);
+        const walked = pointsFromReconciled(rec.calls);
+
+        const disputes = rec.calls
+          .filter((c) => c.bearingAgreement === 'disputed' || c.distanceAgreement === 'disputed')
+          .map((c) => `• course ${c.index + 1}: ${c.note}`)
+          .join('\n');
+        const uncorroborated = rec.calls
+          .filter((c) => c.bearingAgreement === 'single-source' || c.distanceAgreement === 'single-source')
+          .map((c) => `• course ${c.index + 1}: ${c.note}`)
+          .join('\n');
+
+        const ok = await confirmAction({
+          title: rec.fullyAgreed ? 'Every record agrees' : 'Some courses are contested',
+          message: [
+            rec.summary,
+            unusable.length ? `\nNot traversable, and left out:\n${unusable.map((u) => `• ${u}`).join('\n')}` : '',
+            disputes ? `\nDISPUTED — the records do not agree:\n${disputes}` : '',
+            uncorroborated ? `\nUNCORROBORATED — only one record states these:\n${uncorroborated}` : '',
+            rec.differingCallCounts.length
+              ? `\nThese records describe a different number of courses:\n${rec.differingCallCounts.map((d) => `• ${d.source}: ${d.count}`).join('\n')}`
+              : '',
+            walked.stoppedReason
+              ? `\nThe figure stops early: ${walked.stoppedReason}. ${walked.usedCalls} course(s) drawn.`
+              : '',
+            '\nCoordinates are relative to the point of beginning; this is not tied to the state plane.',
+          ].filter(Boolean).join('\n'),
+          confirmLabel: walked.points.length >= 2 ? 'Draw the agreed figure' : 'OK',
+        });
+        if (!ok || walked.points.length < 2) return;
+
+        // Reuses the S8a adapter and the S8c/S8d import path rather than building geometry here, so
+        // the reconciled figure gets the same layer creation, the same OPEN-when-incomplete rule and
+        // the same fit-to-page as a single-reading import. A second way to turn calls into features
+        // is how the two come to disagree.
+        const result = featuresFromSurveyReading({
+          traverse: {
+            points: walked.points,
+            // An early stop is exactly an unusable call, so the boundary must come in OPEN. Saying
+            // "reconciled" and drawing a closed polygon over a figure that stopped at course 2 is
+            // the failure S8a exists to prevent.
+            unusable: walked.stoppedReason
+              ? [{ index: walked.stoppedAt ?? walked.usedCalls, reason: walked.stoppedReason }]
+              : [],
+          },
+          located: [],
+          monuments: [],
+          features: [],
+          confidence: null,
+        });
+
+        const store = useDrawingStore.getState();
+        const doc = store.document;
+        const wasEmpty = Object.keys(doc.features).length === 0;
+        for (const layer of researchLayersToCreate(result.requiredLayers, Object.keys(doc.layers), doc.layerOrder.length)) {
+          store.addLayer(layer);
+        }
+        useDrawingStore.getState().addFeatures(result.features);
+        setTimeout(() => window.dispatchEvent(new CustomEvent(
+          wasEmpty ? 'cad:fitDrawingToPage' : 'cad:zoomExtents',
+        )), 50);
+
+        cadLog.info(
+          'Survey',
+          `Reconciled ${sources.length} record(s): ${rec.consensusCalls} agreed, `
+            + `${rec.disputedCalls} disputed, ${rec.singleSourceCalls} uncorroborated, `
+            + `${walked.usedCalls} course(s) drawn`,
+        );
+      } catch (err) {
+        cadLog.error('Survey', 'Survey reconciliation failed', err);
+        void alertAction({ title: 'Starr CAD', message: 'Could not read those files. They may not be valid JSON.' });
+      }
+    };
+    input.click();
+  }
+
   async function openDxf() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1465,6 +1591,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         { label: 'Inverse (Bearing & Distance)', shortcut: 'INV', action: () => { setTool('INVERSE'); setOpenMenu(null); } },
         { label: 'Forward Point', shortcut: 'FP', action: () => { setTool('FORWARD_POINT'); setOpenMenu(null); } },
         { label: 'Compare with a prior survey…', action: () => { void openCompareSurveys(); setOpenMenu(null); } },
+        // S14b — sits next to Compare because it answers the next question. Compare tells you
+        // whether two records agree; this agrees several and draws the result.
+        { label: '⚖ Reconcile several records into a drawing…', action: () => { void openReconcileSurveys(); setOpenMenu(null); } },
         // CAD_AUDIT Slice S6a — the SAME dialogue as AI → "Calc Point", surfaced where a surveyor
         // would actually look for it.
         //

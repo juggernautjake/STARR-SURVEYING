@@ -1300,3 +1300,44 @@ against a 1998 grid survey reconciles to zero disputes once its offset is suppli
 disputed calls, and hand the agreed figure to the CAD import path that S8c/S8d already made correct.
 A core with no caller is this repo's most frequent defect, so S14b should be picked up promptly
 rather than left.
+
+### ✅ S14b DONE 2026-08-04 — reachable from the Survey menu, and it draws through the corrected path
+
+**Survey → "⚖ Reconcile several records into a drawing…"**, next to Compare because it answers the
+next question: Compare tells you whether two records agree; this agrees several and draws the result.
+Picked up in the same session as S14a rather than left — a core with no caller is this repo's most
+frequent defect, and today alone it was found ten times in other people's code.
+
+**The confirmation is the feature, not a formality.** A reconciled boundary looks exactly as
+authoritative whether four records agreed on every course or two contradicted each other and the
+median picked one. So the disputed courses, the uncorroborated ones, the records with a different
+number of courses, and any early stop are all listed **before anything lands** — the same reasoning
+S8b applies to its `notDrawn` list: put it in the console and the one person who needs it is the one
+least likely to see it.
+
+**It reuses the S8a adapter rather than building geometry itself.** A second way to turn calls into
+features is how the two come to disagree — and a bespoke one here would miss the layer creation
+(S8c), the OPEN-when-incomplete rule (S8a) and the fit-to-page (S8d) that three earlier slices spent
+a session getting right. An early stop is passed through as an `unusable` call, so a figure that
+stopped at course 2 comes in **open**; drawing a closed polygon over it would be exactly the failure
+S8a exists to prevent.
+
+### ▶ A broken assertion, of a shape worth naming
+
+The ordering guard was written as:
+
+```ts
+expect(body.indexOf('confirmAction(')).toBeLessThan(body.indexOf('addFeatures('));
+```
+
+`indexOf` returns **−1** when the string is absent, and −1 is less than every real index — so **the
+check passes hardest at the exact moment the confirmation is deleted.** It was watched failing,
+stayed green, and only then got fixed: both indices are now asserted `> -1` before being compared.
+The same flaw was present in the `addLayer` ordering check beside it.
+
+This is the **fourth** structural check broken on first write today, and the third distinct mechanism:
+an import satisfying a call check, a comment-stripper eating its own input (twice, in opposite
+directions), and now an ordering comparison that treats "absent" as "earliest". They share one
+property — **each failed by passing** — which is why watching a new check fail is not optional here.
+
+3,372 CAD tests, `npm run build` clean.
