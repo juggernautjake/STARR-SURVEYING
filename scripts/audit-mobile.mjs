@@ -60,8 +60,16 @@ const PAGES = arg('pages', [
 // signed-out visitor: the hub is a marketing shell rather than your characters, `/dnd/profile` is a login
 // prompt, and a sheet is read-only with no pickers. An earlier "no real overflow anywhere" was therefore a
 // statement about pages with far less on them than a real user sees. Pass `--cookie "…"` or DND_SESSION.
-const SESSION = arg('cookie', process.env.DND_SESSION || '');
-if (!SESSION) console.log('(no --cookie / DND_SESSION — measuring SIGNED-OUT pages, which are not the app)');
+const SESSION = arg('cookie', process.env.DND_SESSION || process.env.STARR_SESSION || '');
+// PWA W6c — which cookie carries that session. This tool was written for /dnd, whose auth is its own
+// `dnd_session` cookie, and the name was hardcoded in two places. The staff app — the surface the PWA
+// work is actually about, since it is what a field crew opens on a phone — uses next-auth's
+// `authjs.session-token`. Without this flag the detector could not be pointed at the app that needs
+// it, and a second copy of the script is precisely how `lib/overflow.mjs` came to exist in the first
+// place: two copies drifted, and only one had learned what is NOT overflow.
+const COOKIE_NAME = arg('cookie-name', process.env.STARR_SESSION ? 'authjs.session-token' : 'dnd_session');
+if (!SESSION) console.log('(no --cookie / DND_SESSION / STARR_SESSION — measuring SIGNED-OUT pages, which are not the app)');
+else console.log(`(session cookie: ${COOKIE_NAME})`);
 
 const browser = await chromium.launch();
 let failures = 0;
@@ -73,7 +81,7 @@ let errors = 0;
 // check reports. So: inject a real offender and two decoys it must keep ignoring, on a real page.
 if (process.argv.includes('--self-test')) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  if (SESSION) await ctx.addCookies([{ name: 'dnd_session', value: SESSION, domain: new URL(BASE).hostname, path: '/' }]);
+  if (SESSION) await ctx.addCookies([{ name: COOKIE_NAME, value: SESSION, domain: new URL(BASE).hostname, path: '/' }]);
   const p = await ctx.newPage();
   await p.goto(`${BASE}${PAGES[0]}`, { waitUntil: 'domcontentloaded', timeout: 45000 });
   await p.waitForTimeout(1500);
@@ -106,7 +114,7 @@ if (process.argv.includes('--self-test')) {
 for (const width of WIDTHS) {
   const context = await browser.newContext({ viewport: { width, height: 844 } });
   if (SESSION) {
-    await context.addCookies([{ name: 'dnd_session', value: SESSION, domain: new URL(BASE).hostname, path: '/' }]);
+    await context.addCookies([{ name: COOKIE_NAME, value: SESSION, domain: new URL(BASE).hostname, path: '/' }]);
   }
   const page = await context.newPage();
   console.log(`\n=== ${width}px ===`);

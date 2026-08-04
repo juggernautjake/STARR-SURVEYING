@@ -362,3 +362,62 @@ four: **when a check comes back empty, widen it once before believing it.** A `f
 grep for the concept rather than the filename, or simply `ls` the directory.
 
 This repo is mature enough that "it does not exist" is usually wrong.
+
+### ✅ W6c DONE 2026-08-04 — the phone-width browser pass, this time with a working instrument
+
+The 2026-08-04 note above records a 390px pass that **produced no usable result**: every page returned
+`textLen: 13` ("⏳ Loading…") because `npm run build` had replaced `.next` under a live dev server, and
+the run cheerfully reported *"0 px overflow, 0 undersized tap targets"* while measuring blank pages.
+This is that pass, done against a **fresh production build** on a server that stayed up.
+
+**The instrument came first, in three parts, because this document's own history is the argument for
+that.** (1) `scripts/audit-mobile.mjs` already existed with a hardened detector in
+`scripts/lib/overflow.mjs` that documents *four things that are NOT overflow* — reused rather than
+re-written, since two drifting copies is exactly how that file came to exist. (2) Its `--self-test`
+was run first and **passed** — it injects real overflow and two decoys (a closed `<details>`, a fixed
+element) and must catch one and ignore both. A sweep is worthless if the probe cannot fail. (3) Every
+page was confirmed to actually mount (595–1424 chars, 50–64 interactive elements) before any number
+was believed.
+
+One change was needed: the script hardcoded the `dnd_session` cookie name in two places, so it could
+not be pointed at the staff app — the surface this PWA work is actually about, since it is what a
+field crew opens on a phone. `--cookie-name` / `STARR_SESSION` now selects it.
+
+**Result — no overflow on any field-critical surface**, at three widths:
+
+| width | pages | result |
+|---|---|---|
+| 390 | `/admin/me`, `/install`, `/receipts/new`, `/work-mode`, `/my-files`, `/time-off`, `/mileage`, `/notifications`, `/search`, `/calendar` | 10/10 clean |
+| 360 | the six field-critical ones | 6/6 clean |
+| 414 | the six field-critical ones | 6/6 clean |
+
+#### ▶ What the sweep actually found, which was not a layout bug
+
+Three runs died at the **same page**, `/admin/receipts/new`, and the script refused to score it —
+*"a load failure, not a layout result."* That honesty is what made the finding reachable.
+
+The first diagnosis was wrong: the server looked dead, and it was not. `Invoke-WebRequest` follows
+redirects, `/admin/receipts/new` was answering **307**, and the redirect target resolves through the
+`AUTH_URL` pointing at the dead `localhost:3000` — so "unable to connect" was reported for a server
+that was answering 200 on the next request.
+
+**The 307 was a regression shipped by S19 hours earlier.** That slice gated `/admin/receipts/new`
+with the nav registry's seven roles, which do not include `employee` — the role middleware itself
+falls back to (`role || 'employee'`) for any staff member without an explicit one. Its API,
+`/api/admin/receipts/upload`, checks **only that a session exists**, no role at all. So the gate was
+stricter than the boundary it was supposed to shadow, and a new hire who could file a receipt before
+S19 could not after it.
+
+That is the same mistake S19's own commit message describes catching and avoiding — made again, one
+level down, in the very entry written to prevent it. The entry now lists all eleven roles, checked
+against `ALL_ROLES` rather than a copy, so a twelfth role cannot silently lock its holders out of
+expense filing. Deleting the entry is not an option: `/admin/receipts` matches this path too and
+first-match-wins would hand it to the approval queue's admin-only gate.
+
+**Verified at runtime against a rebuilt server, which S19 never was:** `/admin/receipts/new` → 200,
+`/admin/receipts` → 307, `/admin/me` → 200. 13 middleware tests green.
+
+**W6b (the device pass) is unchanged and still needs a phone.** This pass measured a phone-sized
+*viewport* in a desktop browser; it cannot see the standalone home-screen shell, real touch, iOS
+Safari's chrome, or the push permission prompt. Recording that distinction rather than letting a
+green sweep read as "mobile is done".

@@ -69,11 +69,21 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // APIs answer only to `admin`, so those roles get a 403 shell today. Closing it means either
   // widening the APIs (a permissions decision) or dropping the nav links (a product one). Both are
   // the owner's call, not a side effect of a middleware slice — see FINANCE_TAX_AND_INTAKE §S19.
-  // Capture Receipt is the one money route that belongs to the whole crew: a field surveyor
-  // photographs a fuel receipt from the truck. It MUST precede '/admin/receipts' — the approval
-  // queue's prefix matches '/admin/receipts/new' too, and putting the queue first would bounce
-  // every crew member at the moment they tried to file an expense.
-  { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'] },
+  // Capture Receipt belongs to EVERY signed-in member of staff, and the list below is exhaustive on
+  // purpose rather than lazily broad. Its API (`/api/admin/receipts/upload`) checks only that there
+  // is a session — no role at all — so anyone who can sign in can file an expense, and that is the
+  // right rule: the person holding the fuel receipt is whoever happened to fill the truck.
+  //
+  // This entry MUST precede '/admin/receipts'. That prefix also matches '/admin/receipts/new', and
+  // first-match-wins means the approval queue's admin-only list would otherwise bounce a crew member
+  // at the moment they tried to file the expense. Deleting this entry does not open the route — it
+  // hands it to the queue's gate. It has to be listed, and listed first.
+  //
+  // S19 first shipped this with the nav registry's seven roles, which silently dropped `employee` —
+  // the DEFAULT role every staff member falls back to in this very file. A new hire could file a
+  // receipt before that gate existed and could not afterwards. Found by driving the app at phone
+  // width, not by review; see W6c in the PWA doc.
+  { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'teacher', 'student', 'researcher', 'drawer', 'field_crew', 'employee', 'guest', 'tech_support', 'equipment_manager'] },
   { prefix: '/admin/receipts', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/invoicing', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/receivables', roles: ['admin', 'developer'] },

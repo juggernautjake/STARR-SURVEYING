@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { ALL_ROLES } from '@/lib/auth-roles';
 
 const REPO = join(__dirname, '..', '..');
 const ADMIN_DIR = join(REPO, 'app', 'admin');
@@ -218,6 +219,32 @@ describe('admin route gates', () => {
           bounced.map((b) => `  ${b}`).join('\n') +
           `\n\nEither widen the gate, narrow the nav entry's roles, or add a more specific prefix ` +
           `ABOVE the general one (that is what /admin/receipts/new does).`
+        : undefined,
+    ).toEqual([]);
+  });
+
+  it('lets every signed-in role file a receipt', () => {
+    // S19 shipped '/admin/receipts/new' with the nav registry's seven roles and silently dropped
+    // `employee` — the role middleware itself falls back to for any staff member without an explicit
+    // one. A new hire could file a receipt before that gate existed and could not afterwards.
+    //
+    // The API behind this page (`/api/admin/receipts/upload`) checks only that a session exists. So
+    // the gate must list EVERY role, and it must be checked against ALL_ROLES rather than a copy —
+    // otherwise adding a twelfth role locks its holders out of expense filing, and nothing says so.
+    //
+    // The entry cannot simply be deleted: '/admin/receipts' matches this path too, and first-match
+    // wins, so removing it hands the route to the approval queue's admin-only gate.
+    const entry = [...src.matchAll(/\{\s*prefix:\s*'(\/admin\/[^']+)',\s*roles:\s*\[([^\]]*)\]/g)]
+      .find((m) => m[1] === '/admin/receipts/new');
+    expect(entry, "'/admin/receipts/new' must stay listed ABOVE '/admin/receipts'").toBeTruthy();
+
+    const granted = entry![2].split(',').map((r) => r.trim().replace(/'/g, '')).filter(Boolean);
+    const missing = ALL_ROLES.filter((r) => !granted.includes(r));
+    expect(
+      missing,
+      missing.length
+        ? `These roles cannot reach Capture Receipt, but its API accepts any session: ` +
+          `[${missing.join(', ')}]`
         : undefined,
     ).toEqual([]);
   });
