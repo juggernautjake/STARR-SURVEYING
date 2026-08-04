@@ -29,25 +29,23 @@ import path from 'node:path';
  * on a specific claim instead of rediscovering the whole set.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
-  // ── The one worth fixing first ────────────────────────────────────────────────────────────────
-  // A SECOND spatial index, in a different directory from the one that runs. Traced 2026-08-04:
+  // 'spatial/feature-index.ts' was the entry at the top of this list, described as the one worth
+  // fixing first: a SECOND spatial index in a different directory from the one that runs, with no
+  // importer anywhere. It asked for a decision rather than a fix — "decide which of the two
+  // survives" — and on 2026-08-04 (S4b) the decision was made and the file deleted, with its test.
   //
-  //   geometry/spatial-index.ts  →  createSpatialIndex   ← LIVE
+  //   geometry/spatial-index.ts  →  createSpatialIndex   ← LIVE, and the survivor
   //     used by geometry/lod.ts → buildFeatureIndex → CanvasViewport's ensureFeatureIndex wrapper
   //
-  //   spatial/feature-index.ts   →  createFeatureIndex / buildFeatureIndex   ← DEAD
-  //     no importer, in production or anywhere else
+  // The two were genuinely different designs, which is why the choice needed evidence rather than a
+  // coin toss. The dead one was MUTABLE — `upsert`/`remove`, incremental, with an overflow bin for
+  // features too large to bucket. The live one is immutable: built once, queried, rebuilt when the
+  // feature set changes. So the dead one's unique capability was incremental update, and S4a measured
+  // the rebuild path at 25.8 ms/frame across 200,000 features — far beyond any real survey drawing.
+  // It solved a cost the measurements say this program does not have.
   //
-  // The first version of this entry claimed CanvasViewport "has its own inline ensureFeatureIndex"
-  // and hand-rolls the index. **That was wrong.** `ensureFeatureIndex` is a ten-line caching wrapper;
-  // the actual index building is `buildFeatureIndex` imported from `geometry/lod`, which delegates to
-  // `geometry/spatial-index`. The renderer hand-rolls nothing.
-  //
-  // The real finding is better and the remedy is different: this is a parallel implementation of a
-  // module that already exists and works, and the perf doc's "P1 spatial index — DONE,
-  // lib/cad/spatial/feature-index.ts" cites the DEAD one. So it does not need sequencing with the
-  // S5 split at all — it needs someone to decide which of the two survives.
-  'spatial/feature-index.ts': 'DEAD PARALLEL IMPL of geometry/spatial-index.ts (the live one, via geometry/lod). Decide which survives; nothing in the renderer depends on this file',
+  // Recoverable from git if that ever stops being true. Two spatial indexes is the drift this
+  // codebase has paid for more than once.
 
   // 'geo/texas-state-plane.ts' was here — S16a shipped the zone table with no caller and recorded
   // that wiring it was a separate slice. S16b is that slice: all four exporters now read the zone

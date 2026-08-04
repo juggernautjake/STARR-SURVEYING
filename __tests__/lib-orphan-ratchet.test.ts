@@ -70,7 +70,6 @@ const KNOWN_ORPHANS: readonly string[] = [
   'cad/io/trv-bearings.ts',
   'cad/persistence/native-autosave.ts',
   'cad/platform/index.ts',
-  'cad/spatial/feature-index.ts',
   'dnd/ai-scope.ts',
   'dnd/backgrounds/index.ts',
   'dnd/bestiary/ig-curation.ts',

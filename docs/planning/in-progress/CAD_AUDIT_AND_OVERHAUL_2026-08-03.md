@@ -874,7 +874,7 @@ matters most), **S0c** (the overlay is discoverable).
 **S2 is DONE** — measured 2026-08-03. The cause is named with evidence: the visible-feature set is
 re-derived from scratch five times per frame. **S2b is DONE** — the fix shipped and was verified in the browser on the same 200k fixture:
 renderAll p50 269.2 ms -> 25.2 ms, renderImageFeatures 62.9 ms -> 0 ms, 65 frames -> 490 in a 5 s
-window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is recommended for deferral**, see its note. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **S7a is DONE** (coordinate-entry defect fixed). **Not started:** S1b+, S4 (recommended for deferral), S5, S7b (create-a-point UI), S9c (canvas overlay).
+window. **S1a** (menu catalogue) and **S6a** (COGO surfaced under Survey) are DONE. **S6 is CLOSED** (every item already existed and is UI-reachable; S6a was all it needed). **S4a** measured interaction — the freeze is gone (25.8 ms/frame under load, mousemove handler 0.2 ms); **S4 is DEFERRED 2026-08-04**, on the measurement in its note, with a stated revisit trigger. **S3 was already built** — verified in the browser, not re-implemented. **S8 is DONE** — S8a the adapter, S8b the menu import that calls it (wiring tested; the VISUAL pass is still outstanding and needs a browser). **S9 is DONE** — S9a the core, S9b the Survey-menu entry (visual pass outstanding); S9c (canvas overlay) remains. **S7a is DONE** (coordinate-entry defect fixed). **Not started:** S1b+, S5, S9c (canvas overlay). **Deferred:** S4. **Done since:** S7b (create-a-point UI), S16b, S5a.
 
 **Start here:** open a drawing, command palette → *Performance Overlay*, generate the **large
 (200k)** fixture, read the per-phase histogram, and paste it into S2. Then read
@@ -2251,3 +2251,48 @@ Cycle). That is a real condensation, but it changes a control rather than a labe
 S5 proper.
 
 CAD suite 3,464 green; `tsc` and `eslint` clean.
+
+### ✅ S4b DONE 2026-08-04 — the second spatial index is gone, and S4 is formally deferred
+
+Two items in this document had been *recorded* rather than *decided*, one of them twice. Both are now
+resolved.
+
+#### ▶ The dead parallel spatial index — deleted, on evidence
+
+`lib/cad/spatial/feature-index.ts` sat at the top of `cad-modules-are-reachable`'s inventory as *"the
+one worth fixing first"*, and the entry asked for a decision rather than a fix: **decide which of the
+two survives**. It has been asked twice — once in the perf doc's P1 row, once in the reachability
+inventory — and never answered.
+
+The two were **genuinely different designs**, which is why this needed evidence rather than a coin
+toss:
+
+| | dead (`spatial/feature-index.ts`) | live (`geometry/spatial-index.ts`) |
+|---|---|---|
+| mutability | **mutable** — `upsert` / `remove`, incremental | immutable — built once, queried |
+| oversized features | separate overflow "large bin" | bucketed with the rest |
+| reached by | nothing, anywhere | `geometry/lod.ts` → `buildFeatureIndex` → the renderer |
+
+So the dead one's unique capability was **incremental update** — and S4a measured the rebuild path at
+**25.8 ms/frame across 200,000 features**, far beyond any real survey drawing. It solved a cost the
+measurements say this program does not have.
+
+Deleted with its 199-line test. Recoverable from git if that ever stops being true; two spatial
+indexes is the drift this codebase has paid for more than once. Both ratchet inventories were pruned
+in the same commit — `cad-modules-are-reachable` and `lib-orphan-ratchet` each listed it, and an entry
+for a file that no longer exists is how a ratchet starts lying.
+
+#### ▶ S4 — DEFERRED, not dropped
+
+The status line said *"recommended for deferral"*, which is not a decision. It is one now, and the
+rationale was already measured rather than assumed: the frame budget is met at a fixture size no
+client drawing approaches (25.8 ms at 200k features, ~39 fps, cursor tracking live), the owner's
+original freeze complaint is answered (269 ms → 25.8 ms), and the single remaining cost of
+consequence — `renderFeatures` at 15.6 ms — would buy headroom nobody is short of.
+
+**The revisit trigger stands and is the reason this is a deferral rather than a closure:** if a *real*
+drawing is ever measured over ~16 ms/frame, S4 reopens. Deferring on measurement with a named trigger
+is different from deferring to empty a folder, and the difference is that this one can come back.
+
+CAD suite 3,445 green (down 13 with the deleted test's cases), `tsc` and `eslint` clean, production
+build compiles.
