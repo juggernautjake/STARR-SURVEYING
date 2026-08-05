@@ -45,8 +45,21 @@ export interface ApprovedEntry {
 export interface OwedInput {
   /** Every APPROVED entry for this person, all time. Pending and rejected must not be here. */
   approved: ApprovedEntry[];
-  /** Every payout already made to them, in CENTS. All time. */
+  /**
+   * Every payout COMMITTED to them, in CENTS — including batches still in draft.
+   *
+   * Drafts count deliberately. Once a batch exists for somebody's hours, paying those hours again
+   * is a double payment, and a balance that ignores drafts invites exactly that. Voided batches and
+   * failed items are not committed and must not be in this list.
+   */
   paidCents: number[];
+  /**
+   * Of that, how much has actually reached them, in CENTS.
+   *
+   * Kept apart because "we owe you nothing" and "we owe you nothing because a batch is sitting in
+   * draft" are different sentences to be on the receiving end of.
+   */
+  settledCents?: number;
   /** When the most recent payout went out, for the label. Null when they have never been paid. */
   lastPayoutAt?: string | null;
 }
@@ -56,8 +69,12 @@ export interface OwedSummary {
   owedCents: number;
   /** Total approved earnings, all time, in cents. */
   earnedCents: number;
-  /** Total paid out, all time, in cents. */
+  /** Total committed, all time, in cents — including batches still in draft. */
   paidCents: number;
+  /** Of that, how much has actually reached them. */
+  settledCents: number;
+  /** Committed but not yet settled: money promised, sitting in a batch that has not gone out. */
+  inFlightCents: number;
   /** Hours behind `earnedCents`. */
   paidHours: number;
   /**
@@ -117,6 +134,11 @@ export function computeOwed(input: OwedInput): OwedSummary {
     0,
   );
 
+  const settledCents = Number.isFinite(Number(input.settledCents)) ? Math.round(Number(input.settledCents)) : paidCents;
+  // Never negative: settled cannot exceed committed, and a data oddity that made it look so would
+  // otherwise render as money in flight that does not exist.
+  const inFlightCents = Math.max(0, paidCents - settledCents);
+
   const owedCents = earnedCents - paidCents;
   const lastPayoutAt = input.lastPayoutAt ?? null;
 
@@ -124,12 +146,14 @@ export function computeOwed(input: OwedInput): OwedSummary {
     owedCents,
     earnedCents,
     paidCents,
+    settledCents,
+    inFlightCents,
     paidHours: Math.round(paidHours * 100) / 100,
     undecidedHours: Math.round(undecidedHours * 100) / 100,
     entryCount,
     oldestUnpaidDate: oldestUnpaid,
     lastPayoutAt,
-    statement: describeOwed({ owedCents, undecidedHours, lastPayoutAt, entryCount }),
+    statement: describeOwed({ owedCents, undecidedHours, lastPayoutAt, entryCount, inFlightCents }),
   };
 }
 
@@ -138,6 +162,7 @@ function describeOwed(o: {
   undecidedHours: number;
   lastPayoutAt: string | null;
   entryCount: number;
+  inFlightCents: number;
 }): string {
   const parts: string[] = [];
 
@@ -157,6 +182,12 @@ function describeOwed(o: {
         // No payout has ever gone out. Saying "since your last payout" would imply one happened.
         : `${money(o.owedCents)} owed — no payout has been made to this person yet.`,
     );
+  }
+
+  if (o.inFlightCents > 0) {
+    // "We owe you nothing" and "we owe you nothing because a batch is sitting in draft" are very
+    // different sentences to be on the receiving end of.
+    parts.push(`${money(o.inFlightCents)} of that is already in a payout that has not gone out yet.`);
   }
 
   if (o.undecidedHours > 0) {

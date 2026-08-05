@@ -20,7 +20,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { computeOwed, type ApprovedEntry, type OwedSummary } from '@/lib/payroll/owed';
-import { readPayouts } from '@/lib/payroll/payout-ledger';
+import { readPayouts, isCommittedPayout, isSettledPayout } from '@/lib/payroll/payout-ledger';
 
 interface LogRow {
   id: string;
@@ -98,11 +98,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Group both sides by person.
-  const byPerson = new Map<string, { entries: ApprovedEntry[]; paidCents: number[]; lastPayoutAt: string | null }>();
+  const byPerson = new Map<
+    string,
+    { entries: ApprovedEntry[]; paidCents: number[]; settledCents: number; lastPayoutAt: string | null }
+  >();
   const bucket = (who: string) => {
     const existing = byPerson.get(who);
     if (existing) return existing;
-    const fresh = { entries: [] as ApprovedEntry[], paidCents: [] as number[], lastPayoutAt: null as string | null };
+    const fresh = { entries: [] as ApprovedEntry[], paidCents: [] as number[], settledCents: 0, lastPayoutAt: null as string | null };
     byPerson.set(who, fresh);
     return fresh;
   };
@@ -119,11 +122,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   for (const payout of payouts) {
+    // A voided batch is money that never left; a failed item is a payment the bank rejected.
+    // Neither is committed, and counting either would permanently under-owe somebody.
+    if (!isCommittedPayout(payout)) continue;
+
     const b = bucket(payout.user_email);
-    b.paidCents.push(Number(payout.amount_cents) || 0);
-    // Latest `paid_at` wins. A pending payout has none and must not become the "last payout" date —
-    // it would tell somebody they were paid on a day nothing left the bank.
-    if (payout.paid_at && (!b.lastPayoutAt || payout.paid_at > b.lastPayoutAt)) b.lastPayoutAt = payout.paid_at;
+    const cents = Number(payout.amount_cents) || 0;
+    b.paidCents.push(cents);
+
+    // Settled is narrower than committed. A DRAFT batch commits the money — paying those hours
+    // again would be a double payment — but nothing has reached the person yet, and telling them
+    // they are paid up would be false.
+    if (isSettledPayout(payout)) {
+      b.settledCents += cents;
+      // Latest `paid_at` wins. A pending payout has none and must not become the "last payout"
+      // date — it would tell somebody they were paid on a day nothing left the bank.
+      if (payout.paid_at && (!b.lastPayoutAt || payout.paid_at > b.lastPayoutAt)) b.lastPayoutAt = payout.paid_at;
+    }
   }
 
   const { data: nameRows } = await supabaseAdmin
@@ -136,7 +151,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const rows: OwedRow[] = [...byPerson.entries()].map(([user_email, data]) => ({
     user_email,
     user_name: nameByEmail.get(user_email) ?? null,
-    ...computeOwed({ approved: data.entries, paidCents: data.paidCents, lastPayoutAt: data.lastPayoutAt }),
+    ...computeOwed({ approved: data.entries, paidCents: data.paidCents, settledCents: data.settledCents, lastPayoutAt: data.lastPayoutAt }),
   }));
 
   // Biggest balance first — that is the order somebody paying people works in.

@@ -61,6 +61,14 @@ export interface PayoutRecord {
   notes: string | null;
   batch_id: string | null;
   batch_label: string | null;
+  /**
+   * The BATCH's status, which is not the item's.
+   *
+   * A voided batch is money that never left, however its items are marked — the void route sets the
+   * batch and leaves the lines alone. Any balance built from item status alone would treat a voided
+   * batch as a payment and permanently under-owe somebody.
+   */
+  batch_status: string | null;
   created_at: string | null;
 }
 
@@ -116,8 +124,28 @@ function toRecord(item: BatchItemRow, batch: BatchRow | undefined): PayoutRecord
     notes: item.notes,
     batch_id: item.batch_id,
     batch_label: batch?.label ?? null,
+    batch_status: batch?.status ?? null,
     created_at: item.created_at,
   };
+}
+
+/**
+ * Does this payout represent money the firm has committed to, or promised and withdrawn?
+ *
+ * A **voided** batch is money that never left. A **failed** item is a payment the bank rejected —
+ * the person still has not been paid, and the debt is still owed. Everything else counts as
+ * committed, including a draft: once a batch exists for somebody's hours, paying those hours again
+ * is a double payment, and a balance that ignores drafts invites exactly that.
+ */
+export function isCommittedPayout(p: PayoutRecord): boolean {
+  if (p.batch_status === 'voided') return false;
+  if (p.status === 'failed') return false;
+  return true;
+}
+
+/** Has the money actually reached the person? Narrower than committed, and used for dates and labels. */
+export function isSettledPayout(p: PayoutRecord): boolean {
+  return isCommittedPayout(p) && p.status === 'paid';
 }
 
 export interface PayoutQuery {
