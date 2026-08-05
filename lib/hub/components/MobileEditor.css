@@ -17,9 +17,24 @@
   overscroll-behavior: contain;
 }
 
+/* ── The header must not overlap its own body (owner screenshot, 2026-08-05) ─────────────────────
+ *
+ * *"Please fix the formatting issues with the text and stuff."* The screenshot showed the
+ * Cancel / Customize hub / Save bar drawn ON TOP of the "Drag the handle to reorder…" hint — two
+ * blocks of text at the same coordinates.
+ *
+ * Cause: the bar was `position: sticky; top: 0` inside a `position: fixed` flex column. Sticky needs
+ * a scrolling ancestor, and the scrolling ancestor here is the BODY, not the sheet — so on some
+ * mobile engines the bar was lifted out of the flex flow and the body started at y=0 beneath it.
+ *
+ * Fix: a plain non-scrolling flex header (`flex: 0 0 auto`) with a solid, opaque background and its
+ * own stacking context, above a body that is the only thing that scrolls (`flex: 1; min-height: 0`).
+ * That layout cannot overlap regardless of the sticky edge cases, because the header genuinely
+ * occupies its own height in the column. */
 .hub-msheet__bar {
-  position: sticky;
-  top: 0;
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -27,6 +42,7 @@
   padding: 10px 12px;
   padding-top: max(10px, env(safe-area-inset-top));
   border-bottom: 1px solid var(--theme-border, #e5e7eb);
+  /* Opaque, not a theme surface that might resolve translucent — the hint must never show through. */
   background: var(--theme-bg-surface, #ffffff);
 }
 
@@ -62,7 +78,11 @@
 }
 
 .hub-msheet__body {
-  flex: 1;
+  flex: 1 1 auto;
+  /* `min-height: 0` is load-bearing in a flex column: without it the body refuses to shrink below
+   * its content height and the whole sheet grows instead of the body scrolling — which is another
+   * way the header gets pushed out of view. */
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: 12px;
@@ -126,6 +146,22 @@
   white-space: nowrap;
 }
 
+/* Edit a widget's own settings (owner request, 2026-08-05). Sits between the label and Remove;
+ * shown only for widgets that have something to edit. Neutral, not danger-coloured — it is not a
+ * destructive action and must not read like one next to the trash can. */
+.hub-msheet__edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-secondary, #6b7280);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
 .hub-msheet__remove {
   display: inline-flex;
   align-items: center;
@@ -136,6 +172,26 @@
   background: transparent;
   color: var(--theme-danger, #dc2626);
   cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* The per-widget settings sub-sheet, layered over the reorder list. Same full-screen fixed frame as
+ * the main sheet so it fully covers the list behind it, one z-index above. */
+.hub-msheet__wsheet {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme-bg-page, #ffffff);
+  color: var(--theme-fg-primary, #0f1419);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  overscroll-behavior: contain;
+}
+
+/* Keeps the centred title centred without a second interactive control opposite Done. */
+.hub-msheet__bar-spacer {
+  width: 40px;
   flex-shrink: 0;
 }
 

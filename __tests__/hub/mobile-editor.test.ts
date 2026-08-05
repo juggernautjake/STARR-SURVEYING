@@ -72,3 +72,38 @@ describe('grid-math — mobile collapse honors array order', () => {
     expect(GRID_MATH).toMatch(/if \(breakpoint === 8\) return widgets;/);
   });
 });
+
+describe('mobile editor — per-widget editing (owner request, 2026-08-05)', () => {
+  const SETTINGS = read('lib', 'hub', 'components', 'MobileWidgetSettings.tsx');
+  const CSS = read('lib', 'hub', 'components', 'MobileEditor.css');
+
+  it('a row can open the widget’s own settings', () => {
+    // The mobile editor could reorder/add/remove but never open a widget to change what it shows.
+    expect(EDITOR).toMatch(/onEdit=\{\(\) => setEditingId\(instance\.id\)\}/);
+    expect(EDITOR).toContain('<MobileWidgetSettings');
+  });
+
+  it('reuses the widget’s SettingsForm rather than a mobile-only editor', () => {
+    // Quick Actions ships QuickActionsSettings; reaching it is the whole feature. A parallel editor
+    // would be a second place to keep in sync.
+    expect(SETTINGS).toContain('def?.SettingsForm');
+    expect(SETTINGS).toContain('SchemaOptionsForm');
+  });
+
+  it('preserves layout/style/interaction when saving content', () => {
+    // patchWidgetCustomization REPLACES the object; passing only { content } would wipe the rest.
+    expect(SETTINGS).toMatch(/\.\.\.instance!?\.customization/);
+  });
+
+  it('only shows an Edit control for widgets that have settings', () => {
+    // A pencil that opens "nothing to customize" is worse than no pencil.
+    expect(EDITOR).toContain('widgetHasSettings(instance.type)');
+    expect(SETTINGS).toContain('export function widgetHasSettings');
+  });
+
+  it('the header is a non-scrolling flex bar, not sticky — it was overlapping its own hint', () => {
+    // Owner screenshot: Cancel / Customize hub / Save drawn on top of the "Drag the handle" text.
+    expect(CSS).toMatch(/\.hub-msheet__bar\s*\{[^}]*flex:\s*0 0 auto/);
+    expect(CSS).toMatch(/\.hub-msheet__body\s*\{[^}]*min-height:\s*0/);
+  });
+});

@@ -39,7 +39,7 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, Plus, X } from 'lucide-react';
+import { GripVertical, Trash2, Plus, X, SlidersHorizontal } from 'lucide-react';
 
 import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
@@ -50,6 +50,7 @@ import { filterCatalog } from '@/lib/hub/widget-catalog-filter';
 import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import type { WidgetInstance } from '@/lib/hub/types';
 import { generatePlacementId } from './GridEditor';
+import MobileWidgetSettings, { widgetHasSettings } from './MobileWidgetSettings';
 
 import './MobileEditor.css';
 
@@ -68,6 +69,9 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
   const { saveDraft, cancelEdit, addWidget, removeWidget, setDraftWidgets } = useHubActions();
 
   const [showAdd, setShowAdd] = useState(false);
+  // The widget whose settings sheet is open, or null. A second layer over the reorder sheet rather
+  // than a route, so Cancel/Save still governs the whole edit and closing it returns to the list.
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const widgets = useMemo(() => draftWidgets ?? [], [draftWidgets]);
 
@@ -157,6 +161,7 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
                   key={instance.id}
                   instance={instance}
                   onRemove={() => removeWidget(instance.id)}
+                  onEdit={() => setEditingId(instance.id)}
                 />
               ))}
             </ul>
@@ -207,6 +212,12 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
           {saveError}
         </div>
       )}
+
+      {/* The per-widget settings sheet, layered over the list. Mounted here so it inherits the same
+          fixed full-screen container and the reorder list stays behind it. */}
+      {editingId && (
+        <MobileWidgetSettings instanceId={editingId} onClose={() => setEditingId(null)} />
+      )}
     </div>
   );
 }
@@ -214,9 +225,10 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
 interface SortableRowProps {
   instance: WidgetInstance;
   onRemove: () => void;
+  onEdit: () => void;
 }
 
-function SortableRow({ instance, onRemove }: SortableRowProps) {
+function SortableRow({ instance, onRemove, onEdit }: SortableRowProps) {
   const def = getWidget(instance.type);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: instance.id,
@@ -228,6 +240,9 @@ function SortableRow({ instance, onRemove }: SortableRowProps) {
     zIndex: isDragging ? 5 : undefined,
   };
   const label = def?.label ?? instance.type;
+  // The Edit control shows only when the widget has something to edit — a pencil that opens
+  // "nothing to customize" is worse than no pencil.
+  const editable = widgetHasSettings(instance.type);
 
   return (
     <li ref={setNodeRef} style={style} className="hub-msheet__row">
@@ -241,6 +256,16 @@ function SortableRow({ instance, onRemove }: SortableRowProps) {
         <GripVertical size={18} aria-hidden />
       </button>
       <span className="hub-msheet__row-label">{label}</span>
+      {editable && (
+        <button
+          type="button"
+          className="hub-msheet__edit"
+          onClick={onEdit}
+          aria-label={`Edit ${label}`}
+        >
+          <SlidersHorizontal size={16} aria-hidden />
+        </button>
+      )}
       <button
         type="button"
         className="hub-msheet__remove"
