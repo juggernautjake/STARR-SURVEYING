@@ -43,6 +43,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { BASE_PATH } from '@/lib/voice/content';
+import type { StudioBadges } from '@/lib/voice/notifications';
 
 const ICONS = {
   Home,
@@ -70,17 +71,20 @@ interface NavEntry {
   /** Phone tab bar. Everything else lives behind "More". */
   primary?: boolean;
   group: 'Work' | 'Business' | 'Site';
+  /** Which badge count (if any) belongs on this tab. The count is derived from the destination's own
+   *  data in `studioBadges`, so it can never disagree with what opening the tab shows. */
+  badgeKey?: keyof StudioBadges;
 }
 
 const NAV: NavEntry[] = [
   { href: `${BASE_PATH}/studio`, label: 'Home', icon: 'Home', primary: true, group: 'Work' },
-  { href: `${BASE_PATH}/studio/inquiries`, label: 'Inquiries', icon: 'Inbox', primary: true, group: 'Work' },
-  { href: `${BASE_PATH}/studio/invoices`, label: 'Money', icon: 'CircleDollarSign', primary: true, group: 'Business' },
+  { href: `${BASE_PATH}/studio/inquiries`, label: 'Inquiries', icon: 'Inbox', primary: true, group: 'Work', badgeKey: 'inquiries' },
+  { href: `${BASE_PATH}/studio/invoices`, label: 'Money', icon: 'CircleDollarSign', primary: true, group: 'Business', badgeKey: 'money' },
   { href: `${BASE_PATH}/studio/pages`, label: 'Pages', icon: 'LayoutGrid', primary: true, group: 'Site' },
 
   { href: `${BASE_PATH}/studio/guide`, label: 'Start here', icon: 'BookOpen', group: 'Work' },
   { href: `${BASE_PATH}/studio/clients`, label: 'Clients', icon: 'Users', group: 'Business' },
-  { href: `${BASE_PATH}/studio/contracts`, label: 'Contracts', icon: 'FileSignature', group: 'Business' },
+  { href: `${BASE_PATH}/studio/contracts`, label: 'Contracts', icon: 'FileSignature', group: 'Business', badgeKey: 'contracts' },
   { href: `${BASE_PATH}/studio/expenses`, label: 'Expenses', icon: 'Receipt', group: 'Business' },
   { href: `${BASE_PATH}/studio/documents`, label: 'Documents', icon: 'Files', group: 'Business' },
   { href: `${BASE_PATH}/studio/coaching`, label: 'Coaching', icon: 'GraduationCap', group: 'Business' },
@@ -89,7 +93,7 @@ const NAV: NavEntry[] = [
   { href: `${BASE_PATH}/studio/settings`, label: 'Settings', icon: 'Settings', group: 'Site' },
 ];
 
-export default function StudioNav({ displayName, unread }: { displayName: string; unread: number }): React.ReactElement {
+export default function StudioNav({ displayName, badges }: { displayName: string; badges: StudioBadges }): React.ReactElement {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -101,9 +105,26 @@ export default function StudioNav({ displayName, unread }: { displayName: string
   const primary = NAV.filter((n) => n.primary);
   const secondary = NAV.filter((n) => !n.primary);
 
+  const badgeFor = (entry: NavEntry): number => (entry.badgeKey ? badges[entry.badgeKey] ?? 0 : 0);
+  // What is waiting behind the "More" sheet, so the phone tab bar can say so without opening it.
+  const secondaryBadge = secondary.reduce((sum, n) => sum + badgeFor(n), 0);
+
   const renderIcon = (name: IconName, size = 19) => {
     const Icon = ICONS[name];
     return <Icon size={size} aria-hidden />;
+  };
+
+  // The icon, with a corner count when its tab has something waiting. One place decides how a badge
+  // looks, so the sidebar, the phone tabs and the More sheet can never drift apart.
+  const iconWithBadge = (entry: NavEntry, size: number) => {
+    const count = badgeFor(entry);
+    if (count <= 0) return renderIcon(entry.icon, size);
+    return (
+      <span style={{ position: 'relative', display: 'inline-flex' }}>
+        {renderIcon(entry.icon, size)}
+        <span className="vaNavBadge" aria-label={`${count} waiting`}>{count > 9 ? '9+' : count}</span>
+      </span>
+    );
   };
 
   return (
@@ -122,14 +143,7 @@ export default function StudioNav({ displayName, unread }: { displayName: string
             className="vaStudioNavItem"
             aria-current={isCurrent(entry.href) ? 'page' : undefined}
           >
-            <span style={{ position: 'relative' }}>
-              {renderIcon(entry.icon)}
-              {entry.label === 'Inquiries' && unread > 0 && (
-                <span className="vaNavBadge" aria-label={`${unread} unread`}>
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              )}
-            </span>
+            {iconWithBadge(entry, 19)}
             {entry.label}
           </Link>
         ))}
@@ -140,7 +154,14 @@ export default function StudioNav({ displayName, unread }: { displayName: string
           onClick={() => setMoreOpen(true)}
           aria-expanded={moreOpen}
         >
-          <MoreHorizontal size={19} aria-hidden />
+          <span style={{ position: 'relative', display: 'inline-flex' }}>
+            <MoreHorizontal size={19} aria-hidden />
+            {secondaryBadge > 0 && (
+              <span className="vaNavBadge" aria-label={`${secondaryBadge} waiting behind More`}>
+                {secondaryBadge > 9 ? '9+' : secondaryBadge}
+              </span>
+            )}
+          </span>
           More
         </button>
 
@@ -159,7 +180,7 @@ export default function StudioNav({ displayName, unread }: { displayName: string
                     className="vaStudioNavItem"
                     aria-current={isCurrent(entry.href) ? 'page' : undefined}
                   >
-                    {renderIcon(entry.icon, 17)}
+                    {iconWithBadge(entry, 17)}
                     {entry.label}
                   </Link>
                 ))}
@@ -197,7 +218,7 @@ export default function StudioNav({ displayName, unread }: { displayName: string
             <div className="vaStudioMoreGrid">
               {secondary.map((entry) => (
                 <Link key={entry.href} href={entry.href} onClick={() => setMoreOpen(false)}>
-                  {renderIcon(entry.icon, 21)}
+                  {iconWithBadge(entry, 21)}
                   {entry.label}
                 </Link>
               ))}

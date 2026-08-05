@@ -191,7 +191,7 @@ async function deliverPush(input: CreateNotificationInput, userIds: string[]): P
   );
 }
 
-/** Unread count for the studio header badge. */
+/** Unread count for the notification centre (the bell), across every kind. */
 export async function unreadCount(userId: string): Promise<number> {
   try {
     const { count } = await supabaseAdmin
@@ -203,6 +203,62 @@ export async function unreadCount(userId: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+// ── Per-tab nav badges ─────────────────────────────────────────────────────────────────────────
+//
+// A nav badge is a promise that there is something WAITING ON THAT TAB. The bug this replaces was
+// the Inquiries tab wearing `unreadCount` — the count of every unread notification of every kind. A
+// single `system` message, or a notification for an inquiry since marked spam / won / lost, lit the
+// Inquiries badge with nothing in the Open queue to open. "One inquiry" that isn't there.
+//
+// The fix is a rule, not a patch: every badge is counted from the SAME table its destination page
+// lists, filtered to the rows that actually render as actionable there. A badge therefore cannot
+// disagree with what the tab shows — if it says 1, there is exactly 1 row waiting when you arrive.
+
+export interface StudioBadges {
+  /** Inquiries that have arrived and not yet been dealt with — status 'new', the "new" pill in the
+   *  Open queue. Becomes 'read' the moment Andrew acts, so the badge clears itself. */
+  inquiries: number;
+  /** Client-declared payments awaiting Andrew's confirmation — the one thing the invoices page puts
+   *  ABOVE the numbers because it needs doing today. */
+  money: number;
+  /** Contracts the client has signed that await Andrew's countersignature (status 'signed'). A
+   *  contract still 'sent' is waiting on the client, not on Andrew, so it does not badge. */
+  contracts: number;
+}
+
+// Takes a thunk, not a built query, so BUILDING the query is inside the guard too — a throw from
+// `supabaseAdmin.from(...)` must fall to 0 like any other failure, or the whole nav would 500.
+async function countOr0(run: () => PromiseLike<{ count: number | null }>): Promise<number> {
+  try {
+    const { count } = await run();
+    return count ?? 0;
+  } catch {
+    // A badge that cannot be counted is shown as absent, never as a guess — an over-count here is the
+    // exact "notification with nothing behind it" this whole function exists to prevent.
+    return 0;
+  }
+}
+
+/** Badge counts for the studio nav, each derived from its destination's own data. Never throws. */
+export async function studioBadges(): Promise<StudioBadges> {
+  const [inquiries, money, contracts] = await Promise.all([
+    countOr0(() =>
+      supabaseAdmin.from('va_inquiries').select('id', { count: 'exact', head: true }).eq('status', 'new'),
+    ),
+    countOr0(() =>
+      supabaseAdmin
+        .from('va_payments')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .eq('declared_by_client', true),
+    ),
+    countOr0(() =>
+      supabaseAdmin.from('va_contracts').select('id', { count: 'exact', head: true }).eq('status', 'signed'),
+    ),
+  ]);
+  return { inquiries, money, contracts };
 }
 
 /** Relative time for the notification feed — "2h ago", "yesterday". */

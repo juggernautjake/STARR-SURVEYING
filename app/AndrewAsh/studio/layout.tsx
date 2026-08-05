@@ -16,7 +16,7 @@ import { redirect } from 'next/navigation';
 import './_ui/studio.css';
 import StudioNav from './_ui/StudioNav';
 import { getVoiceSession, studioNeedsSetup } from '@/lib/voice/auth';
-import { unreadCount } from '@/lib/voice/notifications';
+import { studioBadges } from '@/lib/voice/notifications';
 import { BASE_PATH } from '@/lib/voice/content';
 
 export const metadata: Metadata = {
@@ -35,11 +35,11 @@ export default async function StudioLayout({ children }: { children: React.React
     redirect(needsSetup ? `${BASE_PATH}/login?setup=1` : `${BASE_PATH}/login`);
   }
 
-  const unread = await unreadCount(session.userId);
+  const badges = await studioBadges();
 
   return (
     <div className="vaStudio">
-      <StudioNav displayName={session.displayName} unread={unread} />
+      <StudioNav displayName={session.displayName} badges={badges} />
       <div className="vaStudioMain">{children}</div>
     </div>
   );
