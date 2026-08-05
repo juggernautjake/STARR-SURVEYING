@@ -146,3 +146,68 @@ make trains them to ignore the bell, and then it stops working for everyone.
   rather than to that person.
 - **`/admin/pay-progression` still renders the graduated pay model.** Parked and hidden from every
   menu and search, but a bookmark shows numbers the firm no longer uses.
+
+---
+
+## 5. Closed — 2026-08-05
+
+Every buildable slice shipped. The two that remain are blocked on an account nobody in this
+repository can open. Moved to `completed/` per the rubric in `docs/planning/README.md`.
+
+### The loop, end to end
+
+1. An employee submits hours — with or without choosing a rate.
+2. **Everyone who can approve them is told**, with the hours, what they are worth, and a link that
+   opens on that person's pending entries. Opt-out per person, so five admins need not be five bells.
+3. The approval queue shows each person's **running balance** beside their name.
+4. The approver approves, adjusts, rejects, or **sets the pay** — splitting a day across rates,
+   paying a flat amount, or leaving part of it undecided, with a note the employee reads.
+5. **"What is owed right now?"** previews who would be paid what, and who would be skipped and why.
+6. **"Prepare payout"** builds a draft batch — or the Friday cron does it before anybody arrives.
+7. The office dispatches it: ACH CSV to the bank, Venmo, cheque, cash — or **credits it to the
+   person's account**, which they later withdraw.
+8. Every payment is **searchable** by person, cheque number, Venmo reference, method, status, date
+   or amount.
+9. The employee sees **what they are owed and every payout to them**, from the same endpoints.
+
+### Deferred, and why
+
+| Slice | Why it is not built |
+|---|---|
+| **H-14** — display real bank balances | Needs Plaid or Stripe Financial Connections: an account, credentials, and for Plaid a use-case approval before production access. The data model and UI can be built against a provider; the connection cannot be faked, and a screen showing a bank balance that came from nowhere would be the worst thing in this document. |
+| **H-15** — employee-initiated transfer to a bank or card | Needs a sending rail (Stripe Connect or Treasury). Until then the honest version exists: the employee requests a withdrawal, an admin fulfils it by whatever means, and the payment is recorded. |
+
+### The line everything rests on
+
+**Recording a payment is not making one.**
+
+There is no bank integration. Every method carries `sendsItself: false`, including ACH — which
+produces a CSV a human uploads. The Friday cron says *prepared*, never *paid*. The batch it builds
+is a draft. The employee is told their pay is *queued*. `account` credits a balance and states
+plainly that the money has not left the firm.
+
+Every one of those was a place where it would have been easier to say "paid", and the screen would
+have been wrong in the direction that costs somebody money and trust.
+
+### The defect, again
+
+Nine slices, and the same shape underneath most of them: **an absence rendering as an answer.**
+
+My Pay showed **$0.00** to somebody owed forty hours, because the field it read is written by an
+engine pay no longer flows through. "Payout History" showed **rate changes**, so somebody hunting a
+cheque would conclude it was never recorded. A payout recorded as **check** was invisible to the
+dispatch grouping and landed under "Method not assigned". The employee money **account existed,
+worked, and could never be credited**. A **draft batch** would have zeroed a balance before any
+money moved.
+
+None of them raised anything. Each was found by asking what a number would say if the thing behind
+it were missing — and then checking.
+
+### Guards
+
+`__tests__/payroll/one-pay-model.test.ts` reads the live route files: the balance shown and the
+balance paid come from one loader; no route re-derives a rate; no second payment-method vocabulary;
+the scheduled run may only create drafts; the account credit is keyed to its payout item. Every one
+was verified by breaking the thing it claims to catch. Three, over the course of this work, were
+found to be satisfied by a function's own *definition* standing in for a call site — the same defect
+they existed to guard against.

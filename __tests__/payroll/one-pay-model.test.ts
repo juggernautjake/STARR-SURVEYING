@@ -452,3 +452,33 @@ describe('the scheduled payout prepares, it does not pay', () => {
     expect(src).toMatch(/status: 401/);
   });
 });
+
+describe('employee money accounts are actually credited', () => {
+  // The account machinery already existed — available_balance, balance_transactions, a withdrawal
+  // flow. Nothing ever credited it, so the balance was permanently $0.00. An account nobody can put
+  // money into is a table, not a feature.
+  it('marking an account payout paid credits the balance', () => {
+    const src = code(read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts'));
+    expect(src).toContain('planAccountCredit(');
+    expect(src).toContain("'balance_transactions'");
+  });
+
+  it('the credit is keyed to the payout item, so a repeat call cannot double it', () => {
+    // This route is called again whenever the office updates an external reference on a paid row.
+    const src = code(read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts'));
+    expect(src).toContain("reference_type: 'payout_batch_item'");
+    expect(src).toContain('reference_id: itemId');
+  });
+
+  it('only the account method credits — the others left the firm', () => {
+    const src = code(read('lib/payroll/account-credit.ts'));
+    expect(src).toMatch(/method !== 'account'/);
+  });
+
+  it('the account method exists and does not claim to send itself', () => {
+    // Money credited to an account has NOT left the firm. It leaves when they withdraw it.
+    const src = code(read('lib/payouts/methods.ts'));
+    expect(src).toContain("'account'");
+    expect(src).toMatch(/account: \{[\s\S]*?sendsItself: false/);
+  });
+});

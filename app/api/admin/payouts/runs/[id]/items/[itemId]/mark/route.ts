@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { planAccountCredit, type BalanceTransaction } from '@/lib/payroll/account-credit';
 import {
   batchStatusFromItems,
   type PayoutBatchStatus,
@@ -118,6 +119,83 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .eq('id', itemId)
     .eq('batch_id', batchId);
   if (itemErr) return NextResponse.json({ error: itemErr.message }, { status: 500 });
+
+  // ── AN `account` PAYOUT CREDITS THE PERSON'S BALANCE (H-11, 2026-08-05) ────────────────────
+  //
+  // *"We need to have money accounts for the employees."*
+  //
+  // The account machinery already existed — `available_balance`, `balance_transactions`, a
+  // withdrawal flow that checks the balance and refuses without a linked bank. What was missing was
+  // the only thing that matters: **nothing ever credited it.** `available_balance` was written by
+  // one path, completing an old `payroll_runs` run, and pay now flows through payout batches. So the
+  // account existed, the withdrawal screen worked, and the balance was permanently $0.00.
+  //
+  // `account` is a payout METHOD rather than a parallel system: the money has not left the firm, it
+  // has changed shape from "we owe you for hours" to "we hold this for you". It leaves when they
+  // withdraw it.
+  //
+  // Keyed to the ITEM. This route can be called repeatedly — the office updates an external
+  // reference on a row that is already paid — and crediting on every call would inflate a balance
+  // by the payout amount each time, with nothing about the number looking wrong.
+  if (body.status === 'paid') {
+    try {
+      const { data: item } = await supabaseAdmin
+        .from('payout_batch_items')
+        .select('user_email, total_cents, method')
+        .eq('id', itemId)
+        .maybeSingle();
+
+      const row = item as { user_email: string; total_cents: number; method: string | null } | null;
+      if (row?.method === 'account') {
+        const [{ data: profile }, { data: existing }] = await Promise.all([
+          supabaseAdmin.from('employee_profiles').select('available_balance').eq('user_email', row.user_email).maybeSingle(),
+          supabaseAdmin
+            .from('balance_transactions')
+            .select('reference_type, reference_id, amount')
+            .eq('user_email', row.user_email)
+            .eq('reference_type', 'payout_batch_item'),
+        ]);
+
+        const plan = planAccountCredit({
+          method: row.method,
+          amountCents: Number(row.total_cents),
+          payoutItemId: itemId,
+          currentBalanceDollars: Number((profile as { available_balance: number } | null)?.available_balance ?? 0),
+          existingTransactions: (existing ?? []) as BalanceTransaction[],
+          batchLabel: (batch as { label?: string | null }).label ?? null,
+        });
+
+        if (plan.credit) {
+          await supabaseAdmin.from('balance_transactions').insert({
+            user_email: row.user_email,
+            transaction_type: 'credit',
+            amount: plan.amountDollars,
+            balance_before: plan.balanceBefore,
+            balance_after: plan.balanceAfter,
+            description: plan.description,
+            // What makes the credit idempotent — the check above has something to find.
+            reference_type: 'payout_batch_item',
+            reference_id: itemId,
+            status: 'completed',
+            processed_at: nowIso,
+          });
+
+          await supabaseAdmin
+            .from('employee_profiles')
+            .update({ available_balance: plan.balanceAfter })
+            .eq('user_email', row.user_email);
+        } else if (plan.reason) {
+          // Logged rather than silent. "Already credited" is the expected case on a repeat call and
+          // should be visible when somebody is working out why a balance did not move.
+          console.log(`[payouts/mark] no account credit for ${itemId}: ${plan.reason}`);
+        }
+      }
+    } catch (err) {
+      // Named, and deliberately not fatal. The payout IS paid; failing the request here would leave
+      // the office unsure whether to mark it again, which is how a double credit starts.
+      console.error('[payouts/mark] could not credit the account:', err instanceof Error ? err.message : String(err));
+    }
+  }
 
   // Recompute parent batch status from the items.
   const { data: items } = await supabaseAdmin

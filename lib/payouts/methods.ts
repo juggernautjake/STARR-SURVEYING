@@ -46,7 +46,7 @@
 // this list, and it is false deliberately — the day a real rail is connected, that flag is where it
 // gets declared rather than assumed.
 
-export const PAYOUT_METHODS = ['cash', 'check', 'venmo', 'cashapp', 'zelle', 'ach', 'other'] as const;
+export const PAYOUT_METHODS = ['cash', 'check', 'venmo', 'cashapp', 'zelle', 'ach', 'account', 'other'] as const;
 
 export type PayoutMethod = (typeof PAYOUT_METHODS)[number];
 
@@ -111,6 +111,16 @@ export const PAYOUT_METHOD_INFO: Record<PayoutMethod, PayoutMethodInfo> = {
     needsHandle: true,
     sendsItself: false,
     note: 'The batch produces a CSV the office uploads to the bank. The platform does not send it.',
+  },
+  account: {
+    label: 'Hold in their account',
+    referenceLabel: 'Why it is being held rather than sent',
+    needsHandle: false,
+    // Not "sends itself" either, and the reason is worth being precise about: the money has NOT
+    // left the firm. Marking this paid moves the obligation from "we owe you for hours" to "we hold
+    // this for you". Both are debts; only the shape changed. It leaves when they withdraw it.
+    sendsItself: false,
+    note: 'Credits their balance. They draw it out later, and that withdrawal is when it actually goes.',
   },
   other: {
     label: 'Other',

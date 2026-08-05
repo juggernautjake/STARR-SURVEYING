@@ -40,6 +40,7 @@ const METHOD_TITLES: Record<PayoutMethod | 'unassigned', string> = {
   cashapp: 'Cash App',
   zelle: 'Zelle',
   ach: 'Bank ACH (upload the CSV)',
+  account: 'Held in their account (nothing to send)',
   other: 'Other — see the reference',
   unassigned: 'Method not assigned',
 };
