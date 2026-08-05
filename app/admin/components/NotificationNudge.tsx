@@ -15,11 +15,17 @@
 // someone already looking for it would find it.
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAdminPush } from '@/lib/push/use-admin-push';
 
 const DISMISS_KEY = 'starr-notif-nudge-dismissed';
+// The admin layout wraps the auth pages too, so without this the nudge appears on the login screen —
+// where "Turn on" would fire a permission prompt and then 401 on the subscribe (no session yet).
+// Subscribing requires a signed-in session, so the nudge has no business rendering on these.
+const AUTH_PATH = /\/(login|register|signup|forgot|reset)(\/|$|\?)/i;
 
 export default function NotificationNudge() {
+  const pathname = usePathname();
   const { state, subscribe } = useAdminPush({ autoEnableIfGranted: true });
   const [dismissed, setDismissed] = useState(true); // default hidden until we read storage
 
@@ -35,7 +41,7 @@ export default function NotificationNudge() {
   // permission not yet decided, and not already subscribed. Every other state is handled on
   // /admin/install (unconfigured, ios-not-installed, denied) or needs nothing (subscribed, checking),
   // so the nudge stays silent for them rather than duplicating those explanations in a bar.
-  if (dismissed || state !== 'ready') return null;
+  if (dismissed || state !== 'ready' || (pathname && AUTH_PATH.test(pathname))) return null;
 
   const dismiss = () => {
     setDismissed(true);

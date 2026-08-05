@@ -270,6 +270,14 @@ describe('notifications turn themselves back on, and nudge otherwise', () => {
     expect(layout).toContain('<NotificationNudge />');
   });
 
+  it('does NOT nudge on the login/auth pages the admin layout also wraps', () => {
+    // Subscribing needs a session, so on /admin/login "Turn on" would prompt then 401. The nudge
+    // must sit out the auth routes.
+    expect(nudge).toMatch(/AUTH_PATH/);
+    expect(nudge).toMatch(/login\|register\|signup/);
+    expect(nudge).toContain('usePathname');
+  });
+
   it('the explicit controls page does NOT auto-enable — the user chooses there', () => {
     // EnableNotifications must call the hook without autoEnableIfGranted, or the /admin/install
     // page would subscribe a returning visitor before they touched anything.
