@@ -72,6 +72,7 @@ pressed and no money moved is the defect.
 | **H-5** | The balance shows on the approval queue, next to the name | |
 | **H-6** | Committed vs settled — a draft batch cannot silently zero a balance | See §3 |
 | **H-7** | **Pay what is owed** — preview, then build a draft batch from approved unpaid hours. Seed 578 adds a per-person payout method | The "random payout at anytime" half |
+| **H-13** | Scheduled preparation — Friday 8am CST cron builds the draft batch and tells the admins. **Needs `CRON_SECRET` set in Vercel**, same variable the other crons use | |
 | **H-12** | Per-person opt-out for hours notifications (seed 579), reachable on Settings. Opt-OUT so shipping it never silences anybody | |
 | **H-10** | My Pay shows what you are owed and every payout to you, from the same endpoints the approval queue uses | |
 | **H-9** | **Payout search** at /admin/payouts/search — by person, check number, Venmo reference, method, status, date, amount. Also relabelled `/admin/payout-log`, which said "Payout History" and showed pay-RATE changes | |
@@ -87,7 +88,7 @@ pressed and no money moved is the defect.
 
 | **H-11** | **Employee money accounts** — `balance_transactions` + `withdrawal_requests` already model this; wire them to the consolidated pay model and let an employee request a withdrawal | The owner has now asked for the "second money path" I flagged as undecided; this resolves that question |
 
-| **H-13** | Scheduled preparation — a cron builds the batch and notifies; the bank step stays human | |
+
 
 ### Owner-blocked
 

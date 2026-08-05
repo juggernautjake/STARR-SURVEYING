@@ -406,3 +406,49 @@ describe('notification preferences are opt-OUT', () => {
     expect(src.includes("searchParams.get('email')"), 'accepts somebody else’s email').toBe(false);
   });
 });
+
+describe('the scheduled payout prepares, it does not pay', () => {
+  // There is no bank integration — the rail is an ACH CSV a human uploads. A cron that claimed to
+  // have paid people would be the worst version of the defect this codebase keeps finding: a screen
+  // saying money moved when it did not.
+  const CRON = 'app/api/cron/payout-prepare/route.ts';
+
+  it('exists and is scheduled', () => {
+    expect(fs.existsSync(path.join(ROOT, CRON))).toBe(true);
+    // A cron route nobody schedules never runs, which is this repo's most common defect wearing a
+    // config file.
+    expect(read('vercel.json')).toContain('/api/cron/payout-prepare');
+  });
+
+  it('creates a DRAFT, never a completed batch', () => {
+    const src = code(read(CRON));
+    expect(src).toContain("status: 'draft'");
+    expect(src.includes("status: 'completed'"), 'the cron marks batches complete').toBe(false);
+    expect(src.includes("status: 'paid'"), 'the cron marks money paid').toBe(false);
+  });
+
+  it('tells the admins it is PREPARED, not paid', () => {
+    const src = code(read(CRON));
+    expect(src).toContain('payout_prepared');
+    expect(src).toMatch(/Nothing has been sent yet/);
+  });
+
+  it('reuses the shared balance rather than computing its own', () => {
+    // A scheduled payout and a hand-pressed one differ only in what triggered them. A second
+    // implementation is exactly how the pay formula reached four copies.
+    const src = code(read(CRON));
+    expect(src).toContain('loadOwed(');
+    expect(src.includes("from('daily_time_logs')"), 'the cron reads hours directly').toBe(false);
+  });
+
+  it('refuses to build a batch from a balance it could not read', () => {
+    // On a timer, with nobody watching, a partial balance pays wrong amounts silently.
+    expect(code(read(CRON))).toContain('No batch prepared');
+  });
+
+  it('is gated by CRON_SECRET', () => {
+    const src = code(read(CRON));
+    expect(src).toContain('CRON_SECRET');
+    expect(src).toMatch(/status: 401/);
+  });
+});

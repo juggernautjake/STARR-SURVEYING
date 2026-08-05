@@ -34,6 +34,10 @@
       "schedule": "0 4 * * 2-6"
     },
     {
+      "path": "/api/cron/payout-prepare",
+      "schedule": "0 13 * * 5"
+    },
+    {
       "path": "/api/cron/maintenance-schedule-tick",
       "schedule": "0 8 * * *"
     },
