@@ -76,6 +76,7 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'invites': { bundle: null, reason: 'Seat management is part of the account, not a bundle.' },
   'support': { bundle: null, reason: 'A firm that cannot reach support cannot report being wrongly gated.' },
   'notifications': { bundle: null, reason: 'Alerts span every bundle a firm holds.' },
+  'hub': { bundle: null, reason: 'The Hub is always available, and its badge feed aggregates alerts that span every bundle — the widgets behind them gate their own content.' },
   // Registering a DEVICE to receive those alerts sits in the same class as the alerts themselves —
   // gating it behind a bundle would mean a firm's crew silently stops getting push when a plan
   // changes, with the delivery channel, not the content, as the thing that broke.
