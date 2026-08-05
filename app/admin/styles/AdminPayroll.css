@@ -1728,3 +1728,61 @@
 @media (max-width: 640px) {
   .payroll-payowed__row { flex-direction: column; align-items: stretch; }
 }
+
+/* ── What you are owed (H-10, 2026-08-05) ────────────────────────────────────
+   Mounted first on My Pay because it is the question somebody opens the page
+   to answer. Kept visually distinct from the header stats, which report the
+   withdrawal account — a different number that was previously mistaken for
+   this one. */
+.payroll-owed-section { margin-bottom: 1.5rem; }
+.payroll-owed-section h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.payroll-owed-card {
+  padding: 1rem 1.15rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+}
+.payroll-owed-card__amount {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.payroll-owed-card__statement {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  color: var(--theme-fg-secondary, #374151);
+}
+.payroll-owed-card__note {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  color: var(--theme-warning, #B45309);
+}
+.payroll-owed-empty { font-size: 0.85rem; color: var(--theme-fg-muted, #6B7280); }
+.payroll-owed-list { list-style: none; margin: 0; padding: 0; }
+.payroll-owed-list__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.85rem;
+}
+.payroll-owed-list__amount { font-weight: 700; min-width: 5.5rem; }
+.payroll-owed-list__method { color: var(--theme-fg-secondary, #374151); }
+.payroll-owed-list__when { margin-left: auto; color: var(--theme-fg-muted, #6B7280); font-size: 0.8rem; }
+/* Money that did not arrive must not read like money that did. */
+.payroll-owed-list__voided {
+  flex-basis: 100%;
+  color: var(--theme-warning, #B45309);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  .payroll-owed-list__when { margin-left: 0; }
+}

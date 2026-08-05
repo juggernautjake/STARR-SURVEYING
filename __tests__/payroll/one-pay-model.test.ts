@@ -339,3 +339,41 @@ describe('paying what is owed reads the same balance the screen shows', () => {
     expect(src.includes("title: `$${(line.total_cents / 100).toFixed(2)} paid`"), 'claims paid').toBe(false);
   });
 });
+
+describe('the employee sees the same numbers the boss does', () => {
+  // The approval queue and My Pay must not disagree about what somebody is owed. They read the
+  // same endpoints for exactly that reason.
+  const MY_PAY = 'app/admin/components/payroll/MyOwedAndPayouts.tsx';
+
+  it('My Pay reads the shared balance endpoint, not a private calculation', () => {
+    const src = code(read(MY_PAY));
+    expect(src).toContain('/api/admin/payroll/owed');
+    expect(src).toContain('/api/admin/payouts/search');
+  });
+
+  it('it is actually mounted', () => {
+    // A correct component nobody renders is this codebase's most common defect.
+    expect(code(read('app/admin/my-pay/MyPayPanel.tsx'))).toContain('<MyOwedAndPayouts');
+  });
+
+  it('a failed balance is never rendered as zero', () => {
+    // "We could not work out your balance" and "you are owed nothing" must never look the same on
+    // somebody's pay screen.
+    expect(code(read(MY_PAY))).toContain('could not be worked out');
+  });
+
+  it('a payout that has not gone out does not read as one that has', () => {
+    const src = code(read(MY_PAY));
+    expect(src).toContain('not sent yet');
+    expect(src).toMatch(/voided|failed/);
+  });
+
+  it('the stale profile field no longer claims to be what is owed', () => {
+    // `employee_profiles.available_balance` is written only by the old payroll-run engine, which
+    // pay no longer flows through. Somebody with forty approved unpaid hours saw $0.00 under a
+    // label that reads as "you are paid up".
+    const panel = code(read('app/admin/my-pay/MyPayPanel.tsx'));
+    expect(panel.includes('>Available Balance<'), 'the misleading label is back').toBe(false);
+    expect(panel).toContain('Withdrawal balance');
+  });
+});

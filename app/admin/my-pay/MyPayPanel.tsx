@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Wallet, Landmark } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import BalanceCard from '../components/payroll/BalanceCard';
+import MyOwedAndPayouts from '../components/payroll/MyOwedAndPayouts';
 import PayStubView from '../components/payroll/PayStubView';
 import CertificationsPanel from '../components/payroll/CertificationsPanel';
 import RaiseHistory from '../components/payroll/RaiseHistory';
@@ -165,6 +166,11 @@ export default function MyPayPanel() {
   return (
     <div className="payroll-page">
 
+      {/* What you are owed, and what you have been paid — read from the same endpoints the
+          approval queue uses, so the two cannot disagree. Mounted FIRST because it is the
+          question somebody opens this page to answer. */}
+      <MyOwedAndPayouts email={email} />
+
       {/* Pay Summary Header */}
       <div className="payroll-my-header">
         <div className="payroll-my-header__info">
@@ -180,7 +186,7 @@ export default function MyPayPanel() {
             <span className="payroll-my-header__stat-value">{formatCurrency(profile.hourly_rate)}/hr</span>
           </div>
           <div className="payroll-my-header__stat">
-            <span className="payroll-my-header__stat-label">Available Balance</span>
+            <span className="payroll-my-header__stat-label">Withdrawal balance</span>
             <span className="payroll-my-header__stat-value payroll-my-header__stat-value--balance">
               {formatCurrency(profile.available_balance)}
             </span>

@@ -72,6 +72,7 @@ pressed and no money moved is the defect.
 | **H-5** | The balance shows on the approval queue, next to the name | |
 | **H-6** | Committed vs settled — a draft batch cannot silently zero a balance | See §3 |
 | **H-7** | **Pay what is owed** — preview, then build a draft batch from approved unpaid hours. Seed 578 adds a per-person payout method | The "random payout at anytime" half |
+| **H-10** | My Pay shows what you are owed and every payout to you, from the same endpoints the approval queue uses | |
 | **H-9** | **Payout search** at /admin/payouts/search — by person, check number, Venmo reference, method, status, date, amount. Also relabelled `/admin/payout-log`, which said "Payout History" and showed pay-RATE changes | |
 | **H-8** | **One payment-method vocabulary.** Three disagreed; `check` was recordable and invisible to dispatch. `stripe` removed — no rail can send it. Guarded, with a control | cash · check · venmo · cashapp · zelle · ach · other |
 
@@ -82,7 +83,7 @@ pressed and no money moved is the defect.
 
 
 
-| **H-10** | The employee sees their own balance and payout history on My Pay | |
+
 | **H-11** | **Employee money accounts** — `balance_transactions` + `withdrawal_requests` already model this; wire them to the consolidated pay model and let an employee request a withdrawal | The owner has now asked for the "second money path" I flagged as undecided; this resolves that question |
 | **H-12** | Per-person notification preferences, so five admins is not five bells for everyone | |
 | **H-13** | Scheduled preparation — a cron builds the batch and notifies; the bank step stays human | |
