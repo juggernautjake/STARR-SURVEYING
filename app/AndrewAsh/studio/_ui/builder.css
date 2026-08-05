@@ -293,10 +293,49 @@
 /* ── PREVIEW CANVAS ──────────────────────────────────────────────────────────────────────────── */
 
 .vaBuilderCanvasWrap {
-  padding: 14px;
+  padding: 16px;
   background: var(--va-ink);
   border-radius: 0 0 5px 5px;
-  overflow-x: auto;
+  /* The miniature is scaled to fit the width, so horizontal scroll should never appear; vertical
+     scroll of a long page still does. */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Reserves the SCALED footprint of the canvas and centres it, so a zoomed-out desktop preview has
+   no dead whitespace below it and sits in the middle of the pane. Sized inline by ScaledCanvas. */
+.vaBuilderCanvasSizer {
+  position: relative;
+  margin: 0 auto;
+}
+
+/* ── Device toggle on the preview header (owner request, 2026-08-05) ──────────────────────────────
+   The switch between Computer and Phone lives on the preview itself, not in the inspector where it
+   needed a selected block to reach. */
+.vaDeviceToggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--va-ink);
+  border: 1px solid var(--va-line);
+}
+.vaDeviceBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--va-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.vaDeviceBtnOn {
+  background: var(--va-surface);
+  color: var(--va-fg);
 }
 /* THE CONTAINER. Everything inside re-lays-out on THIS element's width, which is what makes
    narrowing the pane to 390px produce the genuine phone layout instead of a simulation. */

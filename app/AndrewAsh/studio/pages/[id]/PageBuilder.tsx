@@ -47,6 +47,7 @@ import {
 import WidgetRenderer, { type PageContext } from '../../../_ui/WidgetRenderer';
 import BlockInspector from './BlockInspector';
 import AddBlockPalette from './AddBlockPalette';
+import ScaledCanvas from './ScaledCanvas';
 import {
   createWidget,
   duplicateWidget,
@@ -105,6 +106,9 @@ export default function PageBuilder({
   const [selectedId, setSelectedId] = useState<string | null>(initialBlocks[0]?.id ?? null);
   const [saveState, setSaveState] = useState<SaveState>(hasDraft ? 'dirty' : 'clean');
   const [device, setDevice] = useState<'desktop' | 'mobile'>('desktop');
+  // The live zoom factor of the scaled preview, surfaced from ScaledCanvas so the header can show
+  // "42%" — a shrunk-but-faithful view must announce that it is shrunk, or it reads as broken.
+  const [previewScale, setPreviewScale] = useState(1);
   const [pane, setPane] = useState<Pane>('preview');
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [insertAt, setInsertAt] = useState<number | null>(null);
@@ -459,21 +463,40 @@ export default function PageBuilder({
         {/* ── PREVIEW ── */}
         <main className="vaBuilderPreview">
           <div className="vaBuilderPaneHead">
-            <span>{device === 'mobile' ? 'Phone preview' : 'Preview'}</span>
+            {/* The device switch lives HERE now, on the preview itself, not buried in the inspector
+                — the owner asked to "make sure we can switch between mobile view and pc view", and a
+                toggle you have to select a block to reach is not that. */}
+            <div className="vaDeviceToggle" role="group" aria-label="Preview device">
+              <button
+                type="button"
+                className={`vaDeviceBtn${device === 'desktop' ? ' vaDeviceBtnOn' : ''}`}
+                onClick={() => setDevice('desktop')}
+                aria-pressed={device === 'desktop'}
+              >
+                <Monitor size={13} aria-hidden /> Computer
+              </button>
+              <button
+                type="button"
+                className={`vaDeviceBtn${device === 'mobile' ? ' vaDeviceBtnOn' : ''}`}
+                onClick={() => setDevice('mobile')}
+                aria-pressed={device === 'mobile'}
+              >
+                <Smartphone size={13} aria-hidden /> Phone
+              </button>
+            </div>
             <span className="vaMuted" style={{ fontSize: '0.6875rem' }}>
+              {/* The zoom readout is what stops the shrunk view reading as a bug. At 100% the label
+                  drops the percentage — nothing is being scaled, so saying so would be noise. */}
               {device === 'mobile' ? '390px — the real phone layout' : 'What a visitor sees'}
+              {previewScale < 0.99 && ` · ${Math.round(previewScale * 100)}%`}
             </span>
           </div>
-          <div className="vaBuilderCanvasWrap">
-            {/* The width change is what fires the container queries. Nothing about the widgets is
-                simulated — this IS the layout a 390px phone gets. */}
-            <div
-              className={`vaBuilderCanvas${device === 'mobile' ? ' vaBuilderCanvasPhone' : ''}`}
-              style={device === 'mobile' ? { width: 390 } : undefined}
-            >
-              <WidgetRenderer widgets={blocks} context={context} previewAll />
-            </div>
-          </div>
+          {/* Renders at the TRUE site width (1200px desktop / 390px phone) so the container queries
+              fire exactly as on the live site, then scales to fit the pane — a faithful miniature
+              rather than a narrower reflow no visitor ever sees. */}
+          <ScaledCanvas device={device} onScaleChange={setPreviewScale}>
+            <WidgetRenderer widgets={blocks} context={context} previewAll />
+          </ScaledCanvas>
         </main>
 
         {/* ── INSPECTOR ── */}

@@ -80,3 +80,37 @@ It never claims an action was taken.
   regardless of the sticky edge cases.
 - **Per-widget editing was never wired to mobile** even though every widget that needs it already
   ships a `SettingsForm`.
+
+---
+
+## Andrew Ash website editor — WYSIWYG fidelity (owner request, 2026-08-05)
+
+> "The website editor doesn't display the elements so that they actually are placed anywhere where
+> they actually are displayed when a visitor views the site… Please make it more correctly
+> representative. This might require shrinking all of the elements down or zooming out… Make sure we
+> can switch between mobile view and pc view."
+
+**The builder was never rendering fake blocks** — it already used `WidgetRenderer`, the exact
+component the public page uses. The lie was the WIDTH. Every block re-lays-out on the canvas via
+container queries (site wide measure 1160px, breakpoint 700px), and the desktop preview set no
+width, so it filled the ~850px middle pane. 850px is past the 700 breakpoint but short of 1160, so
+two-column sections, hero sizing and spacing reflowed into an arrangement **no visitor ever gets**.
+Truthful blocks at a false width — the most misleading combination, because it looks real.
+
+**Fix (`ScaledCanvas.tsx`):** render at the true design width (1200px desktop / 390px phone) so the
+container queries fire exactly as on the live site, then scale the whole canvas down with a
+transform to fit the pane. A faithful miniature — the real layout, smaller. A "42%" readout in the
+header keeps the small size from reading as a bug, and the natural height is measured so the shrunk
+canvas reserves its scaled footprint rather than leaving a column of whitespace.
+
+The Computer / Phone switch moved onto the preview header, reachable without first selecting a block.
+
+| # | Slice | Status |
+|---|---|---|
+| **AA-1** | Desktop preview renders true-to-life (design-width + scale-to-fit); device switch on the preview; zoom readout | ✅ Shipped |
+| **AA-2** | Mobile *editing tools* robustness pass — inspector controls sized for touch, palette + block-list panes on a phone | ⬜ |
+
+**Verification:** typecheck, lint, a production build of `/AndrewAsh/studio/pages/[id]`, and source
+guards (`builder-wysiwyg.test.ts`). A live browser screenshot was blocked by a corrupted `.next`
+dev cache owned by another concurrent session (a `prop-types.js` vendor-chunk 500 unrelated to this
+change) — worth re-checking visually once that clears.
