@@ -18,6 +18,11 @@ import path from 'node:path';
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const route = read('app/api/admin/push/subscribe/route.ts');
 const ui = read('app/admin/components/EnableNotifications.tsx');
+// The subscribe/permission MECHANICS moved into a shared hook so the /admin/install controls and the
+// proactive nudge cannot drift. UI text still lives in the component; logic strings now live here.
+const pushHook = read('lib/push/use-admin-push.ts');
+/** Component + hook — the whole client push surface, so a source-lock holds wherever the line lives. */
+const clientPush = `${ui}\n${pushHook}`;
 const seed = read('seeds/571_admin_push_subscriptions.sql');
 /** SQL with `--` comment lines removed.
  *
@@ -102,7 +107,7 @@ describe('the UI tells the truth about why it cannot help', () => {
   });
 
   it('detects an installed iOS app the way iOS actually reports it', () => {
-    expect(ui).toContain('nav.standalone === true');
+    expect(clientPush).toContain('nav.standalone === true');
   });
 
   it('does not offer a button that cannot work after a denial', () => {
@@ -114,12 +119,12 @@ describe('the UI tells the truth about why it cannot help', () => {
   it('asks for the /admin/ registration specifically', () => {
     // `serviceWorker.ready` resolves against any controlling scope; /dnd/ and /AndrewAsh/ run their
     // own workers, and subscribing against the wrong one would push to the wrong app.
-    expect(ui).toContain("getRegistration('/admin/')");
+    expect(clientPush).toContain("getRegistration('/admin/')");
   });
 
   it('undoes the browser subscription when the server rejects it', () => {
     // Otherwise the device sits with the UI saying "on" while nothing can ever arrive.
-    expect(ui).toContain('sub.unsubscribe()');
+    expect(clientPush).toContain('sub.unsubscribe()');
   });
 
   it('offers no enable button when push is not configured, but says why', () => {
@@ -195,8 +200,10 @@ describe('W4c — keys set is not the same as able to send', () => {
   it('asks the server before offering the button, not after a subscription exists', () => {
     // Order is the whole slice. Discovering this after subscribing means the device is already in
     // the state the subscribe route calls worse than a visible failure.
-    expect(ui).toContain("fetch('/api/admin/push/status')");
-    const effect = ui.slice(ui.indexOf('useEffect(() => {'), ui.indexOf('const subscribe'));
+    expect(clientPush).toContain("fetch('/api/admin/push/status')");
+    // The mount effect now lives in the shared hook; the status fetch must sit inside it (before the
+    // hook returns its state to whatever renders the button).
+    const effect = pushHook.slice(pushHook.indexOf('useEffect(() => {'), pushHook.indexOf('return {'));
     expect(
       effect.indexOf("fetch('/api/admin/push/status')"),
       'the status check must happen inside the mount effect, before any Enable affordance renders',
@@ -213,7 +220,7 @@ describe('W4c — keys set is not the same as able to send', () => {
     // A diagnostic that can break the feature it diagnoses is a worse bug than the one it reports.
     // On a failed fetch the component falls back to the device check rather than withholding the
     // button from a deployment that is perfectly capable of sending.
-    expect(ui).toContain('.catch(() => { void decideFromDevice(); })');
+    expect(clientPush).toContain('.catch(() => { void decideFromDevice(); })');
   });
 
   it('the status route reports a capability and never a key', () => {
@@ -232,5 +239,40 @@ describe('it is reachable', () => {
     // unreachable as it was before.
     expect(installPage).toContain('<EnableNotifications />');
     expect(installPage).toContain("from '@/app/admin/components/EnableNotifications'");
+  });
+});
+
+// "Set it to display notifications by default." A browser will not let an app grant itself
+// permission, so "by default" is (1) silent re-subscribe when permission is already held, and (2) a
+// proactive one-tap nudge mounted app-wide, not buried on /admin/install.
+describe('notifications turn themselves back on, and nudge otherwise', () => {
+  const hook = read('lib/push/use-admin-push.ts');
+  const nudge = read('app/admin/components/NotificationNudge.tsx');
+  const layout = read('app/admin/layout.tsx');
+
+  it('the hook can silently re-subscribe when permission is already granted', () => {
+    // Once permission is held no gesture is needed, so notifications survive a reinstall / new
+    // session without anyone re-doing anything — as close to "on by default" as a browser allows.
+    expect(hook).toContain('autoEnableIfGranted');
+    expect(hook).toMatch(/Notification\.permission === 'granted'/);
+    expect(hook).toContain('subscribeSilently');
+  });
+
+  it('the nudge auto-enables and renders only when there is one actionable tap', () => {
+    expect(nudge).toContain('autoEnableIfGranted: true');
+    // Only the `ready` state is actionable here; every other state is handled on /admin/install.
+    expect(nudge).toContain("state !== 'ready'");
+    // Dismissal is remembered so it nags once, not forever.
+    expect(nudge).toContain('starr-notif-nudge-dismissed');
+  });
+
+  it('is mounted app-wide, not just on the install page', () => {
+    expect(layout).toContain('<NotificationNudge />');
+  });
+
+  it('the explicit controls page does NOT auto-enable — the user chooses there', () => {
+    // EnableNotifications must call the hook without autoEnableIfGranted, or the /admin/install
+    // page would subscribe a returning visitor before they touched anything.
+    expect(ui).toContain('useAdminPush()');
   });
 });

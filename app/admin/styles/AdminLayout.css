@@ -1300,3 +1300,54 @@
  * element to stay visible. Stated explicitly so the collapse cannot be undone by an unrelated
  * layout rule later. */
 .admin-sidebar__section-items[hidden] { display: none; }
+
+/* ── Notification nudge (proactive "turn on notifications" bar) ──────────────────────────────────
+   A slim fixed bar, not a modal: it must not block work, and it renders only when there is exactly
+   one actionable tap to offer (see NotificationNudge.tsx). Bottom-fixed so it never fights the
+   sticky top bar for the same edge. */
+.notif-nudge {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(560px, calc(100vw - 24px));
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #111827);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.45);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.notif-nudge__icon { font-size: 1.25rem; flex: none; }
+.notif-nudge__text { flex: 1; min-width: 0; color: var(--theme-fg-secondary, #4B5563); }
+.notif-nudge__enable {
+  flex: none;
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--color-brand-navy, #1D3095);
+  color: #FFFFFF;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  min-height: 40px;
+}
+.notif-nudge__enable:hover { background: var(--color-brand-navy-d, #152050); }
+.notif-nudge__dismiss {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #6B7280);
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.notif-nudge__dismiss:hover { background: var(--theme-bg-page, #F3F4F6); }
