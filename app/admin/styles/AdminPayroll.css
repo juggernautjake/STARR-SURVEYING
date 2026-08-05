@@ -1692,3 +1692,39 @@
     font-size: 1.2rem;
   }
 }
+
+/* ── Pay what is owed (H-7, 2026-08-05) ──────────────────────────────────────
+   Preview then create. Deliberately plain: this is a money action and the
+   restraint is the point — nothing here should look like a call to action
+   somebody presses without reading the preview. */
+.payroll-payowed {
+  margin-bottom: 1.25rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+}
+.payroll-payowed__row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.payroll-payowed__preview { margin-top: 0.75rem; font-size: 0.85rem; }
+.payroll-payowed__preview ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+.payroll-payowed__preview li { margin: 0.15rem 0; }
+/* Somebody with no method on file still gets paid — the line just needs assigning at dispatch. */
+.payroll-payowed__warn { color: var(--theme-warning, #B45309); font-size: 0.8rem; }
+/* Why somebody is NOT in the batch matters as much as who is. */
+.payroll-payowed__skipped {
+  margin-top: 0.5rem;
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 0.78rem;
+}
+.payroll-payowed__done {
+  margin-top: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-success, #6EE7B7);
+  background: var(--theme-bg-surface, #F0FDF4);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .payroll-payowed__row { flex-direction: column; align-items: stretch; }
+}

@@ -296,3 +296,46 @@ describe('there is one vocabulary for how a payment was made', () => {
     }
   });
 });
+
+describe('paying what is owed reads the same balance the screen shows', () => {
+  // The pay formula reached FOUR independent implementations before anybody noticed. "What is this
+  // person owed" is exactly the kind of question that grows a second, slightly-different answer —
+  // and if it did, the firm would pay an amount nobody was shown.
+  it('both the balance endpoint and the payout builder use the one loader', () => {
+    expect(code(read('app/api/admin/payroll/owed/route.ts'))).toContain('loadOwed(');
+    expect(code(read('app/api/admin/payroll/pay-owed/route.ts'))).toContain('loadOwed(');
+  });
+
+  it('neither re-derives the balance itself', () => {
+    // A direct read of the hours or the ledger in either route is the second implementation
+    // starting. Both must go through the loader.
+    for (const route of ['app/api/admin/payroll/owed/route.ts', 'app/api/admin/payroll/pay-owed/route.ts']) {
+      const src = code(read(route));
+      expect(src.includes("from('daily_time_logs')"), `${route} reads hours directly`).toBe(false);
+      expect(src.includes("from('time_log_pay_decisions')"), `${route} reads decisions directly`).toBe(false);
+    }
+  });
+
+  it('a batch is refused rather than built from a balance that could not be read', () => {
+    // Building from a partial balance pays wrong amounts, and a payout is much harder to take back
+    // than to not make.
+    const src = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    expect(src).toContain('No payout was created');
+  });
+
+  it('an empty batch is a refusal, not a success', () => {
+    // A 200 with no lines reads as "paid". It must say which of "everyone is paid up" and "everyone
+    // was excluded" actually happened.
+    const src = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    expect(src).toMatch(/status: 409/);
+    expect(src).toContain('skipped');
+  });
+
+  it('the employee is told their pay is QUEUED, not paid', () => {
+    // A draft batch has sent nothing. Saying "paid" before the money moves is a promise the
+    // platform cannot keep — every method in the vocabulary carries sendsItself: false.
+    const src = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    expect(src).toContain('payout_queued');
+    expect(src.includes("title: `$${(line.total_cents / 100).toFixed(2)} paid`"), 'claims paid').toBe(false);
+  });
+});

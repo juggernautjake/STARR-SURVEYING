@@ -28,6 +28,13 @@ interface Employee {
   is_active: boolean;
 }
 
+interface PayOwedPreview {
+  lines: Array<{ user_email: string; user_name: string | null; total_cents: number; method: string | null }>;
+  skipped: Array<{ user_email: string; reason: string }>;
+  totalCents: number;
+  missingMethod: string[];
+}
+
 export default function PayrollPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -39,6 +46,19 @@ export default function PayrollPage() {
   const [search, setSearch] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  // ── PAY WHAT IS OWED (owner request, 2026-08-05) ──────────────────────────────────────────
+  //
+  // *"…or we can just do a random payout at anytime."*
+  //
+  // Preview first, always. A payout is much harder to take back than to not make, so the button
+  // shows exactly who would be paid what — and who would be SKIPPED and why — before anything is
+  // created. "Nobody appeared in the batch" needs to distinguish "everyone is paid up" from
+  // "everyone was excluded", and only the preview can say which.
+  const [owedPreview, setOwedPreview] = useState<PayOwedPreview | null>(null);
+  const [payingOwed, setPayingOwed] = useState(false);
+  const [payOwedError, setPayOwedError] = useState<string | null>(null);
+  const [payOwedResult, setPayOwedResult] = useState<string | null>(null);
   const [addForm, setAddForm] = useState({
     user_email: '',
     user_name: '',
@@ -124,8 +144,91 @@ export default function PayrollPage() {
 
   if (!isAdmin) return null;
 
+
+  const previewOwed = async () => {
+    setPayOwedError(null);
+    setPayOwedResult(null);
+    try {
+      const res = await fetch('/api/admin/payroll/pay-owed');
+      const body = await res.json();
+      if (!res.ok) { setPayOwedError(body.error || 'Could not work out what is owed.'); return; }
+      setOwedPreview(body);
+    } catch {
+      setPayOwedError('Could not work out what is owed.');
+    }
+  };
+
+  const createOwedPayout = async () => {
+    setPayingOwed(true);
+    setPayOwedError(null);
+    try {
+      const res = await fetch('/api/admin/payroll/pay-owed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const body = await res.json();
+      if (!res.ok) { setPayOwedError(body.error || 'Could not create the payout.'); return; }
+      // Deliberately does NOT say "paid". A draft batch has not sent anything; the money leaves when
+      // somebody dispatches it. Saying "paid" here is a promise the platform cannot keep.
+      setPayOwedResult(
+        `Payout prepared: ${body.lines} ${body.lines === 1 ? 'person' : 'people'}, ` +
+        `${(body.totalCents / 100).toFixed(2)}. It is a draft until somebody sends it.` +
+        (body.missingMethod?.length ? ` ${body.missingMethod.length} need a payment method assigned.` : ''),
+      );
+      setOwedPreview(null);
+      await loadEmployees();
+    } finally {
+      setPayingOwed(false);
+    }
+  };
+
   return (
     <div className="payroll-page">
+
+      {/* ── Pay what is owed ─────────────────────────────────────────────────────────────────
+          Preview, then create. The result never says "paid": a draft batch has not sent
+          anything, and the money leaves when somebody dispatches it. */}
+      <div className="payroll-payowed">
+        <div className="payroll-payowed__row">
+          <button className="tl-btn" onClick={previewOwed} disabled={payingOwed}>
+            What is owed right now?
+          </button>
+          {owedPreview && owedPreview.lines.length > 0 && (
+            <button className="tl-btn tl-btn--primary" onClick={createOwedPayout} disabled={payingOwed}>
+              {payingOwed ? 'Preparing…' : `Prepare payout — ${(owedPreview.totalCents / 100).toFixed(2)}`}
+            </button>
+          )}
+        </div>
+
+        {payOwedError && <div className="tl-pay-error">{payOwedError}</div>}
+        {payOwedResult && <div className="payroll-payowed__done">{payOwedResult}</div>}
+
+        {owedPreview && (
+          <div className="payroll-payowed__preview">
+            {owedPreview.lines.length === 0 ? (
+              <p>Nobody has a positive balance right now.</p>
+            ) : (
+              <ul>
+                {owedPreview.lines.map((l) => (
+                  <li key={l.user_email}>
+                    <strong>{l.user_name || l.user_email}</strong> — {formatCurrency(l.total_cents / 100)}
+                    {!l.method && <span className="payroll-payowed__warn"> · no payment method on file</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {/* Why somebody is NOT in the batch is as important as who is. */}
+            {owedPreview.skipped.length > 0 && (
+              <ul className="payroll-payowed__skipped">
+                {owedPreview.skipped.map((s) => (
+                  <li key={s.user_email}>{s.user_email} — {s.reason}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Summary Cards */}
       <div className="payroll-summary-cards">
