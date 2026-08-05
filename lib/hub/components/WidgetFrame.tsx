@@ -42,6 +42,9 @@ export interface WidgetFrameProps {
   /** When true the frame gets an editing-affordance border. The
    *  WidgetGrid passes this through from its edit-mode state. */
   editMode?: boolean;
+  /** W-5 — unread count for events this widget represents. Renders a small pill beside the title
+   *  when greater than zero; nothing at zero, so a quiet widget shows no extra chrome. */
+  badgeCount?: number;
   children: ReactNode;
 }
 
@@ -55,6 +58,7 @@ export default function WidgetFrame({
   goTo,
   headerColor,
   editMode = false,
+  badgeCount = 0,
   children,
 }: WidgetFrameProps) {
   const titleId = useTitleId(title);
@@ -120,6 +124,29 @@ export default function WidgetFrame({
         >
           {title}
         </h2>
+        {badgeCount > 0 && (
+          <span
+            // A count of what is waiting behind this widget. `aria-label` spells it out because "3"
+            // alone is meaningless to a screen reader.
+            aria-label={`${badgeCount} new`}
+            title={`${badgeCount} new`}
+            style={{
+              flexShrink: 0,
+              minWidth: 18,
+              height: 18,
+              padding: '0 5px',
+              borderRadius: 9,
+              background: 'var(--theme-danger)',
+              color: 'var(--theme-accent-fg)',
+              fontSize: '0.6875rem',
+              fontWeight: 700,
+              lineHeight: '18px',
+              textAlign: 'center',
+            }}
+          >
+            {badgeCount > 99 ? '99+' : badgeCount}
+          </span>
+        )}
         {headerAction && (
           <div style={{
             display: 'flex',

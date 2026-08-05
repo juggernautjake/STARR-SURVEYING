@@ -18,6 +18,7 @@ import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import { useElementSize } from '@/lib/hub/use-element-size';
+import { useQuickActionBadges } from '@/lib/hub/use-hub-badges';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import { ClockInModal, ClockOutModal } from '@/lib/work-mode/clock-modals';
 import {
@@ -68,6 +69,10 @@ const DEFAULTS: QuickActionsContent = {
 function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
+
+  // W-5 — unread counts per quick-action, from the shared hub badge feed. Keyed on the action id
+  // (new-job, approve-receipts, capture-receipt); actions with no mapped events read 0.
+  const actionBadges = useQuickActionBadges();
 
   // Self-measure the rendered body so capacity fills the actual cell
   // (doc 15: "render the maximum that fit the widget size") rather than
@@ -213,6 +218,7 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
                   variant="row"
                   onDispatch={dispatchAction}
                   clockedIn={clockedIn}
+                  badge={actionBadges[a.id] ?? 0}
                 />
               </li>
             ))}
@@ -256,6 +262,7 @@ function QuickActionsWidget({ size, content }: WidgetProps<QuickActionsContent>)
             variant="tile"
             onDispatch={dispatchAction}
             clockedIn={clockedIn}
+            badge={actionBadges[a.id] ?? 0}
           />
         ))}
         {overflow > 0 && <OverflowIndicator count={overflow} variant="tile" />}
@@ -512,14 +519,19 @@ function ActionTrigger({
   variant,
   onDispatch,
   clockedIn,
+  badge = 0,
 }: {
   action: QuickActionDef;
   displayStyle: 'icon-label' | 'icon-only';
   variant: 'tile' | 'row';
   onDispatch: (actionId: string) => void;
   clockedIn: boolean;
+  /** W-5 — unread count for events this action represents (e.g. new-job → job notifications). */
+  badge?: number;
 }) {
-  const containerStyle = variant === 'tile' ? tileStyle : rowStyle;
+  // `position: relative` so the corner badge anchors to the tile/row. Merged rather than mutated so
+  // the shared style objects are not aliased.
+  const containerStyle = { ...(variant === 'tile' ? tileStyle : rowStyle), position: 'relative' as const };
   const tintColor = colorForTint(action.tint);
 
   // quick-actions-wiring-2026-06-22 — the Clock tile flips its label +
@@ -540,6 +552,28 @@ function ActionTrigger({
       </span>
       {displayStyle === 'icon-label' && (
         <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', fontWeight: 500 }}>{displayLabel}</span>
+      )}
+      {badge > 0 && (
+        <span
+          aria-label={`${badge} new`}
+          style={{
+            position: 'absolute',
+            top: 4,
+            right: 4,
+            minWidth: 16,
+            height: 16,
+            padding: '0 4px',
+            borderRadius: 8,
+            background: 'var(--theme-danger)',
+            color: 'var(--theme-accent-fg)',
+            fontSize: '0.625rem',
+            fontWeight: 700,
+            lineHeight: '16px',
+            textAlign: 'center',
+          }}
+        >
+          {badge > 99 ? '99+' : badge}
+        </span>
       )}
     </>
   );

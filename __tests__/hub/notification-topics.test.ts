@@ -129,3 +129,35 @@ describe('badgeCountsForWidgets — the arithmetic', () => {
     expect(badgeCountsForWidgets([], ['pending-hours', 'my-pay'])).toEqual({});
   });
 });
+
+describe('the badge is actually drawn and fed (W-5)', () => {
+  const read = (...p: string[]) => fs.readFileSync(path.join(ROOT, ...p), 'utf8');
+
+  it('the widget frame renders a badge from its count', () => {
+    const frame = read('lib', 'hub', 'components', 'WidgetFrame.tsx');
+    expect(frame).toContain('badgeCount');
+    expect(frame).toMatch(/badgeCount > 0/);
+  });
+
+  it('each cell reads its count from the shared feed, not its own fetch', () => {
+    // One provider fetch, not one per widget — a dozen calls for one number split twelve ways.
+    const grid = read('lib', 'hub', 'components', 'WidgetGrid.tsx');
+    expect(grid).toContain('useWidgetBadge(instance.type)');
+    expect(grid).toContain('badgeCount={badgeCount}');
+  });
+
+  it('the canvas provides the badge feed once, around the grid', () => {
+    expect(read('lib', 'hub', 'components', 'HubCanvas.tsx')).toContain('<HubBadgeProvider>');
+  });
+
+  it('quick actions badge individual actions by id', () => {
+    const qa = read('lib', 'hub', 'widgets', 'quick-actions', 'index.tsx');
+    expect(qa).toContain('useQuickActionBadges()');
+    expect(qa).toContain('badge={actionBadges[a.id] ?? 0}');
+  });
+
+  it('the badge feed pauses while editing the hub', () => {
+    // A badge over a drag handle is clutter, and dragging widgets does not change the counts.
+    expect(read('lib', 'hub', 'use-hub-badges.tsx')).toMatch(/if \(isEditMode\) return;/);
+  });
+});

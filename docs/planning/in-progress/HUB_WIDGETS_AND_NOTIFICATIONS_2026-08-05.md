@@ -45,7 +45,7 @@ Measured, not assumed — this changes the size of the work.
 | **W-2** | Research completion (and failure) notifies its initiator — worker writes a `research_complete` notification, idempotent across both pipelines | ✅ Shipped |
 | **W-3** | `notification-topics.ts` — maps a notification `type` to the widgets/quick-actions it belongs on; guarded against the real registry | ✅ Shipped |
 | **W-4** | `/api/admin/hub/badges` — the signed-in person’s unread counts grouped per widget/quick-action | ✅ Shipped |
-| **W-5** | Badge on a widget when it has unread events; badge on a quick action likewise | ⬜ |
+| **W-5** | The badge renders — a count pill on the widget header and on individual quick actions, from one shared feed, paused while editing | ✅ Shipped |
 | **W-6** | Robustness pass on the invoice / job / employee / hours / pay widgets — real data, empty states, error states | ⬜ |
 
 ---

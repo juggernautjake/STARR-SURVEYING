@@ -35,6 +35,7 @@ import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
+import { HubBadgeProvider } from '@/lib/hub/use-hub-badges';
 
 import WidgetGrid from './WidgetGrid';
 import GridEditor from './GridEditor';
@@ -131,7 +132,11 @@ export default function HubCanvas({ roles, activeBundles = null, isSeeded = fals
 
       <WelcomeTip show={isSeeded} />
 
-      <WidgetGrid widgets={displayWidgets} />
+      {/* W-5 — one badge feed for the whole grid, so a widget can show an unread count without each
+          cell fetching its own. */}
+      <HubBadgeProvider>
+        <WidgetGrid widgets={displayWidgets} />
+      </HubBadgeProvider>
 
       {isMobile ? (
         <MobileEditor

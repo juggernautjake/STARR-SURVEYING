@@ -29,6 +29,7 @@ import { useElementSize } from '@/lib/hub/use-element-size';
 import { collapseLayout, layoutBounds, MOBILE_BASE_ROW_PX, mobileSizeOverride, type GridBreakpoint } from '@/lib/hub/grid-math';
 import WidgetFrame from './WidgetFrame';
 import { widgetGoToTarget } from '@/lib/hub/widgets/_shared/widget-links';
+import { useWidgetBadge } from '@/lib/hub/use-hub-badges';
 
 export interface WidgetGridProps {
   widgets: WidgetInstance[];
@@ -106,6 +107,11 @@ interface WidgetCellProps {
 function WidgetCell({ instance, breakpoint }: WidgetCellProps) {
   const definition = getWidget(instance.type);
 
+  // W-5 — unread count for events this widget represents, from the shared badge feed. Read here at
+  // the top, unconditionally, because it is a hook: the "unknown widget" early return below must not
+  // sit between the component start and a hook call.
+  const badgeCount = useWidgetBadge(instance.type);
+
   // hub-mobile-build-out Slice 2 — bump the size widgets read on mobile
   // so they render their small/medium bucket (lists + counts), not
   // their tiny stat-only bucket. Pass-through on desktop/tablet.
@@ -166,6 +172,7 @@ function WidgetCell({ instance, breakpoint }: WidgetCellProps) {
         title={title}
         headerColor={customization.style?.headerColor}
         goTo={goTo}
+        badgeCount={badgeCount}
       >
         <MemoWidgetRender
           Widget={Widget}
