@@ -2461,3 +2461,87 @@ a.vaCard:hover,
     min-height: 44px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   PAGE-CANVAS RESPONSIVENESS — the phone preview IS the phone layout
+   ══════════════════════════════════════════════════════════════════════════════════════════════
+
+   The layout media queries above ask the VIEWPORT. That is right for the live site and for the
+   studio back-office — neither has a page container, and both fill the real window. But the page
+   EDITOR renders the site inside `.vaPageCanvas` (a `container-type: inline-size` box) and shrinks
+   it to preview a phone on a desktop monitor. A viewport media query cannot see that box, so the
+   mobile preview kept the DESKTOP columns while the per-widget overrides went mobile: a broken
+   hybrid — two-column sections, a visible hero portrait, and side-by-side form rows on a "phone".
+
+   These rules re-state the same breakpoints as CONTAINER queries scoped to `.vaPageCanvas`, so
+   inside the canvas the layout follows the CANVAS width. The `.vaPageCanvas <class>` selector is one
+   step more specific than the bare `<class>` the @media rules target, so within the canvas it wins;
+   everywhere else the @media rules are untouched. On the live site the canvas is full-width, so
+   canvas ≈ viewport and a visitor sees exactly what they always saw. In the editor's 390px phone
+   canvas the real phone layout finally fires. Gaps use `cqw` (1% of the canvas) instead of `vw` for
+   the same reason — otherwise a 390px preview keeps a desktop's 72px gutters.
+
+   Every selector here is a DESCENDANT of `.vaPageCanvas`, and that class is only ever the widget
+   renderer's own wrapper — so none of this can reach the studio forms that share these class names. */
+
+.vaPageCanvas .vaGridPair {
+  grid-template-columns: 1fr;
+}
+@container vaPage (min-width: 940px) {
+  .vaPageCanvas .vaGridPair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.vaPageCanvas .vaSplit {
+  grid-template-columns: 1fr;
+  gap: clamp(28px, 5cqw, 72px);
+}
+@container vaPage (min-width: 900px) {
+  .vaPageCanvas .vaSplit {
+    grid-template-columns: 1.05fr 0.95fr;
+  }
+  .vaPageCanvas .vaSplitNarrowFirst {
+    grid-template-columns: 0.8fr 1.2fr;
+  }
+}
+
+.vaPageCanvas .vaHeroPortrait {
+  display: none;
+}
+@container vaPage (min-width: 1080px) {
+  .vaPageCanvas .vaHeroPortrait {
+    display: block;
+  }
+}
+
+.vaPageCanvas .vaFieldRow2,
+.vaPageCanvas .vaFieldRow3 {
+  grid-template-columns: 1fr;
+}
+@container vaPage (min-width: 620px) {
+  .vaPageCanvas .vaFieldRow2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .vaPageCanvas .vaFieldRow3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.vaPageCanvas .vaMediaText {
+  gap: clamp(24px, 4cqw, 56px);
+}
+@container vaPage (max-width: 760px) {
+  /* Stacks the media-text block and forces the heading first — mirrors the viewport rule, but keyed
+     to the canvas. The `!important` matches the original: the desktop columns are set as an INLINE
+     style on the element, and only `!important` can override an inline declaration. */
+  .vaPageCanvas .vaMediaText {
+    grid-template-columns: 1fr !important;
+  }
+  .vaPageCanvas .vaMediaText .vaMediaTextWords {
+    order: 1;
+  }
+  .vaPageCanvas .vaMediaText .vaMediaTextMedia {
+    order: 2;
+  }
+}

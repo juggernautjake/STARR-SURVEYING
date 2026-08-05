@@ -88,3 +88,48 @@ describe('AA-2 — mobile editing tools are touch-robust', () => {
     expect(mobileBlock).toMatch(/\.vaBuilderTabs\s*\{[^}]*position:\s*sticky/);
   });
 });
+
+// The phone preview must render the phone LAYOUT, not the desktop layout at a phone width. The site's
+// layout breakpoints are viewport @media queries, which cannot see the editor's scaled-down canvas —
+// so the same breakpoints are re-stated as @container queries scoped to `.vaPageCanvas`.
+describe('the page-canvas responds to the canvas width, not the viewport', () => {
+  const CSS = read('app', 'AndrewAsh', '_ui', 'voice.css');
+
+  // Grab only the canvas-scoped layer so a stray viewport @media can't satisfy these.
+  const canvasLayer = (() => {
+    const at = CSS.indexOf('PAGE-CANVAS RESPONSIVENESS');
+    return at === -1 ? '' : CSS.slice(at);
+  })();
+
+  it('adds a canvas-scoped container-query layer', () => {
+    expect(canvasLayer).not.toBe('');
+    expect(canvasLayer).toMatch(/@container vaPage \(/);
+  });
+
+  it('two-column sections stack in a narrow canvas and split only when the CANVAS is wide', () => {
+    // Base (mobile-first) single column, scoped to the canvas so it out-specifies the @media rule.
+    expect(canvasLayer).toMatch(/\.vaPageCanvas \.vaSplit\s*\{[^}]*grid-template-columns:\s*1fr/);
+    expect(canvasLayer).toMatch(
+      /@container vaPage \(min-width: 900px\)\s*\{[\s\S]*?\.vaPageCanvas \.vaSplit\s*\{[^}]*1\.05fr/,
+    );
+  });
+
+  it('the hero portrait shows only when the canvas is desktop-wide', () => {
+    expect(canvasLayer).toMatch(/\.vaPageCanvas \.vaHeroPortrait\s*\{[^}]*display:\s*none/);
+    expect(canvasLayer).toMatch(
+      /@container vaPage \(min-width: 1080px\)\s*\{[\s\S]*?\.vaPageCanvas \.vaHeroPortrait\s*\{[^}]*display:\s*block/,
+    );
+  });
+
+  it('the media/text block stacks by canvas width, overriding its inline desktop columns', () => {
+    expect(canvasLayer).toMatch(
+      /@container vaPage \(max-width: 760px\)\s*\{[\s\S]*?\.vaPageCanvas \.vaMediaText\s*\{[^}]*1fr\s*!important/,
+    );
+  });
+
+  it('scopes every rule under .vaPageCanvas so studio forms sharing these classes are untouched', () => {
+    // No bare `.vaSplit {` / `.vaFieldRow2 {` inside the canvas layer — each must be `.vaPageCanvas …`.
+    expect(canvasLayer).not.toMatch(/(?<!\.vaPageCanvas )\.vaSplit\s*\{/);
+    expect(canvasLayer).not.toMatch(/(?<!\.vaPageCanvas )\.vaFieldRow2\s*\{/);
+  });
+});
