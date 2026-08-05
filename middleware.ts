@@ -47,6 +47,8 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // Editing what an activity pays changes everybody's wages, so it sits with payroll rather than
   // with the work queues that tech_support can reach.
   { prefix: '/admin/pay-rates', roles: ['admin', 'developer'] },
+  // Reading who was paid what is a money question, same gate as the rest of payouts.
+  { prefix: '/admin/payouts/search', roles: ['admin'] },
   { prefix: '/admin/hours-approval', roles: ['admin', 'developer', 'tech_support'] },
   // `researcher` added 2026-08-04, when 'My Jobs' was folded into 'Assignments'. The retired entry
   // offered it to researchers and pointed at the Hub, which is open to everyone — so the mismatch

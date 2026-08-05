@@ -164,6 +164,64 @@ export interface PayoutQuery {
 }
 
 /**
+ * Narrowing an already-read list.
+ *
+ * *"We need to be able to track all payouts for everyone and find specific payouts."*
+ *
+ * Applied in memory rather than as SQL, deliberately. The filters that matter most — method,
+ * reference text, batch label — live across the item and its batch, and expressing that as one
+ * PostgREST query is where a read silently starts returning the wrong set. The ledger is small
+ * (one row per person per payout) and correctness beats a query plan here.
+ */
+export interface PayoutFilter {
+  /** Substring match on email, name, reference, batch label or note. Case-insensitive. */
+  text?: string | null;
+  /** Exact method, already normalised by the caller. */
+  method?: string | null;
+  /** Item status: pending, sent, paid, failed. */
+  status?: string | null;
+  /** Inclusive bounds, in cents. */
+  minCents?: number | null;
+  maxCents?: number | null;
+  /** One batch. */
+  batchId?: string | null;
+  /** Exclude voided batches and failed items — money that never reached anybody. */
+  committedOnly?: boolean;
+}
+
+const hay = (p: PayoutRecord) =>
+  [p.user_email, p.user_name, p.reference, p.batch_label, p.notes, p.method]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+/**
+ * Apply a filter to payouts already read.
+ *
+ * An empty filter returns everything — "no criteria" means "show me all of them", not "show me
+ * none", and a search page that opens blank because nothing was typed is the absence-as-answer
+ * defect in miniature.
+ */
+export function filterPayouts(payouts: PayoutRecord[], filter: PayoutFilter = {}): PayoutRecord[] {
+  const text = filter.text?.trim().toLowerCase();
+  return payouts.filter((p) => {
+    if (filter.committedOnly && !isCommittedPayout(p)) return false;
+    if (filter.method && p.method !== filter.method) return false;
+    if (filter.status && p.status !== filter.status) return false;
+    if (filter.batchId && p.batch_id !== filter.batchId) return false;
+    if (typeof filter.minCents === 'number' && p.amount_cents < filter.minCents) return false;
+    if (typeof filter.maxCents === 'number' && p.amount_cents > filter.maxCents) return false;
+    // Every term must appear somewhere, so "jane check" finds Jane's cheque rather than every
+    // payment to Jane plus every cheque to anybody.
+    if (text) {
+      const h = hay(p);
+      for (const term of text.split(/\s+/)) if (term && !h.includes(term)) return false;
+    }
+    return true;
+  });
+}
+
+/**
  * Read the payout ledger.
  *
  * Two queries rather than a PostgREST embed: the batch filter (`org_id`) lives on the parent and
