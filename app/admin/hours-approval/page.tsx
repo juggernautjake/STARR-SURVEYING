@@ -8,6 +8,7 @@ import { usePageError } from '../hooks/usePageError';
 import { computeHoursFlags } from '@/lib/hours/hours-flags';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
+import { useSearchParams } from 'next/navigation';
 
 interface TimeLog {
   id: string;
@@ -38,6 +39,15 @@ interface WorkType {
   label: string;
   icon: string;
   base_rate: number;
+}
+
+/** One row of `/api/admin/payroll/owed`. Mirrors OwedRow on the server. */
+interface OwedRow {
+  user_email: string;
+  owedCents: number;
+  undecidedHours: number;
+  lastPayoutAt: string | null;
+  statement: string;
 }
 
 interface Advance {
@@ -123,13 +133,33 @@ export default function HoursApprovalPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set<string>());
 
+  // ── THE NOTIFICATION HAS TO LAND SOMEWHERE USEFUL (owner request, 2026-08-05) ─────────────
+  //
+  // *"…will get a notification where they can be linked to see the submitted hours and address
+  // it."*
+  //
+  // This page read no URL parameters at all, so a link from a notification opened the default
+  // queue — current week, everybody — and the approver had to find the submission again. A link
+  // that makes you repeat the search is the built-but-unreachable defect wearing a URL.
+  //
+  // `?employee=` and `?date=` come from `hoursApprovalLink()`; `?status=` lets the same link open
+  // on what still needs deciding. Read ONCE as the initial state rather than kept in sync, so an
+  // approver who then changes a filter is not fighting the URL.
+  const searchParams = useSearchParams();
+  const linkedEmail = searchParams.get('employee') ?? '';
+  const linkedDate = searchParams.get('date');
+  const linkedStatus = searchParams.get('status');
+
   // Filters
-  const [filterEmail, setFilterEmail] = useState('');
+  const [filterEmail, setFilterEmail] = useState(linkedEmail);
   // The review queue surfaces everything that needs an admin decision:
   // pending submissions AND disputed entries (so a dispute can't get stuck
   // unseen). The comma list is expanded server-side into an IN() filter.
-  const [filterStatus, setFilterStatus] = useState('pending,disputed');
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()).toISOString().split('T')[0]);
+  const [filterStatus, setFilterStatus] = useState(linkedStatus || 'pending,disputed');
+  // The week CONTAINING the linked date, not the date itself — the page works in weeks, and
+  // jumping to a Thursday would otherwise show a week starting on Thursday.
+  const [weekStart, setWeekStart] = useState(() =>
+    getMonday(linkedDate ? new Date(`${linkedDate}T00:00:00`) : new Date()).toISOString().split('T')[0]);
   // H6 — whether THIS week (weekStart .. weekStart+6) is locked for editing.
   const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
 
@@ -142,6 +172,16 @@ export default function HoursApprovalPage() {
   // Approve / Adjust / Reject could change the HOURS but never the RATE, so an approver who
   // disagreed with what a day was worth had no move except to reject it. This is the missing verb.
   const [payLogId, setPayLogId] = useState<string | null>(null);
+
+  // ── WHAT EACH PERSON IS OWED, WHILE YOU DECIDE ────────────────────────────────────────────
+  //
+  // *"This will all be calculated to show how much is owed since the last payout to that
+  // employee."*
+  //
+  // Approving an hour is a decision about money, and this screen showed only the hours in front of
+  // it. The running balance — every approved hour minus every payout — belongs next to the person's
+  // name, not on a different page somebody has to go and find.
+  const [owedByEmail, setOwedByEmail] = useState<Record<string, OwedRow>>({});
 
   // Reject/adjust modal
   const [actionModal, setActionModal] = useState<{ type: 'reject' | 'adjust'; logId: string } | null>(null);
@@ -175,6 +215,21 @@ export default function HoursApprovalPage() {
         setLogs(data.logs || []);
         if (data.work_types?.length) setWorkTypes(data.work_types);
       }
+      // Balances are loaded with everything else rather than per group, so opening the page is
+      // one round-trip and not one per employee.
+      try {
+        const owedRes = await fetch('/api/admin/payroll/owed');
+        if (owedRes.ok) {
+          const body = await owedRes.json();
+          const map: Record<string, OwedRow> = {};
+          for (const row of (body.owed ?? []) as OwedRow[]) map[row.user_email] = row;
+          setOwedByEmail(map);
+        }
+      } catch {
+        // A balance that fails to load leaves the hours usable. It is absent rather than wrong,
+        // and the header simply does not render it.
+      }
+
       if (advRes.ok) {
         const data = await advRes.json();
         setAdvances(data.advances || []);
@@ -591,6 +646,19 @@ export default function HoursApprovalPage() {
                   <div className="tl-employee-group__stats">
                     <span>{empTotal.toFixed(1)}h</span>
                     <span>{formatCurrency(empPay)}</span>
+                    {/* The running balance, so approving is done with the whole picture in view.
+                        Rendered only when it loaded — an absent balance says nothing, which is
+                        better than a zero that reads as "paid up". */}
+                    {owedByEmail[email] && (
+                      <span
+                        className={`tl-employee-group__owed ${owedByEmail[email].owedCents < 0 ? 'tl-employee-group__owed--over' : ''}`}
+                        title={owedByEmail[email].statement}
+                      >
+                        {owedByEmail[email].owedCents < 0
+                          ? `overpaid ${formatCurrency(-owedByEmail[email].owedCents / 100)}`
+                          : `${formatCurrency(owedByEmail[email].owedCents / 100)} owed`}
+                      </span>
+                    )}
                   </div>
                 </div>
 

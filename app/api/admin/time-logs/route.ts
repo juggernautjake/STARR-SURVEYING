@@ -12,6 +12,7 @@ import { isDateLocked } from '@/lib/hours/period-lock';
 import { canEmployeeEdit, canEmployeeDelete } from '@/lib/hours/permissions';
 import { loadPayConfig, loadPersonPayFacts, rateFor } from '@/lib/payroll/pay-context';
 import { UNSPECIFIED_WORK_TYPE } from '@/lib/payroll/resolve-rate';
+import { buildHoursSubmittedNotifications, canDecideHours } from '@/lib/notifications/hours-submitted';
 
 const LOCKED_MSG =
   'That pay period is locked. Ask a manager to adjust these hours — they can revise locked entries.';
@@ -186,6 +187,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const payConfig = await loadPayConfig();
   const payFacts = await loadPersonPayFacts(session.user.email, payConfig);
 
+  // Which of these days ALREADY had entries — read before the insert, because after it every day
+  // has one. This is what makes "Jane updated 8h" honest rather than a guess: the employee edit
+  // flow re-submits a whole day, so the question is "did we just replace something", not "was this
+  // an UPDATE statement".
+  const { data: priorRows } = await supabaseAdmin
+    .from('daily_time_logs')
+    .select('log_date')
+    .eq('user_email', session.user.email)
+    .in('log_date', [...hoursByDate.keys()]);
+  const existingDates = new Set(((priorRows ?? []) as { log_date: string }[]).map((r) => r.log_date));
+
   const results = [];
   for (const entry of entries) {
     const resolved = rateFor(payFacts, payConfig, { workType: entry.work_type });
@@ -236,6 +248,70 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       metadata: { count: results.length, dates: [...hoursByDate.keys()] },
     });
   } catch { /* ignore */ }
+
+  // ── TELL WHOEVER APPROVES HOURS (owner request, 2026-08-05) ─────────────────────────────────
+  //
+  // *"When employees submit their hours or update their hours, whoever is in charge of handling
+  // approving hours will get a notification where they can be linked to see the submitted hours."*
+  //
+  // Notifications ran one way only: approve/reject/adjust told the employee. Nothing told anybody
+  // hours had ARRIVED, so a timesheet sat in `pending` until somebody happened to open the approval
+  // page. An unwatched queue is the same defect as everything else here — an absence that looks
+  // like nothing to do.
+  //
+  // One bell per approver per DAY submitted, carrying the hours, what the pay model made of them,
+  // and a link that opens on this person's pending entries rather than on a generic queue.
+  //
+  // Best-effort throughout: a notification failure must never fail somebody's timesheet.
+  try {
+    const { data: approverRows } = await supabaseAdmin
+      .from('registered_users')
+      .select('email, roles')
+      .contains('roles', ['admin']);
+
+    const approvers = ((approverRows ?? []) as { email: string; roles: string[] | null }[])
+      .filter((u) => canDecideHours(u.roles))
+      .map((u) => u.email);
+
+    if (approvers.length > 0) {
+      const submitterName = payFacts.name;
+
+      // Grouped by date: a day submitted as four entries is one act by one person.
+      for (const [logDate, hours] of hoursByDate) {
+        const forDate = results.filter((r) => (r as { log_date: string }).log_date === logDate) as Array<{
+          total_pay: number | null; hours: number; effective_rate: number | null;
+        }>;
+
+        const priced = forDate.filter((r) => r.total_pay !== null);
+        const unpricedHours = forDate
+          .filter((r) => r.total_pay === null)
+          .reduce((sum, r) => sum + Number(r.hours || 0), 0);
+
+        for (const n of buildHoursSubmittedNotifications(
+          {
+            employeeEmail: session.user.email,
+            employeeName: submitterName,
+            logDate,
+            totalHours: Math.round(hours * 100) / 100,
+            totalPayDollars: priced.length
+              ? Math.round(priced.reduce((sum, r) => sum + Number(r.total_pay || 0), 0) * 100) / 100
+              : null,
+            unpricedHours: Math.round(unpricedHours * 100) / 100,
+            entryCount: forDate.length,
+            // Resubmission when this day already had entries before this request. The employee
+            // edit flow deletes and re-inserts, so "did we just replace something" is the honest
+            // question rather than "is this an UPDATE".
+            isResubmission: existingDates.has(logDate),
+          },
+          approvers,
+        )) {
+          await notify(n);
+        }
+      }
+    }
+  } catch (err) {
+    console.error('[time-logs] could not notify approvers of the submission:', err instanceof Error ? err.message : String(err));
+  }
 
   return NextResponse.json({ logs: results }, { status: 201 });
 }, { routeName: 'time-logs' });

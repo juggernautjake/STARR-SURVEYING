@@ -587,6 +587,14 @@
   color: var(--theme-fg, #78350F);
 }
 
+/* ---- Running balance on the approval queue (hours-to-payout, 2026-08-05) ---- */
+.tl-employee-group__owed {
+  font-weight: 700;
+  color: var(--theme-accent, #1D3095);
+}
+/* An overpayment is not a bigger debt — it reads differently because it needs a person, not a payment. */
+.tl-employee-group__owed--over { color: var(--theme-warning, #B45309); }
+
 /* ---- Pay advances: what is still owed (C-17) ---- */
 .tl-advances-owed {
   font-size: 0.82rem;
