@@ -42,7 +42,7 @@ Measured, not assumed — this changes the size of the work.
 | # | Slice | Status |
 |---|---|---|
 | **W-1** | Mobile editor: fix the header/hint overlap; per-widget **Edit** opens the widget's own `SettingsForm` | ⬜ Next |
-| **W-2** | Research completion notifies whoever initiated it | ⬜ |
+| **W-2** | Research completion (and failure) notifies its initiator — worker writes a `research_complete` notification, idempotent across both pipelines | ✅ Shipped |
 | **W-3** | A notification "topic" model — map an event kind to the widgets/quick-actions it belongs to | ⬜ |
 | **W-4** | Unread-count endpoint keyed by topic, for the signed-in person | ⬜ |
 | **W-5** | Badge on a widget when it has unread events; badge on a quick action likewise | ⬜ |

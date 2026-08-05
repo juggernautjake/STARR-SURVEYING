@@ -9,6 +9,7 @@ import express from 'express';
 import type { Request, Response } from 'express';
 import type { PipelineInput, PipelineResult, ActivePipeline, UserFile, LayerAttempt } from './types/index.js';
 import { runPipeline, getSupabase, getRunningMessage, setRunningMessage, clearRunningMessage } from './services/pipeline.js';
+import { notifyResearchInitiator } from './shared/notify-research-done.js';
 import { getLiveLogForProject, clearLiveLogForProject, PipelineLogger } from './lib/logger.js';
 import { getTracker, getTrackerIfExists, clearTracker } from './lib/timeline-tracker.js';
 import { enableTracing, disableTracing } from './lib/trace.js';
@@ -1501,6 +1502,13 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
               } else {
                 console.log(`[Worker] ${projectId}: status set to 'review' in Supabase`);
               }
+              // Tell whoever started the run that it finished (W-2). Same supabase client, same
+              // fire-and-forget tail; idempotent, so the county-specific path reaching the same end
+              // does not double-notify.
+              await notifyResearchInitiator(supabase, {
+                projectId,
+                outcome: r.status === 'partial' ? 'partial' : 'complete',
+              });
             })
             .catch((err: unknown) => {
               console.warn(`[Worker] ${projectId}: error setting status=review:`, err instanceof Error ? err.message : String(err));
@@ -1641,6 +1649,8 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
             } else {
               console.log(`[Worker] ${projectId}: status set to 'review' in Supabase (county-specific)`);
             }
+            // W-2 — notify the initiator. Idempotent with the unified path above.
+            await notifyResearchInitiator(supabase, { projectId, outcome: 'complete' });
           })
           .catch((err: unknown) => {
             console.warn(`[Worker] ${projectId}: error setting status=review (county-specific):`, err instanceof Error ? err.message : String(err));
@@ -1677,6 +1687,12 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
                 research_message: 'AI CREDITS DEPLETED — Please add funds to your Anthropic account at console.anthropic.com/settings/billing, then re-run research.',
               })
               .eq('id', projectId);
+            // W-2 — the initiator should hear that it stopped, not just find it stalled later.
+            await notifyResearchInitiator(supabase, {
+              projectId,
+              outcome: 'failed',
+              detail: 'AI credits were depleted mid-run.',
+            });
           })
           .catch(() => { /* best-effort */ });
       } else {
