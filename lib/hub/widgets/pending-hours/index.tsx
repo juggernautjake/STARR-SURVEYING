@@ -7,6 +7,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import WidgetError from '@/lib/hub/components/WidgetError';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
   statNumberStyle,
@@ -78,23 +79,29 @@ function PendingHoursWidget({ size, content }: WidgetProps<PendingHoursContent>)
   const bucket = sizeBucket(size.w, size.h);
   const explicitCap = resolveMaxItems(content);
   const groupByPerson = resolveGroupByPerson(content);
-  const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
+  // 'error' is distinct from 'empty', and the distinction is the whole point of this pass: a failed
+  // fetch was rendering as "Hours approved" — telling an approver there is nothing to do when in
+  // fact the queue could not be read. Nobody approves what they are told does not exist.
+  const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [items, setItems] = useState<Timesheet[]>([]);
 
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
       const res = await fetch('/api/admin/time-logs?status=pending');
-      if (!res.ok) { setStatus('empty'); return; }
+      if (!res.ok) { setStatus('error'); return; }
       const data: { logs?: PendingLog[] } = await res.json();
       const timesheets = aggregatePendingTimesheets(data.logs ?? []);
       setItems(timesheets);
       setStatus(timesheets.length === 0 ? 'empty' : 'ok');
-    } catch { setStatus('empty'); }
+    } catch { setStatus('error'); }
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
+  if (status === 'error') {
+    return <WidgetError message="Couldn’t load the approval queue." onRetry={fetchItems} />;
+  }
   if (status === 'empty') {
     if (bucket === 'tiny') {
       return (

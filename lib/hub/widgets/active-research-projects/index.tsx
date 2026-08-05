@@ -7,6 +7,7 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import { researchProjectHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import WidgetError from '@/lib/hub/components/WidgetError';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
   statNumberStyle,
@@ -45,14 +46,14 @@ export function humanizeStatus(status: string | null | undefined): string {
 function ActiveResearchProjectsWidget({ size, content }: WidgetProps<ActiveResearchProjectsContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
-  const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [items, setItems] = useState<ResearchProject[]>([]);
 
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
       const res = await fetch('/api/admin/research?status=all');
-      if (!res.ok) { setStatus('empty'); return; }
+      if (!res.ok) { setStatus('error'); return; }
       const data: { projects?: ResearchProject[] } = await res.json();
       const county = settings.countyFilter.trim().toLowerCase();
       const list = (data.projects ?? [])
@@ -60,11 +61,14 @@ function ActiveResearchProjectsWidget({ size, content }: WidgetProps<ActiveResea
         .filter((p) => !county || (p.county ?? '').toLowerCase().includes(county));
       setItems(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
-    } catch { setStatus('empty'); }
+    } catch { setStatus('error'); }
   }, [settings.countyFilter]);
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
+  if (status === 'error') {
+    return <WidgetError message="Couldn’t load research projects." onRetry={fetchItems} />;
+  }
   if (status === 'empty') {
     if (bucket === 'tiny') {
       return (

@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { defineWidget, type WidgetProps } from '@/lib/hub/widget-registry';
 import { sizeBucket } from '@/lib/hub/size-bucket';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import WidgetError from '@/lib/hub/components/WidgetError';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
   statNumberStyle,
@@ -112,25 +113,31 @@ function OutstandingInvoicesWidget({ size, content }: WidgetProps<OutstandingInv
   const sortBy = resolveSortBy(content);
   const explicitCap = resolveMaxItems(content);
   const showAging = resolveShowAging(content);
-  const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
+  // 'error' distinct from 'empty': a failed fetch was rendering as "All paid up" — telling the
+  // office there is no money outstanding when the ledger simply could not be read. That is a
+  // dangerous thing to be wrong about.
+  const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [items, setItems] = useState<Invoice[]>([]);
 
   const fetchItems = useCallback(async () => {
     setStatus('loading');
     try {
       const res = await fetch('/api/admin/billing/invoices');
-      if (!res.ok) { setStatus('empty'); return; }
+      if (!res.ok) { setStatus('error'); return; }
       const data: { invoices?: BillingInvoice[] } = await res.json();
       const outstanding = (data.invoices ?? [])
         .map(toOutstandingInvoice)
         .filter((i): i is Invoice => i !== null);
       setItems(outstanding);
       setStatus(outstanding.length === 0 ? 'empty' : 'ok');
-    } catch { setStatus('empty'); }
+    } catch { setStatus('error'); }
   }, []);
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
+  if (status === 'error') {
+    return <WidgetError message="Couldn’t load outstanding invoices." onRetry={fetchItems} />;
+  }
   if (status === 'empty') {
     if (bucket === 'tiny') {
       return (

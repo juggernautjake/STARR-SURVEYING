@@ -41,12 +41,39 @@ Measured, not assumed — this changes the size of the work.
 
 | # | Slice | Status |
 |---|---|---|
-| **W-1** | Mobile editor: fix the header/hint overlap; per-widget **Edit** opens the widget's own `SettingsForm` | ⬜ Next |
+| **W-1** | Mobile editor: fix the header/hint overlap; per-widget **Edit** opens the widget's own `SettingsForm` | ✅ Shipped |
 | **W-2** | Research completion (and failure) notifies its initiator — worker writes a `research_complete` notification, idempotent across both pipelines | ✅ Shipped |
 | **W-3** | `notification-topics.ts` — maps a notification `type` to the widgets/quick-actions it belongs on; guarded against the real registry | ✅ Shipped |
 | **W-4** | `/api/admin/hub/badges` — the signed-in person’s unread counts grouped per widget/quick-action | ✅ Shipped |
 | **W-5** | The badge renders — a count pill on the widget header and on individual quick actions, from one shared feed, paused while editing | ✅ Shipped |
-| **W-6** | Robustness pass on the invoice / job / employee / hours / pay widgets — real data, empty states, error states | ⬜ |
+| **W-6** | Robustness pass on the invoice / job / employee / hours / pay widgets — real data, empty states, error states | ✅ Shipped |
+
+---
+
+## W-6 completion note (2026-08-05)
+
+The recurring defect across these widgets was **an absence rendering as an answer**: a failed fetch
+caught into `setStatus('empty')`, so a broken service showed "All paid up" / "Hours approved" / "No
+recent activity" — telling the office there is nothing outstanding, nothing to approve, no activity,
+when in truth the data could not be read. That is a dangerous thing to be wrong about, and it looks
+identical to good news.
+
+The fix gives each widget a distinct `'error'` status that renders `<WidgetError … onRetry=…>`, and
+keeps the `catch` block off the `'empty'` path. Widgets brought into line this pass:
+`pending-hours`, `outstanding-invoices`, `active-research-projects`, `job-activity-feed`
+(the last two are the job/research surfaces the badge work lit up). `hours-this-week`, `my-pay`, and
+`my-jobs` already distinguished the two and are locked by the same guard.
+
+Guarded by `__tests__/hub/w6-empty-vs-error.test.ts` — a source-lock asserting each of the seven
+widgets declares `setStatus('error')`, renders `<WidgetError>` for it, imports the component, and
+does **not** fall through to `catch { setStatus('empty') }`. Verified: typecheck, lint, full vitest
+suite (23,031 passing), production build.
+
+**Documented follow-up (out of W-6's five-area scope):** roughly a dozen other list widgets still
+carry the `catch { setStatus('empty') }` shape (e.g. `contacts`, `messages`, `pto-balance`,
+`open-discussions`, `class-assignments`, `assignments-due`). They are lower-stakes than money/hours
+but the same class of bug; a future sweep can extend the `WIDGETS` array in the W-6 guard to cover
+them one at a time.
 
 ---
 

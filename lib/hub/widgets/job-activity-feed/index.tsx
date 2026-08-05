@@ -7,6 +7,7 @@ import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import { jobHref } from '@/lib/hub/widgets/_shared/widget-links';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
+import WidgetError from '@/lib/hub/components/WidgetError';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import {
   statNumberStyle,
@@ -47,7 +48,7 @@ interface ActivityItem {
 function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedContent>) {
   const settings = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
-  const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
+  const [status, setStatus] = useState<'loading' | 'ok' | 'empty' | 'error'>('loading');
   const [items, setItems] = useState<ActivityItem[]>([]);
 
   const fetchActivity = useCallback(async () => {
@@ -57,19 +58,22 @@ function JobActivityFeedWidget({ size, content }: WidgetProps<JobActivityFeedCon
       if (settings.jobFilter) params.set('job_id', settings.jobFilter);
       params.set('limit', String(Math.max(1, Math.min(100, settings.rowLimit))));
       const res = await fetch(`/api/admin/jobs/activity?${params}`);
-      if (!res.ok) { setStatus('empty'); return; }
+      if (!res.ok) { setStatus('error'); return; }
       const data: { activity?: ActivityItem[] } = await res.json();
       const list = (data.activity ?? []).filter((it) => settings.activityTypes.includes(kindForAction(it.type)));
       setItems(list);
       setStatus(list.length === 0 ? 'empty' : 'ok');
     } catch {
-      setStatus('empty');
+      setStatus('error');
     }
   }, [settings.jobFilter, settings.activityTypes, settings.rowLimit]);
 
   useEffect(() => { fetchActivity(); }, [fetchActivity]);
 
   if (status === 'loading') return <WidgetSkeleton rows={3} />;
+  if (status === 'error') {
+    return <WidgetError message="Couldn’t load job activity." onRetry={fetchActivity} />;
+  }
   if (status === 'empty') {
     if (bucket === 'tiny') {
       return (
