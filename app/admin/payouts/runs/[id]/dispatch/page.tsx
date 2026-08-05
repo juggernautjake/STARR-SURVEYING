@@ -29,12 +29,18 @@ interface BatchHeader {
   total_cents: number;
 }
 
+// One title per method the vocabulary allows. Two were missing — `check` and `other` were valid to
+// record and had no column here, so those payments rendered under "Method not assigned" and the
+// office could not tell a cheque from a data error. The compiler caught it the moment the
+// vocabulary was consolidated, which is the argument for having one.
 const METHOD_TITLES: Record<PayoutMethod | 'unassigned', string> = {
+  cash: 'Cash (hand out)',
+  check: 'Check (write and post)',
   venmo: 'Venmo',
   cashapp: 'Cash App',
   zelle: 'Zelle',
-  ach: 'Bank ACH',
-  cash: 'Cash (hand out)',
+  ach: 'Bank ACH (upload the CSV)',
+  other: 'Other — see the reference',
   unassigned: 'Method not assigned',
 };
 

@@ -71,13 +71,14 @@ pressed and no money moved is the defect.
 | **H-4** | `/api/admin/payroll/owed` — balance per person, decisions honoured | |
 | **H-5** | The balance shows on the approval queue, next to the name | |
 | **H-6** | Committed vs settled — a draft batch cannot silently zero a balance | See §3 |
+| **H-8** | **One payment-method vocabulary.** Three disagreed; `check` was recordable and invisible to dispatch. `stripe` removed — no rail can send it. Guarded, with a control | cash · check · venmo · cashapp · zelle · ach · other |
 
 ### Next
 
 | # | Slice | Why it is next |
 |---|---|---|
 | **H-7** | **Pay what's owed** — build a payout batch from approved, unpaid hours, ad-hoc at any time | The "random payout at anytime" half of the request, and the thing that makes the balance fall |
-| **H-8** | **Payment methods**: cash, check, Venmo, CashApp, ACH, card — recorded with reference (cheque no., Venmo handle, "handed over in the office") | Fully buildable, no dependencies |
+
 | **H-9** | **Payout search** — every payout, filterable by person, date range, method, amount, batch, status; and one payout findable by its reference | "Track all payouts for everyone and find specific payouts" |
 | **H-10** | The employee sees their own balance and payout history on My Pay | |
 | **H-11** | **Employee money accounts** — `balance_transactions` + `withdrawal_requests` already model this; wire them to the consolidated pay model and let an employee request a withdrawal | The owner has now asked for the "second money path" I flagged as undecided; this resolves that question |

@@ -240,3 +240,59 @@ describe('the parked progression system stays parked', () => {
     expect(line).toContain('parked: true');
   });
 });
+
+describe('there is one vocabulary for how a payment was made', () => {
+  // Three definitions existed and disagreed: the API accepted eight methods (including `stripe`,
+  // which no rail can send), the dispatch module typed five with neither `check` nor `other`, and
+  // the history module declared a fourth set under the same type NAME with a `direct_deposit` that
+  // exists in no database row.
+  //
+  // The consequence was not cosmetic: a payout recorded as `check` was valid to create and
+  // invisible to the dispatch grouping, so it fell into `unassigned` and the office saw a payment
+  // with no method.
+  const METHOD_FILE = 'lib/payouts/methods.ts';
+
+  it('the vocabulary module exists and defines the list', () => {
+    expect(fs.existsSync(path.join(ROOT, METHOD_FILE))).toBe(true);
+    expect(code(read(METHOD_FILE))).toContain('export const PAYOUT_METHODS');
+  });
+
+  it('nothing else declares its own PayoutMethod union', () => {
+    // A second `type PayoutMethod = 'a' | 'b'` anywhere is the defect coming back. Re-exporting the
+    // one type is fine and is how the other two modules now work.
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const found of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+        const relative = `${dir}/${found.name}`;
+        if (found.isDirectory()) { walk(relative); continue; }
+        if (!/\.tsx?$/.test(found.name)) continue;
+        if (relative === METHOD_FILE) continue;
+        // A UNION declaration, not a re-export.
+        if (/type\s+PayoutMethod\s*=\s*'/.test(code(read(relative)))) offenders.push(relative);
+      }
+    };
+    walk('app');
+    walk('lib');
+
+    expect(
+      offenders,
+      `${offenders.join(', ')} declares its own payment-method union. Import it from ${METHOD_FILE}.`,
+    ).toEqual([]);
+  });
+
+  it('the API validates against that list rather than a private copy', () => {
+    const route = code(read('app/api/admin/payouts/route.ts'));
+    expect(route).toContain('PAYOUT_METHODS');
+    // `stripe` was on the private list and has no rail behind it.
+    expect(route.includes("'stripe'"), 'stripe is offerable again').toBe(false);
+  });
+
+  it('the dispatch screen has a column for every method that can be recorded', () => {
+    // This is what the compiler caught when the vocabulary was consolidated: `check` and `other`
+    // were recordable and had nowhere to render, so they showed as "Method not assigned".
+    const screen = code(read('app/admin/payouts/runs/[id]/dispatch/page.tsx'));
+    for (const method of ['cash', 'check', 'venmo', 'cashapp', 'zelle', 'ach', 'other']) {
+      expect(screen, `the dispatch screen has no column for ${method}`).toContain(`${method}:`);
+    }
+  });
+});

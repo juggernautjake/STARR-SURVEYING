@@ -50,7 +50,11 @@ export interface EmployeeSalaryHistoryRow {
   updated_at: string;
 }
 
-export type PayoutMethod = 'direct_deposit' | 'check' | 'cash' | 'other';
+// This declared a FOURTH method vocabulary under the same type name as two others, including a
+// `direct_deposit` that appears in no database row and no other list. Re-exported from the one
+// place instead: two types sharing a name and disagreeing is worse than either of them.
+export { type PayoutMethod } from '../payouts/methods.js';
+import type { PayoutMethod } from '../payouts/methods.js';
 
 export interface PayoutLineItem {
   /** Free-text label so payroll runs that introduce a new line

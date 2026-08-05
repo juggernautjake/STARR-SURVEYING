@@ -18,7 +18,12 @@
 //                                     bank's preferred format is
 //                                     confirmed.
 
-export type PayoutMethod = 'venmo' | 'cashapp' | 'zelle' | 'ach' | 'cash';
+// The method vocabulary lives in one place. This file used to declare its own five —
+// venmo, cashapp, zelle, ach, cash — while the API accepted eight. A payout recorded as `check`
+// or `other` was therefore valid to create and invisible to the grouping below, so it landed in
+// `unassigned` and the office saw a payment with no method.
+export { PAYOUT_METHODS, type PayoutMethod } from './methods.js';
+import { PAYOUT_METHODS, normalizePayoutMethod, type PayoutMethod } from './methods.js';
 export type PayoutItemStatus = 'pending' | 'sent' | 'paid' | 'failed';
 export type PayoutBatchStatus = 'draft' | 'approved' | 'dispatched' | 'completed' | 'voided';
 
@@ -34,22 +39,20 @@ export interface DispatchItem {
 
 export type GroupedDispatch = Record<PayoutMethod | 'unassigned', DispatchItem[]>;
 
-const ALL_METHODS: PayoutMethod[] = ['venmo', 'cashapp', 'zelle', 'ach', 'cash'];
-
-/** Pure helper — bucket items by their stored method. Items without
- *  a method end up under 'unassigned' so the office sees them
- *  prominently and can fix the assignment before dispatching. */
+/** Pure helper — bucket items by their stored method. Items without a recognised one end up
+ *  under 'unassigned' so the office sees them prominently and can fix the assignment before
+ *  dispatching.
+ *
+ *  Every method gets a bucket even when empty, so the dispatch screen is a stable checklist rather
+ *  than a list that changes shape with the data. Retired spellings (`direct_deposit`) are
+ *  translated rather than dropped — a payment with an old label is still a payment somebody is
+ *  owed. */
 export function groupItemsByMethod(items: ReadonlyArray<DispatchItem>): GroupedDispatch {
-  const out: GroupedDispatch = {
-    venmo: [], cashapp: [], zelle: [], ach: [], cash: [], unassigned: [],
-  };
+  const out = { unassigned: [] as DispatchItem[] } as GroupedDispatch;
+  for (const m of PAYOUT_METHODS) out[m] = [];
   for (const item of items) {
-    const m = item.method;
-    if (m && ALL_METHODS.includes(m)) {
-      out[m].push(item);
-    } else {
-      out.unassigned.push(item);
-    }
+    const m = normalizePayoutMethod(item.method);
+    out[m ?? 'unassigned'].push(item);
   }
   return out;
 }

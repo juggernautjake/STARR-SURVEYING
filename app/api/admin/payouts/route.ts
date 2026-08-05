@@ -8,14 +8,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { PAYOUT_METHODS, type PayoutMethod } from '@/lib/payouts/methods';
 import { readPayouts } from '@/lib/payroll/payout-ledger';
 import { notify } from '@/lib/notifications';
 import { buildPayoutNotification } from '@/lib/notifications/payout';
 
 export const runtime = 'nodejs';
 
-const VALID_METHODS = ['venmo', 'cashapp', 'stripe', 'check', 'cash', 'ach', 'zelle', 'other'] as const;
-type Method = (typeof VALID_METHODS)[number];
+// The one vocabulary. This list used to live here and included `stripe`, which no rail can send —
+// so a payment could be recorded through a channel that does not exist. See lib/payouts/methods.ts.
+const VALID_METHODS = PAYOUT_METHODS;
+type Method = PayoutMethod;
 
 interface PayoutRow {
   id: string;
