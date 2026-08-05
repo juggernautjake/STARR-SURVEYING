@@ -5,6 +5,7 @@ import {
   buildHoursSubmittedNotifications,
   hoursApprovalLink,
   canDecideHours,
+  approversWhoWantThis,
   type SubmittedHours,
 } from '@/lib/notifications/hours-submitted';
 
@@ -145,5 +146,52 @@ describe('the link goes to the submission, not to a queue', () => {
     // A correct helper the notification does not use would be the built-but-unreachable defect.
     const [n] = buildHoursSubmittedNotifications(submission(), ['boss@x.com']);
     expect(n.link).toBe(hoursApprovalLink('crew@starr-surveying.com', '2026-08-04'));
+  });
+});
+
+describe('who actually wants the bell', () => {
+  const APPROVERS = ['hank@starr.com', 'jacob@starr.com', 'office@starr.com'];
+  const CREW = 'crew@starr.com';
+
+  it('notifies somebody with no preference row', () => {
+    // OPT-OUT, NOT OPT-IN. An opt-in default would mean shipping this turns Hank's notifications
+    // OFF until he finds a settings page, and the failure would look exactly like the feature not
+    // working.
+    expect(approversWhoWantThis(APPROVERS, CREW, [])).toEqual(APPROVERS);
+  });
+
+  it('respects somebody who turned them off', () => {
+    const prefs = [{ user_email: 'office@starr.com', notify_on_submit: false, only_for_emails: null }];
+    expect(approversWhoWantThis(APPROVERS, CREW, prefs)).toEqual(['hank@starr.com', 'jacob@starr.com']);
+  });
+
+  it('lets somebody follow only their own crew', () => {
+    const prefs = [{ user_email: 'jacob@starr.com', notify_on_submit: true, only_for_emails: ['someone-else@starr.com'] }];
+    expect(approversWhoWantThis(APPROVERS, CREW, prefs)).toEqual(['hank@starr.com', 'office@starr.com']);
+  });
+
+  it('notifies them when the submitter IS on their list', () => {
+    const prefs = [{ user_email: 'jacob@starr.com', notify_on_submit: true, only_for_emails: [CREW] }];
+    expect(approversWhoWantThis(APPROVERS, CREW, prefs)).toEqual(APPROVERS);
+  });
+
+  it('treats an EMPTY list as nobody, and null as everybody', () => {
+    // Collapsing these would make "I only want my own crew" impossible to express, and would
+    // silently notify somebody who asked for the opposite.
+    const empty = [{ user_email: 'office@starr.com', notify_on_submit: true, only_for_emails: [] }];
+    expect(approversWhoWantThis(APPROVERS, CREW, empty)).not.toContain('office@starr.com');
+
+    const all = [{ user_email: 'office@starr.com', notify_on_submit: true, only_for_emails: null }];
+    expect(approversWhoWantThis(APPROVERS, CREW, all)).toContain('office@starr.com');
+  });
+
+  it('matches emails case-insensitively', () => {
+    const prefs = [{ user_email: 'OFFICE@starr.com', notify_on_submit: false, only_for_emails: null }];
+    expect(approversWhoWantThis(APPROVERS, CREW, prefs)).not.toContain('office@starr.com');
+  });
+
+  it('ignores a preference row for somebody who is not an approver', () => {
+    const prefs = [{ user_email: 'stranger@starr.com', notify_on_submit: false, only_for_emails: null }];
+    expect(approversWhoWantThis(APPROVERS, CREW, prefs)).toEqual(APPROVERS);
   });
 });

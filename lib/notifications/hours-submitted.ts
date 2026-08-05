@@ -136,3 +136,43 @@ export function buildHoursSubmittedNotifications(
     source_id: `${submission.employeeEmail}::${submission.logDate}`,
   }));
 }
+
+/** One person's opt-out, from `hours_notification_preferences`. A missing row means "notify me". */
+export interface HoursNotifyPreference {
+  user_email: string;
+  notify_on_submit: boolean;
+  /** NULL = everybody. An EMPTY array = nobody — a deliberate "off" that keeps the row. */
+  only_for_emails: string[] | null;
+}
+
+/**
+ * Narrow the approver list to the people who actually want this bell.
+ *
+ * ── OPT-OUT, NOT OPT-IN ─────────────────────────────────────────────────────────────────────────
+ *
+ * A person with **no preference row is notified**. That direction is load-bearing: an opt-in
+ * default would mean shipping the feature turns everybody's notifications off until they find a
+ * settings page, and the failure would look exactly like the feature not working. For a message
+ * about somebody's pay, the safe default is "you hear about it".
+ *
+ * `only_for_emails` distinguishes NULL from empty deliberately. NULL is "everybody"; an empty array
+ * is "nobody", which is how a person says off while keeping their row. Treating them the same would
+ * make "I only want my own crew" impossible to express, and would silently notify somebody who had
+ * asked for the opposite.
+ */
+export function approversWhoWantThis(
+  approverEmails: readonly string[],
+  submitterEmail: string,
+  preferences: readonly HoursNotifyPreference[],
+): string[] {
+  const byEmail = new Map(preferences.map((p) => [p.user_email.toLowerCase(), p]));
+  const submitter = submitterEmail.toLowerCase();
+
+  return approverEmails.filter((email) => {
+    const pref = byEmail.get(email.toLowerCase());
+    if (!pref) return true;                  // no row = notify
+    if (!pref.notify_on_submit) return false;
+    if (pref.only_for_emails === null || pref.only_for_emails === undefined) return true;
+    return pref.only_for_emails.some((e) => e.toLowerCase() === submitter);
+  });
+}

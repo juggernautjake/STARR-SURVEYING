@@ -12,7 +12,12 @@ import { isDateLocked } from '@/lib/hours/period-lock';
 import { canEmployeeEdit, canEmployeeDelete } from '@/lib/hours/permissions';
 import { loadPayConfig, loadPersonPayFacts, rateFor } from '@/lib/payroll/pay-context';
 import { UNSPECIFIED_WORK_TYPE } from '@/lib/payroll/resolve-rate';
-import { buildHoursSubmittedNotifications, canDecideHours } from '@/lib/notifications/hours-submitted';
+import {
+  buildHoursSubmittedNotifications,
+  canDecideHours,
+  approversWhoWantThis,
+  type HoursNotifyPreference,
+} from '@/lib/notifications/hours-submitted';
 
 const LOCKED_MSG =
   'That pay period is locked. Ask a manager to adjust these hours — they can revise locked entries.';
@@ -269,9 +274,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       .select('email, roles')
       .contains('roles', ['admin']);
 
-    const approvers = ((approverRows ?? []) as { email: string; roles: string[] | null }[])
+    const canDecide = ((approverRows ?? []) as { email: string; roles: string[] | null }[])
       .filter((u) => canDecideHours(u.roles))
       .map((u) => u.email);
+
+    // Narrowed to the people who want it. Five admins means five bells for one crew member's
+    // Tuesday, and a stream somebody has learned to ignore stops working for the one person who
+    // did want it. Opt-OUT: a missing row means notify, so nobody is silently switched off.
+    const { data: prefRows } = await supabaseAdmin
+      .from('hours_notification_preferences')
+      .select('user_email, notify_on_submit, only_for_emails')
+      .in('user_email', canDecide);
+
+    const approvers = approversWhoWantThis(
+      canDecide,
+      session.user.email,
+      (prefRows ?? []) as HoursNotifyPreference[],
+    );
 
     if (approvers.length > 0) {
       const submitterName = payFacts.name;

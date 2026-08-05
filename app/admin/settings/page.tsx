@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
+import HoursNotificationSetting from './HoursNotificationSetting';
 
 interface GeneralSettings {
   companyName: string;
@@ -197,6 +198,10 @@ export default function SettingsPage() {
               <span><Bell size={16} strokeWidth={1.75} /></span>
               <p>Per-user messaging notifications live under Messages → Settings</p>
             </div>
+
+            {/* Renders nothing for somebody who cannot approve hours — a toggle that changes
+                nothing teaches people the settings page lies. */}
+            <HoursNotificationSetting />
           </div>
         )}
 

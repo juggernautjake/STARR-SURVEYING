@@ -377,3 +377,32 @@ describe('the employee sees the same numbers the boss does', () => {
     expect(panel).toContain('Withdrawal balance');
   });
 });
+
+describe('notification preferences are opt-OUT', () => {
+  // Five admins means five bells for one crew member's Tuesday. But an opt-IN default would mean
+  // shipping this turns everybody's notifications off until they find a settings page, and the
+  // failure would look exactly like the feature not working.
+  it('the submit path filters approvers through their preference', () => {
+    expect(code(read('app/api/admin/time-logs/route.ts'))).toContain('approversWhoWantThis(');
+  });
+
+  it('a missing preference row means notified', () => {
+    const src = code(read('lib/notifications/hours-submitted.ts'));
+    // The line that makes it opt-out. If this inverts, everybody goes quiet at once.
+    expect(src).toMatch(/if \(!pref\) return true;/);
+  });
+
+  it('the setting is reachable, not just storable', () => {
+    // A preference table nobody can edit is a column, not a feature.
+    expect(fs.existsSync(path.join(ROOT, 'app/api/admin/me/hours-notifications/route.ts'))).toBe(true);
+    expect(code(read('app/admin/settings/page.tsx'))).toContain('<HoursNotificationSetting');
+  });
+
+  it('only the person themselves can change it', () => {
+    // One admin silencing another's notifications about pay would be a quiet way to keep somebody
+    // out of a decision they are entitled to make.
+    const src = code(read('app/api/admin/me/hours-notifications/route.ts'));
+    expect(src).toContain('session.user.email');
+    expect(src.includes("searchParams.get('email')"), 'accepts somebody else’s email').toBe(false);
+  });
+});
