@@ -629,3 +629,95 @@
   font-size: 0.75rem;
   line-height: 1.45;
 }
+
+/* ── MOBILE EDITING TOOLS (AA-2, owner request 2026-08-05) ────────────────────────────────────────
+ *
+ * "Make the mobile editing tools also be fully robust." The desktop panes assume a mouse: dense
+ * sub-tap-target buttons, an insert affordance that only appears on hover, and 13px inputs. On a
+ * phone every one of those is a defect — a hover affordance is invisible on touch, a 23px button is
+ * a miss-tap, and any input under 16px makes iOS Safari zoom the whole page the instant it focuses.
+ * This block, scoped to the same <1100px seam where the panes become tabs, makes the editing tools
+ * actually usable with a thumb. It does not touch the desktop layout above it. */
+@media (max-width: 1099px) {
+  /* The tab bar is how you move between Blocks / Preview / Style. If it scrolls away while you are
+     halfway down a long inspector, there is no way back to the preview without scrolling to the top
+     first. Pin it. */
+  .vaBuilderTabs {
+    position: sticky;
+    top: 0;
+    z-index: 41;
+    background: var(--va-ink);
+    padding: 6px 0;
+    margin-bottom: 8px;
+  }
+  .vaBuilderTabs button {
+    padding: 12px;
+    font-size: 0.8125rem;
+  }
+
+  /* The move / hide / duplicate / delete tools are primary controls on a phone (there is no faster
+     way to reorder blocks with a thumb), so they get real 44px targets here even though the desktop
+     rule keeps them dense. */
+  .vaBlockTools button {
+    padding: 12px 14px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .vaBlockPick {
+    padding: 12px 13px;
+  }
+
+  /* The insert-between affordance is transparent-until-hover on desktop; a phone has no hover, so it
+     would be a permanently invisible button. Make it visible, tappable, and obviously an "add here"
+     line. */
+  .vaBlockInsert {
+    height: 34px;
+    color: var(--va-text-muted);
+    border-top: 1px dashed var(--va-line);
+    border-bottom: 1px dashed var(--va-line);
+    margin: 2px 0;
+  }
+
+  /* 16px minimum on every text field, or focusing one triggers iOS Safari's auto-zoom and the whole
+     builder lurches. Same fix the palette search already carries. */
+  .vaInspector .vaInput,
+  .vaInspector .vaSelect,
+  .vaInspector .vaTextarea {
+    font-size: 1rem;
+  }
+  .vaColorInput {
+    height: 44px;
+  }
+
+  /* Inspector tab / device switches and per-item list controls all get thumb-sized targets. */
+  .vaInspectorTabs button,
+  .vaInspectorDevice button {
+    padding: 12px;
+    font-size: 0.75rem;
+  }
+  .vaListItemHead button {
+    padding: 8px 12px;
+    min-width: 40px;
+    min-height: 40px;
+  }
+  .vaResetBtn {
+    padding: 8px;
+    min-width: 36px;
+    min-height: 36px;
+  }
+
+  /* Palette rows sit in a full-height sheet on a phone; give each a comfortable tap height and let
+     the sheet use more of the screen. */
+  .vaPaletteBackdrop {
+    padding: 3vh 10px 10px;
+  }
+  .vaPalette {
+    max-height: 92vh;
+  }
+  .vaPaletteItem {
+    padding: 14px 15px;
+  }
+  .vaPaletteGrid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -54,3 +54,37 @@ describe('the device switch is on the preview, reachable without selecting a blo
     expect(BUILDER).toContain('onScaleChange={setPreviewScale}');
   });
 });
+
+// AA-2 — the mobile editing tools are usable with a thumb. The desktop panes assume a mouse
+// (hover-only affordances, sub-tap-target buttons, 13px inputs); this guards the phone-scoped fixes.
+describe('AA-2 — mobile editing tools are touch-robust', () => {
+  const CSS = read('app', 'AndrewAsh', 'studio', '_ui', 'builder.css');
+
+  // Everything below lives inside the <1100px media query — the same seam where the three panes
+  // collapse into tabs. Grab that block so a desktop rule can't accidentally satisfy the assertions.
+  const mobileBlock = (() => {
+    const at = CSS.indexOf('@media (max-width: 1099px)', CSS.indexOf('MOBILE EDITING TOOLS'));
+    return at === -1 ? '' : CSS.slice(at);
+  })();
+
+  it('scopes the touch fixes to the phone/tablet breakpoint, not the desktop layout', () => {
+    expect(mobileBlock).not.toBe('');
+  });
+
+  it('makes the insert-between affordance visible on touch (no hover to reveal)', () => {
+    // On desktop `.vaBlockInsert` is `color: transparent` until :hover — invisible on a phone.
+    expect(mobileBlock).toMatch(/\.vaBlockInsert\s*\{[^}]*color:\s*var\(--va-text-muted\)/);
+  });
+
+  it('gives the block reorder/hide/delete tools real 44px targets', () => {
+    expect(mobileBlock).toMatch(/\.vaBlockTools button\s*\{[^}]*min-height:\s*44px/);
+  });
+
+  it('bumps inspector inputs to 16px so iOS Safari does not auto-zoom on focus', () => {
+    expect(mobileBlock).toMatch(/\.vaInspector \.vaInput[\s\S]*?font-size:\s*1rem/);
+  });
+
+  it('pins the pane tabs so switching panes survives scrolling a long block list', () => {
+    expect(mobileBlock).toMatch(/\.vaBuilderTabs\s*\{[^}]*position:\s*sticky/);
+  });
+});

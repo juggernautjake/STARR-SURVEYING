@@ -135,9 +135,26 @@ The Computer / Phone switch moved onto the preview header, reachable without fir
 | # | Slice | Status |
 |---|---|---|
 | **AA-1** | Desktop preview renders true-to-life (design-width + scale-to-fit); device switch on the preview; zoom readout | ✅ Shipped |
-| **AA-2** | Mobile *editing tools* robustness pass — inspector controls sized for touch, palette + block-list panes on a phone | ⬜ |
+| **AA-2** | Mobile *editing tools* robustness pass — inspector controls sized for touch, palette + block-list panes on a phone | ✅ Shipped |
 
 **Verification:** typecheck, lint, a production build of `/AndrewAsh/studio/pages/[id]`, and source
 guards (`builder-wysiwyg.test.ts`). A live browser screenshot was blocked by a corrupted `.next`
 dev cache owned by another concurrent session (a `prop-types.js` vendor-chunk 500 unrelated to this
 change) — worth re-checking visually once that clears.
+
+### AA-2 completion note (2026-08-05)
+
+The desktop panes assume a mouse, and every one of those assumptions is a defect on a phone: the
+insert-between-blocks affordance was `color: transparent` until `:hover` (invisible and un-tappable
+on touch, so you could only append at the end); the move/hide/duplicate/delete tools were
+deliberately sub-tap-target (~23px); and the inspector's text inputs were 13px, which makes iOS
+Safari zoom the whole builder the instant a field focuses — the very bug the palette search was
+already fixed for. The pane tab-bar also scrolled away, stranding you with no way back to the
+preview from the bottom of a long inspector.
+
+The fix is one `@media (max-width: 1099px)` block in `builder.css` — scoped to the exact seam where
+the three panes become tabs, so the desktop layout is untouched. It makes the insert line visible,
+gives the block tools and list controls 44px targets, bumps every field to 16px, pins the tab bar,
+and gives the add-block palette a full-height single-column sheet. Guarded by the AA-2 block in
+`builder-wysiwyg.test.ts` (source-lock on the mobile media query). Verified: typecheck, lint, full
+vitest suite, production build.
