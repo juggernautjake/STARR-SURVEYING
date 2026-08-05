@@ -129,6 +129,20 @@ export default function NotificationBell() {
     };
   }, [fetchNotifications]);
 
+  // Keep the home-screen app-icon badge in step with the in-app unread count. The service worker
+  // sets it when a push arrives while the app is closed; this covers the app being OPEN — every poll,
+  // every mark-read and mark-all-read flows through `unreadCount`, so reading a notification here
+  // clears the icon badge without waiting for another push. Guarded: Android and desktop Chrome
+  // support the Badging API, older iOS does not, and a browser without it simply does nothing.
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('setAppBadge' in navigator)) return;
+    if (unreadCount > 0) {
+      navigator.setAppBadge(unreadCount).catch(() => {});
+    } else {
+      navigator.clearAppBadge().catch(() => {});
+    }
+  }, [unreadCount]);
+
   // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: Event) {

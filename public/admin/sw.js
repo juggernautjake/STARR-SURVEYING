@@ -121,3 +121,76 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(fetch(request).catch(() => caches.match(OFFLINE_URL)));
   }
 });
+
+/* ── PUSH ──────────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The payload is JSON written by lib/push/admin-push.ts. Two jobs, and the second is the one the
+ * owner actually asked for:
+ *
+ *   1. Show the OS banner (`showNotification`) — the alert on the lock screen / notification shade,
+ *      which is the ONLY thing that arrives when the app is closed.
+ *   2. Set the app-icon badge (`navigator.setAppBadge`) — the little count on the home-screen icon.
+ *      It carries the recipient's CURRENT unread count, computed server-side at send time, so five
+ *      alerts show "5" on the icon rather than each overwriting the last with "1".
+ *
+ * Parsed defensively: a push that throws in this handler is one the OS silently drops, and then a new
+ * lead or a submitted timesheet never reaches the phone at all. Both a malformed payload and a browser
+ * without the Badging API degrade to "still show the banner".
+ */
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: 'Starr Surveying', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'Starr Surveying';
+  const badgeCount = typeof payload.unreadCount === 'number' ? payload.unreadCount : null;
+
+  event.waitUntil(
+    (async () => {
+      await self.registration.showNotification(title, {
+        body: payload.body || '',
+        icon: '/icon-192x192.png',
+        badge: '/icon-192x192.png',
+        // Tagging by type collapses repeats of the same kind into one tray line rather than a stack
+        // of five — the difference between a useful alert and one the crew learns to swipe away.
+        tag: payload.tag || payload.type || 'general',
+        renotify: true,
+        data: { href: payload.href || '/admin/me' },
+      });
+
+      // The app-icon badge. `setAppBadge` lives on `navigator` in a service worker too (WorkerNavigator),
+      // so this updates the icon even when no tab is open — which is the whole point of doing it here
+      // rather than only in the page. Guarded because Android/desktop support it and older iOS does not.
+      if (badgeCount !== null && self.navigator && 'setAppBadge' in self.navigator) {
+        try {
+          if (badgeCount > 0) await self.navigator.setAppBadge(badgeCount);
+          else await self.navigator.clearAppBadge();
+        } catch {
+          /* Badging refused (permission/support) — the banner already showed, which is the essential half. */
+        }
+      }
+    })(),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const href = (event.notification.data && event.notification.data.href) || '/admin/me';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Focus an existing /admin tab and navigate it, rather than opening a second copy — the
+      // behaviour that makes an installed PWA feel like an app instead of a bookmark.
+      for (const client of clientList) {
+        if (client.url.includes('/admin') && 'focus' in client) {
+          client.navigate(href);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(href);
+    }),
+  );
+});

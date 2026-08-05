@@ -3,6 +3,7 @@
 // All notifications are inserted into the `notifications` table.
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { sendAdminPush, sendAdminPushMany } from '@/lib/push/admin-push';
 
 interface NotifyOptions {
   user_email: string;
@@ -17,7 +18,14 @@ interface NotifyOptions {
   thread_id?: string;
 }
 
-/** Insert a single notification */
+/** Insert a single notification, then push it to the recipient's phone.
+ *
+ *  The DB row is the notification and is written first; the push is a best-effort delivery on top
+ *  (`sendAdminPush` never throws). It is awaited rather than fired-and-forgotten because on Vercel's
+ *  serverless runtime work started after the response returns is not guaranteed to run — the few
+ *  hundred ms is the honest price of the alert actually reaching the phone. Every existing caller of
+ *  `notify` — job assignment, hours decision, payment, raise, message — gets phone banners and the
+ *  app-icon badge for free by funnelling through here. */
 export async function notify(opts: NotifyOptions) {
   await supabaseAdmin.from('notifications').insert({
     user_email: opts.user_email,
@@ -31,9 +39,15 @@ export async function notify(opts: NotifyOptions) {
     escalation_level: opts.escalation_level || 'normal',
     thread_id: opts.thread_id || null,
   });
+  await sendAdminPush(opts.user_email, {
+    title: opts.title,
+    body: opts.body,
+    href: opts.link,
+    type: opts.type,
+  });
 }
 
-/** Insert notifications for multiple users at once */
+/** Insert notifications for multiple users at once, then push each one to its recipient's phone. */
 export async function notifyMany(users: string[], base: Omit<NotifyOptions, 'user_email'>) {
   if (users.length === 0) return;
   const rows = users.map(email => ({
@@ -49,6 +63,12 @@ export async function notifyMany(users: string[], base: Omit<NotifyOptions, 'use
     thread_id: base.thread_id || null,
   }));
   await supabaseAdmin.from('notifications').insert(rows);
+  await sendAdminPushMany(users, {
+    title: base.title,
+    body: base.body,
+    href: base.link,
+    type: base.type,
+  });
 }
 
 // ─── Convenience helpers for specific event types ─────────────────────────────
