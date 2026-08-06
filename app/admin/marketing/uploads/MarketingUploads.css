@@ -1,0 +1,198 @@
+/* app/admin/marketing/uploads/MarketingUploads.css
+ *
+ * ── WHY THIS FILE APPEARED IN AN OAUTH SLICE (2026-08-06) ──────────────────────────────────────
+ *
+ * The page has referenced `.mu__*` classes since it was written and **no stylesheet ever defined
+ * them** — grepped the repo: the only file containing `mu__panel` was the page's own JSX. So the
+ * Google Ads uploads screen has been rendering as unstyled flow content the whole time.
+ *
+ * It is not alone. `/admin/marketing/spend` uses `.ms__*` and `/admin/marketing/exports` its own
+ * prefix, and neither of those has a stylesheet either — the whole `/admin/marketing` sub-app is in
+ * the same state. Those are left for a deliberate pass rather than fixed here in passing; this file
+ * covers the page this slice adds interactive controls to, because shipping a connect form into an
+ * unstyled page would make a working feature look broken.
+ *
+ * Scoped under `.mu` so it cannot leak into the admin shell around it.
+ */
+
+.mu {
+  max-width: 1100px;
+  padding: 1.5rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.mu__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mu__lead {
+  margin: 0 0 1.5rem;
+  max-width: 70ch;
+  font-size: 0.9rem;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.mu__panel {
+  margin: 0 0 1.25rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #fff);
+}
+
+.mu__h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.mu__muted {
+  margin: 0.35rem 0;
+  font-size: 0.83rem;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+/* Amber, not red: "not uploading yet" is a configuration state, not a failure.
+ *
+ * Built from `--theme-warning` via `color-mix` rather than five separate literals, so the block
+ * follows the user's skin instead of staying beige on a dark theme. The literal is the fallback,
+ * which is the convention the admin shell and the converted sheets already use. */
+.mu__pending {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-warning, #d99b1f) 35%, transparent);
+  border-left: 3px solid var(--theme-warning, #d99b1f);
+  background: color-mix(in srgb, var(--theme-warning, #d99b1f) 12%, var(--theme-bg-surface, #fff));
+  color: var(--theme-fg-primary, #7a4d00);
+  font-size: 0.85rem;
+}
+
+.mu__bad, .mu__error {
+  margin: 0.5rem 0;
+  padding: 0.6rem 0.85rem;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--theme-danger, #991b1b) 35%, transparent);
+  background: color-mix(in srgb, var(--theme-danger, #991b1b) 10%, var(--theme-bg-surface, #fff));
+  color: var(--theme-danger, #991b1b);
+  font-size: 0.85rem;
+}
+
+.mu__stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.mu__stats li {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.87rem;
+}
+
+.mu__stats li > span:first-child {
+  flex: none;
+  min-width: 9rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #6b7280);
+  align-self: center;
+}
+
+/* ── Connect form ───────────────────────────────────────────────────────────────────────────── */
+
+.mu__connect {
+  margin: 0 0 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #f9fafb);
+}
+
+.mu__connect-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.4rem 0;
+}
+
+.mu__connect-row input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.5rem 0.7rem;
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 7px;
+  background: var(--theme-bg-surface, #fff);
+  color: inherit;
+}
+
+.mu__connect-row button {
+  flex: none;
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-size: 0.87rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 7px;
+  /* The theme's accent, falling back to Google blue — this button hands off to Google, and looking
+     like a Google button is the point when the next screen is Google's consent page. */
+  background: var(--theme-accent, #1a73e8);
+  color: var(--theme-accent-fg, #fff);
+  cursor: pointer;
+}
+
+.mu__connect-row button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-accent, #1a73e8) 85%, #000);
+}
+
+.mu__connect-row button:disabled {
+  background: var(--theme-border, #d1d5db);
+  color: var(--theme-fg-secondary, #6b7280);
+  cursor: not-allowed;
+}
+
+/* ── Log table ──────────────────────────────────────────────────────────────────────────────── */
+
+.mu__scroll { overflow-x: auto; }
+
+.mu__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.83rem;
+}
+
+.mu__table th,
+.mu__table td {
+  padding: 0.45rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--theme-border, #f3f4f6);
+  white-space: nowrap;
+}
+
+.mu__table th {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.mu__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.mu__hint {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  color: var(--theme-fg-secondary, #6b7280);
+}

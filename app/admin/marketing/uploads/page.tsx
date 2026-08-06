@@ -17,6 +17,9 @@
 // Google's help pages are written against their strings, not ours.
 import { useCallback, useEffect, useState } from 'react';
 
+// The `.mu__*` classes below had no stylesheet at all until 2026-08-06 — see the file's header.
+import './MarketingUploads.css';
+
 interface LogRow {
   id: string;
   event_id: string | null;
@@ -61,10 +64,54 @@ const MILESTONE_LABELS: Record<string, string> = {
 };
 const milestoneLabel = (m: string): string => MILESTONE_LABELS[m] ?? m;
 
+/** What the callback tells us on its way back, keyed by the `?gads=` it lands with. */
+const CALLBACK_MESSAGE: Record<string, string> = {
+  connected: 'Connected. The nightly job will use this account from its next run.',
+  cancelled: 'Connection cancelled — nothing was changed.',
+  'state-mismatch': 'That sign-in did not match the request that started it, so nothing was saved. Start again from this page.',
+  'scope-denied': 'The Google Ads permission was not granted, so uploads would fail. Connect again and leave the Ads box ticked.',
+  'no-refresh-token': 'Google did not issue a renewal token, so the connection would expire within the hour. Try again; if it repeats, remove this app under your Google account permissions first.',
+  forbidden: 'Connecting an ad account is admin-only.',
+};
+
 export default function MarketingUploadsPage(): React.ReactElement {
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [callbackNote, setCallbackNote] = useState<string | null>(null);
+
+  // Read the callback's verdict once, then strip it so a refresh does not keep announcing it.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const gads = params.get('gads');
+    if (!gads) return;
+    setCallbackNote(CALLBACK_MESSAGE[gads] ?? `Connection returned: ${gads}`);
+    params.delete('gads');
+    const q = params.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${q ? `?${q}` : ''}`);
+  }, []);
+
+  const connect = useCallback(async () => {
+    setConnecting(true); setError(null);
+    try {
+      const res = await fetch('/api/admin/marketing/google-ads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'connect', customerId }),
+      });
+      const body = await res.json().catch(() => ({})) as { url?: string; error?: string };
+      if (!res.ok || !body.url) throw new Error(body.error ?? `HTTP ${res.status}`);
+      // Full navigation, not a popup: Google blocks its consent screen in many popup contexts, and a
+      // blocked popup looks exactly like a broken button.
+      window.location.href = body.url;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the connection.');
+      setConnecting(false);
+    }
+  }, [customerId]);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -93,6 +140,51 @@ export default function MarketingUploadsPage(): React.ReactElement {
 
       <section className="mu__panel" data-testid="uploads-connection">
         <h2 className="mu__h2">Connection</h2>
+
+        {callbackNote && (
+          <p className="mu__pending" data-testid="uploads-callback-note">{callbackNote}</p>
+        )}
+
+        {/* Connect / reconnect — added 2026-08-06.
+         *
+         * Until this existed, `google_ads_connections` was read and updated but never INSERTED, so
+         * the row could only be created by hand in the database. The page could say "not connected"
+         * and offered no way to stop being not connected.
+         *
+         * The refresh token is issued by Google directly to the server after the owner clicks Allow
+         * on Google's own consent screen — it is never displayed, never pasted, and never passes
+         * through anyone's clipboard. The only thing typed here is the account number. */}
+        {!loading && conn?.problem === 'not-connected' && (
+          <div className="mu__connect" data-testid="uploads-connect">
+            <label htmlFor="gads-customer-id" className="mu__muted">
+              Google Ads customer ID — the 10-digit number at the top right of the Ads UI
+            </label>
+            <div className="mu__connect-row">
+              <input
+                id="gads-customer-id"
+                inputMode="numeric"
+                placeholder="123-456-7890"
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+                data-testid="uploads-customer-id"
+              />
+              <button
+                type="button"
+                onClick={() => void connect()}
+                disabled={connecting || customerId.replace(/\D/g, '').length !== 10}
+                data-testid="uploads-connect-button"
+              >
+                {connecting ? 'Opening Google…' : 'Connect Google Ads'}
+              </button>
+            </div>
+            <p className="mu__muted">
+              Sends you to Google to approve access. Nothing secret is entered here — the account
+              number is not a password, and the renewal token Google issues goes straight to the
+              server.
+            </p>
+          </div>
+        )}
+
         {loading ? <p className="mu__muted">Loading…</p> : conn?.problem ? (
           <>
             <p className="mu__pending">

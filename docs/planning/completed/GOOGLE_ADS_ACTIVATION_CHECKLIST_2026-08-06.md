@@ -122,6 +122,20 @@ CRON_SECRET                    # any long random string; authenticates the sched
 `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are **already set** and are reused for the OAuth
 handshake — you will still need to authorise the Ads scope once against the Ads account.
 
+### Step 3b — Click "Connect Google Ads"
+`/admin/marketing/uploads` → **Connect**. Enter the 10-digit customer id, approve on Google's screen,
+done.
+
+> **Added 2026-08-06, and it was a blocker nobody had noticed.** `google_ads_connections` was read by
+> `getAccessToken()` and updated by the nightly cron, and **written by nothing** — no insert anywhere
+> in the repo. The row could only have been created by hand in Supabase, so even with all eight
+> variables set, uploads would have failed forever with `not-connected` while the page displayed help
+> text for that exact state and offered no way out of it.
+>
+> This is also the answer to *"can you set the credentials by automating a browser?"* — no, and now
+> nothing needs to. The refresh token is issued by Google straight to the server after you click
+> Allow. It is never displayed, never pasted, and never passes through anyone's clipboard.
+
 ### Step 4 — Accept the customer-data terms
 Required before enhanced conversions (the hashed email/phone path that credits leads arriving by
 phone or referral, where there is no `gclid`). Google Ads → **Admin → Account settings → Customer
