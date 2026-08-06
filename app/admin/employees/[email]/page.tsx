@@ -186,8 +186,10 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
               </div>
             )}
           </div>
+          {/* FIXED 2026-08-06 — this was `/admin/me?tab=profile`. `/admin/profile` was restored on
+              2026-08-04 and is where the profile form actually lives. */}
           {isSelf && (
-            <Link href="/admin/me?tab=profile" className="admin-btn admin-btn--secondary admin-btn--sm">
+            <Link href="/admin/profile" className="admin-btn admin-btn--secondary admin-btn--sm">
               Edit my profile
             </Link>
           )}

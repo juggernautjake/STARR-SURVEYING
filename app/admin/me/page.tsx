@@ -33,7 +33,7 @@ import './AdminMe.css';
 
 export default async function HubPage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
 
   const roles: UserRole[] = (session.user.roles ??
     (session.user.role ? [session.user.role] : [])) as UserRole[];

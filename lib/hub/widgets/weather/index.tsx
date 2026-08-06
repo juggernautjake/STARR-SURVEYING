@@ -14,14 +14,45 @@ import {
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 // weather-severity-2026-06-19 — per-day tooltip + severity badge.
 import { buildDayTooltip, computeDaySeverity } from '@/lib/weather/severity';
+// us-location-search-2026-08-06 — any US city or county, not just a ZIP.
+import LocationSearch from '@/lib/weather/components/LocationSearch';
+import type { LocationHit } from '@/lib/weather/location-search';
 
-export type WeatherLocation = 'auto' | 'manual' | 'active-job';
+// `search` added 2026-08-06 — owner: *"We have it set to central texas, but we need to have a
+// search function for locations in the US."* The three original modes could only ever resolve to a
+// ZIP or the Central-Texas default, so a county or an unincorporated work site was unreachable.
+export type WeatherLocation = 'auto' | 'manual' | 'active-job' | 'search';
+
+/** A place the user picked out of the search. Coordinates are stored, not re-geocoded: the search
+ *  already resolved them, and re-resolving a name on every render is how "Austin" becomes a
+ *  different Austin. */
+export interface WeatherPlace {
+  label: string;
+  latitude: number;
+  longitude: number;
+}
 
 export interface WeatherContent extends Record<string, unknown> {
   location: WeatherLocation;
   zip: string;
+  /** Set when `location === 'search'`. */
+  place?: WeatherPlace | null;
 }
-const DEFAULTS: WeatherContent = { location: 'auto', zip: '' };
+const DEFAULTS: WeatherContent = { location: 'auto', zip: '', place: null };
+
+/** Query string for the forecast endpoint given a widget's settings. Exported so the page and the
+ *  tests build the request the same way the widget does. */
+export function weatherQuery(settings: WeatherContent): string {
+  const params = new URLSearchParams({ location: settings.location });
+  if (settings.location === 'search' && settings.place) {
+    params.set('lat', String(settings.place.latitude));
+    params.set('lon', String(settings.place.longitude));
+    params.set('label', settings.place.label);
+  } else if (settings.zip) {
+    params.set('zip', settings.zip);
+  }
+  return params.toString();
+}
 
 interface WeatherDay {
   date: string;
@@ -64,24 +95,62 @@ interface WeatherSnapshot {
 const WIND_CHIP_THRESHOLD_MPH = 15;
 
 function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
-  const settings = { ...DEFAULTS, ...content };
+  const saved = { ...DEFAULTS, ...content };
   const bucket = sizeBucket(size.w, size.h);
   const [status, setStatus] = useState<'loading' | 'ok' | 'empty'>('loading');
   const [weather, setWeather] = useState<WeatherSnapshot | null>(null);
+  const [searching, setSearching] = useState(false);
 
+  // ── LOOK-UP vs SETTING ────────────────────────────────────────────────────────────────────────
+  //
+  // The inline search sets a temporary override, not the widget's saved location. That is a
+  // deliberate split, not a shortcut:
+  //
+  //   · "What's it doing in Lubbock right now?" is a question you ask once, about somebody else's
+  //     job site. Rewriting the dashboard every time you ask it is the wrong trade.
+  //   · Widget content is persisted through the edit-mode DRAFT (`patchWidgetCustomization` +
+  //     `saveDraft` both no-op unless `isEditMode`). Writing content from outside that flow would
+  //     need a second save path to the same layout row, which could overwrite a draft the user is
+  //     part-way through composing on another widget.
+  //
+  // So the override is session-scoped and says so, and the Settings panel — which already runs
+  // through the draft correctly — is where the default gets changed. The banner below makes the
+  // difference visible rather than leaving the user to discover it on reload.
+  const [override, setOverride] = useState<WeatherPlace | null>(null);
+
+  const effective: WeatherContent = override
+    ? { ...saved, location: 'search', place: override }
+    : saved;
+
+  const query = weatherQuery(effective);
   const fetchWeather = useCallback(async () => {
     setStatus('loading');
     try {
-      const params = new URLSearchParams({ location: settings.location });
-      if (settings.zip) params.set('zip', settings.zip);
-      const res = await fetch(`/api/admin/weather?${params}`);
+      const res = await fetch(`/api/admin/weather?${query}`);
       if (!res.ok) { setStatus('empty'); return; }
       const data: WeatherSnapshot = await res.json();
       setWeather(data);
       setStatus('ok');
     } catch { setStatus('empty'); }
-  }, [settings.location, settings.zip]);
+  }, [query]);
   useEffect(() => { fetchWeather(); }, [fetchWeather]);
+
+  const pickPlace = useCallback((hit: LocationHit) => {
+    setOverride({ label: hit.label, latitude: hit.latitude, longitude: hit.longitude });
+    setSearching(false);
+  }, []);
+
+  // No room for a search box in a 1×1 temperature chip; every larger size gets one.
+  const canSearch = bucket !== 'tiny';
+
+  /** Suffix carrying this widget's place onto the day links, so the page opens where the widget is
+   *  looking. Empty for `auto` / `active-job`, which have no coordinates of their own. */
+  const place = effective.location === 'search' ? effective.place : null;
+  const dayLinkLocation = place
+    ? `&lat=${place.latitude}&lon=${place.longitude}&label=${encodeURIComponent(place.label)}`
+    : effective.zip
+      ? `&zip=${encodeURIComponent(effective.zip)}`
+      : '';
 
   if (status === 'loading') return <WidgetSkeleton rows={2} />;
   if (status === 'empty' || !weather) {
@@ -136,7 +205,43 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
         <span style={statNumberStyle(bucket)}>{Math.round(weather.temperature_f)}°</span>
       </span>
       <span style={{ fontSize: 'var(--hub-font-sm, 0.875rem)', color: 'var(--theme-fg-secondary)' }}>{weather.description}</span>
-      <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>{weather.location_label} · H {Math.round(weather.high_f)}° / L {Math.round(weather.low_f)}°</span>
+
+      {/* Location row — the label, and the control that changes it. */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
+        <span>{weather.location_label} · H {Math.round(weather.high_f)}° / L {Math.round(weather.low_f)}°</span>
+        {canSearch && (
+          <button
+            type="button"
+            data-testid="weather-change-location"
+            onClick={() => setSearching((s) => !s)}
+            aria-expanded={searching}
+            title="Look up another US city or county"
+            className="wx-chip"
+          >
+            <span aria-hidden>📍</span> Change
+          </button>
+        )}
+        {override && (
+          <button
+            type="button"
+            data-testid="weather-reset-location"
+            onClick={() => setOverride(null)}
+            // Says "temporarily" because it IS temporary — see the override comment above. A user
+            // who wants this to stick needs the Settings panel, and should not have to reload to
+            // find that out.
+            title="Showing a temporary look-up. Click to go back to this widget's saved location; set a permanent one in the widget's settings."
+            className="wx-chip"
+          >
+            ↩ Temporary — reset
+          </button>
+        )}
+      </span>
+
+      {searching && (
+        <div style={{ marginTop: 2 }}>
+          <LocationSearch compact autoFocus onSelect={pickPlace} onDismiss={() => setSearching(false)} />
+        </div>
+      )}
       {showExtras && (
         <ul
           data-testid="weather-extras-strip"
@@ -233,7 +338,10 @@ function WeatherWidget({ size, content }: WidgetProps<WeatherContent>) {
                 data-severity={severity?.kind ?? ''}
                 style={{ listStyle: 'none' }}
               ><Link
-                href={`/admin/weather?date=${d.date}`}
+                /* The location travels with the click. Without it, clicking Thursday on a widget
+                   showing Lubbock opened the Lubbock forecast's date on the Central-Texas page —
+                   the same "link that lands somewhere plausible but wrong" shape as the ?tab= bug. */
+                href={`/admin/weather?date=${d.date}${dayLinkLocation}`}
                 title={tooltip}
                 aria-label={tooltip}
                 tabIndex={0}
@@ -304,16 +412,60 @@ function WeatherSettings({ value, onChange }: WidgetSettingsFormProps<WeatherCon
       <label>
         <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>Location</span>
         <select value={settings.location} onChange={(e) => onChange({ ...settings, location: e.target.value as WeatherLocation })}>
+          {/* "Search" first, and the default for anyone choosing deliberately: it is the only option
+              that can reach a county, an unincorporated site, or anywhere without a ZIP. */}
+          <option value="search">Search a US city or county</option>
           <option value="auto">Auto-detect</option>
           <option value="manual">Manual ZIP</option>
           <option value="active-job">Active job site</option>
         </select>
       </label>
+
+      {settings.location === 'search' && (
+        <div>
+          <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>Place</span>
+          {settings.place && (
+            <p
+              data-testid="weather-settings-current-place"
+              className="wx-note"
+            >
+              Currently: <strong>{settings.place.label}</strong>
+            </p>
+          )}
+          <LocationSearch
+            compact
+            placeholder={settings.place ? 'Search for a different place…' : 'Try “Flagstaff”, “Orleans Parish”, or a ZIP…'}
+            onSelect={(hit: LocationHit) =>
+              onChange({
+                ...settings,
+                location: 'search',
+                place: { label: hit.label, latitude: hit.latitude, longitude: hit.longitude },
+              })
+            }
+          />
+          <p className="wx-hint">
+            Counties come from the US Census; cities, towns and ZIPs from the forecast provider.
+          </p>
+        </div>
+      )}
+
       {settings.location === 'manual' && (
         <label>
           <span style={{ display: 'block', fontSize: '0.875rem', fontWeight: 600, marginBottom: 4 }}>ZIP</span>
           <input type="text" value={settings.zip} placeholder="78701" onChange={(e) => onChange({ ...settings, zip: e.target.value })} />
         </label>
+      )}
+
+      {(settings.location === 'auto' || settings.location === 'active-job') && (
+        // Honesty about what these two actually do. Neither is wired to a device location or to the
+        // job the user is on; both resolve to the Central-Texas default, which is precisely the
+        // "we have it set to central texas" the owner reported. Saying so in the panel beats letting
+        // somebody pick "Auto-detect" and wonder why the forecast never follows them.
+        <p className="wx-hint wx-hint--flush">
+          These fall back to the firm&rsquo;s default area (Central Texas) until device location and
+          job-site coordinates are wired up. To pin this widget somewhere specific, choose
+          <strong> Search a US city or county</strong>.
+        </p>
       )}
     </div>
   );

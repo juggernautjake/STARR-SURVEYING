@@ -16,7 +16,7 @@ const TABS = [
 
 export default async function AdminWorkModePage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
   const roles = session.user.roles ?? [];
   if (!roles.some((r) => ['admin', 'developer'].includes(r))) {
     redirect('/admin/me');

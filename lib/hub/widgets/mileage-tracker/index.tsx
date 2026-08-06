@@ -154,8 +154,12 @@ function MileageTrackerWidget({ size, content }: WidgetProps<MileageTrackerConte
           <span style={{ fontSize: 'var(--hub-font-xs, 0.7rem)', color: 'var(--theme-fg-muted, var(--theme-fg-secondary))' }}>
             IRS standard rate ${IRS_BUSINESS_RATE_USD.toFixed(2)}/mi
           </span>
+          {/* FIXED 2026-08-06 — was `/admin/me?tab=mileage`. The Hub reads no `tab` parameter, and
+              `mileage` was never even one of the five tabs `LegacyTabNotice` explains, so "Log a
+              trip →" silently reloaded the Hub. `/admin/mileage` is the real page and is what the
+              rail and this widget's own `WIDGET_LINKS` entry already point at. */}
           <Link
-            href="/admin/me?tab=mileage"
+            href="/admin/mileage"
             style={ctaStyle}
             data-testid="mileage-tracker-cta"
           >

@@ -333,7 +333,21 @@ export default function SurveyCalculator() {
         formatFormDataForEmail(currentSurveyType, formValues, result, rushJob)
       );
       window.location.href = `mailto:info@starrsurveying.com?subject=${mailtoSubject}&body=${mailtoBody}`;
-      trackConversion();
+      // NO `trackConversion()` HERE — removed 2026-08-06.
+      //
+      // This is the branch where the POST **failed**. Nothing reached the server, so there is no lead
+      // row, no reference number and no `gclid` stored anywhere. Firing a conversion here reported a
+      // lead to Google that the business has no record of, and it was unfixable downstream in a way
+      // the other call sites are not:
+      //
+      //   · It could carry no `transaction_id`, so it could not be deduped.
+      //   · It could never be matched by the offline pipeline, which keys on the stored `gclid` —
+      //     so it could never be restated, corrected, or valued when the job actually closed.
+      //   · Opening a mail client is not sending an email. The visitor may well have closed it.
+      //
+      // A conversion Smart Bidding trains on that never became a lead is worse than a missing one:
+      // it teaches the algorithm to buy more clicks like the one that failed. The mailto fallback is
+      // still offered — the user can still reach us — it simply is not counted until it arrives.
       setSubmitSuccess(true);
     } finally {
       setIsSubmitting(false);

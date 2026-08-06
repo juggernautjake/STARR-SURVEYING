@@ -32,16 +32,44 @@ async function fetchJson(url: string): Promise<unknown | null> {
   }
 }
 
-/** Resolve the request's coordinates: a manual ZIP geocodes via
- *  Open-Meteo; everything else uses the Central-Texas default. */
-async function resolveLocation(zip: string): Promise<GeoPoint> {
-  const trimmed = zip.trim();
-  if (!trimmed) return DEFAULT_LOCATION;
+/** Resolve the request's coordinates.
+ *
+ *  ── PRECEDENCE, AND WHY COORDINATES COME FIRST (2026-08-06) ───────────────────────────────────
+ *
+ *  Owner: *"we need to be able to see the weather in any county or city in the USA."*
+ *
+ *  This used to take a ZIP and nothing else, so anywhere without one — a county, an unincorporated
+ *  work site — was unreachable, and the answer to every such request was Central Texas. The search
+ *  UI resolves a place to a point BEFORE calling here (see /api/admin/weather/locations), so the
+ *  caller already knows the exact coordinates and the name the user picked. Passing those through
+ *  is both more precise and one fewer round trip.
+ *
+ *  `zip=` still works: saved widget layouts and bookmarked `/admin/weather?zip=` URLs predate the
+ *  search and must keep resolving. Its geocode is fixed too — see the `countryCode` note below. */
+async function resolveLocation(params: URLSearchParams): Promise<GeoPoint> {
+  const lat = Number(params.get('lat'));
+  const lon = Number(params.get('lon'));
+  if (
+    Number.isFinite(lat) && Number.isFinite(lon) &&
+    Math.abs(lat) <= 90 && Math.abs(lon) <= 180 &&
+    // (0,0) is the Gulf of Guinea and is what an empty form posts. Treat it as "unset" rather than
+    // forecasting for open ocean.
+    !(lat === 0 && lon === 0)
+  ) {
+    const label = (params.get('label') ?? '').trim();
+    return { latitude: lat, longitude: lon, label: label || `${lat.toFixed(2)}, ${lon.toFixed(2)}` };
+  }
+
+  const zip = (params.get('zip') ?? '').trim();
+  if (!zip) return DEFAULT_LOCATION;
+  // `countryCode`, NOT `country` — the old `&country=US` here was not a real parameter and was
+  // silently ignored, so `zip=78701` could resolve to Conflans-Sainte-Honorine, France (measured
+  // 2026-08-06). `firstGeoPoint` now also drops non-US hits.
   const geo = await fetchJson(
-    `${GEOCODE_URL}?name=${encodeURIComponent(trimmed)}&count=1&country=US`,
+    `${GEOCODE_URL}?name=${encodeURIComponent(zip)}&count=5&countryCode=US`,
   );
   if (!geo) return DEFAULT_LOCATION;
-  return firstGeoPoint(geo as OpenMeteoGeocode, trimmed) ?? DEFAULT_LOCATION;
+  return firstGeoPoint(geo as OpenMeteoGeocode, zip) ?? DEFAULT_LOCATION;
 }
 
 export const GET = withErrorHandler(async (req: Request) => {
@@ -51,9 +79,7 @@ export const GET = withErrorHandler(async (req: Request) => {
   }
 
   const { searchParams } = new URL(req.url);
-  const zip = searchParams.get('zip') ?? '';
-
-  const point = await resolveLocation(zip);
+  const point = await resolveLocation(searchParams);
   // Slice W5 — request 5 days of daily data + the daily
   // weather_code so the widget's big-size mode can render a
   // forecast strip. The snapshot mapper picks up the daily

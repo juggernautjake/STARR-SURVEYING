@@ -363,7 +363,10 @@ export default function Fieldbook() {
             </div>
             <div className="fb__topbar-right">
               {saving && <span className="fb__saving">Saving...</span>}
-              <Link href="/admin/me?tab=notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page"><ArrowUpRight size={15} strokeWidth={2} /></Link>
+              {/* FIXED 2026-08-06 — was `/admin/me?tab=notes`. The "expand to the full page" arrow
+                  is the one control here that must land on a real page; it was closing the drawer
+                  and reloading the Hub. `/admin/my-notes` was restored 2026-08-04. */}
+              <Link href="/admin/my-notes" className="fb__expand" onClick={() => setIsOpen(false)} title="My Notes page"><ArrowUpRight size={15} strokeWidth={2} /></Link>
               <button className="fb__close" onClick={() => { saveEntry(false); setIsOpen(false); }}><X size={15} strokeWidth={2.5} /></button>
             </div>
           </div>

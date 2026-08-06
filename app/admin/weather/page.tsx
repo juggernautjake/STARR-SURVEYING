@@ -18,9 +18,11 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { buildDayTooltip, computeDaySeverity, type WeatherSeverity } from '@/lib/weather/severity';
+import LocationSearch from '@/lib/weather/components/LocationSearch';
+import type { LocationHit } from '@/lib/weather/location-search';
 
 interface WeatherDay {
   date: string;
@@ -51,23 +53,75 @@ interface WeatherSnapshot {
   wind_mph?: number | null;
 }
 
+/** Places the user looked at recently, newest first. Kept in the browser rather than the database:
+ *  it is a convenience, it is per-device, and it must not become another thing to migrate. */
+const RECENTS_KEY = 'weather-recent-locations';
+const MAX_RECENTS = 6;
+
+interface RecentPlace { label: string; latitude: number; longitude: number }
+
+function readRecents(): RecentPlace[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]') as RecentPlace[];
+    return Array.isArray(raw) ? raw.filter((r) => r && typeof r.label === 'string').slice(0, MAX_RECENTS) : [];
+  } catch { return []; }
+}
+
 export default function WeatherPage(): React.ReactElement {
   const { data: session, status } = useSession();
+  const router = useRouter();
   const search = useSearchParams();
   const focusDate = search.get('date') ?? '';
   const zip = search.get('zip') ?? '';
+  // us-location-search-2026-08-06 — the page took `?zip=` and nothing else, so a county or an
+  // unincorporated work site could not be viewed at all and everything without a ZIP fell back to
+  // Central Texas. Coordinates in the URL make any US place both reachable AND shareable: paste the
+  // link to a colleague and they see the same forecast.
+  const lat = search.get('lat') ?? '';
+  const lon = search.get('lon') ?? '';
+  const label = search.get('label') ?? '';
 
   const [snapshot, setSnapshot] = useState<WeatherSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [recents, setRecents] = useState<RecentPlace[]>([]);
+
+  useEffect(() => { setRecents(readRecents()); }, []);
+
+  /** Navigate to a place. Pushing to the URL rather than holding it in state keeps back/forward
+   *  working and makes the address bar the single source of truth for what is on screen. */
+  const goToPlace = useCallback((place: RecentPlace) => {
+    const next = readRecents().filter(
+      (r) => !(Math.abs(r.latitude - place.latitude) < 1e-4 && Math.abs(r.longitude - place.longitude) < 1e-4),
+    );
+    const updated = [place, ...next].slice(0, MAX_RECENTS);
+    try { localStorage.setItem(RECENTS_KEY, JSON.stringify(updated)); } catch { /* private mode */ }
+    setRecents(updated);
+
+    const params = new URLSearchParams();
+    params.set('lat', String(place.latitude));
+    params.set('lon', String(place.longitude));
+    params.set('label', place.label);
+    // Keep the day the user was looking at, so changing location does not also reset the view.
+    if (focusDate) params.set('date', focusDate);
+    router.push(`/admin/weather?${params}`);
+  }, [router, focusDate]);
 
   const fetchWeather = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
-      params.set('location', zip ? 'manual' : 'auto');
-      if (zip) params.set('zip', zip);
+      const hasCoords = lat !== '' && lon !== '';
+      params.set('location', hasCoords ? 'search' : zip ? 'manual' : 'auto');
+      if (hasCoords) {
+        params.set('lat', lat);
+        params.set('lon', lon);
+        if (label) params.set('label', label);
+      } else if (zip) {
+        params.set('zip', zip);
+      }
       const res = await fetch(`/api/admin/weather?${params}`);
       if (res.status === 204) { setSnapshot(null); return; }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -77,7 +131,7 @@ export default function WeatherPage(): React.ReactElement {
     } finally {
       setLoading(false);
     }
-  }, [zip]);
+  }, [zip, lat, lon, label]);
 
   useEffect(() => {
     if (status === 'authenticated') void fetchWeather();
@@ -131,6 +185,48 @@ export default function WeatherPage(): React.ReactElement {
           <p style={styles.subtitle}>{snapshot.location_label}</p>
         )}
       </header>
+
+      {/* ── Location search ─────────────────────────────────────────────
+          Above the forecast, because "somewhere else" is the question this page could not answer
+          until now: it read `?zip=` alone, so every county and every place without a ZIP resolved
+          to the firm's Central-Texas default. */}
+      <section style={styles.searchBar} data-testid="weather-page-search">
+        <LocationSearch
+          placeholder="Search any US city, county or ZIP — “Flagstaff”, “Orleans Parish”, “78701”…"
+          onSelect={(hit: LocationHit) =>
+            goToPlace({ label: hit.label, latitude: hit.latitude, longitude: hit.longitude })
+          }
+        />
+        {recents.length > 0 && (
+          <div style={styles.recents}>
+            <span style={styles.recentsLabel}>Recent</span>
+            {recents.map((r) => {
+              const isCurrent =
+                lat !== '' && Math.abs(Number(lat) - r.latitude) < 1e-4 &&
+                Math.abs(Number(lon) - r.longitude) < 1e-4;
+              return (
+                <button
+                  key={`${r.latitude},${r.longitude}`}
+                  type="button"
+                  onClick={() => goToPlace(r)}
+                  aria-current={isCurrent ? 'true' : undefined}
+                  style={{
+                    ...styles.recentChip,
+                    ...(isCurrent ? styles.recentChipActive : null),
+                  }}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {!lat && !zip && (
+          <p style={styles.searchHint}>
+            Showing the firm&rsquo;s default area. Search above to see the forecast anywhere in the US.
+          </p>
+        )}
+      </section>
 
       {error && <div style={styles.errorBanner} role="alert">{error}</div>}
 
@@ -357,6 +453,19 @@ const styles: Record<string, React.CSSProperties> = {
   h2: { fontFamily: 'Sora, sans-serif', fontSize: '1.05rem', margin: '1.25rem 0 0.6rem', fontWeight: 600 },
   subtitle: { color: '#6B7280', margin: 0, fontSize: '0.92rem' },
   muted: { color: '#6B7280', fontSize: '0.9rem' },
+  searchBar: { margin: '0 0 1.25rem', maxWidth: 560 },
+  searchHint: { margin: '0.5rem 0 0', color: '#6B7280', fontSize: '0.8rem' },
+  recents: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: '0.6rem' },
+  recentsLabel: {
+    fontSize: '0.68rem', fontWeight: 700, letterSpacing: '.08em',
+    textTransform: 'uppercase', color: '#9CA3AF', marginRight: 2,
+  },
+  recentChip: {
+    padding: '3px 10px', borderRadius: 999, cursor: 'pointer',
+    border: '1px solid #E5E7EB', background: '#fff', color: '#374151',
+    font: 'inherit', fontSize: '0.78rem',
+  },
+  recentChipActive: { borderColor: '#2563EB', background: '#EFF6FF', color: '#1D4ED8', fontWeight: 600 },
   errorBanner: {
     background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B',
     padding: '0.75rem 1rem', borderRadius: 8, margin: '0 0 1rem', fontSize: '0.88rem',

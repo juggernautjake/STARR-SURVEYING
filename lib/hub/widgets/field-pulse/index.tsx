@@ -226,7 +226,12 @@ function VehiclesTile({ rows, showList, showOpenLink }: {
 }) {
   return (
     <section style={tileStyle}>
-      <Header label="Vehicles" href="/admin/equipment/vehicles" showOpenLink={showOpenLink} />
+      {/* FIXED 2026-08-06 — was `/admin/equipment/vehicles`, which is not a page. It did not 404
+          either, which is why it survived: it matches `/admin/equipment/[id]`, so the link rendered
+          the equipment-detail page for an item whose id is the literal string "vehicles" — a
+          not-found record inside a real page. The fleet roster is `/admin/vehicles`, which is what
+          the `vehicles-status` entry in `WIDGET_LINKS` already uses. */}
+      <Header label="Vehicles" href="/admin/vehicles" showOpenLink={showOpenLink} />
       <Stat value={rows.length} unit={rows.length === 1 ? 'active' : 'active'} accent="primary" />
       {showList && rows.length > 0 && (
         <ul style={listStyle}>

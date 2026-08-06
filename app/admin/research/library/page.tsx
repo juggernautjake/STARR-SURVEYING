@@ -84,7 +84,7 @@ export default function GlobalLibraryPage() {
   const PAGE_SIZE = 25;
 
   useEffect(() => {
-    if (sessionStatus === 'unauthenticated') router.push('/auth/signin');
+    if (sessionStatus === 'unauthenticated') router.push('/admin/login');
   }, [sessionStatus, router]);
 
   const loadLibrary = useCallback(async () => {

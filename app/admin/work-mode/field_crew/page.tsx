@@ -11,7 +11,7 @@ import FieldCrewWorkspace from './_components/FieldCrewWorkspace';
 
 export default async function FieldCrewWorkModePage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
 
   const roles = session.user.roles ?? [];
   const allowed = roles.some((r) => ['admin', 'developer', 'field_crew', 'tech_support'].includes(r));

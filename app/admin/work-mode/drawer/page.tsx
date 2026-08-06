@@ -12,7 +12,7 @@ import DrawerWorkspace from './_components/DrawerWorkspace';
 
 export default async function DrawerWorkModePage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
   const roles = session.user.roles ?? [];
   if (!roles.some((r) => ['admin', 'developer', 'drawer', 'tech_support'].includes(r))) {
     redirect('/admin/me');

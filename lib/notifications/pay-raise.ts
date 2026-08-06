@@ -64,7 +64,7 @@ export function buildPayRaiseNotification(
     title,
     body,
     icon,
-    link: '/admin/me?tab=pay',
+    link: '/admin/my-pay',
     source_type: 'pay_raise',
   };
 }

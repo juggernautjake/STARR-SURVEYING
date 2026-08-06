@@ -14,7 +14,7 @@ import WorkModeTopBar from './_components/WorkModeTopBar';
 
 export default async function WorkModeLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
 
   // Eligibility gate — students / teachers can't enter work mode.
   if (!isWorkModeEligible(session.user.roles)) {

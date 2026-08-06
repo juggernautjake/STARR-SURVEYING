@@ -38,7 +38,9 @@ const ACTIONS: AdminRoute[] = [
   // (W7) lands.
   { href: '/admin/cad',            label: 'Run AI Drawing Engine', workspace: 'research-cad', iconName: 'Sparkles',  description: 'Open the CAD editor + start the AI engine.', keywords: ['ai', 'engine', 'auto', 'draw'], isAction: true, internalOnly: true },
   { href: '/admin/research?new=1', label: 'Start research',    workspace: 'research-cad', iconName: 'Microscope',    description: 'Create a new AI property research project.', keywords: ['research', 'new', 'create', 'start', 'property', 'recon', 'analyze'], isAction: true, roles: ['admin', 'developer', 'researcher', 'drawer', 'field_crew', 'tech_support'], internalOnly: true },
-  { href: '/admin/me?tab=hours',   label: 'Clock in / out',    workspace: 'hub',          iconName: 'Clock',         description: 'Open your timesheet to clock in or out.', keywords: ['clock', 'time', 'shift'],   isAction: true, roles: ['admin', 'developer', 'field_crew', 'tech_support'], internalOnly: true },
+  // FIXED 2026-08-06 — was `/admin/me?tab=hours`. ⌘K's most-used action opened the Hub instead of
+  // the timesheet, so "Clock in / out" could not clock you in or out.
+  { href: '/admin/my-hours',       label: 'Clock in / out',    workspace: 'hub',          iconName: 'Clock',         description: 'Open your timesheet to clock in or out.', keywords: ['clock', 'time', 'shift'],   isAction: true, roles: ['admin', 'developer', 'field_crew', 'tech_support'], internalOnly: true },
 ];
 
 interface PaletteRow {

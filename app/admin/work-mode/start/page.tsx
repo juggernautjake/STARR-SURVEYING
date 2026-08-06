@@ -14,7 +14,7 @@ import RolePicker from '../_components/RolePicker';
 
 export default async function WorkModeStartPage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
 
   const eligible = eligibleWorkModeRoles(session.user.roles ?? []);
   if (eligible.length === 0) redirect('/admin/me');

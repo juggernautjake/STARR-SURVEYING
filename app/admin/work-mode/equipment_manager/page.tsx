@@ -14,7 +14,7 @@ const TABS = [
 
 export default async function EquipmentManagerWorkModePage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
   const roles = session.user.roles ?? [];
   if (!roles.some((r) => ['admin', 'developer', 'equipment_manager', 'tech_support'].includes(r))) {
     redirect('/admin/me');

@@ -1,4 +1,17 @@
 'use client';
+// ⚠ THIS COMPONENT IS NOT RENDERED ANYWHERE (measured 2026-08-06).
+//
+// Grepped for `<ContactForm`: no call sites. `/contact` and the home page each build their own form
+// inline, and the pricing calculator has a third. This file has nonetheless been kept in step with
+// them across at least three commits — required street/city, the honeypot fields, attribution
+// capture — which is the tell that people believe it is live.
+//
+// Left in place rather than deleted because that is the owner's call, not a side effect of an ads
+// audit. But the conversion call below is now correct either way, so wiring it up cannot reintroduce
+// the double-count that was removed on 2026-07-31.
+//
+// DECIDE: render it on /contact and delete the two inline copies, or delete this file. A fourth
+// intake form that nobody can reach is a maintenance cost with no user.
 
 import type { ContactFormData, ContactFormState } from '../../types';
 import { useState, FormEvent, ChangeEvent } from 'react';
@@ -77,8 +90,14 @@ const ContactForm = (): React.ReactElement => {
       });
 
       if (response.ok) {
-        // Track Google Ads conversion on successful form submission
-        trackConversion();
+        // Track the Google Ads conversion, keyed to the submission's reference number.
+        //
+        // The `ref` argument is not optional in spirit: without a `transaction_id` Google counts a
+        // repeated send as a second conversion, so a double-submit or a back/forward-cache restore
+        // inflates the lead count Smart Bidding is trained on. The other three intake surfaces all
+        // pass it; this one did not, and would have started double-counting the day it was wired up.
+        const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
+        trackConversion(ref);
 
         setState(prev => ({ ...prev, submitted: true }));
         setFormData({

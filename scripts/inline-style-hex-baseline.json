@@ -248,7 +248,7 @@
   "app/platform/components/PlatformLayoutClient.tsx": 8,
   "app/platform/customers/[orgId]/page.tsx": 7,
   "app/platform/customers/page.tsx": 2,
-  "app/platform/page.tsx": 5,
+  "app/platform/page.tsx": 4,
   "app/platform/releases/[id]/page.tsx": 4,
   "app/platform/releases/page.tsx": 5,
   "app/platform/support/page.tsx": 3,

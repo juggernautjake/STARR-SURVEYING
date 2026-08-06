@@ -191,7 +191,7 @@ export default function NewEmailPage() {
 
   if (status === 'loading') return null;
   if (!session?.user) {
-    if (typeof window !== 'undefined') router.replace('/login');
+    if (typeof window !== 'undefined') router.replace('/admin/login');
     return null;
   }
 

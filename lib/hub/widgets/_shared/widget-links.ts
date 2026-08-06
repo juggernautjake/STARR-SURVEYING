@@ -39,11 +39,16 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // modes (job-events + recent-pages) center on that hub area.
   'activity': { href: '/admin/timeline', label: 'the timeline' },
   // time-pay
-  // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-pay`
-  // + `/admin/my-hours` pages were deleted; widget footers now route
-  // straight to the canonical hub tabs.
-  'my-pay': { href: '/admin/me?tab=pay', label: 'my pay' },
-  'hours-this-week': { href: '/admin/me?tab=hours', label: 'my hours' },
+  // FIXED 2026-08-06 — owner: *"there are links like 'Go to my hours →' that don't actually link to
+  // the pages they need to link to."* These two pointed at `/admin/me?tab=pay` / `?tab=hours`.
+  //
+  // Consolidation Slice 2 deleted the `/admin/my-pay` + `/admin/my-hours` pages and sent everything
+  // to "the canonical hub tabs" — then Slice 189 retired the Hub's tab bar, so the Hub reads only
+  // `edit` and `debug` and the parameter has meant nothing since. Both pages were RESTORED on
+  // 2026-08-04 when the nav entries were fixed, but these widget footers were never updated, so
+  // "Go to my hours →" kept dropping the user on the widget canvas they were already looking at.
+  'my-pay': { href: '/admin/my-pay', label: 'my pay' },
+  'hours-this-week': { href: '/admin/my-hours', label: 'my hours' },
   'pto-balance': { href: '/admin/time-off', label: 'time off' },
   // financial
   'monthly-revenue': { href: '/admin/finances', label: 'finances' },

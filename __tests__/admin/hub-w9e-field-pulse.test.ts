@@ -85,7 +85,12 @@ describe('field-pulse widget registration + render (W9e)', () => {
 
   it('per-tile "Open →" links route to team / vehicles / equipment / consumables', () => {
     expect(SRC).toMatch(/href="\/admin\/team"/);
-    expect(SRC).toMatch(/href="\/admin\/equipment\/vehicles"/);
+    // `/admin/vehicles`, not `/admin/equipment/vehicles` — the latter is not a page. It never 404'd,
+    // which is why this assertion passed for months: it matches `/admin/equipment/[id]`, so the tile
+    // opened the equipment-detail page for an item whose id is the literal word "vehicles".
+    // Fixed 2026-08-06; `widget-and-page-links-resolve.test.ts` now fails on that shape repo-wide.
+    expect(SRC).toMatch(/href="\/admin\/vehicles"/);
+    expect(SRC).not.toMatch(/href="\/admin\/equipment\/vehicles"/);
     expect(SRC).toMatch(/href="\/admin\/equipment"/);
     expect(SRC).toMatch(/href="\/admin\/equipment\/consumables"/);
   });

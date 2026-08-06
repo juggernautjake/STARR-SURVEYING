@@ -17,7 +17,7 @@ function redirectUri(req: NextRequest): string {
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
-  if (!session?.user?.email) return NextResponse.redirect(new URL('/login', req.url));
+  if (!session?.user?.email) return NextResponse.redirect(new URL('/admin/login', req.url));
 
   const code = req.nextUrl.searchParams.get('code');
   const stateParam = req.nextUrl.searchParams.get('state') ?? '';

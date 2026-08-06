@@ -7,8 +7,9 @@
 // is impossible to exercise against the live service without a token.
 import { describe, it, expect } from 'vitest';
 import {
-  ADS_API_VERSION, CREDENTIAL_HELP, NEW_ACTION_WARMUP_HOURS,
-  credentialProblem, isActionWarm, parseUploadResponse, payloadHash, type ClickConversion,
+  ADS_API_VERSION, CONVERSION_ACTION_ENV, CREDENTIAL_HELP, NEW_ACTION_WARMUP_HOURS,
+  conversionActionStatus, credentialProblem, isActionWarm, parseUploadResponse, payloadHash,
+  type ClickConversion,
 } from '@/lib/integrations/google-ads/client';
 
 const conversion = (over: Partial<ClickConversion> = {}): ClickConversion => ({
@@ -88,21 +89,68 @@ describe('parseUploadResponse — a 200 is not success', () => {
 });
 
 describe('credentials — say WHICH piece is missing', () => {
-  it('names the missing developer token first', () => {
-    const before = { dev: process.env.GOOGLE_ADS_DEVELOPER_TOKEN, cust: process.env.GOOGLE_ADS_CUSTOMER_ID };
-    delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN;
-    delete process.env.GOOGLE_ADS_CUSTOMER_ID;
-    expect(credentialProblem()).toBe('missing-developer-token');
+  /** Env is process-global; a leaked variable changes a later test file's answers. */
+  const ENV_KEYS = [
+    'GOOGLE_ADS_DEVELOPER_TOKEN', 'GOOGLE_ADS_CUSTOMER_ID',
+    'GOOGLE_ADS_RESOURCE_INQUIRY', 'GOOGLE_ADS_RESOURCE_QUOTED',
+    'GOOGLE_ADS_RESOURCE_JOB_WON', 'GOOGLE_ADS_RESOURCE_JOB_PAID',
+  ];
+  function withCleanEnv(fn: () => void) {
+    const before: Record<string, string | undefined> = {};
+    for (const k of ENV_KEYS) { before[k] = process.env[k]; delete process.env[k]; }
+    try { fn(); } finally {
+      for (const k of ENV_KEYS) {
+        if (before[k] === undefined) delete process.env[k];
+        else process.env[k] = before[k];
+      }
+    }
+  }
 
-    process.env.GOOGLE_ADS_DEVELOPER_TOKEN = 'test-token';
-    expect(credentialProblem()).toBe('missing-customer-id');
+  it('names each missing piece in the order it has to be fixed', () => {
+    withCleanEnv(() => {
+      expect(credentialProblem()).toBe('missing-developer-token');
 
-    process.env.GOOGLE_ADS_CUSTOMER_ID = '1234567890';
-    expect(credentialProblem()).toBeNull();
+      process.env.GOOGLE_ADS_DEVELOPER_TOKEN = 'test-token';
+      expect(credentialProblem()).toBe('missing-customer-id');
 
-    // Restore, because env is process-global and a later test file would inherit it.
-    if (before.dev === undefined) delete process.env.GOOGLE_ADS_DEVELOPER_TOKEN; else process.env.GOOGLE_ADS_DEVELOPER_TOKEN = before.dev;
-    if (before.cust === undefined) delete process.env.GOOGLE_ADS_CUSTOMER_ID; else process.env.GOOGLE_ADS_CUSTOMER_ID = before.cust;
+      // 2026-08-06 — this used to return null here, and that was the bug. With the token and the
+      // customer id set the admin screen said "connected" and the nightly job reported success,
+      // while `selectConversions` skipped EVERY event for want of a conversion action. An upload
+      // job whose entire output is skips must not look healthy.
+      process.env.GOOGLE_ADS_CUSTOMER_ID = '1234567890';
+      expect(credentialProblem()).toBe('missing-conversion-actions');
+
+      process.env.GOOGLE_ADS_RESOURCE_INQUIRY = 'customers/1234567890/conversionActions/1';
+      expect(credentialProblem()).toBeNull();
+    });
+  });
+
+  it('reports partial conversion-action config rather than treating it as fine', () => {
+    // The dangerous middle state: one action configured, three not. Nothing errors, the job
+    // succeeds, and Google is told about leads but never told any of them got paid — so
+    // value-based bidding is trained on the cheapest milestone only.
+    withCleanEnv(() => {
+      process.env.GOOGLE_ADS_RESOURCE_INQUIRY = 'customers/1/conversionActions/1';
+      process.env.GOOGLE_ADS_RESOURCE_JOB_PAID = 'customers/1/conversionActions/4';
+
+      const status = conversionActionStatus();
+      expect(status.configured).toEqual(['inquiry_received', 'payment_received']);
+      expect(status.missing).toEqual(['quoted', 'job_created']);
+    });
+  });
+
+  it('every milestone the cron can upload has a variable naming its action', () => {
+    // The mapping in the cron route and the check here must cover the same milestones. One added to
+    // the route and not to `CONVERSION_ACTION_ENV` is a milestone that silently never uploads and
+    // never appears as missing either.
+    expect(Object.keys(CONVERSION_ACTION_ENV).sort()).toEqual(
+      ['inquiry_received', 'job_created', 'payment_received', 'quoted'],
+    );
+  });
+
+  it('the new problem has help text that names what to do', () => {
+    expect(CREDENTIAL_HELP['missing-conversion-actions']).toMatch(/GOOGLE_ADS_RESOURCE_INQUIRY/);
+    expect(CREDENTIAL_HELP['missing-conversion-actions']).toMatch(/resource/i);
   });
 
   it('has actionable help for every problem, not just a code', () => {

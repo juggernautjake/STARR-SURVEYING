@@ -18,7 +18,7 @@ const TABS = [
 
 export default async function BookkeeperWorkModePage() {
   const session = await auth();
-  if (!session?.user?.email) redirect('/login');
+  if (!session?.user?.email) redirect('/admin/login');
   const roles = session.user.roles ?? [];
   if (!roles.some((r) => ['admin', 'developer', 'tech_support'].includes(r))) {
     redirect('/admin/me');

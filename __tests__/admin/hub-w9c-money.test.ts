@@ -80,7 +80,10 @@ describe('money widget registration + render (W9c)', () => {
   });
 
   it('per-section "Open →" links route to pay / reports / finances', () => {
-    expect(SRC).toMatch(/href="\/admin\/me\?tab=pay"/);
+    // `/admin/my-pay`, not `/admin/me?tab=pay` — the Hub reads no `tab` parameter, so the "My pay
+    // Open →" link reloaded the Hub this widget sits on. Fixed 2026-08-06.
+    expect(SRC).toMatch(/href="\/admin\/my-pay"/);
+    expect(SRC).not.toMatch(/href="\/admin\/me\?tab=/);
     expect(SRC).toMatch(/href="\/admin\/reports"/);
     expect(SRC).toMatch(/href="\/admin\/finances"/);
   });

@@ -165,7 +165,7 @@ export async function notifyPaymentUpdate(userEmail: string, title: string, body
     title: `💰 ${title}`,
     body,
     icon: '💰',
-    link: '/admin/me?tab=pay',
+    link: '/admin/my-pay',
     source_type: 'payment',
     escalation_level: 'normal',
   });
@@ -181,7 +181,7 @@ export async function notifyHoursDecision(userEmail: string, approved: boolean, 
     title: `${icon} Hours ${status}`,
     body: `${hours}h for ${date} have been ${status.toLowerCase()}.`,
     icon,
-    link: '/admin/me?tab=hours',
+    link: '/admin/my-hours',
     source_type: 'hours_decision',
   });
 }
@@ -194,7 +194,7 @@ export async function notifyRaise(userEmail: string, newRate: string) {
     title: `🎉 You got a raise!`,
     body: `Your new rate is ${newRate}. Keep up the great work!`,
     icon: '🎉',
-    link: '/admin/me?tab=pay',
+    link: '/admin/my-pay',
     source_type: 'raise',
     escalation_level: 'normal',
   });
@@ -208,7 +208,7 @@ export async function notifyBonus(userEmail: string, amount: string, reason: str
     title: `🎊 Bonus Awarded: ${amount}`,
     body: reason,
     icon: '🎊',
-    link: '/admin/me?tab=pay',
+    link: '/admin/my-pay',
     source_type: 'bonus',
   });
 }
@@ -284,7 +284,7 @@ export async function notifyPromotion(userEmail: string, newRole: string) {
     title: `🌟 Congratulations on your promotion!`,
     body: `You've been promoted to ${newRole}.`,
     icon: '🌟',
-    link: '/admin/me?tab=profile',
+    link: '/admin/profile',
     source_type: 'promotion',
     escalation_level: 'normal',
   });

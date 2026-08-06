@@ -42,6 +42,7 @@ export interface AdsCredentials {
 export type CredentialProblem =
   | 'missing-developer-token'
   | 'missing-customer-id'
+  | 'missing-conversion-actions'
   | 'not-connected'
   | 'refresh-failed';
 
@@ -51,16 +52,60 @@ export const CREDENTIAL_HELP: Record<CredentialProblem, string> = {
     'No GOOGLE_ADS_DEVELOPER_TOKEN. Apply for one in the Ads account under Tools → API Center; approval takes a few days.',
   'missing-customer-id':
     'No GOOGLE_ADS_CUSTOMER_ID. It is the 10-digit number at the top right of the Ads UI, without dashes.',
+  'missing-conversion-actions':
+    'No conversion actions configured. Create them in Google Ads under Goals → Conversions (Import → Manual/API), then set '
+    + 'GOOGLE_ADS_RESOURCE_INQUIRY / _QUOTED / _JOB_WON / _JOB_PAID to their RESOURCE names '
+    + '(customers/…/conversionActions/…), not their display names.',
   'not-connected':
     'No Google Ads account has been connected yet — nothing has authorised this app to upload on its behalf.',
   'refresh-failed':
     'The stored refresh token was rejected. Reconnect the Ads account; a refresh token is revoked when the password changes or access is withdrawn.',
 };
 
+/** The four milestones that can be reported to Ads, and the variable naming each one's action.
+ *
+ *  Kept beside `credentialProblem` rather than in the cron route so the check and the mapping cannot
+ *  drift — a milestone added to one and not the other is a milestone that silently never uploads. */
+export const CONVERSION_ACTION_ENV = {
+  inquiry_received: 'GOOGLE_ADS_RESOURCE_INQUIRY',
+  quoted: 'GOOGLE_ADS_RESOURCE_QUOTED',
+  job_created: 'GOOGLE_ADS_RESOURCE_JOB_WON',
+  payment_received: 'GOOGLE_ADS_RESOURCE_JOB_PAID',
+} as const;
+
+/** Which milestones are configured and which are not.
+ *
+ *  ── WHY THIS IS SEPARATE FROM `credentialProblem` (2026-08-06) ──────────────────────────────────
+ *
+ *  PARTIAL configuration is the dangerous state, and it is not an error. With the token, the customer
+ *  id and OAuth all present, the admin screen said "connected" and the nightly job reported success —
+ *  while `selectConversions` skipped every event whose milestone had no resource name, counting them
+ *  into `skipped.noAction`, which was surfaced nowhere. Set only `_INQUIRY` and the account learns
+ *  about leads and never hears that any of them became paid work, which is precisely the value-based
+ *  bidding the whole pipeline exists to feed.
+ *
+ *  So: none configured is a hard problem, some configured is a warning worth naming, and the screen
+ *  gets told which is which. */
+export function conversionActionStatus(): {
+  configured: string[];
+  missing: string[];
+} {
+  const configured: string[] = [];
+  const missing: string[] = [];
+  for (const [milestone, key] of Object.entries(CONVERSION_ACTION_ENV)) {
+    if (process.env[key]) configured.push(milestone);
+    else missing.push(milestone);
+  }
+  return { configured, missing };
+}
+
 /** Are we able to upload at all? Returns the SPECIFIC missing piece, so the admin screen can say which. */
 export function credentialProblem(): CredentialProblem | null {
   if (!process.env.GOOGLE_ADS_DEVELOPER_TOKEN) return 'missing-developer-token';
   if (!process.env.GOOGLE_ADS_CUSTOMER_ID) return 'missing-customer-id';
+  // Every upload names a conversion action. With none configured there is nothing to send an event
+  // AS, so the job would run, skip all of its work, and report a clean success.
+  if (conversionActionStatus().configured.length === 0) return 'missing-conversion-actions';
   return null;
 }
 

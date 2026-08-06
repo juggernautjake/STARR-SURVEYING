@@ -283,12 +283,31 @@ describe('toWeatherSnapshot', () => {
 
 describe('firstGeoPoint', () => {
   it('picks the first hit with coordinates + labels it with the ZIP', () => {
-    const geo = { results: [{ latitude: 30.27, longitude: -97.74, name: 'Austin', admin1: 'Texas', postcodes: ['78701'] }] };
+    const geo = { results: [{ latitude: 30.27, longitude: -97.74, name: 'Austin', admin1: 'Texas', country_code: 'US', postcodes: ['78701'] }] };
     expect(firstGeoPoint(geo, '78701')).toEqual({ latitude: 30.27, longitude: -97.74, label: 'Austin, Texas 78701' });
   });
   it('returns null when no hit carries coordinates', () => {
-    expect(firstGeoPoint({ results: [{ name: 'Nowhere' }] }, '00000')).toBeNull();
+    expect(firstGeoPoint({ results: [{ name: 'Nowhere', country_code: 'US' }] }, '00000')).toBeNull();
     expect(firstGeoPoint({}, '00000')).toBeNull();
+  });
+
+  // 2026-08-06. The route asked Open-Meteo for US results with `&country=US`, which is not a
+  // parameter it has — accepted, ignored. Measured that day, `zip=78701` really did return Austin
+  // followed by Conflans-Sainte-Honorine, France. Taking "the first hit with coordinates" is only
+  // safe if something checks the country, so this asserts the skip rather than the happy path.
+  it('skips foreign hits and takes the US one', () => {
+    const geo = {
+      results: [
+        { latitude: 48.99, longitude: 2.09, name: 'Conflans-Sainte-Honorine', admin1: 'Île-de-France', country_code: 'FR' },
+        { latitude: 30.27, longitude: -97.74, name: 'Austin', admin1: 'Texas', country_code: 'US' },
+      ],
+    };
+    expect(firstGeoPoint(geo, '78701')).toEqual({ latitude: 30.27, longitude: -97.74, label: 'Austin, Texas 78701' });
+  });
+
+  it('returns null when every hit is foreign, so the caller falls back rather than leaving the country', () => {
+    const geo = { results: [{ latitude: 53.4, longitude: -7.9, name: 'Killeen', admin1: 'Connacht', country_code: 'IE' }] };
+    expect(firstGeoPoint(geo, 'Killeen')).toBeNull();
   });
   it('exposes a Central-Texas default', () => {
     expect(DEFAULT_LOCATION).toMatchObject({ latitude: 31.0698, longitude: -97.3536, label: 'Central Texas' });

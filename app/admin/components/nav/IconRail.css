@@ -155,6 +155,19 @@
   position: relative;
 }
 
+/* nav-flyout-scroll 2026-08-06 — owner: *"whenever we hover over a navmenu link and the popup with
+   all of the submenu items pops up, we can scroll up and down the submenu pop up to see all of the
+   items on it."*
+
+   The fly-out had no height cap. Money carries 25 routes and Office 20, so those menus rendered
+   taller than the viewport with their last entries below the fold and no way to reach them: the
+   element did not scroll, and the page behind it cannot scroll a fixed-position overlay. The rail
+   is the primary desktop navigation, so those routes were effectively unreachable from it.
+
+   Height is capped in JS (`--flyout-max-h`) rather than CSS, because the space available depends on
+   where the hovered icon sits in the rail — the seventh icon has far less room below it than the
+   first. The column layout keeps the header pinned while only the list scrolls, so you can still
+   see which workspace you are in after scrolling down. */
 .admin-rail__flyout {
   position: absolute;
   top: 0;
@@ -168,6 +181,18 @@
   padding: 0.4rem 0;
   z-index: 100;
   animation: rail-flyout-in 0.12s ease-out;
+
+  display: flex;
+  flex-direction: column;
+  /* Fallback keeps the menu on-screen even if the measurement has not run yet (first paint, or JS
+     disabled) — never taller than the viewport minus the rail's own padding. */
+  max-height: var(--flyout-max-h, calc(100vh - 2rem));
+}
+
+/* Anchored to its BOTTOM instead, for icons low enough that opening downward would run off-screen. */
+.admin-rail__flyout--up {
+  top: auto;
+  bottom: 0;
 }
 
 /* nav-flyout-hover-fix 2026-05-30 — invisible bridge that fills the
@@ -200,6 +225,8 @@
   justify-content: space-between;
   padding: 0.35rem 0.85rem 0.4rem;
   border-bottom: 1px solid #F3F4F6;
+  /* Stays put while the list scrolls under it. */
+  flex: none;
 }
 
 .admin-rail__flyout-title {
@@ -223,6 +250,26 @@
   list-style: none;
   margin: 0;
   padding: 0.25rem 0;
+  /* The scrolling part. `min-height: 0` is required: a flex child defaults to `min-height: auto`,
+     which refuses to shrink below its content and would let the list push the menu past its
+     max-height instead of scrolling — the overflow rule alone does nothing without it. */
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;   /* reaching the end must not start scrolling the page behind */
+  scrollbar-width: thin;
+}
+
+/* A visible, unobtrusive scrollbar — on a menu that only appears on hover, an overlay scrollbar
+   that fades out leaves no hint that there is more below. */
+.admin-rail__flyout-list::-webkit-scrollbar { width: 10px; }
+.admin-rail__flyout-list::-webkit-scrollbar-track { background: transparent; }
+.admin-rail__flyout-list::-webkit-scrollbar-thumb {
+  background: var(--theme-border, #D1D5DB);
+  border-radius: 999px;
+  border: 3px solid var(--theme-bg-surface, #FFF);
+}
+.admin-rail__flyout-list::-webkit-scrollbar-thumb:hover {
+  background: var(--theme-fg-muted, #9CA3AF);
 }
 
 .admin-rail__flyout-link {

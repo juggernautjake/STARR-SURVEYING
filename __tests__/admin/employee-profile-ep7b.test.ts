@@ -3,7 +3,8 @@
 // Slice EP7b — admin edit-on-behalf-of. The public profile page
 // at /admin/employees/[email] now embeds an AdminPersonalInfoEditor
 // for admins viewing somebody ELSE's page (self users still use
-// the "Edit my profile" link to land on /admin/me?tab=profile).
+// the "Edit my profile" link to land on /admin/profile — that link pointed at
+// /admin/me?tab=profile until 2026-08-06, which was the Hub with a parameter nothing reads).
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';

@@ -21,7 +21,7 @@ import { NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { CREDENTIAL_HELP, credentialProblem } from '@/lib/integrations/google-ads/client';
+import { CREDENTIAL_HELP, conversionActionStatus, credentialProblem } from '@/lib/integrations/google-ads/client';
 import { WINDOW_SKIP_KEY } from '@/lib/integrations/google-ads/adjustments';
 
 interface LogRow {
@@ -81,6 +81,10 @@ export const GET = withErrorHandler(async () => {
       // to tell them apart.
       lastUploadedAt: (connRow as { last_uploaded_at?: string } | null)?.last_uploaded_at ?? null,
       lastError: (connRow as { last_error?: string } | null)?.last_error ?? null,
+      // Which milestones can actually be reported. PARTIAL configuration is the state worth showing:
+      // it is not an error, the job succeeds, and the milestones without a resource name are dropped
+      // into `skipped.noAction` — which was counted and displayed nowhere until 2026-08-06.
+      conversionActions: conversionActionStatus(),
     },
     counts: {
       total: log.length,

@@ -10,15 +10,20 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
-const SURFACES: { href: string; label: string; status: string }[] = [
-  { href: '/platform/customers',  label: 'Customers',  status: 'Live — list + detail' },
-  { href: '/platform/billing',    label: 'Billing',    status: 'Coming in C-4' },
-  { href: '/platform/support',    label: 'Support',    status: 'Live — inbox' },
-  { href: '/platform/releases',   label: 'Releases',   status: 'Live — list + composer' },
-  { href: '/platform/broadcasts', label: 'Broadcasts', status: 'Coming in C-7' },
-  { href: '/platform/health',     label: 'Health',     status: 'Coming in C-8' },
-  { href: '/platform/audit',      label: 'Audit Log',  status: 'Live' },
-  { href: '/platform/team',       label: 'Team',       status: 'Live — list + invite' },
+// `built` added 2026-08-06. Billing, Broadcasts and Health have no page — they are scheduled work
+// (C-4 / C-7 / C-8) — but every entry here rendered as a `<Link>`, so the three unbuilt ones were
+// clickable cards that 404'd. The card already says "Coming in C-4"; what it must not do is invite
+// a click that goes nowhere. Unbuilt surfaces now render as inert cards, so this list stays the
+// honest roadmap it was meant to be and each one becomes a link the day its page lands.
+const SURFACES: { href: string; label: string; status: string; built: boolean }[] = [
+  { href: '/platform/customers',  label: 'Customers',  status: 'Live — list + detail',   built: true },
+  { href: '/platform/billing',    label: 'Billing',    status: 'Coming in C-4',          built: false },
+  { href: '/platform/support',    label: 'Support',    status: 'Live — inbox',           built: true },
+  { href: '/platform/releases',   label: 'Releases',   status: 'Live — list + composer', built: true },
+  { href: '/platform/broadcasts', label: 'Broadcasts', status: 'Coming in C-7',          built: false },
+  { href: '/platform/health',     label: 'Health',     status: 'Coming in C-8',          built: false },
+  { href: '/platform/audit',      label: 'Audit Log',  status: 'Live',                   built: true },
+  { href: '/platform/team',       label: 'Team',       status: 'Live — list + invite',   built: true },
 ];
 
 interface DashboardData {
@@ -143,26 +148,38 @@ export default function PlatformHome() {
         gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
         gap: '0.85rem',
       }}>
-        {SURFACES.map((s) => (
-          <Link
-            key={s.href}
-            href={s.href}
-            style={{
-              display: 'block',
-              padding: '1rem',
-              background: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              textDecoration: 'none',
-              color: '#FFF',
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{s.label}</div>
-            <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.5)' }}>
-              {s.status}
-            </div>
-          </Link>
-        ))}
+        {SURFACES.map((s) => {
+          const cardStyle = {
+            display: 'block',
+            padding: '1rem',
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '8px',
+            textDecoration: 'none',
+            color: '#FFF',
+          } as const;
+          const inner = (
+            <>
+              <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>{s.label}</div>
+              <div style={{ fontSize: '0.78rem', color: 'rgba(255, 255, 255, 0.5)' }}>
+                {s.status}
+              </div>
+            </>
+          );
+          // Unbuilt surfaces are shown, dimmed and not clickable — a roadmap entry, not a dead link.
+          if (!s.built) {
+            return (
+              <div key={s.href} style={{ ...cardStyle, opacity: 0.45, cursor: 'default' }} aria-disabled="true">
+                {inner}
+              </div>
+            );
+          }
+          return (
+            <Link key={s.href} href={s.href} style={cardStyle}>
+              {inner}
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

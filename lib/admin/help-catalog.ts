@@ -43,7 +43,7 @@ export const HELP_CATALOG: HelpCatalog = {
     ],
     resources: [
       { label: 'Pay progression', href: '/admin/pay-progression' },
-      { label: 'My profile', href: '/admin/me?tab=profile' },
+      { label: 'My profile', href: '/admin/profile' },   // was ?tab=profile — fixed 2026-08-06
     ],
   },
   '/admin/work': {

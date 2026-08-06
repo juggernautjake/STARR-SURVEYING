@@ -18,7 +18,7 @@ describe('buildPayRaiseNotification', () => {
       user_email: 'a@x.com',
       type: 'payment',
       icon: '🎉',
-      link: '/admin/me?tab=pay',
+      link: '/admin/my-pay',
       source_type: 'pay_raise',
     });
     expect(n.title).toBe('🎉 You got a raise!');

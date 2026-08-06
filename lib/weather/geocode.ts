@@ -25,16 +25,33 @@ export interface OpenMeteoGeocode {
     longitude?: number;
     name?: string;
     admin1?: string;
+    country_code?: string;
     postcodes?: string[];
   }>;
 }
 
-/** Pick the first usable geocoding hit, labelling it with the ZIP the
+/** Pick the first usable US geocoding hit, labelling it with the ZIP the
  *  user entered (more recognizable than the city the postcode maps to).
- *  Returns null when no hit carries coordinates. */
+ *  Returns null when no hit carries coordinates.
+ *
+ *  ── THE `country_code` GUARD (2026-08-06) ────────────────────────────
+ *
+ *  The caller asks Open-Meteo for US results. It used to ask with
+ *  `&country=US`, which is not a parameter the API has — it was accepted
+ *  and ignored. Measured that day: `zip=78701` returned Austin, Texas
+ *  followed by Conflans-Sainte-Honorine, France, and "Killeen" returned
+ *  three towns in Ireland. Taking "the first hit with coordinates" is
+ *  therefore not safe on its own; when the US match is not first, this
+ *  returned a forecast for the wrong continent under the user's own ZIP.
+ *
+ *  The parameter is fixed at the call site AND filtered here, because a
+ *  query-string typo is invisible and this is not. */
 export function firstGeoPoint(geo: OpenMeteoGeocode, zip: string): GeoPoint | null {
   const hit = (geo.results ?? []).find(
-    (r) => typeof r.latitude === 'number' && typeof r.longitude === 'number',
+    (r) =>
+      typeof r.latitude === 'number' &&
+      typeof r.longitude === 'number' &&
+      r.country_code === 'US',
   );
   if (!hit) return null;
   const place = [hit.name, hit.admin1].filter(Boolean).join(', ');

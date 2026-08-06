@@ -88,7 +88,7 @@ export default function BoundaryViewerPage() {
   // ── Auth guard ───────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (sessionStatus === 'unauthenticated') router.push('/auth/signin');
+    if (sessionStatus === 'unauthenticated') router.push('/admin/login');
   }, [sessionStatus, router]);
 
   // ── Load boundary data ───────────────────────────────────────────────────

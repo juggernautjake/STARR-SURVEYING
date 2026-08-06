@@ -1,0 +1,159 @@
+/* lib/weather/components/LocationSearch.css
+ *
+ * Styling for the shared US location picker. A stylesheet rather than `style={{…}}` because the
+ * inline-hex ratchet is right about why: a hex inside a style object cannot be reached by a theme
+ * token, a media query, the print stylesheet or a contrast audit. This component mounts both inside
+ * the themed hub and on the unthemed /admin/weather page, so every colour is a `--theme-*` variable
+ * with a plain fallback — the hub overrides them, the page gets the fallback.
+ */
+
+.wx-loc {
+  position: relative;
+  width: 100%;
+}
+
+.wx-loc__input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #d1d5db);
+  background: var(--theme-bg-elevated, #ffffff);
+  color: var(--theme-fg-primary, #111827);
+}
+
+.wx-loc__input:focus {
+  outline: 2px solid var(--theme-accent, #2563eb);
+  outline-offset: 1px;
+}
+
+.wx-loc--compact .wx-loc__input {
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+.wx-loc__list {
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #d1d5db);
+  background: var(--theme-bg-elevated, #ffffff);
+  box-shadow: 0 8px 24px rgba(15, 20, 25, 0.16);
+}
+
+.wx-loc__msg {
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.wx-loc__opt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.wx-loc--compact .wx-loc__opt {
+  padding: 6px 8px;
+}
+
+.wx-loc__opt--active {
+  background: var(--theme-bg-hover, #eff6ff);
+}
+
+.wx-loc__kind {
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+
+/* City and county are told apart at a glance, because which one you picked changes the forecast:
+   a county's interior point is not its largest town. */
+.wx-loc__kind--county { background: #ede9fe; color: #5b21b6; }
+.wx-loc__kind--city,
+.wx-loc__kind--zip    { background: #e0f2fe; color: #075985; }
+
+.wx-loc__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.wx-loc__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-loc__meta {
+  font-size: 0.75rem;
+  color: var(--theme-fg-secondary, #6b7280);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wx-loc--compact .wx-loc__name { font-size: 0.8rem; }
+.wx-loc--compact .wx-loc__meta { font-size: 0.68rem; }
+
+/* ── The weather widget's two location chips ──────────────────────────────────────────────────
+ * "📍 Change" opens the picker; "↩ Temporary — reset" appears only while a look-up is overriding
+ * the widget's saved place. They live here rather than inline for the same reason as everything
+ * above — and beside the picker they belong to, so the two cannot drift apart visually. */
+.wx-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--hub-font-xs, 0.7rem);
+  border: 1px solid var(--theme-border, #d1d5db);
+  background: var(--theme-bg-elevated, transparent);
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.wx-chip:hover {
+  background: var(--theme-bg-hover, #f3f4f6);
+}
+
+/* Explanatory copy in the widget's settings panel. */
+.wx-note {
+  margin: 0 0 6px;
+  font-size: 0.8rem;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.wx-note strong {
+  color: var(--theme-fg-primary, #111827);
+}
+
+.wx-hint {
+  margin: 6px 0 0;
+  font-size: 0.73rem;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
+.wx-hint--flush { margin: 0; }

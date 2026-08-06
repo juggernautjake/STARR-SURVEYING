@@ -155,7 +155,7 @@ export default function ResearchBillingPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'invoices' | 'purchases' | 'usage'>('overview');
 
   useEffect(() => {
-    if (sessionStatus === 'unauthenticated') router.push('/auth/signin');
+    if (sessionStatus === 'unauthenticated') router.push('/admin/login');
   }, [sessionStatus, router]);
 
   const loadBillingData = useCallback(async () => {

@@ -12,7 +12,7 @@
 // (`.admin-rail__flyout::before`) that fills the gap so a straight
 // horizontal move stays inside the hoverable area entirely.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { type LucideIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
@@ -38,6 +38,11 @@ interface WorkspaceFlyoutProps {
   isActive: boolean;
 }
 
+/** Breathing room between the fly-out and the edge of the window. */
+const VIEWPORT_MARGIN = 12;
+/** Below this, opening downward is not worth it — flip and use the space above instead. */
+const MIN_DOWNWARD_PX = 260;
+
 export default function WorkspaceFlyout({
   workspace,
   icon: Icon,
@@ -47,6 +52,14 @@ export default function WorkspaceFlyout({
   const [open, setOpen] = useState(false);
   const showTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  // nav-flyout-scroll 2026-08-06 — how tall this menu may be, and which way it opens. Measured
+  // rather than guessed in CSS: the space below the seventh rail icon is nothing like the space
+  // below the first, and Money's 25 routes overflow either way.
+  const [placement, setPlacement] = useState<{ maxHeight: number; up: boolean }>({
+    maxHeight: 0,
+    up: false,
+  });
 
   const meta = WORKSPACES[workspace];
 
@@ -71,6 +84,27 @@ export default function WorkspaceFlyout({
       if (hideTimer.current) clearTimeout(hideTimer.current);
     };
   }, []);
+
+  // Measure once per open, and again if the window resizes while it is open. The menu is anchored
+  // to the icon's top edge, so "room below" is measured from there; when that is too small we
+  // anchor to the icon's bottom edge and grow upward instead.
+  useEffect(() => {
+    if (!open) return;
+
+    const measure = () => {
+      const el = anchorRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const below = window.innerHeight - rect.top - VIEWPORT_MARGIN;
+      const above = rect.bottom - VIEWPORT_MARGIN;
+      const up = below < MIN_DOWNWARD_PX && above > below;
+      setPlacement({ maxHeight: Math.max(160, Math.floor(up ? above : below)), up });
+    };
+
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [open]);
 
   // Pointer (re)entered the anchor OR the menu — cancel any pending
   // close + arm the open timer if we're not already open.
@@ -106,6 +140,7 @@ export default function WorkspaceFlyout({
 
   return (
     <div
+      ref={anchorRef}
       className="admin-rail__flyout-anchor"
       onMouseEnter={scheduleShow}
       onMouseLeave={scheduleHide}
@@ -125,9 +160,11 @@ export default function WorkspaceFlyout({
       </Link>
       {open && routes.length > 0 ? (
         <div
-          className="admin-rail__flyout"
+          className={`admin-rail__flyout${placement.up ? ' admin-rail__flyout--up' : ''}`}
           role="menu"
           aria-label={`${meta.label} pages`}
+          data-testid={`flyout-${workspace}`}
+          style={placement.maxHeight ? ({ ['--flyout-max-h' as string]: `${placement.maxHeight}px` } as React.CSSProperties) : undefined}
         >
           <div className="admin-rail__flyout-header">
             <span className="admin-rail__flyout-title">{meta.label}</span>

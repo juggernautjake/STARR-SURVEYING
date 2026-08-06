@@ -98,8 +98,10 @@ export default async function PersonPage({ params }: { params: { email: string }
   } else if (isSelf) {
     // Your own record, through the surfaces that already exist for it.
     tabs.push(
-      { href: '/admin/me?tab=pay', label: 'My pay', note: 'Your pay and payouts' },
-      { href: '/admin/me?tab=hours', label: 'My hours', note: 'Your timesheet' },
+      // FIXED 2026-08-06 — both were `/admin/me?tab=…`, so "the surfaces that already exist for it"
+      // both landed on the Hub. The real pages were restored 2026-08-04.
+      { href: '/admin/my-pay', label: 'My pay', note: 'Your pay and payouts' },
+      { href: '/admin/my-hours', label: 'My hours', note: 'Your timesheet' },
     );
   }
 

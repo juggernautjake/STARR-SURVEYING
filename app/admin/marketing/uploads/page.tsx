@@ -39,6 +39,7 @@ interface Payload {
     connectedBy: string | null;
     lastUploadedAt: string | null;
     lastError: string | null;
+    conversionActions?: { configured: string[]; missing: string[] };
   };
   counts: {
     total: number; uploaded: number; failed: number; pending: number;
@@ -50,6 +51,15 @@ interface Payload {
 }
 
 const when = (iso: string | null): string => (iso ? new Date(iso).toLocaleString() : '—');
+
+/** Milestone keys are database values; this page is read by whoever is turning the integration on. */
+const MILESTONE_LABELS: Record<string, string> = {
+  inquiry_received: 'Inquiry',
+  quoted: 'Quoted',
+  job_created: 'Job won',
+  payment_received: 'Job paid',
+};
+const milestoneLabel = (m: string): string => MILESTONE_LABELS[m] ?? m;
 
 export default function MarketingUploadsPage(): React.ReactElement {
   const [data, setData] = useState<Payload | null>(null);
@@ -109,6 +119,23 @@ export default function MarketingUploadsPage(): React.ReactElement {
             {conn.lastError && <li className="mu__bad"><span>Last error</span> {conn.lastError}</li>}
           </ul>
         ) : <p className="mu__muted">No connection record.</p>}
+
+        {/* PARTIAL configuration — added 2026-08-06.
+         *
+         * Not an error, and that is exactly the problem: with some conversion actions configured the
+         * job runs, reports success, and silently drops every event whose milestone has no resource
+         * name. Configure only "inquiry" and Google learns about leads but never hears that any of
+         * them became paid work — which is the value-based bidding this pipeline exists to feed. */}
+        {!loading && conn?.conversionActions && conn.conversionActions.missing.length > 0
+          && conn.conversionActions.configured.length > 0 && (
+          <p className="mu__pending" data-testid="uploads-partial-actions">
+            <strong>Only some milestones are being reported.</strong>{' '}
+            Sending: {conn.conversionActions.configured.map(milestoneLabel).join(', ')}.{' '}
+            Not sending: {conn.conversionActions.missing.map(milestoneLabel).join(', ')} — those
+            events are skipped every night, silently. Set the matching{' '}
+            <code>GOOGLE_ADS_RESOURCE_…</code> variables to start reporting them.
+          </p>
+        )}
       </section>
 
       {data && (

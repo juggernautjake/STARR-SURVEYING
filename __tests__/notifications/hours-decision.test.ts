@@ -21,7 +21,7 @@ describe('buildHoursDecisionNotifications', () => {
       user_email: 'a@x.com',
       type: 'approval',
       icon: '✅',
-      link: '/admin/me?tab=hours',
+      link: '/admin/my-hours',
       source_type: 'hours_decision',
     });
     expect(out[0].title).toContain('Approved');
@@ -89,7 +89,7 @@ describe('buildHoursAdjustmentNotification', () => {
       user_email: 'a@x.com',
       type: 'approval',
       icon: '✏️',
-      link: '/admin/me?tab=hours',
+      link: '/admin/my-hours',
       source_type: 'hours_decision',
     });
     expect(n!.title).toContain('Adjusted');

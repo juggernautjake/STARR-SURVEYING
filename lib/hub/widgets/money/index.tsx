@@ -192,7 +192,8 @@ function PaySection({ profile, lastPayout, showOpenLink }: {
 }) {
   return (
     <section style={columnStyle}>
-      <Header label="My pay" href="/admin/me?tab=pay" showOpenLink={showOpenLink} />
+      {/* FIXED 2026-08-06 — was `/admin/me?tab=pay`, which is the Hub this widget sits on. */}
+      <Header label="My pay" href="/admin/my-pay" showOpenLink={showOpenLink} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={metricStyle}>
           {lastPayout ? fmtCents(lastPayout.amount) : '—'}

@@ -74,6 +74,12 @@ const COUNTY_ADAPTERS = [
   { prefix: 'lib/research/self-heal-planner', why: 'per-county scraper repair' },
   { prefix: 'app/api/admin/research/[projectId]/bell-cad-gis', why: 'the Bell CAD GIS route — the guard here is correct and must stay' },
   { prefix: 'lib/research/county-support', why: 'the file that draws this very distinction' },
+  // Added 2026-08-06 with the US-wide weather location search. This is the Census gazetteer's list of
+  // every county in the country; Bell County, Texas is one of 3,222 rows, and Bell County, Kentucky
+  // is another. Counting them as "a single county assumed" would be the exact inversion of the truth
+  // — the file exists BECAUSE the product must work anywhere — and "fixing" it would mean deleting
+  // two counties from a national dataset.
+  { prefix: 'lib/weather/us-counties', why: 'the national county table; Bell is 2 of 3,222 rows' },
 ];
 
 /** Paths whose Starr references are CORRECT and must not be counted as debt. Prefix-matched, and each

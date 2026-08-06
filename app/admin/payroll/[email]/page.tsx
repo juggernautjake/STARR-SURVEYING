@@ -89,7 +89,9 @@ export default function EmployeeDetailPage({ params }: { params: { email: string
 
   useEffect(() => {
     if (!isAdmin && !isSelf) {
-      router.push('/admin/me?tab=pay');
+      // FIXED 2026-08-06 — was `/admin/me?tab=pay`. Somebody without permission to view another
+      // person's payroll gets bounced to their OWN pay page, which is what this intended.
+      router.push('/admin/my-pay');
       return;
     }
     loadProfile();
