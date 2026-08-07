@@ -320,3 +320,11 @@
     border-color: rgba(251, 191, 36, 0.35);
   }
 }
+
+.fin-dupe__why {
+  display: inline-block;
+  margin-top: 0.15rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  opacity: 0.85;
+}
