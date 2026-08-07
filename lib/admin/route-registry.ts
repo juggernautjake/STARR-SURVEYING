@@ -348,7 +348,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // signs you out of the app you are using is a bug rather than a feature.
 
   // Money — the three built for G2/G3/G5, on the rail because being unfindable was the entire finding.
-  { href: '/admin/finances/overview',     label: 'Money Overview',   workspace: 'money', section: 'Profitability', iconName: 'PieChart',     description: 'Money in and out at a glance (G2).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['cash', 'income', 'expenses', 'overview', 'g2'] },
+  // Keywords carry 'ad spend' / 'advertising' since 2026-08-07: advertising became a fourth money
+  // stream here, and somebody hunting for what the ads cost should reach the P&L from ⌘K, not only
+  // the marketing page. Two screens now answer that question and both should be findable.
+  { href: '/admin/finances/overview',     label: 'Money Overview',   workspace: 'money', section: 'Profitability', iconName: 'PieChart',     description: 'Money in and out at a glance — payments, payouts, receipts and advertising, month by month.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['cash', 'income', 'expenses', 'overview', 'g2', 'ad spend', 'advertising', 'profit', 'p&l', 'month to month'] },
   // Labelled "Bank Reconciliation", not "Reconcile", for two reasons that point the same way. The
   // Cmd+K acceptance criterion is that typing "rec" surfaces RECEIPTS — the far more common
   // destination — and a bare "Reconcile" beat it, which the ranker test caught immediately. And §2.2 of

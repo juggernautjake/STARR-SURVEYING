@@ -110,6 +110,11 @@ export default function FinanceOverviewPage(): React.ReactElement {
       <header className="fin-page__header">
         <div>
           <Link href="/admin/finances" className="fin-page__back">← Finances</Link>
+          {' '}
+          {/* Advertising is a line on this page now, so the screen that explains WHY it moved has to
+              be one click away. A total with no route to its cause is a number you can only worry
+              about. */}
+          <Link href="/admin/marketing" className="fin-page__back">Marketing &amp; ad spend →</Link>
           <h1 className="fin-page__title">Money in &amp; out</h1>
           <p className="fin-page__lede">
             Cash-flow overview — cleared customer payments in, employee payouts, approved receipts

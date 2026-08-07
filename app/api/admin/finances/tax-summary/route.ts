@@ -77,6 +77,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+ import { microsToCents } from '@/lib/integrations/google-ads/spend';
+ import { looksLikeAdVendor } from '@/lib/finances/ad-spend-reconcile';
 import {
   depreciationForYear,
   type DepreciationMethod,
@@ -201,7 +203,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         : ['approved', 'exported'];
 
   // ── Parallel fetch ─────────────────────────────────────────────────────
-  const [receiptsRes, segmentsRes, usersRes, vehiclesRes] = await Promise.all([
+  const [receiptsRes, segmentsRes, usersRes, vehiclesRes, adSpendRes] = await Promise.all([
     supabaseAdmin
       .from('receipts')
       // Soft-deleted (Batch CC) + rejected + pending excluded — only
@@ -226,6 +228,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .lte('started_at', window.toIso),
     supabaseAdmin.from('registered_users').select('id, email, name'),
     supabaseAdmin.from('vehicles').select('id, name, license_plate'),
+    // ── Advertising (added 2026-08-07) ──────────────────────────────────
+    //
+    // Schedule C Line 8. It was absent from this report entirely, which is a filing error rather
+    // than a display gap: a deductible expense left out of a tax summary means tax paid on money
+    // that was already spent. `spend_date` is a DATE, so it is compared against bare YYYY-MM-DD —
+    // handing it the ISO timestamps used above would drop the first day of every period.
+    supabaseAdmin
+      .from('ad_spend_daily')
+      .select('spend_date, cost_micros, source, platform')
+      .gte('spend_date', window.fromIso.slice(0, 10))
+      .lte('spend_date', window.toIso.slice(0, 10)),
   ]);
 
   if (receiptsRes.error) {
@@ -261,6 +274,40 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const vehiclesById = new Map<string, VehicleLite>(
     ((vehiclesRes.data ?? []) as VehicleLite[]).map((v) => [v.id, v])
   );
+
+  // ── Advertising → Schedule C Line 8 ───────────────────────────────────
+  //
+  // 100% deductible, so unlike receipts there is no `tax_deductible_flag` fraction to apply — the
+  // whole figure is the deduction.
+  const adRows = (adSpendRes.data ?? []) as Array<{
+    spend_date: string | null; cost_micros: number | string | null; source: string | null; platform: string | null;
+  }>;
+  const adMicros = adRows.reduce((s, r) => s + Math.max(0, Number(r.cost_micros ?? 0)), 0);
+  // Floored on the TOTAL rather than per row: flooring each day separately loses up to a cent a day,
+  // which over a tax year is a visible drift against the invoices the CPA will be handed.
+  const advertisingCents = microsToCents(adMicros);
+  const adManualMicros = adRows
+    .filter((r) => r.source !== 'api')
+    .reduce((s, r) => s + Math.max(0, Number(r.cost_micros ?? 0)), 0);
+
+  // The same double-count hazard the finance overview warns about, and it matters more here: a
+  // deduction claimed twice is a filing error, not a dashboard blemish. Reported, never corrected —
+  // the match is a heuristic over a vendor name somebody typed on a phone.
+  const advertisingReceipts = receipts.filter((r) => looksLikeAdVendor(r.vendor_name));
+  const advertisingBlock = {
+    total_cents: advertisingCents,
+    schedule_c_line: 8,
+    manual_share: adMicros > 0 ? adManualMicros / adMicros : 0,
+    platforms: [...new Set(adRows.map((r) => r.platform).filter(Boolean))] as string[],
+    suspected_duplicate_receipts: advertisingReceipts.map((r) => ({
+      receipt_id: r.id,
+      vendor_name: r.vendor_name,
+      total_cents: r.total_cents,
+    })),
+    suspected_duplicate_cents: advertisingReceipts.reduce(
+      (s, r) => s + Math.max(0, Math.round(r.total_cents ?? 0)), 0,
+    ),
+  };
 
   // ── Receipt aggregations ──────────────────────────────────────────────
   let receiptTotalCents = 0;
@@ -490,17 +537,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       by_vehicle: mileageByVehicleArr,
     },
     equipment: equipmentBlock,
+    advertising: advertisingBlock,
     totals: {
       // F10.9 — equipment depreciation lands on Schedule C Line 13
       // alongside receipts/mileage. The receipts side already
       // excludes promoted-to-equipment rows (anti-double-count
       // filter on the receipts query) so this sum doesn&apos;t
       // overlap with receiptDeductibleCents.
+      // Advertising joins the deduction on Schedule C Line 8. It was missing entirely until
+      // 2026-08-07, which meant tax was being computed on money that had already been spent.
       deductible_cents:
         receiptDeductibleCents +
         mileageDeductionCents +
-        equipmentBlock.total_depreciation_cents,
-      expense_cents: receiptTotalCents,
+        equipmentBlock.total_depreciation_cents +
+        advertisingBlock.total_cents,
+      expense_cents: receiptTotalCents + advertisingBlock.total_cents,
     },
   };
 
@@ -635,6 +686,14 @@ interface CsvPayload {
       miles: number;
       deduction_cents: number;
     }>;
+  };
+  /** Schedule C Line 8. Optional so an older cached payload still renders rather than throwing. */
+  advertising?: {
+    total_cents: number;
+    schedule_c_line: number;
+    manual_share: number;
+    platforms: string[];
+    suspected_duplicate_cents: number;
   };
   totals: { deductible_cents: number; expense_cents: number };
 }
@@ -800,6 +859,36 @@ function renderCsv(p: CsvPayload): string {
     );
   }
   lines.push('');
+
+  // Advertising — Schedule C Line 8. Its own section rather than a receipt category, because it does
+  // not come from receipts at all: it is imported from the Ads account. A CPA reading this CSV needs
+  // to see where the number came from, and the manual-share line is how they know how firm it is.
+  if (p.advertising && p.advertising.total_cents > 0) {
+    lines.push('Section,Category,Schedule C,Count,Total ($),Deductible ($)');
+    lines.push(
+      [
+        'Advertising',
+        csvEscape(p.advertising.platforms.join(' + ') || 'google_ads'),
+        '8 — Advertising',
+        '',
+        dollars(p.advertising.total_cents),
+        dollars(p.advertising.total_cents),
+      ].join(',')
+    );
+    if (p.advertising.manual_share > 0) {
+      lines.push(
+        `# NOTE,${Math.round(p.advertising.manual_share * 100)}% of the advertising figure was entered by hand rather than imported from the Ads account`
+      );
+    }
+    if (p.advertising.suspected_duplicate_cents > 0) {
+      // A deduction claimed twice is a filing error, so this belongs in the file the CPA reads and
+      // not only on a dashboard nobody exports.
+      lines.push(
+        `# WARNING,${dollars(p.advertising.suspected_duplicate_cents)} of approved receipts look like advertising charges and may duplicate the figure above`
+      );
+    }
+    lines.push('');
+  }
 
   // Bottom-line totals.
   lines.push('Section,,,,,');

@@ -155,3 +155,41 @@ Each slice is independently shippable: types, tests, `npm run build`, commit.
 
 - [x] S1 · [x] S2 · [x] S3 · [x] S4 · [x] S5 · [x] S6 · [x] S7
 - [x] S8 · [x] S9 · [x] S10 · [ ] S11 · [ ] S12 · [ ] S13
+
+---
+
+## Completion notes — 2026-08-07
+
+**S1–S4 · shipped** (`2521343c4`). Advertising is a fourth money stream. The required-argument design
+found exactly two call sites, both of which had to decide rather than silently keep reporting an
+outflow with a category missing.
+
+**S5–S6 · shipped** (`e36282a3c`). `comparePeriods` + `/api/admin/finances/compare`. Calendar-aware
+window: a whole month compares against the whole previous month, so February no longer looks like a
+collapse and a 31-day month no longer looks like growth.
+
+**S7–S10 · shipped**. One page bigger than expected — the finance overview (`fin-*`) had the same
+unstyled defect as the three marketing pages, found while adding the advertising column. Four screens
+had referenced classes nothing defined. The new test guards the *class* of defect rather than the four
+instances: every class a page uses must resolve to a rule.
+
+**S11 · shipped**. Advertising joins the tax summary on Schedule C Line 8, in the JSON and in the CSV
+the CPA is handed, with the manual-share note and the duplicate warning inline. Its absence was a
+filing error rather than a display gap — tax computed on money already spent.
+
+**S12 · shipped**. Registry entries all existed; the overview's keywords and description now carry
+advertising so ⌘K reaches the P&L from "ad spend", and the two screens cross-link. A total with no
+route to its cause is a number you can only worry about.
+
+**S13 · DEFERRED — needs a signed-in browser, not more code.**
+The automated half is done: `tsc` clean, full suite green, `npm run build` exit 0, and the styling
+assertions cover class coverage, scoping, table overflow, responsive stacking and dark theme. What
+remains is a human looking at six pages, and the Chrome profile the automation is attached to has no
+admin session (the same blocker that stopped the Google Ads OAuth connect — the OAuth app is
+`org_internal`, so only an `@starr-surveying.com` account can sign in, and that account is in a
+different Chrome profile). Deferring rather than faking it: a QA pass nobody performed is worse than
+an honest gap, because it gets recorded as done.
+
+**Live-data caveat.** Until Google approves Basic Access, `ad_spend_daily` holds only what is typed
+at `/admin/marketing/spend`. Every figure added here is correct and will populate itself when the
+nightly cron starts importing; none of it needs revisiting then.
