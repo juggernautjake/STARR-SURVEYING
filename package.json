@@ -79,6 +79,7 @@
     "@types/bcryptjs": "^2.4.6",
     "@types/katex": "^0.16.8",
     "@types/pdfkit": "^0.17.5",
+    "ai": "^7.0.56",
     "axios": "1.6.2",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.70.4",

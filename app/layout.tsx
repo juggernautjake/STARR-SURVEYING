@@ -43,12 +43,26 @@ export const metadata: Metadata = {
   creator: 'Starr Surveying',
   publisher: 'Starr Surveying',
   
-  // Base URL - REQUIRED for OG images to work properly
-  metadataBase: new URL('https://www.starrsurveying.com'),
-  
-  alternates: {
-    canonical: '/',
-  },
+  // Base URL - REQUIRED for OG images to work properly.
+  //
+  // Was `www.starrsurveying.com` (no hyphen) until 2026-08-07. That domain does not resolve — the
+  // site is `www.starr-surveying.com`. Every absolute URL Next.js derives from this was therefore
+  // pointing at nothing, which meant EVERY og:image on the site was a dead link and no social
+  // preview has ever rendered. Verified by fetching the emitted URL: connection fails outright.
+  metadataBase: new URL('https://www.starr-surveying.com'),
+
+  // NO SITE-WIDE `alternates.canonical` HERE, AND THAT IS THE FIX.
+  //
+  // This used to be `canonical: '/'`, which Next.js applies to every page that does not override it.
+  // The result was that /services, /pricing, /contact and the rest each told Google "the canonical
+  // version of me is the homepage" — i.e. every page on the site declared itself a duplicate of one
+  // other page. Combined with the wrong domain above, they were declaring themselves duplicates of a
+  // page that does not exist.
+  //
+  // That matters most for the pages Google Ads sends paid traffic to. A page canonicalised away is a
+  // page Google is being asked not to index on its own merits.
+  //
+  // A page that wants a canonical should set its own in its `metadata` export.
 
   // PWA manifest — makes the site installable as a Progressive Web App
   // on iOS + Android. "Add to Home Screen" creates a standalone app icon.
