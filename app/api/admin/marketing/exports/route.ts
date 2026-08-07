@@ -41,10 +41,20 @@ function conversionNameFor(milestone: Milestone): string {
     payment_received: process.env.GOOGLE_ADS_ACTION_JOB_PAID,
   };
   const fallback: Partial<Record<Milestone, string>> = {
-    inquiry_received: 'Lead — Inquiry',
-    quoted: 'Lead — Quoted',
-    job_created: 'Job — Won',
-    payment_received: 'Job — Paid',
+    // PLAIN HYPHENS, MATCHING THE LIVE ACCOUNT (corrected 2026-08-07).
+    //
+    // These were em dashes, because the plan document wrote them that way and the owner was told to
+    // name the Ads actions to match. They came out as "Lead - Inquiry" — which is what anybody typing
+    // a name into a form produces, since an em dash needs a copy-paste or a keyboard sequence nobody
+    // remembers. Google matches these names EXACTLY, so the pretty character was a silent trap: the
+    // CSV would have been rejected on upload with no hint as to which of thirty columns was wrong.
+    //
+    // The nightly API upload is unaffected either way — it addresses actions by resource name, not
+    // display name. This only governs the manual CSV export path.
+    inquiry_received: 'Lead - Inquiry',
+    quoted: 'Lead - Quoted',
+    job_created: 'Job - Won',
+    payment_received: 'Job - Paid',
   };
   return env[milestone] || fallback[milestone] || milestone;
 }

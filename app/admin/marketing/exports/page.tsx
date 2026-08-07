@@ -22,10 +22,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
 const MILESTONES = [
-  { key: 'job_created', label: 'Job — Won (primary)', hint: 'The bidding conversion. Valued at the accepted quote.' },
-  { key: 'quoted', label: 'Lead — Quoted', hint: 'Observation only; do not bid on this.' },
-  { key: 'inquiry_received', label: 'Lead — Inquiry', hint: 'Observation only. Already tracked client-side too.' },
-  { key: 'payment_received', label: 'Job — Paid', hint: 'Restates a won job where the click window allows.' },
+  // Hyphens, not em dashes — these mirror the conversion action names in the live Ads account, and
+  // an operator comparing this screen against Google should see the same string in both.
+  { key: 'job_created', label: 'Job - Won', hint: 'Observation only; the paid job is the bidding conversion.' },
+  { key: 'quoted', label: 'Lead - Quoted', hint: 'Observation only; do not bid on this.' },
+  { key: 'inquiry_received', label: 'Lead - Inquiry', hint: 'Observation only. Already tracked client-side too.' },
+  { key: 'payment_received', label: 'Job - Paid (primary)', hint: 'The bidding conversion. Valued at the amount actually paid.' },
 ];
 
 interface Summary {
