@@ -1,0 +1,322 @@
+/* app/admin/finances/overview/FinanceOverview.css
+ *
+ * ── ANOTHER PAGE THAT REFERENCED CLASSES NOBODY DEFINED ────────────────────────────────────────
+ *
+ * Found on 2026-08-07 while adding advertising to this screen: `fin-*` appeared in exactly one file
+ * in the repository — this page's own JSX. The money-in-vs-out overview has rendered as unstyled
+ * flow content since it was written, which is the same defect the three `/admin/marketing` pages had
+ * and the reason `MarketingUploads.css` exists.
+ *
+ * Worth noticing that it took FOUR separate encounters to find them all. Nothing errors, no test
+ * fails, and the page still "works" — so the only detector is somebody opening it, which is exactly
+ * why "authored but not wired" keeps happening here.
+ *
+ * `__tests__/marketing/marketing-pages-are-styled.test.ts` now guards the class, not the instances.
+ *
+ * ── THE TABLE IS A GRID, AND ADVERTISING MADE IT SIX COLUMNS ──────────────────────────────────
+ *
+ * Header and rows share one `grid-template-columns`, declared once against both so a column added to
+ * one and forgotten in the other cannot slip through — the failure mode there is a header that
+ * silently stops lining up with its own numbers.
+ */
+
+.fin-page {
+  max-width: 1180px;
+  padding: 1.5rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.fin-page__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.fin-page__back {
+  display: inline-block;
+  margin-bottom: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--brand-blue, #1d3095);
+  text-decoration: none;
+}
+
+.fin-page__back:hover,
+.fin-page__back:focus-visible {
+  text-decoration: underline;
+}
+
+.fin-page__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.fin-page__lede {
+  margin: 0;
+  max-width: 70ch;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+/* ── Range picker ─────────────────────────────────────────────────────── */
+.fin-page__picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.fin-page__range,
+.fin-page__quick {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem;
+}
+
+.fin-page__picker label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.fin-page__picker input,
+.fin-page__picker select {
+  min-height: 38px;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--theme-fg-primary, #111827);
+  background: var(--theme-bg-input, #fff);
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+}
+
+.fin-page__picker input:focus-visible,
+.fin-page__picker select:focus-visible,
+.fin-btn:focus-visible {
+  outline: 2px solid var(--brand-blue, #1d3095);
+  outline-offset: 1px;
+}
+
+.fin-btn {
+  min-height: 38px;
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.fin-btn:hover {
+  background: var(--theme-bg-hover, #f3f4f6);
+  border-color: var(--theme-border-strong, #9ca3af);
+}
+
+/* ── Summary cards ────────────────────────────────────────────────────── */
+.fin-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.9rem;
+  margin-bottom: 1.5rem;
+}
+
+.fin-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 1.1rem 1.2rem;
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-left: 4px solid var(--theme-border, #e5e7eb);
+  border-radius: 11px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+.fin-card__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.fin-card__value {
+  font-size: 1.65rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.fin-card__sub {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.fin-card--in       { border-left-color: #16a34a; }
+.fin-card--out      { border-left-color: #d97706; }
+.fin-card--net-pos  { border-left-color: #16a34a; }
+.fin-card--net-neg  { border-left-color: #dc2626; }
+
+/* ── Period table ─────────────────────────────────────────────────────── */
+.fin-table-wrap {
+  /* Wide content scrolls inside its own box; the page body never scrolls sideways. */
+  overflow-x: auto;
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 11px;
+}
+
+/* SIX columns since advertising was added 2026-08-07. Declared against head and row together so a
+   column added to one and forgotten in the other cannot ship — that failure looks like a header
+   quietly no longer lining up with its own numbers. */
+.fin-table__head,
+.fin-table__row {
+  display: grid;
+  grid-template-columns: minmax(88px, 1.2fr) repeat(5, minmax(84px, 1fr));
+  gap: 0.5rem;
+  min-width: 620px;
+  align-items: center;
+  padding: 0.62rem 0.9rem;
+}
+
+.fin-table__head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6b7280);
+  background: var(--theme-bg-subtle, #f9fafb);
+  border-bottom: 1px solid var(--theme-border, #e5e7eb);
+}
+
+.fin-table__head > span:not(:first-child),
+.fin-table__row > span:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-table__row {
+  font-size: 0.88rem;
+  border-bottom: 1px solid var(--theme-border-subtle, #f3f4f6);
+}
+
+.fin-table__row:last-child { border-bottom: none; }
+.fin-table__row:hover { background: var(--theme-bg-hover, #f9fafb); }
+
+.fin-table__period {
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.fin-pos    { color: #15803d; }
+.fin-neg    { color: #b45309; }
+.fin-strong { font-weight: 700; }
+
+.fin-empty,
+.fin-load {
+  padding: 1.5rem;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.fin-error,
+.fin-page__error {
+  padding: 0.7rem 0.95rem;
+  margin-bottom: 1rem;
+  border-radius: 9px;
+  font-size: 0.87rem;
+  line-height: 1.5;
+  color: #7f1d1d;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .fin-page { padding: 1rem 0.85rem; }
+
+  .fin-page__picker,
+  .fin-page__range {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  .fin-page__quick { width: 100%; }
+  .fin-btn { flex: 1 1 auto; }
+
+  .fin-cards { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem; }
+  .fin-card { padding: 0.9rem 1rem; }
+  .fin-card__value { font-size: 1.35rem; }
+}
+
+/* ── Dark theme ───────────────────────────────────────────────────────── */
+@media (prefers-color-scheme: dark) {
+  .fin-pos { color: #4ade80; }
+  .fin-neg { color: #fbbf24; }
+
+  .fin-error,
+  .fin-page__error {
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.25);
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+}
+
+/* ── Double-count warning ─────────────────────────────────────────────────
+ *
+ * Amber, not red. Advertising appearing twice is something to KNOW and decide about, not something
+ * that has gone wrong — the receipt and the import are both correct in isolation. Red here would
+ * teach the reader to dismiss the colour, and then a real error goes unread too.
+ */
+.fin-dupe {
+  padding: 0.85rem 1.05rem;
+  margin-bottom: 1.25rem;
+  border-radius: 10px;
+  font-size: 0.87rem;
+  line-height: 1.55;
+  color: #713f12;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+}
+
+.fin-dupe ul {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.fin-dupe li {
+  margin: 0.2rem 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: dark) {
+  .fin-dupe {
+    color: #fde68a;
+    background: rgba(113, 63, 18, 0.25);
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+}

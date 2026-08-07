@@ -1,0 +1,516 @@
+/* app/admin/marketing/Marketing.css
+ *
+ * ── THE DELIBERATE PASS THAT MarketingUploads.css ASKED FOR ────────────────────────────────────
+ *
+ * That file, written 2026-08-06, recorded the defect and deferred the rest:
+ *
+ *     "It is not alone. /admin/marketing/spend uses .ms__* and /admin/marketing/exports its own
+ *      prefix, and neither of those has a stylesheet either — the whole /admin/marketing sub-app is
+ *      in the same state. Those are left for a deliberate pass rather than fixed here in passing."
+ *
+ * This is that pass. Three pages — the marketing dashboard (`.mk`), ad spend (`.ms`) and the
+ * conversion exports (`.mx`) — have referenced class names since they were written with nothing
+ * defining them, so they have rendered as unstyled flow content the whole time. "Authored but not
+ * wired" is this repository's signature defect and this was its largest live instance.
+ *
+ * ── ONE FILE, THREE PREFIXES, ON PURPOSE ──────────────────────────────────────────────────────
+ *
+ * Three stylesheets would drift. These pages are read together — you check what you spent, then what
+ * it produced, then what still needs uploading — and three subtly different card treatments in one
+ * workflow reads as three different products. The shared primitives are defined once against a
+ * prefix list; only what genuinely differs per page is written twice.
+ *
+ * Everything is scoped under its page root so nothing leaks into the admin shell.
+ */
+
+/* =============================================================================
+   1. PAGE SHELL
+   ============================================================================= */
+.mk,
+.ms,
+.mx {
+  max-width: 1180px;
+  padding: 1.5rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.mk__title,
+.ms__title,
+.mx__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.mk__lead,
+.ms__lead,
+.mx__lead {
+  margin: 0 0 1.5rem;
+  max-width: 68ch;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.mk__h2,
+.ms__h2,
+.mx__h2 {
+  margin: 0 0 0.9rem;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.005em;
+}
+
+/* =============================================================================
+   2. PANELS
+   ============================================================================= */
+.mk__panel,
+.ms__panel,
+.mx__panel {
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1.15rem;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+/* =============================================================================
+   3. STAT GRID — the summary numbers
+   ============================================================================= */
+.mk__stats,
+.ms__stats,
+.mx__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.9rem;
+  margin: 0 0 1.15rem;
+  padding: 0;
+  list-style: none;
+}
+
+.mk__stats > *,
+.ms__stats > *,
+.mx__stats > * {
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  min-width: 0;
+}
+
+/* A stat's label is the small line; its value is the big one. Written on the generic children so the
+   pages do not each need a bespoke class for something this ordinary. */
+.mk__stats dt,
+.ms__stats dt,
+.mx__stats dt,
+.mk__stats .mk__muted,
+.ms__stats .ms__muted {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6b7280);
+  margin: 0 0 0.3rem;
+}
+
+.mk__stats dd,
+.ms__stats dd,
+.mx__stats dd {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* =============================================================================
+   4. ROWS — filter bars and form lines
+   ============================================================================= */
+.mk__row,
+.ms__row,
+.mx__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.mk__row label,
+.ms__row label,
+.mx__row label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.mk__row input,
+.mk__row select,
+.ms__row input,
+.ms__row select,
+.mx__row input,
+.mx__row select {
+  min-height: 38px;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--theme-fg-primary, #111827);
+  background: var(--theme-bg-input, #fff);
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+}
+
+.mk__row input:focus-visible,
+.ms__row input:focus-visible,
+.mx__row input:focus-visible,
+.mk__row select:focus-visible,
+.ms__row select:focus-visible,
+.mx__row select:focus-visible {
+  outline: 2px solid var(--brand-blue, #1d3095);
+  outline-offset: 1px;
+}
+
+.mx__row--dates {
+  align-items: flex-end;
+}
+
+/* =============================================================================
+   5. BUTTONS
+   ============================================================================= */
+.ms__btn,
+.mx__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 38px;
+  padding: 0.45rem 1rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.ms__btn:hover:not(:disabled),
+.mx__btn:hover:not(:disabled) {
+  background: var(--theme-bg-hover, #f3f4f6);
+  border-color: var(--theme-border-strong, #9ca3af);
+}
+
+.ms__btn--primary,
+.mx__btn--primary {
+  color: #fff;
+  background: var(--brand-blue, #1d3095);
+  border-color: var(--brand-blue, #1d3095);
+}
+
+.ms__btn--primary:hover:not(:disabled),
+.mx__btn--primary:hover:not(:disabled) {
+  background: var(--brand-blue-dark, #152050);
+  border-color: var(--brand-blue-dark, #152050);
+}
+
+.ms__btn:disabled,
+.mx__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mx__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+/* =============================================================================
+   6. TABLES — always scrollable in their own box
+   ============================================================================= */
+.mk__scroll,
+.ms__scroll {
+  /* The page body must never scroll sideways; a wide table scrolls inside itself. */
+  overflow-x: auto;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+}
+
+.mk__table,
+.ms__table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.mk__table th,
+.ms__table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6b7280);
+  background: var(--theme-bg-subtle, #f9fafb);
+  border-bottom: 1px solid var(--theme-border, #e5e7eb);
+  white-space: nowrap;
+}
+
+.mk__table td,
+.ms__table td {
+  padding: 0.6rem 0.8rem;
+  border-bottom: 1px solid var(--theme-border-subtle, #f3f4f6);
+  vertical-align: top;
+}
+
+/* Money and counts line up on the decimal so a column can be scanned rather than read. */
+.mk__table td:not(:first-child),
+.ms__table td:not(:first-child),
+.mk__table th:not(:first-child),
+.ms__table th:not(:first-child) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mk__table tbody tr:last-child td,
+.ms__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.mk__table tbody tr:hover,
+.ms__table tbody tr:hover {
+  background: var(--theme-bg-hover, #f9fafb);
+}
+
+/* =============================================================================
+   7. MESSAGES — error / ok / warn / hint
+   ============================================================================= */
+.mk__error,
+.ms__error,
+.mx__error,
+.ms__ok,
+.mx__ok,
+.mk__warn,
+.ms__warn {
+  padding: 0.7rem 0.95rem;
+  border-radius: 9px;
+  font-size: 0.87rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  border: 1px solid transparent;
+}
+
+.mk__error,
+.ms__error,
+.mx__error {
+  color: #7f1d1d;
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.ms__ok,
+.mx__ok {
+  color: #14532d;
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+/* Amber, not red. A manual-entry share or a suspected duplicate is something to KNOW, not something
+   that has gone wrong — colouring it as an error teaches people to dismiss the colour. */
+.mk__warn,
+.ms__warn {
+  color: #713f12;
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.mk__hint,
+.ms__hint,
+.mx__hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.mk__muted,
+.ms__muted,
+.mx__muted {
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.mk__tiny {
+  font-size: 0.74rem;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+/* =============================================================================
+   8. SOURCE TAGS — api vs typed-in
+   ============================================================================= */
+.ms__tag {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #713f12;
+  background: #fef3c7;
+  white-space: nowrap;
+}
+
+/* Imported figures are the trustworthy ones and read calm; a typed estimate stays amber above.
+   The distinction is the point — an estimate shown with the authority of a measurement is worse
+   than no number, because it gets acted on with confidence. */
+.ms__tag--api {
+  color: #1e3a8a;
+  background: #dbeafe;
+}
+
+/* =============================================================================
+   9. ATTRIBUTION METER — the dashboard's click-coverage bar
+   ============================================================================= */
+.mk__panel--meter {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mk__stagebar,
+.mk__bar {
+  display: flex;
+  width: 100%;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--theme-bg-subtle, #f3f4f6);
+}
+
+.mk__seg {
+  height: 100%;
+  min-width: 0;
+  transition: width 0.3s ease;
+}
+
+.mk__seg--click { background: #1d3095; }
+.mk__seg--match { background: #60a5fa; }
+.mk__seg--none  { background: #e5e7eb; }
+
+.mk__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.8rem;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.mk__legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mk__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.mk__dot--click { background: #1d3095; }
+.mk__dot--match { background: #60a5fa; }
+.mk__dot--none  { background: #e5e7eb; border: 1px solid #d1d5db; }
+
+/* =============================================================================
+   10. RESPONSIVE
+   ============================================================================= */
+@media (max-width: 767px) {
+  .mk,
+  .ms,
+  .mx {
+    padding: 1rem 0.85rem;
+  }
+
+  .mk__panel,
+  .ms__panel,
+  .mx__panel {
+    padding: 1rem;
+  }
+
+  .mk__stats,
+  .ms__stats,
+  .mx__stats {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.65rem;
+  }
+
+  .mk__row,
+  .ms__row,
+  .mx__row {
+    /* Filter controls stack rather than squeezing to unusable widths. */
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .mk__row label,
+  .ms__row label,
+  .mx__row label {
+    width: 100%;
+  }
+}
+
+/* =============================================================================
+   11. DARK THEME
+   ============================================================================= */
+@media (prefers-color-scheme: dark) {
+  .mk__error,
+  .ms__error,
+  .mx__error {
+    color: #fecaca;
+    background: rgba(127, 29, 29, 0.25);
+    border-color: rgba(248, 113, 113, 0.4);
+  }
+
+  .ms__ok,
+  .mx__ok {
+    color: #bbf7d0;
+    background: rgba(20, 83, 45, 0.25);
+    border-color: rgba(74, 222, 128, 0.35);
+  }
+
+  .mk__warn,
+  .ms__warn {
+    color: #fde68a;
+    background: rgba(113, 63, 18, 0.25);
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+
+  .ms__tag {
+    color: #fde68a;
+    background: rgba(113, 63, 18, 0.35);
+  }
+
+  .ms__tag--api {
+    color: #bfdbfe;
+    background: rgba(30, 58, 138, 0.4);
+  }
+
+  .mk__seg--none { background: #374151; }
+  .mk__dot--none { background: #374151; border-color: #4b5563; }
+}

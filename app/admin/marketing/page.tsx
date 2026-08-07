@@ -14,6 +14,10 @@
 // is broken"; the truth is usually "nothing has happened in this range yet".
 import { useCallback, useEffect, useState } from 'react';
 
+// Shared marketing stylesheet. These pages referenced their class names for months with
+// nothing defining them — see the header of Marketing.css.
+import './Marketing.css';
+
 interface Stage {
   milestone: string; label: string; count: number;
   stepRate: number | null; overallRate: number | null;

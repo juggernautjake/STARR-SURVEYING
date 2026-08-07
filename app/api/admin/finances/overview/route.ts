@@ -5,13 +5,30 @@
 //
 //   GET /api/admin/finances/overview?from=YYYY-MM-DD&to=YYYY-MM-DD[&granularity=day|week|month|year]
 //
-// Three streams (cash-flow truth — money that actually moved):
+// FOUR streams (cash-flow truth — money that actually moved):
 //   revenue  = payments.status='succeeded'           (cleared_at)
 //   payouts  = payout_batch_items.status='paid'       (paid_at)
 //   expenses = receipts.status in (approved,exported) (transaction_at), not deleted
+//   ad spend = ad_spend_daily                         (spend_date)      ← added 2026-08-07
 //
 // The math lives in lib/payments/finance-overview.ts (pure, unit-tested); this
 // route just maps rows → MoneyEvent[] and returns the summary + per-period rows.
+//
+// ── WHY ADVERTISING IS ITS OWN STREAM ──────────────────────────────────────────────────────────
+//
+// It was absent entirely until 2026-08-07, so the P&L excluded what is plausibly the largest
+// controllable expense in the business. Folding it into `expenses` would have been the one-line fix
+// and would have defeated the owner's actual request — "ad spend control" needs the number visible on
+// its own, not blended into fuel and equipment receipts.
+//
+// ── TWO THINGS THIS RESPONSE SAYS ABOUT ITS OWN NUMBERS ────────────────────────────────────────
+//
+//   `manual_share`         — what fraction was typed off an invoice rather than imported from the API.
+//                            An estimate presented with the authority of a measurement is worse than
+//                            no number, because it gets acted on with confidence.
+//   `suspected_duplicates` — receipts that look like the Google Ads card charge. Advertising can reach
+//                            the books twice (API import + photographed receipt) and both numbers are
+//                            individually correct. Surfaced, never silently dropped.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
@@ -23,6 +40,12 @@ import {
   type MoneyEvent,
   type Granularity,
 } from '@/lib/payments/finance-overview';
+import { microsToCents } from '@/lib/integrations/google-ads/spend';
+import {
+  findSuspectedDuplicates,
+  suspectedDuplicateTotal,
+  type ReceiptLike,
+} from '@/lib/finances/ad-spend-reconcile';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const GRANULARITIES = new Set<Granularity>(['day', 'week', 'month', 'year']);
@@ -49,7 +72,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const fromTs = `${from}T00:00:00Z`;
   const toTs = `${to}T23:59:59.999Z`;
 
-  const [payRes, payoutRes, recRes] = await Promise.all([
+  const [payRes, payoutRes, recRes, adRes] = await Promise.all([
     supabaseAdmin
       .from('payments')
       .select('amount_cents, cleared_at')
@@ -64,21 +87,34 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .lte('paid_at', toTs),
     supabaseAdmin
       .from('receipts')
-      .select('total_cents, transaction_at')
+      // `id` and `vendor_name` are for the duplicate check below, not the totals.
+      .select('id, vendor_name, total_cents, transaction_at')
       .in('status', ['approved', 'exported'])
       .is('deleted_at', null)
       .gte('transaction_at', fromTs)
       .lte('transaction_at', toTs),
+    // `spend_date` is a DATE, not a timestamp, so it is compared against bare YYYY-MM-DD. Handing it
+    // the `T00:00:00Z` strings used above would exclude the first day of every range.
+    supabaseAdmin
+      .from('ad_spend_daily')
+      .select('spend_date, cost_micros, source, platform')
+      .gte('spend_date', from)
+      .lte('spend_date', to),
   ]);
 
-  const firstError = payRes.error || payoutRes.error || recRes.error;
+  const firstError = payRes.error || payoutRes.error || recRes.error || adRes.error;
   if (firstError) {
     return NextResponse.json({ error: firstError.message }, { status: 500 });
   }
 
   const payRows = (payRes.data ?? []) as Array<{ amount_cents: number | null; cleared_at: string | null }>;
   const payoutRows = (payoutRes.data ?? []) as Array<{ total_cents: number | null; paid_at: string | null }>;
-  const recRows = (recRes.data ?? []) as Array<{ total_cents: number | null; transaction_at: string | null }>;
+  const recRows = (recRes.data ?? []) as Array<{
+    id: string; vendor_name: string | null; total_cents: number | null; transaction_at: string | null;
+  }>;
+  const adRows = (adRes.data ?? []) as Array<{
+    spend_date: string | null; cost_micros: number | string | null; source: string | null; platform: string | null;
+  }>;
 
   const revenue: MoneyEvent[] = payRows
     .filter((r) => Boolean(r.cleared_at))
@@ -90,11 +126,50 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .filter((r) => Boolean(r.transaction_at))
     .map((r) => ({ amount_cents: r.total_cents ?? 0, at: r.transaction_at as string }));
 
+  // `cost_micros` arrives as an int64, which PostgREST hands back as a string past 2^53. Number() it
+  // before the micros→cents floor rather than after, so a large month cannot become NaN mid-sum.
+  const adSpend: MoneyEvent[] = adRows
+    .filter((r) => Boolean(r.spend_date))
+    .map((r) => ({
+      amount_cents: microsToCents(Number(r.cost_micros ?? 0)),
+      // Midday UTC, not midnight. A date bucketed at 00:00:00Z lands in the previous day for anyone
+      // west of Greenwich, which for a Texas business means every month's spend starts a day early.
+      at: `${r.spend_date as string}T12:00:00Z`,
+    }));
+
+  // What share was typed off an invoice rather than imported. Reported so the UI can say so.
+  const adTotalMicros = adRows.reduce((s, r) => s + Math.max(0, Number(r.cost_micros ?? 0)), 0);
+  const manualMicros = adRows
+    .filter((r) => r.source !== 'api')
+    .reduce((s, r) => s + Math.max(0, Number(r.cost_micros ?? 0)), 0);
+  const manualShare = adTotalMicros > 0 ? manualMicros / adTotalMicros : 0;
+
+  const receiptsForCheck: ReceiptLike[] = recRows
+    .filter((r) => Boolean(r.transaction_at))
+    .map((r) => ({
+      id: r.id,
+      vendor_name: r.vendor_name,
+      total_cents: r.total_cents ?? 0,
+      transaction_at: r.transaction_at as string,
+    }));
+  const adSpendCents = microsToCents(adTotalMicros);
+  const duplicates = findSuspectedDuplicates(receiptsForCheck, adSpendCents);
+
   return NextResponse.json({
     from,
     to,
     granularity,
-    summary: summarizeFinances(revenue, payouts, expenses),
-    by_period: financesByPeriod(revenue, payouts, expenses, granularity, { from: fromTs, to: toTs }),
+    summary: summarizeFinances(revenue, payouts, expenses, adSpend),
+    by_period: financesByPeriod(revenue, payouts, expenses, adSpend, granularity, {
+      from: fromTs,
+      to: toTs,
+    }),
+    ad_spend: {
+      cents: adSpendCents,
+      manual_share: manualShare,
+      platforms: [...new Set(adRows.map((r) => r.platform).filter(Boolean))],
+      suspected_duplicates: duplicates,
+      suspected_duplicate_cents: suspectedDuplicateTotal(duplicates),
+    },
   });
 });

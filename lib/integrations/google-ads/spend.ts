@@ -24,6 +24,26 @@
 /** Google reports money in millionths of the account currency. $12.34 → 12_340_000. */
 export const MICROS_PER_UNIT = 1_000_000;
 
+/** 10,000 micros make a cent. The finance side of this application counts in cents. */
+const MICROS_PER_CENT = 10_000;
+
+/**
+ * The ONE place micros become cents, so the finance tables and the Ads UI can only ever disagree here.
+ *
+ * FLOOR, not round, and the direction is the point. Rounding a half-cent up would report spend the
+ * account was never charged; flooring reports at most a cent less per row than Google billed. Between
+ * "we spent slightly more than the books say" and "we spent slightly less", only the first is a
+ * surprise that costs money — so the books are allowed to lag the invoice, never lead it.
+ *
+ * Guards `NaN`/`Infinity` to 0 rather than letting them poison a monthly total, and clamps negatives:
+ * Google can report a credit as negative micros, and a negative "expense" flowing into an outflow sum
+ * would quietly inflate net profit.
+ */
+export function microsToCents(micros: number): number {
+  if (!Number.isFinite(micros) || micros <= 0) return 0;
+  return Math.floor(micros / MICROS_PER_CENT);
+}
+
 export interface SpendRow {
   spendDate: string;          // YYYY-MM-DD
   campaignId: string | null;

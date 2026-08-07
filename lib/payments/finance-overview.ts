@@ -21,7 +21,15 @@ export interface FinanceOverview {
   revenue_cents: number;
   payouts_cents: number;
   expenses_cents: number;
-  /** payouts + expenses. */
+  /**
+   * Advertising, from `ad_spend_daily` — its OWN stream, not folded into `expenses_cents`.
+   *
+   * Folding it in would have shipped in an hour and defeated the point. The owner asked for "ad spend
+   * control", and control needs the number visible: mixed into receipts it is indistinguishable from
+   * fuel and equipment, and the one figure they asked to watch is the one the page cannot show.
+   */
+  ad_spend_cents: number;
+  /** payouts + expenses + ad spend. */
   outflow_cents: number;
   /** revenue - outflow (can be negative). */
   net_cents: number;
@@ -31,20 +39,30 @@ function sumEvents(xs: ReadonlyArray<MoneyEvent>): number {
   return xs.reduce((s, e) => s + Math.max(0, Math.round(e.amount_cents)), 0);
 }
 
-/** Pure — top-line totals across the whole window. */
+/**
+ * Pure — top-line totals across the whole window.
+ *
+ * `adSpend` is REQUIRED rather than optional, and that is deliberate. An optional fourth argument lets
+ * an existing caller keep compiling while silently reporting an outflow that is missing a whole
+ * category — the failure would be a net-profit figure that is wrong in the flattering direction, which
+ * is the kind nobody investigates. Making it required turns every call site into a decision.
+ */
 export function summarizeFinances(
   revenue: ReadonlyArray<MoneyEvent>,
   payouts: ReadonlyArray<MoneyEvent>,
   expenses: ReadonlyArray<MoneyEvent>,
+  adSpend: ReadonlyArray<MoneyEvent>,
 ): FinanceOverview {
   const revenue_cents = sumEvents(revenue);
   const payouts_cents = sumEvents(payouts);
   const expenses_cents = sumEvents(expenses);
-  const outflow_cents = payouts_cents + expenses_cents;
+  const ad_spend_cents = sumEvents(adSpend);
+  const outflow_cents = payouts_cents + expenses_cents + ad_spend_cents;
   return {
     revenue_cents,
     payouts_cents,
     expenses_cents,
+    ad_spend_cents,
     outflow_cents,
     net_cents: revenue_cents - outflow_cents,
   };
@@ -58,6 +76,7 @@ export interface PeriodRow {
   revenue_cents: number;
   payouts_cents: number;
   expenses_cents: number;
+  ad_spend_cents: number;
   net_cents: number;
 }
 
@@ -66,11 +85,12 @@ export interface WindowOptions {
   to?: string | null;
 }
 
-/** Pure — bucket all three streams by period and net them per bucket. */
+/** Pure — bucket all four streams by period and net them per bucket. */
 export function financesByPeriod(
   revenue: ReadonlyArray<MoneyEvent>,
   payouts: ReadonlyArray<MoneyEvent>,
   expenses: ReadonlyArray<MoneyEvent>,
+  adSpend: ReadonlyArray<MoneyEvent>,
   granularity: Granularity,
   opts: WindowOptions = {},
 ): PeriodRow[] {
@@ -78,7 +98,10 @@ export function financesByPeriod(
   const to = opts.to ? Date.parse(opts.to) : null;
   const buckets = new Map<string, PeriodRow>();
 
-  const add = (events: ReadonlyArray<MoneyEvent>, field: 'revenue_cents' | 'payouts_cents' | 'expenses_cents'): void => {
+  const add = (
+    events: ReadonlyArray<MoneyEvent>,
+    field: 'revenue_cents' | 'payouts_cents' | 'expenses_cents' | 'ad_spend_cents',
+  ): void => {
     for (const e of events) {
       const t = Date.parse(e.at);
       if (Number.isNaN(t)) continue;
@@ -94,6 +117,7 @@ export function financesByPeriod(
           revenue_cents: 0,
           payouts_cents: 0,
           expenses_cents: 0,
+          ad_spend_cents: 0,
           net_cents: 0,
         };
         buckets.set(key, row);
@@ -105,9 +129,12 @@ export function financesByPeriod(
   add(revenue, 'revenue_cents');
   add(payouts, 'payouts_cents');
   add(expenses, 'expenses_cents');
+  add(adSpend, 'ad_spend_cents');
 
   const rows = Array.from(buckets.values());
-  for (const r of rows) r.net_cents = r.revenue_cents - r.payouts_cents - r.expenses_cents;
+  for (const r of rows) {
+    r.net_cents = r.revenue_cents - r.payouts_cents - r.expenses_cents - r.ad_spend_cents;
+  }
   return rows.sort((a, b) => a.period_start.localeCompare(b.period_start));
 }
 

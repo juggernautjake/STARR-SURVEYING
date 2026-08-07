@@ -21,6 +21,10 @@
 // export would skip them. Mark only after Google has accepted it.
 import { useCallback, useEffect, useState } from 'react';
 
+// Shared marketing stylesheet. These pages referenced their class names for months with
+// nothing defining them — see the header of Marketing.css.
+import '../Marketing.css';
+
 const MILESTONES = [
   // Hyphens, not em dashes — these mirror the conversion action names in the live Ads account, and
   // an operator comparing this screen against Google should see the same string in both.

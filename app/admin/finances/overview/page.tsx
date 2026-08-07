@@ -12,12 +12,16 @@ import Link from 'next/link';
 import { formatDollars } from '@/lib/payments/live';
 import '../../payments-admin.css';
 
+// This page referenced its fin-* classes with nothing defining them. See the stylesheet header.
+import './FinanceOverview.css';
+
 type Granularity = 'day' | 'week' | 'month' | 'year';
 
 interface Summary {
   revenue_cents: number;
   payouts_cents: number;
   expenses_cents: number;
+  ad_spend_cents: number;
   outflow_cents: number;
   net_cents: number;
 }
@@ -27,7 +31,21 @@ interface PeriodRow {
   revenue_cents: number;
   payouts_cents: number;
   expenses_cents: number;
+  ad_spend_cents: number;
   net_cents: number;
+}
+/** What the route says about the advertising figure's own trustworthiness. */
+interface AdSpendMeta {
+  cents: number;
+  manual_share: number;
+  platforms: string[];
+  suspected_duplicates: Array<{
+    receipt_id: string;
+    vendor_name: string | null;
+    total_cents: number;
+    reason: string;
+  }>;
+  suspected_duplicate_cents: number;
 }
 interface OverviewResponse {
   from: string;
@@ -35,6 +53,7 @@ interface OverviewResponse {
   granularity: Granularity;
   summary: Summary;
   by_period: PeriodRow[];
+  ad_spend: AdSpendMeta;
 }
 
 function isoDate(d: Date): string {
@@ -91,10 +110,15 @@ export default function FinanceOverviewPage(): React.ReactElement {
       <header className="fin-page__header">
         <div>
           <Link href="/admin/finances" className="fin-page__back">← Finances</Link>
+          {' '}
+          {/* Advertising is a line on this page now, so the screen that explains WHY it moved has to
+              be one click away. A total with no route to its cause is a number you can only worry
+              about. */}
+          <Link href="/admin/marketing" className="fin-page__back">Marketing &amp; ad spend →</Link>
           <h1 className="fin-page__title">Money in &amp; out</h1>
           <p className="fin-page__lede">
-            Cash-flow overview — cleared customer payments in, employee payouts and approved
-            receipts out, netted for the range. Money that actually moved.
+            Cash-flow overview — cleared customer payments in, employee payouts, approved receipts
+            and advertising out, netted for the range. Money that actually moved.
           </p>
         </div>
       </header>
@@ -132,6 +156,31 @@ export default function FinanceOverviewPage(): React.ReactElement {
 
       {error && <p className="fin-page__error" data-testid="fin-error" role="alert">{error}</p>}
 
+      {/* Advertising can reach the books twice — imported from the Ads account AND photographed as a
+          receipt somebody approved. Both numbers are individually correct, so nothing looks wrong;
+          net profit simply reads low by a month of ad spend, an error in the direction nobody
+          investigates. Shown, never silently corrected: the match is a heuristic over a vendor name
+          typed on a phone, and deleting a real expense because it fired would be both worse and
+          undetectable afterwards. */}
+      {data?.ad_spend?.suspected_duplicates?.length ? (
+        <div className="fin-dupe" data-testid="fin-dupes" role="status">
+          <strong>
+            Advertising may be counted twice ({formatDollars(data.ad_spend.suspected_duplicate_cents)}).
+          </strong>{' '}
+          These approved receipts look like advertising charges, and advertising is already counted
+          separately from the Ads account for this range:
+          <ul>
+            {data.ad_spend.suspected_duplicates.map((d) => (
+              <li key={d.receipt_id}>
+                {d.vendor_name ?? 'unnamed vendor'} — {formatDollars(d.total_cents)}
+              </li>
+            ))}
+          </ul>
+          If they are the same money, delete or recategorise the receipt. If they are genuinely
+          separate charges, nothing needs doing.
+        </div>
+      ) : null}
+
       {s && (
         <>
           <section className="fin-cards" data-testid="fin-cards">
@@ -145,6 +194,19 @@ export default function FinanceOverviewPage(): React.ReactElement {
               <span className="fin-card__value">{formatDollars(s.outflow_cents)}</span>
               <span className="fin-card__sub">
                 payouts {formatDollars(s.payouts_cents)} · expenses {formatDollars(s.expenses_cents)}
+                {' · '}ads {formatDollars(s.ad_spend_cents)}
+              </span>
+            </article>
+            {/* Advertising gets a card of its own rather than only a share of "money out". The owner
+                asked to control ad spend, and a figure folded into a subtotal is one you cannot
+                steer — you would have to subtract two other numbers to find it. */}
+            <article className="fin-card fin-card--out" data-testid="fin-ads">
+              <span className="fin-card__label">Advertising</span>
+              <span className="fin-card__value">{formatDollars(s.ad_spend_cents)}</span>
+              <span className="fin-card__sub">
+                {data?.ad_spend && data.ad_spend.manual_share > 0
+                  ? `${Math.round(data.ad_spend.manual_share * 100)}% entered by hand`
+                  : 'imported from the Ads account'}
               </span>
             </article>
             <article className={`fin-card ${netPositive ? 'fin-card--net-pos' : 'fin-card--net-neg'}`}>
@@ -160,6 +222,7 @@ export default function FinanceOverviewPage(): React.ReactElement {
               <span>In</span>
               <span>Payouts</span>
               <span>Expenses</span>
+              <span>Ads</span>
               <span>Net</span>
             </div>
             {data!.by_period.length === 0 ? (
@@ -171,6 +234,7 @@ export default function FinanceOverviewPage(): React.ReactElement {
                   <span className="fin-pos">{formatDollars(p.revenue_cents)}</span>
                   <span className="fin-neg">{formatDollars(p.payouts_cents)}</span>
                   <span className="fin-neg">{formatDollars(p.expenses_cents)}</span>
+                  <span className="fin-neg">{formatDollars(p.ad_spend_cents)}</span>
                   <span className={p.net_cents >= 0 ? 'fin-pos fin-strong' : 'fin-neg fin-strong'}>
                     {formatDollars(p.net_cents)}
                   </span>
