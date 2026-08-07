@@ -153,5 +153,5 @@ Each slice is independently shippable: types, tests, `npm run build`, commit.
 
 ## Progress
 
-- [x] S1 · [x] S2 · [x] S3 · [x] S4 · [ ] S5 · [ ] S6 · [ ] S7
+- [x] S1 · [x] S2 · [x] S3 · [x] S4 · [x] S5 · [x] S6 · [ ] S7
 - [ ] S8 · [ ] S9 · [ ] S10 · [ ] S11 · [ ] S12 · [ ] S13
