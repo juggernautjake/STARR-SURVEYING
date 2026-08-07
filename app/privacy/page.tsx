@@ -30,7 +30,9 @@ import Link from 'next/link';
 import '../styles/Privacy.css';
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | Starr Surveying',
+  // Just the page name: the root layout's title template appends "| Starr Surveying", so including
+  // the brand here rendered as "Privacy Policy | Starr Surveying | Starr Surveying".
+  title: 'Privacy Policy',
   description:
     'How Starr Surveying collects, uses, and protects your information when you request a survey quote, pay an invoice, or browse our website.',
 };
