@@ -70,6 +70,10 @@ const Footer = (): React.ReactElement => {
     // customer-facing payment portal in the footer link list so a
     // customer who lands deep in the site can still find it.
     { href: '/pay', label: 'Pay an Invoice' },
+    // Google's OAuth verification for the `adwords` scope requires a privacy policy reachable from
+    // the site, and the Ads API design document cites this URL. It is a footer link on every page
+    // for that reason as much as for the ordinary one.
+    { href: '/privacy', label: 'Privacy Policy' },
   ];
 
   const contactInfo: ContactInfo[] = [
