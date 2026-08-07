@@ -1,5 +1,17 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Script from 'next/script';
-import { GA_ADS_ID, CONVERSION_LABEL } from '../utils/gtag';
+import { GA_ADS_ID, CONVERSION_LABEL, trackPhoneClick } from '../utils/gtag';
+
+/**
+ * The only hosts allowed to talk to the live Google Ads account.
+ *
+ * Both are listed although the apex 307-redirects to `www`, so nothing is actually served from it —
+ * a redirect is one DNS change away from not existing, and losing conversion tracking because
+ * somebody pointed the apex at the app directly is a silent, expensive failure.
+ */
+const PRODUCTION_HOSTS = new Set(['www.starr-surveying.com', 'starr-surveying.com']);
 
 /**
  * Loads the Google Ads global site tag and contact-form conversion tracking.
@@ -16,7 +28,79 @@ import { GA_ADS_ID, CONVERSION_LABEL } from '../utils/gtag';
  * docs/planning/.../LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md for why the GA4 mirror is
  * deferred rather than built.
  */
-export default function GoogleAdsScript(): React.ReactElement {
+export default function GoogleAdsScript(): React.ReactElement | null {
+  // ── WHY THIS IS GATED BY HOSTNAME (added 2026-08-07) ──────────────────────────────────────────
+  //
+  // This component used to render unconditionally, which meant the LIVE Google Ads tag loaded on
+  // every `npm run dev` and on every Vercel preview deployment. Each of those sent page views and
+  // remarketing hits into the real advertising account from a domain that is not the website.
+  //
+  // Google noticed before we did: Tag quality → "Additional domains detected for configuration".
+  // The temptation there is to add the detected domains to the tag's configuration, which would
+  // make the warning disappear and the pollution permanent. The domains are the problem.
+  //
+  // Worse than the noise: `trackConversion()` fires on successful form submission, so testing the
+  // contact form against a preview build reported a real conversion for a lead that does not exist —
+  // and Smart Bidding trains on that.
+  //
+  // Checked at runtime rather than through NEXT_PUBLIC_VERCEL_ENV because that variable only reaches
+  // the browser when the project opts into exposing system environment variables. If it were unset,
+  // an env-based check would silently disable tracking in PRODUCTION, which is far worse than the
+  // problem being solved. `window.location.hostname` cannot be wrong about where it is running.
+  const [onProductionHost, setOnProductionHost] = useState(false);
+
+  useEffect(() => {
+    // Escape hatch for deliberately testing the tag on a preview URL. Off unless explicitly set.
+    if (process.env.NEXT_PUBLIC_ADS_TAG_FORCE === '1') {
+      setOnProductionHost(true);
+      return;
+    }
+    setOnProductionHost(PRODUCTION_HOSTS.has(window.location.hostname));
+  }, []);
+
+  // ── PHONE CLICKS, VIA ONE DELEGATED LISTENER ──────────────────────────────────────────────────
+  //
+  // There are `tel:` links on the home page, /about, /contact, /services, /service-area, /pricing,
+  // /resources, the calculator and the footer. Wiring an onClick to each is eleven edits that must be
+  // repeated by whoever adds the twelfth — and the one they forget is invisible, because a missing
+  // conversion looks exactly like nobody calling.
+  //
+  // One listener on `document` covers every `tel:` link that exists now or later, including links
+  // inside components this file has never heard of.
+  useEffect(() => {
+    if (!onProductionHost) return;
+
+    // Existing CUSTOMERS use these paths, and they are not leads. Somebody ringing about an invoice
+    // they are trying to pay must not be reported as a new enquiry produced by an advertisement.
+    const CUSTOMER_PATHS = ['/pay', '/portal', '/proposal', '/change-order'];
+
+    function onClick(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      const link = target?.closest?.('a[href^="tel:"]');
+      if (!link) return;
+      if (CUSTOMER_PATHS.some((p) => window.location.pathname.startsWith(p))) return;
+
+      // Dedupe key. Tapping a number, getting voicemail and tapping again is one lead, not two.
+      // Scoped to the session so a genuine call back next week still counts.
+      let session = sessionStorage.getItem('ss_visit');
+      if (!session) {
+        session = Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('ss_visit', session);
+      }
+      const digits = (link.getAttribute('href') ?? '').replace(/\D/g, '');
+      trackPhoneClick(`tel-${digits}-${session}`);
+    }
+
+    // Capture phase: a `tel:` tap can begin navigating away, and a bubbling listener sometimes never
+    // runs. gtag's transport uses sendBeacon, which survives the page going away.
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [onProductionHost]);
+
+  // Nothing rendered anywhere else, so `window.gtag` never exists off production. `trackConversion`
+  // already guards on that and logs a console warning instead of throwing.
+  if (!onProductionHost) return null;
+
   return (
     <>
       {/* ================================================================
