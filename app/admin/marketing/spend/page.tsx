@@ -16,6 +16,10 @@
 // than adding to it — and when the API import eventually runs, the real number overwrites the estimate.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+// Shared marketing stylesheet. These pages referenced their class names for months with
+// nothing defining them — see the header of Marketing.css.
+import '../Marketing.css';
+
 interface Row {
   id: string; spend_date: string; platform: string;
   campaign_id: string; campaign_name: string | null;
