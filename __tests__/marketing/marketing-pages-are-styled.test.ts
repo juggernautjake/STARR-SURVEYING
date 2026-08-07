@@ -17,7 +17,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8');
+// Line endings normalised on the way in. Git converts these files to CRLF in the working tree on
+// Windows, so an assertion matching a literal '\n' inside a selector list passes on one machine and
+// fails on another — a test that reports a defect the source does not have.
+const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 
 const SHARED = read('app/admin/marketing/Marketing.css');
 const UPLOADS = read('app/admin/marketing/uploads/MarketingUploads.css');

@@ -40,10 +40,13 @@ interface AdSpendMeta {
   manual_share: number;
   platforms: string[];
   suspected_duplicates: Array<{
-    receipt_id: string;
-    vendor_name: string | null;
+    kind: string;
+    confidence: 'high' | 'low';
+    receipt_ids: string[];
+    vendor: string | null;
     total_cents: number;
-    reason: string;
+    dedupe_key: string;
+    explanation: string;
   }>;
   suspected_duplicate_cents: number;
 }
@@ -165,19 +168,25 @@ export default function FinanceOverviewPage(): React.ReactElement {
       {data?.ad_spend?.suspected_duplicates?.length ? (
         <div className="fin-dupe" data-testid="fin-dupes" role="status">
           <strong>
-            Advertising may be counted twice ({formatDollars(data.ad_spend.suspected_duplicate_cents)}).
+            Money may be counted twice ({formatDollars(data.ad_spend.suspected_duplicate_cents)} at risk).
           </strong>{' '}
-          These approved receipts look like advertising charges, and advertising is already counted
-          separately from the Ads account for this range:
+          Each of these is a signal, not a verdict — two genuine purchases can look identical to one
+          entered twice, so nothing has been changed or removed.
           <ul>
             {data.ad_spend.suspected_duplicates.map((d) => (
-              <li key={d.receipt_id}>
-                {d.vendor_name ?? 'unnamed vendor'} — {formatDollars(d.total_cents)}
+              <li key={d.dedupe_key}>
+                {/* Confidence is shown per row rather than filtered out. A "maybe" is worth seeing
+                    on a page you opened deliberately; it is only on a 7am phone alert that it
+                    becomes noise, and the alert filters to high confidence for that reason. */}
+                <strong>{d.vendor ?? 'unnamed vendor'}</strong> — {formatDollars(d.total_cents)}
+                {d.confidence === 'low' ? ' (possible)' : ''}
+                <br />
+                <span className="fin-dupe__why">{d.explanation}</span>
               </li>
             ))}
           </ul>
-          If they are the same money, delete or recategorise the receipt. If they are genuinely
-          separate charges, nothing needs doing.
+          If a match is the same money, delete or recategorise the extra receipt. If they are
+          genuinely separate charges, nothing needs doing.
         </div>
       ) : null}
 

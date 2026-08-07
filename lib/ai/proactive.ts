@@ -21,6 +21,9 @@
 // notifications is one deliberate wiring step, not a default.
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { microsToCents } from '@/lib/integrations/google-ads/spend';
+import { findDuplicateExpenses } from '@/lib/finances/duplicate-expenses';
+import { looksLikeAdVendor } from '@/lib/finances/ad-spend-reconcile';
 import { assess, type ComplianceRow } from '@/lib/compliance/register';
 import { notifyMany } from '@/lib/notifications';
 
@@ -177,6 +180,75 @@ async function uncalibratedInstruments(): Promise<ProactiveAlert[]> {
     }));
 }
 
+/** The same money counted twice.
+ *
+ *  Owner ask, 2026-08-07: *"systems and checks in place that trigger alerts whenever it seems like
+ *  receipt/expenditures are counted multiple times."*
+ *
+ *  A duplicate expense is the quietest error in the ledger. Nothing fails, both rows are individually
+ *  correct, and net profit simply reads low — an error in the flattering direction, which nobody
+ *  investigates. It surfaces months later, if ever, when somebody reconciles against a statement.
+ *
+ *  Ninety days rather than the whole year: the point is to catch it while somebody still remembers
+ *  the purchase, and a check that re-examines all of history has to re-decide every old pair on every
+ *  run. `warn`, not `urgent` — money is at stake but nothing is on fire. */
+async function duplicateExpenses(): Promise<ProactiveAlert[]> {
+  const since = new Date(Date.now() - 90 * 86_400_000).toISOString();
+
+  const [recRes, adRes] = await Promise.all([
+    supabaseAdmin
+      .from('receipts')
+      .select('id, vendor_name, total_cents, transaction_at')
+      .in('status', ['approved', 'exported'])
+      .is('deleted_at', null)
+      .gte('transaction_at', since),
+    supabaseAdmin
+      .from('ad_spend_daily')
+      .select('cost_micros')
+      .gte('spend_date', since.slice(0, 10)),
+  ]);
+
+  if (recRes.error) {
+    console.error('[proactive] duplicate-expense check failed:', recRes.error.message);
+    return [];
+  }
+
+  const receipts = ((recRes.data ?? []) as Array<{
+    id: string; vendor_name: string | null; total_cents: number | null; transaction_at: string | null;
+  }>)
+    .filter((r) => Boolean(r.transaction_at))
+    .map((r) => ({
+      id: r.id,
+      vendor_name: r.vendor_name,
+      total_cents: r.total_cents ?? 0,
+      transaction_at: r.transaction_at as string,
+    }));
+
+  const adSpendCents = microsToCents(
+    ((adRes.data ?? []) as Array<{ cost_micros: number | string | null }>)
+      .reduce((s, x) => s + Math.max(0, Number(x.cost_micros ?? 0)), 0),
+  );
+
+  // Only the confident findings become notifications. The low-confidence ones — same vendor and
+  // amount a week apart — are real signals but ordinary enough that alerting on them nightly would
+  // train somebody to dismiss the channel, taking the high-confidence ones with it. They stay
+  // visible on the finance overview, where they are looked at deliberately rather than pushed.
+  return findDuplicateExpenses(receipts, { adSpendCents, isAdVendor: looksLikeAdVendor })
+    .filter((f) => f.confidence === 'high')
+    .map((f) => ({
+      dedupeKey: f.dedupe_key,
+      severity: 'warn' as const,
+      title: `Possible double-counted expense — ${formatCents(f.total_cents)}`,
+      detail: f.explanation,
+      href: '/admin/finances/overview',
+    }));
+}
+
+/** Cents → "$84.50", for alert text that a person reads on a phone. */
+function formatCents(cents: number): string {
+  return `$${(Math.max(0, cents) / 100).toFixed(2)}`;
+}
+
 /** Everything, worst first.
  *
  *  Each check is independent and a failure in one does not silence the rest — a compliance query
@@ -188,6 +260,7 @@ export async function collectProactiveAlerts(): Promise<ProactiveAlert[]> {
     jobsOverEstimate(),
     agedReceivables(),
     uncalibratedInstruments(),
+    duplicateExpenses(),
   ]);
 
   const rank: Record<AlertSeverity, number> = { urgent: 0, warn: 1, info: 2 };

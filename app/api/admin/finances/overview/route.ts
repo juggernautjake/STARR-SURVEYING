@@ -41,11 +41,8 @@ import {
   type Granularity,
 } from '@/lib/payments/finance-overview';
 import { microsToCents } from '@/lib/integrations/google-ads/spend';
-import {
-  findSuspectedDuplicates,
-  suspectedDuplicateTotal,
-  type ReceiptLike,
-} from '@/lib/finances/ad-spend-reconcile';
+import { looksLikeAdVendor, type ReceiptLike } from '@/lib/finances/ad-spend-reconcile';
+import { findDuplicateExpenses, duplicateRiskTotal } from '@/lib/finances/duplicate-expenses';
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const GRANULARITIES = new Set<Granularity>(['day', 'week', 'month', 'year']);
@@ -153,7 +150,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       transaction_at: r.transaction_at as string,
     }));
   const adSpendCents = microsToCents(adTotalMicros);
-  const duplicates = findSuspectedDuplicates(receiptsForCheck, adSpendCents);
+  // The GENERAL detector, the same one the nightly alert uses (`lib/ai/proactive.ts`). It was the
+  // advertising-only guard until 2026-08-07, which meant the page and the notification could disagree
+  // about what a duplicate is — and the commonest duplicate in this business has nothing to do with
+  // ads, it is the same fuel receipt photographed twice.
+  //
+  // The page shows BOTH confidences; the alert pushes only the high ones. Something you look at
+  // deliberately can afford a maybe. Something that arrives on a phone at 7am cannot.
+  const duplicates = findDuplicateExpenses(receiptsForCheck, {
+    adSpendCents,
+    isAdVendor: looksLikeAdVendor,
+  });
 
   return NextResponse.json({
     from,
@@ -169,7 +176,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       manual_share: manualShare,
       platforms: [...new Set(adRows.map((r) => r.platform).filter(Boolean))],
       suspected_duplicates: duplicates,
-      suspected_duplicate_cents: suspectedDuplicateTotal(duplicates),
+      suspected_duplicate_cents: duplicateRiskTotal(duplicates),
     },
   });
 });
