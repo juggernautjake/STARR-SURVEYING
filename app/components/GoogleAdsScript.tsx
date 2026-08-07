@@ -1,5 +1,17 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import Script from 'next/script';
 import { GA_ADS_ID, CONVERSION_LABEL } from '../utils/gtag';
+
+/**
+ * The only hosts allowed to talk to the live Google Ads account.
+ *
+ * Both are listed although the apex 307-redirects to `www`, so nothing is actually served from it —
+ * a redirect is one DNS change away from not existing, and losing conversion tracking because
+ * somebody pointed the apex at the app directly is a silent, expensive failure.
+ */
+const PRODUCTION_HOSTS = new Set(['www.starr-surveying.com', 'starr-surveying.com']);
 
 /**
  * Loads the Google Ads global site tag and contact-form conversion tracking.
@@ -16,7 +28,40 @@ import { GA_ADS_ID, CONVERSION_LABEL } from '../utils/gtag';
  * docs/planning/.../LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md for why the GA4 mirror is
  * deferred rather than built.
  */
-export default function GoogleAdsScript(): React.ReactElement {
+export default function GoogleAdsScript(): React.ReactElement | null {
+  // ── WHY THIS IS GATED BY HOSTNAME (added 2026-08-07) ──────────────────────────────────────────
+  //
+  // This component used to render unconditionally, which meant the LIVE Google Ads tag loaded on
+  // every `npm run dev` and on every Vercel preview deployment. Each of those sent page views and
+  // remarketing hits into the real advertising account from a domain that is not the website.
+  //
+  // Google noticed before we did: Tag quality → "Additional domains detected for configuration".
+  // The temptation there is to add the detected domains to the tag's configuration, which would
+  // make the warning disappear and the pollution permanent. The domains are the problem.
+  //
+  // Worse than the noise: `trackConversion()` fires on successful form submission, so testing the
+  // contact form against a preview build reported a real conversion for a lead that does not exist —
+  // and Smart Bidding trains on that.
+  //
+  // Checked at runtime rather than through NEXT_PUBLIC_VERCEL_ENV because that variable only reaches
+  // the browser when the project opts into exposing system environment variables. If it were unset,
+  // an env-based check would silently disable tracking in PRODUCTION, which is far worse than the
+  // problem being solved. `window.location.hostname` cannot be wrong about where it is running.
+  const [onProductionHost, setOnProductionHost] = useState(false);
+
+  useEffect(() => {
+    // Escape hatch for deliberately testing the tag on a preview URL. Off unless explicitly set.
+    if (process.env.NEXT_PUBLIC_ADS_TAG_FORCE === '1') {
+      setOnProductionHost(true);
+      return;
+    }
+    setOnProductionHost(PRODUCTION_HOSTS.has(window.location.hostname));
+  }, []);
+
+  // Nothing rendered anywhere else, so `window.gtag` never exists off production. `trackConversion`
+  // already guards on that and logs a console warning instead of throwing.
+  if (!onProductionHost) return null;
+
   return (
     <>
       {/* ================================================================

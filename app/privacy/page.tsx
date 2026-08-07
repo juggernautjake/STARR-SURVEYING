@@ -23,6 +23,19 @@
 //
 // If any of those change, this page is wrong and must change with them. That is the whole reason the
 // list above exists.
+//
+// ── AND ONE CLASS OF CLAIM THE CODE CANNOT SETTLE ───────────────────────────────────────────────
+//
+// This page originally said "We do not run remarketing or retargeting. We do not build audience
+// lists." Both halves looked true from in here: no remarketing campaign, no audience code, nothing in
+// the repo touching audiences. Tag Assistant then showed the live site sending a `Remarketing` hit to
+// AW-17921491739 on every page view — because the Google Ads tag does audience collection BY DEFAULT,
+// as an account-level behaviour with no representation in this codebase at all.
+//
+// So: a claim about what Google's own tag does, or about how the Ads account is configured, cannot be
+// verified by reading this repository and must not be written as if it can. Check it in Tag Assistant
+// or in the Ads account before it goes on this page. `__tests__/marketing/privacy-policy-stays-true`
+// guards the claims that ARE code-derived; it is silent on this one by necessity.
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -38,7 +51,10 @@ export const metadata: Metadata = {
 };
 
 /** Shown in the header and in the "Changes" section, so it is stated once. */
-const EFFECTIVE_DATE = 'August 6, 2026';
+// Bumped 2026-08-07: the remarketing claim was corrected. The policy's own "Changes" section
+// promises the date moves when the substance does, so an amendment that leaves it alone is itself a
+// small false statement.
+const EFFECTIVE_DATE = 'August 7, 2026';
 
 interface Section {
   id: string;
@@ -204,8 +220,20 @@ export default function PrivacyPolicyPage(): React.ReactElement {
                   browse.
                 </li>
                 <li>
-                  <strong>We do not run remarketing or retargeting.</strong> We do not build audience
-                  lists and we do not follow you around the internet with our ads.
+                  <strong>We do not run remarketing or retargeting campaigns.</strong> We do not show
+                  you our ads elsewhere on the internet based on your visit here. Google&apos;s
+                  advertising tag does collect data that Google can use to build advertising audiences,
+                  which is on by default for advertisers — we simply do not use it. You can switch this
+                  off for your own Google account in{' '}
+                  <a
+                    href="https://myadcenter.google.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="privacy-link"
+                  >
+                    My Ad Center
+                  </a>
+                  .
                 </li>
                 <li>
                   <strong>We do not sell your information</strong> and we do not share it for
