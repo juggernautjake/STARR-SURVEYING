@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
-import { GA_ADS_ID, CONVERSION_LABEL } from '../utils/gtag';
+import { GA_ADS_ID, CONVERSION_LABEL, trackPhoneClick } from '../utils/gtag';
 
 /**
  * The only hosts allowed to talk to the live Google Ads account.
@@ -57,6 +57,45 @@ export default function GoogleAdsScript(): React.ReactElement | null {
     }
     setOnProductionHost(PRODUCTION_HOSTS.has(window.location.hostname));
   }, []);
+
+  // ── PHONE CLICKS, VIA ONE DELEGATED LISTENER ──────────────────────────────────────────────────
+  //
+  // There are `tel:` links on the home page, /about, /contact, /services, /service-area, /pricing,
+  // /resources, the calculator and the footer. Wiring an onClick to each is eleven edits that must be
+  // repeated by whoever adds the twelfth — and the one they forget is invisible, because a missing
+  // conversion looks exactly like nobody calling.
+  //
+  // One listener on `document` covers every `tel:` link that exists now or later, including links
+  // inside components this file has never heard of.
+  useEffect(() => {
+    if (!onProductionHost) return;
+
+    // Existing CUSTOMERS use these paths, and they are not leads. Somebody ringing about an invoice
+    // they are trying to pay must not be reported as a new enquiry produced by an advertisement.
+    const CUSTOMER_PATHS = ['/pay', '/portal', '/proposal', '/change-order'];
+
+    function onClick(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      const link = target?.closest?.('a[href^="tel:"]');
+      if (!link) return;
+      if (CUSTOMER_PATHS.some((p) => window.location.pathname.startsWith(p))) return;
+
+      // Dedupe key. Tapping a number, getting voicemail and tapping again is one lead, not two.
+      // Scoped to the session so a genuine call back next week still counts.
+      let session = sessionStorage.getItem('ss_visit');
+      if (!session) {
+        session = Math.random().toString(36).slice(2, 10);
+        sessionStorage.setItem('ss_visit', session);
+      }
+      const digits = (link.getAttribute('href') ?? '').replace(/\D/g, '');
+      trackPhoneClick(`tel-${digits}-${session}`);
+    }
+
+    // Capture phase: a `tel:` tap can begin navigating away, and a bubbling listener sometimes never
+    // runs. gtag's transport uses sendBeacon, which survives the page going away.
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [onProductionHost]);
 
   // Nothing rendered anywhere else, so `window.gtag` never exists off production. `trackConversion`
   // already guards on that and logs a console warning instead of throwing.
