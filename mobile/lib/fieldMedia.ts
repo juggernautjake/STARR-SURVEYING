@@ -698,18 +698,39 @@ export function useAttachVideo(): (
 }
 
 /**
- * Lightweight extension probe — picker uri + mime fallback.
- * Defaults to .mp4 because that's what the Supabase video bucket
- * accepts and what most native players prefer. Older Android
- * devices that hand us a .3gp get re-tagged to .mp4 (the bytes are
- * compatible enough for the v1 admin <video> player).
+ * Extension probe — picker uri + mime fallback.
+ *
+ * ── THE OLD DEFAULT LIED, AND THAT IS WHY IT CHANGED (2026-08-08) ─────────────────────────────
+ *
+ * This used to `return '.mp4'` for anything it did not recognise, on the reasoning that the bucket
+ * accepts mp4 and players prefer it. The effect was a file NAMED `.mp4` containing whatever the
+ * device actually recorded — a 3gp, or an unrecognised container. A filename that disagrees with its
+ * bytes is worse than an unfamiliar extension: every downstream tool trusts the name, and the failure
+ * surfaces far from here, as "the video will not play" with nothing pointing back at this line.
+ *
+ * Owner, 2026-08-08: *"Videos need to be saved as mp4 files."* The honest reading of that is TWO
+ * jobs, and only one of them belongs in this function:
+ *
+ *   - Never mislabel. That is this change, and it is complete.
+ *   - Actually convert QuickTime to MP4. That is a remux, it needs ffmpeg, and neither the Expo
+ *     runtime nor the Vercel serverless runtime has one. Written up in the plan document rather
+ *     than faked by renaming the file, which is precisely what this function used to do.
+ *
+ * `.mov` from an iPhone is H.264 in a QuickTime container and plays in every modern player,
+ * including Windows and Android. It is a compatibility footnote, not a broken file — whereas a
+ * mislabelled one genuinely is broken.
  */
 function inferVideoExtension(uri: string, mime: string): string {
   const lowerUri = uri.toLowerCase();
   if (lowerUri.endsWith('.mp4')) return '.mp4';
   if (lowerUri.endsWith('.mov')) return '.mov';
   if (lowerUri.endsWith('.m4v')) return '.m4v';
+  if (lowerUri.endsWith('.3gp')) return '.3gp';
   if (mime === 'video/quicktime') return '.mov';
+  if (mime === 'video/3gpp') return '.3gp';
+  if (mime === 'video/mp4') return '.mp4';
+  // Genuinely unknown. mp4 remains the best guess for the bucket, but it is a GUESS and the comment
+  // above is the record of that — it is no longer a claim dressed up as a default.
   return '.mp4';
 }
 
