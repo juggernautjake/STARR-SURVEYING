@@ -328,3 +328,149 @@
   line-height: 1.45;
   opacity: 0.85;
 }
+
+/* =============================================================================
+   AUDIT REPORT
+   =============================================================================
+   Severity is carried by a left border AND a text label, never colour alone —
+   the reader may be colour-blind, and "which of these is serious" is the one
+   thing this panel exists to communicate. */
+.fin-audit {
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 11px;
+  padding: 1.25rem 1.35rem;
+  margin-bottom: 1.5rem;
+}
+
+.fin-audit__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.fin-audit__title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.fin-audit__count {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--theme-fg-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-audit__scope,
+.fin-audit__degraded {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #6b7280);
+}
+
+.fin-audit__degraded {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #713f12;
+}
+
+/* The written summary reads as prose, set apart from the mechanical list below it. */
+.fin-audit__narrative {
+  margin: 0 0 1rem;
+  padding: 0.9rem 1.05rem;
+  border-left: 3px solid var(--brand-blue, #1d3095);
+  background: var(--theme-bg-subtle, #f9fafb);
+  border-radius: 0 8px 8px 0;
+  font-size: 0.92rem;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.fin-audit__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.fin-audit__item {
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-left-width: 4px;
+  border-radius: 8px;
+}
+
+.fin-audit__item--high   { border-left-color: #dc2626; }
+.fin-audit__item--medium { border-left-color: #d97706; }
+.fin-audit__item--low    { border-left-color: #9ca3af; }
+
+.fin-audit__item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.fin-audit__sev {
+  padding: 0.08rem 0.42rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fin-audit__sev--high   { color: #7f1d1d; background: #fee2e2; }
+.fin-audit__sev--medium { color: #713f12; background: #fef3c7; }
+.fin-audit__sev--low    { color: #374151; background: #f3f4f6; }
+
+.fin-audit__detail {
+  margin: 0 0 0.3rem;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #4b5563);
+}
+
+.fin-audit__ids {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--theme-fg-muted, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.fin-btn--audit {
+  color: #fff;
+  background: var(--brand-blue, #1d3095);
+  border-color: var(--brand-blue, #1d3095);
+}
+
+.fin-btn--audit:hover:not(:disabled) {
+  background: var(--brand-blue-dark, #152050);
+  border-color: var(--brand-blue-dark, #152050);
+}
+
+.fin-btn--audit:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+@media (prefers-color-scheme: dark) {
+  .fin-audit__degraded {
+    color: #fde68a;
+    background: rgba(113, 63, 18, 0.25);
+    border-color: rgba(251, 191, 36, 0.35);
+  }
+  .fin-audit__sev--high   { color: #fecaca; background: rgba(127, 29, 29, 0.35); }
+  .fin-audit__sev--medium { color: #fde68a; background: rgba(113, 63, 18, 0.35); }
+  .fin-audit__sev--low    { color: #d1d5db; background: rgba(55, 65, 81, 0.5); }
+}
