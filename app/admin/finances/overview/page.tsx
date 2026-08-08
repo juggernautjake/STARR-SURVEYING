@@ -59,6 +59,28 @@ interface OverviewResponse {
   ad_spend: AdSpendMeta;
 }
 
+interface AuditFinding {
+  severity: 'high' | 'medium' | 'low';
+  category: string;
+  title: string;
+  detail: string;
+  ids: string[];
+  amount_cents?: number;
+}
+interface AuditResponse {
+  period: { from: string; to: string };
+  totals: {
+    receipt_count: number; receipt_cents: number;
+    invoice_count: number; invoiced_cents: number;
+    paid_cents: number; ad_spend_cents: number;
+  };
+  findings: AuditFinding[];
+  questioned_cents: number;
+  /** Written by the model over the findings. Null when it is unavailable — the findings still stand. */
+  narrative: string | null;
+  narrative_error?: string;
+}
+
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
@@ -104,6 +126,39 @@ export default function FinanceOverviewPage(): React.ReactElement {
     setFrom(isoDate(start));
     setTo(isoDate(today));
   }
+
+  // ── The audit ─────────────────────────────────────────────────────────────────────────────────
+  //
+  // Deliberately NOT run on page load. It costs a model call, and an audit is something you decide
+  // to do — an automatic one on every visit would be both expensive and ignored.
+  const [audit, setAudit] = useState<AuditResponse | null>(null);
+  const [auditing, setAuditing] = useState(false);
+  const [auditError, setAuditError] = useState<string | null>(null);
+
+  const runAudit = useCallback(async () => {
+    setAuditing(true);
+    setAuditError(null);
+    setAudit(null);
+    try {
+      const res = await fetch(
+        `/api/admin/finances/audit?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      );
+      if (!res.ok) {
+        setAuditError((await res.json().catch(() => ({}))).error ?? 'The audit could not run.');
+        return;
+      }
+      setAudit((await res.json()) as AuditResponse);
+    } finally {
+      setAuditing(false);
+    }
+  }, [from, to]);
+
+  // Changing the range invalidates the report rather than leaving July's findings on screen under
+  // an August heading — a stale audit is worse than none, because it reads as current.
+  useEffect(() => {
+    setAudit(null);
+    setAuditError(null);
+  }, [from, to]);
 
   const s = data?.summary;
   const netPositive = (s?.net_cents ?? 0) >= 0;
@@ -154,10 +209,72 @@ export default function FinanceOverviewPage(): React.ReactElement {
           <button type="button" className="fin-btn" onClick={load} disabled={loading} data-testid="fin-load">
             {loading ? 'Loading…' : 'Recalculate'}
           </button>
+          {/* The audit lives HERE rather than on a page of its own, because the period is already
+              chosen on this screen. A separate page would make the owner pick the dates twice, which
+              is the difference between "one click" and "a thing I will do later". */}
+          <button
+            type="button"
+            className="fin-btn fin-btn--audit"
+            onClick={() => void runAudit()}
+            disabled={auditing}
+            data-testid="fin-audit"
+          >
+            {auditing ? 'Auditing…' : 'Audit this period'}
+          </button>
         </div>
       </section>
 
       {error && <p className="fin-page__error" data-testid="fin-error" role="alert">{error}</p>}
+      {auditError && <p className="fin-page__error" role="alert">{auditError}</p>}
+
+      {audit && (
+        <section className="fin-audit" data-testid="fin-audit-report">
+          <header className="fin-audit__head">
+            <h2 className="fin-audit__title">
+              Audit — {audit.period.from} to {audit.period.to}
+            </h2>
+            <span className="fin-audit__count">
+              {audit.findings.length === 0
+                ? 'No issues found'
+                : `${audit.findings.length} finding${audit.findings.length === 1 ? '' : 's'} · ${formatDollars(audit.questioned_cents)} questioned`}
+            </span>
+          </header>
+
+          {/* What was checked, stated whether or not anything was found. A report that says "nothing
+              wrong" without saying what it looked at is not evidence of anything. */}
+          <p className="fin-audit__scope">
+            Checked {audit.totals.receipt_count} receipt(s) totalling{' '}
+            {formatDollars(audit.totals.receipt_cents)}, {audit.totals.invoice_count} invoice(s)
+            totalling {formatDollars(audit.totals.invoiced_cents)}, and{' '}
+            {formatDollars(audit.totals.ad_spend_cents)} of advertising.
+          </p>
+
+          {audit.narrative && <p className="fin-audit__narrative">{audit.narrative}</p>}
+          {audit.narrative_error && (
+            // The findings are the product; the prose is a convenience. Saying which half is missing
+            // is the difference between a degraded report and an untrustworthy one.
+            <p className="fin-audit__degraded">{audit.narrative_error}</p>
+          )}
+
+          {audit.findings.length > 0 && (
+            <ul className="fin-audit__list">
+              {audit.findings.map((f, i) => (
+                <li key={`${f.category}-${i}`} className={`fin-audit__item fin-audit__item--${f.severity}`}>
+                  <div className="fin-audit__item-head">
+                    <span className={`fin-audit__sev fin-audit__sev--${f.severity}`}>{f.severity}</span>
+                    <strong>{f.title}</strong>
+                  </div>
+                  <p className="fin-audit__detail">{f.detail}</p>
+                  <p className="fin-audit__ids">
+                    {f.ids.length} row{f.ids.length === 1 ? '' : 's'}
+                    {f.amount_cents ? ` · ${formatDollars(f.amount_cents)}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
 
       {/* Advertising can reach the books twice — imported from the Ads account AND photographed as a
           receipt somebody approved. Both numbers are individually correct, so nothing looks wrong;
