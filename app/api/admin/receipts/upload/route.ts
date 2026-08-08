@@ -17,6 +17,7 @@
 // Returns { id, photo_url } on success.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { normaliseImage, UnsupportedImageError } from '@/lib/media/normalise-image';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -82,14 +83,54 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Build the storage path the worker + bookkeeper UI both already know
   // how to read: `{user_uuid}/{receipt_id}.{ext}`.
   const receiptId = crypto.randomUUID();
-  const ext = extFromMime(file.type);
+  const raw = Buffer.from(await file.arrayBuffer());
+
+  // ── NO HEIC REACHES THE BUCKET (2026-08-08) ───────────────────────────────────────────────────
+  //
+  // This route used to derive the extension from `file.type` and store the bytes untouched, so an
+  // iPhone receipt landed as `.heic` — unreadable by the bookkeeper on Windows, and by plenty of the
+  // tooling downstream. Owner: *"I do not want HEIC."*
+  //
+  // The decision is made from the BYTES, never `file.type`. iOS routinely reports a HEIC as
+  // `image/jpeg` when "Most Compatible" is half configured, and browsers that do not know the format
+  // send `application/octet-stream`. Trusting the header is how a HEIC gets stored under a `.jpg`
+  // name, which is worse than an honest `.heic` because the file then lies about itself.
+  //
+  // PDFs pass through untouched — a scanned receipt is a legitimate PDF and is not an image problem.
+  let bytes: Uint8Array = new Uint8Array(raw);
+  let ext = extFromMime(file.type);
+  let contentType = file.type || 'application/octet-stream';
+  let converted = false;
+
+  const isPdf = raw.length > 4 && raw[0] === 0x25 && raw[1] === 0x50 && raw[2] === 0x44 && raw[3] === 0x46;
+  if (!isPdf) {
+    try {
+      const norm = await normaliseImage(raw);
+      bytes = new Uint8Array(norm.bytes);
+      ext = norm.extension.replace('.', '');
+      contentType = norm.contentType;
+      converted = norm.converted;
+    } catch (err) {
+      // Not a PDF and not an image we can read. Refuse with something actionable rather than
+      // storing a file nobody will be able to open later.
+      return NextResponse.json(
+        {
+          error:
+            err instanceof UnsupportedImageError
+              ? err.message
+              : 'That file could not be read as a receipt image. Please upload a photo or a PDF.',
+        },
+        { status: 415 },
+      );
+    }
+  }
+
   const path = `${userId}/${receiptId}.${ext}`;
-  const bytes = new Uint8Array(await file.arrayBuffer());
 
   const { error: uploadErr } = await supabaseAdmin.storage
     .from(RECEIPTS_BUCKET)
     .upload(path, bytes, {
-      contentType: file.type || 'application/octet-stream',
+      contentType,
       upsert: false,
     });
   if (uploadErr) {
@@ -125,5 +166,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
-  return NextResponse.json({ receipt: inserted });
+  // `converted` lets the UI say "your iPhone photo was converted to JPEG" rather than silently
+  // changing the file. Somebody who uploads IMG_0042.HEIC and finds a .jpg later should have been
+  // told, not left to wonder.
+  return NextResponse.json({ receipt: inserted, converted });
 }, { routeName: 'admin/receipts/upload' });

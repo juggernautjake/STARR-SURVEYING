@@ -114,4 +114,39 @@ at the end of a long session.
 
 ## Progress
 
-- [x] H1 · [ ] H2 · [x] H3 · [x] H4 · [ ] H5 · [x] H6
+- [x] H1 · [x] H2 · [x] H3 · [x] H4 · [~] H5 (deferred) · [x] H6
+
+---
+
+## Second pass — 2026-08-08
+
+**H2 · shipped.** `app/api/admin/receipts/upload/route.ts` now normalises every image through
+`normaliseImage()` before it reaches the bucket. This was the live hole: the route derived its
+extension from `file.type` and stored the bytes untouched, so an iPhone receipt landed as `.heic` —
+unreadable by the bookkeeper on Windows and by much of the tooling downstream.
+
+The extension and content type come from the NORMALISER, never from `file.type`. iOS reports a HEIC as
+`image/jpeg` when "Most Compatible" is half configured, and browsers that do not know the format send
+`application/octet-stream`; trusting the header stores a HEIC under a `.jpg` name, which is worse than
+an honest `.heic` because the file then lies about itself.
+
+PDFs are detected by magic bytes and pass through untouched — a scanned receipt is a legitimate PDF and
+is not an image problem. Anything that is neither returns 415 with a usable message rather than being
+stored for nobody to open later. The response carries `converted` so the UI can say a photo was
+converted instead of silently changing it.
+
+**H5 · DEFERRED — the need it was for is now covered.** The bulk converter was scoped so somebody
+holding a phone full of HEICs had a way to fix them. With H2 shipped, uploading them through the normal
+receipt form converts them automatically, which is a better answer than a separate tool: it is the
+screen people already use, and it needs no explaining. A standalone drop-zone page would be a second
+route to the same function, and the cost of building and maintaining it now exceeds what it adds.
+Revisit only if a real need appears for converting files that are NOT being uploaded as receipts.
+
+**Remaining known limit, recorded rather than hidden.** Other image upload routes — equipment photos,
+vehicle photos, research documents, learn references — do not yet call the normaliser. They accept
+HEIC. The library is in place and the change is one import and one call per route; it is mechanical
+work with no open questions, listed here so it is not mistaken for finished.
+
+## Progress
+
+- [x] H1 · [x] H2 · [x] H3 · [x] H4 · [~] H5 deferred · [x] H6
