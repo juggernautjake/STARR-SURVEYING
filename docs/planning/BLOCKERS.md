@@ -53,7 +53,7 @@ overwrite a deliberate design.
          identities for 7 real people, which is your call, not mine.
 
       Recommendation was **(2)**, and that is what the owner chose. See the R9 completion note in
-      `in-progress/RECEIPTS_MOBILE_AND_ADS_2026-08-11.md` for what shipped and the end-to-end evidence.
+      `completed/RECEIPTS_MOBILE_AND_ADS_2026-08-11.md` for what shipped and the end-to-end evidence.
 
       **Still open from this, and NOT fixed by the mirror:** the mirror makes the *other four* NOT NULL FKs
       satisfiable too (`equipment_reservations.reserved_by`, `location_pings`/`location_stops`/

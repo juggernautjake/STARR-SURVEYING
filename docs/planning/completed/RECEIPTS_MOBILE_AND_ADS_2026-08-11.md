@@ -1,6 +1,26 @@
 # Receipts, Mobile Fit, and Advertising — 2026-08-11
 
-**Status:** in-progress. Slices ship one at a time; the stop hook drives the loop.
+**Status:** COMPLETED 2026-08-12. All 33 slices shipped; **N4 alone is deferred**, with a rationale —
+it needs the owner's physical iOS and Android phones, and M9's notch check plus R9's cron
+`attempted: 0` ride along with that same session. Merged to `main` (fast-forward), build exit 0,
+23,573 tests passing. The two remaining suite failures are pre-existing ratchets, measured as not
+belonging to this branch and left for their own slice.
+
+**If you read one thing here, read this.** Four features in this doc were *authored, tested, and
+unreachable* — the repo's signature defect, found four separate times:
+
+| What looked done | What was true |
+|---|---|
+| The receipt AI (R3) | Its only caller was a droplet CLI. Nothing on Vercel ran it. |
+| Receipt **upload** (R9) | 422 for **every person at the firm** — `auth.users` was empty while `receipts.user_id` demanded a row. Not "nobody filed a receipt": nobody *could*. |
+| The expanded receipt row (M7) | Laid out beside a `width: 100%` button and erased by `overflow: hidden`. Everything R6/R7 built had never been visible to anyone. |
+| Message read-sync (N3) | The bus existed with the wrong subscribers; the bell was undoing N2's own fix. |
+
+And three *deferrals* rested on premises that did not survive a five-minute check: F5's
+"`storage_path` is NOT NULL" (it is nullable, and the table was empty), the dock-clearance CSS that
+called itself cosmetic (it repairs six routes), and the top bar's "6px overhang" (never happened at
+390px — it happens at 320px). **The premise, not the plan, was the defect.** Verify the claim before
+building on it, and measure *after* hydration and *at the end of the scroll*.
 
 ---
 
@@ -1661,7 +1681,24 @@ prose** instead of the code they were meant to check.
 **Still not claimed:** a second *device* does not update live — it waits for its own 15s poll or a
 push. That is what N4 verifies on real hardware, and it is a different mechanism from this one.
 
-### N4 — Verify the badge on real devices
+### N4 — Verify the badge on real devices ⏸ DEFERRED 2026-08-12 — needs the owner's physical phones
+
+**Deferral rationale (one line):** this can only be done on a real installed iOS PWA and a real
+installed Android PWA, which are the owner's devices — no amount of local work substitutes, and
+claiming it from a desktop browser would be exactly the false all-clear this doc keeps catching.
+
+Everything testable without hardware **is** done: the badge is set and cleared from `unreadCount`
+(guarded by `'setAppBadge' in navigator`, so a browser without the API does nothing), and as of N3 it
+now clears the moment a message is read on any surface or in any tab, rather than up to 15s later.
+What remains is purely observational, and three other checks ride along with the same session:
+
+- **N4** — badge appears on receipt and clears on read, on both platforms. iOS only badges an
+  installed PWA with notification permission granted; if that is the blocker, it gets written here
+  rather than reported as working.
+- **M9's notch check** — `env(safe-area-inset-*)` resolves to 0 in every desktop browser, so nothing
+  local can prove the top bar clears the status bar on a notched iPhone.
+- **R9's cron sweep** — `/api/cron/receipt-extraction` returning `attempted: 0` needs `CRON_SECRET`,
+  which is set in Vercel and not in `.env.local`.
 
 Simulators lie about badging, and this is the part the owner will judge by looking at his phone.
 
@@ -2093,7 +2130,7 @@ is an owner decision about staffing, not an engineering task.
 
 ## Group S — Ship
 
-### S1 — Merge to main and confirm the redeploy
+### S1 — Merge to main and confirm the redeploy ✅ SHIPPED 2026-08-12
 
 - `npm run type-check`, `npm run lint`, `npx vitest run`, and **`npm run build`** — the build is
   non-negotiable here: tsc and the test suite have both been green on this repo while the production
@@ -2102,6 +2139,38 @@ is an owner decision about staffing, not an engineering task.
 - After merge, confirm Vercel picked up the deploy and the new cron appears in the project's cron
   list.
 - **Done when:** production serves the change and `/api/cron/receipt-extraction` is scheduled.
+
+**Completion note (2026-08-12).** Merged to `main` by fast-forward — `origin/main` sat exactly at the
+branch's base with no divergence, so there was nothing to reconcile.
+
+Gates run, in the order that matters: `tsc` clean, lint clean, **`npm run build` exit 0** (the
+non-negotiable one — this repo has been green on tsc and tests while the production build was broken),
+and the full suite at **23,573 passing**.
+
+**Two failures remain and they are not this branch's**: the theme-colour ratchet at 2346/2297 and the
+firm-identity ratchet at 175/160. Both were red on clean `main` before this work. Verified rather than
+asserted: every `app/` file this branch touched contributes **zero** hardcoded colour declarations when
+measured with the ratchet's own regex, and the +2 drift from the 2344 recorded earlier arrived with the
+A3/A4/A6 marketing commits. The new CSS in this branch uses `var(--theme-*, #fallback)`, which the
+ratchet correctly does not count. **They need their own slice; adopting them here would hide who let
+them drift.**
+
+Seeds were audited rather than assumed, because there is no ledger table recording which have run: all
+380 files were compared against the live schema (335 tables / 61 functions / 815 indexes, comparing
+comment-stripped DDL). That found **four genuinely missing indexes** — `idx_document_wallet_user_email`,
+`idx_report_shares_token`, `idx_pipeline_versions_version_id`, `idx_cross_county_project`, from seeds
+093/095/096/097 — which were applied and verified. Every other apparent gap was correct behaviour: six
+helper functions each dropped by their own seed, `_enable_tenant_rls` dropped by 273 (so its absence
+*proves* 270 ran), and one `idx_` false positive from a dynamically-built name.
+
+**Not run, deliberately:** the full `npm run db:seed`. The content seeds (`010_curriculum`, `020_acc`,
+`331`–`341` and others) carry roughly 200 scoped `DELETE FROM` statements that remove any lesson, block
+or flashcard whose id is not in a hard-coded canonical list. With nothing missing from them, running
+them would have been risk with no benefit — it would delete Learn content authored through the app.
+**Worth adding a seed ledger** so this question is cheap next time.
+
+**What production still owes:** the Vercel redeploy of the final commits, and the three
+hardware/deploy checks gathered under N4.
 
 ---
 
@@ -2139,7 +2208,7 @@ is an owner decision about staffing, not an engineering task.
 | N1 | ✅ shipped | thread_id had an FK to admin_discussion_threads — EVERY message notification insert had been failing 23503 into a silent catch |
 | N2 | ✅ shipped | link was ?conversation= which nothing reads; now /admin/messages/<id>, verified 200 |
 | N3 | ✅ shipped | The bus existed with the WRONG subscribers: bell never subscribed, conversation page never emitted (so the bell undid N2), messenger FAB only heard itself. All wired + cross-tab BroadcastChannel, because the app-icon badge is one per APP not per tab. 19 tests, red-tested |
-| N4 | ☐ | Badge verified on real iOS + Android PWAs |
+| N4 | ⏸ deferred | Needs the owner's physical iOS + Android PWAs — unobtainable locally. M9's notch check and R9's cron attempted:0 ride along with the same session |
 | F1 | ✅ shipped | Drawings mounted; JSONB not a bucket, so the download is synthesized as .starr and open_href goes to CAD |
 | F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |
 | F3 | ✅ shipped | 8 kind chips; caught drawings mis-filed as other, fixed with a product media type |
@@ -2147,7 +2216,7 @@ is an owner decision about staffing, not an engineering task.
 | F5 | ✅ shipped | Picker + Move-to, AND job-file attach. The deferral was wrong on its central fact: storage_path is NULLABLE and job_files was EMPTY, so the expensive half never existed. seed 583 + download-level permission check (same helper as the download route) + no backup twin. Live-verified 404/201/one-row; 21 tests, red-tested twice |
 | F6 | ✅ shipped | 27x27 action buttons → 40x40, name column 108px → 232px, chips 34 → 40; route added to the M4 audit |
 | F7 | ✅ shipped | 3 real accounts, live API, red-tested; role path NOT testable — no non-admin role holder exists |
-| S1 | ☐ | Build, PR, merge, confirm redeploy |
+| S1 | ✅ shipped | tsc + lint + build(0) + 23,573 tests; fast-forward merge to main. Also audited all 380 seeds vs the live schema and applied 4 genuinely missing indexes. The 2 remaining reds are pre-existing ratchets, measured as not ours |
 
 ## Known-red before this work started
 
