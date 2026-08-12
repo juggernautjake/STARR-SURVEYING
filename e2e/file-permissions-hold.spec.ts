@@ -24,7 +24,7 @@
 //
 // Run: E2E_BASE_URL=http://localhost:3050 npx playwright test e2e/file-permissions-hold.spec.ts
 
-import { test, expect, type BrowserContext } from '@playwright/test';
+import { test, expect, type Browser, type BrowserContext } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { encode } from '@auth/core/jwt';
@@ -44,8 +44,8 @@ function secret(): string {
   return env.match(/^AUTH_SECRET\s*=\s*(.+)$/m)![1].replace(/^["']|["']$/g, '').trim();
 }
 
-async function contextFor(browser: BrowserContext['browser'], email: string) {
-  const ctx = await browser!.newContext();
+async function contextFor(browser: Browser, email: string): Promise<BrowserContext> {
+  const ctx = await browser.newContext();
   const token = await encode({
     token: { email, name: 'E2E', sub: 'e2e' },
     secret: secret(),
@@ -59,24 +59,34 @@ async function contextFor(browser: BrowserContext['browser'], email: string) {
   return ctx;
 }
 
-/** Fetch inside a page so the session cookie is applied exactly as the browser would. */
-async function api(ctx: Awaited<ReturnType<typeof contextFor>>, url: string, init?: RequestInit) {
-  const page = await ctx.newPage();
-  await page.goto(`${BASE}/admin/files`, { waitUntil: 'domcontentloaded' });
-  const out = await page.evaluate(
-    async ([u, i]) => {
-      const r = await fetch(u as string, (i as RequestInit) ?? undefined);
-      const text = await r.text();
-      try { return { status: r.status, body: JSON.parse(text) }; }
-      catch { return { status: r.status, body: text }; }
-    },
-    [url, init ? { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) } } : undefined] as const,
-  );
-  await page.close();
-  return out;
+interface ApiResult {
+  status: number;
+  // Deliberately loose: these routes return several different shapes and this file only reads a
+  // handful of fields from each. Typing them all would be more ceremony than the assertions need.
+  body: { nodes?: Array<{ id: string; name: string }>; node?: { id: string }; id?: string; error?: string };
 }
 
-const canSee = (listing: { body: { nodes?: Array<{ id: string }> } }, id: string) =>
+/** Fetch inside a page so the session cookie is applied exactly as the browser would. */
+async function api(ctx: BrowserContext, url: string, init?: RequestInit): Promise<ApiResult> {
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/admin/files`, { waitUntil: 'domcontentloaded' });
+  const payload = init
+    ? { ...init, headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) } }
+    : undefined;
+  const out = await page.evaluate(
+    async (args: { u: string; i?: RequestInit }) => {
+      const r = await fetch(args.u, args.i);
+      const text = await r.text();
+      try { return { status: r.status, body: JSON.parse(text) }; }
+      catch { return { status: r.status, body: { error: text } }; }
+    },
+    { u: url, i: payload },
+  );
+  await page.close();
+  return out as ApiResult;
+}
+
+const canSee = (listing: ApiResult, id: string) =>
   (listing.body.nodes ?? []).some((n) => n.id === id);
 
 test('a folder is visible to exactly the people it is shared with', async ({ browser }) => {
@@ -91,15 +101,17 @@ test('a folder is visible to exactly the people it is shared with', async ({ bro
   try {
     // Find the seeded "Shared" root to create under.
     const roots = await api(adminCtx, '/api/admin/files');
-    const shared = (roots.body.nodes ?? []).find((n: { name: string }) => n.name === 'Shared');
+    const shared = (roots.body.nodes ?? []).find((n) => n.name === 'Shared');
     expect(shared, 'the seeded Shared root must exist').toBeTruthy();
+    // Narrowed after the assertion so every later use is a plain id rather than an optional chain.
+    const sharedId = shared!.id;
 
     const created = await api(adminCtx, '/api/admin/files', {
       method: 'POST',
-      body: JSON.stringify({ name, node_type: 'folder', parent_id: shared.id }),
+      body: JSON.stringify({ name, node_type: 'folder', parent_id: sharedId }),
     });
     expect(created.status, JSON.stringify(created.body)).toBeLessThan(300);
-    folderId = created.body.node?.id ?? created.body.id;
+    folderId = created.body.node?.id ?? created.body.id ?? null;
     expect(folderId, 'the API must return the new folder id').toBeTruthy();
 
     // ── 1. Shared with ONE PERSON ─────────────────────────────────────────────────────────────
@@ -112,8 +124,8 @@ test('a folder is visible to exactly the people it is shared with', async ({ bro
     });
     expect(put1.status, JSON.stringify(put1.body)).toBeLessThan(300);
 
-    const seenByA = await api(aCtx, `/api/admin/files?parent=${shared.id}`);
-    const seenByB = await api(bCtx, `/api/admin/files?parent=${shared.id}`);
+    const seenByA = await api(aCtx, `/api/admin/files?parent=${sharedId}`);
+    const seenByB = await api(bCtx, `/api/admin/files?parent=${sharedId}`);
 
     expect(canSee(seenByA, folderId!), `${EMPLOYEE_A} was granted view and must see it`).toBe(true);
     // THE ASSERTION THIS FILE EXISTS FOR. A silent permission bug looks exactly like this passing
@@ -130,7 +142,7 @@ test('a folder is visible to exactly the people it is shared with', async ({ bro
     });
     expect(put2.status, JSON.stringify(put2.body)).toBeLessThan(300);
 
-    const nowB = await api(bCtx, `/api/admin/files?parent=${shared.id}`);
+    const nowB = await api(bCtx, `/api/admin/files?parent=${sharedId}`);
     expect(canSee(nowB, folderId!), 'an everyone-grant must reach the account that could not see it a moment ago').toBe(true);
 
     // ── 3. Shared with NOBODY ─────────────────────────────────────────────────────────────────
@@ -142,14 +154,14 @@ test('a folder is visible to exactly the people it is shared with', async ({ bro
     });
     expect(put3.status, JSON.stringify(put3.body)).toBeLessThan(300);
 
-    const finalA = await api(aCtx, `/api/admin/files?parent=${shared.id}`);
-    const finalB = await api(bCtx, `/api/admin/files?parent=${shared.id}`);
+    const finalA = await api(aCtx, `/api/admin/files?parent=${sharedId}`);
+    const finalB = await api(bCtx, `/api/admin/files?parent=${sharedId}`);
     expect(canSee(finalA, folderId!), 'revoking must actually revoke').toBe(false);
     expect(canSee(finalB, folderId!), 'revoking must actually revoke').toBe(false);
 
     // And the admin still sees it — admins resolve to `manage` everywhere, which is the documented
     // behaviour and the reason the badge never promises true privacy.
-    const finalAdmin = await api(adminCtx, `/api/admin/files?parent=${shared.id}`);
+    const finalAdmin = await api(adminCtx, `/api/admin/files?parent=${sharedId}`);
     expect(canSee(finalAdmin, folderId!), 'an admin sees everything, by design').toBe(true);
   } finally {
     // Runs even when an assertion above fails. Writing to a live database without this would leave
