@@ -595,6 +595,22 @@ function ReceiptRow({
 
   return (
     <div style={styles.row}>
+      {/* M7. This wrapper is the fix for a defect that had made the entire expanded panel — the photo,
+          the AI summary, the review flags, every field and the line items — invisible.
+          `styles.row` is `display: flex` (Batch JJ added it so the bulk-approve checkbox could sit
+          beside the summary) with no `flexDirection`, so the checkbox, the summary button AND the
+          expanded panel were three items in a ROW. The panel was laid out to the RIGHT of a button
+          that is `width: 100%`, and `overflow: hidden` on the card then clipped it away entirely.
+          Measured at 390px: the panel's box sat at x=269..553 inside a 326px card. On desktop it was
+          equally misplaced and merely happened to still be on screen (x=678..1189 at 1280px).
+
+          Nobody saw it because the `receipts` table is empty (R4), so no row has ever been expanded —
+          the defect needed data to be visible, and R6 shipped its contents against tsc and unit tests.
+
+          So: the card is a COLUMN of [header, expanded], and the checkbox + summary are a row inside
+          the header. Expressed structurally rather than as a `flex-wrap` trick, because the intent is
+          that the panel is BELOW the header, not that it happens to run out of room beside it. */}
+      <div style={styles.rowHeader}>
       {/* Bulk-approve checkbox (Batch JJ). Sits OUTSIDE the
           rowSummary button so the click doesn't toggle expansion.
           Stop-propagation on the inner click handler keeps it
@@ -656,6 +672,7 @@ function ReceiptRow({
           </span>
         </div>
       </button>
+      </div>
 
       {expanded ? (
         <div style={styles.expanded}>
@@ -1353,7 +1370,18 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #ddd',
     borderRadius: 8,
     background: 'var(--color-bg-card)',
+    // Keeps the children inside the rounded corners. It is also what turned the misplaced expanded
+    // panel from "off to the side" into "gone", so it is worth knowing this clips: anything that must
+    // be visible has to be laid out inside the card, not merely appended to it.
     overflow: 'hidden',
+    display: 'flex',
+    // M7. Was absent, which defaulted to `row` and put the expanded panel beside the summary button
+    // instead of below it. See the comment on the wrapper in the JSX.
+    flexDirection: 'column',
+  },
+  // The checkbox and the summary button DO belong side by side — that is the part Batch JJ wanted,
+  // and it stays a row. `alignItems: stretch` so the checkbox's hit area is the full row height.
+  rowHeader: {
     display: 'flex',
     alignItems: 'stretch',
   },
@@ -1433,7 +1461,19 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
     background: '#fafafa',
     display: 'grid',
-    gridTemplateColumns: 'minmax(200px, 320px) 1fr',
+    // M7. This was `minmax(200px, 320px) 1fr`, a hard two-column split that cannot fit a phone: at
+    // 390px the row has 334px of usable width, so the photo took 200 and the entire field list was
+    // left 110 — and `1fr` will not shrink below its content's min-width, so a long merchant name or
+    // job number pushed the row off the screen.
+    //
+    // `auto-fit` + `minmax(min(220px, 100%), 1fr)` collapses to ONE column whenever the container is
+    // too narrow for two, and returns to two the moment there is room. The `min(220px, 100%)` is the
+    // part that matters: a bare `minmax(220px, 1fr)` still demands 220px in a 180px container and
+    // overflows it.
+    //
+    // It has to be expressed this way rather than in a media query because this is an inline style
+    // object — no stylesheet can reach it, which is exactly how it stayed wrong.
+    gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))',
     gap: 24,
   },
   photo: {

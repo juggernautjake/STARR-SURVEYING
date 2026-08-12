@@ -2253,3 +2253,111 @@
   .admin-topbar,
   .admin-layout__content { padding-top: 0 !important; margin-top: 0 !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   M5–M8 · CLEARANCE FOR THE FLOATING DOCK
+   ═══════════════════════════════════════════════════════════════════════════
+
+     .fab-menu--expanded     fixed, 302 x 58, anchored 1.5rem off the bottom of the screen
+     .admin-layout__content  padding-bottom was 0
+
+   ── TWO WRONG MEASUREMENTS BEFORE THE RIGHT ONE, WHICH IS THE WHOLE STORY HERE ────────────
+
+   FIRST: a full-page screenshot of /admin/receipts showed the dock squarely over the "Export CSV"
+   button, and it looked like an obvious untappable control. It is not. Playwright paints a
+   `position: fixed` element ONCE, at its scroll-0 position, into a stitched full-page image, so the
+   dock in that picture sits at a place on the page it never actually occupies. Reading a screenshot
+   cannot answer this question.
+
+   SECOND — and this comment previously ENDED here, claiming the rule "fixes NO defect that was
+   demonstrated" and was kept only as a forward guarantee. That was wrong, and wrong in the more
+   embarrassing direction: it declared a real fix cosmetic. The check behind it did
+   `scrollTo(0, scrollHeight)` and measured immediately, which does not reach the bottom — the scroll
+   animates and the page grows as content below the fold lays out. On /admin/leads it stopped at
+   scrollY 3370 of a 3931 maximum, 561px short. A mid-scroll position is precisely where a floating
+   dock is SUPPOSED to overlap things, so that measurement was reading the dock working as designed.
+
+   THIRD, correctly: scroll until the position stops moving, then ask `elementFromPoint` whether the
+   dock answers where a control's centre is. Red-tested by setting this padding back to 0 — with it
+   gone, SIX of the twenty-two audited routes strand a control at the true bottom of the page:
+
+     /admin/me            "Go to my hours →"
+     /admin/receipts/new  "Cancel" and "Upload receipt"     ← the page a crew member uses
+     /admin/equipment     "Crew Calendar" card
+     /admin/marketing     "Export conversions", "Upload log", "Ad spend"
+     /admin/team          "Timeline"
+     /admin/leads         "Delete"
+     /admin/invoicing     "View", "Copy link"
+
+   So this is a repair, not a precaution, and "Upload receipt" being one of the buried controls is
+   the sharpest version of it: the receipt-capture work in group R shipped a button a thumb could not
+   reach at the end of the page. `e2e/mobile-overflow-audit.spec.ts` now holds all of this as an
+   assertion, so the next person gets a failing test rather than a paragraph to re-derive.
+
+   The overlap that IS real and unavoidable: mid-scroll the dock covers whatever is beneath it,
+   because that is what a floating overlay does, and scrolling frees it. The dock also collapses to a
+   small pull-tab on tap and that choice persists in localStorage, so an owner who finds it intrusive
+   can turn it down permanently — a product decision rather than something to force here.
+
+   Desktop is untouched: there the dock floats in the right margin over empty space, and this
+   padding would be a band of dead whitespace at the bottom of every page. */
+
+@media (max-width: 900px) {
+  .admin-layout__content {
+    /* 58px dock + 1.5rem bottom offset + a thumb's worth of clearance, and then the safe-area
+     * inset on top so the home indicator does not eat it back on an iPhone. */
+    padding-bottom: calc(58px + 1.5rem + 1rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* When the dock is collapsed it is a small pull-tab rather than a bar, but the reserved space
+ * stays. A padding that appears and disappears as the dock toggles would reflow the page under
+ * the reader's finger — worse than a little empty space at the bottom of a scroll. */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   M5–M8 · THE TOP BAR'S CONTROLS SPILLED OUT OF THEIR OWN CONTAINER
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Measured at 390px on 2026-08-12. On a page with a long title the avatar was clipped:
+
+     /admin/hours-approval   left=166px  right group allotted 208px, its children ended at 396
+     /admin/me               left= 83px  right group allotted 222px, its children ended at 382
+
+   The bar is `justify-content: space-between` with `.admin-topbar__right { flex-shrink: 1 }`. So a
+   long title takes what it wants, the right GROUP dutifully shrinks — and its children, which are
+   buttons that cannot shrink below their own padding, spill straight out of it. The avatar ends up
+   6px off the side of the screen, half-drawn, on every page whose title is long enough.
+
+   `pageOverflow` stays 0 throughout, because the bar is `position: fixed` and clips rather than
+   scrolls. Every "does the page scroll sideways?" check calls this clean.
+
+   ── THE TITLE YIELDS, NOT THE CONTROLS ───────────────────────────────────────────────────────
+
+   Clock-in, XP, notifications and the account menu are the reason the bar exists, and each is
+   already at the 40px tap floor — there is nothing to give. The title is prose that already carries
+   `text-overflow: ellipsis`, and a truncated heading is legible while a half-drawn avatar is not.
+
+   So the right group stops shrinking and the left group is allowed to, which is the only
+   arrangement where the ellipsis that was already written actually gets used. */
+
+@media (max-width: 900px) {
+  .admin-topbar__right {
+    /* Was 1. This is the whole fix: refuse to be given less room than the controls need. */
+    flex-shrink: 0;
+  }
+
+  .admin-topbar__left {
+    /* `min-width: 0` is required for the ellipsis to work at all — a flex item's default
+     * `min-width: auto` refuses to shrink below its content, so the title would push instead of
+     * truncating and we would be back to a clipped avatar. */
+    min-width: 0;
+    flex-shrink: 1;
+  }
+
+  .admin-topbar__title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

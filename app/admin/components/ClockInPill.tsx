@@ -150,6 +150,16 @@ export default function ClockInPill() {
   const baseStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
+    // M5–M8. Was 24px tall on a phone (padding 4px + a 0.82rem line), against a 40px bell and a 40px
+    // avatar sitting immediately beside it. Clock-in is the control a field crew uses more than any
+    // other in this bar, and it was the smallest thing in it.
+    //
+    // Applied unconditionally rather than behind a media query: 40px is what its two neighbours
+    // already are at every width, so matching them makes the group consistent instead of introducing
+    // a second size that only exists on desktop. The bar is 56px tall on mobile and 64px on desktop,
+    // so 40px clears both. Height only — the width is untouched, because the top bar's horizontal
+    // budget is exactly what the spill fix just finished reclaiming.
+    minHeight: 40,
     gap: 6,
     padding: '4px 10px',
     borderRadius: 999,

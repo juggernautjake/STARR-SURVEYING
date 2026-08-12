@@ -531,10 +531,10 @@ the same false all-clear. The most useful next step is the owner naming a page w
 running this audit against production data. The guard is the durable part: from now on this is a
 number, not an opinion.
 
-### M5 — Hub (`/admin/me`) portrait pass
-### M6 — Job management (`/admin/jobs`, `/admin/jobs/[id]`) portrait pass
-### M7 — Receipts (`/admin/receipts`, `/admin/receipts/new`) portrait pass
-### M8 — Hours (`/admin/my-hours`, `/admin/hours-approval`) portrait pass
+### M5 — Hub (`/admin/me`) portrait pass ✅ SHIPPED 2026-08-12
+### M6 — Job management (`/admin/jobs`, `/admin/jobs/[id]`) portrait pass ✅ SHIPPED 2026-08-12
+### M7 — Receipts (`/admin/receipts`, `/admin/receipts/new`) portrait pass ✅ SHIPPED 2026-08-12
+### M8 — Hours (`/admin/my-hours`, `/admin/hours-approval`) portrait pass ✅ SHIPPED 2026-08-12
 
 One slice each, same shape: drive the page at 390 × 844 in a real browser, screenshot it, fix what
 overflows or is unreachable, screenshot again, attach both here. The owner named these four
@@ -544,6 +544,155 @@ filter row is a flex line of five controls with fixed minimum widths.
 
 **Drive the browser.** A green test suite has missed rendering-condition bugs on this repo before;
 these four slices are not done on the strength of a diff.
+
+**Completion note (✅ SHIPPED 2026-08-12 — one pass, because three of the four defects were shared
+chrome).** Shipped together rather than as four slices, and the reason is the finding: driving the
+four page groups at 390 × 844 and 320 × 844 turned up **four defects, only one of which belonged to a
+page**. Splitting shared chrome across four slices would have meant fixing the top bar in M5 and
+writing "already done" three times.
+
+Screenshots were taken at 390 × 844 against a real authenticated session and written to
+`docs/planning/qa-evidence/` (`m5-hub-portrait-after.png`, `m8-hours-approval-portrait-after.png`,
+`m5-m8-topbar-fits-after.png`). They are **not committed** — `*.png` is gitignored repo-wide and none
+of that directory's existing evidence images are tracked either. Its README states the convention and
+the reason: *"the measurement is the durable evidence — a photo of a sideways-scrolled page is less
+legible than the number."* Hence the numbers below rather than a gallery. The one thing a picture
+settled that a number could not: the top bar now truncates its title to `Hours Appr…` and draws the
+avatar complete, with clearance.
+
+**Defect 1 — the top bar's controls spilled out of their own container (all four groups).**
+`.admin-topbar__right` was `flex-shrink: 1`, so a long page title took the room it wanted, the right
+GROUP shrank, and its children — buttons already at the 40px tap floor, which cannot shrink below
+their own padding — spilled out of it. Now `flex-shrink: 0` on the controls and `min-width: 0` on the
+title column, so the ellipsis the title already carried is what actually yields.
+
+**And the number in this doc's first draft of that fix was wrong, which is the more useful half.** It
+claimed the avatar was drawn 6px off the right edge at 390px. Re-measured with the fix reverted, that
+is not what happens:
+
+| width | route | right box | children need | last child ends at |
+|---|---|---|---|---|
+| 390 | `/admin/hours-approval` | 214px | 222px | **390** — flush with the glass |
+| 390 | `/admin/me` | 222px | 222px | 382 — correct |
+| 320 | `/admin/hours-approval` | 166px | 178px | **325** — 5px off-screen |
+
+At 390px the 8px of spill is absorbed by the bar's own 12px of right padding, so the avatar lands
+*flush against the edge* rather than off it; it only leaves the screen at 320px. The mechanism was
+real and the measurement was invented. `e2e/topbar-fits-a-phone.spec.ts` now asserts against the
+bar's **content edge** at both widths, because a control sitting in the padding is already the bug —
+it is one pixel of content away from being clipped, and measuring against the viewport passes with
+the defect in place.
+
+That spec had two further ways of being falsely green, both fixed:
+
+- Its 90s cold-compile allowance was granted only to `expect(...).toBeVisible()`. `page.goto` carries
+  the config's `navigationTimeout: 30_000` and fired first; the per-test `timeout: 60_000` would have
+  capped it anyway. A generous number on the innermost wait is decoration if an outer one fires.
+- It measured before the bar reached full width. `<ClockInPill />` fetches its own state and the XP
+  link renders `{xp !== null && …}`, so a cold measurement is missing a 38px child and **fits**. The
+  pre-fix bar reported *zero* spill measured immediately and 8px once the fetches landed. It now
+  waits for the network and then for the width to stop moving.
+
+**Defect 2 — the expanded receipt row was invisible, at every viewport (M7).** The planned work here
+was the hard-coded `gridTemplateColumns: 'minmax(200px, 320px) 1fr'`, and that is fixed — it is now
+`repeat(auto-fit, minmax(min(220px, 100%), 1fr))`, which collapses to one column on a phone and
+returns to two on a desktop. But that was not the defect that mattered.
+
+`styles.row` is `display: flex` — Batch JJ made it one so the bulk-approve checkbox could sit beside
+the summary — with **no `flexDirection`**. So the checkbox, the summary button and the expanded panel
+were three items in a *row*, and the panel was laid out to the RIGHT of a button that is `width:
+100%`, then clipped away by the card's `overflow: hidden`. Measured at 390px the panel's box sat at
+x=269..553 inside a 326px card. On desktop it was equally misplaced and merely happened to still be
+on screen (x=678..1189 at 1280px).
+
+So everything R6 and R7 built — the AI summary, the review-flag band, the twenty fields, the line
+items, the job picker, Approve/Reject — has never been visible to anyone. **Nobody saw it because
+`receipts` is empty (R4): no row has ever been expanded.** R6 verified itself with tsc and unit
+tests, which cannot see a flex direction. The card is now a column of `[header, expanded]`, with the
+checkbox and summary a row inside the header.
+
+`e2e/receipts-expanded-row-fits-a-phone.spec.ts` drives the real component against an **intercepted**
+API response — the only way to reach a grid that needs a row to exist, and better than inserting a
+fake receipt into production to look at CSS. Its row is typed as `AdminReceiptRow`, so a contract
+change fails compilation instead of quietly testing a shape nobody serves. It asserts the panel is
+*below* the header rather than beside it, which is the assertion that is red at every width; the
+one-column check alone called the desktop fine while it was equally broken.
+
+That spec also had to be rewritten once: `querySelectorAll('div').find(…)` returns the FIRST match in
+document order, so it grabbed the outermost grid containing the table — a wrapper that is one column
+wide at every viewport — and passed while the real panel overflowed beside it. It now walks *up* from
+the line-items table and then proves what it landed on (padding 16 / gap 24) rather than trusting it.
+
+**Defect 3 — six routes stranded a control under the floating dock, and this doc said they didn't.**
+`.admin-layout__content` now reserves the dock's height below 900px. The comment shipped with that
+rule claimed it "fixes NO defect that was demonstrated" and was kept only as a forward guarantee.
+That was wrong, and wrong in the more embarrassing direction — it called a real repair cosmetic.
+
+The check behind the claim did `scrollTo(0, scrollHeight)` and measured immediately, which does not
+reach the bottom: the scroll animates and the page grows as content below the fold lays out. On
+`/admin/leads` it stopped at scrollY 3370 of a 3931 maximum, 561px short. **A mid-scroll position is
+exactly where a floating dock is supposed to overlap things**, so that measurement was reading the
+dock working as designed — and it reported three "defects" a reader frees by scrolling one notch.
+
+Measured correctly (scroll until the position stops moving, then ask `elementFromPoint` who answers
+at each control's centre), and red-tested by setting the padding back to 0, **six of the twenty-two
+audited routes strand a control at the true bottom of the page**:
+
+| route | stranded |
+|---|---|
+| `/admin/me` | "Go to my hours →" |
+| `/admin/receipts/new` | "Cancel", **"Upload receipt"** |
+| `/admin/equipment` | the "Crew Calendar" card |
+| `/admin/marketing` | "Export conversions", "Upload log", "Ad spend" |
+| `/admin/team` | "Timeline" |
+| `/admin/leads` | "Delete" |
+| `/admin/invoicing` | "View", "Copy link" |
+
+"Upload receipt" is the sharpest one: group R shipped a receipt-capture page whose submit button a
+thumb could not reach at the end of the page.
+
+**Defect 4 — the hub hero reserved 224px for a button that had moved (M5).** `.hub-greeting > div:first-child`
+carries `padding-right: 14rem` so the heading cannot run under the `position: absolute` Enter Work
+Mode button. Correct on desktop — and the ≤768px block returns that button to normal flow without
+undoing the reservation. On a 390px phone that removed 224px from a ~318px card, left the heading
+**98px of 290px (34%)**, wrapped "Good night, Audit." down three lines and gave the hero the top
+~300px of the owner's landing page. Now 288px of 290px (99%), heading one line.
+
+The `Audit U-7` comment sitting directly above that media query records fixing this exact symptom
+once already, by stacking the card. It came back because a later change reserved room for a child that
+had moved away. **A reservation has to be undone in every state where the thing it reserves for has
+moved**, or it outlives its reason and reads as a mysterious margin.
+
+**Also shipped: the two smallest controls in the top bar met the tap floor.** The clock-in pill was
+24px tall and the XP pill 26px, sitting between a 40px bell and a 40px avatar — and clock-in is the
+control a field crew touches more than anything else in that bar. Both now `min-height: 40px`, height
+only, because the bar's horizontal budget is exactly what defect 1 just finished reclaiming.
+
+**The guard was extended, not forked** (F5's rule). `e2e/mobile-overflow-audit.spec.ts` was M4's
+20-route width audit; it now also asserts occlusion and the hero ratio, and covers
+`/admin/jobs/[id]` by resolving an id at runtime. That last one is worth a line: the live job list is
+**empty**, and correctly so — `jobs` holds two rows and *both* carry a `deleted_at`, which R4 recorded
+as "jobs holds 2" without the tombstones. Rather than skip the detail page on that technicality, the
+test falls back to the trash view (`?deleted=true` — the route compares the string exactly, so
+`deleted=1` silently reads as false). Layout is layout, and the test only reads.
+
+**Verified:** 63 mobile-fit specs pass (22-route audit × 2 checks + job detail + hero + 13 top-bar +
+3 expanded-row + dialog + sidebar). Every fix red-tested by reverting it: the top bar at 320px, the
+expanded row's stacking at all three widths, the dock padding on six routes, the hero ratio at 34%.
+`tsc` clean; lint clean apart from the pre-existing `<img>` warning R6 already recorded. Full vitest
+suite: 23,534 pass, with only the two known-red ratchets below.
+
+**Correction to the known-red section:** the theme ratchet now reports **2346**, not the 2344 recorded
+below. Not from this work — both `app/` files this slice touched contribute **zero** hardcoded colour
+declarations at HEAD and in the working tree (measured with the test's own regex). The two arrived with
+the A3/A4/A6 marketing commits. Recorded here so the next person does not spend the time I did
+proving it.
+
+**What M5–M8 did NOT cover, honestly:** the four page groups were driven with a nearly empty database
+— 0 receipts, 0 live jobs, 7 users. The prediction above still stands: width problems come from
+content, and the strongest remaining test is the owner opening these pages on his own phone against
+real data. What changed is that three of the four defects found here were *structural* and did not
+need data to reproduce — which is why they survived M4's clean sweep.
 
 ### M9 — PWA and native shell fit ✅ SHIPPED 2026-08-11 (device verification outstanding)
 
@@ -1698,10 +1847,10 @@ is an owner decision about staffing, not an engineering task.
 | M2 | ✅ shipped | .admin-dialog shell + Edit Roles converted; red-tested (888px on an 844px screen) |
 | M3 | ✅ shipped | Found 2 defects: 1 uncapped modal + 13 vh caps that lie on mobile Safari, all twinned to dvh |
 | M4 | ✅ shipped | Guard over 20 routes at 360px: ZERO sideways scroll, zero offenders. Non-reproduction recorded; M5-M8 need real data |
-| M5 | ☐ | Hub portrait |
-| M6 | ☐ | Jobs portrait |
-| M7 | ☐ | Receipts portrait |
-| M8 | ☐ | Hours portrait |
+| M5 | ✅ shipped | Hub portrait. Hero reserved 224px for a button that had moved: heading was 34% of its card, now 99% |
+| M6 | ✅ shipped | Jobs portrait. Clean; job DETAIL now audited via a runtime id — the live list is empty because both jobs are tombstoned |
+| M7 | ✅ shipped | Receipts portrait. The expanded row was INVISIBLE at every viewport (flex row, not column) — all of R6/R7 unreachable. Plus the grid collapse |
+| M8 | ✅ shipped | Hours portrait. Clean apart from the shared top-bar spill, which reproduced worst here |
 | M9 | ✅ shipped | viewport-fit=cover + top/side/dialog insets; a dozen pre-existing env() rules were inert until now. Device check outstanding |
 | A1 | ✅ shipped | One /admin/marketing with 4 tabs, URL-held state, old routes redirect, 4 nav rows → 1 |
 | A2 | ✅ shipped | lib/marketing/date-range.ts (25 tests incl. the 1st-of-month rollover) + RangePicker in the shell; one control, four tabs |

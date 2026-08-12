@@ -531,6 +531,23 @@
     align-items: stretch;
     gap: 1rem;
   }
+  .hub-greeting > div:first-child {
+    /* M5, 2026-08-12 — U-7 above, reintroduced by a later change, which is why it is worth spelling
+     * out rather than just deleting a number.
+     *
+     * The base rule reserves `padding-right: 14rem` on the heading column so the text cannot run
+     * under the `position: absolute` Enter Work Mode button. Sound on desktop. But the block just
+     * below returns that button to normal flow for exactly these widths — so on a phone the
+     * reservation guards against nothing and simply removes 224px from a card whose inner width is
+     * about 318px. The heading was left ~94px and rendered "Good night, Audit." down three lines,
+     * with the hero eating the top ~300px of the owner's landing page.
+     *
+     * That is the same symptom U-7 fixed by stacking the card, arriving by a different route: U-7
+     * removed the competing flex child, and the absolute-positioning change then reserved space for
+     * it anyway. A reservation has to be undone in every state where the thing it reserves for has
+     * moved — otherwise it outlives its reason and reads as a mysterious margin. */
+    padding-right: 0;
+  }
   .hub-greeting__actions {
     /* 2026-08-04, owner screenshot: the Enter Work Mode button hung off the LEFT edge of the phone.
      *
