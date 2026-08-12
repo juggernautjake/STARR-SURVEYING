@@ -52,9 +52,13 @@ interface RangePickerProps {
 
 export default function RangePicker({ value, onChange, now }: RangePickerProps) {
   const [open, setOpen] = useState(false);
-  // Read at render rather than captured in a module constant: a constant would freeze on the
-  // server's start time and quietly serve last month for weeks.
-  const today = now ?? new Date();
+
+  // Read at mount rather than captured in a module constant: a constant would freeze at the
+  // server's start time and quietly serve last month for weeks. `useMemo` with a stable dependency
+  // rather than a bare `now ?? new Date()`, because a fresh Date on every render is a new object
+  // identity, which invalidates every downstream memo on every render — the exact warning
+  // react-hooks/exhaustive-deps raised here. A picker does not need the clock to tick.
+  const today = useMemo(() => now ?? new Date(), [now]);
 
   // Ten years back is enough for any ad account this firm will have, and a bounded list beats a
   // free-form year box that accepts 1987.

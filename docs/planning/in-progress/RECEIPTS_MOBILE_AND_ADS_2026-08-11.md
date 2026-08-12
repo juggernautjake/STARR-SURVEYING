@@ -879,6 +879,108 @@ the owner is asking to click a conversion and see the person.
   "anonymous — no gclid captured", not a plausible-looking guess. A dashboard that quietly attributes
   the wrong customer to a sale is worse than one that admits it does not know.
 
+## Group F — File management
+
+Added 2026-08-11 (same session), owner:
+
+> *"We should be able to open the file manager and find all of the drawings, images, receipt images,
+> jobs, folders, files, docs, and everything… navigate through the levels and sub-levels… searches
+> and file format filters… totally linked to every page on the backend… Some folders and files will
+> just be for personal use for each user, and some will be company wide, and some will just be for
+> specific roles."*
+
+And, decisively, on how to go about it:
+
+> *"If we already have file management, please just review it and improve it as much as possible. If
+> we don't, then build it completely… Just don't build two conflicting versions of a file
+> explorer/file management system. It should all work together and be cohesive."*
+
+### **We already have one. This group EXTENDS it and never forks it.**
+
+Reviewed 2026-08-11. `/admin/files` is a real virtual filesystem, not a stub:
+
+- **Schema**: `file_nodes` + `file_permissions` (seeds 384/385, both applied).
+- **Page**: `app/admin/files/page.tsx`, ~1,110 lines — folder tree, multi-select, drag-move,
+  clipboard copy/cut, rename, delete, a preview viewer, and a permissions editor.
+- **API**: list, upload + upload/complete, `[id]` mutate, copy, download, permissions,
+  permissions/preview, people.
+- **Mounts**: `lib/files/mounts.ts` already surfaces four existing sources as **read-only** virtual
+  folders — receipts, job files, research documents, field media — synthesized on read, capped at
+  `download`, role-gated, and re-validated on the download route.
+
+So the architecture is sound and the answer is *improve*, not *rebuild*. **No slice below may create
+a second explorer, a second permissions model, or a second upload path.** Where a feature is missing
+it gets added to `file_nodes` / `mounts.ts` / `/admin/files`.
+
+### What the review actually found missing
+
+Measured against the owner's list, not guessed:
+
+| Asked for | State today |
+|---|---|
+| Receipts, job files, research docs, field media | ✅ mounted read-only |
+| **Drawings** | ❌ `cad_drawings` is **not mounted** — explicitly named by the owner |
+| Folders, levels and sub-levels | ✅ `file_nodes` tree |
+| **Search** | ❌ **none.** No search input exists on the page at all |
+| **File-format filters** | ❌ none |
+| Upload | ✅ exists |
+| Personal / company-wide / role-scoped | ⚠️ `file_permissions` supports it; needs checking that the UI *says* which a folder is |
+| **"Linked to every page"** | ❌ no shared attach/browse component; each feature has its own uploader |
+| Mobile | ⚠️ unaudited at phone width |
+
+### F1 — Mount the drawings
+
+`cad_drawings` is the one source the owner named that has no mount. Add it to `mounts.ts` beside the
+existing four — same read-only contract, same role gate (`drawer`, `admin`, `developer`), same
+download re-validation. Nothing else changes: one more entry in `SOURCES` and its resolver.
+
+- **Done when:** a drawer can browse Drawings in `/admin/files` and open one, and cannot rename or
+  delete it.
+
+### F2 — Search
+
+The largest gap, and the one that makes a file explorer usable at all: there is **no search input**.
+A tree with hundreds of nodes and no search is a filing cabinet with the drawers welded shut.
+
+- Search `file_nodes` by name, scoped to what the caller may see — the permission filter must be in
+  the QUERY, not applied after, or a search leaks the existence of files by returning fewer results
+  than it says.
+- Include mounted sources, which means searching their underlying tables rather than `file_nodes`.
+  Say when a source is excluded rather than silently returning less.
+- Results show the containing folder, and clicking one navigates there with the file selected —
+  "found it" and "can act on it" are different things.
+
+### F3 — Format filters
+
+Filter by kind (images, PDFs, documents, CAD, video, audio) on both the browse and search views.
+Derived from `mime_type`, with a fallback to the extension for mounted rows whose mime is inferred.
+
+### F4 — Say which scope a folder is
+
+The permissions model already supports personal / company / role. Whether a person can *see* which
+one they are looking at is a different question, and the one that gets someone into trouble: a
+folder that looks private and is not is a genuine privacy failure. Surface the scope as a visible
+badge on every folder, and make the permissions editor state it in words.
+
+### F5 — One attach/browse component, used everywhere
+
+*"Totally linked to every page."* Today each feature has its own uploader and its own idea of where
+files go. Build **one** picker — browse the tree, search, upload-in-place, return a node id — and
+adopt it feature by feature (job files first, then receipts, then research). Adopting it everywhere
+in one slice is how a regression lands in ten places at once.
+
+### F6 — Mobile
+
+`/admin/files` has never been audited at phone width, and a two-pane tree + detail layout is the
+shape most likely to fail there. Add it to the M4 audit's route list, then reformat: the tree
+becomes a drill-down rather than a side-by-side pane.
+
+### F7 — Prove it end to end
+
+Upload a file into a personal folder, a company folder and a role folder; confirm each is visible to
+exactly the right accounts and invisible to the others. Permissions are the part of this system where
+a bug is silent and expensive.
+
 ## Group S — Ship
 
 ### S1 — Merge to main and confirm the redeploy
@@ -928,6 +1030,13 @@ the owner is asking to click a conversion and see the person.
 | N2 | ☐ | Bell notification opens the conversation |
 | N3 | ☐ | Read once, read everywhere, in real time |
 | N4 | ☐ | Badge verified on real iOS + Android PWAs |
+| F1 | ☐ | Mount cad_drawings — the one named source with no mount |
+| F2 | ☐ | Search (none exists today) — permission filter in the QUERY |
+| F3 | ☐ | Format filters |
+| F4 | ☐ | Show whether a folder is personal / company / role |
+| F5 | ☐ | One attach-browse component, adopted feature by feature |
+| F6 | ☐ | /admin/files at phone width |
+| F7 | ☐ | Prove the three permission scopes end to end |
 | S1 | ☐ | Build, PR, merge, confirm redeploy |
 
 ## Known-red before this work started
