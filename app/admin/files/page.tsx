@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // From `kinds`, NOT `server` — server.ts imports supabaseAdmin, which holds the service-role key
 // and must never be reachable from a client component's import graph.
 import { FILE_KINDS, kindOf } from '@/lib/files/kinds';
+import FilePicker, { type PickedNode } from '@/app/admin/components/files/FilePicker';
 import {
   Folder,
   FileText,
@@ -566,6 +567,40 @@ export default function FilesPage(): React.ReactElement {
     load(parentId);
   }
 
+  // ── F5 — "Move to…" via the shared picker ────────────────────────────────────────────────────
+  //
+  // The first adopter of `FilePicker`, and chosen because it needs no schema change and closes a
+  // real gap: moving something used to mean either dragging it onto a visible folder, or cut →
+  // navigate → paste. Dragging does not exist on a touch screen, and cut-navigate-paste asks you to
+  // hold a destination in your head while walking there. Picking the destination is one step.
+  const [movePickerOpen, setMovePickerOpen] = useState(false);
+
+  const moveSelectedTo = useCallback(async (dest: PickedNode) => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      for (const id of ids) {
+        const res = await fetch(`/api/admin/files/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ parent_id: dest.id }),
+        });
+        if (!res.ok) {
+          // Stop at the first failure rather than pressing on. A half-moved selection is worse than
+          // an unmoved one: the person has to work out which items went and which did not.
+          setError(await errOf(res, 'Could not move an item.'));
+          break;
+        }
+      }
+      setSelected(new Set());
+      await load(parentId);
+    } finally {
+      setBusy(false);
+    }
+  }, [selected, parentId, load]);
+
   async function paste() {
     if (!clip) return;
     setBusy(true);
@@ -811,6 +846,11 @@ export default function FilesPage(): React.ReactElement {
                 <button type="button" className="fx-chip" onClick={() => setClip({ mode: 'cut', ids: [...selected] })} disabled={busy} data-testid="fx-cut">
                   <Scissors size={15} /> Cut
                 </button>
+                {/* F5 — the shared picker's first adopter. Cut/paste still works; this is the
+                    one-step version, and the only one that works without a mouse. */}
+                <button type="button" className="fx-chip" onClick={() => setMovePickerOpen(true)} disabled={busy} data-testid="fx-move-to">
+                  <FolderPlus size={15} /> Move to…
+                </button>
                 <button type="button" className="fx-chip" onClick={duplicateSelected} disabled={busy}>
                   <CopyPlus size={15} /> Duplicate
                 </button>
@@ -945,6 +985,21 @@ export default function FilesPage(): React.ReactElement {
           })}
         </ul>
       )}
+
+      {/* F5 — destination picker for "Move to…". `excludeIds` carries the selection itself: a
+          folder cannot be moved into itself, and offering that as a choice invites an error the
+          API would have to reject anyway. (Moving a folder into its own DESCENDANT is refused
+          server-side, which is where a cycle check belongs — the client cannot know the subtree
+          without fetching it.) */}
+      <FilePicker
+        open={movePickerOpen}
+        onClose={() => setMovePickerOpen(false)}
+        onPick={(dest) => void moveSelectedTo(dest)}
+        mode="folder"
+        title={`Move ${selected.size} item${selected.size === 1 ? '' : 's'}`}
+        actionLabel="Move here"
+        excludeIds={[...selected]}
+      />
 
       {viewerLoading && !viewer && (
         <p className="fx__upload" role="status" data-testid="fx-viewer-loading">Opening…</p>

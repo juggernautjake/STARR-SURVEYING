@@ -1077,12 +1077,50 @@ and was serving 404s for its own chunks, leaving the page stuck on the session-l
 recording because the symptom is indistinguishable from "authored but not wired", which is the
 defect this repo actually has; a restart is the first thing to try, not a rewrite.
 
-### F5 — One attach/browse component, used everywhere
+### F5 — One attach/browse component, used everywhere ✅ PICKER SHIPPED · wider adoption blocked on a schema decision
 
 *"Totally linked to every page."* Today each feature has its own uploader and its own idea of where
 files go. Build **one** picker — browse the tree, search, upload-in-place, return a node id — and
 adopt it feature by feature (job files first, then receipts, then research). Adopting it everywhere
 in one slice is how a regression lands in ten places at once.
+
+**Completion note. The picker is built and adopted once; the adoption this slice PLANNED is blocked
+on a decision I am not going to make silently.**
+
+`app/admin/components/files/FilePicker.tsx` — browse, search, breadcrumb, select, returns
+`{ id, name }`. It calls the same two endpoints as `/admin/files`, so it can never show a different
+tree or a different set of permissions from the explorer itself. It frames itself with M2's
+`.admin-dialog`, inheriting the height cap, internal scroll and pinned footer rather than repeating
+them. Permissions are **not** re-implemented: the list endpoint already returns only what the caller
+may see, and the picker filters for *usability* (a folder you can only view is not somewhere you can
+move a file INTO), never for visibility.
+
+**Adopted in "Move to…"**, which needed no schema change and closed a real gap: moving something
+previously meant dragging it onto a visible folder — impossible on a touch screen — or
+cut → navigate → paste, which asks you to hold a destination in your head while walking there.
+Verified end to end: `PATCH 200`, and the destination folder afterwards contains the moved item.
+
+**Why job files were NOT adopted, which was this slice's stated plan.** `job_files.storage_path` is
+`NOT NULL` and points into the `starr-field-files` bucket; a `file_nodes` file lives in a different
+bucket under a different path. Attaching one to a job therefore means either **copying the bytes**
+(duplicating the file, after which the two copies diverge and nobody knows which is current) or
+**adding a nullable `file_node_id`** to `job_files` and teaching every read path to follow it.
+
+The second is right and the first is a trap. But it is a schema change plus a read-path change
+across every surface that lists job files — a slice of its own, with a seed, not something to bolt
+onto the end of this one. **Naming it beats half-doing it**, and building the picker with no adopter
+at all would have been the exact "authored but not wired" defect this doc keeps finding.
+
+Next slice for this, when it is picked up: seed `job_files.file_node_id` (nullable, FK to
+`file_nodes`), make `storage_path` nullable for referenced rows, then adopt the picker behind an
+"Attach from Files" action.
+
+**One honest note about the verification.** An intermediate run reported the destination empty after
+the move, and I took that at face value and started hunting a bug in working code. It was a false
+negative — a 2.5 s wait where the round trip needed more. The decisive run traced the actual network
+call (`PATCH 200`) and re-read the destination, which is what should have been done first: a UI
+assertion that something did *not* happen is exactly the kind that needs the underlying request
+checked before believing it.
 
 ### F6 — Mobile ✅ SHIPPED 2026-08-11
 
@@ -1220,7 +1258,7 @@ is an owner decision about staffing, not an engineering task.
 | F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |
 | F3 | ✅ shipped | 8 kind chips; caught drawings mis-filed as other, fixed with a product media type |
 | F4 | ✅ shipped | describeAudience + badges; resolves inheritance, and found "Personal" badged Everyone (true, and crying wolf) |
-| F5 | ☐ | One attach-browse component, adopted feature by feature |
+| F5 | ◐ picker shipped | FilePicker built + adopted in Move-to. Job-file attach needs a job_files.file_node_id column — named, not half-done |
 | F6 | ✅ shipped | 27x27 action buttons → 40x40, name column 108px → 232px, chips 34 → 40; route added to the M4 audit |
 | F7 | ✅ shipped | 3 real accounts, live API, red-tested; role path NOT testable — no non-admin role holder exists |
 | S1 | ☐ | Build, PR, merge, confirm redeploy |
