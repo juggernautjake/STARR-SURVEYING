@@ -15,6 +15,7 @@
 // Manual entries sit at the same grain as the nightly import, so re-entering a day corrects it rather
 // than adding to it — and when the API import eventually runs, the real number overwrites the estimate.
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { DateRange } from '@/lib/marketing/date-range';
 
 // Shared marketing stylesheet. These pages referenced their class names for months with
 // nothing defining them — see the header of Marketing.css.
@@ -35,11 +36,13 @@ interface Totals {
 const money = (dollars: number): string =>
   dollars.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
 
-export default function MarketingSpendPage(): React.ReactElement {
+export default function MarketingSpendPage({ range }: { range: DateRange }): React.ReactElement {
   const [rows, setRows] = useState<Row[]>([]);
   const [totals, setTotals] = useState<Totals | null>(null);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // A2 — the period comes from the shell's RangePicker, held in the URL. These used to be two
+  // blank date inputs per page, so every tab opened on "whatever the API defaults to" and
+  // switching tabs lost the period you were looking at.
+  const { from, to } = range;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
@@ -102,14 +105,9 @@ export default function MarketingSpendPage(): React.ReactElement {
         The denominator. Without it, conversions are a count with nothing to divide by.
       </p>
 
-      <section className="ms__panel">
-        <div className="ms__row">
-          <label htmlFor="ms-from">From</label>
-          <input id="ms-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <label htmlFor="ms-to">To</label>
-          <input id="ms-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
-      </section>
+      {/* A2 — the From/To panel that used to sit here is gone. The period is chosen once, in the
+          shell's RangePicker above the tabs, and held in the URL. Two controls for one question is
+          how the authoritative-looking one ends up being the broken one. */}
 
       <section className="ms__panel" data-testid="spend-totals">
         {loading ? <p className="ms__muted">Loading…</p> : totals ? (

@@ -13,6 +13,7 @@
 // Rates with no denominator render as an em-dash, never as zero. A 0% conversion rate reads as "something
 // is broken"; the truth is usually "nothing has happened in this range yet".
 import { useCallback, useEffect, useState } from 'react';
+import type { DateRange } from '@/lib/marketing/date-range';
 
 // Shared marketing stylesheet. These pages referenced their class names for months with
 // nothing defining them — see the header of Marketing.css.
@@ -61,11 +62,13 @@ const money = (v: number | null): string =>
   v === null ? '—' : v.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const days = (v: number | null): string => (v === null ? '—' : `${v.toFixed(1)}d`);
 
-export default function MarketingDashboardPage(): React.ReactElement {
+export default function MarketingDashboardPage({ range }: { range: DateRange }): React.ReactElement {
   const [data, setData] = useState<Payload | null>(null);
   const [slice, setSlice] = useState('campaign');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // A2 — the period comes from the shell's RangePicker, held in the URL. These used to be two
+  // blank date inputs per page, so every tab opened on "whatever the API defaults to" and
+  // switching tabs lost the period you were looking at.
+  const { from, to } = range;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,10 +100,9 @@ export default function MarketingDashboardPage(): React.ReactElement {
 
       <section className="mk__panel">
         <div className="mk__row">
-          <label htmlFor="mk-from">From</label>
-          <input id="mk-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <label htmlFor="mk-to">To</label>
-          <input id="mk-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          {/* A2 — the From/To inputs that used to sit here are gone. The period is chosen once, in
+              the shell's RangePicker above the tabs, and held in the URL. Two controls for one
+              question is how the authoritative-looking one ends up being the broken one. */}
           <label htmlFor="mk-slice">Break down by</label>
           <select id="mk-slice" value={slice} onChange={(e) => setSlice(e.target.value)}>
             {SLICES.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}

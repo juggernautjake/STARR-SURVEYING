@@ -651,7 +651,7 @@ so pointing the guard at them would have made it assert nothing), and its scopin
 inside `.mkt-` and then fails on the separator. The Google OAuth callback's landing URL points at
 `?tab=uploads` directly, saving a redirect hop at the least patient moment in that flow.
 
-### A2 — Current month by default, and any period the user asks for
+### A2 — Current month by default, and any period the user asks for ✅ SHIPPED 2026-08-11
 
 **Scope extended 2026-08-11 (same session), owner:**
 
@@ -916,7 +916,7 @@ the owner is asking to click a conversion and see the person.
 | M8 | ☐ | Hours portrait |
 | M9 | ✅ shipped | viewport-fit=cover + top/side/dialog insets; a dozen pre-existing env() rules were inert until now. Device check outstanding |
 | A1 | ✅ shipped | One /admin/marketing with 4 tabs, URL-held state, old routes redirect, 4 nav rows → 1 |
-| A2 | ☐ | Current-month default + any month/year/week/day/custom range, in the URL |
+| A2 | ✅ shipped | lib/marketing/date-range.ts (25 tests incl. the 1st-of-month rollover) + RangePicker in the shell; one control, four tabs |
 | A3 | ☐ | Impressions / clicks / conversions live |
 | A4 | ☐ | Auto-refresh + freshness stamp |
 | A5 | ☐ | Visual overhaul |

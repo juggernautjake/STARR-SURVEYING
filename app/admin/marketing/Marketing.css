@@ -577,3 +577,129 @@
   color: var(--theme-fg-tertiary, #6B7280);
   overflow-wrap: anywhere;
 }
+
+/* ── A2 (2026-08-11) — the period control ──────────────────────────────────────────────────────── */
+
+.mkt-toolbar {
+  display: flex;
+  flex-wrap: wrap;          /* on a phone the picker drops under the hint instead of squeezing it */
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+  min-width: 0;
+}
+
+.mkt-toolbar .mkt-tabs__hint { margin: 0; flex: 1 1 200px; min-width: 0; }
+
+.mkt-range { position: relative; flex-shrink: 0; }
+
+.mkt-range__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-primary, #1F2937);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mkt-range__label { white-space: nowrap; }
+
+/* The chart bucket, said out loud. Quiet, because it is context rather than a control — but present,
+ * because an unlabelled axis is how a monthly total gets read as a daily one. */
+.mkt-range__granularity {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--theme-fg-tertiary, #6B7280);
+  white-space: nowrap;
+}
+
+/* Same two rules as every other panel in this codebase since M2: capped height, internal scroll.
+ * This one holds eight presets, two selects, five year buttons and a custom-date row — comfortably
+ * taller than a phone if left to its own devices. */
+.mkt-range__panel {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(320px, calc(100vw - 2rem));
+  max-height: min(70vh, 460px);
+  max-height: min(70dvh, 460px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 0.85rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #FFF);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.mkt-range__group { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+
+.mkt-range__group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-fg-tertiary, #6B7280);
+}
+
+.mkt-range__presets { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+
+.mkt-range__preset {
+  min-height: 36px;
+  padding: 0 0.7rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mkt-range__preset:hover { border-color: var(--color-brand-navy, #1E3A5F); }
+
+.mkt-range__preset--active {
+  background: var(--color-brand-navy, #1E3A5F);
+  border-color: var(--color-brand-navy, #1E3A5F);
+  color: var(--color-text-on-brand, #FFF);
+}
+
+.mkt-range__row { display: flex; flex-wrap: wrap; gap: 0.4rem; min-width: 0; }
+
+.mkt-range__row > select,
+.mkt-range__row > input {
+  flex: 1 1 120px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 0.5rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-primary, #1F2937);
+  font-size: 16px;   /* iOS focus-zoom floor — below this Safari zooms the page on tap */
+}
+
+.mkt-range__apply {
+  flex: 1 1 100%;
+  min-height: 40px;
+  border: 1px solid var(--color-brand-navy, #1E3A5F);
+  border-radius: 6px;
+  background: var(--color-brand-navy, #1E3A5F);
+  color: var(--color-text-on-brand, #FFF);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}

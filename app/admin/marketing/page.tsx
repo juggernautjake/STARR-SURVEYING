@@ -33,6 +33,8 @@ import { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { BarChart3, DollarSign, Upload, FileDown } from 'lucide-react';
 
+import RangePicker from './RangePicker';
+import { rangeFromParams, rangeToParams, type DateRange } from '@/lib/marketing/date-range';
 import DashboardTab from './_tabs/DashboardTab';
 import SpendTab from './_tabs/SpendTab';
 import UploadsTab from './_tabs/UploadsTab';
@@ -81,17 +83,29 @@ export default function MarketingPage(): React.ReactElement {
     return TABS.some((t) => t.id === raw) ? (raw as TabId) : DEFAULT_TAB;
   }, [params]);
 
-  const select = useCallback(
-    (id: TabId) => {
+  // A2 — the period, also from the URL. Resolved on every render against a fresh clock, which is
+  // what makes `?preset=this-month` show September in September rather than freezing on the month
+  // the link was made. See lib/marketing/date-range.ts.
+  const range = useMemo(() => rangeFromParams(params, new Date()), [params]);
+
+  /** One writer for the whole query string, so changing the tab cannot drop the period and changing
+   *  the period cannot drop the tab — which is exactly what happened when each page owned its own
+   *  pair of date inputs. */
+  const navigate = useCallback(
+    (nextTab: TabId, nextRange: DateRange) => {
+      const q = new URLSearchParams();
+      if (nextTab !== DEFAULT_TAB) q.set('tab', nextTab);
+      for (const [k, v] of Object.entries(rangeToParams(nextRange))) q.set(k, v);
+      const qs = q.toString();
       // `replace`, not `push`, and scroll:false. Flicking between four tabs should not bury the
       // page you arrived from under four history entries, and it should not jump you to the top of
       // a page you are already reading.
-      router.replace(id === DEFAULT_TAB ? '/admin/marketing' : `/admin/marketing?tab=${id}`, {
-        scroll: false,
-      });
+      router.replace(`/admin/marketing${qs ? `?${qs}` : ''}`, { scroll: false });
     },
     [router],
   );
+
+  const select = useCallback((id: TabId) => navigate(id, range), [navigate, range]);
 
   const activeTab = TABS.find((t) => t.id === active)!;
 
@@ -121,15 +135,23 @@ export default function MarketingPage(): React.ReactElement {
         })}
       </nav>
 
-      <p className="mkt-tabs__hint">{activeTab.hint}</p>
+      <div className="mkt-toolbar">
+        <p className="mkt-tabs__hint">{activeTab.hint}</p>
+        {/* Not shown on the upload log: that tab lists cron runs, which are not a period of ad
+            performance. A control that appears everywhere and silently does nothing on one tab is
+            worse than one that is honestly absent. */}
+        {active !== 'uploads' ? (
+          <RangePicker value={range} onChange={(r) => navigate(active, r)} />
+        ) : null}
+      </div>
 
       <div id={`mkt-panel-${active}`} role="tabpanel" aria-label={activeTab.label}>
         {/* Rendered one at a time rather than all four hidden with CSS. Each of these fetches on
             mount, and mounting all four would fire every advertising query on every visit to answer
             one question. */}
-        {active === 'overview' ? <DashboardTab /> : null}
-        {active === 'spend' ? <SpendTab /> : null}
-        {active === 'conversions' ? <ExportsTab /> : null}
+        {active === 'overview' ? <DashboardTab range={range} /> : null}
+        {active === 'spend' ? <SpendTab range={range} /> : null}
+        {active === 'conversions' ? <ExportsTab range={range} /> : null}
         {active === 'uploads' ? <UploadsTab /> : null}
       </div>
     </div>

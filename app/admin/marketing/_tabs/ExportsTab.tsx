@@ -20,6 +20,7 @@
 // closed — or one Google rejected — would silently lose those conversions forever, because the next
 // export would skip them. Mark only after Google has accepted it.
 import { useCallback, useEffect, useState } from 'react';
+import type { DateRange } from '@/lib/marketing/date-range';
 
 // Shared marketing stylesheet. These pages referenced their class names for months with
 // nothing defining them — see the header of Marketing.css.
@@ -44,11 +45,13 @@ interface Summary {
   eventIds: string[];
 }
 
-export default function MarketingExportsPage(): React.ReactElement {
+export default function MarketingExportsPage({ range }: { range: DateRange }): React.ReactElement {
   const [milestone, setMilestone] = useState('job_created');
   const [format, setFormat] = useState<'click' | 'enhanced'>('click');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // A2 — the period comes from the shell's RangePicker, held in the URL. These used to be two
+  // blank date inputs per page, so every tab opened on "whatever the API defaults to" and
+  // switching tabs lost the period you were looking at.
+  const { from, to } = range;
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(false);
   const [marked, setMarked] = useState<number | null>(null);
@@ -120,12 +123,9 @@ export default function MarketingExportsPage(): React.ReactElement {
             : 'Enhanced Conversions for Leads. Covers leads with no click at all, which at this business is most of them.'}
         </p>
 
-        <div className="mx__row mx__row--dates">
-          <label htmlFor="mx-from">From</label>
-          <input id="mx-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          <label htmlFor="mx-to">To</label>
-          <input id="mx-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
+        {/* A2 — the From/To row that used to sit here is gone. The period is chosen once, in the
+            shell's RangePicker above the tabs, and held in the URL. Two controls for one question
+            is how the authoritative-looking one ends up being the broken one. */}
       </section>
 
       {/* The counts, before the file. See the header — this is the product; the CSV is delivery. */}
