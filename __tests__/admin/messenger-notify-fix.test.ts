@@ -38,7 +38,15 @@ describe('messages/send POST — recipient notification (S/T-2026-06-18)', () =>
     expect(SRC).toMatch(/await notifyMany\(recipientEmails, \{/);
     expect(SRC).toMatch(/type: 'message'/);
     expect(SRC).toMatch(/icon: '💬'/);
-    expect(SRC).toMatch(/link: `\/admin\/messages\?conversation=\$\{encodeURIComponent\(conversation_id\)\}`/);
+    // N2 (2026-08-11) changed this link, and the assertion had been pinning the BROKEN form.
+    // `/admin/messages?conversation=<id>` was read by nothing: the messages page never looked at
+    // that query parameter, so clicking a message notification landed on the inbox with no
+    // conversation open — the one thing the notification exists to do. The route is now
+    // `/admin/messages/<id>`, which was verified live to return 200.
+    //
+    // A test asserting the old string would have failed the fix and passed the defect, which is the
+    // worst way for a guard to be wrong.
+    expect(SRC).toMatch(/link: `\/admin\/messages\/\$\{encodeURIComponent\(conversation_id\)\}`/);
   });
 
   it('wraps the notify in try/catch so a notification failure never blocks the send', () => {

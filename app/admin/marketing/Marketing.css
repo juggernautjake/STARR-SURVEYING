@@ -62,6 +62,28 @@
   letter-spacing: -0.005em;
 }
 
+/* ── HEADINGS HAVE TO STATE THEIR OWN COLOUR HERE ──────────────────────────────────────────────
+ *
+ * Found 2026-08-12 while checking A5's charts in every skin. `app/styles/globals.css` carries a
+ * global rule:
+ *
+ *     h1, h2, h3, h4, h5, h6 { color: var(--brand-dark); }
+ *
+ * `--brand-dark` is a FIXED brand colour that does not follow the theme, and a bare element
+ * selector beats inheritance — so while `.mk` correctly resolved to #F1F5F9 under starr-dark,
+ * every heading inside it stayed at rgb(15,20,25). On a near-black panel that is invisible, in all
+ * four dark skins.
+ *
+ * It is a SITEWIDE defect: it applies to every heading in the admin app, not only these pages.
+ * Fixing it in globals.css from an advertising slice would restyle screens this change has not
+ * looked at, so it is corrected within these pages' own scope and recorded for a pass of its own.
+ */
+.mk :is(h1, h2, h3, h4, h5, h6),
+.ms :is(h1, h2, h3, h4, h5, h6),
+.mx :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--theme-fg-primary, #111827);
+}
+
 /* =============================================================================
    2. PANELS
    ============================================================================= */
@@ -748,11 +770,14 @@
  * Red here would train somebody to ignore the banner before it ever says anything urgent. */
 .mkt-access--test-access-only,
 /* Amber, not red: the data below IS live. Red over correct numbers is how a banner gets ignored. */
-.mkt-access--working-with-warning { border-color: #F59E0B; background: #FFFBEB; color: #92400E; }
+.mkt-access--working-with-warning { border-color: var(--theme-warning, #F59E0B);
+  background: var(--theme-bg-subtle, #FFFBEB); color: var(--theme-warning, #92400E); }
 .mkt-access--not-connected,
-.mkt-access--token-not-configured { border-color: #93C5FD; background: #EFF6FF; color: #1E40AF; }
+.mkt-access--token-not-configured { border-color: var(--theme-info, #93C5FD);
+  background: var(--theme-bg-subtle, #EFF6FF); color: var(--theme-info, #1E40AF); }
 .mkt-access--wrong-customer,
-.mkt-access--unknown { border-color: #FCA5A5; background: #FEF2F2; color: #991B1B; }
+.mkt-access--unknown { border-color: var(--theme-danger, #FCA5A5);
+  background: var(--theme-bg-subtle, #FEF2F2); color: var(--theme-danger, #991B1B); }
 
 /* ── A3 · the headline advertising numbers ─────────────────────────────────────────────────────
  *
@@ -765,7 +790,12 @@
  * months. Rules written where the guard cannot see them opt out of the check.
  */
 
-.mk__panel--perf { border-color: #BFDBFE; background: #F9FBFF; }
+.mk__panel--perf {
+  border-color: var(--theme-accent, #1D3095);
+  /* A tint of the surface, not a fixed pale blue. #F9FBFF is invisible against a dark theme's
+   * white-ish text, which is how the KPI values disappeared entirely in high-contrast-dark. */
+  background: var(--theme-bg-subtle, #F9FBFF);
+}
 
 .mk__perfhead {
   display: flex;
@@ -778,10 +808,10 @@
 .mk__refresh {
   padding: 7px 12px;
   min-height: 40px;                       /* the repo's tap-target floor — see F6 */
-  border: 1px solid #BFDBFE;
+  border: 1px solid var(--theme-border, #BFDBFE);
   border-radius: 8px;
-  background: #FFFFFF;
-  color: #1D4ED8;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-accent, #1D4ED8);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -799,8 +829,8 @@
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
 }
 .mk__kpis li {
-  background: #FFFFFF;
-  border: 1px solid #E5E7EB;
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 10px;
   padding: 10px 12px;
 }
@@ -808,29 +838,16 @@
   display: block;
   font-size: 1.35rem;
   line-height: 1.15;
-  /* Tabular figures so $1,181.30 and $181.30 line up their decimal points down the row — the whole
-   * value of a tile grid is being able to compare them without reading each one. */
-  font-variant-numeric: tabular-nums;
+  /* PROPORTIONAL figures, deliberately. tabular-nums gives every digit the width of a zero, which
+   * makes a number like 399 look loose and gappy at display size. Equal-width digits earn their
+   * place where numbers stack VERTICALLY and have to align — the campaign table below — not in a
+   * row of tiles, where nothing is underneath anything. */
+  font-variant-numeric: proportional-nums;
 }
-.mk__kpis span { display: block; margin-top: 2px; color: #6B7280; font-size: 0.78rem; }
+.mk__kpis span { display: block; margin-top: 2px; color: var(--theme-fg-muted, #6B7280); font-size: 0.78rem; }
 
-.mk__stats--derived { border-top: 1px solid #E5E7EB; padding-top: 10px; margin-top: 12px; }
+.mk__stats--derived { border-top: 1px solid var(--theme-border, #E5E7EB); padding-top: 10px; margin-top: 12px; }
 
-/* A sparkline, not a chart: A5 does the real visualisation. This exists so "we spent it all on one
- * day" is visible now instead of after the next slice. */
-.mk__spark {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 46px;
-  margin: 12px 0 4px;
-}
-.mk__spark i {
-  flex: 1 1 0;
-  min-width: 2px;
-  background: #93C5FD;
-  border-radius: 2px 2px 0 0;
-}
 
 /* ── A4 · the freshness stamp ──────────────────────────────────────────────────────────────────
  *
@@ -843,20 +860,22 @@
   gap: 6px;
   margin: 10px 0 0;
   font-size: 0.78rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
-.mk__stamp--stale { color: #92400E; font-weight: 600; }
+.mk__stamp--stale { color: var(--theme-warning, #92400E); font-weight: 600; }
 
 .mk__pulse {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #16A34A;
+  /* The dot IS a status — healthy vs stale — so it wears the repo's status tokens rather than a
+   * literal green. Every theme defines both, including the two high-contrast ones. */
+  background: var(--theme-success, #16A34A);
   flex: none;
   animation: mk-pulse 2.4s ease-in-out infinite;
 }
-.mk__stamp--stale .mk__pulse { background: #F59E0B; animation: none; }
+.mk__stamp--stale .mk__pulse { background: var(--theme-warning, #F59E0B); animation: none; }
 
 @keyframes mk-pulse {
   0%, 100% { opacity: 1; }
@@ -867,4 +886,157 @@
  * asked their system to stop animating things. The colour still carries the whole meaning. */
 @media (prefers-reduced-motion: reduce) {
   .mk__pulse { animation: none; }
+}
+
+/* ── A5 · deltas, charts and the sortable table ────────────────────────────────────────────────
+ *
+ * Colour comes from THEME TOKENS, never from a hex written here. There are twelve skins including
+ * two high-contrast ones, and a hardcoded blue mark is legible in eight of them and invisible in
+ * `high-contrast-dark`. Every theme's --theme-accent was checked against its own --theme-bg-surface
+ * with the dataviz validator: all twelve clear the 3:1 floor for a chart mark.
+ */
+
+/* The delta line on a stat tile. --theme-success / --theme-danger are the repo's status tokens;
+ * a NEUTRAL delta (spend) deliberately wears muted text and no colour at all. */
+.mk__delta {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.74rem;
+  font-style: normal;
+  font-weight: 600;
+  color: var(--theme-fg-muted, #6B7280);
+}
+.mk__delta--good { color: var(--theme-success, #15803D); }
+.mk__delta--bad  { color: var(--theme-danger, #B91C1C); }
+
+/* The baseline's dates, always beside the delta and always quieter than it. A percentage with no
+ * stated baseline is a number nobody can check. */
+.mk__delta__vs { font-weight: 400; color: var(--theme-fg-muted, #6B7280); }
+
+/* ── Charts ───────────────────────────────────────────────────────────────────────────────── */
+
+.mk__chart {
+  margin: 16px 0 0;
+  /* The grid is what puts the y-axis labels beside the plot rather than on top of it, and it sizes
+   * the row to plot + x-axis band together. A fixed height that excludes the axis is what gives a
+   * chart card its own tiny nested scrollbar. */
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 6px;
+}
+
+.mk__chart__title {
+  grid-column: 1 / -1;
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.mk__chart__svg {
+  grid-column: 2;
+  grid-row: 2;
+  width: 100%;
+  height: 126px;
+  overflow: visible;
+}
+
+.mk__chart__grid {
+  stroke: var(--theme-border, #E5E7EB);
+  /* Hairline and SOLID. Dashing adds noise and reads as "threshold" when it is just a grid. */
+  stroke-width: 1;
+}
+
+.mk__chart__bar {
+  fill: var(--theme-accent, #1D3095);
+  transition: opacity 0.12s ease;
+}
+/* The hovered mark lifts, so the reader sees the chart respond to them. No stroke: a border drawn
+ * around a mark is data-weight ink that is not data. */
+.mk__chart__bar.is-hovered { opacity: 0.72; }
+
+.mk__chart__yaxis {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 126px;
+  padding-bottom: 18px;              /* clears the x-axis band, so "0" sits on the baseline */
+  text-align: right;
+  font-size: 0.68rem;
+  /* Tabular HERE — these do stack vertically and must align. */
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.mk__chart__xaxis {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-size: 0.68rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* The readout. Values lead and labels follow — the reader already knows which series they are
+ * pointing at and wants the number. */
+.mk__chart__readout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  background: var(--theme-bg-subtle, #F9FAFB);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+.mk__chart__readout b { color: var(--theme-fg-primary, #111827); font-variant-numeric: tabular-nums; }
+
+/* A short stroke of the series colour, not a filled box: at readout density a box is data-weight
+ * ink doing a label's job. */
+.mk__chart__key {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--theme-accent, #1D3095);
+}
+
+/* ── Sortable headers ─────────────────────────────────────────────────────────────────────── */
+
+.mk__sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  /* 40px, the repo's tap-target floor from F6. A 20px-tall header is a sort control that only
+   * works with a mouse. */
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mk__sort:hover { color: var(--theme-fg-primary, #111827); }
+.mk__sort.is-active { color: var(--theme-accent, #1D3095); }
+.mk__sort:focus-visible { outline: 2px solid var(--theme-accent, #1D3095); outline-offset: 2px; }
+
+/* On a phone the two plots would each be ~40px of usable height inside a 126px box. Shorter plots
+ * and a tighter y-gutter keep them readable rather than squeezing four things into one screen. */
+@media (max-width: 520px) {
+  .mk__chart { grid-template-columns: 38px 1fr; }
+  .mk__chart__svg,
+  .mk__chart__yaxis { height: 104px; }
 }

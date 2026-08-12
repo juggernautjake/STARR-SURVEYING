@@ -48,6 +48,13 @@ const INTENTIONALLY_OPEN: Record<string, string> = {
   'my-jobs': 'redirected to /admin/assignments, which is gated on its own',
   'availability': 'a crew member sets their own availability',
   'time-off': 'a crew member files their own request; the approval queue is gated separately',
+  // E2 (2026-08-11). Same shape as `time-off`, and open for the same reason: ASKING for a role has
+  // to be available to everyone, or the people who most need access are the ones who cannot request
+  // it. The page shows your own requests and their history; the pending queue only renders for an
+  // admin, and — the part that matters — `POST /api/admin/role-requests/[id]/decide` enforces admin
+  // server-side, verified with a 403 on a self-approve attempt. The page being reachable grants
+  // nothing.
+  'role-requests': 'anyone may ask for a role; the approve/deny API is admin-gated server-side',
   'mileage': 'a crew member logs their own mileage',
   'notifications': "the user's own notification feed",
   'install': 'PWA install instructions — static help content',

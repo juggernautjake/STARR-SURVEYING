@@ -21,7 +21,7 @@ import {
   Megaphone, MessageSquare, MessageSquarePlus, MessagesSquare, Microscope, Notebook, NotebookPen,
   Package, PackageOpen, PaintBucket, Palmtree, Pencil, PenTool, PieChart, Play, Plus, Receipt, ReceiptText,
   Route, Satellite, Scale, ScrollText, Search, Settings, Settings2,
-  ShieldCheck, ShieldPlus, Smartphone, Sparkles, SquarePen, StickyNote, Tags, Timer, Trash2, TrendingUp,
+  ShieldCheck, ShieldPlus, ShieldQuestion, Smartphone, Sparkles, SquarePen, StickyNote, Tags, Timer, Trash2, TrendingUp,
   Trophy, Truck, Upload, UploadCloud, User, UserCog,
   UserPlus, Users, UsersRound, Wallet, Workflow, Wrench, FlaskConical,
   type LucideIcon,
@@ -40,7 +40,7 @@ const ICONS: Record<string, LucideIcon> = {
   Megaphone, MessageSquare, MessageSquarePlus, MessagesSquare, Microscope, Notebook, NotebookPen,
   Package, PackageOpen, PaintBucket, Palmtree, Pencil, PenTool, PieChart, Play, Plus, Receipt, ReceiptText,
   Route, Satellite, Scale, ScrollText, Search, Settings, Settings2,
-  ShieldCheck, ShieldPlus, Smartphone, Sparkles, SquarePen, StickyNote, Tags, Timer, Trash2, TrendingUp,
+  ShieldCheck, ShieldPlus, ShieldQuestion, Smartphone, Sparkles, SquarePen, StickyNote, Tags, Timer, Trash2, TrendingUp,
   Trophy, Truck, Upload, UploadCloud, User, UserCog,
   UserPlus, Users, UsersRound, Wallet, Workflow, Wrench, FlaskConical,
 };

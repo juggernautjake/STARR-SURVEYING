@@ -12,8 +12,10 @@
 //
 // Rates with no denominator render as an em-dash, never as zero. A 0% conversion rate reads as "something
 // is broken"; the truth is usually "nothing has happened in this range yet".
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DateRange } from '@/lib/marketing/date-range';
+import { METRIC_DIRECTION, deltaOf, type GoodDirection } from '@/lib/marketing/compare';
+import TrendChart from './TrendChart';
 import {
   READ_INTERVAL_MS, describeFreshness, isLiveRange, shouldImport,
 } from '@/lib/marketing/live-refresh';
@@ -54,6 +56,9 @@ interface Payload {
   }>;
   lastImportedAt: string | null;
   includesToday: boolean;
+  // A5 — the delta baseline. Null when there is nothing sensible to compare against.
+  previous: Payload['performance'] | null;
+  comparison: { from: string; to: string; label: string; partial: boolean } | null;
   slice: { by: string; rows: Array<{ key: string; jobs: number; revenue: number }> };
   repeat: {
     customers: number; repeatCustomers: number; repeatRate: number | null;
@@ -86,6 +91,71 @@ const money2 = (v: number | null): string =>
 /** One decimal on a click-through rate: the difference between 2.0% and 2.4% is the whole campaign. */
 const rate = (v: number | null): string => (v === null ? '—' : `${(v * 100).toFixed(1)}%`);
 const MICROS = 1_000_000;
+
+/** The campaign table's columns. `initial` is the order a column opens in when you first sort by
+ *  it — the one that answers the question the column is actually asked: biggest spend first,
+ *  cheapest cost-per-click first. Making every column open ascending means half of them open on the
+ *  answer nobody wanted. */
+interface CampaignCol {
+  key: 'name' | 'costMicros' | 'impressions' | 'clicks' | 'ctr' | 'cpc' | 'conversions' | 'costPerConversion';
+  label: string;
+  initial: 'asc' | 'desc';
+}
+
+const CAMPAIGN_COLS: CampaignCol[] = [
+  { key: 'name', label: 'Campaign', initial: 'asc' },
+  { key: 'costMicros', label: 'Spend', initial: 'desc' },
+  { key: 'impressions', label: 'Impr.', initial: 'desc' },
+  { key: 'clicks', label: 'Clicks', initial: 'desc' },
+  { key: 'ctr', label: 'CTR', initial: 'desc' },
+  { key: 'cpc', label: 'CPC', initial: 'asc' },
+  { key: 'conversions', label: 'Conv.', initial: 'desc' },
+  { key: 'costPerConversion', label: 'Cost/conv.', initial: 'asc' },
+];
+
+/**
+ * A5 — one stat tile: label, value, and a delta against a NAMED period.
+ *
+ * The delta is the most quietly dishonest element on a dashboard — one number, no visible working,
+ * everybody reads it — so three things are deliberate here:
+ *
+ *   · the baseline's actual dates are printed ("vs 1–12 Jul"), never "vs last month";
+ *   · a rise from zero says "up from none" rather than inventing +18000%;
+ *   · the colour comes from `direction`, a property of the METRIC. Spend is neutral: spending more
+ *     is what scaling a working campaign looks like, and spending less is what an expired card
+ *     looks like. Green and red both lie.
+ */
+function Kpi({ label, value, current, previous, direction, comparison }: {
+  label: string;
+  value: string;
+  current: number;
+  previous: number | undefined;
+  direction: GoodDirection;
+  comparison: { label: string; partial: boolean } | null;
+}): React.ReactElement {
+  const has = previous !== undefined && comparison !== null;
+  const delta = has ? deltaOf(current, previous, direction) : null;
+
+  return (
+    <li>
+      <b>{value}</b>
+      <span>{label}</span>
+      {delta && (
+        <em className={`mk__delta mk__delta--${delta.tone}`}>
+          {delta.absolute === 0
+            ? 'no change'
+            : delta.ratio === null
+              // Nothing to divide by. "Up from none" is the whole truth and takes less space than
+              // a percentage that would be nonsense.
+              ? (delta.absolute > 0 ? 'up from none' : 'down to none')
+              : `${delta.ratio > 0 ? '+' : '−'}${Math.abs(delta.ratio * 100).toFixed(0)}%`}
+          {' '}
+          <span className="mk__delta__vs">{comparison!.label}</span>
+        </em>
+      )}
+    </li>
+  );
+}
 
 export default function MarketingDashboardPage({ range }: { range: DateRange }): React.ReactElement {
   const [data, setData] = useState<Payload | null>(null);
@@ -193,11 +263,34 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
   const freshness = data ? describeFreshness(data.lastImportedAt, new Date()) : null;
   const live = isLiveRange(range, new Date());
 
+  // A5 — the campaign table sorts client-side. The rows are already capped at 25 by the route, so
+  // sorting in the browser is instant and costs no round trip; re-fetching to reorder 25 rows would
+  // make the table feel slower than the data it shows.
+  const [sort, setSort] = useState<{ key: CampaignCol['key']; dir: 'asc' | 'desc' }>(
+    { key: 'costMicros', dir: 'desc' },
+  );
+  const sortedCampaigns = useMemo(() => {
+    const rows = [...(data?.campaigns ?? [])];
+    const { key, dir } = sort;
+    return rows.sort((a, b) => {
+      const av = a[key]; const bv = b[key];
+      if (typeof av === 'string' || typeof bv === 'string') {
+        return dir === 'asc'
+          ? String(av).localeCompare(String(bv))
+          : String(bv).localeCompare(String(av));
+      }
+      // A null ratio — cost per conversion with no conversions — sorts LAST in either direction.
+      // Treating it as zero would put "no conversions at all" at the top of "cheapest per
+      // conversion", which is the exact opposite of what it means.
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+      return dir === 'asc' ? av - bv : bv - av;
+    });
+  }, [data?.campaigns, sort]);
+
   const top = data?.funnel[0]?.count ?? 0;
   const perf = data?.performance;
-  // The largest daily spend in range, so the sparkline bars are relative to something real rather
-  // than to a fixed ceiling that flattens a quiet month into nothing.
-  const peak = Math.max(1, ...(data?.daily ?? []).map((d) => d.costMicros));
 
   return (
     <div className="mk">
@@ -234,13 +327,21 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
           </div>
 
           <ul className="mk__kpis">
-            {/* Cents, unlike the funnel's cost figures. This is the one number on the page that gets
-                reconciled against a Google invoice line, and "$181" cannot be checked against
-                "$181.35" without opening the Ads UI to find out which is rounded. */}
-            <li><b>{money2(perf.costMicros / MICROS)}</b><span>spent</span></li>
-            <li><b>{count(perf.impressions)}</b><span>impressions</span></li>
-            <li><b>{count(perf.clicks)}</b><span>clicks</span></li>
-            <li><b>{perf.conversions ? perf.conversions.toFixed(perf.conversions % 1 ? 1 : 0) : '0'}</b><span>conversions</span></li>
+            {/* Cents on spend, unlike the funnel's cost figures. This is the one number on the page
+                that gets reconciled against a Google invoice line, and "$181" cannot be checked
+                against "$181.35" without opening the Ads UI to find out which one is rounded. */}
+            <Kpi label="spent" value={money2(perf.costMicros / MICROS)}
+              current={perf.costMicros} previous={data.previous?.costMicros}
+              direction={METRIC_DIRECTION.spend} comparison={data.comparison} />
+            <Kpi label="impressions" value={count(perf.impressions)}
+              current={perf.impressions} previous={data.previous?.impressions}
+              direction={METRIC_DIRECTION.impressions} comparison={data.comparison} />
+            <Kpi label="clicks" value={count(perf.clicks)}
+              current={perf.clicks} previous={data.previous?.clicks}
+              direction={METRIC_DIRECTION.clicks} comparison={data.comparison} />
+            <Kpi label="conversions" value={perf.conversions.toFixed(perf.conversions % 1 ? 1 : 0)}
+              current={perf.conversions} previous={data.previous?.conversions}
+              direction={METRIC_DIRECTION.conversions} comparison={data.comparison} />
           </ul>
 
           <ul className="mk__stats mk__stats--derived">
@@ -250,16 +351,10 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
             <li><span>{rate(perf.conversionRate)}</span> of clicks converted</li>
           </ul>
 
-          {/* A sparkline, not a chart library: A5 does the real visualisation. This exists so
-              "we spent it all on one day" is visible now rather than after the next slice. */}
-          {data.daily.length > 1 && (
-            <div className="mk__spark" role="img" aria-label={`Daily spend across ${data.daily.length} days`}>
-              {data.daily.map((d) => (
-                <i key={d.date} style={{ height: `${Math.max(2, (d.costMicros / peak) * 100)}%` }}
-                  title={`${d.date}: ${money(d.costMicros / MICROS)}, ${d.clicks} clicks`} />
-              ))}
-            </div>
-          )}
+          {/* A3's stopgap sparkline lived here. A5 removed it rather than keeping both: it plotted
+              the same daily spend that "Day by day" now plots properly, with no axis, no scale and
+              no labels — a second unlabelled chart of one series is clutter that makes the real one
+              look like a duplicate. Its job was to hold the ground until the chart existed. */}
 
           {data.includesToday && (
             <p className="mk__muted">
@@ -298,19 +393,41 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
         </section>
       )}
 
+      {/* A5 — day by day. Two small multiples rather than one dual-axis plot; see TrendChart. */}
+      {data && data.daily.length > 1 && <TrendChart points={data.daily} />}
+
       {data && data.campaigns.length > 0 && (
         <section className="mk__panel" data-testid="mk-campaigns">
           <h2 className="mk__h2">By campaign</h2>
           <div className="mk__scroll">
             <table className="mk__table">
               <thead>
-                <tr><th>Campaign</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPC</th><th>Conv.</th><th>Cost/conv.</th></tr>
+                <tr>
+                  {CAMPAIGN_COLS.map((col) => (
+                    <th key={col.key} aria-sort={sort.key === col.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <button
+                        type="button"
+                        className={`mk__sort${sort.key === col.key ? ' is-active' : ''}`}
+                        onClick={() => setSort((s) => ({
+                          key: col.key,
+                          // Re-clicking the active column flips it; a new column starts on the
+                          // order that answers the question people actually ask of it — biggest
+                          // spend first, cheapest cost-per-click first.
+                          dir: s.key === col.key ? (s.dir === 'asc' ? 'desc' : 'asc') : col.initial,
+                        }))}
+                      >
+                        {col.label}
+                        <span aria-hidden>{sort.key === col.key ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</span>
+                      </button>
+                    </th>
+                  ))}
+                </tr>
               </thead>
               <tbody>
-                {data.campaigns.map((c) => (
+                {sortedCampaigns.map((c) => (
                   <tr key={c.name}>
                     <td>{c.name}</td>
-                    <td>{money(c.costMicros / MICROS)}</td>
+                    <td>{money2(c.costMicros / MICROS)}</td>
                     <td>{count(c.impressions)}</td>
                     <td>{count(c.clicks)}</td>
                     <td>{rate(c.ctr)}</td>
@@ -478,25 +595,28 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
       <style jsx>{`
         .mk { padding: 20px; max-width: 1000px; }
         .mk__title { font-size: 1.4rem; margin: 0 0 6px; }
-        .mk__lead { color: #4b5563; margin: 0 0 18px; }
-        .mk__panel { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; background: #fff; }
-        .mk__panel--meter { border-color: #c7d2fe; background: #f8faff; }
+        .mk__lead { color: var(--theme-fg-muted, #4b5563); margin: 0 0 18px; }
+        .mk__panel { border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px; padding: 14px 16px;
+          margin-bottom: 14px; background: var(--theme-bg-surface, #fff); }
+        .mk__panel--meter { border-color: var(--theme-border-strong, #c7d2fe); background: var(--theme-bg-subtle, #f8faff); }
         .mk__h2 { font-size: 1.05rem; margin: 0 0 6px; font-weight: 600; }
         .mk__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .mk__row label { font-weight: 600; font-size: 0.85rem; }
-        .mk__muted { color: #6b7280; font-size: 0.88rem; margin: 4px 0; }
-        .mk__hint { color: #6b7280; font-size: 0.82rem; margin: 10px 0 0; }
-        .mk__tiny { color: #9ca3af; font-size: 0.75rem; font-style: normal; }
-        .mk__warn { background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 9px 11px;
-          font-size: 0.85rem; color: #78350f; margin: 10px 0; }
-        .mk__error { color: #991b1b; }
-        .mk__bar { display: flex; height: 16px; border-radius: 99px; overflow: hidden; background: #e5e7eb; margin: 12px 0 10px; }
+        .mk__muted { color: var(--theme-fg-muted, #6b7280); font-size: 0.88rem; margin: 4px 0; }
+        .mk__hint { color: var(--theme-fg-muted, #6b7280); font-size: 0.82rem; margin: 10px 0 0; }
+        .mk__tiny { color: var(--theme-fg-muted, #9ca3af); font-size: 0.75rem; font-style: normal; }
+        .mk__warn { background: var(--theme-bg-subtle, #fffbeb); border: 1px solid var(--theme-warning, #fde68a);
+          border-radius: 8px; padding: 9px 11px; font-size: 0.85rem;
+          color: var(--theme-warning, #78350f); margin: 10px 0; }
+        .mk__error { color: var(--theme-danger, #991b1b); }
+        .mk__bar { display: flex; height: 16px; border-radius: 99px; overflow: hidden;
+          background: var(--theme-border, #e5e7eb); margin: 12px 0 10px; }
         .mk__seg { display: block; height: 100%; }
         .mk__seg--click { background: #16a34a; }
         .mk__seg--match { background: #f59e0b; }
         .mk__seg--none { background: #9ca3af; }
         .mk__legend { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 0.85rem; }
-        .mk__legend em { color: #6b7280; font-style: normal; }
+        .mk__legend em { color: var(--theme-fg-muted, #6b7280); font-style: normal; }
         .mk__dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 7px; }
         .mk__dot--click { background: #16a34a; }
         .mk__dot--match { background: #f59e0b; }
@@ -504,15 +624,19 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
         .mk__stats { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 5px; font-size: 0.9rem;
           grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
         .mk__stats span { font-weight: 700; display: inline-block; min-width: 6ch; }
-        .mk__stats em { color: #6b7280; font-style: normal; }
+        .mk__stats em { color: var(--theme-fg-muted, #6b7280); font-style: normal; }
         .mk__scroll { overflow-x: auto; }
         .mk__table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
-        .mk__table th, .mk__table td { text-align: left; padding: 7px 9px; border-bottom: 1px solid #f0f1f3; }
-        .mk__table th { color: #4b5563; font-weight: 600; white-space: nowrap; }
+        .mk__table th, .mk__table td { text-align: left; padding: 7px 9px;
+          border-bottom: 1px solid var(--theme-border, #f0f1f3); }
+        .mk__table th { color: var(--theme-fg-secondary, #4b5563); font-weight: 600; white-space: nowrap; }
         .mk__stagebar { position: relative; min-width: 150px; }
-        .mk__stagebar span { position: absolute; inset: 0 auto 0 0; background: #dbeafe; border-radius: 4px; }
+        .mk__stagebar span { position: absolute; inset: 0 auto 0 0; background: var(--theme-bg-subtle, #dbeafe);
+          border-radius: 4px; }
         .mk__stagebar strong { position: relative; font-weight: 600; padding-left: 4px; }
-        select, input { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; min-height: 40px; }
+        select, input { padding: 8px 10px; border: 1px solid var(--theme-border, #d1d5db); border-radius: 8px;
+          font: inherit; min-height: 40px; background: var(--theme-bg-input, #fff);
+          color: var(--theme-fg-primary, #111827); }
         /* A3's panel styles live in Marketing.css, not here. A styled-jsx block is invisible to the
            guard in __tests__/marketing/marketing-pages-are-styled.test.ts — the one that catches a
            class name nothing defines — so putting new rules here would opt them out of the check

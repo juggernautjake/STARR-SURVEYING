@@ -839,7 +839,7 @@ panel survived a background tick: true      page shows "Loading…" after tick: 
 keyframe stops (`0%`, `50%`) as unscoped selectors, so it rejected *any* animation in these pages —
 a rule it does not mean to have. `@keyframes` blocks are now stripped whole before the split.
 
-### A5 — Make it worth looking at
+### A5 — Make it worth looking at ✅ SHIPPED 2026-08-12
 
 The owner: *"much more appealing and functional."*
 
@@ -849,6 +849,82 @@ The owner: *"much more appealing and functional."*
   tokens so it reads correctly in every skin, light and dark.
 - Mobile: tiles stack, the table scrolls inside its own container (M4's rule).
 - **Done when:** the page passes the same 390px check as M5–M8.
+
+**Completion note (2026-08-12). Done.** The `dataviz` skill was loaded first, as the slice says.
+
+### The form was decided before the colour, and it ruled out the obvious chart
+
+Spend runs ~$15/day; clicks run ~35/day. One plot showing both needs two y-scales, and **a dual-axis
+chart is the most misleading form on a dashboard**: the alignment of the two scales is arbitrary, so
+wherever the lines cross or diverge the chart invents a correlation that is not in the data. Slide
+one axis and the "story" changes.
+
+So **small multiples** — two stacked plots, one measure each, one y-axis each, sharing an x. And
+**columns, not a line**: daily spend is a discrete total per day, so a line segment between the 4th
+and the 6th draws money spent on the 5th, and across a zero-spend day it draws a slope through zero
+that never happened.
+
+### Colour: computed, not eyeballed
+
+One series per plot, painted `var(--theme-accent)`. Every one of the **twelve** themes was run
+through the skill's validator against its *own* surface — all twelve clear the 3:1 floor for a chart
+mark. A hardcoded blue would have been legible in eight of them and invisible in
+`high-contrast-dark`, where the accent is yellow on black. Screenshots confirm the bars render
+correctly in `starr-default`, `starr-dark` and `high-contrast-dark`.
+
+(Some accents sit outside the validator's lightness band. That check keeps a *set* of categorical
+hues comparable to one another; with one series per plot there is no set and no adjacent pair.)
+
+### The delta is where the dishonesty would have been
+
+A KPI delta is one number, with no visible working, that everybody reads. Two ways to get it wrong,
+both producing a confident arrow pointing the wrong way:
+
+1. **A part-month against a whole one.** On the 12th, August has twelve days of spend. Comparing that
+   with all thirty-one days of July reports a 60% collapse that is purely the calendar. A period in
+   progress is now compared against **the same elapsed days** of its predecessor — and the tile names
+   the dates, *"vs 1–12 Jul"*, never a vague "vs last month" nobody can check.
+2. **Stepping by a day count instead of by the calendar.** 31 days back from 1 March is 29 January.
+   Whole months and whole years step by the calendar; a week or an arbitrary run of days steps by its
+   length, which is right because those have no calendar identity.
+
+A third case surfaced *while writing the tests*: doing everything by elapsed days silently drops days
+whenever the two periods differ in length — a finished 2025 would take the first 365 days of the
+366-day leap year 2024 and discard 31 December; a finished 30-day June would discard 31 May. The rule
+is now explicit: **finished period → the whole previous one; part-way → the same elapsed days.**
+
+And **direction belongs to the metric.** More clicks is good, a rising cost per click is bad, and
+**spend is neither** — spending more is what scaling a working campaign looks like, and spending less
+is what an expired card looks like. Green and red both lie, so spend's delta is grey. A rise from
+zero says *"up from none"* rather than inventing +18000%.
+
+### Also shipped
+
+Sortable campaign table (each column opens in the order it is actually asked — biggest spend first,
+cheapest CPC first; a null cost-per-conversion sorts last in both directions rather than pretending
+to be zero), a table-view twin so no value is reachable only by hovering, per-day hit targets that
+span the full plot height because a $0.40 day's bar is two pixels tall, and A3's stopgap sparkline
+**removed** — a second unlabelled chart of the same series is clutter that makes the real one look
+like a duplicate.
+
+### Two bugs found by looking at it in every skin
+
+- **KPI values were invisible in dark themes.** The tiles had hardcoded `background: #FFFFFF` under
+  themed near-white text. All of A3's tile colours are now tokens.
+- **Every heading in the admin app is unthemed.** `app/styles/globals.css` has
+  `h1…h6 { color: var(--brand-dark) }` — a fixed brand colour, on a bare element selector that beats
+  inheritance. Measured at `rgb(15,20,25)` on a near-black panel in all four dark skins. **This is
+  sitewide, not a marketing bug**; fixing globals.css from an advertising slice would restyle screens
+  this change has not looked at, so it is corrected within these pages' scope and flagged here for a
+  pass of its own.
+
+### Verified
+
+18 tests on the comparison logic, 4 viewport/theme renders driven in a browser:
+`pageOverflowX=0` at 360px and nested chart scroll `0` everywhere (a fixed height excluding the axis
+band is the classic cause of a chart card growing its own scrollbar). Full suite: **23,518 passing**,
+two pre-existing failures unchanged. The hardcoded-colour ratchet moved **2362 → 2346** on this
+branch — down 16 — but still sits above its 2297 baseline and needs −49, which is its own slice.
 
 ### A6 — Answer "are we Basic-access verified?" in the product ✅ SHIPPED 2026-08-11 — answer: YES
 
@@ -1557,7 +1633,7 @@ is an owner decision about staffing, not an engineering task.
 | A2 | ✅ shipped | lib/marketing/date-range.ts (25 tests incl. the 1st-of-month rollover) + RangePicker in the shell; one control, four tabs |
 | A3 | ✅ shipped | Table was EMPTY while the account spent $184. 3 silent defects: reporting gated on the upload check, the bad login-customer-id, two importers. Live-verified 16,666 impr / 399 clicks |
 | A4 | ✅ shipped | Two clocks at two rates (read 1 min / import 15 min); stamp reports the IMPORT time and is never blank; closed ranges say final, or say nothing was imported |
-| A5 | ☐ | Visual overhaul |
+| A5 | ✅ shipped | Small multiples (no dual axis), theme-accent marks validated across all 12 skins, KPI deltas that refuse to compare a part-month with a whole one, sortable table. Found 2 theming bugs incl. a SITEWIDE unthemed-heading rule |
 | A6 | ✅ shipped | ANSWER: token IS approved. Found v18 API retired (every call dead) + a wrong LOGIN_CUSTOMER_ID that 403s a working connection |
 | A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
 | E1 | ✅ shipped | WORK_ROLES has no employee, so /admin/my-hours was hidden from them. 4 registry + 5 middleware gates widened; 23-assertion guard |

@@ -27,6 +27,7 @@ import {
 } from '@/lib/pipeline/funnel';
 import type { Milestone } from '@/lib/pipeline/events';
 import { headlineMetrics } from '@/lib/integrations/google-ads/spend';
+import { previousPeriod } from '@/lib/marketing/compare';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // A13 adds `how_heard` — the self-reported dimension. It is the only one that says anything about the
@@ -161,6 +162,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     null,
   );
 
+  // A5 — the period each KPI delta measures itself against. `previousPeriod` is where the honesty
+  // lives: a month still running is compared with the SAME ELAPSED DAYS of the month before, never
+  // with all of it, or the tile reports a collapse that is purely the calendar. See lib/marketing/
+  // compare.ts. Fetched here rather than in a second round trip so the two figures in a delta can
+  // never come from different moments.
+  const comparison = previousPeriod({ from, to }, new Date());
+  let previous: ReturnType<typeof headlineMetrics> | null = null;
+  if (comparison) {
+    const { data: prevData } = await supabaseAdmin
+      .from('ad_spend_daily')
+      .select('cost_micros, clicks, impressions, conversions, conversion_value_micros')
+      .gte('spend_date', comparison.from).lte('spend_date', comparison.to).limit(2000);
+    previous = headlineMetrics((prevData ?? []) as SpendDbRow[]);
+  }
+
   const stageCount = (m: Milestone) => funnel.find((s) => s.milestone === m)?.count ?? 0;
   // Revenue is the invoice where one exists, the quote otherwise — the same rule A9 restates on.
   const revenueCents = jobs.reduce((s, j) => s + Math.round(((j.final_amount ?? j.quote_amount ?? 0) as number) * 100), 0);
@@ -228,6 +244,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     daily,
     campaigns,
     lastImportedAt,
+    // A5 — the delta baseline, with the dates it actually used. The label names them ("vs 1–12 Jul")
+    // rather than saying "last month", because a baseline nobody can check is a baseline nobody can
+    // challenge when the arrow looks wrong.
+    previous,
+    comparison,
     // Whether the range reaches today, whose figures Google has not finished counting. A total that
     // is still moving has to say so, or it reads as settled and gets compared against one that is.
     includesToday: to >= new Date().toISOString().slice(0, 10),
