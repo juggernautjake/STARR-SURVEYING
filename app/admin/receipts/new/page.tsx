@@ -31,8 +31,13 @@ import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  buildBatch, runBatch, progressOf, batchSummary, type BatchProgress,
+  buildBatch, runBatch, batchSummary, type BatchProgress,
 } from '@/lib/finance/receipt-batch';
+import {
+  averageHash, findLikelyDuplicates, describeReview, missingInformation,
+  type QueuedShot, type DuplicatePair,
+} from '@/lib/receipts/capture-queue';
+import type { BatchReviewRow } from '@/app/api/admin/receipts/batch-review/route';
 import JobRefPicker, { type JobRefOption } from '@/app/admin/components/jobs/JobRefPicker';
 import MyReceipts from './MyReceipts';
 
@@ -84,6 +89,34 @@ export default function NewReceiptPage() {
   const [batchFiles, setBatchFiles] = useState<File[]>([]);
   const [batch, setBatch] = useState<BatchProgress | null>(null);
   const bulkRef = useRef<HTMLInputElement>(null);
+
+  // ── Rapid fire ───────────────────────────────────────────────────────────────────────────────
+  //
+  // Owner, 2026-08-12: *"the in app camera should stay open and allow for the user to take more
+  // pictures."* The camera already existed and closed after every shot, which turns a fortnight of
+  // fuel receipts into fourteen rounds of open-permission-aim-snap-close.
+  //
+  // Metadata travels alongside `batchFiles` rather than inside it, because a `File` cannot carry a
+  // perceptual hash or a thumbnail URL. The two arrays are kept the same length and in the same
+  // order — every mutation below touches both, so an index means the same photo in each.
+  const [shots, setShots] = useState<Array<QueuedShot & { url: string }>>([]);
+  const shotSeq = useRef(0);
+
+  /** Pairs of photos that look like the same piece of paper. Advisory: nothing is ever removed for
+   *  you — two $5 coffees on the same day are both real. */
+  const duplicates: DuplicatePair[] = useMemo(() => findLikelyDuplicates(shots), [shots]);
+
+  /** What the AI made of the batch once it landed. Null until a batch has been sent. */
+  const [review, setReview] = useState<BatchReviewRow[] | null>(null);
+  /**
+   * `waiting` while extractions are outstanding, `read` once every one has landed, and `gave_up`
+   * when the poll hit its deadline with work still queued.
+   *
+   * Three states rather than a boolean, because the first version had two and said *"The AI has read
+   * them."* when it had merely stopped asking — a receipt that was still queued was reported as
+   * fully read, which is the one thing this panel exists to be trusted about.
+   */
+  const [reviewState, setReviewState] = useState<'idle' | 'waiting' | 'read' | 'gave_up'>('idle');
 
   // Live-camera state. cameraStream holds the active MediaStream when
   // the viewfinder is open; closing the viewfinder stops every track.
@@ -222,6 +255,76 @@ export default function NewReceiptPage() {
     }
   }
 
+  /**
+   * The 8×8 grey thumbnail an average hash is computed from.
+   *
+   * Drawn from the SAME canvas the JPEG came from, so the hash describes the frame that was actually
+   * queued — re-decoding the blob afterwards would be slower and could disagree with it.
+   *
+   * Returns null rather than throwing on a tainted or unavailable context: a missing hash costs one
+   * un-checked duplicate, and losing the photograph over it would cost the receipt.
+   */
+  function lumaThumbnail(source: HTMLCanvasElement): number[] | null {
+    try {
+      const small = document.createElement('canvas');
+      small.width = 8;
+      small.height = 8;
+      const c = small.getContext('2d');
+      if (!c) return null;
+      c.drawImage(source, 0, 0, 8, 8);
+      const d = c.getImageData(0, 0, 8, 8).data;
+      const out: number[] = [];
+      for (let i = 0; i < 64; i += 1) {
+        const p = i * 4;
+        out.push(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
+      }
+      return out;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Add a photo to the queue, keeping `batchFiles` and `shots` aligned. */
+  function enqueue(file: File, hash: string | null) {
+    shotSeq.current += 1;
+    const id = `shot-${shotSeq.current}`;
+    setBatchFiles((prev) => [...prev, file]);
+    setShots((prev) => [
+      ...prev,
+      { id, fileName: file.name, hash, bytes: file.size, takenAt: Date.now(), url: URL.createObjectURL(file) },
+    ]);
+    // A queue that has changed is a queue whose previous verdict no longer applies.
+    setBatch(null);
+    setReview(null);
+  }
+
+  /** Drop one photo from the queue. The object URL is revoked here rather than on unmount, because a
+   *  long rapid-fire session would otherwise hold every discarded frame in memory. */
+  function removeShot(id: string) {
+    const index = shots.findIndex((s) => s.id === id);
+    if (index < 0) return;
+    URL.revokeObjectURL(shots[index].url);
+    setShots((prev) => prev.filter((s) => s.id !== id));
+    setBatchFiles((prev) => prev.filter((_, i) => i !== index));
+    setBatch(null);
+    setReview(null);
+  }
+
+  function clearQueue() {
+    shots.forEach((s) => URL.revokeObjectURL(s.url));
+    setShots([]);
+    setBatchFiles([]);
+    setBatch(null);
+    setReview(null);
+  }
+
+  /**
+   * Take the shot — and stay in the viewfinder.
+   *
+   * The camera used to close here. Keeping it open is the entire point of the owner's request: the
+   * person is holding a stack of paper, and the next action after photographing one receipt is
+   * photographing the next, not navigating back to a button that reopens the camera.
+   */
   function snapPhoto() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -238,6 +341,7 @@ export default function NewReceiptPage() {
       return;
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const hash = averageHash(lumaThumbnail(canvas) ?? []);
     canvas.toBlob(
       (blob) => {
         if (!blob) {
@@ -252,8 +356,12 @@ export default function NewReceiptPage() {
           type: 'image/jpeg',
           lastModified: Date.now(),
         });
-        setFile(captured);
-        closeCamera();
+        // Clear any stale error from an earlier shot: the last thing that happened was a success,
+        // and leaving "Camera not ready yet" on screen under a fresh thumbnail is a lie.
+        setCameraError(null);
+        setError(null);
+        setSentMsg(null);
+        enqueue(captured, hash);
       },
       'image/jpeg',
       CAPTURE_JPEG_QUALITY,
@@ -287,16 +395,47 @@ export default function NewReceiptPage() {
     if (fileRef.current) fileRef.current.value = '';
   }
 
-  /** F4 — pick many at once. `multiple` on the input; everything else is the queue. */
-  function onPickBulk(e: React.ChangeEvent<HTMLInputElement>) {
+  /** Hash a file the person picked rather than photographed, so the camera roll gets the same
+   *  duplicate check the viewfinder does. PDFs and anything undecodable hash to null, which the
+   *  matcher treats as "cannot tell" rather than "not a duplicate". */
+  async function hashPickedFile(f: File): Promise<string | null> {
+    if (!f.type.startsWith('image/') || typeof createImageBitmap !== 'function') return null;
+    try {
+      const bitmap = await createImageBitmap(f);
+      const c = document.createElement('canvas');
+      c.width = 8;
+      c.height = 8;
+      const ctx = c.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(bitmap, 0, 0, 8, 8);
+      bitmap.close?.();
+      const d = ctx.getImageData(0, 0, 8, 8).data;
+      const luma: number[] = [];
+      for (let i = 0; i < 64; i += 1) {
+        const p = i * 4;
+        luma.push(0.299 * d[p] + 0.587 * d[p + 1] + 0.114 * d[p + 2]);
+      }
+      return averageHash(luma);
+    } catch {
+      return null;
+    }
+  }
+
+  /** F4 — pick many at once. `multiple` on the input; everything else is the queue.
+   *
+   *  Appends rather than replaces, so a person can photograph three receipts and then add two from
+   *  the camera roll without the first three vanishing. */
+  async function onPickBulk(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
     const picked = Array.from(e.target.files ?? []);
     if (bulkRef.current) bulkRef.current.value = '';
     if (picked.length === 0) return;
-    setBatchFiles(picked);
-    // Show the screened list immediately — including anything rejected — so the person sees what
-    // will and will not upload BEFORE committing, while the folder is still open in their head.
-    setBatch(progressOf(buildBatch(picked)));
+    for (const f of picked) {
+      // Awaited one at a time on purpose: the hash is only used to warn about repeats, and racing
+      // twenty decodes to produce a warning fractionally sooner is not worth the memory spike on a
+      // phone holding twenty full-size photographs.
+      enqueue(f, await hashPickedFile(f));
+    }
   }
 
   /** F4 — run the queue against the same single-file endpoint, one at a time.
@@ -333,12 +472,64 @@ export default function NewReceiptPage() {
       setBatch,
     );
     setBusy(false);
+
+    // Ask the AI what it made of the stack. Everything the browser could check — two shots of the
+    // same slip — was checked before the upload; this is the half that only exists once the model
+    // has read the paper: the same purchase photographed on two different days, or a total nobody
+    // could make out.
+    const uploadedIds = result.items
+      .map((it) => it.receiptId)
+      .filter((v): v is string => typeof v === 'string');
+    if (uploadedIds.length > 0) void pollBatchReview(uploadedIds);
+
     // Only celebrate when there is nothing left to look at. A partial batch keeps its rows on
     // screen — hiding exactly the ones that need a person is the failure the batch UI exists to
     // prevent.
     if (result.allSucceeded) {
       finishUpload(`Sent ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}.`);
     }
+  }
+
+  /**
+   * Wait for the extractions and then show what they found.
+   *
+   * Polled rather than awaited at upload time: Vision takes five to fifteen seconds per receipt, and
+   * a person who has just sent twenty photos should not be staring at a spinner for four minutes.
+   * The queue is already filed and safe — this is a courtesy pass over it.
+   *
+   * Gives up after a fixed number of tries and says so, rather than spinning forever. A receipt whose
+   * extraction is slow is not lost; it appears in "your receipts" below when it lands, and the hourly
+   * cron sweeps anything that never started.
+   */
+  async function pollBatchReview(ids: string[]) {
+    setReviewState('waiting');
+    const started = Date.now();
+    const DEADLINE_MS = 90_000;
+    const INTERVAL_MS = 3_000;
+
+    while (Date.now() - started < DEADLINE_MS) {
+      await new Promise((r) => setTimeout(r, INTERVAL_MS));
+      try {
+        const res = await fetch(`/api/admin/receipts/batch-review?ids=${ids.join(',')}`);
+        if (!res.ok) break;
+        const json = (await res.json()) as { receipts?: BatchReviewRow[] };
+        const rows = json.receipts ?? [];
+        // Show whatever has landed so far, so the first receipt's answer is not held hostage by the
+        // twentieth. Rows still being read simply have nothing to say yet.
+        setReview(rows);
+        const settled = (r: BatchReviewRow) => r.extraction_status === 'done' || r.extraction_status === 'failed';
+        if (rows.length > 0 && rows.every(settled)) {
+          setReviewState('read');
+          return;
+        }
+      } catch {
+        break;
+      }
+    }
+    // Reached only by the deadline or a failed request — NOT by every receipt being read. Saying so
+    // is the difference between a panel a bookkeeper can rely on and one that quietly reports a
+    // still-queued receipt as fully checked.
+    setReviewState('gave_up');
   }
 
   /**
@@ -356,6 +547,11 @@ export default function NewReceiptPage() {
   function finishUpload(message: string) {
     setSentMsg(message);
     setFile(null);
+    // The thumbnails go, but `review` is deliberately NOT cleared — the AI's answer about this batch
+    // arrives seconds after the photos are gone, and clearing it here would throw away the
+    // duplicate-and-missing-information pass the owner asked for at the moment it becomes useful.
+    shots.forEach((s) => URL.revokeObjectURL(s.url));
+    setShots([]);
     setBatchFiles([]);
     setBatch(null);
     setNotes('');
@@ -495,6 +691,8 @@ export default function NewReceiptPage() {
               onCancel={closeCamera}
               onSwitch={switchCamera}
               facingMode={facingMode}
+              queued={shots.length}
+              lastThumb={shots.length > 0 ? shots[shots.length - 1].url : null}
             />
           ) : (
             <>
@@ -543,6 +741,111 @@ export default function NewReceiptPage() {
             </>
           )}
         </div>
+
+        {/* ── The review grid ──────────────────────────────────────────────────────────────────
+            *"The user will be able to review the photos, and the AI will determine if there are any
+            duplicates."* Thumbnails rather than filenames: `receipt-1755042.jpg` tells nobody which
+            receipt it is, and a person cannot decide whether to keep a photo they cannot see. */}
+        {shots.length > 0 && !cameraOpen && (
+          <div style={styles.reviewWrap}>
+            <p style={styles.batchSummary} role="status">{describeReview(shots, duplicates)}</p>
+            <ul style={styles.reviewGrid}>
+              {shots.map((s, i) => {
+                const dupe = duplicates.find((d) => d.id === s.id);
+                const dupeIndex = dupe ? shots.findIndex((x) => x.id === dupe.duplicateOfId) : -1;
+                return (
+                  <li
+                    key={s.id}
+                    style={{ ...styles.reviewCell, ...(dupe ? styles.reviewCellDupe : {}) }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={s.url} alt={`Photo ${i + 1}`} style={styles.reviewThumb} />
+                    {/* The badge is a suggestion. Nothing is removed for you — two $5 coffees on the
+                        same day are both real, and a queue that drops the second loses a receipt. */}
+                    {dupe && dupeIndex >= 0 && (
+                      <span style={styles.dupeBadge}>Looks like photo {dupeIndex + 1}</span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeShot(s.id)}
+                      disabled={busy}
+                      style={styles.reviewRemove}
+                      aria-label={`Remove photo ${i + 1}`}
+                      title="Remove this photo"
+                    >
+                      ✕
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div style={styles.reviewActions}>
+              <button type="button" onClick={openCamera} disabled={busy || cameraStarting} style={styles.clearBtn}>
+                📷 Take more
+              </button>
+              <button type="button" onClick={clearQueue} disabled={busy} style={styles.clearBtn}>
+                Discard all
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── What the AI made of the batch ────────────────────────────────────────────────────
+            The half of "duplicates and missing information" that only exists after the model has
+            read the paper. Arrives seconds to a minute after the upload; the receipts are already
+            filed, so this is a chance to fix things while the paper is still in somebody's hand. */}
+        {review && review.length > 0 && (
+          <div style={styles.reviewWrap}>
+            <p style={styles.batchSummary} role="status">
+              {reviewState === 'waiting'
+                ? 'The AI is reading them…'
+                : reviewState === 'read'
+                  ? 'The AI has read them.'
+                  // Nothing is lost: the receipts are filed, and the hourly sweep picks up anything
+                  // whose extraction never started. What would be lost is trust in this panel.
+                  : 'Some are still being read — they’ll appear under “your receipts” below when they land.'}
+            </p>
+            <ul style={styles.batchList}>
+              {review.map((r) => {
+                const asks = missingInformation(r);
+                const clean = asks.length === 0 && r.review_flags.length === 0 && !r.duplicateOf;
+                return (
+                  <li
+                    key={r.id}
+                    style={{
+                      ...styles.aiRow,
+                      ...(clean && r.extraction_status === 'done' ? styles.batchRowDone
+                        : r.duplicateOf || asks.length > 0 ? styles.batchRowFailed : {}),
+                    }}
+                  >
+                    <strong style={styles.aiRowTitle}>
+                      {r.vendor_name
+                        ?? (r.extraction_status === 'done' || r.extraction_status === 'failed'
+                          // Read, and the shop name was not on the paper or not legible. Saying
+                          // "still reading" here would send somebody back to wait for an answer
+                          // that has already arrived.
+                          ? 'Receipt'
+                          : 'Still reading…')}
+                      {r.total_cents != null ? ` — $${(r.total_cents / 100).toFixed(2)}` : ''}
+                    </strong>
+                    {r.duplicateOf && (
+                      <span style={styles.aiRowNote}>
+                        Possible duplicate of {r.duplicateOf.vendor_name ?? 'a receipt'}
+                        {r.duplicateOf.total_cents != null ? ` for $${(r.duplicateOf.total_cents / 100).toFixed(2)}` : ''}
+                        {' '}you already filed — same shop, same amount, same day. Both may be real; check before approving.
+                      </span>
+                    )}
+                    {asks.map((a) => (<span key={a} style={styles.aiRowNote}>{a}</span>))}
+                    {r.review_flags.map((f) => (<span key={f} style={styles.aiRowNote}>{f}</span>))}
+                    {clean && r.extraction_status === 'done' && (
+                      <span style={styles.aiRowNote}>Read cleanly — nothing needs clarifying.</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
 
         {/* F4 — the batch panel. Stays on screen after the run, because navigating away on a
             partial batch hides exactly the rows that need a person. */}
@@ -673,7 +976,10 @@ export default function NewReceiptPage() {
                 {busy
                   ? 'Uploading…'
                   : bulk
-                    ? (bulkDone ? 'Batch finished' : `Upload ${batchFiles.length} receipts`)
+                    // "Upload 1 receipts" — harmless when the batch path was only ever reached by
+                    // the multi-file picker, and newly common now that one photograph from the
+                    // rapid-fire camera goes through the same queue.
+                    ? (bulkDone ? 'Batch finished' : `Upload ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}`)
                     : 'Upload receipt'}
               </button>
             );
@@ -698,6 +1004,8 @@ function CameraViewfinder({
   onCancel,
   onSwitch,
   facingMode,
+  queued,
+  lastThumb,
 }: {
   videoRef: React.MutableRefObject<HTMLVideoElement | null>;
   canvasRef: React.MutableRefObject<HTMLCanvasElement | null>;
@@ -705,6 +1013,12 @@ function CameraViewfinder({
   onCancel: () => void;
   onSwitch: () => void;
   facingMode: FacingMode;
+  /** How many photos are waiting. The camera no longer closes on the shutter, so this is the only
+   *  thing telling the person the last shot was actually taken. */
+  queued: number;
+  /** The most recent frame, shown small in the corner — the phone-camera convention, and the
+   *  cheapest possible proof that what was captured is the receipt and not the table. */
+  lastThumb: string | null;
 }) {
   return (
     <div style={styles.viewfinder}>
@@ -720,16 +1034,34 @@ function CameraViewfinder({
           transform: facingMode === 'user' ? 'scaleX(-1)' : undefined,
         }}
       />
+      {queued > 0 && (
+        <p style={styles.shotCount} role="status" aria-live="polite">
+          {queued} photo{queued === 1 ? '' : 's'} queued — keep shooting, then press Done.
+        </p>
+      )}
       <canvas ref={canvasRef} style={{ display: 'none' }} aria-hidden />
       <div style={styles.viewfinderControls}>
-        <button
-          type="button"
-          onClick={onCancel}
-          style={styles.viewfinderCancel}
-          aria-label="Cancel camera"
-        >
-          Cancel
-        </button>
+        {/* Two different exits, because they mean opposite things. "Done" keeps the queue and takes
+            you to the review grid; "Cancel" is only offered while there is nothing to lose. */}
+        {queued > 0 ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            style={styles.viewfinderDone}
+            aria-label={`Finish and review ${queued} photos`}
+          >
+            Done ({queued})
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onCancel}
+            style={styles.viewfinderCancel}
+            aria-label="Cancel camera"
+          >
+            Cancel
+          </button>
+        )}
         <button
           type="button"
           onClick={onSnap}
@@ -738,15 +1070,21 @@ function CameraViewfinder({
         >
           <span aria-hidden style={styles.shutterInner} />
         </button>
-        <button
-          type="button"
-          onClick={onSwitch}
-          style={styles.viewfinderSwitch}
-          aria-label="Switch camera"
-          title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to rear camera'}
-        >
-          <span aria-hidden style={styles.viewfinderSwitchIcon}>↺</span>
-        </button>
+        <div style={styles.viewfinderRight}>
+          {lastThumb && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={lastThumb} alt="Last photo taken" style={styles.lastThumb} />
+          )}
+          <button
+            type="button"
+            onClick={onSwitch}
+            style={styles.viewfinderSwitch}
+            aria-label="Switch camera"
+            title={facingMode === 'environment' ? 'Switch to front camera' : 'Switch to rear camera'}
+          >
+            <span aria-hidden style={styles.viewfinderSwitchIcon}>↺</span>
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -862,6 +1200,48 @@ const styles: Record<string, React.CSSProperties> = {
   batchName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   batchStatus: { flexShrink: 0, fontWeight: 600 },
   batchSummary: { fontWeight: 600, margin: '0 0 .5rem' },
+  // ── Rapid-fire review grid ──────────────────────────────────────
+  reviewWrap: {
+    background: 'var(--color-bg-subtle, #f9fafb)',
+    border: '1px dashed var(--color-border, #e5e7eb)',
+    borderRadius: 10,
+    padding: '0.8rem',
+  },
+  // auto-fill so one photo does not stretch across the whole card and twenty stay thumb-sized.
+  reviewGrid: {
+    listStyle: 'none', margin: 0, padding: 0,
+    display: 'grid', gap: '0.5rem',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))',
+  },
+  reviewCell: {
+    position: 'relative',
+    borderRadius: 8,
+    overflow: 'hidden',
+    border: '2px solid transparent',
+    background: 'var(--color-bg-card, #fff)',
+  },
+  reviewCellDupe: { border: '2px solid var(--color-warning, #f59e0b)' },
+  reviewThumb: { display: 'block', width: '100%', aspectRatio: '3 / 4', objectFit: 'cover' },
+  dupeBadge: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    background: 'var(--color-warning, #f59e0b)', color: '#1f2937',
+    fontSize: '0.62rem', fontWeight: 700, textAlign: 'center', padding: '0.15rem 0.2rem',
+  },
+  // 34px so it stays a comfortable tap target on a phone held in one hand over a stack of paper.
+  reviewRemove: {
+    position: 'absolute', top: 4, right: 4,
+    width: 34, height: 34, borderRadius: '50%',
+    border: 'none', background: 'rgba(15, 23, 42, 0.72)', color: '#fff',
+    fontSize: '0.9rem', lineHeight: 1, cursor: 'pointer',
+  },
+  reviewActions: { display: 'flex', gap: '0.5rem', justifyContent: 'center', marginTop: '0.6rem' },
+  aiRow: {
+    display: 'flex', flexDirection: 'column', gap: '.2rem',
+    fontSize: '.85rem', padding: '.5rem .6rem', borderRadius: 6,
+    background: 'var(--color-bg-subtle, #f3f4f6)',
+  },
+  aiRowTitle: { fontWeight: 700 },
+  aiRowNote: { fontSize: '.8rem', lineHeight: 1.35 },
   clearBtn: {
     alignSelf: 'center',
     marginTop: '0.5rem',
@@ -961,6 +1341,31 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: '50%',
     background: '#ffffff',
     transition: 'transform 80ms ease',
+  },
+  // Rapid fire: the count that replaced the camera closing. With the viewfinder staying open, this
+  // and the corner thumbnail are the only signals that the shutter did anything.
+  shotCount: {
+    margin: '0.4rem 0 0',
+    textAlign: 'center',
+    color: '#fff',
+    fontSize: '0.82rem',
+    fontWeight: 600,
+  },
+  viewfinderDone: {
+    justifySelf: 'start',
+    padding: '0.5rem 1rem',
+    borderRadius: 9999,
+    border: 'none',
+    background: 'var(--gradient-green, linear-gradient(180deg, #10b981, #059669))',
+    color: '#fff',
+    fontSize: '0.9rem',
+    fontWeight: 700,
+    cursor: 'pointer',
+  },
+  viewfinderRight: { justifySelf: 'end', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' },
+  lastThumb: {
+    width: 40, height: 40, borderRadius: 6, objectFit: 'cover',
+    border: '2px solid rgba(255,255,255,0.75)',
   },
   viewfinderSwitch: {
     justifySelf: 'end',
