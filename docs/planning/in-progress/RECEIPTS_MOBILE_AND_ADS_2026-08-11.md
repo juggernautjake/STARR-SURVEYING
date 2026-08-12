@@ -1906,7 +1906,7 @@ and was serving 404s for its own chunks, leaving the page stuck on the session-l
 recording because the symptom is indistinguishable from "authored but not wired", which is the
 defect this repo actually has; a restart is the first thing to try, not a rewrite.
 
-### F5 — One attach/browse component, used everywhere ✅ PICKER SHIPPED · wider adoption blocked on a schema decision
+### F5 — One attach/browse component, used everywhere ✅ PICKER SHIPPED 2026-08-11 · ✅ JOB-FILE ADOPTION SHIPPED 2026-08-12
 
 *"Totally linked to every page."* Today each feature has its own uploader and its own idea of where
 files go. Build **one** picker — browse the tree, search, upload-in-place, return a node id — and
@@ -1943,6 +1943,63 @@ at all would have been the exact "authored but not wired" defect this doc keeps 
 Next slice for this, when it is picked up: seed `job_files.file_node_id` (nullable, FK to
 `file_nodes`), make `storage_path` nullable for referenced rows, then adopt the picker behind an
 "Attach from Files" action.
+
+**Adoption completion note (2026-08-12) — and the deferral above was wrong on its central fact.**
+
+The deferral rested on: *"`job_files.storage_path` is `NOT NULL` and points into the
+`starr-field-files` bucket"*, making adoption "a schema change plus a read-path change across every
+surface that lists job files". Checked against production before building on it:
+
+- **`job_files.storage_path` is NULLABLE.** There was nothing to relax.
+- **`job_files` held ZERO rows.** There was nothing to migrate and no "referenced rows" to treat
+  specially.
+- **Job files were never in that bucket.** `JobFileManager` writes `reader.result` into
+  `job_files.file_url` — a **base64 data URL in a text column**. The bucket path in the deferral note
+  describes `field_media`, a different table.
+
+So the expensive half — relaxing a NOT NULL column across live data — never existed. The real work was
+one nullable column, one partial index, and a permission check. The deferral was reasonable-sounding
+and internally consistent, and still wrong, because a claim about a schema is cheap to verify and was
+not verified. That is the same shape as A3's "the table was empty while the account spent $184" and
+M7's "the row was never visible": **the premise, not the plan, was the defect.**
+
+**Shipped:** `seeds/583_job_files_file_node_link.sql` (applied; column + partial index + FK verified
+live), `file_node_id` accepted by `POST /api/admin/jobs/files`, `linked_file` annotated by the GET in
+one batched `.in()`, and an **Attach from Files** action in `JobFileManager` wired from
+`/admin/jobs/[id]` — the button only renders when the handler is passed, so the wiring *is* the
+feature rather than a component nobody reaches.
+
+**Three judgement calls worth recording:**
+
+- **The permission check is the point.** Without it a job page becomes a side door into the File
+  Explorer: anyone who can POST here could attach a document they cannot see. The route resolves the
+  attacher's own effective access with the same `accessForNode` helper `/api/admin/files/[id]/download`
+  uses — deliberately the identical two lines, so "can I attach it?" and "can I download it?" cannot
+  drift — and requires **`download`, not `view`**, because attaching puts the document in front of
+  everyone who can see the job. The download link on the row also goes through the *explorer's* route,
+  so the **viewer's** access is re-checked too, not just the attacher's.
+- **No auto-backup for a link.** The existing backup exists because `file_url` holds the only copy of
+  an upload's bytes. A reference has none, so a "backup" would be a second row pointing at the same
+  document — backing up nothing, and showing two attachments where the user made one.
+- **No "at least one source" CHECK constraint.** A row ought to carry exactly one of
+  `file_url` / `storage_path` / `file_node_id`, but the POST route currently accepts a row with no file
+  reference at all, so the constraint would reject writes the app makes today. Named rather than
+  smuggled in behind a column addition.
+
+**Verified against production, not just unit-tested:** a non-existent node id is refused `404` *before
+any row is inserted*; a real attach returns `201` with **`file_url: null`** (no bytes copied); the GET
+returns the row with `linked_file.available: true` and the correct name/mime/size; and **one row comes
+back, not two** — the backup suppression works. Then the document was deleted and the job re-read. 21
+tests, red-tested twice: removing the `canDownload` enforcement fails the boundary test, and unwiring
+the job page fails the "authored but not wired" test.
+
+**One over-claim of my own, corrected rather than left standing.** The seed's column comment originally
+said `ON DELETE SET NULL` "degrades the attachment to a tombstone row the UI can label". Deleting a
+document live showed what actually happens: `file_node_id` becomes **null**, so the row survives — good
+— but *nothing on it records that it was ever a link*, and the UI's "unavailable" label therefore never
+fires for the deleted case. It fires for the **permission** case (id still present, document not
+resolvable for this viewer), which is the other real scenario. The comment now says exactly that, and
+notes that a name snapshot would close the gap and is not worth a column until someone asks.
 
 **One honest note about the verification.** An intermediate run reported the destination empty after
 the move, and I took that at face value and started hunting a bug in working code. It was a false
@@ -2087,7 +2144,7 @@ is an owner decision about staffing, not an engineering task.
 | F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |
 | F3 | ✅ shipped | 8 kind chips; caught drawings mis-filed as other, fixed with a product media type |
 | F4 | ✅ shipped | describeAudience + badges; resolves inheritance, and found "Personal" badged Everyone (true, and crying wolf) |
-| F5 | ◐ picker shipped | FilePicker built + adopted in Move-to. Job-file attach needs a job_files.file_node_id column — named, not half-done |
+| F5 | ✅ shipped | Picker + Move-to, AND job-file attach. The deferral was wrong on its central fact: storage_path is NULLABLE and job_files was EMPTY, so the expensive half never existed. seed 583 + download-level permission check (same helper as the download route) + no backup twin. Live-verified 404/201/one-row; 21 tests, red-tested twice |
 | F6 | ✅ shipped | 27x27 action buttons → 40x40, name column 108px → 232px, chips 34 → 40; route added to the M4 audit |
 | F7 | ✅ shipped | 3 real accounts, live API, red-tested; role path NOT testable — no non-admin role holder exists |
 | S1 | ☐ | Build, PR, merge, confirm redeploy |

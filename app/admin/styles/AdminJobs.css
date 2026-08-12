@@ -1700,3 +1700,25 @@
 }
 
 .job-packet__count { font-size: 0.78rem; color: var(--theme-fg-muted, #6B7280); }
+
+/* ── F5: attach a File Explorer document to a job (a link, not a copy) ─────────────────────────────
+ *
+ * `--attach` sits beside `+ Upload` as a peer action, so it inherits that button's box and only adds
+ * the icon alignment. The row label uses theme vars rather than literals so it follows every skin —
+ * a hardcoded grey here would read as disabled on the dark themes.
+ */
+.job-files__attach-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
+
+.job-files__item-linked {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--theme-fg-muted, #6B7280);
+  margin-top: 0.15rem;
+}
+
+/* The document is gone or no longer visible to this viewer. Amber, not red: the attachment is not
+ * broken data — it is a true statement about something that changed elsewhere, and the row is kept
+ * deliberately so it can say so. */
+.job-files__item-linked--gone { color: var(--theme-warning, #B45309); }

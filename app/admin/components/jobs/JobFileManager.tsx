@@ -1,8 +1,9 @@
 // app/admin/components/jobs/JobFileManager.tsx — File management with viewer + multi upload
 'use client';
 import { useState } from 'react';
-import { Loader2, FolderOpen, Eye, Download, Trash2 } from 'lucide-react';
+import { Loader2, FolderOpen, Eye, Download, Trash2, Link2 } from 'lucide-react';
 import FileViewer, { isImageFile } from './FileViewer';
+import FilePicker from '@/app/admin/components/files/FilePicker';
 
 interface JobFile {
   id: string;
@@ -16,6 +17,17 @@ interface JobFile {
   uploaded_by: string;
   uploaded_at: string;
   is_backup: boolean;
+  /** F5 — set when this row REFERENCES a File Explorer document instead of carrying its own bytes. */
+  file_node_id?: string | null;
+  /** Annotated by `GET /api/admin/jobs/files`. `available: false` means the document was deleted or
+   *  the viewer cannot see it — the row still exists and is labelled rather than dropped. */
+  linked_file?: {
+    id: string;
+    name: string;
+    mime_type: string | null;
+    size_bytes: number | null;
+    available: boolean;
+  } | null;
 }
 
 const FILE_TYPES: Record<string, { label: string; icon: string }> = {
@@ -78,9 +90,15 @@ interface Props {
   onUpload?: (file: { file_name: string; file_type: string; file_url: string; file_size: number; mime_type?: string; section: string; description: string }) => void;
   onDelete?: (id: string) => void;
   activeSection?: string;
+  /**
+   * F5 — attach an existing File Explorer document instead of uploading bytes. Optional so the
+   * component keeps working unchanged on any page that has not wired it; the button only appears when
+   * a handler is supplied, rather than rendering a control that silently does nothing.
+   */
+  onAttachFromFiles?: (attach: { file_node_id: string; file_name: string; file_type: string; section: string; description: string }) => void;
 }
 
-export default function JobFileManager({ files, onUpload, onDelete, activeSection }: Props) {
+export default function JobFileManager({ files, onUpload, onDelete, activeSection, onAttachFromFiles }: Props) {
   const [section, setSection] = useState(activeSection || 'general');
   const [showUpload, setShowUpload] = useState(false);
   const [uploadType, setUploadType] = useState('document');
@@ -89,6 +107,7 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
   const [viewingFile, setViewingFile] = useState<JobFile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
+  const [showPicker, setShowPicker] = useState(false);
 
   const sectionFiles = files.filter(f => !activeSection || f.section === section);
 
@@ -161,6 +180,18 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
         {onUpload && (
           <button className="job-files__upload-btn" onClick={() => setShowUpload(!showUpload)}>
             {showUpload ? 'Cancel' : '+ Upload'}
+          </button>
+        )}
+        {/* F5 — the second way a file gets onto a job. Deliberately a peer of Upload rather than an
+            option buried inside the upload form: "this document already exists" is a different
+            intention from "here are some bytes", and the whole point is not to make a second copy. */}
+        {onAttachFromFiles && (
+          <button
+            className="job-files__upload-btn job-files__attach-btn"
+            onClick={() => setShowPicker(true)}
+            title="Link a document that already lives in the File Explorer — no copy is made"
+          >
+            <Link2 size={14} aria-hidden /> Attach from Files
           </button>
         )}
       </div>
@@ -269,8 +300,27 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                     )}
                   </span>
                   <span className="job-files__item-meta">
-                    {typeLabel} {formatFileSize(file.file_size) && `\u00B7 ${formatFileSize(file.file_size)}`} {'\u00B7'} {new Date(file.uploaded_at).toLocaleDateString()}
+                    {typeLabel} {formatFileSize(file.file_size ?? file.linked_file?.size_bytes ?? undefined) && `\u00B7 ${formatFileSize(file.file_size ?? file.linked_file?.size_bytes ?? undefined)}`} {'\u00B7'} {new Date(file.uploaded_at).toLocaleDateString()}
                   </span>
+                  {/* F5 \u2014 say plainly that this is a link, not a copy. Without this the row is
+                      indistinguishable from an upload, and someone would reasonably assume deleting it
+                      from the job deletes the document (it does not) or that editing the document
+                      leaves the job's copy behind (there is no copy). The unavailable case is shown
+                      rather than hidden: an attachment whose document was deleted or whose permissions
+                      changed is information, and silently dropping the row would look like the attach
+                      never happened. */}
+                  {file.file_node_id && (
+                    file.linked_file?.available ? (
+                      <span className="job-files__item-linked">
+                        <Link2 size={11} aria-hidden /> Linked from Files \u2014 no copy stored
+                      </span>
+                    ) : (
+                      <span className="job-files__item-linked job-files__item-linked--gone">
+                        <Link2 size={11} aria-hidden /> Linked document is unavailable \u2014 deleted, or you
+                        do not have access to it
+                      </span>
+                    )
+                  )}
                   {file.description && (
                     <span className="job-files__item-desc">{file.description}</span>
                   )}
@@ -283,6 +333,19 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                   )}
                   {file.file_url && (
                     <a href={file.file_url} download={file.file_name} className="job-files__item-btn" title="Download">
+                      <Download size={15} strokeWidth={2} />
+                    </a>
+                  )}
+                  {/* F5 — a linked file downloads through the EXPLORER's route, not from here. That
+                      route re-checks the viewer's own access, so a job page can never become a way to
+                      read a document you are not entitled to: whoever attached it had access, but
+                      whoever is looking now must too. */}
+                  {file.file_node_id && file.linked_file?.available && (
+                    <a
+                      href={`/api/admin/files/${file.file_node_id}/download`}
+                      className="job-files__item-btn"
+                      title="Download from the File Explorer (checks your own permissions)"
+                    >
                       <Download size={15} strokeWidth={2} />
                     </a>
                   )}
@@ -301,6 +364,32 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
       {/* File Viewer Modal */}
       {viewingFile && (
         <FileViewer file={viewingFile} onClose={() => setViewingFile(null)} />
+      )}
+
+      {/* F5 — the shared picker, in `file` mode. Same component and same two endpoints as the File
+          Explorer's own browse, so this can never show a different tree or a different set of
+          permissions from /admin/files. The section and description come from the form's current
+          state, so attaching lands in the tab the user is looking at. */}
+      {showPicker && onAttachFromFiles && (
+        <FilePicker
+          open={showPicker}
+          mode="file"
+          title="Attach a document from Files"
+          actionLabel="Attach"
+          onClose={() => setShowPicker(false)}
+          onPick={(node) => {
+            onAttachFromFiles({
+              file_node_id: node.id,
+              file_name: node.name,
+              // Guess the type from the name so the row gets a sensible icon and section filter; the
+              // picker returns only id + name, and re-deriving here beats threading mime through.
+              file_type: detectFileType(node.name),
+              section,
+              description,
+            });
+            setShowPicker(false);
+          }}
+        />
       )}
     </div>
   );

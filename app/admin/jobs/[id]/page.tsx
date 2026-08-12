@@ -319,6 +319,34 @@ export default function JobDetailPage() {
     }
   }
 
+  /**
+   * F5 — attach an existing File Explorer document to this job.
+   *
+   * Same endpoint as `uploadFile`, minus the bytes: the server stores a reference and re-checks that
+   * the attacher can actually download the document, so this handler deliberately does not try to
+   * validate anything itself. A 403 here means the permission check did its job, and the message the
+   * server sends is more accurate than one written on the client, so it is surfaced verbatim.
+   */
+  async function attachFileFromExplorer(attach: {
+    file_node_id: string; file_name: string; file_type: string; section: string; description: string;
+  }) {
+    try {
+      const res = await fetch('/api/admin/jobs/files', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId, ...attach }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `Attach failed (${res.status})`);
+      }
+      const d = await fetch(`/api/admin/jobs/files?job_id=${jobId}`).then((r) => r.json());
+      setFiles(d.files || []);
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'attach file from explorer' });
+    }
+  }
+
   async function deleteFile(id: string) {
     try {
       await fetch(`/api/admin/jobs/files?id=${id}`, { method: 'DELETE' });
@@ -842,6 +870,7 @@ export default function JobDetailPage() {
             files={files}
             onUpload={uploadFile}
             onDelete={deleteFile}
+            onAttachFromFiles={attachFileFromExplorer}
           />
         )}
 
