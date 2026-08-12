@@ -2166,6 +2166,19 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    SAFE AREA — Support for iPhone notch / bottom bar
    ═══════════════════════════════════════════════════════════════════════════ */
+/* ── M9, 2026-08-11 — THESE RULES ONLY STARTED WORKING TODAY ────────────────────────────────────
+ *
+ * Everything in the block below existed already and, on iOS, did **nothing**: `env(safe-area-inset-*)`
+ * reports 0 unless the page opts into drawing behind the insets with `viewport-fit=cover`, and this
+ * app never set it. `app/layout.tsx` sets it now, which is what makes the bottom rules real — and
+ * what makes the TOP rules newly necessary.
+ *
+ * The two halves are one change. `viewport-fit=cover` alone extends the layout under the notch and
+ * the home indicator; the fixed top bar would sit beneath the status bar, putting the hamburger
+ * under a strip of screen iOS reserves for itself. In an installed PWA that is a plausible cause of
+ * the owner's *"I have to tap it twice"* — the first tap lands on the status bar and scrolls to top
+ * instead of reaching the button.
+ * ────────────────────────────────────────────────────────────────────────────────────────────── */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .admin-sidebar { padding-bottom: env(safe-area-inset-bottom); }
   .admin-sidebar__nav { padding-bottom: calc(4rem + env(safe-area-inset-bottom)); }
@@ -2179,4 +2192,64 @@
   .discussion-panel { padding-bottom: env(safe-area-inset-bottom); }
   .messenger-panel { padding-bottom: env(safe-area-inset-bottom); }
   .messenger-panel__compose { padding-bottom: calc(0.5rem + env(safe-area-inset-bottom)); }
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  /* THE TOP BAR. It grows by the inset rather than being pushed down by it, so its background still
+   * reaches the top of the screen (a gap above a fixed bar looks like a rendering fault) while its
+   * CONTENTS — the hamburger, the title, the bell, the avatar — sit below the status bar and are
+   * tappable. */
+  .admin-topbar {
+    padding-top: env(safe-area-inset-top);
+    height: calc(64px + env(safe-area-inset-top));
+  }
+
+  /* The content's clearance has to grow by exactly the same amount, or the first heading on every
+   * page slides underneath the bar. These mirror the `margin-top` values in AdminLayout.css — 64px
+   * desktop, 56px at phone widths — and must be changed together with them. */
+  .admin-layout__content { margin-top: calc(64px + env(safe-area-inset-top)); }
+
+  @media (max-width: 1023px) {
+    .admin-topbar { height: calc(56px + env(safe-area-inset-top)); }
+    .admin-layout__content { margin-top: calc(56px + env(safe-area-inset-top)); }
+  }
+
+  /* The drawer is full-height and now stacks above the bar (M1), so it owns its own top inset —
+   * without this its logo and brand sit under the status bar exactly as the bar's controls did. */
+  .admin-sidebar { padding-top: env(safe-area-inset-top); }
+
+  /* LANDSCAPE ONLY — a notch bites the LEFT or RIGHT edge only when the phone is turned.
+   *
+   * Scoped to `orientation: landscape` rather than applied unconditionally, and that is not a
+   * detail. This block sits at the end of the stylesheet, so an unscoped `padding-left` here beats
+   * every narrow-width rule earlier in the file — including the deliberate 0.5rem and 0.35rem
+   * paddings that buy back space on small screens. In portrait the side insets are 0, so those
+   * rules would have been overridden to no purpose and the tightest layouts would have quietly
+   * lost their density.
+   *
+   * `max()` so the padding only ever grows past what the layout already chose. */
+  @media (orientation: landscape) {
+    .admin-topbar {
+      padding-left: max(1rem, env(safe-area-inset-left));
+      padding-right: max(1rem, env(safe-area-inset-right));
+    }
+    .admin-layout__content {
+      padding-left: max(var(--shell-pad-phone, 1rem), env(safe-area-inset-left));
+      padding-right: max(var(--shell-pad-phone, 1rem), env(safe-area-inset-right));
+    }
+  }
+
+  /* Dialogs: the footer holds the primary action, and the home indicator sits exactly where that
+   * button lands on a tall phone. M2 deliberately left this out because it would have been
+   * decoration until `viewport-fit=cover` existed. It exists now. */
+  .admin-dialog__foot { padding-bottom: calc(0.85rem + env(safe-area-inset-bottom)); }
+  .admin-dialog-overlay { padding-bottom: calc(1rem + env(safe-area-inset-bottom)); }
+}
+
+/* Print undoes the inset growth — paper has no notch, and the rules above would otherwise leave a
+ * band of white at the top of every printed page. Placed after the print block above deliberately,
+ * so it wins. */
+@media print {
+  .admin-topbar,
+  .admin-layout__content { padding-top: 0 !important; margin-top: 0 !important; }
 }

@@ -148,6 +148,20 @@ export const viewport: Viewport = {
   themeColor: '#BD1218',
   width: 'device-width',
   initialScale: 1,
+  // M9, 2026-08-11 — WITHOUT THIS, EVERY `env(safe-area-inset-*)` RULE IN THIS APP IS DEAD CODE.
+  //
+  // `AdminResponsive.css` carried a dozen safe-area rules — the drawer, the FAB pill, the
+  // messenger, the fieldbook — written at some point to keep controls clear of the home indicator.
+  // On iOS every one of them resolved to **0**, because `env()` only reports real insets when the
+  // page opts into drawing behind them with `viewport-fit=cover`. Authored, plausible-looking, and
+  // doing nothing: this repo's signature defect, in CSS this time.
+  //
+  // This flag and the insets that answer it (AdminResponsive.css, "SAFE AREA") are one change and
+  // must stay one change. Adding this alone is strictly WORSE than not adding it — the layout
+  // immediately extends under the notch and the home indicator, so the top bar's controls end up
+  // beneath the status bar, which is a plausible cause of the owner's *"I have to tap it twice"*
+  // in the installed PWA.
+  viewportFit: 'cover',
   // PWA plan W6 — PINCH-ZOOM IS DELIBERATELY LEFT ENABLED. No `maximumScale`, no `userScalable`.
   //
   // The comment that used to sit here claimed zoom was "locked off so the app feels native", and it

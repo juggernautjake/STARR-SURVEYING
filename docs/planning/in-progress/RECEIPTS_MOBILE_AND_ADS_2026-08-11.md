@@ -545,7 +545,7 @@ filter row is a flex line of five controls with fixed minimum widths.
 **Drive the browser.** A green test suite has missed rendering-condition bugs on this repo before;
 these four slices are not done on the strength of a diff.
 
-### M9 — PWA and native shell fit
+### M9 — PWA and native shell fit ✅ SHIPPED 2026-08-11 (device verification outstanding)
 
 The owner asked for this to hold *"whether they are dedicated apps from the google or apple app
 stores, or PWAs."*
@@ -556,6 +556,45 @@ stores, or PWAs."*
   shell-level container reintroduces horizontal scroll.
 - **Done when:** the top bar and the sticky bulk-action bar both clear the safe areas on a notched
   device.
+
+**Completion note.** `viewportFit: 'cover'` in `app/layout.tsx`, plus the top/side/dialog insets in
+`AdminResponsive.css`.
+
+**The finding that made this worth doing now:** the app already carried **a dozen**
+`env(safe-area-inset-*)` rules — the drawer, the FAB pill, the messenger, the fieldbook — and on iOS
+**every one of them resolved to 0**. `env()` only reports real insets once the page opts into
+drawing behind them with `viewport-fit=cover`, which was never set. Authored, plausible-looking, and
+inert. This repo's signature defect, in CSS this time.
+
+**The two halves are one change and must stay one change.** `viewport-fit=cover` on its own is
+strictly worse than not setting it: the layout immediately extends under the notch and the home
+indicator, so the fixed top bar sits beneath the status bar. That is worth naming precisely because
+it is a plausible cause of the owner's *"I have to tap it twice"* **in the installed PWA** — a first
+tap landing on the status bar scrolls to top instead of reaching the hamburger, and M1 could never
+have reproduced that in a desktop browser.
+
+What the insets do: the top bar **grows** by the inset rather than being pushed down by it, so its
+background still reaches the top of the screen (a gap above a fixed bar reads as a rendering fault)
+while its controls sit below the status bar; `.admin-layout__content`'s clearance grows by exactly
+the same amount, or every page's first heading slides under the bar; the drawer takes its own top
+inset, since M1 moved it above the bar; and the dialog footer takes the bottom inset — which M2
+deliberately left out because it would have been decoration until today.
+
+**One trap caught while writing it.** The side insets were initially applied unconditionally. This
+block sits at the END of the stylesheet, so an unscoped `padding-left` beats every narrow-width rule
+earlier in the file — including the deliberate 0.5rem and 0.35rem paddings that buy back space on
+small screens. In portrait the side insets are 0, so those overrides would have cost density for
+nothing. Now scoped to `@media (orientation: landscape)`, which is the only orientation where a
+notch bites a side edge. Print also explicitly undoes the top growth: paper has no notch.
+
+Verified: `tsc` clean, the M1/M2 specs still pass (3/3), and the M4 overflow audit still reports zero
+across all 20 routes — a change that adds padding to the shell is exactly the one that could
+introduce the overflow M4 exists to catch.
+
+**Still outstanding, and not claimable from here:** the actual appearance on a notched device. The
+insets are 0 in every desktop browser, so nothing local can prove the top bar clears the status bar
+on a real iPhone. That check belongs with N4's badge verification, on the owner's phone, after
+deploy.
 
 ## Group A — Advertising
 
@@ -836,7 +875,7 @@ the owner is asking to click a conversion and see the person.
 | M6 | ☐ | Jobs portrait |
 | M7 | ☐ | Receipts portrait |
 | M8 | ☐ | Hours portrait |
-| M9 | ☐ | PWA / native safe areas — NOTE: no viewport-fit=cover today, so existing env() rules are inert |
+| M9 | ✅ shipped | viewport-fit=cover + top/side/dialog insets; a dozen pre-existing env() rules were inert until now. Device check outstanding |
 | A1 | ☐ | Tabbed marketing page |
 | A2 | ☐ | Current-month default + any month/year/week/day/custom range, in the URL |
 | A3 | ☐ | Impressions / clicks / conversions live |
