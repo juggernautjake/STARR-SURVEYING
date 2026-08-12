@@ -470,7 +470,7 @@ Verified: `tsc` clean, and the M2 + M1 browser specs still pass (3/3) after the 
 re-running them was that a global height change is exactly the kind of edit that quietly breaks the
 thing it was meant to protect.
 
-### M4 — Kill horizontal overflow structurally
+### M4 — Kill horizontal overflow structurally ✅ SHIPPED 2026-08-11 (guard shipped; no overflow found)
 
 Owner, following up: *"reformat/refactor any elements that overflow on mobile to be formatted
 differently to fit or to be scrollable. Please really work on this."*
@@ -494,6 +494,42 @@ Chasing pages one at a time will not converge. Find the shapes that cause it and
   with no affordance reads as truncated content.
 - **Done when:** the guard reports zero overflowing elements on the pages named in M5–M8, and no
   page scrolls horizontally as a whole.
+
+**Completion note — the guard is shipped, and it found NOTHING. That is the finding.**
+
+`e2e/mobile-overflow-audit.spec.ts` visits **20 admin routes at 360 × 780** with touch emulation and
+reports, per route, whether the document scrolls sideways and which elements are wider than the
+viewport *without a scrollable ancestor rescuing them*. It asserts on the page-level measure — the
+thing the owner actually sees — and `AUDIT=1` turns it into a report that never fails.
+
+Result: **zero routes scroll sideways, zero unrescued offenders.** Including all four the owner
+named (`/admin/me`, `/admin/jobs`, `/admin/receipts`, hours), plus the table-heavy ones where width
+usually goes wrong (payroll, calendar, inventory, team, leads, invoicing, reports).
+
+Two corrections made along the way, both worth recording:
+
+- The first run used **390px** (iPhone 14/15) and found nothing on ten routes. That is not a
+  credible answer to a specific complaint, so the audit moved to **360px** — the common Android
+  baseline — because auditing at the widest common phone is exactly how a real overflow gets a clean
+  bill of health. It still found nothing, which is now a much stronger statement.
+- The element-level probe originally flagged anything whose right edge passed the viewport. That
+  reported a 326px card inside a 360px page as an offender, and a right-aligned 40px avatar on four
+  routes. Noise nearly buried the headline. It now flags width only.
+
+**So why does the owner see it?** Named here rather than guessed at, in likelihood order:
+
+1. **The database is nearly empty** — 2 jobs, 0 receipts, 7 users. Width problems come from *content*:
+   a long job name, a full street address, a `firstname.lastname@` email, a table with thirty rows of
+   real data. An empty table cannot overflow. This is the same trap R4 hit, where an empty `receipts`
+   table made a filter that matches nothing indistinguishable from a filter that is wrong.
+2. **A route outside these 20.** There are ~130.
+3. **PWA standalone mode**, where the viewport and safe areas differ — which M9 has not addressed
+   yet, and where `viewport-fit=cover` is still missing.
+
+**M5–M8 must therefore drive with real content, not an empty dev database**, or they will produce
+the same false all-clear. The most useful next step is the owner naming a page where he sees it, or
+running this audit against production data. The guard is the durable part: from now on this is a
+number, not an opinion.
 
 ### M5 — Hub (`/admin/me`) portrait pass
 ### M6 — Job management (`/admin/jobs`, `/admin/jobs/[id]`) portrait pass
@@ -537,7 +573,28 @@ are four separate routes; the owner wants one page with tabs.
   `lib/admin/route-registry.ts` to a single entry.
 - **Done when:** all four surfaces are reachable from one page and the old URLs redirect.
 
-### A2 — Current month by default, rolling over on the 1st
+### A2 — Current month by default, and any period the user asks for
+
+**Scope extended 2026-08-11 (same session), owner:**
+
+> *"I want the default view to show the current month's info, but I also want the user that has
+> access to advertising page(s) to be able to change the time frame to review any month, or even the
+> current full year or past years. We should also be able to narrow it down to weeks and even
+> individual days."*
+
+So the current month is the **default**, not the only option. The range control needs: any month, any
+year (current and past), any week, any single day, plus an arbitrary custom range. Presets do the
+common cases in one tap; the custom range covers the rest without needing a preset for every
+question.
+
+Two things this must get right, because both are easy to get wrong and neither fails loudly:
+
+- **Granularity follows the range, and must be stated.** A day view plotted per-day is one bar; a
+  year plotted per-day is 365 unreadable ones. The chart should bucket by hour / day / week / month
+  as the span grows, and *say which* — an unlabelled axis is how somebody reads a monthly total as a
+  daily one.
+- **The range must survive a reload and be shareable**, so it lives in the URL, not component state.
+  "Look at last March" is a link somebody sends, not an instruction to click four times.
 
 - One shared helper (`lib/marketing/date-range.ts`) returning the current month's start/end from a
   clock passed in, with unit tests that cross a month boundary and a year boundary. Derived per
@@ -707,6 +764,43 @@ Simulators lie about badging, and this is the part the owner will judge by looki
   say so in this doc rather than reporting the feature working.
 - **Done when:** confirmed on both platforms, or the platform limitation is documented here.
 
+### A7 — Who was behind the click
+
+Added 2026-08-11 (same session), owner:
+
+> *"If we are capturing unique customer info, we need to be able to track that and be able to review
+> the unique customer info for a given click, conversion, and/or form submission, and/or call or
+> whatever."*
+
+**Start by finding out what is actually captured today, and say so plainly.** This repo already has
+`lib/leads/attribution.ts`, a lead intake path, an `AttributionCard` on the lead detail page, and
+offline-conversion upload to Google. The honest first move is an inventory: for a click, a form
+submission, and a phone call, what identity actually lands in the database — gclid, UTM parameters,
+a session id, an IP, a name and email? — and where does the trail break.
+
+Then close the gap between "we have a number" and "we can see who". The dashboard reports counts;
+the owner is asking to click a conversion and see the person.
+
+- **Inventory first.** Trace one real lead end to end and write down what exists at each hop. Do not
+  build a viewer over fields that turn out to be empty.
+- **Click → person.** `gclid` is the join key Google gives us; make sure it is captured on landing,
+  persisted through the form, and stored on the lead so a conversion can be traced back to the ad,
+  the campaign and the keyword.
+- **Calls.** Almost certainly the weakest link — a phone call carries no gclid unless call tracking
+  is configured. Say so rather than implying coverage. This may be an owner decision (a call-tracking
+  number costs money) rather than an engineering task.
+- **A drill-down.** From a conversion count on the dashboard, reach the list of people behind it,
+  and from a person reach their first touch, their form, and their job if they became one.
+
+**Two rules this slice must not break:**
+
+- **Privacy is not an afterthought here.** This is customer PII — names, emails, phone numbers,
+  addresses, and the ad that caught them. It belongs behind the same gate as the rest of the money
+  pages, must never reach a client bundle that a non-admin can load, and must not be logged.
+- **Never invent an identity.** If a conversion has no identifiable person, the answer is
+  "anonymous — no gclid captured", not a plausible-looking guess. A dashboard that quietly attributes
+  the wrong customer to a sale is worse than one that admits it does not know.
+
 ## Group S — Ship
 
 ### S1 — Merge to main and confirm the redeploy
@@ -737,18 +831,19 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | M1 | ✅ shipped | Two-tap did NOT reproduce; fixed the measured z-index defect (drawer under the top bar) + close button + hover gating |
 | M2 | ✅ shipped | .admin-dialog shell + Edit Roles converted; red-tested (888px on an 844px screen) |
 | M3 | ✅ shipped | Found 2 defects: 1 uncapped modal + 13 vh caps that lie on mobile Safari, all twinned to dvh |
-| M4 | ☐ | Structural overflow fix + guard |
+| M4 | ✅ shipped | Guard over 20 routes at 360px: ZERO sideways scroll, zero offenders. Non-reproduction recorded; M5-M8 need real data |
 | M5 | ☐ | Hub portrait |
 | M6 | ☐ | Jobs portrait |
 | M7 | ☐ | Receipts portrait |
 | M8 | ☐ | Hours portrait |
 | M9 | ☐ | PWA / native safe areas — NOTE: no viewport-fit=cover today, so existing env() rules are inert |
 | A1 | ☐ | Tabbed marketing page |
-| A2 | ☐ | Current-month default, rolls over |
+| A2 | ☐ | Current-month default + any month/year/week/day/custom range, in the URL |
 | A3 | ☐ | Impressions / clicks / conversions live |
 | A4 | ☐ | Auto-refresh + freshness stamp |
 | A5 | ☐ | Visual overhaul |
 | A6 | ☐ | Google Ads access-level probe |
+| A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
 | E1 | ☐ | Audit every gate that excludes `employee` |
 | E2 | ☐ | Role-change / add-role requests |
 | N1 | ☐ | Messages create notifications |
