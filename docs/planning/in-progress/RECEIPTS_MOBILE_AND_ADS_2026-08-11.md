@@ -737,7 +737,7 @@ Added 2026-08-11, same session:
 > receipts and have a lot more functionality control on the backend. Users should also be able to
 > request role changes or the addition of roles to their account."*
 
-### E1 — Audit every gate that quietly excludes `employee`
+### E1 — Audit every gate that quietly excludes `employee` ✅ SHIPPED 2026-08-11
 
 R1 found this shape once and it will not be the only instance: `/admin/receipts/new` listed seven
 roles and omitted `employee` — the DEFAULT role every staff member falls back to — so the largest
@@ -756,6 +756,37 @@ default rather than a named job.
   it is the trap this slice is most likely to fall into.
 - **Done when:** a test asserts every route whose middleware admits `employee` is also visible to
   `employee` in the registry, and vice versa, so the two lists cannot drift again.
+
+**Completion note — and the headline finding is the owner's first example.**
+
+`WORK_ROLES` is `['admin', 'developer', 'field_crew']`. It does **not** contain `employee`. And
+**`/admin/my-hours` was gated on it** — so *"log hours"*, the first thing the owner named, was hidden
+from the nav for exactly the accounts he meant. Same shape as R1's receipt page, one sentence later
+in the same request.
+
+Widened, after checking each API first: `/admin/my-hours`, `/admin/schedule`, `/admin/assignments`
+and `/admin/my-pay` in the registry; `/admin/assignments`, `/admin/schedule`, `/admin/messages`,
+`/admin/discussions` and `/admin/rewards` in middleware. **Messages is worth calling out** — a plain
+employee could not reach the messaging page at all, so talking to a colleague was a privilege of
+holding a second role.
+
+**The gates were stricter than the boundary, which is the safe direction to correct.** Every one of
+these is backed by an API that already scopes a non-admin to their own rows — `assignments`,
+`schedule`, `time-logs` and `xp` all filter on `session.user.email` unless the caller is an admin, and
+the messages API refuses a non-participant outright. So widening the *gate* cannot widen the *data*;
+it only stops hiding pages from the people they were written for. Verified before changing anything,
+because the opposite mistake — opening a page whose API does not scope — is how a permission leak
+gets shipped as a usability fix.
+
+**The guard.** `employee-can-reach-their-own-things.test.ts` asserts eight self-service routes from
+**both** sides (registry visibility *and* middleware admission), because the two disagree silently in
+both directions: registry-stricter hides a working page, middleware-stricter offers a menu item that
+bounces you. A second block asserts the administration routes — payroll, users, employees,
+org-settings, the receipts *approval* queue, invoicing, hours-approval — are **still** closed, so a
+future widening cannot quietly go too far.
+
+**Red-tested:** removing `employee` from `/admin/my-hours` again fails with
+*"hidden from the nav for a plain employee"*, naming the route. 23 assertions.
 
 ### E2 — Ask for a role, without a phone call
 
@@ -1248,7 +1279,7 @@ is an owner decision about staffing, not an engineering task.
 | A5 | ☐ | Visual overhaul |
 | A6 | ☐ | Google Ads access-level probe |
 | A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
-| E1 | ☐ | Audit every gate that excludes `employee` |
+| E1 | ✅ shipped | WORK_ROLES has no employee, so /admin/my-hours was hidden from them. 4 registry + 5 middleware gates widened; 23-assertion guard |
 | E2 | ☐ | Role-change / add-role requests |
 | N1 | ☐ | Messages create notifications |
 | N2 | ☐ | Bell notification opens the conversation |

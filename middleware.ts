@@ -54,8 +54,8 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // offered it to researchers and pointed at the Hub, which is open to everyone — so the mismatch
   // only became visible once the link went somewhere real. A researcher assigned to a job needs to
   // see that they are assigned to it.
-  { prefix: '/admin/assignments', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
-  { prefix: '/admin/schedule', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/assignments', roles: ['admin', 'developer', 'employee', 'field_crew', 'researcher', 'tech_support'] },
+  { prefix: '/admin/schedule', roles: ['admin', 'developer', 'employee', 'field_crew', 'tech_support'] },
 
   // ── Money & bookkeeping (audit S19) ──
   // Every prefix here was reachable by ANY authenticated user until 2026-08-04. The pages never
@@ -143,21 +143,21 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
 
   // ── Rewards & Pay ──
   { prefix: '/admin/rewards/admin', roles: ['admin', 'developer', 'tech_support'] },
-  { prefix: '/admin/rewards', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/rewards', roles: ['admin', 'developer', 'employee', 'field_crew', 'tech_support'] },
   { prefix: '/admin/pay-progression', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
   // /admin/my-pay role-gate removed in consolidation Slice 2 — handled
   // by the LEGACY_REDIRECTS table at the top of the handler.
   { prefix: '/admin/payout-log', roles: ['admin', 'developer', 'field_crew', 'tech_support'] },
 
   // ── Communication ──
-  { prefix: '/admin/messages', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/messages', roles: ['admin', 'developer', 'employee', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
 
   // ── Notes & Files ──
   { prefix: '/admin/notes', roles: ['admin', 'developer', 'tech_support'] },
 
   // ── Admin tools ──
   { prefix: '/admin/error-log', roles: ['admin', 'developer', 'tech_support'] },
-  { prefix: '/admin/discussions', roles: ['admin', 'developer', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
+  { prefix: '/admin/discussions', roles: ['admin', 'developer', 'employee', 'teacher', 'researcher', 'drawer', 'field_crew', 'tech_support'] },
 ];
 
 function matchesRoute(pathname: string, prefix: string): boolean {
