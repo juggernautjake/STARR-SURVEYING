@@ -1,6 +1,7 @@
 // app/api/auth/register/route.ts
 // Registration endpoint for external (non-company) users
 import { supabaseAdmin } from '@/lib/supabase';
+import { ensureAuthUser } from '@/lib/auth/mirror-auth-user';
 import bcrypt from 'bcryptjs';
 import { NextRequest, NextResponse } from 'next/server';
 
@@ -75,6 +76,12 @@ export async function POST(req: NextRequest) {
       console.error('Registration insert error:', insertError);
       return NextResponse.json({ error: 'Failed to create account. Please try again.' }, { status: 500 });
     }
+
+    // Mirror into auth.users, sharing the id. Five NOT NULL foreign keys point at auth.users
+    // (receipts.user_id among them), so an account without this row can sign in but cannot file a
+    // receipt — which is the exact 422 that made the receipts feature unusable for the whole firm
+    // until 2026-08-12. Non-fatal by design: a failed mirror must not fail a signup.
+    await ensureAuthUser(newUser.id, newUser.email, newUser.name);
 
     return NextResponse.json({
       success: true,

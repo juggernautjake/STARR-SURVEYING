@@ -18,13 +18,15 @@ overwrite a deliberate design.
 
 ## A. Decisions (each converts directly to shipped code)
 
-- [ ] **🔴 `auth.users` is empty, and five NOT NULL foreign keys point at it — surfaced 2026-08-12 (R9).**
-      **This blocks receipt upload for every person at the firm, including you and every admin.** It is the
-      reason `receipts` has zero rows: not "nobody tried", but "nobody could".
+- [x] **`auth.users` was empty while five NOT NULL FKs pointed at it — RESOLVED 2026-08-12 (R9).** Decision (owner): mirror the id — `auth.users.id == registered_users.id` — rather than repoint the FKs, because it satisfies the FKs AND keeps the four `user_id = auth.uid()` RLS policies on `receipts` correct. Shipped `seeds/582` (7/7 accounts backfilled, ids matching) + `public.ensure_auth_user()` (SECURITY DEFINER, service_role only) + `lib/auth/mirror-auth-user.ts` wired into all four creation paths, with the Google branch self-healing on every sign-in. **Proved end to end:** an `employee`-only account uploaded a receipt on a 390px viewport → 200, extraction `done` at 2c, every field plus 4 line items. *One trap recorded for anyone else inserting into `auth.users`: GoTrue reads eight token columns as non-nullable strings, so leaving them NULL makes its admin API 500 for every user — and that is the API the receipt upload uses to resolve the submitter. Details in the R9 note.* Original finding below, kept for the reasoning.
+      **— original finding, 2026-08-12, kept because the reasoning is the useful part —**
+
+      This blocked receipt upload for every person at the firm, the owner and every admin included. It was
+      the reason `receipts` had zero rows: not "nobody tried", but "nobody could".
 
       **Measured against production, not inferred:**
-      - `auth.users` holds **0 rows**. `registered_users` holds all **7** staff accounts.
-      - `receipts.user_id` is `NOT NULL REFERENCES auth.users(id)`, so `/api/admin/receipts/upload` returns
+      - `auth.users` held **0 rows**. `registered_users` held all **7** staff accounts.
+      - `receipts.user_id` is `NOT NULL REFERENCES auth.users(id)`, so `/api/admin/receipts/upload` returned
         422 for every submitter. Verified live as a plain `employee` (`jacobmaddux96@gmail.com`).
       - **14 FKs across 10 tables** reference `auth.users`; **5 are NOT NULL** and so are hard blockers:
         `receipts.user_id`, `equipment_reservations.reserved_by`, and
@@ -50,9 +52,14 @@ overwrite a deliberate design.
          like the design that was intended and never finished** — but it provisions real Supabase Auth
          identities for 7 real people, which is your call, not mine.
 
-      Recommendation: **(2)**, because it makes the existing RLS and the existing FKs both correct with one
-      identity value. Not actioned pending your decision. The AI half of the pipeline is already proven
-      independently — see R9 in `in-progress/RECEIPTS_MOBILE_AND_ADS_2026-08-11.md`.
+      Recommendation was **(2)**, and that is what the owner chose. See the R9 completion note in
+      `in-progress/RECEIPTS_MOBILE_AND_ADS_2026-08-11.md` for what shipped and the end-to-end evidence.
+
+      **Still open from this, and NOT fixed by the mirror:** the mirror makes the *other four* NOT NULL FKs
+      satisfiable too (`equipment_reservations.reserved_by`, `location_pings`/`location_stops`/
+      `location_segments`.`user_id`) — every staff account now has an `auth.users` row for them to point at.
+      But none of those four write paths has been exercised end to end, and all four tables still hold zero
+      rows. They are no longer *blocked*; they are *unverified*. Worth one pass each before trusting them.
 
 - [x] **Attunement-alone activation — RESOLVED (2026-07-18).** Decision (owner): equipping is always required;
       attunement is auto (a preference) or manual. Shipped the `autoAttune` campaign preference (default on) and

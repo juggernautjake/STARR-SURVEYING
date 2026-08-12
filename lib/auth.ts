@@ -10,6 +10,7 @@ import bcrypt from 'bcryptjs';
 // CROSS_ORG_TABLES exemption list — this import states that rather than relying
 // on the exemption list to imply it. See lib/saas/org-scope.ts.
 import { supabaseUnscoped } from '@/lib/supabase';
+import { ensureAuthUser } from '@/lib/auth/mirror-auth-user';
 import { beginOrgScope, orgIdForSession } from '@/lib/saas/org-scope-context';
 import { resolveIsCompanyUser } from '@/lib/saas/internal-user';
 // The role vocabulary lives in a file with no imports, so a client component can read a label
@@ -124,6 +125,12 @@ export async function ensureRegisteredUser(
           .update({ updated_at: new Date().toISOString(), ...(name ? { name } : {}) })
           .eq('email', lower);
       }
+      // Self-heal on every sign-in: mirror into auth.users if it is not there yet. Five NOT NULL FKs
+      // point at auth.users (receipts.user_id among them), and an account missing that row can sign in
+      // but cannot file a receipt. Putting it on the sign-in path rather than only on creation means an
+      // account that predates the mirror repairs itself the next time its owner logs in, instead of
+      // waiting for someone to notice a 422.
+      await ensureAuthUser(existing.id, lower, name);
       return;
     }
 
@@ -169,6 +176,16 @@ export async function ensureRegisteredUser(
         console.error('ensureRegisteredUser fallback insert also failed:', fallbackErr.message);
       }
     }
+
+    // Mirror the freshly-created account into auth.users, sharing its id. Read the id back rather than
+    // threading it out of two different insert branches — either branch may have been the one that
+    // succeeded, and a re-read is correct for both.
+    const { data: created } = await supabaseUnscoped
+      .from('registered_users')
+      .select('id')
+      .eq('email', lower)
+      .maybeSingle();
+    await ensureAuthUser(created?.id, lower, name);
   } catch (err) {
     // Non-fatal — user can still sign in, they just won't have a registered_users row
     // until they're manually added or the DB issue is resolved

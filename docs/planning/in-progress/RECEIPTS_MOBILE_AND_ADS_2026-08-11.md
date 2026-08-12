@@ -288,7 +288,7 @@ nearly always one job, and re-picking each time is the friction that ends with e
 against nothing), and the list renders **nothing at all** until you have filed something, so a
 first-time user sees only the form.
 
-### R9 — Prove one receipt makes it end to end
+### R9 — Prove one receipt makes it end to end ✅ SHIPPED 2026-08-12
 
 **Rewritten after R4** — the original said "drain the backlog", and there is no backlog: the
 `receipts` table is empty. Everything above is still theory, but the thing that proves it is a
@@ -391,12 +391,91 @@ all** — status, cost and confidence, but no vendor or total. That looked exact
 product defect. It was my call site. The function is correct; it just fails silently when misused,
 which is worth knowing.
 
-### What remains for R9
+### The decision landed, and the two halves are now joined ✅
 
-The two halves cannot be joined until the identity decision lands. Once it does, R9 is: upload on a
-real phone, watch `queued → running → done`, confirm the fields above land on the row, then call
-`/api/cron/receipt-extraction` with the `CRON_SECRET` and confirm `attempted: 0`. Everything except
-the FK is now known to work.
+**Owner decision, 2026-08-12: `auth.users.id == registered_users.id`** — mirror the id rather than
+repoint the FKs. Chosen because it makes the five NOT NULL FKs resolve *and* leaves the four
+`user_id = auth.uid()` RLS policies on `receipts` meaning what they say, since `auth.uid()` then equals
+`registered_users.id`. One identity value, two tables that agree about it.
+
+**Shipped for it:**
+
+- `seeds/582_mirror_registered_users_into_auth_users.sql` — backfills an `auth.users` row per
+  `registered_users` account sharing its id. Applied to production: **7/7 mirrored**, ids matching,
+  `email_confirmed_at` set from `registered_users.created_at`, `encrypted_password` left NULL (the
+  shape GoTrue uses for OAuth-only users — a referential identity, not a login credential). Nothing
+  emailed anybody: a direct INSERT does not pass through GoTrue.
+- `public.ensure_auth_user(uuid, text, text)` in the same seed — SECURITY DEFINER (PostgREST does not
+  expose the `auth` schema, so the write has to live in the database), `search_path` pinned empty,
+  `REVOKE`d from `public`/`anon`/`authenticated` and granted to `service_role` only. Verified: a
+  second call for an existing account inserts nothing and returns the existing id.
+- `lib/auth/mirror-auth-user.ts` + wiring into **all four** account-creation paths —
+  `/api/auth/register`, `/api/signup/complete`, and both branches of `ensureRegisteredUser` in
+  `lib/auth.ts`. Without this the bug returns one hire at a time, which is worse than the original:
+  the table is no longer conspicuously empty, so it looks like a per-user glitch. The Google sign-in
+  branch mirrors on **every** sign-in, not just creation, so an account predating the mirror repairs
+  itself the next time its owner logs in. Failure is logged and non-fatal — a broken mirror must not
+  fail a signup, and the 422 names this exact condition.
+
+**And a self-inflicted outage caught in the same session, which is the lesson worth keeping.** The
+first version of the seed inserted only the columns Postgres requires. Postgres accepted the rows — and
+the **Supabase Auth admin API immediately began returning `500 "Database error finding users"` for
+every request**, because GoTrue scans `confirmation_token`, `recovery_token`, `email_change`,
+`email_change_token_new`, `email_change_token_current`, `phone_change`, `phone_change_token` and
+`reauthentication_token` into non-nullable Go strings. Nullable in the database, NOT NULL in the reader.
+
+The irony is precise: `resolveUserIdByEmail` in the upload route calls `auth.admin.listUsers()`, so the
+mirror broke the very lookup it existed to satisfy — and broke it for all users, not only the mirrored
+ones. **An INSERT succeeding proves the database accepted the row, not that the application can read
+it.** The seed now writes `''` for all eight, carries a repair pass scoped to
+`raw_app_meta_data->>'provider' = 'starr_registered_users'` (so it can never blank a real pending
+`confirmation_token` on a GoTrue-created account), and the admin API is verified back at **200 with 7
+users visible**.
+
+### R9's evidence — a receipt filed by a non-admin on a phone
+
+Driven at 390 × 844 signed in as `jacobmaddux96@gmail.com`, session resolving as `roles: ["employee"]`:
+
+```
+POST /api/admin/receipts/upload → 200
+  { "receipt": { "id": "d608a0a8-…", "photo_url": "ac32296f-…/d608a0a8-….png" } }
+```
+
+The row landed with `user_id = ac32296f-…` — the mirrored auth id, FK satisfied. Extraction then
+completed (`status: done`, `costCents: 2`), and the row holds:
+
+| Column | Value |
+|---|---|
+| `vendor_name` | `DESERT SANDS HARDWARE` |
+| `vendor_address` | `2210 N Solano Dr, Las Cruces, NM 88001` |
+| `transaction_at` | `2026-08-11T20:26:00+00:00` |
+| `subtotal_cents` / `tax_cents` / `total_cents` | `10744` / `893` / `11637` |
+| `payment_method` / `payment_last4` | `card` / `3092` |
+| `category` (`category_source`) | `supplies` (`ai`) |
+| `tax_deductible_flag` | `full` |
+| `extraction_cost_cents` | `2` |
+| `ai_extras` | summary, `currency: USD`, `card_brand: visa`, `receipt_number: DSH-884201`, `vendor_phone`, `review_flags: []` |
+| `ai_confidence_per_field` | `1.0` on all thirteen transcribed fields, `0.9` on `tax_deductible_flag` |
+| `receipt_line_items` | **4 rows**, in printed order, with quantities (`2× marking paint 1398`, `1× stakes 4250`, `3× tape 1197`, `1× sledge 3899`) |
+
+**Done when** said: *a receipt photographed on a phone has AI-filled fields without anyone touching a
+terminal.* Met — with the honest caveats below.
+
+**Two things not claimed.** (1) The capture page's automatic post-upload kick was **interrupted** by the
+test closing the browser mid-request; the row correctly stayed at `queued` — retryable, not stuck at
+`running` — and R7's Run-AI route finished it. In production the hourly cron is the third door. (2) The
+cron sweep itself could **not** be exercised locally: `CRON_SECRET` is set in Vercel, not `.env.local`,
+so `/api/cron/receipt-extraction` returns `500 CRON_SECRET not configured` here. Its `attempted: 0`
+check stays for after deploy. And the photograph was *rendered*, not taken with a phone camera — the
+camera path is device-only work already tracked in BLOCKERS.md §C.
+
+**The test receipt was tombstoned, not left in the queue.** A rendered $116.37 receipt sitting in a
+live bookkeeping queue would reach the tax summary, so it carries `deleted_at`,
+`deletion_reason = 'wrong_capture'` and a note saying what it is. The audit trail keeps the evidence
+(visible under "Show deleted"); the daily queue is back to **0 live receipts**. Worth noting the
+constraint found on the way: `receipts_deletion_reason_chk` allows only
+`user_undo | duplicate | wrong_capture`, so a free-text reason is rejected — the note field is where
+prose belongs.
 
 ## Group M — Mobile fit
 
@@ -1933,7 +2012,7 @@ is an owner decision about staffing, not an engineering task.
 | R6 | ✅ shipped | Line items, summary, flags, dedup, low-confidence marks; collapsed a duplicated row type |
 | R7 | ✅ shipped | Run-AI / Run-AI-again button + Needs-review tab; shared needsReview() + 8 tests |
 | R8 | ✅ shipped | /mine route (no user param by design) + list; fixed the post-upload redirect trap R1 created |
-| R9 | ◐ blocked | AI half PROVEN live (all fields exact, graded confidence, ~0.3c). Upload 422s for EVERY account: auth.users is EMPTY and receipts.user_id is NOT NULL → it. Why the table was always empty. Identity decision in BLOCKERS.md §A |
+| R9 | ✅ shipped | Found the blocker that made receipts unusable for the WHOLE FIRM (auth.users empty vs 5 NOT NULL FKs), fixed it per owner decision (seed 582 mirrors ids + ensure_auth_user + 4 creation paths), then proved it: employee upload 200 → extraction done, 2c, every field + 4 line items |
 | M1 | ✅ shipped | Two-tap did NOT reproduce; fixed the measured z-index defect (drawer under the top bar) + close button + hover gating |
 | M2 | ✅ shipped | .admin-dialog shell + Edit Roles converted; red-tested (888px on an 844px screen) |
 | M3 | ✅ shipped | Found 2 defects: 1 uncapped modal + 13 vh caps that lie on mobile Safari, all twinned to dvh |

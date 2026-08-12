@@ -21,6 +21,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import bcrypt from 'bcryptjs';
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { ensureAuthUser } from '@/lib/auth/mirror-auth-user';
 import { validateSlug } from '@/lib/saas/reserved-slugs';
 import { dispatch } from '@/lib/saas/notifications';
 import { registerAllEvents } from '@/lib/saas/notifications/events';
@@ -143,7 +144,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     .maybeSingle();
 
   if (!existingUser) {
-    const { error: userErr } = await supabaseAdmin
+    const { data: createdUser, error: userErr } = await supabaseAdmin
       .from('registered_users')
       .insert({
         email: adminEmail,
@@ -154,13 +155,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         is_approved: true,
         is_banned: false,
         default_org_id: org.id,
-      });
+      })
+      // `id` is needed for the auth.users mirror below — the two tables share it deliberately.
+      .select('id')
+      .single();
     if (userErr) {
       console.error('[signup/complete] user create failed', userErr);
       // Rollback the org
       await supabaseAdmin.from('organizations').delete().eq('id', org.id);
       return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
     }
+    // Mirror into auth.users with the same id — five NOT NULL FKs point there. Non-fatal.
+    await ensureAuthUser(createdUser?.id, adminEmail, adminName);
   } else {
     // Existing user — link them to this new org. They keep their old
     // default_org_id; the new org joins via organization_members below.
