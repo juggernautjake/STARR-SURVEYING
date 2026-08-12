@@ -252,7 +252,7 @@ Also fixed in passing: the tab counts are computed from the returned page, not t
 pre-existing and silent. Left as-is rather than quietly changed, but now stated in a comment — with
 `limit=100`, a queue of 300 pending receipts reports 100.
 
-### R8 — Let people see their own receipts
+### R8 — Let people see their own receipts ✅ SHIPPED 2026-08-11
 
 R1 lets anyone submit. Nobody except a bookkeeper can then see what happened to it — `/admin/receipts`
 is admin/developer/tech_support, correctly, because it is the approval queue. Submitting into a void
@@ -264,6 +264,29 @@ is most of why people stop submitting.
   status chip, and the rejection reason when there is one.
 - **Done when:** a `field_crew` account can see its own submitted receipts and cannot see anyone
   else's.
+
+**Completion note.** `GET /api/admin/receipts/mine` plus a `MyReceipts` list under the capture form.
+
+**The security shape is the design, not a check bolted on.** The route takes **no user parameter** —
+not an optional one, not an admin-only one. Identity comes from the session, resolves to an
+`auth.users.id` server-side, and the query is pinned to it. A route that accepts `?user=` and then
+verifies you may use it is one forgotten check away from handing over somebody else's vendor names,
+totals and card last-fours; a route that cannot express the question is not. Bookkeepers get no
+special case here either — they have `/admin/receipts`, and two doors into the same data is how one
+of them stops being audited.
+
+**A trap R1 created, found while wiring this, and fixed here.** The capture page ended with
+`router.push('/admin/receipts')`. R1 opened capture to everyone but the approval queue is still
+admin/developer/tech_support — so a `field_crew` or `employee` account finishing an upload was
+thrown at a page middleware bounces them off, landing on `/admin/me` **with no confirmation that
+anything had been filed**. The upload looked like it had failed. It now stays put, shows a
+`role="status"` confirmation and refreshes the list below; the two "back to queue" links render only
+for roles that can actually follow them.
+
+Two smaller calls: the job selection is deliberately **kept** after an upload (a stack of receipts is
+nearly always one job, and re-picking each time is the friction that ends with everything filed
+against nothing), and the list renders **nothing at all** until you have filed something, so a
+first-time user sees only the form.
 
 ### R9 — Prove one receipt makes it end to end
 
@@ -585,7 +608,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R5 | ✅ shipped | Picker into the bookkeeper queue; the job-files half was withdrawn (no selector exists there) |
 | R6 | ✅ shipped | Line items, summary, flags, dedup, low-confidence marks; collapsed a duplicated row type |
 | R7 | ✅ shipped | Run-AI / Run-AI-again button + Needs-review tab; shared needsReview() + 8 tests |
-| R8 | ☐ | My-receipts list |
+| R8 | ✅ shipped | /mine route (no user param by design) + list; fixed the post-upload redirect trap R1 created |
 | R9 | ☐ | Drain the backlog, record the numbers |
 | M1 | ☐ | One-tap sidebar — diagnose first |
 | M2 | ☐ | Dialog primitive + role assignment |

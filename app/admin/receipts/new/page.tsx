@@ -27,7 +27,6 @@
 
 'use client';
 
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -35,6 +34,7 @@ import {
   buildBatch, runBatch, progressOf, batchSummary, type BatchProgress,
 } from '@/lib/finance/receipt-batch';
 import JobRefPicker, { type JobRefOption } from '@/app/admin/components/jobs/JobRefPicker';
+import MyReceipts from './MyReceipts';
 
 const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
 const ACCEPTED_TYPES_CAMERA = 'image/*';
@@ -44,7 +44,6 @@ const CAPTURE_JPEG_QUALITY = 0.92;
 type FacingMode = 'environment' | 'user';
 
 export default function NewReceiptPage() {
-  const router = useRouter();
   const { data: session, status } = useSession();
   // Two hidden inputs. The camera one keeps `capture="environment"` so
   // we have a graceful fallback when getUserMedia is unavailable; the
@@ -63,6 +62,18 @@ export default function NewReceiptPage() {
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // R8 — bumped after every successful upload so the "your receipts" list below refetches. That
+  // list IS the confirmation now; see the note on `finishUpload`.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [sentMsg, setSentMsg] = useState<string | null>(null);
+
+  // Only a bookkeeper can open /admin/receipts. Since R1 opened CAPTURE to everyone, the links to
+  // the approval queue became dead ends for most of the people now using this page — middleware
+  // bounces a `field_crew` or `employee` account straight back to /admin/me. So the queue links are
+  // shown to the roles that can actually follow them, and everyone else gets their own receipts
+  // list instead, which is the thing they were really looking for.
+  const roles = (session?.user?.roles ?? []) as string[];
+  const isBookkeeper = roles.some((r) => r === 'admin' || r === 'developer' || r === 'tech_support');
 
   // ── F4 — bulk capture ────────────────────────────────────────────────────────────────────────
   // A separate queue rather than a list-shaped `file`, because the two flows genuinely differ: the
@@ -322,10 +333,36 @@ export default function NewReceiptPage() {
       setBatch,
     );
     setBusy(false);
-    // Only leave the page when there is nothing left to look at. Navigating away on a partial
-    // batch would hide exactly the rows that need a person — which is the failure this whole slice
-    // exists to prevent.
-    if (result.allSucceeded) router.push('/admin/receipts');
+    // Only celebrate when there is nothing left to look at. A partial batch keeps its rows on
+    // screen — hiding exactly the ones that need a person is the failure the batch UI exists to
+    // prevent.
+    if (result.allSucceeded) {
+      finishUpload(`Sent ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}.`);
+    }
+  }
+
+  /**
+   * R8 — what happens after a successful upload.
+   *
+   * It used to be `router.push('/admin/receipts')`, and R1 turned that into a trap: capture is now
+   * open to every member of staff, but the approval queue is not. A `field_crew` or `employee`
+   * account finishing an upload was thrown at a page middleware bounces them off, landing on
+   * /admin/me with no confirmation that anything had been filed at all — the upload looked like it
+   * had failed.
+   *
+   * Staying put is better for the bookkeeper too: receipts arrive in handfuls, and the common next
+   * action after filing one is filing the next.
+   */
+  function finishUpload(message: string) {
+    setSentMsg(message);
+    setFile(null);
+    setBatchFiles([]);
+    setBatch(null);
+    setNotes('');
+    // The job is deliberately KEPT. A stack of receipts is nearly always for the same job, and
+    // re-picking it for each one is the kind of small friction that ends with everything filed
+    // against no job at all.
+    setRefreshKey((k) => k + 1);
   }
 
   /**
@@ -364,7 +401,12 @@ export default function NewReceiptPage() {
       }
       const json = await res.json().catch(() => ({}));
       kickExtraction(json?.receipt?.id ?? json?.id);
-      router.push('/admin/receipts');
+      finishUpload(
+        json?.converted
+          ? 'Sent. Your iPhone photo was converted to JPEG so everyone can open it.'
+          : 'Sent. The AI is reading it now.',
+      );
+      setBusy(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setBusy(false);
@@ -398,7 +440,10 @@ export default function NewReceiptPage() {
             They land in the pending queue for approval.
           </p>
         </div>
-        <Link href="/admin/receipts" style={styles.cancelLink}>← Back to queue</Link>
+        {/* Shown only to the roles middleware will actually let through — see `isBookkeeper`. */}
+        {isBookkeeper ? (
+          <Link href="/admin/receipts" style={styles.cancelLink}>← Back to queue</Link>
+        ) : null}
       </header>
 
       <section style={styles.card}>
@@ -600,9 +645,17 @@ export default function NewReceiptPage() {
         </label>
 
         {error && <p role="alert" style={styles.error}>{error}</p>}
+        {/* R8 — the confirmation that replaced the redirect. `role="status"` so a screen reader
+            announces it: the page no longer navigates, so nothing else signals that the upload
+            worked. */}
+        {sentMsg && !error ? (
+          <p role="status" style={styles.sent}>✓ {sentMsg}</p>
+        ) : null}
 
         <div style={styles.actions}>
-          <Link href="/admin/receipts" style={styles.cancelBtn}>Cancel</Link>
+          {isBookkeeper ? (
+            <Link href="/admin/receipts" style={styles.cancelBtn}>Cancel</Link>
+          ) : null}
           {/* F4 — one button, two flows. Which one runs is decided by what the person picked, so
               there is no mode to set and get wrong. A finished batch disables it rather than
               re-uploading everything, which would duplicate every receipt that already landed. */}
@@ -627,6 +680,10 @@ export default function NewReceiptPage() {
           })()}
         </div>
       </section>
+
+      {/* R8 — the other half of R1. Renders nothing at all until you have filed something, so a
+          first-time user sees only the capture form. */}
+      <MyReceipts refreshKey={refreshKey} />
     </main>
   );
 }
@@ -937,6 +994,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     fontSize: '0.9rem',
   },
+  sent: { fontSize: '0.9rem', color: '#065F46', margin: 0 },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '0.6rem', marginTop: '0.25rem' },
   cancelBtn: {
     padding: '0.55rem 1rem',
