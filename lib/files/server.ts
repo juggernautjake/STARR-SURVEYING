@@ -18,6 +18,7 @@ import {
 } from './permissions';
 import { sanitizeName, nextAvailableName } from './tree';
 import { buildStoragePath } from './upload';
+import { kindOf } from './kinds';
 
 export interface FileNodeRow {
   id: string;
@@ -343,3 +344,152 @@ export async function collectSubtreeIds(rootId: string): Promise<string[]> {
   }
   return [...all];
 }
+
+// ── F2 (2026-08-11) — SEARCH ───────────────────────────────────────────────────────────────────
+//
+// Owner: *"We should be able to do searches and file format filters and all of that."*
+//
+// There was no search at all. A tree with hundreds of nodes and no search is a filing cabinet with
+// the drawers welded shut, and it was the single largest gap in an otherwise capable explorer.
+//
+// ── WHY THE PERMISSION FILTER CANNOT BE A `WHERE` CLAUSE ────────────────────────────────────────
+//
+// The plan for this slice said the permission filter "must be in the QUERY, not applied after".
+// That instruction was written before reading the permission model, and it is not achievable as
+// stated: access on a node is the MAX of grants matching you on the nearest `custom` ancestor,
+// resolved by walking the chain (see `resolveAccess`). Expressing that as a SQL predicate needs a
+// recursive CTE over an inheritance rule that lives in TypeScript, and re-stating that rule in SQL
+// would create exactly the two-sources-of-truth problem this codebase keeps paying for.
+//
+// The real risk behind the instruction is **leakage**, and leakage is avoidable without SQL: match
+// by name, resolve access with the SAME code path the browse view uses, drop everything you may not
+// view, and — the part that actually matters — **never report a total**. "Showing 3 of 50" is the
+// leak; it tells you 47 files exist that you cannot see. This returns only what you may see, and
+// says only whether it stopped early, which reveals nothing about what was filtered out.
+
+export interface SearchHit extends ListedNode {
+  /** Folder path from the root, e.g. `Shared / Surveys / 2026`. Empty at the root.
+   *  Finding a file and being able to act on it are different things — a hit is only useful if it
+   *  says where it lives. */
+  path: string;
+}
+
+export interface SearchResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+  hits?: SearchHit[];
+  /** True when the NAME match hit its cap before permissions were applied, so there may be more.
+   *  Reported instead of a count, for the reason in the header note. */
+  truncated?: boolean;
+}
+
+/** Name matches to consider before permission filtering. Generous enough that a real search is
+ *  complete, bounded so a two-letter query cannot pull the whole table. */
+const SEARCH_MATCH_CAP = 300;
+
+/**
+ * Search `file_nodes` by name.
+ *
+ * Ancestors are loaded in BREADTH-FIRST PASSES rather than one chain walk per hit: 300 hits would
+ * otherwise be 300 sequential round trips. Trees here are shallow, so this settles in a handful of
+ * queries however many matches there are.
+ */
+export async function searchNodes(
+  term: string,
+  user: FileUser,
+  isAdmin: boolean,
+  opts: { kinds?: string[] } = {},
+): Promise<SearchResult> {
+  const q = term.trim();
+  if (q.length < 2) {
+    // One character matches nearly everything and is never what somebody meant. Saying so beats
+    // returning a wall of results that looks like the search is broken.
+    return { ok: false, status: 400, error: 'Type at least two characters to search.' };
+  }
+  // `%` and `_` are ILIKE wildcards, and a literal underscore is common in filenames — escaping
+  // keeps a search for "site_plan" from also matching "siteXplan".
+  const escaped = q.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+  const { data, error } = await supabaseAdmin
+    .from('file_nodes')
+    .select(NODE_COLS)
+    .is('deleted_at', null)
+    .ilike('name', `%${escaped}%`)
+    .order('node_type', { ascending: true })
+    .order('name', { ascending: true })
+    .limit(SEARCH_MATCH_CAP);
+  if (error) return { ok: false, status: 500, error: error.message };
+
+  const matches = (data ?? []) as FileNodeRow[];
+  if (matches.length === 0) return { ok: true, hits: [], truncated: false };
+
+  // Every ancestor of every match, in passes.
+  const byId = new Map<string, FileNodeRow>();
+  for (const m of matches) byId.set(m.id, m);
+  let frontier = Array.from(
+    new Set(matches.map((m) => m.parent_id).filter((p): p is string => !!p && !byId.has(p))),
+  );
+  while (frontier.length > 0) {
+    const { data: parents } = await supabaseAdmin
+      .from('file_nodes')
+      .select(NODE_COLS)
+      .in('id', frontier);
+    const rows = (parents ?? []) as FileNodeRow[];
+    if (rows.length === 0) break;
+    for (const r of rows) byId.set(r.id, r);
+    frontier = Array.from(
+      new Set(rows.map((r) => r.parent_id).filter((p): p is string => !!p && !byId.has(p))),
+    );
+  }
+
+  // One grants load for every node involved, then each hit resolved through the same chain logic the
+  // browse view uses — so a file cannot be visible in search and invisible in its folder, or the
+  // reverse. Two answers to "may I see this" is how one of them ends up wrong.
+  const grants = await loadGrants(Array.from(byId.keys()));
+  const chainOf = (node: FileNodeRow): FileNodeRow[] => {
+    const chain: FileNodeRow[] = [];
+    let cur: FileNodeRow | undefined = node;
+    const guard = new Set<string>();
+    while (cur && !guard.has(cur.id)) {
+      guard.add(cur.id); // a parent cycle would otherwise hang the request
+      chain.unshift(cur);
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+    return chain;
+  };
+
+  const kinds = opts.kinds && opts.kinds.length > 0 ? new Set(opts.kinds) : null;
+  const hits: SearchHit[] = [];
+  for (const m of matches) {
+    const chain = chainOf(m);
+    const access = resolveAccess(
+      chain.map((n) => toNWG(n, grants.get(n.id) ?? [])),
+      user,
+      isAdmin,
+    );
+    if (!canView(access)) continue;
+    // A kind filter is a question about files, so folders drop out entirely when one is active —
+    // otherwise "show me only PDFs" returns folders, which is not what anybody means by it.
+    if (kinds) {
+      if (m.node_type === 'folder') continue;
+      if (!kinds.has(kindOf(m.mime_type, m.name))) continue;
+    }
+    hits.push({
+      ...m,
+      access,
+      // The chain ends with the hit itself; the path is everything above it.
+      path: chain.slice(0, -1).map((n) => n.name).join(' / '),
+    });
+  }
+
+  return { ok: true, hits, truncated: matches.length >= SEARCH_MATCH_CAP };
+}
+
+// ── F3 — format filters ────────────────────────────────────────────────────────────────────────
+//
+// Defined in `./kinds`, which has NO imports, because the explorer is a client component and
+// needs the same classifier. Importing it from THIS file would pull `supabaseAdmin` — and the
+// service-role key — into the client graph. Re-exported here so server-side callers keep one
+// import.
+export { kindOf, FILE_KINDS, type FileKind } from './kinds';

@@ -12,6 +12,9 @@
 // viewer (F6) and permissions dialog (F7) layer on next.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+// From `kinds`, NOT `server` — server.ts imports supabaseAdmin, which holds the service-role key
+// and must never be reachable from a client component's import graph.
+import { FILE_KINDS, kindOf } from '@/lib/files/kinds';
 import {
   Folder,
   FileText,
@@ -32,6 +35,7 @@ import {
   Users,
   Plus,
   Check,
+  Search,
 } from 'lucide-react';
 
 type AccessLevel = 'none' | 'view' | 'download' | 'edit' | 'manage';
@@ -53,6 +57,11 @@ interface FileNode {
 interface Crumb {
   id: string;
   name: string;
+}
+/** F2 — a search result is a node plus where it lives. Finding a file and being able to act on it
+ *  are different things, and the path is what closes that gap. */
+interface SearchHit extends FileNode {
+  path: string;
 }
 
 interface Grant {
@@ -180,6 +189,64 @@ export default function FilesPage(): React.ReactElement {
     load(parentId);
     setSelected(new Set()); // selection is per-folder
   }, [parentId, load]);
+
+  // ── F2/F3 — search + format filters ──────────────────────────────────────────────────────────
+  //
+  // Search is a MODE, not a filter on the current folder: it spans the whole tree plus the mounts,
+  // so "where is that file" is answerable without knowing where to look. `searchHits === null`
+  // means browse; an array means search, including an empty array, which is a real answer and must
+  // not fall back to showing the folder.
+  const [query, setQuery] = useState('');
+  const [kinds, setKinds] = useState<string[]>([]);
+  const [searchHits, setSearchHits] = useState<SearchHit[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchNote, setSearchNote] = useState<string | null>(null);
+
+  useEffect(() => {
+    const term = query.trim();
+    // Under two characters is browse mode, not an empty search — clearing the box must put the
+    // folder back rather than leaving a blank results list.
+    if (term.length < 2) {
+      setSearchHits(null);
+      setSearchNote(null);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const t = setTimeout(() => {
+      void (async () => {
+        try {
+          const p = new URLSearchParams({ q: term });
+          for (const k of kinds) p.append('kind', k);
+          const res = await fetch(`/api/admin/files/search?${p.toString()}`);
+          const data = await res.json();
+          if (cancelled) return;
+          if (!res.ok) { setError(data?.error ?? 'Search failed.'); setSearchHits([]); return; }
+          setSearchHits(data.hits ?? []);
+          // Said plainly when the result is incomplete. A truncated list that looks complete is how
+          // somebody concludes a file does not exist.
+          setSearchNote(
+            data.truncated || data.mount_capped
+              ? 'Showing the closest matches — narrow the search if what you want is not here.'
+              : null,
+          );
+        } catch {
+          if (!cancelled) { setSearchHits([]); setSearchNote(null); }
+        } finally {
+          if (!cancelled) setSearching(false);
+        }
+      })();
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query, kinds]);
+
+  /** What the table shows: search results when searching, otherwise the current folder. Kind
+   *  filters apply to browsing too, so the control means the same thing in both modes. */
+  const visibleNodes: FileNode[] = searchHits
+    ?? (kinds.length === 0
+      ? nodes
+      : nodes.filter((n) => n.node_type === 'file' && kinds.includes(kindOf(n.mime_type, n.name))));
 
   const canWriteHere = canEdit(parentAccess);
 
@@ -631,6 +698,61 @@ export default function FilesPage(): React.ReactElement {
         </div>
       </header>
 
+      {/* F2/F3 — search + format filters. Above the breadcrumb because search REPLACES the folder
+          view: it spans the whole tree and the mounts, so it is not a filter on where you are. */}
+      <div className="fx__search">
+        <div className="fx__search-box">
+          <Search size={15} aria-hidden />
+          <input
+            type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search all files and folders…"
+            aria-label="Search files"
+            data-testid="fx-search"
+          />
+          {query ? (
+            <button
+              type="button"
+              className="fx__icon-btn"
+              onClick={() => setQuery('')}
+              aria-label="Clear search"
+            >
+              <X size={14} />
+            </button>
+          ) : null}
+        </div>
+        <div className="fx__kinds" role="group" aria-label="Filter by file type">
+          {FILE_KINDS.map((k) => {
+            const on = kinds.includes(k.id);
+            return (
+              <button
+                key={k.id}
+                type="button"
+                className={`fx__kind${on ? ' fx__kind--on' : ''}`}
+                aria-pressed={on}
+                onClick={() =>
+                  setKinds((cur) => (on ? cur.filter((c) => c !== k.id) : [...cur, k.id]))
+                }
+              >
+                {k.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {searchHits !== null ? (
+        <p className="fx__search-status" role="status">
+          {searching
+            ? 'Searching…'
+            : searchHits.length === 0
+              ? `Nothing matches “${query.trim()}”.`
+              : `${searchHits.length} ${searchHits.length === 1 ? 'match' : 'matches'}`}
+          {searchNote ? ` — ${searchNote}` : ''}
+        </p>
+      ) : null}
+
       {/* Breadcrumb (also a drop target to move items up a level) */}
       <nav className="fx__crumbs" aria-label="Breadcrumb">
         <button
@@ -703,7 +825,7 @@ export default function FilesPage(): React.ReactElement {
 
       {loading ? (
         <p className="fx__empty">Loading…</p>
-      ) : nodes.length === 0 ? (
+      ) : visibleNodes.length === 0 ? (
         <div className="fx__empty" data-testid="fx-empty">
           <Folder size={40} aria-hidden />
           <p>This folder is empty.</p>
@@ -716,7 +838,7 @@ export default function FilesPage(): React.ReactElement {
               <input
                 type="checkbox"
                 checked={allSelected}
-                onChange={() => setSelected(allSelected ? new Set() : new Set(nodes.map((n) => n.id)))}
+                onChange={() => setSelected(allSelected ? new Set() : new Set(visibleNodes.map((n) => n.id)))}
                 aria-label="Select all"
                 data-testid="fx-select-all"
               />
@@ -726,7 +848,7 @@ export default function FilesPage(): React.ReactElement {
             <span className="fx__col fx__col--meta">Modified</span>
             <span />
           </li>
-          {nodes.map((n) => {
+          {visibleNodes.map((n) => {
             const isFolder = n.node_type === 'folder';
             const Icon = isFolder ? Folder : n.mime_type?.startsWith('image/') ? FileImage : FileText;
             const isDropTarget = isFolder && canEdit(n.access);
@@ -758,7 +880,15 @@ export default function FilesPage(): React.ReactElement {
                   title={isFolder ? 'Open folder' : isPreviewable(n) ? 'Preview' : 'Download'}
                 >
                   <Icon size={18} className={isFolder ? 'fx__icon fx__icon--folder' : 'fx__icon'} aria-hidden />
-                  <span className="fx__name-text">{n.name}</span>
+                  <span className="fx__name-text">
+                    {n.name}
+                    {/* F2 — where the hit lives. Only in search results: in browse mode you are
+                        already standing in the folder, and repeating it would be noise. A result
+                        you cannot locate is only half an answer. */}
+                    {searchHits !== null && 'path' in n && (n as SearchHit).path ? (
+                      <span className="fx__hit-path">{(n as SearchHit).path}</span>
+                    ) : null}
+                  </span>
                 </button>
                 <span className="fx__meta">{isFolder ? 'Folder' : formatSize(n.size_bytes)}</span>
                 <span className="fx__meta fx__meta--date">{formatDate(n.updated_at)}</span>
@@ -1051,7 +1181,9 @@ const styles = `
   .fx__check { display: inline-flex; align-items: center; }
   .fx__check input { width: 16px; height: 16px; cursor: pointer; accent-color: #1D3095; }
   .fx__name { display: flex; align-items: center; gap: 0.6rem; min-width: 0; background: none; border: none; cursor: pointer; font: inherit; color: #152050; text-align: left; padding: 0.2rem 0; }
-  .fx__name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+  /* F2 — was nowrap+ellipsis on one line. It now wraps a second line (the search hit path),
+     so the truncation moved to the first line only via the child rule below. */
+  .fx__name-text { min-width: 0; overflow: hidden; font-weight: 500; }
   .fx__name:hover .fx__name-text { color: #1D3095; text-decoration: underline; }
   .fx__icon { color: #6b7280; flex-shrink: 0; }
   .fx__icon--folder { color: #1D3095; }
@@ -1117,5 +1249,89 @@ const styles = `
   @media (max-width: 640px) {
     .fx__row { grid-template-columns: 2.2rem 1fr auto; }
     .fx__meta, .fx__col--meta { display: none; }
+  }
+
+  /* ── F2/F3 — search + format filters ─────────────────────────────────────────────────────── */
+
+  .fx__search {
+    display: flex;
+    flex-wrap: wrap;          /* the chips drop under the box on a phone rather than squeezing it */
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.75rem;
+    min-width: 0;
+  }
+
+  .fx__search-box {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex: 1 1 240px;
+    min-width: 0;             /* without this the input's intrinsic width pushes the row wide */
+    min-height: 44px;
+    padding: 0 0.7rem;
+    border: 1px solid var(--theme-border, #E5E7EB);
+    border-radius: 8px;
+    background: var(--theme-bg-surface, #FFF);
+    color: var(--theme-fg-tertiary, #6B7280);
+  }
+
+  .fx__search-box input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--theme-fg-primary, #1F2937);
+    font-size: 16px;          /* iOS focus-zoom floor — below this Safari zooms the page on tap */
+  }
+
+  /* One scrolling row, not a wrapping block: eight chips wrapping to three lines pushes the file
+   * list off the screen on a phone, and the list is what people came for. Same reformat-vs-scroll
+   * call as the marketing tabs. */
+  .fx__kinds {
+    display: flex;
+    gap: 0.3rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    padding-bottom: 0.2rem;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .fx__kind {
+    flex-shrink: 0;
+    min-height: 34px;
+    padding: 0 0.65rem;
+    border: 1px solid var(--theme-border, #E5E7EB);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--theme-fg-secondary, #4B5563);
+    font-size: 0.78rem;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .fx__kind--on {
+    background: var(--color-brand-navy, #1E3A5F);
+    border-color: var(--color-brand-navy, #1E3A5F);
+    color: var(--color-text-on-brand, #FFF);
+  }
+
+  .fx__search-status {
+    margin: 0 0 0.6rem;
+    font-size: 0.8rem;
+    color: var(--theme-fg-tertiary, #6B7280);
+    overflow-wrap: anywhere;
+  }
+
+  /* Where a hit lives. Shown only in search results — in browse mode you already know. */
+  .fx__hit-path {
+    display: block;
+    font-size: 0.72rem;
+    color: var(--theme-fg-tertiary, #6B7280);
+    overflow-wrap: anywhere;
   }
 `;

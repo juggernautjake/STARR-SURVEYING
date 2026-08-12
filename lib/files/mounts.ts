@@ -9,6 +9,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { isImageMime, isPdfMime } from './upload';
+import { STARR_DRAWING_MIME } from './kinds';
 import type { AccessLevel, FileUser } from './permissions';
 
 export const MOUNT_PREFIX = 'mnt:';
@@ -192,9 +193,14 @@ export async function listMount(mountId: string, user: FileUser, isAdmin: boolea
         ...file(
           r.id,
           `${r.name?.trim() || 'Drawing'} (${r.feature_count} features, ${r.layer_count} layers)`,
-          // The mime the download actually serves — see resolveMountFile. Naming it here keeps the
-          // format filter (F3) and the viewer honest about what this is.
-          'application/json',
+          // A product-specific media type, NOT `application/json`.
+          //
+          // The display name deliberately carries no extension, so `kindOf`'s extension fallback
+          // lands on "layers)" and files a drawing under "other" — caught by filtering a real search
+          // for `kind=cad` and getting zero hits over three drawings that were plainly there. The
+          // DOWNLOAD still serves `application/json`, which is what the bytes are; this is only how
+          // the file is classified in the explorer.
+          STARR_DRAWING_MIME,
           null,
           r.updated_at,
         ),

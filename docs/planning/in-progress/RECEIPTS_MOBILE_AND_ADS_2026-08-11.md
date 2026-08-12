@@ -971,7 +971,7 @@ Also observed while verifying, and useful for F4: the root already contains **Pe
 **Shared** folders at `manage`. The scoping exists structurally — F4's job is making a folder *say*
 which it is, not inventing the concept.
 
-### F2 — Search
+### F2 — Search ✅ SHIPPED 2026-08-11
 
 The largest gap, and the one that makes a file explorer usable at all: there is **no search input**.
 A tree with hundreds of nodes and no search is a filing cabinet with the drawers welded shut.
@@ -984,7 +984,52 @@ A tree with hundreds of nodes and no search is a filing cabinet with the drawers
 - Results show the containing folder, and clicking one navigates there with the file selected —
   "found it" and "can act on it" are different things.
 
-### F3 — Format filters
+**Completion note (F2 + F3 shipped together — the filter is useless without the search).**
+
+`searchNodes` in `lib/files/server.ts`, `GET /api/admin/files/search`, and a search box + eight
+format chips in the explorer.
+
+**This slice's own instruction was wrong, and it is corrected rather than quietly ignored.** It said
+the permission filter "must be in the QUERY, not applied after". That was written before reading the
+permission model and is not achievable as stated: access is the MAX of grants matching you on the
+nearest `custom` ancestor, resolved by walking the chain in TypeScript. Expressing it as SQL needs a
+recursive CTE re-stating an inheritance rule that lives in code — the two-sources-of-truth problem
+this codebase keeps paying for.
+
+The real risk behind that instruction is **leakage**, and leakage is avoidable without SQL: match by
+name, resolve access through the *same* code path the browse view uses, drop what you may not view,
+and **never report a total**. "Showing 3 of 50" is the leak — it tells you 47 files exist that you
+cannot see. The response carries `truncated` instead, which says only "there may be more".
+
+Ancestors load in breadth-first passes rather than one chain walk per hit; 300 matches would
+otherwise be 300 sequential round trips.
+
+**It searches the mounts too**, which is most of the point: half the firm's files are not in
+`file_nodes` at all. A search covering only `file_nodes` would answer "no such file" about a receipt
+sitting right there in the tree. Mount search reuses `listMount` rather than adding a query path per
+source, because that is where each source's role gate lives — and reports `mount_capped` rather than
+implying it looked at everything.
+
+**Two bugs the verification caught, both of which would have shipped:**
+
+1. **`kindOf` and `FILE_KINDS` were first written in `server.ts`** and imported by the explorer — a
+   **client component**. That would have pulled `supabaseAdmin`, and the SERVICE-ROLE KEY, into the
+   client import graph. Next would very likely have failed the build, but "the bundler probably
+   catches it" is not the standard for a credential. They now live in `lib/files/kinds.ts` with no
+   imports at all, used by both sides.
+2. **Filtering `kind=cad` returned zero hits over three drawings that were plainly there.** Mounted
+   drawings render as `26075 (408 features, 6 layers)` — no extension — so `kindOf`'s fallback landed
+   on `layers)` and filed them under "other". Fixed with a product media type,
+   `application/vnd.starr.drawing+json`, used for classification only; the download still serves
+   `application/json`, which is what the bytes are. Found by running the filter against real data
+   rather than trusting the classifier.
+
+**Verified against production data:** a two-character minimum is enforced with a readable message,
+`q=26` returns 29 hits across `file_nodes` *and* the Research Documents and Drawings mounts each
+showing its path, `kind=image` narrows to 26, `kind=cad` returns the two matching drawings, the UI
+reports "29 matches", and the page does not scroll sideways at 360px.
+
+### F3 — Format filters ✅ SHIPPED 2026-08-11 (with F2 — a filter is useless without the search)
 
 Filter by kind (images, PDFs, documents, CAD, video, audio) on both the browse and search views.
 Derived from `mime_type`, with a fallback to the extension for mounted rows whose mime is inferred.
@@ -1065,8 +1110,8 @@ a bug is silent and expensive.
 | N3 | ☐ | Read once, read everywhere, in real time |
 | N4 | ☐ | Badge verified on real iOS + Android PWAs |
 | F1 | ✅ shipped | Drawings mounted; JSONB not a bucket, so the download is synthesized as .starr and open_href goes to CAD |
-| F2 | ☐ | Search (none exists today) — permission filter in the QUERY |
-| F3 | ☐ | Format filters |
+| F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |
+| F3 | ✅ shipped | 8 kind chips; caught drawings mis-filed as other, fixed with a product media type |
 | F4 | ☐ | Show whether a folder is personal / company / role |
 | F5 | ☐ | One attach-browse component, adopted feature by feature |
 | F6 | ☐ | /admin/files at phone width |
