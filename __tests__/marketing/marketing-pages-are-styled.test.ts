@@ -39,6 +39,8 @@ const PAGES: Array<{ file: string; prefix: string }> = [
   // It is a component rather than a tab body, and that distinction means nothing to the defect this
   // guard exists for: a class name nothing defines renders as unstyled flow content either way.
   { file: 'app/admin/marketing/_tabs/TrendChart.tsx', prefix: 'mk' },
+  // A7 (2026-08-12) — the people panel, same reasoning as TrendChart.
+  { file: 'app/admin/marketing/_tabs/PeoplePanel.tsx', prefix: 'mk' },
 ];
 
 describe('every marketing page loads a stylesheet', () => {

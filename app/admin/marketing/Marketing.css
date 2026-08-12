@@ -1040,3 +1040,55 @@
   .mk__chart__svg,
   .mk__chart__yaxis { height: 104px; }
 }
+
+/* ── A7 · who was behind the click ─────────────────────────────────────────────────────────────
+ *
+ * The confidence grade is a STATUS, not a category, so it wears the repo's status tokens: a named
+ * ad click is the good case, an unexplained enquiry is the one worth chasing. Colour is never the
+ * only channel — each chip carries its own words ("Ad click", "Unknown"), because a grade a
+ * colourblind reader cannot distinguish is a grade that is not there.
+ */
+.mk__grade {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mk__grade--click     { border-color: var(--theme-success, #15803D); color: var(--theme-success, #15803D); }
+.mk__grade--inferred  { border-color: var(--theme-info, #1D4ED8);    color: var(--theme-info, #1D4ED8); }
+.mk__grade--declared  { border-color: var(--theme-warning, #B45309); color: var(--theme-warning, #B45309); }
+.mk__grade--anonymous { color: var(--theme-fg-muted, #6B7280); }
+
+/* The expanded row. A definition list rather than more table columns: a gclid is ~90 characters and
+ * would give the whole table a horizontal scroll to show one field nobody reads at a glance. */
+.mk__detail {
+  display: grid;
+  grid-template-columns: minmax(90px, max-content) 1fr;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  background: var(--theme-bg-subtle, #F9FAFB);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+.mk__detail dt { font-weight: 600; color: var(--theme-fg-secondary, #4B5563); }
+.mk__detail dd { margin: 0; color: var(--theme-fg-primary, #111827); }
+
+/* Click ids and landing URLs are long, unbroken and full of punctuation. `anywhere` lets them wrap
+ * mid-token; without it one gclid sets the grid's minimum width and the panel scrolls sideways on a
+ * phone — the exact failure M4 exists to prevent. */
+.mk__detail__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+/* On a phone the label column would squeeze "Referred by" onto three lines. Stack instead. */
+@media (max-width: 520px) {
+  .mk__detail { grid-template-columns: 1fr; gap: 2px; }
+  .mk__detail dt { margin-top: 8px; }
+}

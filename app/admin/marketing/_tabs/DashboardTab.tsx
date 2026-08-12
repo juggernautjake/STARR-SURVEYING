@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { DateRange } from '@/lib/marketing/date-range';
 import { METRIC_DIRECTION, deltaOf, type GoodDirection } from '@/lib/marketing/compare';
 import TrendChart from './TrendChart';
+import PeoplePanel from './PeoplePanel';
 import {
   READ_INTERVAL_MS, describeFreshness, isLiveRange, shouldImport,
 } from '@/lib/marketing/live-refresh';
@@ -441,6 +442,10 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
           </div>
         </section>
       )}
+
+      {/* A7 — from a count to a person. Directly under the campaign table because that table says
+          what the money bought and this says who it bought. */}
+      {data && <PeoplePanel range={range} />}
 
       {/* Everything below is only as good as this. */}
       {data && (

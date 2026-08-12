@@ -1001,6 +1001,80 @@ The banner renders **nothing when everything works**. A green "all good" bar on 
 visits daily is furniture within a week; the states worth interrupting for are the ones with an
 action attached.
 
+**Completion note (2026-08-12). Done — the inventory came first, and it changed the build.**
+
+### What is actually captured (production, 11 real leads)
+
+| | count |
+|---|---|
+| leads with a Google click id | **5** (`gclid`; the 2 `gbraid` rows also carry a gclid, so no overlap is lost) |
+| leads with **any** UTM parameter | **0** |
+| leads with landing page + referrer | 5 |
+| leads who answered "how did you hear about us" | 4 |
+| jobs linked back to a lead (`origin_lead_id`) | **0 of 2** |
+| call-tracking tables in the database | **none exist** |
+
+So the capture chain — landing → `localStorage` → hidden form field → `leads` row — **genuinely
+works in production**. This is not a viewer over empty columns, which is what the slice warned
+against.
+
+### The finding that changed the work: the campaign was there all along
+
+**Not one lead has a UTM parameter**, and that is not a capture bug. The account **auto-tags** rather
+than manually tagging, so landing URLs arrive as:
+
+```
+/contact?gad_source=1&gad_campaignid=23598795033&gclid=CjwKCAjw4dDTBhAq…
+```
+
+The dashboard's campaign breakdown keys on `utm_campaign`, so it showed **"(no campaign)" for every
+lead we have** — while the campaign id sat in the landing page string, unparsed. `campaignIdFromLanding`
+now reads it, and campaign **23598795033** appears against five real people on the page.
+
+It is parsed as a query string rather than regexed out of the URL (a nested `redirect=` carrying its
+own query must not donate its campaign id), and a non-numeric value is rejected — a campaign *name*
+returned as an id would silently fail to join against `ad_spend_daily.campaign_id` for a reason
+invisible in the UI.
+
+### Confidence is graded, because "traceable" is not a boolean
+
+`click` (a click id is stored — the only grade that can name the ad) · `inferred` (came from Google,
+no click id) · `declared` (the customer's own answer — their word, not a measurement) · `anonymous`.
+
+**Never invent an identity** was the slice's rule and it is enforced by the shape of the code: an
+unnamed lead shows as their email, then their phone, then *"Anonymous enquiry"* — never "Unknown
+Customer", which reads like a record we hold rather than one we do not. Live result: **45% traceable
+(5 of 11), 1 self-reported, 5 unexplained.**
+
+### Calls: named as not covered, because that is the honest answer
+
+A phone call carries no click id. The panel says so in an amber note rather than letting an absence
+imply coverage — without it, "45% of leads traceable" reads as "45% of the business", and at this
+firm most enquiries arrive by phone. **Tying calls to ads needs a call-tracking number: a paid
+service and an owner decision, not an engineering task.** That is where this item stops on purpose.
+
+### Privacy
+
+`GET /api/admin/marketing/people` is admin-gated **in the route** — verified live: a non-admin
+session gets **403**. Nothing is logged, not even a count. `force-dynamic`, no cache headers: a
+cached response to an admin request is a response that can be served to the next request.
+
+Anonymous leads are **included** in the list, not filtered out. Hiding them would make the list agree
+with the traceable count and quietly conceal the people the business cannot explain — who are exactly
+the ones worth looking at.
+
+### Two gaps recorded, not closed
+
+- **0 of 2 jobs carry `origin_lead_id`**, so the funnel cannot attribute a won job to the ad that
+  bought it. The column exists and nothing populates it; that is a lead→job wiring task of its own,
+  not part of a viewer.
+- The dashboard's campaign *slice* still reads `utm_campaign` directly. `campaignIdFromLanding` is
+  the fix, and applying it there touches the funnel arithmetic, so it is left to be done deliberately
+  rather than in passing.
+
+15 tests on the identity logic; verified in a browser against the real 11 leads, at 1180px and 360px,
+with a 90-character gclid expanded (`overflowX = 0` in both).
+
 ## Group E — What an employee can actually do
 
 Added 2026-08-11, same session:
@@ -1230,7 +1304,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
   say so in this doc rather than reporting the feature working.
 - **Done when:** confirmed on both platforms, or the platform limitation is documented here.
 
-### A7 — Who was behind the click
+### A7 — Who was behind the click ✅ SHIPPED 2026-08-12
 
 Added 2026-08-11 (same session), owner:
 
@@ -1635,7 +1709,7 @@ is an owner decision about staffing, not an engineering task.
 | A4 | ✅ shipped | Two clocks at two rates (read 1 min / import 15 min); stamp reports the IMPORT time and is never blank; closed ranges say final, or say nothing was imported |
 | A5 | ✅ shipped | Small multiples (no dual axis), theme-accent marks validated across all 12 skins, KPI deltas that refuse to compare a part-month with a whole one, sortable table. Found 2 theming bugs incl. a SITEWIDE unthemed-heading rule |
 | A6 | ✅ shipped | ANSWER: token IS approved. Found v18 API retired (every call dead) + a wrong LOGIN_CUSTOMER_ID that 403s a working connection |
-| A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
+| A7 | ✅ shipped | Inventory first: 5/11 leads click-traceable, ZERO UTMs (account auto-tags — campaign id was in the landing URL, unparsed). Graded confidence + admin-gated drill-down (403 verified). Calls named as not covered: owner decision |
 | E1 | ✅ shipped | WORK_ROLES has no employee, so /admin/my-hours was hidden from them. 4 registry + 5 middleware gates widened; 23-assertion guard |
 | E2 | ✅ shipped | seed 581 + /admin/role-requests; approving calls the ONE existing grant path; verified end to end incl. 403 on self-approve |
 | N1 | ✅ shipped | thread_id had an FK to admin_discussion_threads — EVERY message notification insert had been failing 23503 into a silent catch |
