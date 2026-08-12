@@ -2,6 +2,7 @@
 // Admin user management: update roles, ban/unban, delete individual users
 import { auth, isAdmin, ALL_ROLES } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
+import { applyRoles } from '@/lib/admin/apply-roles';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   WORKER_CLASSIFICATIONS,
@@ -32,25 +33,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   if (action === 'update_roles') {
-    const validRoleSet = new Set(ALL_ROLES as readonly string[]);
-    if (!Array.isArray(roles) || roles.length === 0) {
-      return NextResponse.json({ error: 'Roles must be a non-empty array' }, { status: 400 });
+    // E2 — the validation and the write moved to `lib/admin/apply-roles.ts`, unchanged in
+    // behaviour. Approving a role REQUEST needs the same effect, and writing it a second time in
+    // that handler is how one of the two writers of access control stops being audited. Same rule,
+    // one place, two callers.
+    const result = await applyRoles(id, roles);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
     }
-    if (!roles.every((r: string) => validRoleSet.has(r))) {
-      return NextResponse.json({ error: `Invalid role(s). Must be one of: ${ALL_ROLES.join(', ')}` }, { status: 400 });
-    }
-    const finalRoles = roles.includes('employee') ? roles : ['employee', ...roles];
-
-    const { error } = await supabaseAdmin
-      .from('registered_users')
-      .update({ roles: finalRoles, updated_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) {
-      console.error('Error updating roles:', error);
-      return NextResponse.json({ error: 'Failed to update roles' }, { status: 500 });
-    }
-
     return NextResponse.json({ success: true, message: `Roles updated for ${user.name}` });
   }
 

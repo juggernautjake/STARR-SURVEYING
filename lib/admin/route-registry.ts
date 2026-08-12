@@ -152,6 +152,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/time-off',        label: 'Time Off',        workspace: 'hub', iconName: 'Palmtree',       description: 'Request time off + view your PTO balance. Managers see the approval queue here too.', internalOnly: true, keywords: ['pto', 'vacation', 'holiday', 'leave'] },
   { href: '/admin/my-pay',           label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
   { href: '/admin/my-notes',         label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
+  // E2 (2026-08-11) — no `roles` key, so everyone at the firm sees it. That is the point: the
+  // people who need to ASK for a role are by definition the ones who do not have it, and gating
+  // the request page on roles would be a locked door with the key inside.
+  { href: '/admin/role-requests',   label: 'Access Requests', workspace: 'hub', iconName: 'ShieldQuestion', description: 'Ask for the roles your work needs. Admins decide requests here too.', internalOnly: true, keywords: ['role', 'roles', 'access', 'permission', 'permissions', 'request', 'grant', 'cad access', 'promote'] },
   { href: '/admin/my-files',        label: 'My Files',        workspace: 'hub', iconName: 'Folder',         description: 'Your file uploads.' },
   // 'My Profile' pointed at /admin/me?tab=profile and was folded into 'Profile & Settings' on
   // 2026-08-04. One page, one entry; the old label survives as a keyword so searching it still

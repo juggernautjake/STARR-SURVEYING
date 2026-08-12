@@ -788,7 +788,7 @@ future widening cannot quietly go too far.
 **Red-tested:** removing `employee` from `/admin/my-hours` again fails with
 *"hidden from the nav for a plain employee"*, naming the route. 23 assertions.
 
-### E2 — Ask for a role, without a phone call
+### E2 — Ask for a role, without a phone call ✅ SHIPPED 2026-08-11
 
 No role-request feature exists today (grepped: no `role_request` table, route or UI). Roles are
 granted only by an admin on `/admin/employees`, which means a new drawer who needs CAD access has no
@@ -806,6 +806,40 @@ in-product way to say so.
   a test account, not a real employee.
 - **Done when:** a `field_crew` account can request `drawer`, an admin sees it in a queue, and
   approving it grants the role and notifies the requester.
+
+**Completion note.** Seed 581 (`role_requests`), `/admin/role-requests` (one page, both audiences),
+and two API routes.
+
+**Approving calls the ONE existing grant path.** Writing the `registered_users.roles` update inside
+the approve handler would have been three lines. Instead the rule was extracted to
+`lib/admin/apply-roles.ts` and `/admin/users` now calls it too, unchanged in behaviour. Two writers
+of access control is how one of them stops being audited, and the drift is invisible — both work,
+both look right, and the day somebody adds a validation rule to one, the other becomes the hole.
+Three lines is not worth that.
+
+**The request stores the roles ASKED FOR, not the resulting set**, and approval *adds* them. Between
+asking and approving, an admin may have granted something else through the normal path; replaying a
+stored final list would silently revoke it, and an approval that takes access away is the least
+expected outcome there is.
+
+Smaller decisions worth keeping: the page is registered with **no `roles` key**, because the people
+who need to ask for a role are by definition the ones who do not have it — gating the request page
+would be a locked door with the key inside. A failed grant leaves the request **pending** rather
+than marking it approved, since telling somebody they have access they do not have is the worst
+available outcome. Withdrawing your own request needs no admin. A partial unique index stops a
+double-tap producing two identical pending rows.
+
+**Verified end to end against production**, not just typechecked: an employee's request returns 201
+and appears in the admin queue; the employee's own `GET` returns `queue: null` (they cannot see other
+people's stated reasons); an employee approving their own request is refused **403**; an admin
+approving returns 200 and the role lands. The test account was then restored to `["employee"]` and
+confirmed.
+
+**One thing that would have shipped broken.** After applying seed 581, PostgREST returned **404** for
+the new table — the schema cache had not picked it up, so every one of these routes would have
+failed in production while the table plainly existed in the database. Fixed with
+`NOTIFY pgrst, 'reload schema'`. This is the same trap R4 checked for, and it caught something real
+this time: **applying a seed is not the same as the API being able to see it.**
 
 ## Group N — One notification state, everywhere
 
@@ -1280,7 +1314,7 @@ is an owner decision about staffing, not an engineering task.
 | A6 | ☐ | Google Ads access-level probe |
 | A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
 | E1 | ✅ shipped | WORK_ROLES has no employee, so /admin/my-hours was hidden from them. 4 registry + 5 middleware gates widened; 23-assertion guard |
-| E2 | ☐ | Role-change / add-role requests |
+| E2 | ✅ shipped | seed 581 + /admin/role-requests; approving calls the ONE existing grant path; verified end to end incl. 403 on self-approve |
 | N1 | ☐ | Messages create notifications |
 | N2 | ☐ | Bell notification opens the conversation |
 | N3 | ☐ | Read once, read everywhere, in real time |
