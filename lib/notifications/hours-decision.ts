@@ -12,6 +12,16 @@ export interface TimeLogRow {
   user_email?: string | null;
   log_date?: string | null;
   hours?: number | null;
+  /**
+   * Why it was turned down.
+   *
+   * The reason has always been required by the approval UI, stored on the row, and rendered back to
+   * the admin — and was never sent to the person it was about, who got *"8h (2026-08-04) has been
+   * rejected."* and no way to find out why except to ask. `buildHoursAdjustmentNotification` below
+   * has carried its reason since it was written; this is the same courtesy on the path where it
+   * matters more, because a rejection is the one an employee has to act on.
+   */
+  rejection_reason?: string | null;
 }
 
 export interface HoursDecisionNotification {
@@ -34,14 +44,21 @@ export function buildHoursDecisionNotifications(
   rows: readonly TimeLogRow[],
   approved: boolean,
 ): HoursDecisionNotification[] {
-  const byUser = new Map<string, { totalHours: number; dates: Set<string>; count: number }>();
+  const byUser = new Map<string, {
+    totalHours: number; dates: Set<string>; count: number; reasons: Set<string>;
+  }>();
 
   for (const row of rows) {
     const email = row.user_email?.trim();
     if (!email) continue;
-    const entry = byUser.get(email) ?? { totalHours: 0, dates: new Set<string>(), count: 0 };
+    const entry = byUser.get(email)
+      ?? { totalHours: 0, dates: new Set<string>(), count: 0, reasons: new Set<string>() };
     entry.totalHours += typeof row.hours === 'number' && Number.isFinite(row.hours) ? row.hours : 0;
     if (row.log_date) entry.dates.add(row.log_date);
+    // A Set: a bulk rejection of a whole week is nearly always one reason repeated seven times, and
+    // printing it seven times would bury it.
+    const reason = row.rejection_reason?.trim();
+    if (reason) entry.reasons.add(reason);
     entry.count += 1;
     byUser.set(email, entry);
   }
@@ -57,11 +74,22 @@ export function buildHoursDecisionNotifications(
     const span = agg.dates.size === 1
       ? [...agg.dates][0]
       : `${agg.count} ${agg.count === 1 ? 'entry' : 'entries'}`;
+    // Only on a rejection. "Approved. Reason: …" would be strange, and the approve path does not
+    // collect one.
+    const reasons = approved ? [] : [...agg.reasons];
+    const why = reasons.length === 0
+      ? ''
+      : reasons.length === 1
+        ? ` Reason: ${reasons[0]}`
+        // Several distinct reasons across one bulk rejection. Listing them all is right — each one
+        // belongs to a different day, and the employee has to fix each of them.
+        : ` Reasons: ${reasons.join(' · ')}`;
+
     out.push({
       user_email,
       type: 'approval',
       title: `${icon} Hours ${statusTitle}`,
-      body: `${hoursLabel} (${span}) ${agg.count === 1 ? 'has' : 'have'} been ${status}.`,
+      body: `${hoursLabel} (${span}) ${agg.count === 1 ? 'has' : 'have'} been ${status}.${why}`,
       icon,
       link: '/admin/my-hours',
       source_type: 'hours_decision',

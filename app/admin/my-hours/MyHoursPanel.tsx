@@ -98,6 +98,10 @@ interface TimeLog {
   created_at: string;
   approved_by: string | null;
   approved_at: string | null;
+  /** Set when the OFFICE entered this day rather than you (seed 585). Shown on the row, because
+   *  hours you did not submit appearing on your own timesheet is indistinguishable from a day you
+   *  forgot filling in — and the person most likely to spot that it is wrong is you. */
+  entered_by: string | null;
   /**
    * What the approver decided, when they decided anything. Null means nobody has overridden the
    * rules, so `total_pay` above is the operative figure — the two are kept distinct rather than
@@ -778,6 +782,11 @@ export default function MyHoursPanel() {
                             <div>
                               <div className="tl-history-entry__type">{activityLabel(log.work_type, wt?.label)}</div>
                               <div className="tl-history-entry__desc">{log.description}</div>
+                              {log.entered_by && (
+                                <div className="tl-history-entry__job">
+                                  Entered for you by {log.entered_by}. If this is wrong, tell them.
+                                </div>
+                              )}
                               {log.job_name && <div className="tl-history-entry__job">Job: {log.job_name}</div>}
                               {log.rejection_reason && (
                                 <div className="tl-history-entry__rejection">Reason: {log.rejection_reason}</div>

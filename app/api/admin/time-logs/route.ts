@@ -8,6 +8,7 @@ import {
   buildHoursDecisionNotifications,
   buildHoursAdjustmentNotification,
 } from '@/lib/notifications/hours-decision';
+import { buildHoursEnteredForYouNotification } from '@/lib/notifications/hours-entered-for-you';
 import { isDateLocked } from '@/lib/hours/period-lock';
 import { canEmployeeEdit, canEmployeeDelete } from '@/lib/hours/permissions';
 import { loadPayConfig, loadPersonPayFacts, rateFor } from '@/lib/payroll/pay-context';
@@ -135,7 +136,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { entries } = body as {
+  const { entries, user_email: forEmail } = body as {
     entries: Array<{
       log_date: string;
       work_type?: string | null;
@@ -146,10 +147,48 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       notes?: string;
       role_on_job?: string | null;
     }>;
+    /** Whose timesheet these belong to. Admin only — see below. */
+    user_email?: string;
   };
 
   if (!entries || !entries.length) {
     return NextResponse.json({ error: 'No entries provided' }, { status: 400 });
+  }
+
+  // ── LOGGING HOURS FOR SOMEBODY ELSE (owner request, 2026-08-12) ────────────────────────────────
+  //
+  // *"The employer will also be able to log hours for employees and create entries setting the hours
+  // and pay for the employee."*
+  //
+  // This route had exactly one insert and it hard-coded the session's own email, so there was no way
+  // for the office to record a crew member's day at all. `user_email` is now accepted — and is the
+  // most dangerous field on this route, because a request that names somebody else writes into their
+  // pay. So the check is explicit and fails closed: without `admin`, naming another person is
+  // REFUSED rather than quietly ignored. Silently falling back to the caller's own timesheet would
+  // put hours somewhere nobody looked for them.
+  const actingAsAdmin = isAdmin(session.user.roles);
+  const targetEmail = (forEmail ?? '').trim().toLowerCase() || session.user.email.toLowerCase();
+  const onBehalf = targetEmail !== session.user.email.toLowerCase();
+  if (onBehalf && !actingAsAdmin) {
+    return NextResponse.json(
+      { error: 'Only an admin can log hours for somebody else.' },
+      { status: 403 },
+    );
+  }
+  if (onBehalf) {
+    // A typo'd address would create a timesheet for a person who does not exist, which nobody would
+    // ever see and which would still be counted by anything summing hours by email.
+    const { data: target } = await supabaseAdmin
+      .from('registered_users')
+      .select('email')
+      .ilike('email', targetEmail)
+      .maybeSingle();
+    if (!target) {
+      return NextResponse.json(
+        { error: `No account for ${targetEmail}. Pick the employee from the list.` },
+        { status: 400 },
+      );
+    }
   }
 
   // Validate total hours per date don't exceed 24
@@ -179,7 +218,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
 
   // Employees can't submit/resubmit hours into a locked pay period.
-  if (!isAdmin(session.user.roles)) {
+  if (!actingAsAdmin) {
     for (const date of hoursByDate.keys()) {
       if (await isDateLocked(date)) {
         return NextResponse.json({ error: LOCKED_MSG }, { status: 423 });
@@ -190,7 +229,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Config and the submitter's facts are read ONCE for the whole timesheet, not once per entry per
   // table. The retired inline calculator did six sequential queries per entry.
   const payConfig = await loadPayConfig();
-  const payFacts = await loadPersonPayFacts(session.user.email, payConfig);
+  // The EMPLOYEE's pay facts, not the submitter's. An admin entering a crew member's day must price
+  // it at that crew member's rate — using the session's own would pay everybody the office manager's
+  // wage, which is the exact class of bug that only shows up on payday.
+  const payFacts = await loadPersonPayFacts(targetEmail, payConfig);
 
   // Which of these days ALREADY had entries — read before the insert, because after it every day
   // has one. This is what makes "Jane updated 8h" honest rather than a guess: the employee edit
@@ -199,7 +241,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { data: priorRows } = await supabaseAdmin
     .from('daily_time_logs')
     .select('log_date')
-    .eq('user_email', session.user.email)
+    .eq('user_email', targetEmail)
     .in('log_date', [...hoursByDate.keys()]);
   const existingDates = new Set(((priorRows ?? []) as { log_date: string }[]).map((r) => r.log_date));
 
@@ -210,7 +252,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     const { data, error } = await supabaseAdmin
       .from('daily_time_logs')
       .insert({
-        user_email: session.user.email,
+        user_email: targetEmail,
+        // NULL for a self-submitted entry — see seed 585. "The employee claimed this" and "the
+        // office recorded this" are different assertions about the same eight hours, and a wage
+        // dispute turns on which one it was.
+        entered_by: onBehalf ? session.user.email : null,
         log_date: entry.log_date,
         // NOT NULL in the schema, so an entry with no activity is stored as the explicit sentinel
         // rather than as an empty string. 'unspecified' matches no row in `work_type_rates`, which
@@ -221,7 +267,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         job_name: entry.job_name || null,
         description: entry.description,
         notes: entry.notes || null,
-        status: 'pending',
+        // An admin entering hours IS the approver. Making them go and approve their own entry is
+        // ceremony that produces a queue item nobody needs to look at — and a `pending` row the
+        // employee could then edit, which would let them silently rewrite what the office recorded.
+        status: onBehalf ? 'approved' : 'pending',
+        approved_by: onBehalf ? session.user.email : null,
+        approved_at: onBehalf ? new Date().toISOString() : null,
         // The bonus columns stay NULL. Under the simple model there are no bonuses to record —
         // an hour is worth the person's base pay or the activity's set rate, and nothing is
         // stacked. Writing 0 into them would draw a "+ $0.00 seniority" line on every screen that
@@ -268,8 +319,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // and a link that opens on this person's pending entries rather than on a generic queue.
   //
   // Best-effort throughout: a notification failure must never fail somebody's timesheet.
+  //
+  // Not sent when the office entered these hours: the row is already approved by the person who
+  // created it, so "these hours need your decision" would point every admin at a decision that has
+  // already been made. The employee is told instead, immediately below.
   try {
-    const { data: approverRows } = await supabaseAdmin
+    const { data: approverRows } = onBehalf ? { data: [] } : await supabaseAdmin
       .from('registered_users')
       .select('email, roles')
       .contains('roles', ['admin']);
@@ -330,6 +385,36 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   } catch (err) {
     console.error('[time-logs] could not notify approvers of the submission:', err instanceof Error ? err.message : String(err));
+  }
+
+  // ── TELL THE EMPLOYEE, WHEN THE OFFICE ENTERED IT ─────────────────────────────────────────────
+  //
+  // The one write to a timesheet the owner did not make, arriving already approved. Without this,
+  // hours and a rate appear on somebody's pay with nothing saying when, by whom, or that it happened
+  // — and the person most likely to spot that it is wrong is the one who worked the day.
+  if (onBehalf) {
+    try {
+      for (const [logDate, hours] of hoursByDate) {
+        const forDate = results.filter((r) => (r as { log_date: string }).log_date === logDate) as Array<{
+          total_pay: number | null;
+        }>;
+        const priced = forDate.filter((r) => r.total_pay !== null);
+        const n = buildHoursEnteredForYouNotification({
+          employeeEmail: targetEmail,
+          enteredBy: session.user.email,
+          logDate,
+          hours: Math.round(hours * 100) / 100,
+          // Null when nothing on the day has a rate — not zero. See the builder.
+          payDollars: priced.length
+            ? Math.round(priced.reduce((sum, r) => sum + Number(r.total_pay || 0), 0) * 100) / 100
+            : null,
+          entryCount: forDate.length,
+        });
+        if (n) await notify(n);
+      }
+    } catch (err) {
+      console.error('[time-logs] could not tell the employee about an office-entered day:', err instanceof Error ? err.message : String(err));
+    }
   }
 
   return NextResponse.json({ logs: results }, { status: 201 });
@@ -424,7 +509,12 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
         });
         if (n) await notify(n);
       } else if (action === 'approve' || action === 'reject') {
-        const [n] = buildHoursDecisionNotifications([existing], action === 'approve');
+        // `data`, not `existing`. `existing` is the row as it was BEFORE this update, so its
+        // `rejection_reason` is whatever the last rejection said — usually null. Passing it would
+        // have quietly produced a rejection notice with no reason on it, which is exactly the
+        // failure this notification was widened to fix. The bulk route already gets this right
+        // because it notifies from its own `.select()`.
+        const [n] = buildHoursDecisionNotifications([data ?? existing], action === 'approve');
         if (n) await notify(n);
       }
     } catch { /* ignore notification failures */ }

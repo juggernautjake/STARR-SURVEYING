@@ -31,6 +31,10 @@ interface TimeLog {
   total_pay: number | null;
   approved_by: string | null;
   approved_at: string | null;
+  /** Set when the office created this entry rather than the employee. NULL means self-submitted —
+   *  see seed 585. Not the same question as `approved_by`, which agrees with it on office-entered
+   *  rows and cannot distinguish them from an ordinary approval. */
+  entered_by: string | null;
   created_at: string;
 }
 
@@ -189,6 +193,28 @@ export default function HoursApprovalPage() {
   const [adjustHours, setAdjustHours] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
 
+  // ── Logging hours FOR an employee (owner request, 2026-08-12) ───────────────────────────────
+  //
+  // *"The employer will also be able to log hours for employees and create entries setting the hours
+  // and pay for the employee."*
+  //
+  // Until now there was no way at all: the only insert into `daily_time_logs` hard-coded the caller's
+  // own email. A crew member who never submitted a day simply had no day, and the office could
+  // correct hours that existed but could not create one.
+  const [showEntryForm, setShowEntryForm] = useState(false);
+  const [entryForm, setEntryForm] = useState({
+    user_email: '',
+    log_date: new Date().toISOString().split('T')[0],
+    hours: '',
+    work_type: '',
+    description: '',
+    notes: '',
+  });
+  const [entrySaving, setEntrySaving] = useState(false);
+  const [entryError, setEntryError] = useState<string | null>(null);
+  /** Who the office can enter hours for. Loaded once with the page. */
+  const [staff, setStaff] = useState<Array<{ email: string; name: string | null }>>([]);
+
   // Bonus form
   const [showBonusForm, setShowBonusForm] = useState(false);
   const [bonusForm, setBonusForm] = useState({
@@ -229,6 +255,16 @@ export default function HoursApprovalPage() {
         // A balance that fails to load leaves the hours usable. It is absent rather than wrong,
         // and the header simply does not render it.
       }
+      // Who the office can enter hours for. Picked from a list rather than typed: a typo'd address
+      // would create a timesheet for a person who does not exist, which nobody would ever open and
+      // which anything summing hours by email would still count.
+      try {
+        const staffRes = await fetch('/api/admin/employees/options');
+        if (staffRes.ok) {
+          const body = await staffRes.json();
+          setStaff((body.employees ?? []) as Array<{ email: string; name: string | null }>);
+        }
+      } catch { /* the picker is empty; the rest of the page is unaffected */ }
 
       if (advRes.ok) {
         const data = await advRes.json();
@@ -255,6 +291,50 @@ export default function HoursApprovalPage() {
       setLoading(false);
     }
   }, [filterEmail, filterStatus, weekStart, reportPageError]);
+
+  /**
+   * Create a time entry on somebody else's behalf.
+   *
+   * Posts to the same endpoint the employee's own timesheet uses, with `user_email` naming whose day
+   * it is — so an office-entered day is an ordinary row that every existing screen, total and payout
+   * already understands, rather than a second kind of entry with its own rules.
+   */
+  const submitEntryForEmployee = async () => {
+    setEntryError(null);
+    const hrs = parseFloat(entryForm.hours);
+    if (!entryForm.user_email) { setEntryError('Pick whose hours these are.'); return; }
+    if (!Number.isFinite(hrs) || hrs <= 0 || hrs > 24) { setEntryError('Enter hours between 0 and 24.'); return; }
+    // The API requires it, and it is the field that makes the entry mean something six months later
+    // when somebody asks what this day was.
+    if (!entryForm.description.trim()) { setEntryError('Say what the work was.'); return; }
+
+    setEntrySaving(true);
+    try {
+      const res = await fetch('/api/admin/time-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_email: entryForm.user_email,
+          entries: [{
+            log_date: entryForm.log_date,
+            hours: hrs,
+            work_type: entryForm.work_type || null,
+            description: entryForm.description.trim(),
+            notes: entryForm.notes.trim() || undefined,
+          }],
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error || `Could not save the entry (HTTP ${res.status}).`);
+      setShowEntryForm(false);
+      setEntryForm((f) => ({ ...f, hours: '', description: '', notes: '' }));
+      await loadData();
+    } catch (e) {
+      setEntryError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEntrySaving(false);
+    }
+  };
 
   const toggleWeekLock = async () => {
     const weekEnd = addDays(weekStart, 6);
@@ -621,6 +701,15 @@ export default function HoursApprovalPage() {
               <option value="adjusted">Adjusted</option>
             </select>
           )}
+          {/* Log a day the employee never submitted. Sits beside the lock rather than in a menu:
+              the moment you need it is while you are looking at a week with a hole in it. */}
+          <button
+            className="tl-btn tl-btn--sm"
+            onClick={() => { setEntryError(null); setShowEntryForm(true); }}
+            title="Create a time entry on an employee’s behalf — they are notified"
+          >
+            ＋ Add hours for someone
+          </button>
           {/* H6 — approve & lock the pay period (week) so employees can't edit it. */}
           <button
             className={`tl-btn tl-btn--sm ${weekLock ? 'tl-btn--danger' : 'tl-btn--primary'} tl-lock-btn`}
@@ -728,6 +817,11 @@ export default function HoursApprovalPage() {
                           </span>
                         </div>
                         <div className="tl-approval-entry__desc">{log.description}</div>
+                        {/* "The employee claimed this" and "the office recorded this" are different
+                            assertions about the same hours, and a pay dispute turns on which. */}
+                        {log.entered_by && (
+                          <div className="tl-approval-entry__meta">Entered by {log.entered_by} — not submitted by the employee</div>
+                        )}
                         {log.job_name && <div className="tl-approval-entry__meta">Job: {log.job_name}</div>}
                         {log.notes && <div className="tl-approval-entry__meta">Notes: {log.notes}</div>}
                         {log.rejection_reason && <div className="tl-approval-entry__rejection">Rejection: {log.rejection_reason}</div>}
@@ -973,6 +1067,87 @@ export default function HoursApprovalPage() {
               )}
               <button className="tl-btn tl-btn--primary" onClick={() => submitAction(true)}>
                 {actionModal.type === 'reject' ? 'Reject' : 'Adjust & approve'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log hours for an employee. Same endpoint the employee's own timesheet posts to. */}
+      {showEntryForm && (
+        <div className="tl-modal-overlay" onClick={() => setShowEntryForm(false)}>
+          <div className="tl-modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Add hours for an employee</h3>
+            <div className="tl-form-group">
+              <label htmlFor="entry-who">Whose hours</label>
+              <select
+                id="entry-who"
+                value={entryForm.user_email}
+                onChange={(e) => setEntryForm({ ...entryForm, user_email: e.target.value })}
+              >
+                <option value="">Choose an employee…</option>
+                {staff.map((s) => (
+                  <option key={s.email} value={s.email}>{s.name ? `${s.name} — ${s.email}` : s.email}</option>
+                ))}
+              </select>
+            </div>
+            <div className="tl-form-group">
+              <label htmlFor="entry-date">Date</label>
+              <input
+                id="entry-date" type="date" value={entryForm.log_date}
+                onChange={(e) => setEntryForm({ ...entryForm, log_date: e.target.value })}
+              />
+            </div>
+            <div className="tl-form-group">
+              <label htmlFor="entry-hours">Hours</label>
+              <input
+                id="entry-hours" type="number" min="0.25" max="24" step="0.25" value={entryForm.hours}
+                onChange={(e) => setEntryForm({ ...entryForm, hours: e.target.value })}
+                placeholder="8"
+              />
+            </div>
+            <div className="tl-form-group">
+              <label htmlFor="entry-activity">Activity (optional)</label>
+              <select
+                id="entry-activity"
+                value={entryForm.work_type}
+                onChange={(e) => setEntryForm({ ...entryForm, work_type: e.target.value })}
+              >
+                {/* Optional on purpose, matching the employee's own form: leaving it blank prices
+                    the day at the person's base pay rather than forcing a rate to be chosen now. */}
+                <option value="">No activity — pay at their base rate</option>
+                {workTypes.map((w) => (
+                  <option key={w.work_type} value={w.work_type}>{w.label ?? w.work_type}</option>
+                ))}
+              </select>
+            </div>
+            <div className="tl-form-group">
+              <label htmlFor="entry-desc">What was the work</label>
+              <input
+                id="entry-desc" type="text" value={entryForm.description}
+                onChange={(e) => setEntryForm({ ...entryForm, description: e.target.value })}
+                placeholder="Boundary survey on the Henry tract"
+              />
+            </div>
+            <div className="tl-form-group">
+              <label htmlFor="entry-notes">Notes (optional)</label>
+              <textarea
+                id="entry-notes" rows={2} value={entryForm.notes}
+                onChange={(e) => setEntryForm({ ...entryForm, notes: e.target.value })}
+                placeholder="Why the office is entering this"
+              />
+            </div>
+            {entryError && <p className="tl-modal__hint" role="alert">{entryError}</p>}
+            {/* Both consequences stated before the button, because neither is obvious: the entry
+                does not go into anybody's approval queue, and the employee finds out. */}
+            <p className="tl-modal__hint">
+              Entered by you, so it is approved immediately — it will not appear in the pending
+              queue. The employee is notified, with the hours and what they were priced at.
+            </p>
+            <div className="tl-modal__actions">
+              <button className="tl-btn" onClick={() => setShowEntryForm(false)} disabled={entrySaving}>Cancel</button>
+              <button className="tl-btn tl-btn--primary" onClick={submitEntryForEmployee} disabled={entrySaving}>
+                {entrySaving ? 'Saving…' : 'Add entry'}
               </button>
             </div>
           </div>

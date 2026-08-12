@@ -75,6 +75,67 @@ describe('buildHoursDecisionNotifications', () => {
   });
 });
 
+// ── The reason reaches the person it is about ──────────────────────────────────────────────────
+//
+// Owner, 2026-08-12: *"reject the hours with a reason (required) and the employee is notified."*
+// The reason was required, stored and shown to the ADMIN, and the employee got "8h (2026-08-04) has
+// been rejected." with no way to find out why except to ask.
+describe('a rejection says why', () => {
+  it('carries the reason into the body', () => {
+    const out = buildHoursDecisionNotifications(
+      [{ user_email: 'a@x.com', log_date: '2026-08-04', hours: 8, rejection_reason: 'No job number on the entry' }],
+      false,
+    );
+    expect(out[0].body).toContain('No job number on the entry');
+    expect(out[0].body).toContain('Reason:');
+  });
+
+  it('states one shared reason once across a bulk rejection', () => {
+    // Rejecting a whole week is nearly always one reason repeated seven times. Printing it seven
+    // times would bury it.
+    const rows: TimeLogRow[] = ['2026-08-03', '2026-08-04', '2026-08-05'].map((d) => ({
+      user_email: 'a@x.com', log_date: d, hours: 8, rejection_reason: 'Submit against a job',
+    }));
+    const out = buildHoursDecisionNotifications(rows, false);
+    expect(out).toHaveLength(1);
+    expect(out[0].body.match(/Submit against a job/g)).toHaveLength(1);
+  });
+
+  it('lists every distinct reason when the days were rejected for different things', () => {
+    // Each belongs to a different day and the employee has to fix each of them, so collapsing to
+    // the first would hide work they still have to do.
+    const out = buildHoursDecisionNotifications(
+      [
+        { user_email: 'a@x.com', log_date: '2026-08-03', hours: 8, rejection_reason: 'Wrong job' },
+        { user_email: 'a@x.com', log_date: '2026-08-04', hours: 8, rejection_reason: 'Hours look high' },
+      ],
+      false,
+    );
+    expect(out[0].body).toContain('Wrong job');
+    expect(out[0].body).toContain('Hours look high');
+    expect(out[0].body).toContain('Reasons:');
+  });
+
+  it('does not leave a dangling "Reason:" when none was recorded', () => {
+    const out = buildHoursDecisionNotifications(
+      [{ user_email: 'a@x.com', log_date: '2026-08-04', hours: 8 }],
+      false,
+    );
+    expect(out[0].body).not.toMatch(/Reasons?:/);
+  });
+
+  it('never appends a reason to an approval', () => {
+    // The approve path collects no reason, and a stale one from a previous rejection is still on the
+    // row. "Approved. Reason: hours look high" would be nonsense at best.
+    const out = buildHoursDecisionNotifications(
+      [{ user_email: 'a@x.com', log_date: '2026-08-04', hours: 8, rejection_reason: 'Hours look high' }],
+      true,
+    );
+    expect(out[0].body).not.toMatch(/Reasons?:/);
+    expect(out[0].body).not.toContain('Hours look high');
+  });
+});
+
 describe('buildHoursAdjustmentNotification', () => {
   it('names the old→new hours, the date, and the reason', () => {
     const n = buildHoursAdjustmentNotification({

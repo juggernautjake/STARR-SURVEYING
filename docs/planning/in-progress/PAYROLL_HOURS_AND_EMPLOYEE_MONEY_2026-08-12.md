@@ -1,0 +1,335 @@
+# Hours, payroll, and the money employees can see
+
+**Opened 2026-08-12** from the owner's spec, given in one long burst:
+
+> Employees need a UI to submit hours, check whether they were approved, check whether they were
+> paid, and review by day / week / month / year. The employer sees submitted hours and can **reject**
+> (with a required reason, and the employee is notified), **adjust** (hours *and* pay), or
+> **approve**. The employer can also log hours **for** an employee, and create entries setting hours
+> and pay. Saved per pay period. Once payment is set up, create money accounts; employees see money
+> earned and withdraw to their private accounts. Payment approved → employer finalises at the end of
+> the pay period → money owed shows as a number on their account. Money does not leave until a manual
+> withdrawal, unless auto-transfer is set up. Only people with money-handling permissions can view
+> accounts. Possibly a setting for no intermediate account — an immediate wire.
+>
+> *"It will basically just serve as an online bank account of sorts, when really it is just a number
+> on a screen relating to how much money they are able to pull from the company bank account."*
+
+---
+
+## 0. What already exists — read this before building anything
+
+This repo's most expensive recurring mistake is rebuilding something that already shipped. A full
+audit was run on 2026-08-12; **most of this spec already exists.** Each slice below states what it
+adds to.
+
+| Capability | State |
+|---|---|
+| Employee submits hours, edits, resubmits | ✅ Shipped. `/admin/my-hours` → `daily_time_logs`. `pending`/`rejected` are employee-editable (`lib/hours/permissions.ts`) |
+| Employer approves / rejects / adjusts, single + bulk | ✅ Shipped. `/admin/hours-approval` → `PUT /api/admin/time-logs` (`approve`\|`reject`\|`adjust`\|`dispute`) |
+| Rejection **reason** | ✅ Stored (`daily_time_logs.rejection_reason`), required by the UI, shown back on the row |
+| Employee **notified** on rejection / adjustment | ✅ Shipped. `lib/notifications/hours-decision.ts` → `notify()` → bell + push |
+| Approvers notified on submission, with per-admin opt-out | ✅ Shipped. `hours_notification_preferences` (seed 579) |
+| Adjust hours **and** pay | ✅ Shipped, in two pieces: `adjusted_hours` + `adjustment_note` on the entry, and `time_log_pay_decisions` (seed 574) for the money, with revision history and an employee bell |
+| Pay period lock | ✅ Shipped. `pay_period_locks` (seed 378), HTTP 423 on employee edits inside a locked window |
+| "Money owed" as a number | ✅ Shipped. `lib/payroll/owed.ts` — a running balance in cents, admin and employee views from one endpoint |
+| Payout batches: build → approve → dispatch → mark paid → ACH CSV → void → tax report | ✅ Shipped. `payout_batches` + `payout_batch_items` (seed 325) |
+| Employee balance + withdrawal request UI | ✅ Shipped. `BalanceCard.tsx` on `/admin/my-pay`; `withdrawal_requests`, `balance_transactions` |
+| Pay advances, request → approve → paid → repaid | ✅ Shipped, with instalment recovery |
+| Per-person base rate + per-activity rates | ✅ Shipped. `employee_profiles.hourly_rate`, `work_type_rates`, `user_pay_overrides` |
+
+**Genuinely missing** — and therefore what this plan is actually about:
+
+1. **The employer cannot log hours for somebody else.** There is exactly one `INSERT` into
+   `daily_time_logs` in the codebase and it hard-codes `user_email: session.user.email`. No route, no
+   UI, no request shape.
+2. **There is no admin queue for withdrawal requests.** The API verbs exist
+   (`approve`/`reject`/`process`) and nothing in the UI calls them. An employee can ask for money and
+   nobody can see that they asked.
+3. **The balance is almost never funded.** `available_balance` is credited by exactly two paths: the
+   legacy `payroll_runs` engine, and a payout item marked with `method: 'account'`. In normal use
+   neither happens, so the "online bank account" reads $0 forever while `owed` says otherwise.
+4. **There are two parallel money engines that do not reconcile** — `payroll_runs`/`pay_stubs`
+   (legacy) and `payout_batches`/`payout_batch_items` (live). Both can pay the same hours.
+5. **There is no money-handling permission.** Everything gates on `isAdmin`, plus one
+   `PAYOUT_ADMIN_EMAILS` env allowlist whose own header calls itself a placeholder.
+6. **There is no period close.** Only a lock, which freezes edits and computes nothing.
+7. **The rejection notification does not carry the reason**, though the reason is stored and
+   rendered on the approval page.
+8. **No day / week / month / year review for the employee.** `/admin/my-hours` is a week at a time.
+
+---
+
+## 1. Two decisions that must be made before any of this is built
+
+These are the owner's to make. Everything downstream depends on them and building either way first
+would mean building it twice.
+
+### D1. Is the balance real money, or a statement of what is owed?
+
+The owner's own framing answers this and it should be written down before somebody reads the phrase
+"online bank account" and builds something else:
+
+> *"when really it is just a number on a screen relating to how much money they are able to pull from
+> the company bank account."*
+
+That is a **ledger**, not an account. Nobody deposits into it, no interest accrues, and the money is
+in the company's bank the whole time. Building it as a ledger keeps this firmly outside money
+transmission: a business telling its own employees what it owes them is a payroll record, whereas
+holding customer or employee funds on their behalf is a regulated activity requiring state-by-state
+money transmitter licensing.
+
+**The line not to cross, stated plainly:** the moment an employee can move a balance to anyone other
+than themselves, or the firm holds a balance for someone who is not being paid wages by it, this
+stops being a payroll ledger. Every slice below is written on the ledger side of that line.
+
+**Not a lawyer, and this is not legal advice.** Wage payment is separately regulated — several
+states restrict payroll deductions, require pay stubs with specified fields, and mandate payment
+within set periods regardless of what an employee has "withdrawn". A payroll provider or an
+accountant should confirm the design before real wages run through it.
+
+### D2. Which money engine survives?
+
+`payroll_runs`/`pay_stubs` and `payout_batches` both exist, both work, and both can pay the same
+hours. That is the single most dangerous thing in this subsystem: paying a week twice is a real
+outcome and neither engine knows about the other.
+
+The recommendation is **`payout_batches` survives** — it is the one with dispatch methods, an
+IP-stamped approval, ACH export, void, tax reporting and employee-visible history, and it is the one
+the live UI drives. `payroll_runs` retains one thing the batches lack: it is the only writer of
+`available_balance` and the only producer of `pay_stubs`, which some states require. So the work is
+to move stub generation and balance crediting onto the batch path, not to delete the legacy engine
+in place.
+
+Until that is done, **there is a guard test to write today** (S0 below) rather than a rewrite.
+
+---
+
+## 2. Slices
+
+Ordered so that each one is shippable on its own and the dangerous ones come after the guards.
+
+---
+
+### S0. A guard against paying the same hours twice — *do this first*
+
+The only slice that is urgent. Both engines can pay the same `daily_time_logs` rows, and nothing
+notices.
+
+- A shared helper — `lib/payroll/already-paid.ts` — answering *"has this time log already been
+  included in a settled payout or a completed payroll run?"* for a set of log ids.
+- Both `POST /api/admin/payroll/runs` and the batch builder consult it and **refuse**, naming the
+  batch or run that already covers the hours.
+- A vitest guard mirroring `__tests__/payroll/one-pay-model.test.ts` (which already prevents the
+  retired `employee_payouts` table from coming back): assert no new code path credits money for a
+  log id that a settled row references.
+
+*Test:* two batches over the same week; the second must refuse and name the first.
+
+---
+
+### S1. The rejection reason reaches the employee
+
+The smallest real gap, and the one the owner asked for by name: *"reject… with required reason and
+employee notified."*
+
+`buildHoursDecisionNotifications(rows, approved)` in `lib/notifications/hours-decision.ts` takes
+`{user_email, log_date, hours}` and produces *"8h (2026-08-04) has been rejected."* — the reason is
+stored and displayed to the admin and never sent. `buildHoursAdjustmentNotification` in the same file
+already appends `Reason: …`; this is that, applied to the rejection path.
+
+- Widen the row type to carry `rejection_reason`; append it to the body.
+- Both call sites (`time-logs/approve/route.ts:51`, `time-logs/route.ts:427`) already have rows that
+  carry the reason after the update.
+
+*Test:* a rejected row with a reason produces a body containing it; a rejection with no reason
+produces the existing sentence and no dangling "Reason:".
+
+---
+
+### S2. The employer logs hours for an employee
+
+Build from zero. *"The employer will also be able to log hours for employees and create entries
+setting the hours and pay for the employee."*
+
+- `POST /api/admin/time-logs` gains an optional `user_email`. Supplying it requires `isAdmin`;
+  omitting it behaves exactly as today.
+- The entry is **marked as entered by somebody else** — a new `entered_by` column, NULL for
+  self-submitted rows. This is not decoration: an employee looking at a week that contains hours they
+  never submitted must be able to see who put them there, and an audit needs to distinguish "the
+  employee claimed this" from "the office recorded this".
+- The row is created `approved` when an admin creates it (they are the approver; making them approve
+  their own entry is ceremony), with `approved_by` set.
+- Pay set in the same action, by reusing `time_log_pay_decisions` rather than inventing a second way
+  to price an entry.
+- The employee is **notified**: hours appearing on your timesheet that you did not enter is exactly
+  the event a person needs told about.
+- UI: an "Add entry for…" control on `/admin/hours-approval`, with the employee picker, date, hours,
+  activity and an optional pay override.
+
+*Tests:* a non-admin supplying `user_email` is refused; an admin-created row carries `entered_by` and
+`approved_by`; the pay decision is linked; the notification fires.
+
+---
+
+### S3. Employee review by day, week, month and year
+
+*"They need to be able to review their hours by day, week, month, and year."*
+
+`/admin/my-hours` shows one week. The data is all there; the aggregation is not.
+
+- A `lib/hours/summarise.ts` — pure, testable — turning a set of logs plus their pay decisions into
+  totals by day / week / month / year, with hours, pay, and a status breakdown.
+- The period switcher on `/admin/my-hours`, plus a "paid / approved / awaiting" split so the third
+  of the owner's three questions ("was I paid?") is answered on the same screen as the first two.
+- Use `effectiveHours()` (`lib/hours/hours-flags.ts`) throughout, so an adjusted entry counts as
+  adjusted — the same fix already applied to the approval page's totals.
+
+*Tests:* a month spanning a lock boundary; an adjusted entry counting once at its adjusted value;
+timezone edges (a log dated the 1st must not fall into the previous month).
+
+---
+
+### S4. A money-handling permission
+
+*"Only people with money handling permissions will be able to see the accounts of the employees."*
+
+Today: `isAdmin` for everything, plus `PAYOUT_ADMIN_EMAILS`, whose own header says *"tomorrow this
+becomes a role + threshold-based flow."* Tomorrow is this slice.
+
+- A `finance` role added to `ALL_ROLES` in `lib/auth-roles.ts`, with `isFinance(roles)` beside
+  `isAdminRoles`.
+- **Three separable capabilities**, because they are genuinely different jobs and one person holding
+  all three is a choice, not a default:
+  `hours.decide` (approve/reject/adjust) · `pay.set` (rates, pay decisions) · `money.move`
+  (create/approve/dispatch payouts, approve withdrawals, view balances).
+- Enforced in the routes, not only in `route-registry.ts` — the registry controls nav visibility and
+  is not enforcement. There is already a live example of the failure: `/admin/hours-approval` is
+  reachable by `developer` and `tech_support`, and every button on it 403s for them.
+- `PAYOUT_ADMIN_EMAILS` stays as an override for the approval step, since "only Hank approves
+  payouts" is a real rule and outranks a role.
+- No-self-approve, already enforced for payout batches, extends to withdrawals.
+
+*Tests:* each capability gate independently; an admin without `finance` cannot read a balance; the
+env allowlist still wins for batch approval.
+
+---
+
+### S5. Fund the balance from the payout path
+
+The reason the "account" reads $0. `available_balance` is written by the legacy run engine and by a
+payout item marked `method: 'account'`; in normal use neither happens.
+
+- When a payout batch is **approved**, each item credits `balance_transactions` and
+  `employee_profiles.available_balance` — with `alreadyCredited()` from `lib/payroll/account-credit.ts`
+  guarding re-entry (it exists and is tested).
+- Dispatching by an external method (Venmo, ACH, cash) then **debits** the balance as it leaves. The
+  balance means *"approved, not yet in your hands"*, and every movement is a `balance_transactions`
+  row so the number can always be explained.
+- **The invariant, asserted in a test:** `available_balance` equals the sum of that employee's
+  `balance_transactions`. A balance that cannot be derived from its ledger is a number nobody can
+  defend in a dispute.
+
+*Tests:* approve → credit; dispatch → debit; approve twice → credited once; the sum invariant over a
+generated sequence of movements.
+
+---
+
+### S6. The withdrawal queue
+
+The API verbs exist. Nothing calls them, so a request goes into a void.
+
+- `/admin/payouts/withdrawals` — pending requests across employees, with approve / reject (reason
+  required, mirroring hours) / mark processed. Gated on `money.move`.
+- Employee notified at every transition. There are currently **no** withdrawal notifications at all;
+  a person who asked for their money and heard nothing assumes the system is broken, and they are
+  not wrong.
+- A withdrawal cannot exceed `available_balance`, checked server-side at approval time as well as at
+  request time — the balance can move between the two.
+- The bank details already live on `employee_profiles` (`bank_name`, `bank_account_last4`,
+  `bank_verified`); the queue shows the last four and the verified flag, never the full number.
+
+*Tests:* over-balance refusal at both moments; rejection requires a reason; each transition notifies.
+
+---
+
+### S7. Period close, and how it coexists with the running balance
+
+*"Once the payment is approved, the employer can finalize it at the end of the pay period and it will
+show up as money owed."*
+
+This needs a decision recorded, not just a button. `lib/payroll/owed.ts` is deliberately
+**window-less** — everything approved minus everything paid — precisely so a late-logged entry from
+three weeks ago is not silently dropped. A naive "close the period" would reintroduce exactly that
+bug.
+
+The resolution: **closing a period does not close the balance.** A close snapshots *"this is what
+this period contained"* and builds a payout batch from it. Anything logged for that period
+afterwards lands in the next batch, flagged as late, and is still paid. The running total stays the
+source of truth; the period is a reporting and dispatch boundary.
+
+- A `pay_period_closes` row: period, closed_by, closed_at, the batch it produced, totals.
+- Closing implies locking (`pay_period_locks`), so the two stop being separate rituals.
+- Late entries against a closed period carry a visible "late — paid in period N+1" marker.
+
+*Tests:* an entry logged after close is paid in the following batch and never dropped; closing twice
+is refused; the running total is unaffected by a close.
+
+---
+
+### S8. Auto-transfer, and the no-account setting
+
+*"The money will not leave the account unless they manually withdraw it, unless they have set up an
+auto transfer."* / *"There could be a possible setting where there is no intermediate account and it
+just wires the money immediately."*
+
+Deliberately last. Both are automated money movement, and both should sit on top of a ledger that has
+been running correctly and reconciling for a while first.
+
+- `employee_payout_preferences`: `mode` (`hold` | `auto` | `immediate`), method, handle, threshold,
+  schedule.
+  - `hold` — today's behaviour, and the default. A default that moves money without being asked for
+    is the wrong default.
+  - `auto` — on close, an approved balance over the threshold is queued for dispatch automatically.
+  - `immediate` — no balance step; approval dispatches. Worth stating: this removes the safety of a
+    reviewable balance, so it should be per-employee and set by someone with `money.move`, not by the
+    employee.
+- Every automatic movement produces the same `balance_transactions` rows and the same notification a
+  manual one does. An automated payment nobody was told about is how a payroll error is discovered
+  by an employee's landlord.
+
+*Tests:* threshold boundaries; `hold` never auto-dispatches; an `immediate` employee still gets a
+stub and a ledger row.
+
+---
+
+### S9. Retire the second engine
+
+Only after S0, S5 and S7 have been live long enough to trust.
+
+- Move `pay_stubs` generation onto the batch path (states require stubs; batches do not produce
+  them).
+- `payroll_runs` becomes read-only history.
+- Extend `__tests__/payroll/one-pay-model.test.ts` to cover it, exactly as it already covers the
+  retired `employee_payouts` table.
+
+---
+
+## 3. Things found during the audit that are not slices
+
+Worth recording so nobody re-derives them:
+
+- **`weekly_pay_periods` does not exist.** No `CREATE TABLE` anywhere. It appears in a drop list, an
+  `ALTER`, and an org-scope allowlist. Do not build against it.
+- **`payroll_positions` does not exist** in any form. "Positions" today = `employee_profiles.job_title`
+  matched to `role_tiers` for a display label only; the tier never affects money while progression is
+  parked.
+- **`employee_payouts` is retired** with two conflicting seed definitions (281 and 298) and a guard
+  test preventing its return.
+- **`employee_bonuses` and `employee_salary_history` are read-only** — surfaced in history views,
+  written by nothing.
+- **`payout_log` is misnamed**: it is a pay-*change* audit trail, not a payout ledger. The UI already
+  calls it "Pay Change History".
+- The graduated pay formula (`lib/payroll/effective-rate.ts`, 211 lines, tested) and its tables
+  (`role_tiers`, `seniority_brackets`, `credential_bonuses`, `xp_pay_milestones`) are **parked by
+  owner decision**, not broken. Restoring them is wiring, not a rebuild.
