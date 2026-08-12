@@ -276,14 +276,65 @@ export default function PayrollPage() {
           <div className="payroll-overview__section">
             <h3>Employees by Position</h3>
             <div className="payroll-overview__position-grid">
+              {/* ── THIS GRID WAS A DEAD END (owner, 2026-08-12) ─────────────────────────────────
+                  *"it shows me what employees hold what positions, but it is not letting me click on
+                  the users and set their positions"*.
+
+                  Setting a position was already possible — Employees tab → a person's card → their
+                  detail page → Edit Profile → save, and the API has accepted `job_title` on PUT all
+                  along. But the only screen that TALKS about positions was these count cards, and they
+                  were inert `<div>`s: no link to the people they were counting, and nothing saying
+                  where the position is actually changed. The capability existed; the door was on a
+                  different wall.
+
+                  So the card now (a) names the people, each linking straight to the page where their
+                  position is set, and (b) is itself clickable, filtering the Employees tab to that
+                  position. The counts still come from the same `employees` array the rest of the page
+                  uses, so a saved change is reflected the moment the list reloads. */}
               {Object.entries(jobTitles).map(([key, info]) => {
-                const count = employees.filter(e => e.is_active && e.job_title === key).length;
+                const holders = employees.filter(e => e.is_active && e.job_title === key);
                 return (
-                  <div key={key} className="payroll-overview__position-card">
+                  <button
+                    key={key}
+                    type="button"
+                    className="payroll-overview__position-card payroll-overview__position-card--link"
+                    onClick={() => { setActiveTab('employees'); setSearch(key); }}
+                    title={`Show the ${info.label} list — open anyone there to change their position`}
+                  >
                     <div className="payroll-overview__position-icon">{info.icon}</div>
                     <div className="payroll-overview__position-name">{info.label}</div>
-                    <div className="payroll-overview__position-count">{count} employee{count !== 1 ? 's' : ''}</div>
-                  </div>
+                    <div className="payroll-overview__position-count">
+                      {holders.length} employee{holders.length !== 1 ? 's' : ''}
+                    </div>
+                    {/* Naming them is the point: a count answers "how many", and the question an
+                        admin actually has here is "who — and is that still right?". Capped so a large
+                        position does not turn the card into a directory. */}
+                    {holders.length > 0 && (
+                      <ul className="payroll-overview__position-people">
+                        {holders.slice(0, 4).map(emp => (
+                          <li key={emp.id}>
+                            <span
+                              role="link"
+                              tabIndex={0}
+                              className="payroll-overview__position-person"
+                              title={`Open ${emp.user_name || emp.user_email} to change their position`}
+                              onClick={(e) => { e.stopPropagation(); router.push(`/admin/payroll/${encodeURIComponent(emp.user_email)}`); }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  router.push(`/admin/payroll/${encodeURIComponent(emp.user_email)}`);
+                                }
+                              }}
+                            >
+                              {emp.user_name || emp.user_email}
+                            </span>
+                          </li>
+                        ))}
+                        {holders.length > 4 && <li className="payroll-overview__position-more">+{holders.length - 4} more</li>}
+                      </ul>
+                    )}
+                  </button>
                 );
               })}
             </div>

@@ -5,7 +5,7 @@ import '../styles/AdminTimeLogs.css';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
-import { computeHoursFlags } from '@/lib/hours/hours-flags';
+import { computeHoursFlags, effectiveHours } from '@/lib/hours/hours-flags';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
 import { useSearchParams } from 'next/navigation';
@@ -343,7 +343,15 @@ export default function HoursApprovalPage() {
     }
   };
 
-  const submitAction = async () => {
+  /**
+   * @param thenApprove after a successful adjustment, approve in the same click.
+   *
+   * Sequential, not one request: `adjust` and `approve` are separate transitions on the API, each with
+   * its own notification to the employee, and collapsing them server-side would mean inventing a
+   * fourth action whose failure mode ("adjusted but not approved") is exactly the state we are trying
+   * to stop stranding people in. Two calls, and the second only runs if the first succeeded.
+   */
+  const submitAction = async (thenApprove = false) => {
     if (!actionModal) return;
     if (actionModal.type === 'reject') {
       await fetch('/api/admin/time-logs', {
@@ -361,7 +369,7 @@ export default function HoursApprovalPage() {
         alert('Please add a reason for the adjustment — the employee is notified of the change and your reason.');
         return;
       }
-      await fetch('/api/admin/time-logs', {
+      const res = await fetch('/api/admin/time-logs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -370,6 +378,20 @@ export default function HoursApprovalPage() {
           adjustment_note: adjustNote.trim(),
         }),
       });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        alert(body?.error ?? 'The adjustment could not be saved.');
+        return;
+      }
+      // Only if the adjustment actually landed. Approving an adjustment that failed to save would
+      // approve the ORIGINAL hours while the approver believes they approved the corrected ones.
+      if (thenApprove) {
+        await fetch('/api/admin/time-logs', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: actionModal.logId, action: 'approve' }),
+        });
+      }
     }
     setActionModal(null);
     setRejectReason('');
@@ -545,7 +567,10 @@ export default function HoursApprovalPage() {
         </div>
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#128337;</div>
-          <div className="tl-summary-card__value">{logs.reduce((s, l) => s + l.hours, 0).toFixed(1)}h</div>
+          {/* An adjustment IS the new number of hours — see `effectiveHours`. This card summed raw
+              `hours`, so cutting a ten-hour day to eight left the approver's own page still reporting
+              ten while the employee's week summary (fixed earlier) reported eight. */}
+          <div className="tl-summary-card__value">{logs.reduce((s, l) => s + effectiveHours(l), 0).toFixed(1)}h</div>
           <div className="tl-summary-card__label">Total Hours</div>
         </div>
         <div className="tl-summary-card">
@@ -633,7 +658,9 @@ export default function HoursApprovalPage() {
 
           {/* Grouped by employee */}
           {[...byEmployee.entries()].map(([email, empLogs]) => {
-            const empTotal = empLogs.reduce((s, l) => s + l.hours, 0);
+            // Same rule as the page total, and the same rule `computeHoursFlags` below already used —
+            // the per-employee heading was the third number on this screen disagreeing with the other two.
+            const empTotal = empLogs.reduce((s, l) => s + effectiveHours(l), 0);
             const empPay = empLogs.reduce((s, l) => s + (l.total_pay || 0), 0);
             const empFlags = computeHoursFlags(empLogs);
             return (
@@ -685,7 +712,17 @@ export default function HoursApprovalPage() {
                           <span className="tl-approval-entry__icon">{wt?.icon || '📋'}</span>
                           <span className="tl-approval-entry__type">{activityLabel(log.work_type, wt?.label)}</span>
                           <span className="tl-approval-entry__date">{formatDate(log.log_date)}</span>
-                          <span className="tl-approval-entry__hours">{log.hours}h</span>
+                          {/* The headline is the hours that COUNT, so the row agrees with both totals.
+                              When they differ, the submitted figure is shown struck through beside it
+                              rather than hidden — an approver needs to see what the employee claimed as
+                              well as what was allowed, and quietly replacing the number would erase the
+                              only evidence that a change was made. */}
+                          <span className="tl-approval-entry__hours">
+                            {log.adjusted_hours != null && log.adjusted_hours !== log.hours && (
+                              <s className="tl-approval-entry__hours-was" title={`Employee submitted ${log.hours}h`}>{log.hours}h</s>
+                            )}
+                            {effectiveHours(log)}h
+                          </span>
                           <span className="tl-badge" style={{ backgroundColor: `${STATUS_COLORS[log.status] || '#6B7280'}20`, color: STATUS_COLORS[log.status] || '#6B7280' }}>
                             {log.status}
                           </span>
@@ -694,7 +731,11 @@ export default function HoursApprovalPage() {
                         {log.job_name && <div className="tl-approval-entry__meta">Job: {log.job_name}</div>}
                         {log.notes && <div className="tl-approval-entry__meta">Notes: {log.notes}</div>}
                         {log.rejection_reason && <div className="tl-approval-entry__rejection">Rejection: {log.rejection_reason}</div>}
-                        {log.adjustment_note && <div className="tl-approval-entry__adjustment">Adjusted to {log.adjusted_hours}h: {log.adjustment_note}</div>}
+                        {log.adjustment_note && (
+                          <div className="tl-approval-entry__adjustment">
+                            Adjusted {log.hours}h → <strong>{log.adjusted_hours ?? log.hours}h</strong>: {log.adjustment_note}
+                          </div>
+                        )}
                         {log.status === 'disputed' && (
                           <div className="tl-approval-entry__dispute">
                             &#9888; Disputed by employee — resolve with Approve, Adjust, or Reject{log.notes ? `: ${log.notes}` : ''}
@@ -723,6 +764,16 @@ export default function HoursApprovalPage() {
                         // revise any employee's hours (with a reason; they're
                         // notified). H3 of the hours-correction plan.
                         <div className="tl-approval-entry__actions">
+                          {/* Approve was MISSING here, which stranded every adjusted entry.
+                              `adjust` sets the status to 'adjusted', which is not 'pending', so the row
+                              fell into this branch and lost the Approve button — the approver could
+                              re-adjust forever but never finish. The API never had this restriction;
+                              only the UI did.
+                              Offered whenever the entry is not already approved, which also lets a
+                              rejection be reversed — a correction the API likewise always allowed. */}
+                          {log.status !== 'approved' && (
+                            <button className="tl-btn tl-btn--sm tl-btn--primary" onClick={() => singleAction(log.id, 'approve')}>Approve</button>
+                          )}
                           {/* Pay stays revisable after approval — a payroll correction is a normal
                               event, and the decision keeps its own history either way. */}
                           <button className="tl-btn tl-btn--sm" onClick={() => setPayLogId(log.id)}>Set pay</button>
@@ -913,8 +964,15 @@ export default function HoursApprovalPage() {
             )}
             <div className="tl-modal__actions">
               <button className="tl-btn" onClick={() => setActionModal(null)}>Cancel</button>
-              <button className="tl-btn tl-btn--primary" onClick={submitAction}>
-                {actionModal.type === 'reject' ? 'Reject' : 'Adjust'}
+              {/* Adjusting is almost always followed by approving — the correction IS the decision. Two
+                  buttons rather than one so the approver can still adjust and leave it for later (e.g.
+                  to check something before committing the pay), but the common path is one click.
+                  `Adjust & approve` is the primary because it is the one that finishes the job. */}
+              {actionModal.type === 'adjust' && (
+                <button className="tl-btn" onClick={() => submitAction(false)}>Adjust only</button>
+              )}
+              <button className="tl-btn tl-btn--primary" onClick={() => submitAction(true)}>
+                {actionModal.type === 'reject' ? 'Reject' : 'Adjust & approve'}
               </button>
             </div>
           </div>

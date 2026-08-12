@@ -30,7 +30,20 @@ export const LONG_DAY_THRESHOLD = 14;
 /** Period total above this is worth an explicit verify. */
 export const HIGH_PERIOD_THRESHOLD = 60;
 
-function effectiveHours(l: HoursFlagInput): number {
+/**
+ * The hours that COUNT for one entry: the approver's adjustment when there is one, otherwise what the
+ * employee submitted.
+ *
+ * Exported 2026-08-12 rather than copied a fourth time. This rule already existed here, in
+ * `lib/payroll/week-summary.ts`, in `lib/payroll/owed-loader.ts` and in `lib/notifications/hours-decision.ts`
+ * — and the hours-approval page, the one screen where the adjustment is actually MADE, was still summing
+ * raw `hours`. So a manager who cut a ten-hour day to eight saw the page keep reporting ten, while the
+ * employee's own week summary (already fixed) reported eight. Two numbers for one question, disagreeing
+ * across the very decision that created them.
+ *
+ * One definition, used by the flags, the totals and the row.
+ */
+export function effectiveHours(l: HoursFlagInput): number {
   if (typeof l.adjusted_hours === 'number' && Number.isFinite(l.adjusted_hours)) return l.adjusted_hours;
   if (typeof l.hours === 'number' && Number.isFinite(l.hours)) return l.hours;
   return 0;

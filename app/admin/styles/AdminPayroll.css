@@ -1786,3 +1786,64 @@
 @media (max-width: 640px) {
   .payroll-owed-list__when { margin-left: 0; }
 }
+
+/* ── The position card became a way IN (owner, 2026-08-12) ────────────────────────────────────────
+ *
+ * It was an inert div counting people, on the only screen that talks about positions, while the place
+ * a position is actually changed sat three clicks away with nothing pointing at it. It is a <button>
+ * now, so it needs the button reset — a bare <button> inherits the UA's centred grey chrome and would
+ * otherwise stop matching the cards beside it.
+ */
+.payroll-overview__position-card--link {
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  cursor: pointer;
+  display: block;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.payroll-overview__position-card--link:hover {
+  border-color: var(--theme-accent, #1D3095);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.payroll-overview__position-card--link:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+}
+
+.payroll-overview__position-people {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0 0;
+  border-top: 1px solid var(--theme-border-subtle, #f3f4f6);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* A name is its own link to that person's pay page — the card's own click filters the list, so the
+ * two targets are deliberately different and the nested handler stops propagation. */
+.payroll-overview__position-person {
+  font-size: 0.78rem;
+  color: var(--theme-accent, #1D4ED8);
+  cursor: pointer;
+  /* 24px so a name is a real tap target on a phone, where this grid is one card wide. */
+  display: inline-block;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.payroll-overview__position-person:hover { text-decoration: underline; }
+
+.payroll-overview__position-person:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+.payroll-overview__position-more {
+  font-size: 0.72rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
