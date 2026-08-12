@@ -307,6 +307,97 @@ receipt that goes in and comes out with fields on it, not a queue depth going to
 - **Done when:** a receipt photographed on a phone has AI-filled fields without anyone touching a
   terminal.
 
+**Completion note (◐ 2026-08-12 — the AI half is PROVEN; the upload half is BLOCKED, and the blocker
+is the reason this feature has never worked for anybody).**
+
+R9 asked whether a receipt goes in and comes out with fields on it. The answer splits in two, and
+running it produced the most important finding in this document.
+
+### The upload rejects every person at the firm
+
+Driving `/admin/receipts/new` at 390px signed in as a plain `employee` (`jacobmaddux96@gmail.com`,
+roles `["employee"]`), the page loaded — R1 verified, the session resolves as `employee`, no
+middleware bounce — the file registered, and the submit returned:
+
+```
+POST /api/admin/receipts/upload → 422
+{"error":"Your account is not provisioned in auth.users yet — ask an admin to invite you."}
+```
+
+That is not an edge case. Measured against production:
+
+- `auth.users` holds **zero rows**; `registered_users` holds all **7** staff accounts.
+- `receipts.user_id` is `NOT NULL REFERENCES auth.users(id)`, so the insert cannot happen for
+  **anybody** — the owner and every admin included.
+- **Nothing in the codebase creates an `auth.users` row.** There is no `auth.admin.createUser` call.
+  `/api/admin/invites`, `/api/auth/register`, and the Google auto-provision in `lib/auth.ts` all
+  write `registered_users` only.
+
+So the 422's own advice was impossible to follow: invite the user, the invite succeeds, the upload
+still 422s. **That message has been rewritten** to name the real cause and point at BLOCKERS.md — a
+wrong instruction is worse than no instruction, because it sends someone to do work that cannot help.
+
+**This retires R4's explanation of the empty table.** R4 recorded "`receipts` holds zero rows — there
+is no accumulated backlog", and read that as *nothing had been filed*. The truth is stronger:
+**nothing could be**. R1's nav fix, R2's picker, R5's queue, R6's twenty fields, R7's Run-AI button
+and R8's /mine list were all built on top of an upload route that rejects everyone. Combined with the
+M7 finding — the expanded row was laid out off-screen — group R shipped a receipt pipeline where
+neither end had ever run.
+
+Blast radius, because the fix is bigger than receipts: **14 FKs across 10 tables** reference
+`auth.users`, **5 of them NOT NULL** (`receipts.user_id`, `equipment_reservations.reserved_by`, and
+`location_pings`/`location_stops`/`location_segments`.`user_id`). Every affected table holds zero
+rows, so the whole Supabase-Auth-shaped half of the schema has never been written to — cheap to fix
+now, expensive later. `receipts` also carries 4 RLS policies keyed on `user_id = auth.uid()`, which is
+the mobile design and the reason the choice is not purely mechanical.
+
+**Not fixed here, deliberately.** Repointing FKs on live tables and provisioning Supabase Auth
+identities for 7 real people are both owner decisions, and they lead to materially different systems.
+Written up as a decision with a recommendation in `docs/planning/BLOCKERS.md` §A.
+
+### The AI half works, and works well
+
+Since the DB write is blocked, the extractor was verified directly — same production
+`EXTRACTION_PROMPT`, `parseExtraction`, `buildReceiptUpdate`, `VISION_MODEL` and message shape as
+`lib/receipts/extract.ts`, against a rendered hardware-store receipt. Observed:
+
+| Field | Value | |
+|---|---|---|
+| vendor | `DESERT SANDS HARDWARE` | ✅ |
+| address / phone | `2210 N Solano Dr, Las Cruces, NM 88001` / `(575) 524-8817` | ✅ |
+| date | `2026-08-11T20:26:00.000Z` (from `08/11/2026 14:26` local) | ✅ |
+| subtotal / tax / total | `10744` / `893` / `11637` | ✅ exact to the cent |
+| payment | `card` · `3092` · brand `visa` | ✅ |
+| receipt # | `DSH-884201` | ✅ |
+| category / tax flag | `supplies` / `full` | ✅ |
+| line items | all 4, with quantities (`2× marking paint 1398`, `1× stakes 4250`, `3× tape 1197`, `1× sledge 3899`) | ✅ |
+| `ai_summary` | *"Field supplies including marking paint, survey stakes, flagging tape, and a sledge hammer — fully deductible consumable surveying materials under $2,500."* | ✅ |
+| `review_flags` | `[]` — correct; this receipt is clean | ✅ |
+| confidence | `1.0` on everything read verbatim, `0.9` on `tax_deductible_flag`, `0.95` on `ai_summary` | ✅ graded, as R6 assumed |
+
+Cost: **2,146 input / 627 output tokens** on `claude-sonnet-4-5-20250929` — a fraction of a cent per
+receipt. `buildReceiptUpdate` mapped it correctly onto the DB columns, `ai_extras.summary` included,
+so R6's summary band and R7's `needsReview()` both have real data shapes to render.
+
+Note the confidence values are *earned*: the two sub-1.0 scores are the two fields that are inference
+rather than transcription (which tax treatment applies; a written summary), and R6's rule of marking
+only sub-0.6 fields means this receipt correctly shows no confidence badges at all.
+
+**One correction, recorded because it nearly became a false bug report.** The first run of this check
+called `buildReceiptUpdate(extracted, current)` — the signature is
+`(current, extracted, costCents, completedAt)`. With the first two arguments swapped, fill-if-empty
+sees every field as already-populated and returns an update containing **no accounting fields at
+all** — status, cost and confidence, but no vendor or total. That looked exactly like a serious
+product defect. It was my call site. The function is correct; it just fails silently when misused,
+which is worth knowing.
+
+### What remains for R9
+
+The two halves cannot be joined until the identity decision lands. Once it does, R9 is: upload on a
+real phone, watch `queued → running → done`, confirm the fields above land on the row, then call
+`/api/cron/receipt-extraction` with the `CRON_SECRET` and confirm `attempted: 0`. Everything except
+the FK is now known to work.
+
 ## Group M — Mobile fit
 
 ### M1 — One tap opens the sidebar ✅ SHIPPED 2026-08-11
@@ -1842,7 +1933,7 @@ is an owner decision about staffing, not an engineering task.
 | R6 | ✅ shipped | Line items, summary, flags, dedup, low-confidence marks; collapsed a duplicated row type |
 | R7 | ✅ shipped | Run-AI / Run-AI-again button + Needs-review tab; shared needsReview() + 8 tests |
 | R8 | ✅ shipped | /mine route (no user param by design) + list; fixed the post-upload redirect trap R1 created |
-| R9 | ☐ | Drain the backlog, record the numbers |
+| R9 | ◐ blocked | AI half PROVEN live (all fields exact, graded confidence, ~0.3c). Upload 422s for EVERY account: auth.users is EMPTY and receipts.user_id is NOT NULL → it. Why the table was always empty. Identity decision in BLOCKERS.md §A |
 | M1 | ✅ shipped | Two-tap did NOT reproduce; fixed the measured z-index defect (drawer under the top bar) + close button + hover gating |
 | M2 | ✅ shipped | .admin-dialog shell + Edit Roles converted; red-tested (888px on an 844px screen) |
 | M3 | ✅ shipped | Found 2 defects: 1 uncapped modal + 13 vh caps that lie on mobile Safari, all twinned to dvh |

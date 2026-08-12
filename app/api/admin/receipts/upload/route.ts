@@ -73,10 +73,34 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: `File too large (${file.size} > ${MAX_BYTES} bytes)` }, { status: 413 });
   }
 
+  // ── THIS IS THE BLOCKER FOR THE WHOLE FEATURE, NOT AN EDGE CASE (R9, 2026-08-12) ──────────────
+  //
+  // `receipts.user_id` is NOT NULL and REFERENCES auth.users(id), so an upload needs the submitter to
+  // exist in Supabase Auth. Measured against production: **auth.users holds ZERO rows** while
+  // `registered_users` holds all 7 staff accounts. So this branch is not a rare provisioning gap —
+  // it rejects EVERY person at the firm, owner and admins included. It is why `receipts` is empty:
+  // not "nobody tried", but "nobody could".
+  //
+  // The old message here said "ask an admin to invite you", which cannot help: `/api/admin/invites`,
+  // `/api/auth/register`, and the Google auto-provision path in `lib/auth.ts` all insert into
+  // `registered_users` only. Nothing in the codebase creates an auth.users row — there is no
+  // `auth.admin.createUser` call anywhere. An admin following that advice would invite the user,
+  // the invite would succeed, and this upload would still 422.
+  //
+  // Not fixed here because the fix is an identity decision with a blast radius beyond receipts:
+  // 14 FKs across 10 tables reference auth.users, 5 of them NOT NULL (receipts.user_id,
+  // equipment_reservations.reserved_by, location_pings/stops/segments.user_id). See BLOCKERS.md.
   const userId = await resolveUserIdByEmail(session.user.email);
   if (!userId) {
     return NextResponse.json(
-      { error: 'Your account is not provisioned in auth.users yet — ask an admin to invite you.' },
+      {
+        error:
+          'Receipt upload is blocked: this app signs you in against `registered_users`, but ' +
+          '`receipts.user_id` requires a matching Supabase Auth (`auth.users`) row, and nothing ' +
+          'creates one. This affects every account, so an invite will not fix it — it needs the ' +
+          'identity decision recorded in docs/planning/BLOCKERS.md.',
+        code: 'auth_users_row_missing',
+      },
       { status: 422 },
     );
   }

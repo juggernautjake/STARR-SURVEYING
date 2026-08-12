@@ -18,6 +18,42 @@ overwrite a deliberate design.
 
 ## A. Decisions (each converts directly to shipped code)
 
+- [ ] **🔴 `auth.users` is empty, and five NOT NULL foreign keys point at it — surfaced 2026-08-12 (R9).**
+      **This blocks receipt upload for every person at the firm, including you and every admin.** It is the
+      reason `receipts` has zero rows: not "nobody tried", but "nobody could".
+
+      **Measured against production, not inferred:**
+      - `auth.users` holds **0 rows**. `registered_users` holds all **7** staff accounts.
+      - `receipts.user_id` is `NOT NULL REFERENCES auth.users(id)`, so `/api/admin/receipts/upload` returns
+        422 for every submitter. Verified live as a plain `employee` (`jacobmaddux96@gmail.com`).
+      - **14 FKs across 10 tables** reference `auth.users`; **5 are NOT NULL** and so are hard blockers:
+        `receipts.user_id`, `equipment_reservations.reserved_by`, and
+        `location_pings` / `location_stops` / `location_segments`.`user_id`.
+      - **Nothing in the codebase creates an `auth.users` row** — no `auth.admin.createUser` call exists.
+        `/api/admin/invites`, `/api/auth/register`, and the Google auto-provision in `lib/auth.ts` all write
+        `registered_users` only. So the old 422 message ("ask an admin to invite you") was impossible to act
+        on; it has been rewritten to name the real cause.
+      - Every affected table holds **0 rows** (receipts, receipt_line_items, equipment_reservations,
+        location_*, field_media, maintenance_events) — the whole Supabase-Auth-shaped half of the schema has
+        never been written to. That makes this cheap to fix now and expensive later.
+      - `receipts` also carries 4 RLS policies keyed on `user_id = auth.uid()` (the mobile design), plus
+        `service_role_full_access_receipts`, which is why the web route works around RLS but not the FK.
+
+      **The decision — which identity is canonical?**
+      1. **Point the FKs at `registered_users(id)`.** Matches what the app actually authenticates against, and
+         there is precedent in the same table: `receipts.payment_card_confirmed_by` already references
+         `registered_users(id)`. Cost: a migration on 5 tables, and the 4 `auth.uid()` RLS policies need
+         rewriting — they would no longer match, which matters if the mobile app is ever pointed at Supabase Auth.
+      2. **Create `auth.users` rows for staff, reusing `registered_users.id` as the auth id.** Keeps the mobile
+         RLS design working *and* satisfies the FKs, because the two identity values would be the same. Needs
+         registration/invite to create both from then on, or every new hire silently breaks again. **This looks
+         like the design that was intended and never finished** — but it provisions real Supabase Auth
+         identities for 7 real people, which is your call, not mine.
+
+      Recommendation: **(2)**, because it makes the existing RLS and the existing FKs both correct with one
+      identity value. Not actioned pending your decision. The AI half of the pipeline is already proven
+      independently — see R9 in `in-progress/RECEIPTS_MOBILE_AND_ADS_2026-08-11.md`.
+
 - [x] **Attunement-alone activation — RESOLVED (2026-07-18).** Decision (owner): equipping is always required;
       attunement is auto (a preference) or manual. Shipped the `autoAttune` campaign preference (default on) and
       made `deriveAc` share the ledger's `isItemActive` rule, so an attuned-but-unworn item no longer moves AC
