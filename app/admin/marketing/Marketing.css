@@ -411,7 +411,7 @@
   gap: 0.75rem;
 }
 
-.mk__stagebar,
+/* The attribution bar. No text inside it, so a 12px pill is exactly right. */
 .mk__bar {
   display: flex;
   width: 100%;
@@ -420,6 +420,82 @@
   overflow: hidden;
   background: var(--theme-bg-subtle, #f3f4f6);
 }
+
+/* ── The funnel's stage bar — split out of the rule above, 2026-08-12 ─────────────────────────────
+ *
+ * Reported as "weird formatting on mobile"; it was neither mobile-only nor cosmetic. `.mk__stagebar`
+ * was sharing `.mk__bar`'s rule — `height: 12px` plus `overflow: hidden` — but unlike `.mk__bar` it
+ * CONTAINS its own label:
+ *
+ *     <div class="mk__stagebar"><span style="width:…%"/><strong>Inquiry</strong></div>
+ *
+ * So every stage name was being clipped to a 12px-tall box at EVERY viewport, not just on a phone.
+ * "Inquiry", "Contacted", "Quoted" rendered with their bottom third sliced off. It reads as a font
+ * bug, which is why it survived: the text is *almost* legible, so the eye repairs it. It shows up worst
+ * on a phone only because that is where the column is narrowest and the reader is closest.
+ *
+ * The intended design is clear from the markup — a proportional fill with the stage name sitting on
+ * top of it. So: the fill is absolutely positioned behind the label, the box gets a real height driven
+ * by the text rather than a fixed 12px, and `overflow: hidden` now only clips the FILL to the rounded
+ * corners, which is all it was ever meant to do. */
+.mk__stagebar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--theme-bg-subtle, #f3f4f6);
+}
+
+/* The proportional fill. Absolute so it cannot participate in the flex line and squash the label —
+ * which is the other half of the original bug: a flex `<span>` with a percentage width sitting next to
+ * the text was competing with it for room. Tinted rather than solid `--theme-accent`: the label sits on
+ * top, and a full-strength accent behind dark text fails contrast in several skins. `color-mix` keeps
+ * it derived from the theme instead of a second hardcoded palette. */
+.mk__stagebar > span {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  background: color-mix(in srgb, var(--theme-accent, #1D3095) 22%, transparent);
+  transition: width 0.3s ease;
+}
+
+/* Above the fill, and never wrapped mid-stage-name. */
+.mk__stagebar > strong {
+  position: relative;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--theme-fg-primary, #111827);
+}
+
+/* ── The funnel's stage column stays put while the numbers scroll ─────────────────────────────────
+ *
+ * The table is deliberately wider than a phone and scrolls inside `.mk__scroll` — M4's rule, and right
+ * for this data: "reached / from previous / of all inquiries / median time" are meant to be compared
+ * down their columns, and restacking them into cards would destroy that.
+ *
+ * But scrolling right to read "From previous" took the STAGE NAME off screen with it, leaving a column
+ * of bare percentages with nothing to say which stage each belongs to. On a 390px screen that is most
+ * of the reason the panel felt broken. Pinning the first column costs nothing on desktop, where there
+ * is no scrolling to do.
+ *
+ * Scoped by the panel's test id rather than to `.mk__table` generally: the other tables on this page
+ * lead with a campaign name or a date, where pinning buys nothing and would just eat width. */
+[data-testid='mk-funnel'] .mk__table th:first-child,
+[data-testid='mk-funnel'] .mk__table td:first-child {
+  position: sticky;
+  inset-inline-start: 0;
+  /* Opaque, or the scrolling numbers show through the pinned cell. */
+  background: var(--theme-bg-surface, #fff);
+}
+
+/* The header's first cell is sticky on BOTH axes, so it has to outrank the row cells (z-index 2) and
+ * the plain sticky header (z-index 1) — otherwise it is painted under whichever it collides with. */
+[data-testid='mk-funnel'] .mk__table td:first-child { z-index: 2; }
+[data-testid='mk-funnel'] .mk__table th:first-child { z-index: 3; }
 
 .mk__seg {
   height: 100%;
