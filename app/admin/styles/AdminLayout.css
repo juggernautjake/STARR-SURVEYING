@@ -339,7 +339,20 @@
 }
 
 /* === SIDEBAR === */
-.admin-sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; height:100dvh; background:linear-gradient(180deg,var(--color-brand-navy-d),var(--color-brand-navy)); display:flex; flex-direction:column; z-index:50; transition:transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+/* M1 (2026-08-11) — z-index 50 → 310, ABOVE the top bar's 200.
+ *
+ * Measured in a real browser at 390×844: with the drawer open, `elementFromPoint` at the centre of
+ * `.admin-sidebar__header` returned `header.admin-topbar`. The bar covered the drawer's top 56px on
+ * every phone — the logo, the "Starr Surveying" brand, and the tap target that navigates to the Hub.
+ *
+ * That is also the best available explanation for the owner's *"I have to tap it twice"*: the drawer
+ * DID open on the first tap (verified — the class flips, and the panel slides in), but the corner of
+ * the screen the eye goes to after pressing the button is the one corner the bar was covering. A tap
+ * that appears to do nothing gets repeated, and the repeat closes it.
+ *
+ * 310 sits above the top bar (200) and below the AI tutor's scrim (400), the command palette and
+ * modals (1000+), so nothing that should cover the drawer stops doing so. */
+.admin-sidebar { position:fixed; top:0; left:0; width:260px; height:100vh; height:100dvh; background:linear-gradient(180deg,var(--color-brand-navy-d),var(--color-brand-navy)); display:flex; flex-direction:column; z-index:310; transition:transform .3s; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 .admin-sidebar__header { padding:1.25rem 1.25rem 1rem; border-bottom:1px solid rgba(255,255,255,.1); display:flex; align-items:center; gap:.75rem; }
 .admin-sidebar__logo { width:40px; height:40px; border-radius:8px; object-fit:contain; }
 .admin-sidebar__brand { display:flex; flex-direction:column; }
@@ -359,6 +372,19 @@
 .admin-sidebar__user-info { flex:1; min-width:0; }
 .admin-sidebar__user-name { font-family:'Inter',sans-serif; font-size:.8rem; font-weight:600; color:#FFF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .admin-sidebar__user-role { font-family:'Inter',sans-serif; font-size:.65rem; color:rgba(255,255,255,.5); text-transform:uppercase; }
+/* M1 — close button in the drawer header. 44px so it clears the tap-target floor, pushed to the
+ * right of the brand with `margin-left:auto`. Hidden on desktop, where the drawer is not the nav at
+ * all (the icon rail is) and there is nothing to close. */
+.admin-sidebar__close { display:none; }
+@media(max-width:1023px) {
+  .admin-sidebar__close {
+    display:inline-flex; align-items:center; justify-content:center;
+    width:44px; height:44px; margin-left:auto; flex-shrink:0;
+    background:none; border:none; border-radius:8px;
+    color:rgba(255,255,255,.75); cursor:pointer;
+  }
+  .admin-sidebar__close:active { background:rgba(255,255,255,.14); color:#FFF; }
+}
 .admin-sidebar__header--clickable { cursor:pointer; transition:background .15s; }
 .admin-sidebar__header--clickable:hover { background:rgba(255,255,255,.08); }
 .admin-sidebar__section-label--collapsible { cursor:pointer; display:flex; align-items:center; gap:.4rem; transition:all .15s; user-select:none; border-radius:4px; margin:0 .5rem; padding:.6rem .75rem .3rem; }
@@ -405,7 +431,19 @@
  * someone is holding in one hand in a truck. The icon inside stays 18px — the TARGET grows, not the
  * glyph, so nothing about the topbar's appearance changes except how easy it is to hit. */
 .admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:44px; height:44px; background:none; border:2px solid var(--theme-border, #E5E7EB); border-radius:6px; color:var(--theme-fg-secondary, #4B5563); font-size:1.25rem; cursor:pointer; }
-.admin-topbar__hamburger:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
+/* M1 — the hover style is now gated on a device that actually hovers.
+ *
+ * On iOS, a touch on an element carrying `:hover` styles can be spent APPLYING that hover rather
+ * than delivering the click, and the second tap is the one that activates. It is the textbook cause
+ * of "I have to tap it twice", and this is the most-tapped control the app has on a phone.
+ *
+ * The one-tap behaviour could not be reproduced in Chromium (see e2e/sidebar-one-tap.spec.ts, which
+ * passes), so this is not a confirmed root cause — it is the removal of a known suspect at zero
+ * cost. A phone gains nothing from a hover style it can never show, so gating it takes nothing away.
+ * The z-index fix above is the change with measured evidence behind it. */
+@media (hover: hover) and (pointer: fine) {
+  .admin-topbar__hamburger:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
+}
 .admin-topbar__title { margin:0; font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:600; color:#0F1419; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 .admin-topbar__right { display:flex; align-items:center; gap:.75rem; min-width:0; flex-shrink:1; }
 .admin-topbar__role-badge { display:inline-flex; align-items:center; padding:.25rem .65rem; border-radius:20px; font-family:'Inter',sans-serif; font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.3px; }
@@ -1046,7 +1084,11 @@
   .fieldbook-fab { width:44px; height:44px; font-size:1.15rem; }
 }
 .admin-sidebar-overlay { display:none; }
-@media(max-width:1023px) { .admin-sidebar-overlay--active { display:block; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:45; } }
+/* M1 — 45 → 300, moved up with the drawer so the scrim still dims the TOP BAR as well as the page.
+ * At 45 it sat under the bar (200): the drawer opened, the page behind went dark, and the top bar
+ * alone stayed bright — which reads as a rendering fault rather than an open menu. It stays one step
+ * below the drawer's 310 so tapping the dimmed area still closes it. */
+@media(max-width:1023px) { .admin-sidebar-overlay--active { display:block; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:300; } }
 
 /* === NOTIFICATION BELL === */
 .notif-bell { position:relative; }

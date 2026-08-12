@@ -309,7 +309,7 @@ receipt that goes in and comes out with fields on it, not a queue depth going to
 
 ## Group M — Mobile fit
 
-### M1 — One tap opens the sidebar
+### M1 — One tap opens the sidebar ✅ SHIPPED 2026-08-11
 
 `AdminLayoutClient` passes `onMenuToggle={() => setSidebarOpen((p) => !p)}` and `AdminTopBar` calls
 it from a plain `onClick`. Nothing in that path obviously double-fires, so **diagnose before
@@ -321,6 +321,55 @@ editing** — reproduce it at phone width in a real browser and find what eats t
   would break closing the drawer from the same control.
 - Add a regression test asserting one `click` on the hamburger leaves the drawer open.
 - **Done when:** one tap opens it, one tap closes it, at 390px wide.
+
+**Completion note — and the honest headline: the two-tap symptom did NOT reproduce.**
+
+Driven in a real browser at 390 × 844 with `hasTouch`/`isMobile` (`e2e/sidebar-one-tap.spec.ts`).
+One `tap()` on the hamburger flips `admin-sidebar` → `admin-sidebar admin-sidebar--open` and the
+panel slides in. A probe of `elementsFromPoint` at the button's centre found nothing sitting on top
+of it — the top hit is the button's own `<svg>`. So there is no swallowed tap in Chromium, and the
+`setSidebarOpen` path is not double-firing.
+
+**What the same session DID measure**, and what is very likely what the owner is seeing:
+
+> With the drawer open, `elementFromPoint` at the centre of `.admin-sidebar__header` returned
+> `header.admin-topbar`. **Overlap: 56px.** The top bar (`z-index: 200`) was painted over the
+> drawer (`z-index: 50`), covering its logo, its "Starr Surveying" brand, and the tap target that
+> goes to the Hub.
+
+That is the corner of the screen the eye returns to after pressing a menu button — and it was the
+one corner where nothing appeared to change. A tap that looks like it did nothing gets repeated,
+and the repeat closes the drawer. It reads exactly as "I have to tap it twice."
+
+Three changes:
+
+1. **Drawer `z-index` 50 → 310, scrim 45 → 300.** Above the top bar (200), below the AI tutor's
+   scrim (400) and modals (1000+), so nothing that *should* cover the drawer stops doing so. The
+   scrim moved too — at 45 it dimmed the page but not the bar, so the bar alone stayed bright, which
+   reads as a rendering fault rather than an open menu.
+2. **A close button in the drawer header** — required, not decoration. Raising the drawer above the
+   bar puts the hamburger *underneath* it, so the control that opened the menu can no longer close
+   it. Without an explicit X the only way out would be the dimmed strip on the right, which nothing
+   advertises. Caught because raising the z-index turned the "one tap closes it" assertion red; the
+   test found the regression the fix introduced, in the same run.
+3. **Hover styles gated behind `@media (hover: hover) and (pointer: fine)`.** On iOS a touch on an
+   element carrying `:hover` can be spent applying the hover rather than delivering the click — the
+   textbook cause of two-tap. Not a confirmed root cause here, and labelled as such in the CSS: it
+   is the removal of a known suspect at zero cost, since a phone gains nothing from a hover style it
+   can never show.
+
+**If the owner still needs two taps after this**, the remaining suspects are iOS-only and need his
+device: Safari's hover emulation (now mitigated), or PWA standalone-mode hit-testing. The z-index
+defect was real, reproducible and is fixed regardless.
+
+Two tests now guard it: one tap opens; the drawer stacks above the bar. Closing is asserted via both
+the new X and the scrim.
+
+**Filed for M9 while here:** `app/layout.tsx` has no `viewportFit: 'cover'`, which means the
+`env(safe-area-inset-*)` rules already written in `AdminResponsive.css` (drawer, FAB, messenger,
+fieldbook — a dozen of them) **resolve to 0 on iOS and do nothing today**. Authored but not wired,
+again. M9 must add `viewport-fit=cover` and the top-bar inset *together* — adding the meta alone
+would push content under the notch and make things worse.
 
 ### M2 — A dialog primitive that cannot outgrow the screen
 
@@ -610,7 +659,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R7 | ✅ shipped | Run-AI / Run-AI-again button + Needs-review tab; shared needsReview() + 8 tests |
 | R8 | ✅ shipped | /mine route (no user param by design) + list; fixed the post-upload redirect trap R1 created |
 | R9 | ☐ | Drain the backlog, record the numbers |
-| M1 | ☐ | One-tap sidebar — diagnose first |
+| M1 | ✅ shipped | Two-tap did NOT reproduce; fixed the measured z-index defect (drawer under the top bar) + close button + hover gating |
 | M2 | ☐ | Dialog primitive + role assignment |
 | M3 | ☐ | Sweep remaining dialogs |
 | M4 | ☐ | Structural overflow fix + guard |
@@ -618,7 +667,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | M6 | ☐ | Jobs portrait |
 | M7 | ☐ | Receipts portrait |
 | M8 | ☐ | Hours portrait |
-| M9 | ☐ | PWA / native safe areas |
+| M9 | ☐ | PWA / native safe areas — NOTE: no viewport-fit=cover today, so existing env() rules are inert |
 | A1 | ☐ | Tabbed marketing page |
 | A2 | ☐ | Current-month default, rolls over |
 | A3 | ☐ | Impressions / clicks / conversions live |

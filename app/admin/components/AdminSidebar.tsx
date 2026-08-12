@@ -12,7 +12,7 @@ import {
   WORKSPACES,
   WORKSPACE_ORDER,
 } from '@/lib/admin/route-registry';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, X } from 'lucide-react';
 
 interface AdminSidebarProps {
   role: UserRole;
@@ -181,6 +181,23 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
             <span className="admin-sidebar__brand-name">Starr Surveying</span>
             <span className="admin-sidebar__brand-sub">{BRAND_LABELS[role] || 'Employee Portal'}</span>
           </div>
+          {/* M1 — the drawer's own close button, and it is REQUIRED rather than a nicety.
+           *
+           * The drawer now stacks above the top bar (z 310 vs 200), which is what stops the bar
+           * covering this very header. The cost is that the hamburger is underneath the open drawer
+           * and can no longer close it — so without this button the only way out would be the dimmed
+           * area to the right, which nothing tells you about.
+           *
+           * `stopPropagation` because the whole header is a button that navigates to the Hub;
+           * without it, closing the menu would also change the page. */}
+          <button
+            type="button"
+            className="admin-sidebar__close"
+            aria-label="Close menu"
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+          >
+            <X size={20} strokeWidth={2.5} />
+          </button>
         </div>
         <nav className="admin-sidebar__nav">
           {sections.map((section) => {
