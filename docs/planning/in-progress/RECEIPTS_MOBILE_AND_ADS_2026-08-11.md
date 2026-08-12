@@ -1084,11 +1084,40 @@ files go. Build **one** picker — browse the tree, search, upload-in-place, ret
 adopt it feature by feature (job files first, then receipts, then research). Adopting it everywhere
 in one slice is how a regression lands in ten places at once.
 
-### F6 — Mobile
+### F6 — Mobile ✅ SHIPPED 2026-08-11
 
 `/admin/files` has never been audited at phone width, and a two-pane tree + detail layout is the
 shape most likely to fail there. Add it to the M4 audit's route list, then reformat: the tree
 becomes a drill-down rather than a side-by-side pane.
+
+**Completion note. The overflow guard passed — and the page was still bad on a phone.**
+
+`/admin/files` is now the 21st route in the M4 audit and reports zero sideways scroll at 360px. That
+is worth stating plainly because it is the limit of that guard: **no page-level overflow is not the
+same as usable**. Measuring the actual controls found two defects the audit cannot see:
+
+- **Action buttons were 27 × 27 px.** Four of them, adjacent, on every row the viewer can manage —
+  and one of them is **Delete**. Well under the 40px floor this product holds controls to, and a
+  mis-tap there does not do nothing, it does something else.
+- **The name column collapsed to 108 px** — under a third of the row, about twelve characters of a
+  filename, which is the one thing you are scanning a file list for.
+
+Squeezing harder fixes neither, so the actions **reformat onto their own line** below 640px: the
+name takes the full width back and the buttons get real targets. `:empty` keeps rows with no actions
+on a single line, so the list only grows where it must. Measured after: buttons **40 × 40**, name
+column **232 px**, chips **34 → 40 px**, still no sideways scroll.
+
+**Two self-inflicted faults on the way, both worth recording because both looked like other things:**
+
+1. **A backtick inside a CSS comment took the page down.** The stylesheet is a `styled-jsx` template
+   literal, so ``` `2.2rem 1fr auto` ``` in my own explanatory comment terminated the string. The
+   symptom was a 500 on `/admin/files`, which reads exactly like a broken import.
+2. **The first version of the phone overrides did nothing at all.** They were written inside the
+   *existing* `@media (max-width: 640px)` block near the row rules — but the F2/F3 base styles are
+   appended **after** that block, and on equal specificity the later rule wins. The chip stayed 34px
+   and the measurement is the only reason it was caught. The overrides now sit last in the sheet,
+   with a comment saying why. This is the "authored but not wired" shape in CSS: the rule existed,
+   read correctly, and had no effect.
 
 ### F7 — Prove it end to end
 
@@ -1150,7 +1179,7 @@ a bug is silent and expensive.
 | F3 | ✅ shipped | 8 kind chips; caught drawings mis-filed as other, fixed with a product media type |
 | F4 | ✅ shipped | describeAudience + badges; resolves inheritance, and found "Personal" badged Everyone (true, and crying wolf) |
 | F5 | ☐ | One attach-browse component, adopted feature by feature |
-| F6 | ☐ | /admin/files at phone width |
+| F6 | ✅ shipped | 27x27 action buttons → 40x40, name column 108px → 232px, chips 34 → 40; route added to the M4 audit |
 | F7 | ☐ | Prove the three permission scopes end to end |
 | S1 | ☐ | Build, PR, merge, confirm redeploy |
 

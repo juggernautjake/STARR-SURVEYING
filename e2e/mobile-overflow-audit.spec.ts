@@ -77,6 +77,9 @@ const ROUTES = [
   '/admin/time-off',
   '/admin/schedule',
   '/admin/reports',
+  // F6 — the file explorer. A row of five grid columns plus a search box, eight filter chips and a
+  // breadcrumb is the shape most likely to fail at phone width, and it had never been audited.
+  '/admin/files',
 ];
 
 /**

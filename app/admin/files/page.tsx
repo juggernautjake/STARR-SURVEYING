@@ -1268,8 +1268,35 @@ const styles = `
   .fx__dropzone-card { background: #fff; border: 2px dashed #1D3095; border-radius: 16px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; color: #1D3095; font-weight: 700; }
 
   @media (max-width: 640px) {
-    .fx__row { grid-template-columns: 2.2rem 1fr auto; }
+    /* ── F6 (2026-08-11) — measured at 360px, and both numbers were bad ──────────────────────────
+     *
+     * The row was '2.2rem 1fr auto' with the actions squeezed into 'auto'. Measured on a folder the
+     * viewer can manage:
+     *
+     *   · four action buttons at **27 x 27 px** — well under the 40px floor this product holds
+     *     controls to, adjacent to each other, and **one of them is Delete**. A mis-tap there does
+     *     not do nothing, it does something else, and the something else is destructive.
+     *   · the name column collapsed to **108px** — under half the row, showing about twelve
+     *     characters of a filename, which is the one thing you are scanning a file list for.
+     *
+     * Squeezing harder cannot fix either. So the actions REFORMAT onto their own line: the name
+     * gets the full width back, and the buttons get real tap targets. Rows with no actions are
+     * unaffected — ':empty' keeps them a single line — so the list only grows where it must. */
+    .fx__row { grid-template-columns: 2.2rem 1fr; }
     .fx__meta, .fx__col--meta { display: none; }
+
+    .fx__row-actions {
+      grid-column: 1 / -1;
+      justify-content: flex-end;
+      gap: 0.35rem;
+      padding-top: 0.15rem;
+    }
+    /* A row whose viewer can do nothing to it renders an empty actions span. Without this it would
+     * still claim a grid track and make every mount row two lines tall for nothing. */
+    .fx__row-actions:empty { display: none; }
+
+    .fx__icon-btn { width: 40px; height: 40px; }
+
   }
 
   /* ── F2/F3 — search + format filters ─────────────────────────────────────────────────────── */
@@ -1379,5 +1406,18 @@ const styles = `
     font-size: 0.72rem;
     color: var(--theme-fg-tertiary, #6B7280);
     overflow-wrap: anywhere;
+  }
+  /* ── F6 — phone overrides, LAST ON PURPOSE ──────────────────────────────────────────────────
+   *
+   * These were first written inside the earlier @media block near the row rules, and did nothing:
+   * the F2/F3 base styles are appended AFTER that block, and on equal specificity the later rule
+   * wins. The chip stayed 34px and the measurement said so. Overrides for classes defined at the
+   * end of this sheet have to come after them. */
+  @media (max-width: 640px) {
+    /* 34px was under the 40px floor this product holds controls to, in a scrolling row where a
+     * mis-tap silently changes what the list is showing. */
+    .fx__kind { min-height: 40px; }
+    /* The search box already clears the floor; stated so a future edit does not quietly shrink it. */
+    .fx__search-box { min-height: 44px; }
   }
 `;
