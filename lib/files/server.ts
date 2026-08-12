@@ -11,6 +11,8 @@ import {
   canView,
   canDownload,
   canEdit,
+  describeAudience,
+  type Audience,
   type AccessLevel,
   type NodeWithGrants,
   type PermissionGrant,
@@ -40,6 +42,9 @@ export interface FileNodeRow {
 
 export interface ListedNode extends FileNodeRow {
   access: AccessLevel;
+  /** F4 — who this node is shared with, resolved through the inheritance chain. Absent on search
+   *  hits and mounted nodes, which have their own story. */
+  audience?: Audience;
 }
 
 export const NODE_COLS =
@@ -85,7 +90,16 @@ export async function loadGrants(nodeIds: string[]): Promise<Map<string, Permiss
 }
 
 function toNWG(row: FileNodeRow, grants: PermissionGrant[]): NodeWithGrants {
-  return { id: row.id, permission_mode: row.permission_mode, owner_email: row.owner_email, grants };
+  // `is_system` rides along for `describeAudience`'s container case — a seeded root granted to
+  // everyone for VIEW is a container, not a company-wide drive. Nothing else reads it, and it is
+  // optional on the type so no other caller had to change.
+  return {
+    id: row.id,
+    permission_mode: row.permission_mode,
+    owner_email: row.owner_email,
+    grants,
+    is_system: row.is_system,
+  };
 }
 
 /** Resolve a user's access to a single node (loads its chain + grants). */
@@ -142,8 +156,12 @@ export async function listChildren(parentId: string | null, user: FileUser, isAd
   const childGrants = await loadGrants(children.map((c) => c.id));
   const nodes: ListedNode[] = [];
   for (const c of children) {
-    const access = resolveAccess([...parentChainNWG, toNWG(c, childGrants.get(c.id) ?? [])], user, isAdmin);
-    if (canView(access)) nodes.push({ ...c, access });
+    const chain = [...parentChainNWG, toNWG(c, childGrants.get(c.id) ?? [])];
+    const access = resolveAccess(chain, user, isAdmin);
+    // F4 — who this is shared with, resolved through the same chain. Computed here rather than in
+    // the UI because the grants are already loaded: asking the client to work it out would mean
+    // shipping every grant on every node to the browser to render a badge.
+    if (canView(access)) nodes.push({ ...c, access, audience: describeAudience(chain) });
   }
   return { ok: true, nodes, breadcrumb, parentAccess };
 }

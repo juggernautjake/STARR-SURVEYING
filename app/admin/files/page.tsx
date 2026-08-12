@@ -53,6 +53,12 @@ interface FileNode {
    *  CAD drawings: `cad_drawings.document` is JSONB in the database, and a `.starr` blob is not what
    *  anyone wants when they click a drawing — opening it in the editor is. */
   open_href?: string;
+  /** F4 — who can see this, resolved through the inheritance chain on the server. */
+  audience?: {
+    kind: 'private' | 'role' | 'people' | 'everyone' | 'unknown';
+    label: string;
+    detail: string;
+  };
 }
 interface Crumb {
   id: string;
@@ -888,6 +894,21 @@ export default function FilesPage(): React.ReactElement {
                     {searchHits !== null && 'path' in n && (n as SearchHit).path ? (
                       <span className="fx__hit-path">{(n as SearchHit).path}</span>
                     ) : null}
+                    {/* F4 — who can see this. Inside the name cell rather than as a sixth grid
+                        column, so the row's 5-column template (and its mobile collapse) stays
+                        exactly as it was.
+
+                        FOLDERS only. A folder is what people put things into, so it is the decision
+                        point; badging every file as well would make a wall of chips and train the
+                        eye to skip them — including on the folder where it mattered. */}
+                    {isFolder && n.audience ? (
+                      <span
+                        className={`fx__aud fx__aud--${n.audience.kind}`}
+                        title={n.audience.detail}
+                      >
+                        {n.audience.label}
+                      </span>
+                    ) : null}
                   </span>
                 </button>
                 <span className="fx__meta">{isFolder ? 'Folder' : formatSize(n.size_bytes)}</span>
@@ -1326,6 +1347,31 @@ const styles = `
     color: var(--theme-fg-tertiary, #6B7280);
     overflow-wrap: anywhere;
   }
+
+  /* ── F4 — the sharing badge ──────────────────────────────────────────────────────────────────
+   *
+   * Colour carries the meaning, and the assignment is deliberate: "Everyone" is the state somebody
+   * needs to NOTICE, so it is the warm one. Private is calm green — the reassuring colour belongs
+   * on the reassuring state, and only where the claim is actually true. */
+  .fx__aud {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    margin-top: 0.15rem;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    width: fit-content;
+  }
+  .fx__aud--private  { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+  .fx__aud--role     { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+  .fx__aud--people   { background: #f5f3ff; border-color: #ddd6fe; color: #5b21b6; }
+  .fx__aud--everyone { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+  .fx__aud--unknown  { background: #f3f4f6; border-color: #e5e7eb; color: #4b5563; }
 
   /* Where a hit lives. Shown only in search results — in browse mode you already know. */
   .fx__hit-path {

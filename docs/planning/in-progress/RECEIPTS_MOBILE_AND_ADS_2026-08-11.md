@@ -1034,12 +1034,48 @@ reports "29 matches", and the page does not scroll sideways at 360px.
 Filter by kind (images, PDFs, documents, CAD, video, audio) on both the browse and search views.
 Derived from `mime_type`, with a fallback to the extension for mounted rows whose mime is inferred.
 
-### F4 — Say which scope a folder is
+### F4 — Say which scope a folder is ✅ SHIPPED 2026-08-11
 
 The permissions model already supports personal / company / role. Whether a person can *see* which
 one they are looking at is a different question, and the one that gets someone into trouble: a
 folder that looks private and is not is a genuine privacy failure. Surface the scope as a visible
 badge on every folder, and make the permissions editor state it in words.
+
+**Completion note.** `describeAudience` in `lib/files/permissions.ts` (pure, 15 tests), resolved
+server-side in `listChildren`, rendered as a badge on folder rows.
+
+**It resolves inheritance rather than reporting it.** The tempting implementation reads a node's own
+grants and shows "Inherited" when `permission_mode` is `inherit`. That answer is useless *and
+reassuring* — "inherited" sounds contained while the parent may be shared with the whole firm. It
+walks to the nearest `custom` ancestor exactly as `resolveAccess` does, so the badge and the actual
+access can never disagree. Two other cases carry the same weight: an `everyone` grant **wins** over
+precise shares sitting beside it (reporting "2 people" for a folder that is also company-wide would
+be the most dangerous wrong answer available), and "Only you" **does not claim administrators are
+shut out**, because they are not.
+
+**The finding that came out of driving it against production data.** The root folder named
+**"Personal"** badged **"Everyone"** — and that was *correct*: seed 385 grants it `everyone = view`
+on purpose, because it is a container whose child folders are each owner-private. True and
+frightening is the worst combination a badge can have. A badge that cries wolf is read once,
+disbelieved, and then ignored on the folder where it mattered — which defeats the whole point of
+this slice.
+
+The distinction is in the data rather than the name: a seeded `is_system` root whose only
+company-wide grant is **view** is a container, while "Shared" carries `everyone = edit` and is a
+genuine company-wide drive. A read-only company folder somebody creates themselves is not
+`is_system`, so it still reads "Everyone". Verified live: Personal → "Container", Shared →
+"Everyone".
+
+Badges are on **folders only**. A folder is what people put things into, so it is the decision
+point; badging every file as well would make a wall of chips and train the eye to skip them.
+Rendered inside the name cell rather than as a sixth grid column, so the row's five-column template
+and its mobile collapse are untouched.
+
+**One process note.** The badges did not render on first check and the row was missing from the DOM
+entirely. That was **not** a code bug — the dev server had gone stale after a long session of edits
+and was serving 404s for its own chunks, leaving the page stuck on the session-loading state. Worth
+recording because the symptom is indistinguishable from "authored but not wired", which is the
+defect this repo actually has; a restart is the first thing to try, not a rewrite.
 
 ### F5 — One attach/browse component, used everywhere
 
@@ -1112,7 +1148,7 @@ a bug is silent and expensive.
 | F1 | ✅ shipped | Drawings mounted; JSONB not a bucket, so the download is synthesized as .starr and open_href goes to CAD |
 | F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |
 | F3 | ✅ shipped | 8 kind chips; caught drawings mis-filed as other, fixed with a product media type |
-| F4 | ☐ | Show whether a folder is personal / company / role |
+| F4 | ✅ shipped | describeAudience + badges; resolves inheritance, and found "Personal" badged Everyone (true, and crying wolf) |
 | F5 | ☐ | One attach-browse component, adopted feature by feature |
 | F6 | ☐ | /admin/files at phone width |
 | F7 | ☐ | Prove the three permission scopes end to end |
