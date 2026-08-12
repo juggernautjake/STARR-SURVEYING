@@ -16,11 +16,14 @@
 // So it re-imports a trailing window and UPSERTS on the table's grain. The unique index makes that safe;
 // without it, a re-import would double every day in the window.
 
+// A3: the import itself now lives in `lib/integrations/google-ads/import-spend.ts`, shared with the
+// on-demand refresh button. The dangerous part of that code is the grain — `campaign_id: ''`, the
+// four-column conflict target, `source: 'api'` — and a second copy of it would not fail, it would
+// silently double the month. This route is now the schedule and the auth, nothing else.
+
 import { NextRequest, NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { CREDENTIAL_HELP, credentialProblem, runReportQuery } from '@/lib/integrations/google-ads/client';
-import { buildSpendQuery, parseSpendRows, totalSpend } from '@/lib/integrations/google-ads/spend';
+import { importSpendRange } from '@/lib/integrations/google-ads/import-spend';
 
 /** Long enough to catch Google's restatements, short enough that a nightly run stays cheap. */
 const RESTATEMENT_WINDOW_DAYS = 10;
@@ -37,50 +40,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const problem = credentialProblem();
-  if (problem) {
-    // Expected until the developer token arrives. The manual-entry path exists exactly for this period.
-    return NextResponse.json({ skipped: true, reason: problem, detail: CREDENTIAL_HELP[problem] });
-  }
-
   const day = 24 * 60 * 60 * 1000;
   const now = Date.now();
   const from = isoDate(now - RESTATEMENT_WINDOW_DAYS * day);
   const to = isoDate(now - day); // yesterday; today is incomplete and importing it stores a partial day
 
-  const report = await runReportQuery(buildSpendQuery(from, to));
-  if ('error' in report) return NextResponse.json({ from, to, imported: 0, error: report.error }, { status: 200 });
+  const result = await importSpendRange(from, to, now);
 
-  const rows = parseSpendRows(report.body);
-  if (!rows.length) return NextResponse.json({ from, to, imported: 0, totalMicros: 0 });
-
-  // Upsert on the grain the unique index enforces. `source: 'api'` overwrites a manual estimate for the
-  // same day — the real number should win, and silently keeping the guess would be worse.
-  const { error } = await supabaseAdmin
-    .from('ad_spend_daily')
-    .upsert(
-      rows.map((r) => ({
-        spend_date: r.spendDate,
-        platform: 'google_ads',
-        // '' rather than null at the DB boundary: NULLs never collide in a unique constraint, so a null
-        // campaign would re-insert on every run instead of updating. The parser keeps null because that
-        // is what the API means; the table needs a value that can be compared.
-        campaign_id: r.campaignId ?? '',
-        campaign_name: r.campaignName,
-        ad_group_id: r.adGroupId ?? '',
-        ad_group_name: r.adGroupName,
-        impressions: r.impressions,
-        clicks: r.clicks,
-        cost_micros: r.costMicros,
-        conversions: r.conversions,
-        conversion_value_micros: r.conversionValueMicros,
-        source: 'api',
-        updated_at: new Date().toISOString(),
-      })),
-      { onConflict: 'spend_date,platform,campaign_id,ad_group_id' },
-    );
-
-  if (error) return NextResponse.json({ from, to, imported: 0, error: error.message }, { status: 500 });
-
-  return NextResponse.json({ from, to, imported: rows.length, totalMicros: totalSpend(rows) });
+  // A skipped run (no developer token) and a broken one are both 200: a cron that 500s gets retried
+  // and alerted on, and "the token has not arrived" is neither retryable nor news. A real Google
+  // error is reported in the body, which is where the cron log looks.
+  return NextResponse.json(result);
 }, { routeName: 'cron/google-ads-spend' });

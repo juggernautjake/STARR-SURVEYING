@@ -19,7 +19,8 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Loader2, PlugZap } from 'lucide-react';
 
 interface AccessReport {
-  state: 'working' | 'test-access-only' | 'token-not-configured' | 'not-connected' | 'wrong-customer' | 'unknown';
+  state: 'working' | 'working-with-warning' | 'test-access-only' | 'token-not-configured'
+    | 'not-connected' | 'wrong-customer' | 'unknown';
   summary: string;
   action: string;
   raw?: string;
@@ -64,9 +65,14 @@ export default function AdsAccessBanner(): React.ReactElement | null {
         {isNotConnected ? <PlugZap size={14} aria-hidden /> : <AlertTriangle size={14} aria-hidden />}
         {report.state === 'test-access-only'
           ? 'Not Basic-access approved yet'
-          : isNotConnected
-            ? 'Google Ads is not connected'
-            : 'The Google Ads connection is not working'}
+          : report.state === 'working-with-warning'
+            // Deliberately not alarming: the numbers on this page ARE live. What is wrong is a
+            // setting the app is compensating for, and saying "not working" over live data would
+            // teach everyone to ignore this banner.
+            ? 'Connected — but one setting needs fixing'
+            : isNotConnected
+              ? 'Google Ads is not connected'
+              : 'The Google Ads connection is not working'}
       </strong>
       <span className="mkt-access__body">{report.summary}</span>
       {report.action ? <span className="mkt-access__action">{report.action}</span> : null}

@@ -5,7 +5,7 @@
 // money units in the same metrics object.
 import { describe, it, expect } from 'vitest';
 import {
-  MICROS_PER_UNIT, buildSpendQuery, costPer, grainKey, parseSpendRows, toUnits, totalSpend,
+  MICROS_PER_UNIT, buildSpendQuery, costPer, grainKey, headlineMetrics, parseSpendRows, toUnits, totalSpend,
 } from '@/lib/integrations/google-ads/spend';
 
 const result = (over: Record<string, unknown> = {}) => ({
@@ -179,5 +179,90 @@ describe('the unit constant', () => {
     // Confusing micros with cents is a factor of 10,000 and would read as a plausible number.
     expect(MICROS_PER_UNIT).toBe(1_000_000);
     expect(toUnits(1_000_000)).toBe(1);
+  });
+});
+
+// ── A3 — the headline numbers ─────────────────────────────────────────────────────────────────────
+//
+// Every one of these fails as a PLAUSIBLE WRONG NUMBER rather than an exception, which is why they are
+// pinned: a zero where the answer is "no data", a CTR computed off the wrong denominator, and a total
+// that reads one of the two accepted field spellings and silently ignores the other.
+
+describe('headlineMetrics — a missing denominator is null, never zero', () => {
+  it('reports every ratio as null when nothing ran', () => {
+    // The whole point. "0.0% CTR" says the ads were shown and nobody clicked. The truth here is that
+    // the ads were not shown at all, and those are opposite conclusions about the same month.
+    const m = headlineMetrics([]);
+    expect(m.ctr).toBeNull();
+    expect(m.cpc).toBeNull();
+    expect(m.costPerConversion).toBeNull();
+    expect(m.roas).toBeNull();
+    expect(m.conversionRate).toBeNull();
+    // Counts, by contrast, ARE zero — nothing happened is a true count.
+    expect(m.impressions).toBe(0);
+    expect(m.clicks).toBe(0);
+  });
+
+  it('gives a real CTR but a null CPC when the ads showed and nobody clicked', () => {
+    // The two denominators are different, and this is the case that catches a copy-pasted guard.
+    const m = headlineMetrics([{ impressions: 5000, clicks: 0, cost_micros: 0 }]);
+    expect(m.ctr).toBe(0);          // 0% click-through is TRUE here: they were shown, nobody clicked
+    expect(m.cpc).toBeNull();       // cost per click, with no clicks, has no answer
+    expect(m.conversionRate).toBeNull();
+  });
+
+  it('refuses to call spend-with-no-conversions a cost-per-conversion of zero', () => {
+    const m = headlineMetrics([{ clicks: 40, cost_micros: 80_000_000, conversions: 0 }]);
+    expect(m.costPerConversion).toBeNull();
+    expect(m.cpc).toBe(2);          // $80 over 40 clicks
+  });
+
+  it('returns null ROAS on zero spend rather than infinity', () => {
+    const m = headlineMetrics([{ cost_micros: 0, conversion_value_micros: 500_000_000 }]);
+    expect(m.roas).toBeNull();
+  });
+});
+
+describe('headlineMetrics — the arithmetic', () => {
+  it('sums across rows and derives from the totals, not row by row', () => {
+    // Averaging per-row CTRs is a different (and wrong) number from total clicks over total
+    // impressions, and it is the mistake that survives review because both look like "the CTR".
+    const m = headlineMetrics([
+      { impressions: 1000, clicks: 10, cost_micros: 10_000_000, conversions: 1 },
+      { impressions: 9000, clicks: 90, cost_micros: 90_000_000, conversions: 3 },
+    ]);
+    expect(m.impressions).toBe(10_000);
+    expect(m.clicks).toBe(100);
+    expect(m.ctr).toBe(0.01);
+    expect(m.cpc).toBe(1);                        // $100 over 100 clicks
+    expect(m.costPerConversion).toBe(25);         // $100 over 4 conversions
+    expect(m.conversionRate).toBe(0.04);
+  });
+
+  it('reads int64-as-string, which is how the API sends every count', () => {
+    // Same proto3 mapping the parser handles. `+` on "4210" concatenates instead of adding, and a
+    // month of impressions becomes a 40-character number.
+    const m = headlineMetrics([{ impressions: '4210', clicks: '96', cost_micros: '12340000' }]);
+    expect(m.impressions).toBe(4210);
+    expect(m.clicks).toBe(96);
+    expect(m.costMicros).toBe(12_340_000);
+  });
+
+  it('accepts BOTH the database columns and the parser fields', () => {
+    // The DB says cost_micros, the parser says costMicros, and they mean the same number. Supporting
+    // one and silently reading the other as undefined-therefore-zero is a total that is quietly short.
+    const fromDb = headlineMetrics([{ cost_micros: 5_000_000, conversion_value_micros: 9_000_000 }]);
+    const fromApi = headlineMetrics([{ costMicros: 5_000_000, conversionValueMicros: 9_000_000 }]);
+    expect(fromApi.costMicros).toBe(fromDb.costMicros);
+    expect(fromApi.roas).toBe(fromDb.roas);
+  });
+
+  it('survives null and missing fields without producing NaN', () => {
+    // A NaN total renders as "NaN" on the dashboard, which at least is obvious — but a NaN that
+    // reaches a comparison silently answers false, and then a month "isn't up" when it is.
+    const m = headlineMetrics([{ impressions: null, clicks: undefined, cost_micros: 'not a number' }, {}]);
+    expect(m.impressions).toBe(0);
+    expect(m.costMicros).toBe(0);
+    expect(Number.isNaN(m.clicks)).toBe(false);
   });
 });

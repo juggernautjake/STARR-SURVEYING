@@ -37,6 +37,20 @@ interface Payload {
     costPerLead: number | null; costPerQuote: number | null; costPerWonJob: number | null; roas: number | null;
   };
   spend: { micros: number; manualMicros: number; manualShare: number; clicks: number };
+  // A3 — the numbers the owner asked for by name.
+  performance: {
+    impressions: number; clicks: number; conversions: number;
+    costMicros: number; conversionValueMicros: number;
+    ctr: number | null; cpc: number | null; costPerConversion: number | null;
+    roas: number | null; conversionRate: number | null;
+  };
+  daily: Array<{ date: string; costMicros: number; clicks: number; impressions: number; conversions: number }>;
+  campaigns: Array<{
+    name: string; impressions: number; clicks: number; conversions: number;
+    costMicros: number; ctr: number | null; cpc: number | null; costPerConversion: number | null;
+  }>;
+  lastImportedAt: string | null;
+  includesToday: boolean;
   slice: { by: string; rows: Array<{ key: string; jobs: number; revenue: number }> };
   repeat: {
     customers: number; repeatCustomers: number; repeatRate: number | null;
@@ -61,6 +75,14 @@ const pct = (v: number | null): string => (v === null ? '—' : `${(v * 100).toF
 const money = (v: number | null): string =>
   v === null ? '—' : v.toLocaleString(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 const days = (v: number | null): string => (v === null ? '—' : `${v.toFixed(1)}d`);
+/** Counts get thousands separators — "18420" and "1842" look alike at a glance and are not. */
+const count = (v: number): string => Math.round(v).toLocaleString();
+/** Two decimals, because a click costs $1.37 and rounding it to $1 loses the decision. */
+const money2 = (v: number | null): string =>
+  v === null ? '—' : v.toLocaleString(undefined, { style: 'currency', currency: 'USD' });
+/** One decimal on a click-through rate: the difference between 2.0% and 2.4% is the whole campaign. */
+const rate = (v: number | null): string => (v === null ? '—' : `${(v * 100).toFixed(1)}%`);
+const MICROS = 1_000_000;
 
 export default function MarketingDashboardPage({ range }: { range: DateRange }): React.ReactElement {
   const [data, setData] = useState<Payload | null>(null);
@@ -88,7 +110,36 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
 
   useEffect(() => { void load(); }, [load]);
 
+  // A3 — ask Google for this range now, then re-read. The nightly cron stops at yesterday on purpose
+  // (today is still being counted), so without this the current month is short by up to a day.
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState<string | null>(null);
+  const refresh = useCallback(async () => {
+    setRefreshing(true); setRefreshNote(null);
+    try {
+      const res = await fetch('/api/admin/marketing/spend/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to }),
+      });
+      const out = await res.json() as { imported?: number; error?: string; skipped?: boolean; warning?: string };
+      // The reason is shown verbatim. "Nothing happened" with no explanation is the state that gets
+      // pressed eleven times.
+      const outcome = out.error
+        ? out.error
+        : out.imported ? `Imported ${out.imported} rows from Google.` : 'Google reported no rows for this range.';
+      setRefreshNote(out.warning ? `${outcome} ${out.warning}` : outcome);
+      await load();
+    } catch (e) {
+      setRefreshNote(e instanceof Error ? e.message : 'The refresh failed.');
+    } finally { setRefreshing(false); }
+  }, [from, to, load]);
+
   const top = data?.funnel[0]?.count ?? 0;
+  const perf = data?.performance;
+  // The largest daily spend in range, so the sparkline bars are relative to something real rather
+  // than to a fixed ceiling that flattens a quiet month into nothing.
+  const peak = Math.max(1, ...(data?.daily ?? []).map((d) => d.costMicros));
 
   return (
     <div className="mk">
@@ -110,7 +161,97 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
         </div>
       </section>
 
-      {/* FIRST, deliberately. Everything below is only as good as this. */}
+      {/* A3 — the four numbers the owner asked for, above the coverage meter.
+          That is not a demotion of coverage. These are GOOGLE'S OWN counts of what its ads did:
+          impressions were served, clicks happened, Google's tag fired. None of them depend on
+          whether we can trace a lead back to a click, so the coverage caveat below — which governs
+          every number we derive ourselves — genuinely does not apply to them. */}
+      {perf && (
+        <section className="mk__panel mk__panel--perf" data-testid="mk-performance">
+          <div className="mk__perfhead">
+            <h2 className="mk__h2">Google Ads · this period</h2>
+            <button type="button" className="mk__refresh" onClick={() => void refresh()} disabled={refreshing}>
+              {refreshing ? 'Refreshing…' : 'Refresh from Google'}
+            </button>
+          </div>
+
+          <ul className="mk__kpis">
+            {/* Cents, unlike the funnel's cost figures. This is the one number on the page that gets
+                reconciled against a Google invoice line, and "$181" cannot be checked against
+                "$181.35" without opening the Ads UI to find out which is rounded. */}
+            <li><b>{money2(perf.costMicros / MICROS)}</b><span>spent</span></li>
+            <li><b>{count(perf.impressions)}</b><span>impressions</span></li>
+            <li><b>{count(perf.clicks)}</b><span>clicks</span></li>
+            <li><b>{perf.conversions ? perf.conversions.toFixed(perf.conversions % 1 ? 1 : 0) : '0'}</b><span>conversions</span></li>
+          </ul>
+
+          <ul className="mk__stats mk__stats--derived">
+            <li><span>{rate(perf.ctr)}</span> click-through rate</li>
+            <li><span>{money2(perf.cpc)}</span> per click</li>
+            <li><span>{money2(perf.costPerConversion)}</span> per conversion</li>
+            <li><span>{rate(perf.conversionRate)}</span> of clicks converted</li>
+          </ul>
+
+          {/* A sparkline, not a chart library: A5 does the real visualisation. This exists so
+              "we spent it all on one day" is visible now rather than after the next slice. */}
+          {data.daily.length > 1 && (
+            <div className="mk__spark" role="img" aria-label={`Daily spend across ${data.daily.length} days`}>
+              {data.daily.map((d) => (
+                <i key={d.date} style={{ height: `${Math.max(2, (d.costMicros / peak) * 100)}%` }}
+                  title={`${d.date}: ${money(d.costMicros / MICROS)}, ${d.clicks} clicks`} />
+              ))}
+            </div>
+          )}
+
+          {data.includesToday && (
+            <p className="mk__muted">
+              This range includes today, and Google is still counting it — the totals will keep moving
+              until tomorrow.
+            </p>
+          )}
+          {perf.impressions === 0 && perf.costMicros === 0 && (
+            <p className="mk__muted">
+              Nothing imported for this range yet. <strong>Refresh from Google</strong> pulls it now;
+              the nightly job fills in everything up to yesterday.
+            </p>
+          )}
+          {refreshNote && <p className="mk__muted" role="status">{refreshNote}</p>}
+          {data.lastImportedAt && (
+            <p className="mk__tiny">
+              Last imported {new Date(data.lastImportedAt).toLocaleString()}.
+            </p>
+          )}
+        </section>
+      )}
+
+      {data && data.campaigns.length > 0 && (
+        <section className="mk__panel" data-testid="mk-campaigns">
+          <h2 className="mk__h2">By campaign</h2>
+          <div className="mk__scroll">
+            <table className="mk__table">
+              <thead>
+                <tr><th>Campaign</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPC</th><th>Conv.</th><th>Cost/conv.</th></tr>
+              </thead>
+              <tbody>
+                {data.campaigns.map((c) => (
+                  <tr key={c.name}>
+                    <td>{c.name}</td>
+                    <td>{money(c.costMicros / MICROS)}</td>
+                    <td>{count(c.impressions)}</td>
+                    <td>{count(c.clicks)}</td>
+                    <td>{rate(c.ctr)}</td>
+                    <td>{money2(c.cpc)}</td>
+                    <td>{c.conversions.toFixed(c.conversions % 1 ? 1 : 0)}</td>
+                    <td>{money2(c.costPerConversion)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Everything below is only as good as this. */}
       {data && (
         <section className="mk__panel mk__panel--meter" data-testid="mk-coverage">
           <h2 className="mk__h2">Attribution coverage</h2>
@@ -298,6 +439,10 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
         .mk__stagebar span { position: absolute; inset: 0 auto 0 0; background: #dbeafe; border-radius: 4px; }
         .mk__stagebar strong { position: relative; font-weight: 600; padding-left: 4px; }
         select, input { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font: inherit; min-height: 40px; }
+        /* A3's panel styles live in Marketing.css, not here. A styled-jsx block is invisible to the
+           guard in __tests__/marketing/marketing-pages-are-styled.test.ts — the one that catches a
+           class name nothing defines — so putting new rules here would opt them out of the check
+           that exists precisely because these pages once shipped unstyled. */
       `}</style>
     </div>
   );

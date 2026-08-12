@@ -16,6 +16,9 @@
 // ── THE STATES ARE DELIBERATELY DISTINGUISHED ───────────────────────────────────────────────────
 //
 //   working              — the query returned. Whatever level the token has, it is enough.
+//   working-with-warning — data came back, but only after the client dropped an optional header that
+//                          is misconfigured. Reporting this as plain `working` would fix the symptom
+//                          and bury the cause, which is how a config bug survives for a year.
 //   test-access-only     — DEVELOPER_TOKEN_NOT_APPROVED. The token works against test accounts and
 //                          is refused against this real one. THIS is the "not Basic yet" answer.
 //   token-not-configured — no developer token at all.
@@ -23,10 +26,11 @@
 //   wrong-customer       — the id is not an account this login can reach.
 //   unknown              — something else. Reported verbatim rather than guessed at.
 
-import { ADS_API_VERSION, CREDENTIAL_HELP, credentialProblem, runReportQuery } from './client';
+import { ADS_API_VERSION, CREDENTIAL_HELP, reportingProblem, runReportQuery } from './client';
 
 export type AdsAccessState =
   | 'working'
+  | 'working-with-warning'
   | 'test-access-only'
   | 'token-not-configured'
   | 'not-connected'
@@ -49,7 +53,9 @@ export interface AdsAccessReport {
 const PROBE_QUERY = 'SELECT customer.id FROM customer LIMIT 1';
 
 export async function checkAdsAccess(): Promise<AdsAccessReport> {
-  const problem = credentialProblem();
+  // reportingProblem, not credentialProblem: this probe READS. Demanding a conversion action here
+  // would report "not configured" for an account whose reporting works perfectly.
+  const problem = reportingProblem();
   if (problem === 'missing-developer-token') {
     return {
       state: 'token-not-configured',
@@ -67,6 +73,18 @@ export async function checkAdsAccess(): Promise<AdsAccessReport> {
 
   const result = await runReportQuery(PROBE_QUERY);
   if (!('error' in result)) {
+    // The client retries once without `login-customer-id` when that header is refused, so reporting
+    // is no longer BLOCKED by a wrong value — but it is still wrong, and only this check will ever
+    // say so. Silence here is how the variable stays wrong until someone else inherits it.
+    if (result.warning) {
+      return {
+        state: 'working-with-warning',
+        summary:
+          'Live reporting works — the developer token is approved — but one setting is wrong and the '
+          + 'app is working around it on every request.',
+        action: result.warning,
+      };
+    }
     return {
       state: 'working',
       summary: 'Connected. The developer token is approved for this account, so live reporting works.',

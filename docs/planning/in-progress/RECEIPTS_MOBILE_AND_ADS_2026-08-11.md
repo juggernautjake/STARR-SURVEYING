@@ -681,7 +681,7 @@ Two things this must get right, because both are easy to get wrong and neither f
 - Default every advertising view to it; keep an explicit range picker for anyone who wants history.
 - **Done when:** a test with a faked clock on the 1st returns the new month.
 
-### A3 — The numbers the owner asked for, live
+### A3 — The numbers the owner asked for, live ✅ SHIPPED 2026-08-12
 
 Spend, impressions, clicks, conversions — plus the derived CTR, CPC and cost-per-conversion, since
 those are what a spend decision actually turns on.
@@ -693,6 +693,81 @@ those are what a spend decision actually turns on.
   not depend on a live API call to render.
 - Read path: serve from the table, and refresh from Google on demand.
 - **Done when:** the four headline numbers render for the current month from real data.
+
+**Completion note (2026-08-12). Done — and the account had been spending money invisibly.**
+
+### The state this slice found
+
+`ad_spend_daily` held **zero rows**. The live account had been running "Demand Gen — Land Surveying
+— Texas" since 31 July: **$183.94, 17,426 impressions, 408 clicks**. None of it had ever reached the
+app. The dashboard rendered a confident *"$0 ad spend"* — which is not "we have no data", it is a
+claim that no money was spent, and it was wrong by the entire budget.
+
+Two of the three plan bullets turned out to be **already built**: the GAQL already selected
+impressions, clicks, conversions and conversion value, and `ad_spend_daily` already had columns for
+all four. The query was right, the table was right, the parser was right. What was missing was
+everything in between — nothing read those columns, and nothing could successfully write them.
+
+### Three defects, each of which failed silently
+
+**1. Reading a report was gated on being able to UPLOAD one.** `runReportQuery` called
+`credentialProblem()`, which — correctly, for its own purpose — refuses when no conversion action is
+configured. An upload must name the action each conversion counts as. **A report does not.** So an ad
+account that had never set up conversion tracking could not see its own spend, and the refusal it got
+back was advice about configuring conversion actions, which has nothing to do with reading a report.
+Split into `reportingProblem()` (token + customer id) and `credentialProblem()` (those, plus an
+action). Pinned by two tests.
+
+*I wrote this bug into the new importer myself before finding it in the old one* — which is the
+argument for the split rather than a one-line fix: the stricter gate reads like the safe choice
+every time.
+
+**2. `GOOGLE_ADS_LOGIN_CUSTOMER_ID` still broke every call.** A6 identified it and left it as an
+owner action. That was the wrong call — it left the integration dark. The header is *optional*: it is
+only for a manager account that owns the target customer. `runReportQuery` now retries once without
+it when Google answers `USER_PERMISSION_DENIED`, and returns a `warning` when that retry is what
+worked. So the numbers arrive today, without an env change.
+
+The warning is not swallowed: `checkAdsAccess` gained a `working-with-warning` state, and the banner
+says *"Connected — but one setting needs fixing"* in amber, over live data. Reporting it as plain
+`working` would have fixed the symptom and buried the cause. **The owner action stands** — unset the
+variable, or point it at the real manager account — it is just no longer blocking.
+
+**3. Two importers were about to exist.** The upsert lived inside the cron route, and the refresh
+button needed the same write. The dangerous part of that code is not the fetch, it is the grain —
+`campaign_id: ''` rather than null, the four-column conflict target, `source: 'api'`. A second copy
+with any of those subtly wrong does not fail; it silently doubles the month. Extracted to
+`lib/integrations/google-ads/import-spend.ts`; the cron is now the schedule and the auth, nothing
+else.
+
+### What shipped
+
+`headlineMetrics(rows)` — pure, 9 tests — sums the four counts and derives CTR, CPC, cost per
+conversion, conversion rate and ROAS. **Every ratio is `null`, never `0`, when its denominator is
+empty**, and the tests are mostly about that distinction: "0.0% CTR" says the ads ran and nobody
+clicked; the truth was that the ads never ran, and those are opposite conclusions. The subtle case is
+pinned too — impressions with no clicks *does* have a real 0% CTR and *no* CPC at all.
+
+`POST /api/admin/marketing/spend/refresh` imports the range on screen, including today. The nightly
+cron deliberately stops at yesterday so it never freezes a half-day in as final; a person looking at
+"this month" at 2pm wants today anyway. `includesToday` comes back so the page can say the total is
+still moving rather than implying it has settled.
+
+The dashboard returns `performance`, a daily series and per-campaign rows; the page shows four KPI
+tiles, the four derived figures, a sparkline and a campaign table.
+
+### Verified against the live account, not mocked
+
+`e2e/ads-numbers-are-live.spec.ts`, 4 tests, real Google API through the app's own routes:
+**12 rows imported, $181.35 this month, 16,666 impressions, 399 clicks, CTR 2.39%, CPC $0.45.**
+Zero horizontal overflow at 360px; the tiles reflow to two rows of two.
+
+A unit test could not have caught any of this — the parser, the table and the query were all correct
+in isolation. The only way to see it was to make a real request.
+
+**One number is worth the owner's attention: 408 clicks, $184, and zero conversions.** Google has
+recorded no conversion for this campaign at all, which is why cost-per-conversion renders as "—".
+That is either a real result or the conversion tracking not firing, and A7 is where it gets answered.
 
 ### A4 — Actually live
 
@@ -1418,7 +1493,7 @@ is an owner decision about staffing, not an engineering task.
 | M9 | ✅ shipped | viewport-fit=cover + top/side/dialog insets; a dozen pre-existing env() rules were inert until now. Device check outstanding |
 | A1 | ✅ shipped | One /admin/marketing with 4 tabs, URL-held state, old routes redirect, 4 nav rows → 1 |
 | A2 | ✅ shipped | lib/marketing/date-range.ts (25 tests incl. the 1st-of-month rollover) + RangePicker in the shell; one control, four tabs |
-| A3 | ☐ | Impressions / clicks / conversions live |
+| A3 | ✅ shipped | Table was EMPTY while the account spent $184. 3 silent defects: reporting gated on the upload check, the bad login-customer-id, two importers. Live-verified 16,666 impr / 399 clicks |
 | A4 | ☐ | Auto-refresh + freshness stamp |
 | A5 | ☐ | Visual overhaul |
 | A6 | ✅ shipped | ANSWER: token IS approved. Found v18 API retired (every call dead) + a wrong LOGIN_CUSTOMER_ID that 403s a working connection |

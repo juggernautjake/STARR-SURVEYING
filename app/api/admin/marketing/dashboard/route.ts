@@ -26,6 +26,7 @@ import {
   type CustomerJob, type FunnelEvent,
 } from '@/lib/pipeline/funnel';
 import type { Milestone } from '@/lib/pipeline/events';
+import { headlineMetrics } from '@/lib/integrations/google-ads/spend';
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 // A13 adds `how_heard` — the self-reported dimension. It is the only one that says anything about the
@@ -46,6 +47,13 @@ interface JobRow {
   id: string; customer_id: string | null; created_at: string;
   final_amount: number | null; quote_amount: number | null;
   survey_type: string | null; county: string | null; origin_lead_id: string | null;
+}
+interface SpendDbRow {
+  spend_date: string; platform: string;
+  campaign_id: string; campaign_name: string | null;
+  cost_micros: number; clicks: number; impressions: number;
+  conversions: number; conversion_value_micros: number;
+  source: string; updated_at: string | null;
 }
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -81,15 +89,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select('id, customer_id, created_at, final_amount, quote_amount, survey_type, county, origin_lead_id')
       .gte('created_at', fromIso).lte('created_at', toIso)
       .is('deleted_at', null).limit(5000),
+    // A3 — impressions, conversions and conversion value join cost and clicks. They were already
+    // being imported and stored; they simply were not being read, so the page could show what the
+    // ads cost but never what they did.
     supabaseAdmin.from('ad_spend_daily')
-      .select('spend_date, platform, campaign_name, cost_micros, source, clicks')
-      .gte('spend_date', from).lte('spend_date', to).limit(2000),
+      .select('spend_date, platform, campaign_id, campaign_name, cost_micros, source, clicks, impressions, conversions, conversion_value_micros, updated_at')
+      .gte('spend_date', from).lte('spend_date', to)
+      .order('spend_date', { ascending: true }).limit(2000),
   ]);
 
   const events = (eventData ?? []) as EventRow[];
   const leads = (leadData ?? []) as LeadRow[];
   const jobs = (jobData ?? []) as JobRow[];
-  const spend = (spendData ?? []) as Array<{ cost_micros: number; source: string; clicks: number; campaign_name: string | null }>;
+  const spend = (spendData ?? []) as SpendDbRow[];
 
   // See the header — lead first, job as the fallback so lead-less jobs are not silently dropped.
   const funnelEvents: FunnelEvent[] = events
@@ -106,8 +118,48 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     hasEmailOrPhone: Boolean(l.email || l.phone),
   })));
 
-  const spendMicros = spend.reduce((s, r) => s + Number(r.cost_micros ?? 0), 0);
+  // A3 — the four headline counts and the ratios a spend decision turns on, from one tested pure
+  // function so the totals here, on the spend tab, and in any future export cannot drift apart.
+  const performance = headlineMetrics(spend);
+  const spendMicros = performance.costMicros;
   const manualMicros = spend.filter((r) => r.source === 'manual').reduce((s, r) => s + Number(r.cost_micros ?? 0), 0);
+
+  // Per day, so A5 has a series to draw and so "which day did we burn that on?" is answerable now.
+  const byDate = new Map<string, SpendDbRow[]>();
+  for (const r of spend) {
+    const bucket = byDate.get(r.spend_date);
+    if (bucket) bucket.push(r); else byDate.set(r.spend_date, [r]);
+  }
+  const daily = [...byDate.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([date, rows]) => {
+      const m = headlineMetrics(rows);
+      return {
+        date,
+        costMicros: m.costMicros, clicks: m.clicks,
+        impressions: m.impressions, conversions: m.conversions,
+      };
+    });
+
+  // Per campaign. '' is the account-grain row a manual entry writes, and calling it "(account total)"
+  // rather than leaving the name blank stops it reading as a campaign whose name failed to load.
+  const byCampaign = new Map<string, SpendDbRow[]>();
+  for (const r of spend) {
+    const key = r.campaign_name || (r.campaign_id ? `#${r.campaign_id}` : '(account total)');
+    const bucket = byCampaign.get(key);
+    if (bucket) bucket.push(r); else byCampaign.set(key, [r]);
+  }
+  const campaigns = [...byCampaign.entries()]
+    .map(([name, rows]) => ({ name, ...headlineMetrics(rows) }))
+    .sort((a, b) => b.costMicros - a.costMicros)
+    .slice(0, 25);
+
+  // The most recent write to any row in range. A4 turns this into a freshness stamp; it is returned
+  // now because the number is only meaningful next to the time it was true.
+  const lastImportedAt = spend.reduce<string | null>(
+    (latest, r) => (r.updated_at && (!latest || r.updated_at > latest) ? r.updated_at : latest),
+    null,
+  );
 
   const stageCount = (m: Milestone) => funnel.find((s) => s.milestone === m)?.count ?? 0;
   // Revenue is the invoice where one exists, the quote otherwise — the same rule A9 restates on.
@@ -168,8 +220,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       micros: spendMicros,
       manualMicros,
       manualShare: spendMicros > 0 ? manualMicros / spendMicros : 0,
-      clicks: spend.reduce((s, r) => s + Number(r.clicks ?? 0), 0),
+      clicks: performance.clicks,
     },
+    // A3 — what the owner asked to see: spend, impressions, clicks, conversions, and the ratios.
+    // Every ratio is null rather than zero when its denominator is empty; the page draws an em-dash.
+    performance,
+    daily,
+    campaigns,
+    lastImportedAt,
+    // Whether the range reaches today, whose figures Google has not finished counting. A total that
+    // is still moving has to say so, or it reads as settled and gets compared against one that is.
+    includesToday: to >= new Date().toISOString().slice(0, 10),
     slice: {
       by: slice,
       rows: [...sliceTotals.entries()]

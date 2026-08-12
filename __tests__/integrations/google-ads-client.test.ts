@@ -9,6 +9,7 @@ import { describe, it, expect } from 'vitest';
 import {
   ADS_API_VERSION, CONVERSION_ACTION_ENV, CREDENTIAL_HELP, NEW_ACTION_WARMUP_HOURS,
   conversionActionStatus, credentialProblem, isActionWarm, parseUploadResponse, payloadHash,
+  reportingProblem,
   type ClickConversion,
 } from '@/lib/integrations/google-ads/client';
 
@@ -125,6 +126,34 @@ describe('credentials — say WHICH piece is missing', () => {
     });
   });
 
+  it('does NOT make reading a report wait for a conversion action', () => {
+    // Found 2026-08-12 by running A3 end to end against the live account. `runReportQuery` gated on
+    // `credentialProblem`, which demands a conversion action — so an ad account that had never set
+    // one up could not see its own spend, clicks or impressions. The dashboard showed a confident
+    // $0 and the refusal told the owner to go and configure conversion tracking, which has nothing
+    // whatsoever to do with reading a report.
+    //
+    // Uploading writes INTO the account and must name the action each conversion counts as.
+    // Reporting reads OUT. Reusing the stricter gate for the looser operation is invisible while
+    // both happen to be configured, and blanks the dashboard the moment one is not.
+    withCleanEnv(() => {
+      process.env.GOOGLE_ADS_DEVELOPER_TOKEN = 'test-token';
+      process.env.GOOGLE_ADS_CUSTOMER_ID = '1234567890';
+
+      expect(credentialProblem()).toBe('missing-conversion-actions'); // uploading: correctly blocked
+      expect(reportingProblem()).toBeNull();                          // reporting: nothing missing
+    });
+  });
+
+  it('still demands the token and the customer id before reading anything', () => {
+    // Reporting is a SMALLER requirement, not no requirement. Google authenticates every report
+    // against both, and dropping either check would trade a clear message for an opaque 401.
+    withCleanEnv(() => {
+      expect(reportingProblem()).toBe('missing-developer-token');
+      process.env.GOOGLE_ADS_DEVELOPER_TOKEN = 'test-token';
+      expect(reportingProblem()).toBe('missing-customer-id');
+    });
+  });
   it('reports partial conversion-action config rather than treating it as fine', () => {
     // The dangerous middle state: one action configured, three not. Nothing errors, the job
     // succeeds, and Google is told about leads but never told any of them got paid — so

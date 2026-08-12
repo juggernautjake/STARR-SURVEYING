@@ -119,11 +119,31 @@ export function conversionActionStatus(): {
 
 /** Are we able to upload at all? Returns the SPECIFIC missing piece, so the admin screen can say which. */
 export function credentialProblem(): CredentialProblem | null {
-  if (!process.env.GOOGLE_ADS_DEVELOPER_TOKEN) return 'missing-developer-token';
-  if (!process.env.GOOGLE_ADS_CUSTOMER_ID) return 'missing-customer-id';
+  const reporting = reportingProblem();
+  if (reporting) return reporting;
   // Every upload names a conversion action. With none configured there is nothing to send an event
   // AS, so the job would run, skip all of its work, and report a clean success.
   if (conversionActionStatus().configured.length === 0) return 'missing-conversion-actions';
+  return null;
+}
+
+/**
+ * Are we able to READ reports? A strictly smaller requirement than uploading, and keeping the two
+ * apart is the whole reason this function exists.
+ *
+ * Found on 2026-08-12 while checking A3 end to end: `runReportQuery` gated on `credentialProblem`,
+ * which also demands a conversion action. So an account that had never configured one could not see
+ * its own spend, clicks or impressions — and the refusal it got back told it to go and create
+ * conversion actions, which have nothing to do with reading a report.
+ *
+ * Uploading writes conversions INTO the ad account and must name the action each one counts as.
+ * Reporting reads numbers OUT, and Google asks for nothing but the token, the customer and consent.
+ * A gate copied from the stricter operation to the looser one is invisible while both are configured
+ * and turns the dashboard blank the moment one is not.
+ */
+export function reportingProblem(): CredentialProblem | null {
+  if (!process.env.GOOGLE_ADS_DEVELOPER_TOKEN) return 'missing-developer-token';
+  if (!process.env.GOOGLE_ADS_CUSTOMER_ID) return 'missing-customer-id';
   return null;
 }
 
@@ -437,8 +457,30 @@ export async function uploadConversionAdjustments(adjustments: ConversionAdjustm
  * knowing that. Flattening here would put that knowledge in two places, and the version that forgets is
  * the one that silently returns only the first few hundred rows.
  */
-export async function runReportQuery(query: string): Promise<{ body: unknown } | { error: string }> {
-  const problem = credentialProblem();
+export interface ReportSuccess {
+  body: unknown;
+  /** Set when the query only succeeded after dropping `login-customer-id`. See below. */
+  warning?: string;
+}
+
+/**
+ * The `login-customer-id` header identifies a MANAGER account acting on behalf of the customer. It is
+ * optional: it is required only when the authenticated user reaches the ad account *through* a manager.
+ *
+ * On 2026-08-11, probing production found `GOOGLE_ADS_LOGIN_CUSTOMER_ID` naming an account that does
+ * not manage `7071902603`. Google's answer to that is `USER_PERMISSION_DENIED` — "the caller does not
+ * have permission" — which reads as a broken account link and sends whoever debugs it to re-do the
+ * OAuth flow. The identical query with the header REMOVED returned 200 with real data.
+ *
+ * So the retry exists because the header is the kind of configuration that is wrong far more often
+ * than it is needed, and the cost of being wrong is the entire integration going dark silently. A
+ * bounded, one-shot retry that drops an optional header turns that into a working import plus a
+ * warning — and the warning is not swallowed: `checkAdsAccess` probes the header deliberately and the
+ * advertising page still says the variable is wrong.
+ */
+export async function runReportQuery(query: string): Promise<ReportSuccess | { error: string }> {
+  // reportingProblem, NOT credentialProblem: reading a report does not need a conversion action.
+  const problem = reportingProblem();
   if (problem) return { error: CREDENTIAL_HELP[problem] };
 
   const auth = await getAccessToken();
@@ -446,25 +488,51 @@ export async function runReportQuery(query: string): Promise<{ body: unknown } |
 
   const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/\D/g, '');
   const url = `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}/googleAds:searchStream`;
+  const loginCustomerId = (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? '').replace(/\D/g, '');
 
-  try {
+  const attempt = async (withLogin: boolean): Promise<{ ok: true; body: unknown } | { ok: false; error: string }> => {
     const res = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${auth.token}`,
         'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
-        ...(process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
-          ? { 'login-customer-id': process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/\D/g, '') }
-          : {}),
+        ...(withLogin && loginCustomerId ? { 'login-customer-id': loginCustomerId } : {}),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ query }),
     });
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      return { error: (body as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}` };
+    if (res.ok) return { ok: true, body: await res.json().catch(() => null) };
+    // Not every failure is JSON: a retired API version answers with an HTML 404 page, and reading
+    // `.error.message` off that yields `HTTP 404` with the actual explanation thrown away.
+    const text = await res.text().catch(() => '');
+    let message = `HTTP ${res.status}`;
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string } } | Array<{ error?: { message?: string } }>;
+      const first = Array.isArray(parsed) ? parsed[0] : parsed;
+      message = first?.error?.message ?? message;
+    } catch {
+      if (text) message = `${message}: ${text.slice(0, 300)}`;
     }
-    return { body };
+    return { ok: false, error: message };
+  };
+
+  try {
+    const first = await attempt(true);
+    if (first.ok) return { body: first.body };
+
+    if (loginCustomerId && /USER_PERMISSION_DENIED|not have permission/i.test(first.error)) {
+      const second = await attempt(false);
+      if (second.ok) {
+        return {
+          body: second.body,
+          warning:
+            `GOOGLE_ADS_LOGIN_CUSTOMER_ID (${loginCustomerId}) does not manage this ad account — the `
+            + 'request only succeeded once that header was dropped. Unset it, or set it to the manager '
+            + 'account that really owns the account.',
+        };
+      }
+    }
+    return { error: first.error };
   } catch (e) {
     return { error: e instanceof Error ? e.message : 'Report query failed' };
   }

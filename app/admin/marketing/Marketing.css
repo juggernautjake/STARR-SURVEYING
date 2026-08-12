@@ -746,8 +746,88 @@
 
 /* Amber, not red: a token awaiting approval is a normal stage of setting this up, not a fault.
  * Red here would train somebody to ignore the banner before it ever says anything urgent. */
-.mkt-access--test-access-only { border-color: #F59E0B; background: #FFFBEB; color: #92400E; }
+.mkt-access--test-access-only,
+/* Amber, not red: the data below IS live. Red over correct numbers is how a banner gets ignored. */
+.mkt-access--working-with-warning { border-color: #F59E0B; background: #FFFBEB; color: #92400E; }
 .mkt-access--not-connected,
 .mkt-access--token-not-configured { border-color: #93C5FD; background: #EFF6FF; color: #1E40AF; }
 .mkt-access--wrong-customer,
 .mkt-access--unknown { border-color: #FCA5A5; background: #FEF2F2; color: #991B1B; }
+
+/* ── A3 · the headline advertising numbers ─────────────────────────────────────────────────────
+ *
+ * Owner: "show all of that info for spending and conversions and clicks and impressions... for the
+ * current month by default... in real time."
+ *
+ * These live here rather than in DashboardTab's styled-jsx block on purpose. That block is invisible
+ * to __tests__/marketing/marketing-pages-are-styled.test.ts — the guard that exists because these
+ * pages once referenced class names nothing defined and rendered as unstyled flow content for
+ * months. Rules written where the guard cannot see them opt out of the check.
+ */
+
+.mk__panel--perf { border-color: #BFDBFE; background: #F9FBFF; }
+
+.mk__perfhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mk__refresh {
+  padding: 7px 12px;
+  min-height: 40px;                       /* the repo's tap-target floor — see F6 */
+  border: 1px solid #BFDBFE;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #1D4ED8;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mk__refresh:disabled { opacity: 0.6; cursor: default; }
+
+/* auto-fit down to 130px, so on a 360px phone the four tiles become two rows of two rather than one
+ * squeezed row of numbers too small to read. That is M4's rule — reformat to fit, do not shrink. */
+.mk__kpis {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 4px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+.mk__kpis li {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.mk__kpis b {
+  display: block;
+  font-size: 1.35rem;
+  line-height: 1.15;
+  /* Tabular figures so $1,181.30 and $181.30 line up their decimal points down the row — the whole
+   * value of a tile grid is being able to compare them without reading each one. */
+  font-variant-numeric: tabular-nums;
+}
+.mk__kpis span { display: block; margin-top: 2px; color: #6B7280; font-size: 0.78rem; }
+
+.mk__stats--derived { border-top: 1px solid #E5E7EB; padding-top: 10px; margin-top: 12px; }
+
+/* A sparkline, not a chart: A5 does the real visualisation. This exists so "we spent it all on one
+ * day" is visible now instead of after the next slice. */
+.mk__spark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 46px;
+  margin: 12px 0 4px;
+}
+.mk__spark i {
+  flex: 1 1 0;
+  min-width: 2px;
+  background: #93C5FD;
+  border-radius: 2px 2px 0 0;
+}

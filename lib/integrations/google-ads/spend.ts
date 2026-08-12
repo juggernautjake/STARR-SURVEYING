@@ -158,6 +158,79 @@ export function totalSpend(rows: Array<Pick<SpendRow, 'costMicros'>>): number {
   return rows.reduce((sum, r) => sum + r.costMicros, 0);
 }
 
+// ── THE HEADLINE NUMBERS ────────────────────────────────────────────────────────────────────────
+//
+// A3. The owner asked to see *"spending and conversions and clicks and impressions and all of that
+// info for the current month"*. Four counts and the three ratios a spend decision actually turns on.
+//
+// It takes ROWS, not a date range or a client, so the same arithmetic totals a month, one campaign,
+// or a filtered subset, and so it can be tested without a network or a database. The route's only job
+// is to choose which rows.
+
+/** Whatever the caller's row type is, these are the fields the maths needs. */
+export type MetricRow = {
+  impressions?: number | string | null;
+  clicks?: number | string | null;
+  cost_micros?: number | string | null;
+  costMicros?: number | string | null;
+  conversions?: number | string | null;
+  conversion_value_micros?: number | string | null;
+  conversionValueMicros?: number | string | null;
+};
+
+export interface HeadlineMetrics {
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  costMicros: number;
+  conversionValueMicros: number;
+  /** Clicks ÷ impressions, as a fraction. `null` when nothing was shown. */
+  ctr: number | null;
+  /** Average cost of a click, in currency units. `null` when nothing was clicked. */
+  cpc: number | null;
+  /** Cost of a conversion, in currency units. `null` when nothing converted. */
+  costPerConversion: number | null;
+  /** Conversion value ÷ cost. `null` when nothing was spent — infinite return is not a number. */
+  roas: number | null;
+  /** Clicks that converted. `null` when nothing was clicked. */
+  conversionRate: number | null;
+}
+
+/**
+ * Sum a set of rows and derive the ratios.
+ *
+ * **Every ratio is `null` rather than `0` when its denominator is zero, and that is the point of this
+ * function.** A month with no impressions has no click-through rate; printing "0.0% CTR" says the ads
+ * ran and nobody clicked, which is a different — and much more alarming — statement than "the ads did
+ * not run". The dashboard renders null as an em-dash. This is the same rule `costPer` above encodes,
+ * applied to the whole set at once.
+ *
+ * Accepts both the database's snake_case columns and the parser's camelCase fields, because the two
+ * describe the same numbers and forcing a translation layer between them is how one of the two ends up
+ * silently reading `undefined` as zero.
+ */
+export function headlineMetrics(rows: readonly MetricRow[]): HeadlineMetrics {
+  let impressions = 0, clicks = 0, conversions = 0, costMicros = 0, conversionValueMicros = 0;
+
+  for (const r of rows) {
+    impressions += int64(r.impressions);
+    clicks += int64(r.clicks);
+    conversions += float(r.conversions);
+    costMicros += int64(r.cost_micros ?? r.costMicros);
+    conversionValueMicros += int64(r.conversion_value_micros ?? r.conversionValueMicros);
+  }
+
+  return {
+    impressions, clicks, conversions, costMicros, conversionValueMicros,
+    ctr: impressions > 0 ? clicks / impressions : null,
+    cpc: clicks > 0 ? toUnits(costMicros) / clicks : null,
+    costPerConversion: costPer(costMicros, conversions),
+    // Spend of zero is the denominator here, and "infinite return" is not a figure anyone can act on.
+    roas: costMicros > 0 ? conversionValueMicros / costMicros : null,
+    conversionRate: clicks > 0 ? conversions / clicks : null,
+  };
+}
+
 /**
  * Fold API rows to the table's grain: one row per (date, campaign, ad group).
  *
