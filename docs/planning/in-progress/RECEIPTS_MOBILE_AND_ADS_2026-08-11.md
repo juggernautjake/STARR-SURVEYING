@@ -90,7 +90,7 @@ Each is independently shippable: typecheck + lint + relevant tests, commit, push
 
 ## Group R — Receipts
 
-### R4 — Apply seed 580 and prove the column landed
+### R4 — Apply seed 580 and prove the column landed ✅ SHIPPED 2026-08-11
 
 `lib/receipts/extract.ts` already survives a missing `ai_extras` (it retries the UPDATE without it
 and logs), so a deploy ahead of the seed degrades instead of failing. That guard is a safety net,
@@ -101,6 +101,22 @@ not the plan.
 - Verify via PostgREST + service key that `receipts.ai_extras` exists and the partial GIN index is
   present.
 - **Done when:** a `select ai_extras from receipts limit 1` succeeds against production.
+
+**Completion note.** Applied with `node scripts/apply-seeds.mjs --only 580_receipt_ai_extras.sql`
+against production (1/1 applied, 0 skipped). Verified three ways:
+`information_schema.columns` reports `ai_extras` as `jsonb`; `pg_indexes` reports
+`idx_receipts_review_flags`; and PostgREST returns 200 for
+`receipts?select=ai_extras,extraction_status`, which also proves the API schema cache picked the
+column up — a migration PostgREST has not noticed is a migration the app still cannot use.
+
+**And a correction to this doc's own premise, found while verifying.** The `receipts` table holds
+**zero rows** (so does `receipt_line_items`; `jobs` holds 2). There is no accumulated backlog of
+queued receipts. The wiring defect was real and would have hit the very first upload — nothing ran
+the extractor — but nothing had been filed for it to strand. R9 is rewritten below accordingly:
+the honest verification is one receipt end to end, not draining a queue that does not exist.
+
+The 2-job count is also worth noting for R5: the "create the job inline" path is not an edge case
+here, it is going to be the common path.
 
 ### R5 — Replace the 500-job `<select>` with the picker, everywhere a job is chosen
 
@@ -157,14 +173,24 @@ is most of why people stop submitting.
 - **Done when:** a `field_crew` account can see its own submitted receipts and cannot see anyone
   else's.
 
-### R9 — Prove the backlog actually drains
+### R9 — Prove one receipt makes it end to end
 
-The whole point. Everything above is theory until a real queued receipt gets fields.
+**Rewritten after R4** — the original said "drain the backlog", and there is no backlog: the
+`receipts` table is empty. Everything above is still theory, but the thing that proves it is a
+receipt that goes in and comes out with fields on it, not a queue depth going to zero.
 
-- After deploy, call `/api/cron/receipt-extraction` once with the `CRON_SECRET` bearer token.
-- Confirm rows move `queued → done` with a non-null `vendor_name` and `extraction_cost_cents`.
-- Record the count drained and the cost in this doc.
-- **Done when:** the number of `extraction_status = 'queued'` receipts older than a day is zero.
+- After deploy, upload a real photographed receipt through `/admin/receipts/new`, on a phone,
+  signed in as a **non-admin** account — that exercises R1's role change, R2's picker and R3's
+  extraction kick in the one path a crew member will actually use.
+- Confirm: the row lands, `extraction_status` goes `queued → running → done`, `vendor_name`,
+  `total_cents` and `category` are populated, `extraction_cost_cents` is non-zero, `ai_extras`
+  carries a summary, and any line items are in `receipt_line_items`.
+- Then call `/api/cron/receipt-extraction` with the `CRON_SECRET` bearer token and confirm it
+  reports `attempted: 0` — an empty sweep is the correct answer once the kick worked, and it
+  distinguishes "the cron is fine" from "the cron never ran".
+- Record the observed vendor, total and cost here.
+- **Done when:** a receipt photographed on a phone has AI-filled fields without anyone touching a
+  terminal.
 
 ## Group M — Mobile fit
 
@@ -463,7 +489,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R1 | ✅ shipped | Route registry — role list dropped, un-hidden from the drawer |
 | R2 | ✅ shipped | `job-ref.ts`, resolve route, `JobRefPicker`, capture page + upload route wired |
 | R3 | ✅ shipped | Core split, web runner, extract route, hourly cron, seed 580 authored |
-| R4 | ☐ | Apply seed 580 to live Supabase |
+| R4 | ✅ shipped | Seed 580 applied to production; column + index + PostgREST verified |
 | R5 | ☐ | Picker into the bookkeeper queue + job files |
 | R6 | ☐ | Line items, summary, flags, dedup, confidence in the UI |
 | R7 | ☐ | Run-AI button + "needs review" filter |
