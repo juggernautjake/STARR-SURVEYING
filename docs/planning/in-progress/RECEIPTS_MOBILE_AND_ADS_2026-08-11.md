@@ -147,7 +147,7 @@ assuming: the only other `jobs.map` selectors are `contacts/[id]` (linking a con
 against a job that might not exist, so neither is in this slice's question. If a general file upload
 ever grows a job field, it should use the same picker.
 
-### R6 — Show everything the AI read
+### R6 — Show everything the AI read ✅ SHIPPED 2026-08-11
 
 The queue renders eight fields. The extractor now returns roughly twenty, plus line items. A
 bookkeeper currently answers "which card was this?" by squinting at the photo.
@@ -164,6 +164,40 @@ bookkeeper currently answers "which card was this?" by squinting at the photo.
   receipts is a flag people learn to scroll past, which is how the one real problem gets approved
   with the rest.
 - **Done when:** a receipt with line items shows them, and a receipt with no flags shows no band.
+
+**Completion note (✅ SHIPPED 2026-08-11).** All of it, plus one thing this slice did not plan for.
+
+The API batch-fetches `receipt_line_items` in a single `.in('receipt_id', ids)` — same shape as the
+existing maintenance lookup, and best-effort for the same reason: a failure degrades to "no line
+items" rather than taking down the queue, because the totals a bookkeeper approves live on the
+receipt row, not in that table.
+
+In the expanded row, ordered deliberately: the AI's one-sentence summary and the review-flag band
+sit **above** the field list, because a warning underneath twenty rows of data is one nobody meets
+until after they have decided. Then the fields (now including discount, card brand, receipt number
+and vendor phone), then the line-items table.
+
+Two judgement calls worth recording, since both had a tempting wrong answer:
+
+- **Confidence is shown only where it is low.** A percentage beside every value was the obvious
+  build, and it is worse: eighteen confident numbers wearing "97%" trains the eye to skip the badge,
+  and then the one reading "20%" gets skipped with them. Only sub-0.6 fields get a small `?` with
+  the figure in its tooltip, so the mark still means something.
+- **The line items stay a table and scroll horizontally.** Restacking them into cards on a phone
+  would have satisfied M4's letter and destroyed the point — the amounts are meant to be compared
+  down the column. This is exactly the reformat-vs-scroll distinction M4 now spells out, and the
+  wrapper scrolls, never the page.
+
+**Unplanned, and the reason the slice cost more than it looked:** `AdminReceiptRow` was declared
+**twice** — in `receipt-types.ts` and again inside `app/api/admin/receipts/route.ts`, whose own
+header called itself a mirror of the other. Adding the new fields to the UI's copy made the route
+fail to compile. Rather than edit both and deepen the drift, the route now imports the shared type
+(re-exporting it so existing importers are unaffected), and the shared file gained the
+`ReceiptRow` / `AdminReceiptRow` split the route actually needed: table columns versus table columns
+plus the joins the API annotates on. One declaration, two views.
+
+Verified: `tsc` clean, lint clean (one pre-existing `<img>` warning on the signed-URL photo), and
+all 97 receipt-matching tests pass.
 
 ### R7 — "Run AI" per row, and a queue filter for what needs a human
 
@@ -507,7 +541,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R3 | ✅ shipped | Core split, web runner, extract route, hourly cron, seed 580 authored |
 | R4 | ✅ shipped | Seed 580 applied to production; column + index + PostgREST verified |
 | R5 | ✅ shipped | Picker into the bookkeeper queue; the job-files half was withdrawn (no selector exists there) |
-| R6 | ☐ | Line items, summary, flags, dedup, confidence in the UI |
+| R6 | ✅ shipped | Line items, summary, flags, dedup, low-confidence marks; collapsed a duplicated row type |
 | R7 | ☐ | Run-AI button + "needs review" filter |
 | R8 | ☐ | My-receipts list |
 | R9 | ☐ | Drain the backlog, record the numbers |

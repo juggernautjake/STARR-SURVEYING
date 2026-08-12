@@ -20,61 +20,17 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
-interface ReceiptRow {
-  id: string;
-  user_id: string | null;
-  job_id: string | null;
-  job_time_entry_id: string | null;
-  vendor_name: string | null;
-  vendor_address: string | null;
-  transaction_at: string | null;
-  subtotal_cents: number | null;
-  tax_cents: number | null;
-  tip_cents: number | null;
-  total_cents: number | null;
-  payment_method: string | null;
-  payment_last4: string | null;
-  category: string | null;
-  category_source: string | null;
-  tax_deductible_flag: string | null;
-  notes: string | null;
-  photo_url: string | null;
-  status: string;
-  approved_by: string | null;
-  approved_at: string | null;
-  rejected_reason: string | null;
-  extraction_status: string | null;
-  extraction_error: string | null;
-  extraction_cost_cents: number | null;
-  ai_confidence_per_field: Record<string, number> | null;
-  created_at: string;
-  updated_at: string | null;
-}
-
-export interface AdminReceiptRow extends ReceiptRow {
-  /** Joined from auth.users — bookkeeper-friendly view of who submitted. */
-  submitted_by_email: string | null;
-  submitted_by_name: string | null;
-  /** Joined from jobs — saves the UI from a per-row fetch. */
-  job_name: string | null;
-  job_number: string | null;
-  /** Pre-signed photo URL valid for 15 min. Null if signing failed. */
-  photo_signed_url: string | null;
-  /** F10.7 tail — maintenance events that link to this receipt via
-   *  `linked_receipt_id`. Empty array when none — the
-   *  bookkeeper UI uses this to show "this receipt is already
-   *  attached to N maintenance event(s)" + open the picker.
-   *  Lookup is batched across the whole returned page. */
-  linked_maintenance_events: Array<{
-    id: string;
-    summary: string;
-    kind: string;
-    state: string;
-    scheduled_for: string | null;
-    equipment_inventory_id: string | null;
-    equipment_name: string | null;
-  }>;
-}
+// ── ONE DECLARATION OF A RECEIPT ROW (R6, 2026-08-11) ────────────────────────────────────────────
+//
+// `ReceiptRow` and `AdminReceiptRow` used to be declared HERE as well as in
+// `app/admin/receipts/receipt-types.ts`, which openly described itself as a mirror of this file.
+// Two hand-maintained shapes for one row, and the bill came due the moment the extractor learned to
+// return line items: adding them to the UI's copy made this file fail to compile.
+//
+// Imported now, and re-exported so existing importers of `AdminReceiptRow` from this route keep
+// working unchanged.
+import type { ReceiptRow, AdminReceiptRow } from '@/app/admin/receipts/receipt-types';
+export type { AdminReceiptRow };
 
 const SIGNED_URL_TTL_SEC = 60 * 15;
 const STORAGE_BUCKET = 'starr-field-receipts';
@@ -188,6 +144,45 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // (best-effort) so a maintenance schema mismatch can't break
   // the bookkeeper queue.
   const receiptIds = receiptRows.map((r) => r.id);
+
+  // R6 — line items for the whole page in ONE query, keyed back by receipt_id. Same batching shape
+  // as the maintenance lookup below rather than a fetch per expanded row: the queue routinely shows
+  // fifty receipts, and a grocery receipt can carry thirty lines.
+  //
+  // Best-effort like the maintenance lookup. A failure here degrades to "no line items" — it must
+  // never take down the bookkeeper's queue, because the totals a bookkeeper approves on live on the
+  // receipt row itself, not in this table.
+  const lineItemsByReceiptId = new Map<string, AdminReceiptRow['line_items']>();
+  if (receiptIds.length > 0) {
+    const { data: liRows, error: liErr } = await supabaseAdmin
+      .from('receipt_line_items')
+      .select('id, receipt_id, description, amount_cents, quantity, position')
+      .in('receipt_id', receiptIds)
+      .order('position', { ascending: true });
+    if (liErr) {
+      console.warn('[admin/receipts] line-item lookup failed', { error: liErr.message });
+    } else {
+      for (const li of (liRows ?? []) as Array<{
+        id: string;
+        receipt_id: string;
+        description: string | null;
+        amount_cents: number | null;
+        quantity: number | null;
+        position: number | null;
+      }>) {
+        const list = lineItemsByReceiptId.get(li.receipt_id) ?? [];
+        list.push({
+          id: li.id,
+          description: li.description,
+          amount_cents: li.amount_cents,
+          quantity: li.quantity,
+          position: li.position,
+        });
+        lineItemsByReceiptId.set(li.receipt_id, list);
+      }
+    }
+  }
+
   const linkedByReceiptId = new Map<
     string,
     AdminReceiptRow['linked_maintenance_events']
@@ -292,6 +287,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       job_number: job?.job_number ?? null,
       photo_signed_url: signed[idx] ?? null,
       linked_maintenance_events: linkedByReceiptId.get(r.id) ?? [],
+      // `ai_extras` and `dedup_match_id` already arrive via `select('*')`; they are named here so
+      // the shape is explicit at the boundary and a reader of this file can see what the UI gets.
+      // The `?? null` matters for `ai_extras`: rows written before seed 580 have no such key at
+      // all, and `undefined` would drop out of the JSON entirely rather than reading as "no
+      // extraction has run".
+      ai_extras: (r as { ai_extras?: AdminReceiptRow['ai_extras'] }).ai_extras ?? null,
+      dedup_match_id: (r as { dedup_match_id?: string | null }).dedup_match_id ?? null,
+      line_items: lineItemsByReceiptId.get(r.id) ?? [],
     };
   });
 

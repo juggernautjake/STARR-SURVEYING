@@ -12,7 +12,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Trash2, Wrench, X, AlertTriangle, Landmark } from 'lucide-react';
+import { Trash2, Wrench, X, AlertTriangle, Landmark, Copy } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -504,6 +504,10 @@ function ReceiptRow({
 
   const total = formatCents(row.total_cents);
   const date = formatDateTime(row.transaction_at ?? row.created_at);
+  // R6 — per-field confidence, defaulted so every read below is a plain lookup rather than a chain
+  // of optional accesses. An absent entry means the AI did not populate that field, which is not the
+  // same as low confidence and correctly leaves it unmarked.
+  const conf: Record<string, number | undefined> = row.ai_confidence_per_field ?? {};
   const statusColor = STATUS_COLORS[row.status] ?? 'var(--color-text-tertiary)';
 
   // Build a compact AI-extraction status caption.
@@ -601,14 +605,77 @@ function ReceiptRow({
             </div>
           )}
 
+          {/* ── R6: what the AI read, before the raw fields ────────────────────────────────────
+              Order is the argument. The summary is one sentence answering "what is this?", which is
+              the question somebody scrolling fifty receipts is actually asking; the flags are the
+              only thing that can require action. Both sit ABOVE the field list because a warning
+              underneath twenty rows of data is a warning nobody meets until after they have
+              decided. */}
+          <div style={styles.aiPanel}>
+            {row.ai_extras?.summary ? (
+              <p style={styles.aiSummary}>{row.ai_extras.summary}</p>
+            ) : null}
+
+            {/* Advisory, and it must read that way. A band that fires on ordinary receipts is one
+                people learn to scroll past — which is how the one real problem gets approved along
+                with the rest. The extractor is told an empty array is the common, correct answer. */}
+            {(row.ai_extras?.review_flags?.length ?? 0) > 0 ? (
+              <div style={styles.flagBand} role="note">
+                <strong style={styles.flagTitle}>
+                  <AlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
+                  Worth a look before approving
+                </strong>
+                <ul style={styles.flagList}>
+                  {row.ai_extras!.review_flags!.map((f, i) => (
+                    <li key={i}>{f}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {/* A possible duplicate is surfaced, never auto-discarded: two $5 coffees on the same
+                day are both real, and only a person can tell those from one receipt photographed
+                twice. */}
+            {row.dedup_match_id ? (
+              <div style={styles.dupBand} role="note">
+                <Copy size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
+                Looks like a possible duplicate — same vendor, total and date as an earlier receipt
+                from this person. Check before approving; it may still be a genuine second purchase.
+              </div>
+            ) : null}
+          </div>
+
           <dl style={styles.fields}>
-            <Field label="Vendor address" value={row.vendor_address} />
-            <Field label="Subtotal" value={formatCents(row.subtotal_cents)} />
-            <Field label="Tax" value={formatCents(row.tax_cents)} />
-            <Field label="Tip" value={formatCents(row.tip_cents)} />
-            <Field label="Total" value={total} />
-            <Field label="Payment" value={row.payment_method} />
+            {/* `conf` reads the per-field scores the extractor stored. The total is the one that
+                matters most — a doubtful total is the difference between the books balancing and
+                not — so it is marked like the rest rather than exempted for being important. */}
+            <Field
+              label="Vendor address"
+              value={row.vendor_address}
+              confidence={conf.vendor_address}
+            />
+            <Field
+              label="Subtotal"
+              value={formatCents(row.subtotal_cents)}
+              confidence={conf.subtotal_cents}
+            />
+            <Field label="Tax" value={formatCents(row.tax_cents)} confidence={conf.tax_cents} />
+            <Field label="Tip" value={formatCents(row.tip_cents)} confidence={conf.tip_cents} />
+            <Field label="Total" value={total} confidence={conf.total_cents} />
+            {row.ai_extras?.discount_cents ? (
+              <Field label="Discount" value={formatCents(row.ai_extras.discount_cents)} />
+            ) : null}
+            <Field
+              label="Payment"
+              value={
+                // Brand + method + last four is how a person identifies a card, so it is written
+                // the way they would say it out loud rather than as three separate rows.
+                [row.ai_extras?.card_brand, row.payment_method].filter(Boolean).join(' ') || null
+              }
+            />
             <Field label="Last 4" value={row.payment_last4} />
+            <Field label="Receipt #" value={row.ai_extras?.receipt_number} />
+            <Field label="Vendor phone" value={row.ai_extras?.vendor_phone} />
             <Field
               label="Category source"
               value={
@@ -645,6 +712,52 @@ function ReceiptRow({
               <Field label="Reject reason" value={row.rejected_reason} />
             ) : null}
           </dl>
+
+          {/* R6 — the transcribed lines. This is the part a bookkeeper genuinely cannot rebuild
+              later: the photo fades, the paper goes in a drawer, and "$84.19 at a hardware store"
+              stops being answerable six months on. Rendered only when there are lines — a fuel slip
+              or a toll has none, and an empty table would read as a failed extraction rather than a
+              receipt that simply is not itemised. */}
+          {row.line_items.length > 0 ? (
+            <div style={styles.lineItems}>
+              <strong style={styles.lineItemsTitle}>
+                What was on it ({row.line_items.length}{' '}
+                {row.line_items.length === 1 ? 'line' : 'lines'})
+              </strong>
+              {/* The wrapper scrolls, not the page (M4's rule): amounts stay column-aligned so they
+                  can be compared, which is the only reason this is a table at all. */}
+              <div style={styles.lineItemsScroll}>
+                <table style={styles.lineTable}>
+                  <thead>
+                    <tr>
+                      <th style={styles.lineTh}>Item</th>
+                      <th style={{ ...styles.lineTh, ...styles.lineThNum }}>Qty</th>
+                      <th style={{ ...styles.lineTh, ...styles.lineThNum }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {row.line_items.map((li) => (
+                      <tr key={li.id}>
+                        <td style={styles.lineTd}>{li.description || '—'}</td>
+                        <td style={{ ...styles.lineTd, ...styles.lineTdNum }}>
+                          {li.quantity ?? '—'}
+                        </td>
+                        <td style={{ ...styles.lineTd, ...styles.lineTdNum }}>
+                          {formatCents(li.amount_cents)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {/* Transcription is not arithmetic, and saying so stops somebody treating the lines as
+                  the authority when they disagree with the printed total. */}
+              <p style={styles.lineItemsNote}>
+                Read from the photo by AI. The receipt&rsquo;s own total above is what gets
+                approved.
+              </p>
+            </div>
+          ) : null}
 
           {/* Inline overrides */}
           <div style={styles.editRow}>
@@ -940,11 +1053,42 @@ function ReceiptRow({
 
 
 
-function Field({ label, value }: { label: string; value: string | null | undefined }) {
+/** Below this, the AI is telling us it was guessing — inferred or partial, per the prompt's own
+ *  scale (1.0 printed and clear, 0.5 inferred, 0.2 best-guess). */
+const LOW_CONFIDENCE = 0.6;
+
+function Field({
+  label,
+  value,
+  confidence,
+}: {
+  label: string;
+  value: string | null | undefined;
+  /** R6 — 0..1 the model reported for THIS field. Undefined when it didn't populate the field, or
+   *  when no extraction has run. */
+  confidence?: number | null;
+}) {
+  // Only the low ones are marked.
+  //
+  // The alternative — a percentage beside every value — was rejected: eighteen confident numbers
+  // wearing "97%" teaches the eye to skip the badge, and then the one that says "20%" gets skipped
+  // with them. Marking only what is doubtful means the mark still means something.
+  const doubtful =
+    typeof confidence === 'number' && Number.isFinite(confidence) && confidence < LOW_CONFIDENCE;
   return (
     <div style={styles.fieldRow}>
       <dt style={styles.fieldLabel}>{label}</dt>
-      <dd style={styles.fieldValue}>{value || '—'}</dd>
+      <dd style={styles.fieldValue}>
+        {value || '—'}
+        {doubtful && value ? (
+          <span
+            style={styles.lowConf}
+            title={`The AI was ${Math.round(confidence! * 100)}% sure of this — check it against the photo.`}
+          >
+            ?
+          </span>
+        ) : null}
+      </dd>
     </div>
   );
 }
@@ -1216,7 +1360,110 @@ const styles: Record<string, React.CSSProperties> = {
     fontStyle: 'italic',
     textAlign: 'center',
   },
-  fields: { margin: 0, display: 'flex', flexDirection: 'column', gap: 6 },
+  // ── R6 — the AI's reading, above the raw fields ────────────────────────────────────────────────
+  aiPanel: {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    minWidth: 0,
+  },
+  aiSummary: {
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.45,
+    color: 'var(--theme-fg-primary, #1F2937)',
+    fontStyle: 'italic',
+    overflowWrap: 'anywhere',
+  },
+  flagBand: {
+    border: '1px solid #F59E0B',
+    background: '#FFFBEB',
+    borderRadius: 6,
+    padding: '8px 12px',
+    minWidth: 0,
+  },
+  flagTitle: { fontSize: 12.5, color: '#92400E', display: 'block', marginBottom: 4 },
+  flagList: {
+    margin: 0,
+    paddingLeft: 18,
+    fontSize: 12.5,
+    color: '#92400E',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 2,
+    overflowWrap: 'anywhere',
+  },
+  dupBand: {
+    border: '1px solid #7C3AED',
+    background: '#F5F3FF',
+    borderRadius: 6,
+    padding: '8px 12px',
+    fontSize: 12.5,
+    color: '#5B21B6',
+    minWidth: 0,
+    overflowWrap: 'anywhere',
+  },
+  // The doubt marker. Small, quiet, and only ever on values the model itself flagged as inferred —
+  // see the note on `Field`.
+  lowConf: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 15,
+    height: 15,
+    marginLeft: 6,
+    borderRadius: '50%',
+    border: '1px solid #D97706',
+    color: '#D97706',
+    fontSize: 10,
+    fontWeight: 700,
+    cursor: 'help',
+    verticalAlign: '1px',
+  },
+  // ── R6 — line items ───────────────────────────────────────────────────────────────────────────
+  lineItems: {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 6,
+    minWidth: 0,
+  },
+  lineItemsTitle: { fontSize: 13, color: 'var(--theme-fg-secondary, #374151)' },
+  // M4's rule, applied here rather than left for the sweep: the TABLE scrolls, the page does not.
+  // A table is the right form for this because the amounts are meant to be compared down the
+  // column — restacking it into cards on a phone would destroy the only reason it is a table.
+  lineItemsScroll: {
+    overflowX: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    border: '1px solid #E5E7EB',
+    borderRadius: 6,
+    background: 'var(--color-bg-card, #FFFFFF)',
+    minWidth: 0,
+  },
+  lineTable: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
+  lineTh: {
+    textAlign: 'left',
+    padding: '6px 10px',
+    borderBottom: '1px solid #E5E7EB',
+    color: 'var(--theme-fg-tertiary, #6B7280)',
+    fontWeight: 600,
+    whiteSpace: 'nowrap',
+  },
+  lineThNum: { textAlign: 'right' },
+  lineTd: {
+    padding: '6px 10px',
+    borderBottom: '1px solid #F3F4F6',
+    color: 'var(--theme-fg-primary, #1F2937)',
+  },
+  lineTdNum: { textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
+  lineItemsNote: {
+    margin: 0,
+    fontSize: 11.5,
+    color: 'var(--theme-fg-tertiary, #6B7280)',
+    fontStyle: 'italic',
+  },
+  fields: { margin: 0, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
   fieldRow: { display: 'flex', gap: 12, fontSize: 13 },
   fieldLabel: { width: 120, color: '#888', flexShrink: 0 },
   fieldValue: { color: '#222', margin: 0 },
