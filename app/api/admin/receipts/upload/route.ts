@@ -21,6 +21,7 @@ import { normaliseImage, UnsupportedImageError } from '@/lib/media/normalise-ima
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { resolveJobRef } from '@/lib/jobs/job-ref';
 
 const RECEIPTS_BUCKET = 'starr-field-receipts';
 const MAX_BYTES = 12 * 1024 * 1024; // 12 MiB — matches mobile downscale ceiling
@@ -79,6 +80,36 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       { status: 422 },
     );
   }
+
+  // ── RESOLVE THE JOB *BEFORE* TOUCHING STORAGE (2026-08-11) ────────────────────────────────────
+  //
+  // `jobId` used to be written straight into `receipts.job_id`, a UUID FK. The form that fed it
+  // asked for a "Job number", so the value people actually typed — `24-103` — failed on INSERT with
+  // `invalid input syntax for type uuid`, *after* the photo had been written to the bucket and
+  // therefore after the rollback path had to run. The field only ever accepted a value nobody knows.
+  //
+  // Resolving first means: a job number works, a job name works, a picker's UUID works, and the one
+  // case left over — a job that genuinely does not exist yet — gets an answer the client can act on
+  // rather than a 500. `job_not_found` carries the reference and the near-misses so the UI can offer
+  // to create it (owner, 2026-08-11: crews work a job before the office types it in).
+  //
+  // The check is ahead of the upload deliberately. Rejecting after the bytes are stored means either
+  // a stranded object or a rollback that can itself fail; rejecting before means the phone still
+  // holds the photo and the retry costs nothing.
+  const jobRefRaw = typeof jobIdRaw === 'string' ? jobIdRaw.trim() : '';
+  const jobResolution = await resolveJobRef(jobRefRaw);
+  if (jobResolution.status === 'not_found') {
+    return NextResponse.json(
+      {
+        error: `No job matches “${jobResolution.ref}”.`,
+        code: 'job_not_found',
+        ref: jobResolution.ref,
+        suggestions: jobResolution.suggestions,
+      },
+      { status: 409 },
+    );
+  }
+  const jobId = jobResolution.status === 'resolved' ? jobResolution.job.id : null;
 
   // Build the storage path the worker + bookkeeper UI both already know
   // how to read: `{user_uuid}/{receipt_id}.{ext}`.
@@ -140,7 +171,6 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
-  const jobId = typeof jobIdRaw === 'string' && jobIdRaw.trim().length > 0 ? jobIdRaw.trim() : null;
   const notes = typeof notesRaw === 'string' && notesRaw.trim().length > 0 ? notesRaw.trim() : null;
 
   const { data: inserted, error: insertErr } = await supabaseAdmin

@@ -38,16 +38,38 @@ import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 // R4b's last entry. This batch has no research run to belong to — see `recordOpsAiCall`, which gives
 // it its own accounting key rather than borrowing a project id it would misattribute.
 import { recordOpsAiCall, priceCall } from '../infra/usage.js';
+// ── THE PROMPT AND THE PARSER LIVE IN `-core` NOW (2026-08-11) ────────────────────────────────────
+//
+// Not a tidy-up. The web app has to be able to run this same extraction — on Vercel nothing runs the
+// CLI below, so every receipt uploaded from the website sat 'queued' forever — and it cannot import
+// THIS file, because `../infra/usage.js` reaches `services/pipeline.js` and drags the whole research
+// pipeline (Playwright, Browserbase, BullMQ) with it.
+//
+// The obvious alternative, a second prompt on the web side, is the worse bug: two prompts drift
+// silently, both keep returning plausible JSON, and the only symptom is that the books disagree
+// depending on which door a receipt came in through. So the dependency-free half moved out and both
+// runners import it. See `lib/receipts/extract.ts` for the web-side runner.
+import {
+  RECEIPTS_BUCKET as BUCKET,
+  VISION_MODEL,
+  MAX_TOKENS,
+  STALE_RUNNING_MS,
+  EXTRACTION_PROMPT,
+  buildReceiptUpdate,
+  computeDedupFingerprint,
+  mediaTypeForPath,
+  parseExtraction,
+  type ExtractedReceipt,
+  type ExtractionResult,
+  type ReceiptCurrentSnapshot,
+} from './receipt-extraction-core.js';
+
+// Re-exported so existing importers of this module keep working unchanged.
+export { computeDedupFingerprint };
+export type { ExtractionResult };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const BUCKET = 'starr-field-receipts';
-/** Per plan §5.11.2: Claude Sonnet 4.6 for receipt extraction.
- *  The default below is the 4.5 model id — bump when 4.6 ships and is
- *  available. STARR_FIELD_VISION_MODEL overrides without redeploying. */
-const VISION_MODEL = process.env.STARR_FIELD_VISION_MODEL ?? 'claude-sonnet-4-5-20250929';
-/** Cap per single extraction shot — receipts are short, no tool use. */
-const MAX_TOKENS = 2048;
 /** Default batch size when caller doesn't pass one. */
 const DEFAULT_BATCH_SIZE = 10;
 // PRICING LIVED HERE, AND IT WAS THE THIRD COPY.
@@ -62,12 +84,6 @@ const DEFAULT_BATCH_SIZE = 10;
 // and a rate change is one edit. The figure is unchanged today — MODEL_PRICING prices
 // `claude-sonnet-4-5` at exactly $3/$15 per MTok — so this is a de-duplication, not a re-pricing.
 
-/** Watchdog window for crashed-worker detection. A row sitting in
- *  'running' state longer than this is considered abandoned and is
- *  eligible for re-claim by a different worker. Five minutes is
- *  generous — typical Vision calls complete in <10 s. */
-const STALE_RUNNING_MS = 5 * 60 * 1000;
-
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -79,88 +95,6 @@ interface ReceiptRow {
   user_id: string;
   photo_url: string;
   extraction_status: string | null;
-}
-
-/** Fields the worker reads back before deciding what to overwrite —
- *  see markDone(). Names match the column list in the .select() call. */
-interface ReceiptCurrentSnapshot {
-  vendor_name: string | null;
-  vendor_address: string | null;
-  transaction_at: string | null;
-  subtotal_cents: number | null;
-  tax_cents: number | null;
-  tip_cents: number | null;
-  total_cents: number | null;
-  payment_method: string | null;
-  payment_last4: string | null;
-  category: string | null;
-  category_source: string | null;
-  tax_deductible_flag: string | null;
-  notes: string | null;
-}
-
-/**
- * Write `value` into `update[key]` only when the current row already
- * has that field empty (NULL or empty string). Preserves any explicit
- * edits made by the mobile owner or the bookkeeper between
- * 'queued' and 'done'.
- */
-function fillIfEmpty<K extends keyof ReceiptCurrentSnapshot>(
-  update: Record<string, unknown>,
-  current: Partial<ReceiptCurrentSnapshot>,
-  key: K,
-  value: ReceiptCurrentSnapshot[K] | null
-): void {
-  if (value === null || value === undefined) return;
-  const existing = current[key];
-  const isEmpty =
-    existing === null || existing === undefined || existing === '';
-  if (isEmpty) update[key] = value;
-}
-
-/** Plan §5.11.2 categories — must stay in sync with mobile RECEIPT_CATEGORIES. */
-const CATEGORIES = [
-  'fuel',
-  'meals',
-  'supplies',
-  'equipment',
-  'tolls',
-  'parking',
-  'lodging',
-  'professional_services',
-  'office_supplies',
-  'client_entertainment',
-  'other',
-] as const;
-type Category = (typeof CATEGORIES)[number];
-
-interface ExtractedReceipt {
-  vendor_name: string | null;
-  vendor_address: string | null;
-  /** ISO-8601 with TZ offset when the photo includes time of day. */
-  transaction_at: string | null;
-  subtotal_cents: number | null;
-  tax_cents: number | null;
-  tip_cents: number | null;
-  total_cents: number | null;
-  payment_method: string | null;
-  payment_last4: string | null;
-  category: Category | null;
-  tax_deductible_flag: 'full' | 'partial_50' | 'none' | 'review' | null;
-  line_items: Array<{
-    description: string | null;
-    amount_cents: number | null;
-    quantity: number | null;
-  }>;
-  /** Free-form per-field 0..1 confidence Claude reports for itself. */
-  confidence: Record<string, number>;
-}
-
-export interface ExtractionResult {
-  receiptId: string;
-  status: 'done' | 'failed';
-  error?: string;
-  costCents?: number;
 }
 
 // ── Public entry point ────────────────────────────────────────────────────────
@@ -535,31 +469,11 @@ async function markDone(
   if (readErr) return `read-back failed: ${readErr.message}`;
 
   const cur = (current ?? {}) as Partial<ReceiptCurrentSnapshot>;
-  const update: Record<string, unknown> = {
-    ai_confidence_per_field: extracted.confidence,
-    extraction_status: 'done',
-    extraction_completed_at: completedAt,
-    extraction_error: null,
-    extraction_cost_cents: costCents,
-  };
-
-  fillIfEmpty(update, cur, 'vendor_name', extracted.vendor_name);
-  fillIfEmpty(update, cur, 'vendor_address', extracted.vendor_address);
-  fillIfEmpty(update, cur, 'transaction_at', extracted.transaction_at);
-  fillIfEmpty(update, cur, 'subtotal_cents', extracted.subtotal_cents);
-  fillIfEmpty(update, cur, 'tax_cents', extracted.tax_cents);
-  fillIfEmpty(update, cur, 'tip_cents', extracted.tip_cents);
-  fillIfEmpty(update, cur, 'total_cents', extracted.total_cents);
-  fillIfEmpty(update, cur, 'payment_method', extracted.payment_method);
-  fillIfEmpty(update, cur, 'payment_last4', extracted.payment_last4);
-  fillIfEmpty(update, cur, 'tax_deductible_flag', extracted.tax_deductible_flag);
-
-  // Category is special: only fill when no human (mobile owner OR
-  // bookkeeper) has touched it. category_source tracks who set it.
-  if (extracted.category && cur.category_source !== 'user') {
-    update.category = extracted.category;
-    update.category_source = 'ai';
-  }
+  // The merge rules (fill-if-empty, and never overwrite a human's category) now live in
+  // `receipt-extraction-core` so the web-side runner applies exactly the same ones. They are the
+  // part that decides whether a bookkeeper's typed correction survives the AI's answer, which is
+  // precisely the behaviour that must not depend on which door the receipt came in through.
+  const update = buildReceiptUpdate(cur, extracted, costCents, completedAt);
 
   // Duplicate detection (Batch Z) — compute the fingerprint from the
   // post-extraction values (preferring user edits via the same
@@ -658,139 +572,9 @@ async function downloadReceiptPhoto(
   const arrayBuffer = await data.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  // Best-guess media_type from the path extension. The mobile capture
-  // path always writes .jpg, but the storage bucket allows png/heic/
-  // webp too — we coerce to one of Vision's supported types.
-  const lower = storagePath.toLowerCase();
-  let mediaType: DownloadedPhoto['mediaType'] = 'image/jpeg';
-  if (lower.endsWith('.png')) mediaType = 'image/png';
-  else if (lower.endsWith('.webp')) mediaType = 'image/webp';
-
-  return { buffer, mediaType };
-}
-
-// ── JSON parsing ──────────────────────────────────────────────────────────────
-
-function parseExtraction(raw: string): ExtractedReceipt {
-  // Strip code fences if Claude added them despite the instruction.
-  const jsonText = raw
-    .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```\s*$/, '')
-    .trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonText);
-  } catch (err) {
-    throw new Error(
-      `model returned non-JSON: ${(err as Error).message}; first 200 chars: ${jsonText.slice(0, 200)}`
-    );
-  }
-  if (!isObject(parsed)) {
-    throw new Error('model returned non-object JSON');
-  }
-
-  return {
-    vendor_name: trimOrNull(parsed.vendor_name),
-    vendor_address: trimOrNull(parsed.vendor_address),
-    transaction_at: normalizeIsoOrNull(parsed.transaction_at),
-    subtotal_cents: nonNegIntOrNull(parsed.subtotal_cents),
-    tax_cents: nonNegIntOrNull(parsed.tax_cents),
-    tip_cents: nonNegIntOrNull(parsed.tip_cents),
-    total_cents: nonNegIntOrNull(parsed.total_cents),
-    payment_method: trimOrNull(parsed.payment_method),
-    payment_last4: digits4OrNull(parsed.payment_last4),
-    category: enumOrNull(parsed.category, CATEGORIES),
-    tax_deductible_flag: enumOrNull(parsed.tax_deductible_flag, [
-      'full',
-      'partial_50',
-      'none',
-      'review',
-    ] as const),
-    line_items: Array.isArray(parsed.line_items)
-      ? parsed.line_items
-          .filter((li: unknown): li is Record<string, unknown> => isObject(li))
-          .map((li) => ({
-            description: trimOrNull(li.description),
-            amount_cents: nonNegIntOrNull(li.amount_cents),
-            quantity: typeof li.quantity === 'number' ? li.quantity : null,
-          }))
-      : [],
-    confidence: isObject(parsed.confidence) ? (parsed.confidence as Record<string, number>) : {},
-  };
-}
-
-/**
- * Compute the duplicate-detection fingerprint for a receipt.
- *
- * Format: `{normVendor}|{cents}|{YYYY-MM-DD}` where:
- *   - normVendor: vendor_name lowercased + alphanumeric-only. Strips
- *     store numbers, suffixes ("STORE #1234"), spaces, punctuation.
- *     Two receipts from "Lowe's #1234" + "LOWES STORE 1234" both
- *     normalise to "lowes1234" and match.
- *   - cents: total_cents as a plain integer. Exact match required —
- *     a $4.99 vs $5.00 difference is two different receipts.
- *   - YYYY-MM-DD: extracted from transaction_at via UTC date. (We
- *     accept the slight TZ-skew risk for a midnight-crossing
- *     transaction; in practice receipts have time-of-day stamps so
- *     two purchases at 11:59pm and 12:01am stay distinguishable.)
- *
- * Returns null when ANY of the three components is missing — a
- * partial fingerprint would create false matches against other
- * partials, so we only compute when extraction landed all three.
- */
-export function computeDedupFingerprint(
-  vendor: string | null,
-  totalCents: number | null,
-  transactionAt: string | null
-): string | null {
-  if (!vendor || totalCents == null || !transactionAt) return null;
-  const normVendor = vendor.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (!normVendor) return null;
-  const t = Date.parse(transactionAt);
-  if (!Number.isFinite(t)) return null;
-  const d = new Date(t);
-  const yyyy = d.getUTCFullYear();
-  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const dd = String(d.getUTCDate()).padStart(2, '0');
-  return `${normVendor}|${totalCents}|${yyyy}-${mm}-${dd}`;
-}
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
-
-function trimOrNull(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const t = v.trim();
-  return t === '' ? null : t;
-}
-
-function nonNegIntOrNull(v: unknown): number | null {
-  if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) return null;
-  return Math.round(v);
-}
-
-function digits4OrNull(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const digits = v.replace(/\D/g, '').slice(-4);
-  return digits.length === 4 ? digits : null;
-}
-
-function enumOrNull<T extends string>(
-  v: unknown,
-  allowed: ReadonlyArray<T>
-): T | null {
-  if (typeof v !== 'string') return null;
-  return allowed.includes(v as T) ? (v as T) : null;
-}
-
-function normalizeIsoOrNull(v: unknown): string | null {
-  if (typeof v !== 'string' || v.trim() === '') return null;
-  const t = Date.parse(v);
-  if (!Number.isFinite(t)) return null;
-  return new Date(t).toISOString();
+  // Best-guess media_type from the path extension, shared with the web runner so both coerce the
+  // same way. The mobile capture path always writes .jpg, but the bucket allows png/webp too.
+  return { buffer, mediaType: mediaTypeForPath(storagePath) as DownloadedPhoto['mediaType'] };
 }
 
 // ── Logging ───────────────────────────────────────────────────────────────────
@@ -809,55 +593,3 @@ const defaultLogger: ProcessLogger = {
   },
 };
 
-// ── Prompt ────────────────────────────────────────────────────────────────────
-
-const EXTRACTION_PROMPT = `You are a receipt-field extractor for Starr Surveying's bookkeeping pipeline.
-
-The user has uploaded a photo of a paper receipt (gas station, hardware store, restaurant, hotel, etc.). Read it and return ONLY a JSON object with exactly these keys:
-
-{
-  "vendor_name":          string | null,    // Business name as printed
-  "vendor_address":       string | null,    // Street address line if visible
-  "transaction_at":       string | null,    // ISO-8601 if date+time visible (e.g. "2026-04-26T14:35:00-05:00"); date-only if no time ("2026-04-26"); null if illegible
-  "subtotal_cents":       int | null,       // Pre-tax pre-tip subtotal in cents
-  "tax_cents":            int | null,       // Sales tax in cents
-  "tip_cents":            int | null,       // Tip / gratuity in cents (restaurants only; null for retail)
-  "total_cents":          int | null,       // Grand total in cents
-  "payment_method":       string | null,    // 'card' | 'cash' | 'check' | 'other' or null if unclear
-  "payment_last4":        string | null,    // Last 4 of card number, digits only; null if not visible
-  "category":             string | null,    // EXACTLY one of: fuel, meals, supplies, equipment, tolls, parking, lodging, professional_services, office_supplies, client_entertainment, other
-  "tax_deductible_flag":  string | null,    // EXACTLY one of: full, partial_50, none, review
-  "line_items": [
-    { "description": string | null, "amount_cents": int | null, "quantity": number | null }
-  ],
-  "confidence": {
-    "vendor_name":  0..1,
-    "total_cents":  0..1,
-    "category":     0..1
-    // ...one entry per field you populated; omit fields you set to null
-  }
-}
-
-Rules:
-- Currency is USD. Convert all dollar amounts to integer cents (e.g. $42.18 → 4218). Round to the nearest cent.
-- If a field is illegible, blurry, or genuinely missing from the receipt, return null for it. Do NOT guess.
-- Category guidelines:
-    * fuel              — gas pump, fuel cards
-    * meals             — restaurants, take-out, drinks at a counter
-    * supplies          — hardware store, paint, lumber, consumable field gear
-    * equipment         — durable goods over ~$200 (tools, instruments)
-    * tolls             — toll plaza, EZ-Tag
-    * parking           — meters, lots, garage
-    * lodging           — hotels, motels, Airbnb
-    * professional_services — surveyors, lawyers, contractors
-    * office_supplies   — paper, ink, office consumables
-    * client_entertainment — non-meal client gifts/events
-    * other             — fallback when none of the above clearly fit
-- tax_deductible_flag guidance (best-effort; bookkeeper has final say):
-    * full         — fuel, supplies under $2,500, tolls, parking, lodging
-    * partial_50   — meals (IRS 50% rule for 2026)
-    * none         — client_entertainment (post-2018), personal items
-    * review       — equipment over $2,500 (capitalisation question), anything ambiguous
-- The "confidence" object: report 0..1 for each populated field. 1.0 = printed and clearly readable; 0.5 = inferred or partial; 0.2 = best-guess. Skip fields you set to null.
-- DO NOT wrap your response in markdown code fences. Return raw JSON only.
-`;

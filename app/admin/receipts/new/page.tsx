@@ -34,6 +34,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildBatch, runBatch, progressOf, batchSummary, type BatchProgress,
 } from '@/lib/finance/receipt-batch';
+import JobRefPicker, { type JobRefOption } from '@/app/admin/components/jobs/JobRefPicker';
 
 const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
 const ACCEPTED_TYPES_CAMERA = 'image/*';
@@ -54,7 +55,11 @@ export default function NewReceiptPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
-  const [jobId, setJobId] = useState('');
+  // A picked JOB, not a typed string. The old field asked for a "Job number" and posted whatever
+  // was typed into `receipts.job_id` — a UUID column — so the one value it named was the one value
+  // it rejected. See JobRefPicker for the rest of the story, including what now happens when the
+  // job does not exist yet.
+  const [job, setJob] = useState<JobRefOption | null>(null);
   const [notes, setNotes] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -298,7 +303,7 @@ export default function NewReceiptPage() {
       async (i) => {
         const form = new FormData();
         form.append('file', batchFiles[i]);
-        if (jobId.trim()) form.append('jobId', jobId.trim());
+        if (job) form.append('jobId', job.id);
         if (notes.trim()) form.append('notes', notes.trim());
         const res = await fetch('/api/admin/receipts/upload', { method: 'POST', body: form });
         if (!res.ok) {
@@ -310,7 +315,9 @@ export default function NewReceiptPage() {
         // and is stale — checked against the code rather than trusted, because a wrong id here would
         // silently produce rows the batch could not link to. Falls back to `id` in case the shape
         // changes back.
-        return { receiptId: json?.receipt?.id ?? json?.id };
+        const receiptId = json?.receipt?.id ?? json?.id;
+        kickExtraction(receiptId);
+        return { receiptId };
       },
       setBatch,
     );
@@ -321,6 +328,26 @@ export default function NewReceiptPage() {
     if (result.allSucceeded) router.push('/admin/receipts');
   }
 
+  /**
+   * Ask the server to read the receipt, without waiting for it.
+   *
+   * The upload inserts the row as `extraction_status = 'queued'`, which used to mean "a worker on a
+   * droplet will get to this" — and on Vercel no such worker exists, so in practice it meant never.
+   * This is the request that actually starts the AI.
+   *
+   * Deliberately NOT awaited. Vision takes five to fifteen seconds; blocking the upload button on it
+   * would make a batch of twenty receipts a five-minute wait, and the person has no reason to watch.
+   * The queue shows extraction state per row, and `/api/cron/receipt-extraction` sweeps anything a
+   * closed tab or a dropped request left behind — so the worst case of this failing silently is a
+   * receipt whose fields appear within the hour instead of within seconds.
+   */
+  function kickExtraction(receiptId: string | undefined) {
+    if (!receiptId) return;
+    void fetch(`/api/admin/receipts/${receiptId}/extract`, { method: 'POST' }).catch(() => {
+      /* swept by cron — see above */
+    });
+  }
+
   async function onUpload() {
     if (!file || busy) return;
     setBusy(true);
@@ -328,13 +355,15 @@ export default function NewReceiptPage() {
     try {
       const form = new FormData();
       form.append('file', file);
-      if (jobId.trim()) form.append('jobId', jobId.trim());
+      if (job) form.append('jobId', job.id);
       if (notes.trim()) form.append('notes', notes.trim());
       const res = await fetch('/api/admin/receipts/upload', { method: 'POST', body: form });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body?.error ?? `Upload failed (${res.status})`);
       }
+      const json = await res.json().catch(() => ({}));
+      kickExtraction(json?.receipt?.id ?? json?.id);
       router.push('/admin/receipts');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -547,17 +576,16 @@ export default function NewReceiptPage() {
           </div>
         )}
 
-        <label style={styles.field}>
-          <span style={styles.label}>Job number (optional)</span>
-          <input
-            type="text"
-            value={jobId}
-            onChange={(e) => setJobId(e.target.value)}
-            placeholder="e.g. 24-103 — leave blank for office expenses"
+        <div style={styles.field}>
+          <JobRefPicker
+            value={job}
+            onChange={setJob}
+            label="Job (optional)"
             disabled={busy}
-            style={styles.input}
+            clearLabel="No job — office / overhead expense"
+            hint="Search by job number, name, client or address. Working a job the office hasn’t entered yet? Create it here and the receipt files straight into it."
           />
-        </label>
+        </div>
 
         <label style={styles.field}>
           <span style={styles.label}>Notes (optional)</span>

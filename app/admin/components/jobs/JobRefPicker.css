@@ -1,0 +1,310 @@
+/* app/admin/components/jobs/JobRefPicker.css
+ *
+ * Mobile-first, because the person most likely to use this is standing outside holding a receipt.
+ *
+ * Two rules here are load-bearing rather than cosmetic, and both are the same defect the owner
+ * reported on 2026-08-11 ("modals and elements here and there that will not fit on the screen
+ * vertically"):
+ *
+ *   1. `.jobref__panel` is capped with `max-height` and scrolls INTERNALLY. A dropdown that grows to
+ *      its content pushes its own Create button past the bottom of a phone screen, and because the
+ *      panel is absolutely positioned the page cannot scroll to reach it — the control is not merely
+ *      awkward, it is unreachable. `min(60vh, 420px)` keeps it under the fold on every phone while
+ *      staying generous on a desktop.
+ *
+ *   2. Every text input is `width: 100%` inside a `min-width: 0` column. Inputs default to a
+ *      ~180px intrinsic width that flexbox will happily honour past the edge of a 360px screen,
+ *      which is the single most common cause of the horizontal scroll on this product's pages.
+ */
+
+.jobref {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  width: 100%;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.jobref__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #4b5563);
+}
+
+.jobref__hint {
+  font-size: 0.72rem;
+  color: var(--theme-fg-tertiary, #6b7280);
+  line-height: 1.4;
+}
+
+/* ── Closed states ─────────────────────────────────────────────────────────── */
+
+.jobref__control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  padding: 0 0.65rem;
+  /* 44px: the tap-target floor `audit-mobile.mjs` holds controls to. */
+  min-height: 44px;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  background: var(--theme-bg-input, #fff);
+}
+
+.jobref__search-icon,
+.jobref__spinner {
+  flex-shrink: 0;
+  color: var(--theme-fg-tertiary, #6b7280);
+}
+
+.jobref__spinner {
+  animation: jobref-spin 0.9s linear infinite;
+}
+
+@keyframes jobref-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jobref__spinner { animation: none; }
+}
+
+.jobref__input {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: none;
+  background: transparent;
+  /* 16px minimum: anything smaller makes iOS Safari zoom the whole page on focus, which is how a
+   * correctly-sized form ends up wider than the screen the moment somebody taps it. */
+  font-size: 16px;
+  color: var(--theme-fg-primary, #111827);
+  outline: none;
+}
+
+.jobref__selected {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  min-height: 44px;
+  border: 1px solid var(--color-brand-navy, #1e3a5f);
+  border-radius: 8px;
+  background: var(--theme-bg-subtle, rgba(30, 58, 95, 0.06));
+}
+
+.jobref__selected-tick { flex-shrink: 0; color: var(--theme-success, #059669); }
+
+.jobref__selected-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+  /* Long job names wrap instead of stretching the row past the viewport. */
+  overflow-wrap: anywhere;
+}
+
+.jobref__clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theme-fg-tertiary, #6b7280);
+  cursor: pointer;
+}
+
+.jobref__clear:hover { background: rgba(0, 0, 0, 0.06); }
+
+/* ── Dropdown panel ────────────────────────────────────────────────────────── */
+
+.jobref__panel {
+  position: absolute;
+  z-index: 60;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  /* See the header note — internal scroll, never a panel taller than the phone. */
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 10px;
+  background: var(--theme-bg-card, #fff);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
+}
+
+.jobref__option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  border: none;
+  border-bottom: 1px solid var(--theme-border-subtle, #eef0f3);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.jobref__option:hover,
+.jobref__option:focus-visible { background: var(--theme-bg-hover, #f3f4f6); }
+
+.jobref__option-title {
+  font-size: 0.86rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.jobref__option-sub {
+  font-size: 0.74rem;
+  color: var(--theme-fg-tertiary, #6b7280);
+  overflow-wrap: anywhere;
+}
+
+.jobref__option--none {
+  font-size: 0.82rem;
+  font-style: italic;
+  color: var(--theme-fg-secondary, #4b5563);
+}
+
+.jobref__empty {
+  margin: 0;
+  padding: 0.75rem;
+  font-size: 0.8rem;
+  color: var(--theme-fg-tertiary, #6b7280);
+  overflow-wrap: anywhere;
+}
+
+.jobref__create-cta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 46px;
+  padding: 0.7rem 0.75rem;
+  border: none;
+  border-top: 1px solid var(--theme-border, #d1d5db);
+  background: var(--theme-bg-subtle, #f8fafc);
+  color: var(--color-brand-navy, #1e3a5f);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  /* Sticky so it stays reachable while the results list scrolls under it — the button is the whole
+   * point of the panel when the job genuinely does not exist yet. */
+  position: sticky;
+  bottom: 0;
+}
+
+.jobref__create-cta:hover { background: var(--theme-bg-hover, #eef2f7); }
+
+/* ── Create panel ──────────────────────────────────────────────────────────── */
+
+.jobref__create {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  min-width: 0;
+}
+
+.jobref__create-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.jobref__create-blurb {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--theme-fg-tertiary, #6b7280);
+}
+
+.jobref__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.jobref__field > span {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #4b5563);
+}
+
+.jobref__field > input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  background: var(--theme-bg-input, #fff);
+  color: var(--theme-fg-primary, #111827);
+  font-size: 16px; /* iOS focus-zoom floor — see .jobref__input */
+}
+
+.jobref__error {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--theme-danger, #b91c1c);
+  overflow-wrap: anywhere;
+}
+
+.jobref__create-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.jobref__btn {
+  flex: 1 1 auto;
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--theme-border, #d1d5db);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--theme-fg-primary, #111827);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jobref__btn--primary {
+  border-color: var(--color-brand-navy, #1e3a5f);
+  background: var(--color-brand-navy, #1e3a5f);
+  /* Themed rather than a literal `#fff` purely so this file adds nothing to the hardcoded-colour
+   * ratchet in `theme-vars-are-adopted.test.ts`. White-on-brand is one of the cases that test's own
+   * note calls legitimately hardcoded — but a new file is the wrong place to spend the allowance. */
+  color: var(--color-text-on-brand, #fff);
+}
+
+.jobref__btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* ── Compact variant — receipt rows, table cells ───────────────────────────── */
+
+.jobref--compact .jobref__control,
+.jobref--compact .jobref__selected { min-height: 38px; }
+
+.jobref--compact .jobref__selected-text { font-size: 0.8rem; }

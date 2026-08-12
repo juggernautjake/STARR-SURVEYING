@@ -6,6 +6,13 @@
     },
     "app/api/admin/research/[projectId]/analyze/route.ts": {
       "maxDuration": 60
+    },
+    "app/api/cron/receipt-extraction/route.ts": {
+      "memory": 1024,
+      "maxDuration": 300
+    },
+    "app/api/admin/receipts/[id]/extract/route.ts": {
+      "maxDuration": 60
     }
   },
   "headers": [
@@ -96,6 +103,10 @@
     {
       "path": "/api/cron/google-ads-spend",
       "schedule": "30 7 * * *"
+    },
+    {
+      "path": "/api/cron/receipt-extraction",
+      "schedule": "5 * * * *"
     }
   ]
 }

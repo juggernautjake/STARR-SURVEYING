@@ -289,7 +289,20 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/payout-log',            label: 'Pay Change History', workspace: 'money', section: 'Money out', iconName: 'ScrollText',   description: 'When somebody’s pay rate or role changed, and who changed it. NOT a record of payments — those are on Payout Search.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raise', 'rate change', 'role change', 'history'] },
   { href: '/admin/payouts/search',        label: 'Payout Search',    workspace: 'money', section: 'Money out', iconName: 'Search',       description: 'Every payment recorded, to anyone, however it was made — searchable by person, check number, Venmo reference, method, status, date or amount.', roles: ['admin'], internalOnly: true, keywords: ['payout', 'payment', 'paid', 'check number', 'venmo', 'cash', 'find payment', 'receipt of payment', 'reconcile'] },
   { href: '/admin/receipts',              label: 'Receipts',         workspace: 'money', section: 'Money out', iconName: 'Receipt',      description: 'Receipt approval queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['expenses', 'approvals'] },
-  { href: '/admin/receipts/new',          label: 'Capture Receipt',  workspace: 'money', section: 'Money out', iconName: 'Camera',       description: 'Upload a receipt photo for approval.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['upload', 'photo', 'expense'] },
+  // ANYONE AT THE FIRM MAY SUBMIT A RECEIPT (owner, 2026-08-11: *"Anyone that is an employee or
+  // field worker or admin or just about anybody needs to be able to upload receipts."*)
+  //
+  // Two things were stopping that, and only one of them was the role list. `roles` omitted the
+  // plain `employee` role, so the largest group of people who actually hold receipts could not see
+  // the entry — and `showInRail: false` hid it from the mobile drawer for *everybody*, which is the
+  // only navigation a phone has. A field worker standing at a fuel pump had no way to reach this
+  // page short of typing the URL.
+  //
+  // No `roles` key at all is the correct expression of "anyone at the firm": `accessibleRoutes`
+  // reads a missing list as unrestricted, and `internalOnly` still keeps it away from customers.
+  // Approving receipts stays restricted — that is /admin/receipts, one line above, and it is a
+  // different question from submitting one.
+  { href: '/admin/receipts/new',          label: 'Capture Receipt',  workspace: 'money', section: 'Money out', iconName: 'Camera',       description: 'Upload a receipt photo for approval. Anyone at the firm can submit one.', internalOnly: true, keywords: ['upload', 'photo', 'expense', 'submit receipt', 'my receipt'] },
   { href: '/admin/invoicing',             label: 'Customer Invoices',        workspace: 'money', section: 'Money in', iconName: 'FileText',     description: 'Bill your customers and track what they have paid. NOT the subscription you pay for this software — that is Software Subscription.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'pay', 'billing', 'customer', 'deposit'] },
   // F1b / F2b, registered 2026-08-04 — the orphan guard caught both the day after they shipped.
   // A page nobody can navigate to is this repo's signature defect, and building the page is the
