@@ -35,6 +35,10 @@ import AssistantDock from './assistant/AssistantDock';
 // audit follow-up.
 import '../styles/AdminLayout.css';
 import '../styles/AdminResponsive.css';
+// M2 — the dialog shell that cannot outgrow the screen. Layout-global by necessity rather than
+// convenience: dialogs are opened from pages all over the admin, and a shell loaded per-route is a
+// shell that is missing on the route somebody forgets. See AdminDialog.css for the measured bug.
+import '../styles/AdminDialog.css';
 // AdminFieldWork.css stays here because the Fieldbook is rendered by this
 // layout via FloatingActionMenu and is reachable from every admin page.
 import '../styles/AdminFieldWork.css';

@@ -89,8 +89,21 @@
 .um-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 /* Confirmation Modal */
-.um-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:center; justify-content:center; z-index:9999; padding:1rem; }
-.um-modal { background:var(--theme-bg-surface, #FFF); border-radius:12px; padding:1.75rem; max-width:420px; width:100%; box-shadow:0 16px 48px rgba(0,0,0,.2); }
+/* M2 (2026-08-11) — the confirm dialogs on this page keep `.um-modal`, but it can no longer be
+ * taller than the screen.
+ *
+ * The Edit Roles dialog moved to the shared `.admin-dialog` shell because it genuinely needs the
+ * pinned footer — eleven role cards overflow, and its Save button was unreachable. These three
+ * (reject / ban / delete) are a heading, a sentence and two buttons; converting them would be
+ * churn for no behaviour change.
+ *
+ * What they DID share with the broken one is the shape of the failure, so the guard is applied
+ * here rather than left for the day somebody adds a fourth paragraph: `align-items: flex-start`
+ * plus a scrollable overlay, and a height cap with its own scroll on the box. `dvh` because mobile
+ * Safari's `vh` ignores the address bar — the exact devices this protects. */
+.um-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-start; justify-content:center; z-index:9999; padding:1rem; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+@media(min-height:720px) { .um-modal-overlay { align-items:center; } }
+.um-modal { background:var(--theme-bg-surface, #FFF); border-radius:12px; padding:1.75rem; max-width:420px; width:100%; max-height:calc(100dvh - 2rem); overflow-y:auto; overscroll-behavior:contain; box-shadow:0 16px 48px rgba(0,0,0,.2); }
 .um-modal__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:700; color:#0F1419; margin-bottom:.5rem; }
 .um-modal__desc { font-family:'Inter',sans-serif; font-size:.85rem; color:var(--theme-fg-muted, #6B7280); line-height:1.5; margin-bottom:1rem; }
 .um-modal__field { margin-bottom:1rem; }

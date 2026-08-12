@@ -531,13 +531,21 @@ export default function UsersPage() {
 
       {/* Role Editor Modal */}
       {editingRoles && canEdit && (
-        <div className="um-modal-overlay" onClick={() => setEditingRoles(null)}>
-          <div className="um-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-            <h3 className="um-modal__title">Edit Roles</h3>
-            <p style={{ fontSize: '.82rem', color: '#6B7280', marginBottom: '1rem' }}>
-              {users.find(u => u.id === editingRoles.userId)?.name} &mdash; {users.find(u => u.id === editingRoles.userId)?.email}
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem', marginBottom: '1rem' }}>
+        // M2 — converted to the shared dialog shell. This is the dialog the owner reported: eleven
+        // role cards is ~800px of content, the box had no max-height, and a `position: fixed`
+        // overlay cannot be scrolled — so "Save Roles" sat below the bottom of the phone with no
+        // gesture that could reach it. The shell scrolls the BODY and pins the FOOT, so the button
+        // is on screen at any list length. See app/admin/styles/AdminDialog.css.
+        <div className="admin-dialog-overlay" onClick={() => setEditingRoles(null)}>
+          <div className="admin-dialog" onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" aria-label="Edit roles">
+            <div className="admin-dialog__head">
+              <h3 className="admin-dialog__title">Edit Roles</h3>
+              <p className="admin-dialog__subtitle">
+                {users.find(u => u.id === editingRoles.userId)?.name} &mdash; {users.find(u => u.id === editingRoles.userId)?.email}
+              </p>
+            </div>
+            <div className="admin-dialog__body">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '.5rem' }}>
               {ALL_ROLES.map(r => (
                 <label
                   key={r}
@@ -565,7 +573,8 @@ export default function UsersPage() {
                 </label>
               ))}
             </div>
-            <div className="um-modal__actions">
+            </div>
+            <div className="admin-dialog__foot">
               <button className="um-btn um-btn--ghost" onClick={() => setEditingRoles(null)}>Cancel</button>
               <button
                 className="um-btn um-btn--primary"

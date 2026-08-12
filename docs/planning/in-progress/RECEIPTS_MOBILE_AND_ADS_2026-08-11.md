@@ -371,7 +371,7 @@ fieldbook — a dozen of them) **resolve to 0 on iOS and do nothing today**. Aut
 again. M9 must add `viewport-fit=cover` and the top-bar inset *together* — adding the meta alone
 would push content under the notch and make things worse.
 
-### M2 — A dialog primitive that cannot outgrow the screen
+### M2 — A dialog primitive that cannot outgrow the screen ✅ SHIPPED 2026-08-11
 
 The role-assignment dialog is the reported case: the list of roles scrolls off the bottom and the
 save button is unreachable. It will not be the only one.
@@ -385,6 +385,46 @@ save button is unreachable. It will not be the only one.
 - Apply it to the role-assignment dialog and verify at 390 × 667.
 - **Done when:** with every role expanded on a small phone, the save button is visible without
   scrolling the page behind the dialog.
+
+**Completion note.** `app/admin/styles/AdminDialog.css` (loaded by the admin layout, so it reaches
+every route rather than the ones somebody remembers), and the Edit Roles dialog converted to it.
+
+**Measured before and after, in a browser at 390 × 844.** With the height cap removed the dialog
+renders **888px tall on an 844px viewport** — the test catches it with *"the dialog is taller than
+the screen: expected <= 844, received 888.2"*. With the shell in place it fits, the role list scrolls
+internally, and "Save Roles" stays on screen even after scrolling to the bottom of the list. The
+red-test was run deliberately: a layout test that has never failed is not evidence.
+
+The three rules, all load-bearing: `dvh` not `vh` (mobile Safari computes `vh` as though the address
+bar were absent — the exact devices this is for); the **body** scrolls, never the page; the **footer
+sits outside the scroll area**, which is what makes "I cannot see the button" impossible to
+reintroduce by adding one more role.
+
+`min-height: 0` on the body is called out in the CSS because leaving it off silently reproduces the
+original bug — a flex child refuses to shrink below its content and defeats the parent's cap.
+
+The three confirm dialogs on the same page keep `.um-modal`, but that class was given the same guard
+(`align-items: flex-start`, scrollable overlay, `max-height` + own scroll). Converting a heading, a
+sentence and two buttons would have been churn; leaving them able to outgrow the screen would have
+been the same bug waiting for a fourth paragraph.
+
+**Three harness mistakes worth recording, because each produced a green result that meant nothing:**
+
+1. `test.skip(!await locator.isVisible(), …)` — `isVisible()` does **not** auto-wait, and the user
+   list arrives from a fetch, so it was false every time and the test **skipped itself while
+   reporting green**. Now a hard assertion: this environment has users, and if the rows do not
+   arrive that is a real failure.
+2. `waitUntil: 'domcontentloaded'` raced the same fetch. Now `networkidle`. Three consecutive runs
+   green.
+3. The dev server was started with its log **inside the repo**, so Next's file watcher restarted it
+   on every write and Playwright got intermittent `ERR_CONNECTION_REFUSED`. Log now lives outside
+   the working tree.
+
+**And one environment fact worth keeping**: `AUTH_URL` in `.env.local` is hard-coded to
+`http://localhost:3000`, so a dev server on any other port redirects a gated route to a dead origin.
+Run local e2e with `AUTH_URL=http://localhost:<port>` set to match. Also: a hand-minted token is
+re-resolved against `registered_users` by the jwt callback, so the email must be a real admin in the
+database — `jacobmaddux96@gmail.com` silently resolves to `employee` and every gated route bounces.
 
 ### M3 — Sweep the remaining dialogs onto the primitive
 
@@ -660,7 +700,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R8 | ✅ shipped | /mine route (no user param by design) + list; fixed the post-upload redirect trap R1 created |
 | R9 | ☐ | Drain the backlog, record the numbers |
 | M1 | ✅ shipped | Two-tap did NOT reproduce; fixed the measured z-index defect (drawer under the top bar) + close button + hover gating |
-| M2 | ☐ | Dialog primitive + role assignment |
+| M2 | ✅ shipped | .admin-dialog shell + Edit Roles converted; red-tested (888px on an 844px screen) |
 | M3 | ☐ | Sweep remaining dialogs |
 | M4 | ☐ | Structural overflow fix + guard |
 | M5 | ☐ | Hub portrait |

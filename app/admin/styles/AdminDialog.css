@@ -1,0 +1,142 @@
+/* app/admin/styles/AdminDialog.css — the dialog shell that cannot outgrow the screen.
+ *
+ * ── THE BUG THIS EXISTS FOR ─────────────────────────────────────────────────────────────────────
+ *
+ * Owner, 2026-08-11: *"when assigning roles to someone, I am not able to scroll to see all of the
+ * roles and I cannot see the button to actually save/assign the role to that person."*
+ *
+ * Measured on the Edit Roles dialog: eleven role cards at roughly 60px each, plus a title and an
+ * actions row, is about 800px of content. A phone viewport is around 660px. The dialog had **no
+ * max-height and no overflow rule**, sitting inside a `position: fixed` overlay with
+ * `align-items: center`.
+ *
+ * Every part of that combination is load-bearing in the failure:
+ *   · no max-height  → the box grows to its content, past the screen;
+ *   · fixed overlay  → the PAGE cannot scroll to reveal the rest, because a fixed element does not
+ *                      move with the page;
+ *   · centred        → the overflow is split across BOTH ends, so the title goes off the top and
+ *                      the Save button off the bottom. Neither is reachable by any gesture.
+ *
+ * The control was not awkward to reach. It was unreachable.
+ *
+ * ── WHY A PRIMITIVE AND NOT A FIX ───────────────────────────────────────────────────────────────
+ *
+ * The owner also said this is *"like how we had the issue with the submenus… so we added a scroll
+ * bar"*. That fix was correct and was applied once, by hand, in one place. This is the same defect
+ * in a second place, and there are more. Fixing them one at a time is how the last one is missed —
+ * so the shape gets a name here and M3 sweeps the remaining dialogs onto it.
+ *
+ * ── THE THREE RULES ─────────────────────────────────────────────────────────────────────────────
+ *
+ *   1. `dvh`, never `vh`. Mobile Safari's `vh` is computed as though the address bar were absent,
+ *      so a `90vh` dialog is taller than the visible viewport on the exact devices this is for.
+ *   2. The BODY scrolls, never the page. A dialog that makes the page scroll leaves the header and
+ *      footer sliding away with it.
+ *   3. The FOOTER lives outside the scroll area. This is the part that answers the complaint: the
+ *      primary action is pinned and on screen no matter how long the content gets, so "I cannot see
+ *      the button" cannot recur by adding one more option to a list.
+ */
+
+.admin-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  /* flex-start, not center: when the dialog is at its max height there is nothing to centre, and
+   * on a short screen centring is what pushes the top edge off. */
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1rem;
+  /* Belt and braces. The dialog caps its own height, so this should never engage — but if a future
+   * dialog opts out of the cap, the overlay scrolling means its footer is still reachable rather
+   * than lost. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+@media (min-height: 720px) {
+  /* Roomy screens get the dialog optically centred, which is what it should look like when there is
+   * space. Below that, it hugs the top and uses the height it has. */
+  .admin-dialog-overlay { align-items: center; }
+}
+
+.admin-dialog {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 520px;
+  min-width: 0;
+  /* Rule 1. The gap leaves the overlay's padding visible so the dialog reads as a layer rather than
+   * a page. `100dvh` tracks the *visible* viewport as mobile browser chrome shows and hides. */
+  max-height: calc(100dvh - 2rem);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #FFF);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  overflow: hidden; /* keeps the rounded corners clipping the scrolling body */
+}
+
+.admin-dialog__head {
+  flex-shrink: 0;
+  padding: 1.25rem 1.5rem 0.75rem;
+  min-width: 0;
+}
+
+.admin-dialog__title {
+  margin: 0;
+  font-family: 'Sora', sans-serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #0F1419);
+  overflow-wrap: anywhere;
+}
+
+.admin-dialog__subtitle {
+  margin: 0.35rem 0 0;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--theme-fg-muted, #6B7280);
+  overflow-wrap: anywhere;
+}
+
+/* Rule 2. `min-height: 0` is not optional — without it a flex child refuses to shrink below its
+ * content, which silently defeats the max-height on the parent and reproduces the original bug. */
+.admin-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain; /* stops a flick at the end of the list scrolling the page behind */
+  padding: 0.5rem 1.5rem 1rem;
+}
+
+/* Rule 3. Outside the scroll area, so it is on screen at every content length. The top border is
+ * functional, not decorative: it tells the eye that content continues above it. */
+.admin-dialog__foot {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 0.85rem 1.5rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #FFF);
+}
+
+@media (max-width: 480px) {
+  .admin-dialog-overlay { padding: 0.5rem; }
+  .admin-dialog { max-height: calc(100dvh - 1rem); }
+  .admin-dialog__head { padding: 1rem 1rem 0.6rem; }
+  .admin-dialog__body { padding: 0.5rem 1rem 0.85rem; }
+  .admin-dialog__foot { padding: 0.75rem 1rem; }
+  /* Full-width buttons on a narrow screen. Two 44px targets side by side on a 390px phone leaves
+   * each of them small and adjacent, and the two here are "Cancel" and "Save" — a mis-tap does not
+   * do nothing, it does the other thing. */
+  .admin-dialog__foot > * { flex: 1 1 100%; }
+}
+
+/* Safe-area note: no `env(safe-area-inset-bottom)` padding here on purpose. Without
+ * `viewport-fit=cover` — which this app does not set today — it resolves to 0 and would be
+ * decoration. M9 adds the meta and the insets together; this file is where the footer's inset
+ * belongs when it does. */

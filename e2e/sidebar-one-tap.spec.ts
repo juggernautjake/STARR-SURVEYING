@@ -23,7 +23,7 @@ async function signIn(page: Page) {
   const secret = env.match(/^AUTH_SECRET\s*=\s*(.+)$/m)![1].replace(/^["']|["']$/g, '').trim();
   const token = await encode({
     token: {
-      email: process.env.E2E_LOGIN_EMAIL || 'jacobmaddux96@gmail.com',
+      email: process.env.E2E_LOGIN_EMAIL || 'jacobmaddux@starr-surveying.com',
       name: 'E2E', sub: 'e2e',
       roles: ['admin'],
       isCompanyUser: true,
