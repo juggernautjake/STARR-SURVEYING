@@ -1119,11 +1119,53 @@ column **232 px**, chips **34 → 40 px**, still no sideways scroll.
    with a comment saying why. This is the "authored but not wired" shape in CSS: the rule existed,
    read correctly, and had no effect.
 
-### F7 — Prove it end to end
+### F7 — Prove it end to end ✅ SHIPPED 2026-08-11
 
 Upload a file into a personal folder, a company folder and a role folder; confirm each is visible to
 exactly the right accounts and invisible to the others. Permissions are the part of this system where
 a bug is silent and expensive.
+
+**Completion note.** `e2e/file-permissions-hold.spec.ts` — three real signed-in accounts against the
+live API.
+
+**Why an e2e and not more unit tests.** `resolveAccess` and `describeAudience` are already covered
+and are pure: they answer correctly about grants handed to them. What they cannot tell you is
+whether the database, the API and the session all agree — whether a grant written through
+`PUT /permissions` is the grant `listChildren` reads back, and whether a real account with real
+roles sees what the model says it should. That gap is exactly where a permission bug hides, because
+nothing throws and nobody notices.
+
+Three transitions, each asserted from both sides:
+
+1. Shared with **one person** → that person sees it, and a second employee account **does not**.
+2. Shared with **everyone** → the account that could not see it a moment ago now can.
+3. Shared with **nobody** → both lose it again. Un-sharing is the direction people actually rely on,
+   and a model that only ever widens is the one that leaks.
+
+Plus the documented exception: an admin still sees it, which is why F4's badge never promises true
+privacy.
+
+**Both employee accounts are non-admin on purpose.** An admin resolves to `manage` on every node, so
+an admin can never demonstrate that something is hidden — a negative assertion written against one
+would pass for the wrong reason forever.
+
+**It was red-tested.** A negative assertion that passes on its first run deserves suspicion, so the
+grant was temporarily widened to include the second employee: the "must NOT see it" expectation
+failed, by name. It has teeth.
+
+**It writes to the live database, and cleans up.** There is no staging database, so it creates one
+uniquely-named folder under Shared and deletes it in `finally` — including when an assertion fails.
+It never touches an existing node and never uploads a file: a folder proves the grant logic, and a
+stray empty folder is a far cheaper failure than a stray document. Verified afterwards that all
+test folders carry `deleted_at` (the product's normal soft-delete, invisible in the explorer and
+swept by the `purge-deleted` cron).
+
+**One thing this could NOT test, stated rather than glossed:** the **role**-grant path end to end.
+It needs a non-admin account holding a named role, and this firm has none — every `drawer`,
+`researcher` and `field_crew` holder is also an admin, so they would see the folder regardless and
+the assertion would prove nothing. The role logic is covered at the unit level in
+`file-audience.test.ts`; closing the end-to-end gap needs a non-admin role account to exist, which
+is an owner decision about staffing, not an engineering task.
 
 ## Group S — Ship
 
@@ -1180,7 +1222,7 @@ a bug is silent and expensive.
 | F4 | ✅ shipped | describeAudience + badges; resolves inheritance, and found "Personal" badged Everyone (true, and crying wolf) |
 | F5 | ☐ | One attach-browse component, adopted feature by feature |
 | F6 | ✅ shipped | 27x27 action buttons → 40x40, name column 108px → 232px, chips 34 → 40; route added to the M4 audit |
-| F7 | ☐ | Prove the three permission scopes end to end |
+| F7 | ✅ shipped | 3 real accounts, live API, red-tested; role path NOT testable — no non-admin role holder exists |
 | S1 | ☐ | Build, PR, merge, confirm redeploy |
 
 ## Known-red before this work started
