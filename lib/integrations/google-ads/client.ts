@@ -29,7 +29,25 @@ import crypto from 'node:crypto';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 /** Pinned deliberately. Google Ads is a versioned API and an un-pinned "latest" silently changes payload
  *  shape under you; the version is a thing to review on purpose, not to drift. */
-export const ADS_API_VERSION = 'v18';
+/**
+ * ── v18 WAS DEAD, AND EVERY GOOGLE ADS CALL IN THIS PRODUCT WITH IT (A6, 2026-08-11) ────────────
+ *
+ * Google retires Ads API versions on a schedule, and the URL carries the version. Probed against the
+ * live account on 2026-08-11:
+ *
+ *   v18, v19  → HTML 404. The path does not exist any more.
+ *   v20, v21  → 400 UNSUPPORTED_VERSION, "deprecated. Requests to this version will be blocked."
+ *   v22       → 200 with real data.
+ *
+ * So the nightly spend import and the conversion upload had been failing on a dead URL — not on
+ * credentials, not on approval. Nothing surfaced it because the cron logs a failure and moves on.
+ *
+ * **This constant is a maintenance obligation, not a setting.** It needs bumping roughly yearly, and
+ * the symptom of forgetting is silent: an HTML 404 that no error handler here recognises as
+ * "your version expired". `checkAdsAccess()` now classifies exactly that, so the marketing page
+ * says so in words the next time it happens.
+ */
+export const ADS_API_VERSION = 'v22';
 export const ADS_SCOPE = 'https://www.googleapis.com/auth/adwords';
 
 export interface AdsCredentials {

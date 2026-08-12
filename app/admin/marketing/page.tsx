@@ -34,6 +34,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { BarChart3, DollarSign, Upload, FileDown } from 'lucide-react';
 
 import RangePicker from './RangePicker';
+import AdsAccessBanner from './AdsAccessBanner';
 import { rangeFromParams, rangeToParams, type DateRange } from '@/lib/marketing/date-range';
 import DashboardTab from './_tabs/DashboardTab';
 import SpendTab from './_tabs/SpendTab';
@@ -134,6 +135,11 @@ export default function MarketingPage(): React.ReactElement {
           );
         })}
       </nav>
+
+      {/* A6 — the connection's real state, on the page where the numbers are read. The owner asked
+          "are we Basic verified?"; the honest answer is not in this repo, so it is probed. Sits
+          above the tabs because every figure below is only as live as this line says it is. */}
+      <AdsAccessBanner />
 
       <div className="mkt-toolbar">
         <p className="mkt-tabs__hint">{activeTab.hint}</p>

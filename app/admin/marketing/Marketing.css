@@ -703,3 +703,51 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ── A6 — the connection-state banner ────────────────────────────────────────────────────────── */
+
+.mkt-access {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.8rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* The "checking" line is deliberately not a box. It is a status, and boxing it would make the page
+ * flash a full-width alert on every load for something that resolves in under a second. */
+.mkt-access--quiet {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  border: none;
+  padding: 0 0 0.5rem;
+  margin: 0;
+  color: var(--theme-fg-tertiary, #6B7280);
+  font-size: 0.78rem;
+}
+
+.mkt-access__spin { animation: mkt-access-spin 0.9s linear infinite; }
+@keyframes mkt-access-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .mkt-access__spin { animation: none; } }
+
+.mkt-access__head { display: flex; align-items: center; gap: 0.35rem; font-weight: 700; }
+.mkt-access__body { line-height: 1.45; }
+.mkt-access__action { font-weight: 600; }
+.mkt-access__raw { margin-top: 0.2rem; font-size: 0.74rem; }
+.mkt-access__raw code { overflow-wrap: anywhere; }
+
+/* Amber, not red: a token awaiting approval is a normal stage of setting this up, not a fault.
+ * Red here would train somebody to ignore the banner before it ever says anything urgent. */
+.mkt-access--test-access-only { border-color: #F59E0B; background: #FFFBEB; color: #92400E; }
+.mkt-access--not-connected,
+.mkt-access--token-not-configured { border-color: #93C5FD; background: #EFF6FF; color: #1E40AF; }
+.mkt-access--wrong-customer,
+.mkt-access--unknown { border-color: #FCA5A5; background: #FEF2F2; color: #991B1B; }

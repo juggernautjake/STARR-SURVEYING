@@ -713,7 +713,7 @@ The owner: *"much more appealing and functional."*
 - Mobile: tiles stack, the table scrolls inside its own container (M4's rule).
 - **Done when:** the page passes the same 390px check as M5–M8.
 
-### A6 — Answer "are we Basic-access verified?" in the product
+### A6 — Answer "are we Basic-access verified?" in the product ✅ SHIPPED 2026-08-11 — answer: YES
 
 The owner asked; the answer is not in this repo and not in an env var. All six `GOOGLE_ADS_*`
 variables plus the four conversion-action resource names **are** now set in Vercel production
@@ -728,6 +728,65 @@ error (`DEVELOPER_TOKEN_NOT_APPROVED`), which is a different failure from bad cr
 - Surface it on the marketing page as a one-line status with the fix for each state.
 - **Done when:** the page states the access level instead of the owner having to open the Ads
   console. Record the observed answer here.
+
+**Completion note. The answer is YES — and finding it uncovered two production-breaking bugs.**
+
+### The observed answer
+
+Probed against the live account with production credentials on 2026-08-11:
+
+```
+v22, login-customer-id omitted  →  200  {"customer":{"id":"7071902603"}}
+```
+
+Real data came back. **The developer token is approved** — an unapproved token returns
+`DEVELOPER_TOKEN_NOT_APPROVED` no matter what else is right. So the Basic Access application has
+landed, and the 2026-08-06 checklist item is closed.
+
+### Bug 1 — the API version had been dead
+
+`ADS_API_VERSION` was pinned at `'v18'`. Probing every version in turn:
+
+| version | result |
+|---|---|
+| v18, v19 | HTML **404** — the path no longer exists |
+| v20, v21 | 400 `UNSUPPORTED_VERSION` — "deprecated. Requests to this version will be blocked." |
+| **v22** | **200 with data** |
+
+So the nightly spend import and the conversion upload had been failing on a **dead URL** — not on
+credentials, not on approval. Nothing surfaced it, because the cron logs a failure and moves on.
+Bumped to `v22`, with a note that this constant is a yearly maintenance obligation rather than a
+setting, and `checkAdsAccess` now classifies exactly this failure so the next expiry says so in
+words.
+
+### Bug 2 — `GOOGLE_ADS_LOGIN_CUSTOMER_ID` is wrong, and it breaks a working connection
+
+```
+v22, login-customer-id SENT (7539170249)  →  403  USER_PERMISSION_DENIED
+v22, login-customer-id omitted            →  200
+```
+
+That header is only for a manager account that owns the target customer. The configured value does
+not manage `7071902603`, so it turns a working connection into a permission error — and Google's
+message ("the caller does not have permission") points at the account, which is the opposite of the
+actual fix. The probe now detects this specific combination and says so.
+
+**This one needs the owner**: either unset `GOOGLE_ADS_LOGIN_CUSTOMER_ID` in Vercel, or set it to
+the manager account that really owns the ad account. It is a credential decision, not a code change,
+so it is not made here.
+
+### What shipped
+
+`lib/integrations/google-ads/access-level.ts` classifies six states — working, test-access-only,
+token-not-configured, not-connected, wrong-customer, unknown — each with the action that fixes it,
+plus Google's raw message, because a classifier that hides the error is impossible to debug the day
+it guesses wrong. `GET /api/admin/marketing/access-check` (admin-only, uncached: a cached "still not
+approved" after approval lands is the wrong answer at the worst moment), and `AdsAccessBanner` on the
+advertising page.
+
+The banner renders **nothing when everything works**. A green "all good" bar on a page somebody
+visits daily is furniture within a week; the states worth interrupting for are the ones with an
+action attached.
 
 ## Group E — What an employee can actually do
 
@@ -1362,7 +1421,7 @@ is an owner decision about staffing, not an engineering task.
 | A3 | ☐ | Impressions / clicks / conversions live |
 | A4 | ☐ | Auto-refresh + freshness stamp |
 | A5 | ☐ | Visual overhaul |
-| A6 | ☐ | Google Ads access-level probe |
+| A6 | ✅ shipped | ANSWER: token IS approved. Found v18 API retired (every call dead) + a wrong LOGIN_CUSTOMER_ID that 403s a working connection |
 | A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
 | E1 | ✅ shipped | WORK_ROLES has no employee, so /admin/my-hours was hidden from them. 4 registry + 5 middleware gates widened; 23-assertion guard |
 | E2 | ✅ shipped | seed 581 + /admin/role-requests; approving calls the ONE existing grant path; verified end to end incl. 403 on self-approve |
