@@ -1097,7 +1097,7 @@
   flex-direction: column;
   width: 100%;
   max-width: 900px;
-  max-height: 90vh;
+  max-height: 90vh; max-height: 90dvh;
   overflow: hidden;
 }
 
@@ -2651,7 +2651,7 @@
   border-radius: 12px;
   width: 100%;
   max-width: 700px;
-  max-height: 85vh;
+  max-height: 85vh; max-height: 85dvh;
   display: flex;
   flex-direction: column;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -2790,8 +2790,8 @@
 
 /* Taller modal when showing PDF */
 .research-viewer--with-pdf {
-  max-height: 92vh;
-  height: 92vh;
+  max-height: 92vh; max-height: 92dvh;
+  height: 92vh; height: 92dvh;
   display: flex;
   flex-direction: column;
 }
@@ -2909,8 +2909,8 @@
 
 .research-viewer--expanded {
   max-width: 95vw;
-  max-height: 95vh;
-  height: 95vh;
+  max-height: 95vh; max-height: 95dvh;
+  height: 95vh; height: 95dvh;
   width: 95vw;
 }
 

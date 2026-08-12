@@ -3143,7 +3143,7 @@ a.ai-tutor__related-item:hover { background:#eef2ff; }
 @media (max-width: 560px) {
   /* Phones use a full-width bottom sheet flush to the bottom (reset the desktop
      FAB clearance); on this layout the dock is hidden behind the sheet by design. */
-  .ai-tutor__panel { width:100vw; top:auto; bottom:0; height:86vh; border-radius:16px 16px 0 0; }
+  .ai-tutor__panel { width:100vw; top:auto; bottom:0; height:86vh; height:86dvh; border-radius:16px 16px 0 0; }
   .ai-tutor__resize { display:none; } /* bottom sheet on phones — no side resize */
   .ai-tutor__banner { font-size:.8rem; }
 }

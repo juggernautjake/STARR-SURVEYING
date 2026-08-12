@@ -119,8 +119,17 @@
 .emp-manage__change-by { font-size: 0.7rem; color: var(--theme-fg-muted, #9CA3AF); margin-top: 0.25rem; }
 
 /* ── Modal ── */
-.emp-manage__modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-.emp-manage__modal { background: var(--theme-bg-surface, #fff); border-radius: 12px; max-width: 500px; width: 100%; padding: 1.5rem; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+/* M3 (2026-08-11) — the same defect M2 found on the Edit Roles dialog, in a second place.
+ *
+ * `.emp-manage__modal` had NO max-height and NO overflow rule, inside a `position: fixed` overlay
+ * with `align-items: center`. That combination does not merely look cramped: a fixed overlay cannot
+ * be scrolled, and centring splits the overflow across both ends, so a modal taller than the phone
+ * loses its heading off the top AND its buttons off the bottom, with no gesture that reaches either.
+ *
+ * `flex-start` below 720px tall for the same reason as the shared shell — see AdminDialog.css. */
+.emp-manage__modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: flex-start; justify-content: center; padding: 1rem; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+@media (min-height: 720px) { .emp-manage__modal-overlay { align-items: center; } }
+.emp-manage__modal { background: var(--theme-bg-surface, #fff); border-radius: 12px; max-width: 500px; width: 100%; padding: 1.5rem; max-height: calc(100vh - 2rem); max-height: calc(100dvh - 2rem); overflow-y: auto; overscroll-behavior: contain; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .emp-manage__modal h3 { margin: 0 0 1rem; font-size: 1.1rem; color: var(--theme-fg-primary, #1F2937); }
 .emp-manage__form-field { margin-bottom: 0.75rem; }
 .emp-manage__form-field label { display: block; font-size: 0.82rem; font-weight: 500; color: var(--theme-fg-secondary, #374151); margin-bottom: 0.25rem; }

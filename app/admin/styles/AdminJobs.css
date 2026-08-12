@@ -1398,7 +1398,7 @@
    File Viewer (Fullscreen Modal)
    -------------------------------------------------------------------------- */
 .file-viewer__overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
-.file-viewer { width: 95vw; height: 92vh; background: #1F2937; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.file-viewer { width: 95vw; height: 92vh; height: 92dvh; background: #1F2937; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
 .file-viewer__header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; background: #111827; border-bottom: 1px solid #374151; }
 .file-viewer__header-info { display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1; }
 .file-viewer__title { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-bg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1416,7 +1416,7 @@
 .file-viewer__close-btn:hover { background: #DC2626; }
 .file-viewer__content { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; }
 .file-viewer__image-wrapper { transition: transform 0.1s ease-out; }
-.file-viewer__image { max-width: 100%; max-height: 85vh; display: block; border-radius: 4px; }
+.file-viewer__image { max-width: 100%; max-height: 85vh; max-height: 85dvh; display: block; border-radius: 4px; }
 .file-viewer__iframe { width: 100%; height: 100%; border: none; background: var(--theme-bg-surface, #fff); }
 .file-viewer__no-preview { text-align: center; color: var(--color-text-muted); padding: 3rem; }
 .file-viewer__no-preview-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }

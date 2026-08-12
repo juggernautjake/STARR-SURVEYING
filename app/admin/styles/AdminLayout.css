@@ -513,7 +513,7 @@
 
 /* === MODAL === */
 .admin-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5); display:flex; align-items:center; justify-content:center; z-index:200; animation:modal-fade .2s; }
-.admin-modal { background:var(--theme-bg-surface, #FFF); border-radius:12px; max-width:600px; width:92%; max-height:85vh; overflow-y:auto; box-shadow:0 12px 48px rgba(0,0,0,.2); }
+.admin-modal { background:var(--theme-bg-surface, #FFF); border-radius:12px; max-width:600px; width:92%; max-height:85vh; max-height:85dvh; overflow-y:auto; box-shadow:0 12px 48px rgba(0,0,0,.2); }
 .admin-modal__header { padding:1.25rem 1.5rem; border-bottom:1px solid var(--theme-border, #E5E7EB); display:flex; align-items:center; justify-content:space-between; }
 .admin-modal__title { font-family:'Sora',sans-serif; font-size:1.1rem; font-weight:600; color:#0F1419; }
 .admin-modal__close { background:none; border:none; font-size:1.35rem; color:var(--theme-fg-muted, #6B7280); cursor:pointer; padding:.25rem; line-height:1; }
@@ -807,7 +807,7 @@
 .fieldbook-fab-wrap:hover .fieldbook-fab-tooltip { opacity:1; transform:translateY(0); }
 
 /* ── Main fieldbook container ── */
-.fb { position:fixed; bottom:0; right:0; width:620px; max-width:100vw; height:85vh; max-height:700px; background:#F5F0E8; border-top-left-radius:12px; box-shadow:-4px -4px 24px rgba(0,0,0,.18); z-index:95; display:flex; flex-direction:column; animation:fb-slide .25s ease-out; overflow:hidden; }
+.fb { position:fixed; bottom:0; right:0; width:620px; max-width:100vw; height:85vh; height:85dvh; max-height:700px; background:#F5F0E8; border-top-left-radius:12px; box-shadow:-4px -4px 24px rgba(0,0,0,.18); z-index:95; display:flex; flex-direction:column; animation:fb-slide .25s ease-out; overflow:hidden; }
 @keyframes fb-slide { from{transform:translateY(100%)} to{transform:translateY(0)} }
 
 /* ── Top bar ── */

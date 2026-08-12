@@ -110,7 +110,7 @@
 
 /* ── Point Detail Popup ── */
 .fw__popup-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 1rem; }
-.fw__popup { background: var(--theme-bg-surface, #fff); border-radius: 12px; max-width: 520px; width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+.fw__popup { background: var(--theme-bg-surface, #fff); border-radius: 12px; max-width: 520px; width: 100%; max-height: 85vh; max-height: 85dvh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
 .fw__popup-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.25rem; border-bottom: 1px solid var(--theme-border, #E5E7EB); }
 .fw__popup-header h3 { margin: 0; font-size: 1.05rem; color: var(--theme-fg-primary, #1F2937); font-family: monospace; }
 .fw__popup-close { background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--theme-fg-muted, #9CA3AF); padding: 0.2rem 0.5rem; border-radius: 4px; }

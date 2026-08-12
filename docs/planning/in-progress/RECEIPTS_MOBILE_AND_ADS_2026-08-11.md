@@ -426,7 +426,7 @@ Run local e2e with `AUTH_URL=http://localhost:<port>` set to match. Also: a hand
 re-resolved against `registered_users` by the jwt callback, so the email must be a real admin in the
 database — `jacobmaddux96@gmail.com` silently resolves to `employee` and every gated route bounces.
 
-### M3 — Sweep the remaining dialogs onto the primitive
+### M3 — Sweep the remaining dialogs onto the primitive ✅ SHIPPED 2026-08-11
 
 - Inventory every modal/dialog/popover in `app/admin` (grep `role="dialog"`, `position: fixed`
   panels, the `ModalFrame` users).
@@ -434,6 +434,41 @@ database — `jacobmaddux96@gmail.com` silently resolves to `employee` and every
 - Give `ModalFrame` a phone path: its drag/resize model assumes a mouse and a big screen, and a
   draggable window on a 390px viewport is a worse control than a full-screen sheet.
 - **Done when:** the inventory list is fully checked off in this doc.
+
+**Completion note.** The inventory found **two different defects**, not one, and lumping them
+together would have hidden the second:
+
+**(a) One more dialog with no cap at all.** `.emp-manage__modal` (Employee Manage) had no
+`max-height` and no `overflow`, inside a fixed overlay with `align-items: center` — byte-for-byte
+the shape M2 measured at 888px on an 844px screen. Fixed the same way: `flex-start` under 720px
+tall, a scrollable overlay, and a height cap with its own scroll.
+
+**(b) Every dialog that WAS capped used `vh`.** Thirteen declarations across seven stylesheets —
+the command palette (70vh), the error viewer (90vh), the field-work popup (85vh), the shared
+`.admin-modal` (85vh), the fieldbook (85vh), the file viewer (92vh), the AI tutor panel (86vh), and
+five in Research (85–95vh).
+
+That second one is the more interesting finding, because those all *look* correct. Mobile Safari
+computes `vh` against the viewport **as though the browser chrome were absent**, so an `85vh` dialog
+is taller than 85% of what the user can actually see, and a `95vh` one can exceed the visible
+viewport outright. Each is now twinned — the `vh` line kept as the fallback, a `dvh` line after it —
+which is exactly the pattern `.admin-sidebar` already used in this codebase. Nothing changes on
+desktop; on a phone the caps start meaning what they say.
+
+**Not converted, with reasons rather than silence:**
+
+- **CAD panels** (`AIChatDock`, `CanvasViewport`, `PerfOverlay`, `ReviewQueuePanel`, …) — canvas
+  furniture positioned against a drawing surface, not centred dialogs, and not reachable on a phone.
+  Forcing them into a dialog shell would be a rewrite of the CAD chrome for no benefit.
+- **`ModalFrame`** — the draggable/resizable CAD window. It needs a phone path (a drag-and-resize
+  window is a poor control at 390px), but that is a redesign rather than a shell swap, and it is
+  called out in M9's neighbourhood rather than pretended done here.
+- **The three `.um-modal` confirms** — already guarded in M2; a heading, a sentence and two buttons
+  gain nothing from head/body/foot structure.
+
+Verified: `tsc` clean, and the M2 + M1 browser specs still pass (3/3) after the sweep — the point of
+re-running them was that a global height change is exactly the kind of edit that quietly breaks the
+thing it was meant to protect.
 
 ### M4 — Kill horizontal overflow structurally
 
@@ -701,7 +736,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R9 | ☐ | Drain the backlog, record the numbers |
 | M1 | ✅ shipped | Two-tap did NOT reproduce; fixed the measured z-index defect (drawer under the top bar) + close button + hover gating |
 | M2 | ✅ shipped | .admin-dialog shell + Edit Roles converted; red-tested (888px on an 844px screen) |
-| M3 | ☐ | Sweep remaining dialogs |
+| M3 | ✅ shipped | Found 2 defects: 1 uncapped modal + 13 vh caps that lie on mobile Safari, all twinned to dvh |
 | M4 | ☐ | Structural overflow fix + guard |
 | M5 | ☐ | Hub portrait |
 | M6 | ☐ | Jobs portrait |
