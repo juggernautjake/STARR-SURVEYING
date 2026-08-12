@@ -30,6 +30,10 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 // Imported now, and re-exported so existing importers of `AdminReceiptRow` from this route keep
 // working unchanged.
 import type { ReceiptRow, AdminReceiptRow } from '@/app/admin/receipts/receipt-types';
+// `needsReview` is imported as a VALUE, not re-implemented here: the tab's count and the rows
+// behind it must answer the question the same way, and the surest way to guarantee that is one
+// function. See its note in receipt-types.ts for why `queued` is deliberately not "needs review".
+import { needsReview } from '@/app/admin/receipts/receipt-types';
 export type { AdminReceiptRow };
 
 const SIGNED_URL_TTL_SEC = 60 * 15;
@@ -90,7 +94,32 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .order('created_at', { ascending: false })
     .limit(limit);
 
-  if (status) query = query.eq('status', status);
+  // ── R7 — the "needs review" view ────────────────────────────────────────────────────────────
+  //
+  // Not a receipt STATUS, which is why it cannot just be another `.eq('status', …)`: a receipt that
+  // needs a person can be pending, approved or exported. It is a question about the extraction —
+  // "which of these did the AI struggle with, or warn about?" — and it is the view that makes R6's
+  // flags actionable rather than merely visible.
+  //
+  // Three things qualify, each for a different reason:
+  //   · extraction_status = 'failed'  — the AI never read it; somebody must key it in or re-run.
+  //   · dedup_match_id IS NOT NULL    — possibly the same receipt twice. Only a person can tell.
+  //   · review_flags is a non-empty array — the AI read it and saw something off.
+  //
+  // The third predicate is the load-bearing one, and its SQL was VERIFIED rather than assumed:
+  // PostgREST renders `ai_extras->>review_flags=neq.[]` as `(ai_extras->>'review_flags') <> '[]'`,
+  // which returns TRUE only for a non-empty array. A row with no extraction, or with the key
+  // absent, yields NULL and is correctly excluded — an unextracted receipt is not a flagged one.
+  // (Checked against production SQL with a four-case VALUES table, because a probe against an
+  // empty table returns 200 for a predicate that matches nothing and a predicate that is wrong.)
+  const needsReviewView = status === 'needs_review';
+  if (needsReviewView) {
+    query = query.or(
+      'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[]',
+    );
+  } else if (status) {
+    query = query.eq('status', status);
+  }
   if (jobId) query = query.eq('job_id', jobId);
   if (resolvedUserId) query = query.eq('user_id', resolvedUserId);
   if (!includeDeleted) {
@@ -299,11 +328,22 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   });
 
   // Aggregate counters for the header — useful for "12 awaiting review."
+  //
+  // These count the RETURNED PAGE, not the table. That is pre-existing behaviour and it is left
+  // alone here rather than quietly changed, but it is worth stating plainly: with the default
+  // `limit=100`, a queue holding 300 pending receipts reports 100. The tab counts are a guide to
+  // what is on screen, not a total.
   const counters = {
     pending: receiptRows.filter((r) => r.status === 'pending').length,
     approved: receiptRows.filter((r) => r.status === 'approved').length,
     rejected: receiptRows.filter((r) => r.status === 'rejected').length,
     exported: receiptRows.filter((r) => r.status === 'exported').length,
+    // R7 — recomputed in JS from the same three conditions the query above filters on, so the
+    // number on the tab and the rows behind it can never disagree. Only meaningful while the
+    // needs-review view is the active one; on the other tabs the fetched page is a different set.
+    needs_review: needsReviewView
+      ? receiptRows.filter((r) => needsReview(r as unknown as AdminReceiptRow)).length
+      : 0,
     total: receiptRows.length,
   };
 

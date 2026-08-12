@@ -82,6 +82,37 @@ export interface ReceiptRow {
 }
 
 /**
+ * R7 — does this receipt need a person to look at it?
+ *
+ * Lives beside the type, and is used by BOTH the API (to count the tab) and the queue (to badge the
+ * row), because the alternative is the number on a tab disagreeing with the rows behind it — the
+ * kind of mismatch that makes people stop trusting the filter and go back to reading every receipt.
+ *
+ * The three conditions are not interchangeable, and each answers a different question:
+ *   · `failed`         — the AI never read it. Somebody keys it in, or re-runs the extraction.
+ *   · `dedup_match_id` — it may be the same receipt twice. Only a person can tell a duplicate photo
+ *                        from two genuine $5 coffees on the same day.
+ *   · `review_flags`   — the AI read it and saw something off (totals that do not add up, an
+ *                        illegible date, what looks like a personal item).
+ *
+ * Note what is NOT here: a receipt that has never been extracted. `queued` is not "needs review",
+ * it is "not looked at yet" — putting it in this view would bury the receipts that genuinely need
+ * a decision under every receipt uploaded in the last five minutes.
+ *
+ * The SQL predicate in `app/api/admin/receipts/route.ts` mirrors this exactly; if one changes, the
+ * other must.
+ */
+export function needsReview(row: {
+  extraction_status: string | null;
+  dedup_match_id: string | null;
+  ai_extras: { review_flags?: string[] } | null;
+}): boolean {
+  if (row.extraction_status === 'failed') return true;
+  if (row.dedup_match_id) return true;
+  return (row.ai_extras?.review_flags?.length ?? 0) > 0;
+}
+
+/**
  * A receipt as the bookkeeper queue receives it: the table's columns plus everything
  * `/api/admin/receipts` resolves on its behalf, batched across the page so the UI never fetches
  * per row.

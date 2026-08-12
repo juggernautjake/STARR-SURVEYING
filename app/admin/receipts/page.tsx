@@ -33,12 +33,26 @@ interface ListResponse {
     approved: number;
     rejected: number;
     exported: number;
+    /** R7 — only meaningful while the needs-review tab is active; the other tabs fetch a
+     *  different set of rows and it reads 0. */
+    needs_review: number;
     total: number;
   };
 }
 
-const STATUS_TABS = ['pending', 'approved', 'rejected', 'exported'] as const;
+// R7 — 'needs_review' is not a receipt status; it is a question about the extraction, and a receipt
+// in ANY status can be in it. It rides on the same tab strip because that is where a bookkeeper
+// already chooses what to look at, and it is listed last so it does not displace the daily queue.
+const STATUS_TABS = ['pending', 'approved', 'rejected', 'exported', 'needs_review'] as const;
 type StatusTab = (typeof STATUS_TABS)[number];
+
+const TAB_LABELS: Record<StatusTab, string> = {
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  exported: 'Exported',
+  needs_review: 'Needs review',
+};
 
 const CATEGORY_OPTIONS = [
   'fuel',
@@ -293,16 +307,8 @@ export default function ReceiptsApprovalPage() {
               ...(tab === s ? styles.tabButtonActive : null),
             }}
           >
-            {s.charAt(0).toUpperCase() + s.slice(1)}{' '}
-            <span style={styles.tabCount}>
-              {s === 'pending'
-                ? counters.pending
-                : s === 'approved'
-                  ? counters.approved
-                  : s === 'rejected'
-                    ? counters.rejected
-                    : counters.exported}
-            </span>
+            {TAB_LABELS[s]}{' '}
+            <span style={styles.tabCount}>{counters[s] ?? 0}</span>
           </button>
         ))}
       </nav>
@@ -492,6 +498,11 @@ function ReceiptRow({
   const [maintenanceMsg, setMaintenanceMsg] = useState<string | null>(
     null
   );
+  // R7 — the manual extraction trigger's own state, kept apart from `busy` (which gates the
+  // approve/reject workflow). Running the AI is not a workflow decision and must not disable the
+  // buttons that are.
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMsg, setAiMsg] = useState<string | null>(null);
 
   const wrap = async (label: string, body: Record<string, unknown>) => {
     setBusy(label);
@@ -499,6 +510,61 @@ function ReceiptRow({
       await onMutate(row.id, body, label);
     } finally {
       setBusy(null);
+    }
+  };
+
+  /**
+   * R7 — run the extraction on demand.
+   *
+   * The reason this button has to exist: before it, a receipt whose extraction failed was stuck
+   * that way. `extraction_status = 'failed'` is terminal for both automatic paths — the capture
+   * page's kick already happened, and the cron sweep deliberately skips `failed` rows so a
+   * permanently unreadable photo is not re-billed every hour forever. Recovering a receipt meant a
+   * database edit. Now it means a click.
+   *
+   * `force` is sent only when the receipt is already `done`, so a re-read is always an explicit
+   * human choice and no automatic path can re-bill a finished receipt.
+   */
+  const runAi = async () => {
+    if (aiBusy) return;
+    const alreadyDone = row.extraction_status === 'done';
+    if (
+      alreadyDone &&
+      typeof window !== 'undefined' &&
+      !window.confirm(
+        'Re-read this receipt with the AI? It costs a fraction of a cent, and it will only fill fields that are still empty — anything you have typed is kept.',
+      )
+    ) {
+      return;
+    }
+    setAiBusy(true);
+    setAiMsg(null);
+    try {
+      const res = await fetch(`/api/admin/receipts/${row.id}/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force: alreadyDone }),
+      });
+      const json = (await res.json().catch(() => null)) as {
+        result?: { status: string; error?: string; costCents?: number };
+        error?: string;
+      } | null;
+      if (!res.ok) throw new Error(json?.error ?? `request failed: ${res.status}`);
+      if (json?.result?.status === 'done') {
+        setAiMsg(
+          `✓ Read it${json.result.costCents ? ` · ${formatCents(json.result.costCents)}` : ''}.`,
+        );
+      } else {
+        // A per-receipt failure comes back 200 with a failed result — the endpoint reserves
+        // non-2xx for "the AI is not available at all". Both are shown, in the words of what went
+        // wrong, because "try again" is the right response to one and not to the other.
+        setAiMsg(`⚠ ${json?.result?.error ?? 'The AI could not read this one.'}`);
+      }
+      await onRefresh();
+    } catch (err) {
+      setAiMsg(`⚠ ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setAiBusy(false);
     }
   };
 
@@ -612,9 +678,35 @@ function ReceiptRow({
               underneath twenty rows of data is a warning nobody meets until after they have
               decided. */}
           <div style={styles.aiPanel}>
-            {row.ai_extras?.summary ? (
-              <p style={styles.aiSummary}>{row.ai_extras.summary}</p>
-            ) : null}
+            <div style={styles.aiHeaderRow}>
+              {row.ai_extras?.summary ? (
+                <p style={styles.aiSummary}>{row.ai_extras.summary}</p>
+              ) : (
+                <p style={styles.aiSummaryEmpty}>
+                  {row.extraction_status === 'failed'
+                    ? 'The AI could not read this one.'
+                    : row.extraction_status === 'done'
+                      ? 'Read by AI — no summary recorded.'
+                      : row.extraction_status === 'running'
+                        ? 'The AI is reading it now…'
+                        : 'Not read by the AI yet.'}
+                </p>
+              )}
+              <button
+                type="button"
+                onClick={() => void runAi()}
+                disabled={aiBusy}
+                style={styles.aiButton}
+                title="Send the photo to Claude Vision and fill in the fields it can read."
+              >
+                {aiBusy
+                  ? 'Reading…'
+                  : row.extraction_status === 'done'
+                    ? 'Run AI again'
+                    : 'Run AI'}
+              </button>
+            </div>
+            {aiMsg ? <div style={styles.aiMsg}>{aiMsg}</div> : null}
 
             {/* Advisory, and it must read that way. A band that fires on ordinary receipts is one
                 people learn to scroll past — which is how the one real problem gets approved along
@@ -1119,7 +1211,7 @@ function firstOfMonthIso(): string {
 }
 
 function zeroCounters() {
-  return { pending: 0, approved: 0, rejected: 0, exported: 0, total: 0 };
+  return { pending: 0, approved: 0, rejected: 0, exported: 0, needs_review: 0, total: 0 };
 }
 
 // ── Inline styles — keeps this self-contained with no extra CSS file ──────────
@@ -1368,14 +1460,45 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     minWidth: 0,
   },
+  // Wraps on a phone so the button drops under the sentence instead of squeezing it to one word
+  // per line — M4's reformat-rather-than-overflow rule, applied at the point of change.
+  aiHeaderRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+    gap: 10,
+    minWidth: 0,
+  },
   aiSummary: {
+    flex: '1 1 220px',
     margin: 0,
     fontSize: 14,
     lineHeight: 1.45,
     color: 'var(--theme-fg-primary, #1F2937)',
     fontStyle: 'italic',
+    minWidth: 0,
     overflowWrap: 'anywhere',
   },
+  aiSummaryEmpty: {
+    flex: '1 1 220px',
+    margin: 0,
+    fontSize: 13,
+    color: 'var(--theme-fg-tertiary, #6B7280)',
+    minWidth: 0,
+  },
+  aiButton: {
+    flexShrink: 0,
+    minHeight: 36,
+    padding: '0 14px',
+    borderRadius: 6,
+    border: '1px solid var(--color-brand-navy, #1E3A5F)',
+    background: 'transparent',
+    color: 'var(--color-brand-navy, #1E3A5F)',
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  aiMsg: { fontSize: 12.5, color: 'var(--theme-fg-secondary, #374151)', overflowWrap: 'anywhere' },
   flagBand: {
     border: '1px solid #F59E0B',
     background: '#FFFBEB',

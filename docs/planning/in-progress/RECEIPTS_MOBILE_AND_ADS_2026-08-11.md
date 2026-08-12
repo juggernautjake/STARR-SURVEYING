@@ -199,7 +199,7 @@ plus the joins the API annotates on. One declaration, two views.
 Verified: `tsc` clean, lint clean (one pre-existing `<img>` warning on the signed-URL photo), and
 all 97 receipt-matching tests pass.
 
-### R7 — "Run AI" per row, and a queue filter for what needs a human
+### R7 — "Run AI" per row, and a queue filter for what needs a human ✅ SHIPPED 2026-08-11
 
 - A button on each expanded row calling `POST /api/admin/receipts/[id]/extract`. Label it "Run AI"
   when extraction never ran or failed, "Run AI again" when it is `done` (which sends
@@ -209,6 +209,48 @@ all 97 receipt-matching tests pass.
 - Add a "Needs review" filter to the status tabs: rows with `review_flags` non-empty, or a
   `dedup_match_id`, or `extraction_status = 'failed'`. This is what the GIN index in seed 580 is for.
 - **Done when:** a failed extraction can be retried from the UI without a redeploy.
+
+**Completion note.** Button shipped, labelled from state: "Run AI" when it never ran or failed, "Run
+AI again" (with a confirm, and `force: true`) once it is `done`. `force` is sent *only* on that
+manual re-read, so no automatic path can re-bill a finished receipt.
+
+**Why the button had to exist at all**, recorded because it is not obvious from the outside: before
+it, `extraction_status = 'failed'` was **terminal**. The capture page's kick has already happened by
+then, and the cron sweep deliberately skips `failed` rows so an unreadable photo is not re-billed
+every hour forever. Recovering a receipt meant editing the database. Now it is a click.
+
+**Polling was dropped, and that is an improvement rather than a cut.** The slice said "poll or
+refetch while `running`". The endpoint runs the extraction synchronously and returns the result, so
+the button awaits it and refreshes the row — the fields appear when the call returns, with no poll
+loop to leak on unmount and no interval to tune. Per-receipt failures come back `200` with a failed
+result, and only "the AI is unavailable at all" is non-2xx; both are surfaced in their own words,
+because "try again" is right for one and useless for the other.
+
+**The filter is a fifth tab, not a status.** A receipt that needs a person can be pending, approved
+or exported — it is a question about the *extraction*, so it could not be another
+`.eq('status', …)`. Three things qualify: `failed`, a `dedup_match_id`, or a non-empty
+`review_flags`.
+
+Two things worth keeping:
+
+- **`queued` is deliberately NOT "needs review".** "Nobody has read it yet" and "somebody read it
+  and could not" are different states, and folding the first in would bury the receipts that need a
+  decision under everything uploaded in the last five minutes. Pinned by a test.
+- **The SQL predicate was verified, not assumed.** A PostgREST probe returned `200` for all four
+  candidate spellings — against an empty table, where a filter that matches nothing and a filter
+  that is wrong look identical. The semantics were then checked directly in production SQL with a
+  four-case `VALUES` table, confirming `(ai_extras->>'review_flags') <> '[]'` is TRUE only for a
+  non-empty array and NULL (excluded) for an unextracted row. That verification is copied into
+  `__tests__/finance/receipt-needs-review.test.ts` so the TypeScript half is pinned to the same
+  four verdicts.
+
+`needsReview()` now lives beside the row type and is used by **both** the API (counting the tab) and
+the queue, so the number on the tab and the rows behind it cannot disagree — a count that contradicts
+its own list is how people stop trusting a filter. 8 new tests, all passing; `tsc` and lint clean.
+
+Also fixed in passing: the tab counts are computed from the returned page, not the table, which was
+pre-existing and silent. Left as-is rather than quietly changed, but now stated in a comment — with
+`limit=100`, a queue of 300 pending receipts reports 100.
 
 ### R8 — Let people see their own receipts
 
@@ -542,7 +584,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R4 | ✅ shipped | Seed 580 applied to production; column + index + PostgREST verified |
 | R5 | ✅ shipped | Picker into the bookkeeper queue; the job-files half was withdrawn (no selector exists there) |
 | R6 | ✅ shipped | Line items, summary, flags, dedup, low-confidence marks; collapsed a duplicated row type |
-| R7 | ☐ | Run-AI button + "needs review" filter |
+| R7 | ✅ shipped | Run-AI / Run-AI-again button + Needs-review tab; shared needsReview() + 8 tests |
 | R8 | ☐ | My-receipts list |
 | R9 | ☐ | Drain the backlog, record the numbers |
 | M1 | ☐ | One-tap sidebar — diagnose first |
