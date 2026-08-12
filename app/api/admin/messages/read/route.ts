@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { clearMessageNotificationsByMessageIds } from '@/lib/notifications/message-read';
 
 // POST: Mark messages as read
 export const POST = withErrorHandler(async (req: NextRequest) => {
@@ -40,7 +41,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       .eq('conversation_id', conversation_id)
       .eq('user_email', session.user.email);
 
-    return NextResponse.json({ marked: ids.length });
+    // N3 — and the bell. Without this the message is read and the notification still says it is
+    // not: two independent "has this been seen" flags, only one of which anything cleared, which is
+    // why the red bubble and the home-screen badge stayed lit after reading.
+    //
+    // Keyed on the message ids just marked read — `notifications.source_id` is the message id. The
+    // conversation id is NOT usable as a key here; see the note in lib/notifications/message-read.
+    const clearedBell = await clearMessageNotificationsByMessageIds(session.user.email, ids);
+
+    return NextResponse.json({ marked: ids.length, cleared_notifications: clearedBell });
   }
 
   if (message_ids && Array.isArray(message_ids) && message_ids.length > 0) {
@@ -54,7 +63,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       .from('message_read_receipts')
       .upsert(upserts, { onConflict: 'message_id,user_email' });
 
-    return NextResponse.json({ marked: message_ids.length });
+    // The other read shape, and it needs the same treatment. The floating messenger marks
+    // INDIVIDUAL messages while the full page marks a whole conversation — clearing the bell on one
+    // path and not the other would give a badge that clears in some places and not others, which is
+    // worse than one that never clears, because it looks fixed.
+    const clearedBell = await clearMessageNotificationsByMessageIds(
+      session.user.email,
+      message_ids as string[],
+    );
+
+    return NextResponse.json({ marked: message_ids.length, cleared_notifications: clearedBell });
   }
 
   return NextResponse.json({ error: 'Provide message_ids or conversation_id' }, { status: 400 });

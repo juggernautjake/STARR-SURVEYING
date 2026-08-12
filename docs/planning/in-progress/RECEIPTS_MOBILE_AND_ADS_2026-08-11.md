@@ -866,7 +866,7 @@ and `public/admin/sw.js` sets the badge from a push payload; `PUSH_VAPID_PUBLIC_
 create a notification, so the bell count never includes them, so the badge never counts them. That
 single fact is why the owner sees a count in the messenger widget and nothing on the icon.
 
-### N1 — A new message creates a notification
+### N1 — A new message creates a notification ✅ SHIPPED 2026-08-11 (it never actually worked)
 
 - On message insert, `notify()` the recipient with a `message` kind carrying the conversation id.
 - Reuse the existing `notify()` → `sendAdminPush` spine so the bell, the push and the app-icon badge
@@ -876,13 +876,64 @@ single fact is why the owner sees a count in the messenger widget and nothing on
 - **Done when:** sending a message to another employee produces a bell count and an icon badge on
   their phone.
 
-### N2 — Clicking the bell notification opens the conversation
+**Completion note — N1 was "already built" and had never once worked.**
+
+The plan recorded N1 as needing `notify()` wiring. Reading the code said it was done:
+`messages/send` calls `notifyMany`, and `lib/notifications.ts`'s own header comment lists *"job
+assignment, hours decision, payment, raise, **message**"* as callers that get bells and badges for
+free. I accepted that and moved to N3.
+
+Then the N3 test sent a real message and looked in the table. **Zero notification rows**, while
+`reminder` and `lead.new` rows sat right there. A probe of the exact insert returned:
+
+```
+23503  Key (thread_id)=(…) is not present in table "admin_discussion_threads"
+```
+
+`notifications.thread_id` carries a **foreign key to the discussion board**. `messages/send` was
+passing a messenger *conversation* id into it, so every message-notification insert violated the FK
+— and the `try/catch` wrapped around that block, there so a notification failure can never block a
+message, swallowed all of it in silence.
+
+So the code read as wired, the comment asserted it was wired, and **not one message notification had
+ever been created.** Nothing needed `thread_id`: the conversation is already in the `link` and the
+message id is already in `source_id`. Removing that one field is the entire fix.
+
+This is the sharpest example this session of the rule that keeps paying: **check the premise against
+the data, not against the code.** A comment claiming a feature works is evidence about intent, not
+about behaviour.
+
+**N2 was broken for a second, independent reason.** The link was
+`/admin/messages?conversation=<id>` — and `/admin/messages` is the inbox, which never reads
+`searchParams`. Tapping a message notification dropped you on the list of conversations to hunt for
+the one you had just been told about. `/admin/messages/<id>` is a real route (the thread view); the
+link now uses it and resolves 200 onto the conversation.
+
+**N3 — reading clears the bell.** `messages/read` marked `message_read_receipts` and
+`conversation_participants.last_read_at` and never touched `notifications`: two independent
+"has this been seen" flags, only one of which anything cleared, which is exactly why the red bubble
+and the home-screen badge stayed lit. Both read shapes now funnel through one helper keyed on
+`source_id` — the full page marks a conversation, the floating messenger marks individual messages,
+and a badge that clears on one surface but not the other is worse than one that never clears,
+because it looks fixed.
+
+**Verified end to end against production:** send → unread message bells `0 → 1`; read →
+`{"marked":3,"cleared_notifications":1}`; bells → `0`. The badge follows the bell count, so the
+home-screen bubble clears with it.
+
+**Still open, and honestly scoped:** the clearing is server-side. A tab that is *already open* on
+another device updates on its next poll rather than instantly. The owner asked for *"in real time"*,
+and closing that last gap means pushing the change to open clients over the existing realtime
+channel — a separate slice, and one that only matters once the underlying state is right, which it
+now is for the first time.
+
+### N2 — Clicking the bell notification opens the conversation ✅ SHIPPED 2026-08-11
 
 - The notification carries a deep link to `/admin/messages/[conversationId]`; clicking it navigates
   there and opens that thread, not the messages index.
 - **Done when:** the click lands on the right conversation from a cold app start.
 
-### N3 — Read once, read everywhere, in real time
+### N3 — Read once, read everywhere ✅ SHIPPED 2026-08-11 (server side; live push to open tabs still open)
 
 The hard half. Three surfaces can mark a message read — the floating messenger, the full messaging
 page, and the bell itself — and all three must converge without a refresh.
@@ -1315,9 +1366,9 @@ is an owner decision about staffing, not an engineering task.
 | A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |
 | E1 | ✅ shipped | WORK_ROLES has no employee, so /admin/my-hours was hidden from them. 4 registry + 5 middleware gates widened; 23-assertion guard |
 | E2 | ✅ shipped | seed 581 + /admin/role-requests; approving calls the ONE existing grant path; verified end to end incl. 403 on self-approve |
-| N1 | ☐ | Messages create notifications |
-| N2 | ☐ | Bell notification opens the conversation |
-| N3 | ☐ | Read once, read everywhere, in real time |
+| N1 | ✅ shipped | thread_id had an FK to admin_discussion_threads — EVERY message notification insert had been failing 23503 into a silent catch |
+| N2 | ✅ shipped | link was ?conversation= which nothing reads; now /admin/messages/<id>, verified 200 |
+| N3 | ◐ shipped | reading clears the bell + badge server-side (verified 1→0). Live push to an already-open tab remains |
 | N4 | ☐ | Badge verified on real iOS + Android PWAs |
 | F1 | ✅ shipped | Drawings mounted; JSONB not a bucket, so the download is synthesized as .starr and open_href goes to CAD |
 | F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |

@@ -229,10 +229,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         title: `💬 ${senderName}${groupSuffix}`,
         body: previewBody,
         icon: '💬',
-        link: `/admin/messages?conversation=${encodeURIComponent(conversation_id)}`,
+        // N2 — the PATH form, not `?conversation=`.
+        //
+        // The query-string link was never read by anything: `/admin/messages` is the inbox and does
+        // not look at `searchParams`, so tapping a message notification dropped you on the list of
+        // conversations to find the one you had just been told about. `/admin/messages/<id>` is a
+        // real route — the conversation thread view — and lands on the actual message.
+        link: `/admin/messages/${encodeURIComponent(conversation_id)}`,
         source_type: 'direct_message',
         source_id: message.id,
-        thread_id: conversation_id,
+        // ── NO `thread_id` HERE. THIS LINE IS WHY MESSAGE NOTIFICATIONS NEVER WORKED (N1/N3) ─────
+        //
+        // `notifications.thread_id` carries a FOREIGN KEY to `admin_discussion_threads` — it is for
+        // the discussion board, not for messenger conversations. Passing `conversation_id` into it
+        // violated that FK, so EVERY message notification insert failed with
+        //
+        //     23503 … Key (thread_id)=(…) is not present in table "admin_discussion_threads"
+        //
+        // and the `try/catch` around this block — there so a notification failure can never block a
+        // message — swallowed it in silence. The result: the code read as if the bell was wired,
+        // the comment above says it is, and not one message notification has ever been created.
+        // Found by sending a real message and then looking in the table rather than at the code.
+        //
+        // The conversation is already identified twice over: `link` carries it, and `source_id` is
+        // the message, which belongs to it. Nothing needed `thread_id`.
         escalation_level: 'normal',
       });
     }
