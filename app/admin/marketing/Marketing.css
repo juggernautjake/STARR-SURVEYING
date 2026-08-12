@@ -514,3 +514,66 @@
   .mk__seg--none { background: #374151; }
   .mk__dot--none { background: #374151; border-color: #4b5563; }
 }
+
+/* ── A1 (2026-08-11) — the tabbed shell ────────────────────────────────────────────────────────
+ *
+ * Four routes became one page with tabs. These styles are only the strip and its container; every
+ * tab body kept the styles it already had, because this slice moved pages rather than redesigning
+ * them (A5 does the visual work).
+ */
+
+.mkt-shell { min-width: 0; }
+
+/* One horizontal strip that SCROLLS rather than wrapping to two rows.
+ *
+ * Wrapping was the alternative and it is worse here: the strip's height would change as the active
+ * label changes width, so the page content below would jump every time somebody switched tabs. A
+ * single scrolling row keeps the layout still. This is M4's reformat-vs-scroll rule applied to a
+ * control that genuinely is one row. */
+.mkt-tabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  min-width: 0;
+}
+
+.mkt-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;            /* never squeeze labels to unreadable stubs — let the strip scroll */
+  min-height: 44px;          /* the tap-target floor the mobile audit holds controls to */
+  padding: 0 0.9rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #4B5563);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.mkt-tab:hover { border-color: var(--color-brand-navy, #1E3A5F); }
+
+.mkt-tab--active {
+  background: var(--color-brand-navy, #1E3A5F);
+  border-color: var(--color-brand-navy, #1E3A5F);
+  color: var(--color-text-on-brand, #FFF);
+}
+
+/* The one-line description of the active tab. It carries what the four separate nav entries used to
+ * say — collapsing the routes should not lose the words that told people what each one was for. */
+.mkt-tabs__hint {
+  margin: 0 0 1rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
+  color: var(--theme-fg-tertiary, #6B7280);
+  overflow-wrap: anywhere;
+}

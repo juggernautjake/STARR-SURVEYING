@@ -171,17 +171,21 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Create a job.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
   { href: '/admin/leads',           label: 'Leads',           workspace: 'work', iconName: 'Inbox',         description: 'Inbound contact + lead queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['contacts', 'prospects'] },
-  // A12 — the page the other three exist to make honest. Listed first of the four so the dashboard is
-  // what someone lands on, not the export tool.
-  { href: '/admin/marketing',       label: 'Marketing',       workspace: 'work', iconName: 'TrendingUp',    description: 'Funnel, cost per stage, repeat customers, attribution coverage.', roles: ['admin'], internalOnly: true, keywords: ['funnel', 'ads', 'google', 'cost per lead', 'roas', 'attribution', 'conversion'] },
-  // A7 — registered here rather than left as a URL only I know about. This repo's most common defect is
-  // finishing something nobody can click, and an export page nobody can find is an export nobody runs.
-  { href: '/admin/marketing/exports', label: 'Ad conversions',  workspace: 'work', iconName: 'TrendingUp',    description: 'Download offline conversions for Google Ads.', roles: ['admin'], internalOnly: true, keywords: ['google', 'ads', 'conversions', 'marketing', 'export', 'attribution'] },
-  // A8 — the only place a partial_failure rejection is visible. Google returns HTTP 200 while rejecting
-  // rows, so an unfindable log is the same as no log.
-  { href: '/admin/marketing/uploads', label: 'Ad upload log',   workspace: 'work', iconName: 'UploadCloud',   description: 'What the nightly Google Ads upload sent, and what Google rejected.', roles: ['admin'], internalOnly: true, keywords: ['google', 'ads', 'upload', 'conversions', 'errors', 'marketing'] },
-  // A11 — the denominator. Cost per lead is meaningless without it, and the manual-entry form lives here.
-  { href: '/admin/marketing/spend',   label: 'Ad spend',        workspace: 'work', iconName: 'DollarSign',    description: 'What the ads cost — imported nightly, or typed in from the invoice.', roles: ['admin'], internalOnly: true, keywords: ['google', 'ads', 'spend', 'cost', 'budget', 'marketing', 'cpl'] },
+  // ── FOUR ENTRIES BECAME ONE (A1, 2026-08-11) ──────────────────────────────────────────────────
+  //
+  // Marketing / Ad spend / Ad conversions / Ad upload log were four routes and four nav rows, split
+  // by implementation rather than by anything a person thinks about: "did the ads work this month?"
+  // needed two of them, "why is Google's number lower than ours?" needed the other two, and the menu
+  // gave no clue which pair. They are now tabs on /admin/marketing.
+  //
+  // The old hrefs still resolve — each is a `redirect()` to its tab — so bookmarks keep working. They
+  // are deliberately NOT registered any more: a registry entry is a nav row, and four rows pointing
+  // at one page is the clutter this slice removed.
+  //
+  // Every keyword from the four is merged in. Losing them would mean somebody searching "upload log"
+  // or "cpl" in the palette finds nothing, which is how a consolidation quietly makes a feature
+  // disappear even though the page is right there.
+  { href: '/admin/marketing',       label: 'Advertising',     workspace: 'work', iconName: 'TrendingUp',    description: 'Ad performance, spend, conversions and the Google upload log — one page, four tabs.', roles: ['admin'], internalOnly: true, keywords: ['funnel', 'ads', 'google', 'cost per lead', 'cpl', 'roas', 'attribution', 'conversion', 'conversions', 'marketing', 'advertising', 'spend', 'cost', 'budget', 'upload', 'upload log', 'export', 'errors', 'impressions', 'clicks'] },
   // §2.4's fix. Not a fifth calendar: the four that exist each answer "what is happening over a
   // period" for ONE resource type, and the dispatcher's actual question — "for Thursday, what can I
   // send" — spans crew, equipment and vehicles at once. In the rail because it is asked daily.

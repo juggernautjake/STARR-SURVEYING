@@ -23,14 +23,18 @@ const root = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 
 const SHARED = read('app/admin/marketing/Marketing.css');
-const UPLOADS = read('app/admin/marketing/uploads/MarketingUploads.css');
+const UPLOADS = read('app/admin/marketing/MarketingUploads.css');
 const ALL_CSS = `${SHARED}\n${UPLOADS}`;
 
 const PAGES: Array<{ file: string; prefix: string }> = [
-  { file: 'app/admin/marketing/page.tsx', prefix: 'mk' },
-  { file: 'app/admin/marketing/spend/page.tsx', prefix: 'ms' },
-  { file: 'app/admin/marketing/exports/page.tsx', prefix: 'mx' },
-  { file: 'app/admin/marketing/uploads/page.tsx', prefix: 'mu' },
+  // A1 (2026-08-11) — the four pages became tabs on /admin/marketing and their bodies moved to
+  // . The old routes still exist as redirects, which load no stylesheet and have no markup,
+  // so this guard follows the bodies rather than the URLs. The question it asks is unchanged: does
+  // every marketing SURFACE load a stylesheet that defines the classes it uses.
+  { file: 'app/admin/marketing/_tabs/DashboardTab.tsx', prefix: 'mk' },
+  { file: 'app/admin/marketing/_tabs/SpendTab.tsx', prefix: 'ms' },
+  { file: 'app/admin/marketing/_tabs/ExportsTab.tsx', prefix: 'mx' },
+  { file: 'app/admin/marketing/_tabs/UploadsTab.tsx', prefix: 'mu' },
 ];
 
 describe('every marketing page loads a stylesheet', () => {
@@ -69,7 +73,20 @@ describe('the shared stylesheet behaves', () => {
       .map((block) => block.split('{')[0].trim())
       .filter((s) => s.length > 0 && !s.startsWith('@'));
 
-    const unscoped = selectors.filter((s) => !/\.(mk|ms|mx)(__|[\s,{:>])/.test(s));
+    // `mkt` is listed FIRST and the separator class now includes `-`. Both matter, and neither is
+    // cosmetic:
+    //
+    //   · A1 (2026-08-11) added the tabbed shell's `.mkt-shell` / `.mkt-tabs` / `.mkt-tab` classes.
+    //     They ARE scoped — `mkt` is a distinct prefix — but the old pattern rejected them, so the
+    //     guard would have forced a rename to satisfy a rule the new classes already obeyed.
+    //   · Alternation is first-match: with `(mk|ms|mx|mkt)` the engine matches `mk` inside `.mkt-`,
+    //     then demands a separator and finds `t`, and fails. `mkt` has to come before `mk`.
+    //   · `-` joins the separator class because these use kebab-case rather than the older BEM
+    //     `__`. Without it `.mkt-shell` reads as unscoped for the same reason.
+    //
+    // The rule being enforced is unchanged: no bare element or generic selector may sit in this
+    // file and restyle screens it has never heard of.
+    const unscoped = selectors.filter((s) => !/\.(mkt|mk|ms|mx)(__|[-\s,{:>])/.test(s));
     expect(unscoped, `unscoped selectors:\n  ${unscoped.join('\n  ')}`).toEqual([]);
   });
 

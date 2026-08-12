@@ -598,7 +598,7 @@ deploy.
 
 ## Group A — Advertising
 
-### A1 — Four pages become one tabbed page
+### A1 — Four pages become one tabbed page ✅ SHIPPED 2026-08-11
 
 `/admin/marketing`, `/admin/marketing/spend`, `/admin/marketing/uploads`, `/admin/marketing/exports`
 are four separate routes; the owner wants one page with tabs.
@@ -611,6 +611,45 @@ are four separate routes; the owner wants one page with tabs.
   existing mechanism) so bookmarks and any registry entries keep working; update
   `lib/admin/route-registry.ts` to a single entry.
 - **Done when:** all four surfaces are reachable from one page and the old URLs redirect.
+
+**Completion note.** `/admin/marketing` is now a tabbed shell — Overview · Spend · Conversions ·
+Upload log — with the four page bodies moved untouched into `_tabs/`.
+
+**The bodies did not change, deliberately.** Rewriting them in the same slice that re-arranged them
+would make a regression impossible to attribute: if a number came out wrong afterwards, nobody could
+say whether the consolidation or the rewrite did it. A2–A5 change what is inside; this slice only
+changed where they live.
+
+Tab state lives in the URL (`?tab=spend`) rather than component state, so a reload keeps your place,
+back steps between tabs, and a tab is a link somebody can send. `replace` not `push`, and
+`scroll: false` — flicking between four tabs should not bury the page you came from under four
+history entries or jump you to the top of something you are reading. Only the active tab is
+mounted: all four fetch on mount, and mounting all four would fire every advertising query on every
+visit to answer one question.
+
+The three old routes stay as one-line `redirect()` server components and are **no longer registered**
+— a registry entry is a nav row, and four rows pointing at one page is the clutter this removed.
+Every keyword from the four was merged into the single entry, because losing them means somebody
+searching "upload log" or "cpl" in the palette finds nothing, which is how a consolidation quietly
+makes a feature disappear while the page sits right there.
+
+**Verified in a browser at 360px**: the four tabs render, tapping each updates both the URL and the
+active state, the page does not scroll sideways, and all three old routes land on the right tab
+(`/spend`→`tab=spend`, `/uploads`→`tab=uploads`, `/exports`→`tab=conversions`).
+
+**One self-inflicted false alarm worth recording.** A `curl` of the old routes returned `200` with no
+`Location`, which read as "the redirects are dead" — the exact defect shape I have been finding all
+session, so it was believable. It was wrong: `redirect()` from a Server Component during streaming
+SSR returns a 200 document that navigates on the client, not a 307. The browser test above is what
+settled it. A protocol-level probe can report a working redirect as broken just as easily as it can
+report a broken one as fine.
+
+Two follow-ups that fell out of the move: `__tests__/marketing/marketing-pages-are-styled.test.ts`
+now follows the bodies into `_tabs/` rather than the old URLs (the redirect stubs load no stylesheet,
+so pointing the guard at them would have made it assert nothing), and its scoping regex learned the
+`mkt-` prefix — listed *before* `mk` because alternation is first-match and `mk` otherwise matches
+inside `.mkt-` and then fails on the separator. The Google OAuth callback's landing URL points at
+`?tab=uploads` directly, saving a redirect hop at the least patient moment in that flow.
 
 ### A2 — Current month by default, and any period the user asks for
 
@@ -876,7 +915,7 @@ the owner is asking to click a conversion and see the person.
 | M7 | ☐ | Receipts portrait |
 | M8 | ☐ | Hours portrait |
 | M9 | ✅ shipped | viewport-fit=cover + top/side/dialog insets; a dozen pre-existing env() rules were inert until now. Device check outstanding |
-| A1 | ☐ | Tabbed marketing page |
+| A1 | ✅ shipped | One /admin/marketing with 4 tabs, URL-held state, old routes redirect, 4 nav rows → 1 |
 | A2 | ☐ | Current-month default + any month/year/week/day/custom range, in the URL |
 | A3 | ☐ | Impressions / clicks / conversions live |
 | A4 | ☐ | Auto-refresh + freshness stamp |

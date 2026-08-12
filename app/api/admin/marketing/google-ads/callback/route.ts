@@ -13,7 +13,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { ADS_OAUTH_COOKIE, adsRedirectUri, exchangeAdsCode, grantedAdsScope } from '@/lib/integrations/google-ads/oauth';
 
-const LANDING = '/admin/marketing/uploads';
+// A1 — points at the tab directly rather than the old route. That route still redirects here, so
+// the old value would have worked; going straight there saves the user a redirect hop on the way
+// back from Google's consent screen, which is the least patient moment in the whole flow.
+const LANDING = '/admin/marketing?tab=uploads';
 
 function back(req: NextRequest, status: string): NextResponse {
   const res = NextResponse.redirect(new URL(`${LANDING}?gads=${status}`, req.url));
