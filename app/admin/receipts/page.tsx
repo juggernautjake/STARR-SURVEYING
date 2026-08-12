@@ -22,6 +22,7 @@ import { MaintenancePicker, maintLinkStateChip, maintLinkStyles } from './Mainte
 import { PromoteToAssetPanel } from './PromoteToAsset';
 import { receiptTaxLine } from '@/lib/finance/tax-summary';
 import JobRefPicker from '@/app/admin/components/jobs/JobRefPicker';
+import type { ReceiptAiHealth } from '@/app/api/admin/receipts/ai-health/route';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -127,6 +128,8 @@ export default function ReceiptsApprovalPage() {
   const [showDeleted, setShowDeleted] = useState<boolean>(false);
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Whether this deployment can run the AI at all, and what is waiting. Null until the first check. */
+  const [aiHealth, setAiHealth] = useState<ReceiptAiHealth | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Bulk-approve selection (Batch JJ). Only meaningful on the
   // 'pending' tab — when the bookkeeper switches tabs we drop the
@@ -168,6 +171,19 @@ export default function ReceiptsApprovalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Re-checked whenever the list reloads, so pressing "Run AI" and watching the notice clear is the
+  // confirmation that the deployment is healthy again — rather than a stale banner that has to be
+  // reasoned about. Silent on failure: a diagnostic that breaks the page it diagnoses is worse than
+  // no diagnostic.
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/admin/receipts/ai-health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h) => { if (!cancelled && h) setAiHealth(h as ReceiptAiHealth); })
+      .catch(() => { /* non-admins get 403; the banner simply does not appear */ });
+    return () => { cancelled = true; };
+  }, [data]);
 
   // Drop the bulk-approve selection whenever the active tab
   // changes — the checkboxes are only rendered on the 'pending'
@@ -295,6 +311,26 @@ export default function ReceiptsApprovalPage() {
           to expand the photo and AI-extracted fields.
         </p>
       </header>
+
+      {/* ── SAY WHEN THE AI IS NOT RUNNING (owner, 2026-08-12) ────────────────────────────────────
+          Ten receipts sat unread for a day while every surface stayed quiet: `extractReceipt` throws
+          before it claims the row when the API key is missing (so no error is recorded ON the row),
+          the capture page's kick is `.catch(() => {})` by design, and the cron answers 200 `skipped`.
+          Three reasonable local choices adding up to a system that could not tell anyone it was off.
+          This is the one place that says it out loud. */}
+      {aiHealth?.message && (
+        <div style={aiHealth.canRun ? styles.aiNoticeWarn : styles.aiNoticeStop} role="status">
+          <strong>{aiHealth.canRun ? 'Receipts are waiting' : 'The receipt AI is switched off'}</strong>
+          <div>{aiHealth.message}</div>
+          {/* Photos are safe either way, and that is the first thing anyone will want to know. */}
+          {!aiHealth.canRun && (
+            <div style={styles.aiNoticeCalm}>
+              Every photo uploaded is already stored. Nothing has been lost, and the hourly sweep will
+              read the backlog once the key is set.
+            </div>
+          )}
+        </div>
+      )}
 
       <nav style={styles.tabs}>
         {STATUS_TABS.map((s) => (
@@ -578,7 +614,21 @@ function ReceiptRow({
 
   // Build a compact AI-extraction status caption.
   const aiCaption = useMemo(() => {
-    if (row.extraction_status === 'queued' || row.extraction_status === 'running') {
+    // ── "AI working…" WAS A GUESS, AND IT WAS WRONG FOR A DAY (owner, 2026-08-12) ─────────────────
+    //
+    // `queued` means "nothing has picked this up yet" and `running` means "a call is in flight". This
+    // reported both as work in progress, so ten receipts that were never read said "AI working…"
+    // indefinitely — the same failure the R3 note describes ("the queue cheerfully rendered 'AI
+    // working…' about a worker that was never going to arrive"), still present because the caption
+    // only ever looked at the status and never at the clock.
+    //
+    // A queue entry older than the time the whole pipeline is supposed to take is not in progress; it
+    // is waiting for something that is not coming. Saying so is what sends someone to the banner.
+    if (row.extraction_status === 'queued') {
+      const ageMin = (Date.now() - new Date(row.created_at).getTime()) / 60_000;
+      return ageMin > 10 ? 'AI has not read this yet — see the notice above' : 'Queued for AI…';
+    }
+    if (row.extraction_status === 'running') {
       return 'AI working…';
     }
     if (row.extraction_status === 'failed') {
@@ -591,7 +641,10 @@ function ReceiptRow({
       return `AI done${cost}`;
     }
     return '—';
-  }, [row.extraction_status, row.extraction_error, row.extraction_cost_cents]);
+    // `created_at` joined the dependency list when the queued branch started reading the clock to
+    // tell "just uploaded" from "nothing is coming". Omitting it would freeze the caption at whatever
+    // it said on first render — the row would keep claiming "Queued for AI…" an hour later.
+  }, [row.extraction_status, row.extraction_error, row.extraction_cost_cents, row.created_at]);
 
   return (
     <div style={styles.row}>
@@ -1539,6 +1592,34 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
   },
   aiMsg: { fontSize: 12.5, color: 'var(--theme-fg-secondary, #374151)', overflowWrap: 'anywhere' },
+  // The two states are deliberately different colours: amber means "something is waiting", red
+  // means "this cannot run at all". Collapsing them would make a configuration outage look like a
+  // queue that is merely slow — precisely the confusion that let ten receipts sit unread for a day.
+  aiNoticeStop: {
+    border: '1px solid #DC2626',
+    background: '#FEF2F2',
+    color: '#7F1D1D',
+    borderRadius: 8,
+    padding: '12px 14px',
+    marginBottom: 16,
+    fontSize: 13.5,
+    lineHeight: 1.5,
+    display: 'grid',
+    gap: 6,
+  },
+  aiNoticeWarn: {
+    border: '1px solid #F59E0B',
+    background: '#FFFBEB',
+    color: '#92400E',
+    borderRadius: 8,
+    padding: '12px 14px',
+    marginBottom: 16,
+    fontSize: 13.5,
+    lineHeight: 1.5,
+    display: 'grid',
+    gap: 6,
+  },
+  aiNoticeCalm: { fontSize: 12.5, opacity: 0.85 },
   flagBand: {
     border: '1px solid #F59E0B',
     background: '#FFFBEB',
