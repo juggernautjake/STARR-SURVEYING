@@ -8,11 +8,11 @@ const names = (roles: string[], admin = false) => mountRootNodes(u(roles), admin
 
 describe('files/mounts: mountRootNodes role gating', () => {
   it('admins see every source', () => {
-    expect(names([], true)).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media']);
+    expect(names([], true)).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings']);
   });
 
   it('developers see every source without the admin flag', () => {
-    expect(names(['developer'])).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media']);
+    expect(names(['developer'])).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings']);
   });
 
   it('field crew see job files + field media only', () => {
@@ -21,7 +21,10 @@ describe('files/mounts: mountRootNodes role gating', () => {
 
   it('researchers and drawers see research documents', () => {
     expect(names(['researcher'])).toEqual(['Research Documents']);
-    expect(names(['drawer'])).toEqual(['Research Documents']);
+    // F1 (2026-08-11) — a drawer now also sees Drawings. That is the point of the source: the
+    // owner asked to find 'all of the drawings' in the file manager, and the people who make them
+    // are the ones who need it. A researcher still sees only Research Documents.
+    expect(names(['drawer'])).toEqual(['Research Documents', 'Drawings']);
   });
 
   it('a base employee sees no read-only sources', () => {

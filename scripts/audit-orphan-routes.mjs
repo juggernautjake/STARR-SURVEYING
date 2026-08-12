@@ -48,6 +48,30 @@ function hrefOf(file) {
 const registry = readFileSync(join(ROOT, 'lib', 'admin', 'route-registry.ts'), 'utf8');
 const registered = new Set([...registry.matchAll(/href:\s*'([^']+)'/g)].map((m) => m[1]));
 
+/**
+ * Is this page nothing but a redirect?
+ *
+ * A forwarding address is not a destination, and registering one would put a second nav row on the
+ * page it forwards to. The script already made this call by hand for `/admin` ("redirects to the
+ * hub; it is not a destination") — this generalises that judgement instead of keeping a list of
+ * exceptions that grows every time a page moves.
+ *
+ * Deliberately narrow: it must import `redirect` from `next/navigation`, call it, and render NO JSX.
+ * A page that redirects *conditionally* and otherwise renders something is a real destination and
+ * still has to be registered.
+ */
+function isRedirectOnly(file) {
+  const src = readFileSync(file, 'utf8');
+  if (!/from ['"]next\/navigation['"]/.test(src)) return false;
+  if (!/\bredirect\(/.test(src)) return false;
+  // Any JSX element means it renders something of its own. Checked on the code with comments
+  // stripped, so prose mentioning a tag cannot make a real page look like a stub.
+  const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  return !/<[A-Za-z]/.test(code);
+}
+
+const redirectOnly = new Set(walk(ADMIN).filter(isRedirectOnly).map(hrefOf));
+
 const pages = walk(ADMIN)
   .map(hrefOf)
   // Dynamic segments are reached from a list, never from a menu.
@@ -58,7 +82,18 @@ const pages = walk(ADMIN)
   // currently using is a bug rather than a feature, so it is excluded here rather than registered.
   .filter((h) => h !== '/admin/login');
 
-const orphans = pages.filter((h) => !registered.has(h)).sort();
+// The redirect exclusion belongs HERE and only here.
+//
+// The first version filtered redirect-only pages out of `pages` entirely, which broke the other
+// direction: `/admin/schedule`, `/admin/work-mode` and `/admin/work-mode/developer` are REGISTERED
+// redirects, so removing their files from the list made their registry entries look dangling — a
+// menu item with no page behind it, which is the worse of the two faults this script checks for.
+//
+// Stated as two separate rules, because they are two separate questions:
+//   · an UNREGISTERED redirect is not an orphan — it is a forwarding address, and registering it
+//     would put a second nav row on the page it forwards to;
+//   · a REGISTERED redirect is not dangling — its file exists and its menu row goes somewhere real.
+const orphans = pages.filter((h) => !registered.has(h) && !redirectOnly.has(h)).sort();
 
 console.log(`admin pages (excluding dynamic segments): ${pages.length}`);
 console.log(`registered in ADMIN_ROUTES:               ${pages.length - orphans.length}`);

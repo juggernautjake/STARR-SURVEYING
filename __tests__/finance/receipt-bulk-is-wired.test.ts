@@ -52,10 +52,35 @@ describe('bulk capture is reachable from the page', () => {
 });
 
 describe('the batch keeps its failures on screen', () => {
-  it('only navigates away when everything succeeded', () => {
+  it('only clears the queue when everything succeeded', () => {
     // Leaving on a partial batch hides exactly the rows that need a person, which is the failure
     // this whole slice exists to prevent.
-    expect(code).toMatch(/if \(result\.allSucceeded\) router\.push/);
+    //
+    // ── UPDATED FOR R8 (2026-08-11), INTENT UNCHANGED ────────────────────────────────────────────
+    //
+    // This used to assert `if (result.allSucceeded) router.push`. The page no longer navigates at
+    // all: R1 opened receipt capture to every member of staff, but `/admin/receipts` is the
+    // bookkeeper's approval queue, so `router.push('/admin/receipts')` threw a `field_crew` or
+    // `employee` account at a page middleware bounces them off — landing on /admin/me with no
+    // confirmation that anything had been filed. Success now clears the queue in place and shows a
+    // confirmation, and the receipts list below refreshes.
+    //
+    // The GUARD is the same one: the success path is still gated on `allSucceeded`, so a partial
+    // batch keeps its failed rows on screen. Only the success action changed, so only the shape of
+    // the assertion changed with it.
+    expect(code).toMatch(/if \(result\.allSucceeded\)\s*\{/);
+    expect(code).toContain('finishUpload(');
+  });
+
+  it('does not send the submitter to a page they may not be allowed to open', () => {
+    // The regression that made the change above necessary, pinned so it cannot come back: capture is
+    // open to everyone, the approval queue is not.
+    //
+    // Anchored to a STATEMENT (`^\s*router.push(`) rather than a substring. The page's own comment
+    // quotes the old call while explaining why it went, and a plain `not.toContain` failed on that
+    // prose — the precise hazard this file's header warns about, met in the opposite direction:
+    // there, a comment could satisfy a check; here, a comment broke one.
+    expect(code).not.toMatch(/^\s*router\.push\(/m);
   });
 
   it('renders a per-item status list', () => {

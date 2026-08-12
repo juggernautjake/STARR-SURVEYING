@@ -145,7 +145,7 @@
   "app/admin/team/[email]/page.tsx": 1,
   "app/admin/team/page.tsx": 9,
   "app/admin/time-off/page.tsx": 16,
-  "app/admin/users/page.tsx": 17,
+  "app/admin/users/page.tsx": 16,
   "app/admin/vehicles/page.tsx": 5,
   "app/admin/weather/page.tsx": 4,
   "app/admin/work-mode/field_crew/_components/FieldCrewWorkspace.tsx": 6,
