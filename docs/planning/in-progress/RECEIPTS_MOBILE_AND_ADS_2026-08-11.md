@@ -928,7 +928,7 @@ Measured against the owner's list, not guessed:
 | **"Linked to every page"** | ❌ no shared attach/browse component; each feature has its own uploader |
 | Mobile | ⚠️ unaudited at phone width |
 
-### F1 — Mount the drawings
+### F1 — Mount the drawings ✅ SHIPPED 2026-08-11
 
 `cad_drawings` is the one source the owner named that has no mount. Add it to `mounts.ts` beside the
 existing four — same read-only contract, same role gate (`drawer`, `admin`, `developer`), same
@@ -936,6 +936,40 @@ download re-validation. Nothing else changes: one more entry in `SOURCES` and it
 
 - **Done when:** a drawer can browse Drawings in `/admin/files` and open one, and cannot rename or
   delete it.
+
+**Completion note — and this was NOT the one-line addition it looked like.**
+
+Drawings differ from the four existing mounts in a way that matters: `cad_drawings.document` is
+**JSONB in the database**, not an object in a storage bucket. There is no path to sign, so the mount
+contract — resolve to `{bucket, path}`, hand back a signed URL — simply does not apply. Three
+consequences, each handled rather than papered over:
+
+1. **The download is synthesized.** `resolveMountFile` returns an `inlineBody` for this source only;
+   every other source keeps the signed-URL path untouched. Served as `.starr`, not `.json`, because
+   that is what the CAD editor writes and reads — a file downloaded here opens again without being
+   renamed. The schema's own comment calls `document` "the same payload as .starr file".
+2. **The endpoint's contract did not change.** Returning the bytes straight from the download route
+   was the obvious move and would have broken every existing caller: the explorer does
+   `await res.json()` and reads `{ url }`, so a raw body would have parsed as the drawing and left
+   `url` undefined. The URL now points back at the same route with `?raw=1`, which streams the body
+   and re-validates the role gate — that is a normal request anybody could make directly.
+3. **Opening beats downloading.** A drawing's natural action is the CAD editor, so mounted nodes
+   carry `open_href` and the explorer checks it BEFORE preview and download. Without that ordering a
+   drawing is `application/json`, falls through to `download()`, and hands somebody a blob when they
+   wanted the drawing.
+
+The listing deliberately does not `select` the `document` column — pulling 500 serialised drawings
+to print their names would move megabytes to render a file list. Size shows features and layers
+instead of bytes, because the byte length of a JSONB column means nothing to a surveyor.
+
+**Verified against real data**, not a fixture: the root now lists Drawings beside the four existing
+mounts at `view` access, `mnt:drawings` returns 3 real drawings, and the first downloads as a 356 KB
+`26075.starr` with `Content-Disposition: attachment` and keys `version, document, application`.
+`open_href` resolves to `/admin/cad?drawing=<id>`.
+
+Also observed while verifying, and useful for F4: the root already contains **Personal** and
+**Shared** folders at `manage`. The scoping exists structurally — F4's job is making a folder *say*
+which it is, not inventing the concept.
 
 ### F2 — Search
 
@@ -1030,7 +1064,7 @@ a bug is silent and expensive.
 | N2 | ☐ | Bell notification opens the conversation |
 | N3 | ☐ | Read once, read everywhere, in real time |
 | N4 | ☐ | Badge verified on real iOS + Android PWAs |
-| F1 | ☐ | Mount cad_drawings — the one named source with no mount |
+| F1 | ✅ shipped | Drawings mounted; JSONB not a bucket, so the download is synthesized as .starr and open_href goes to CAD |
 | F2 | ☐ | Search (none exists today) — permission filter in the QUERY |
 | F3 | ☐ | Format filters |
 | F4 | ☐ | Show whether a folder is personal / company / role |
