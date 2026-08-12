@@ -12,8 +12,11 @@
 //
 // Rates with no denominator render as an em-dash, never as zero. A 0% conversion rate reads as "something
 // is broken"; the truth is usually "nothing has happened in this range yet".
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DateRange } from '@/lib/marketing/date-range';
+import {
+  READ_INTERVAL_MS, describeFreshness, isLiveRange, shouldImport,
+} from '@/lib/marketing/live-refresh';
 
 // Shared marketing stylesheet. These pages referenced their class names for months with
 // nothing defining them — see the header of Marketing.css.
@@ -94,8 +97,14 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true); setError(null);
+  /**
+   * A4 — `silent` re-reads without touching `loading`. An auto-refresh that flips the page back to
+   * "Loading…" every minute makes it unreadable: you look away, look back, and the thing you were
+   * reading is gone. A background update should only ever change the numbers.
+   */
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
     try {
       const p = new URLSearchParams({ slice });
       if (from) p.set('from', from);
@@ -104,8 +113,10 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
       setData(await res.json() as Payload);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load the dashboard.');
-    } finally { setLoading(false); }
+      // A silent tick that fails must not replace a screen of good numbers with an error banner —
+      // one dropped request on a train is not a reason to blank the page. It retries next minute.
+      if (!silent) setError(e instanceof Error ? e.message : 'Could not load the dashboard.');
+    } finally { if (!silent) setLoading(false); }
   }, [slice, from, to]);
 
   useEffect(() => { void load(); }, [load]);
@@ -114,8 +125,13 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
   // (today is still being counted), so without this the current month is short by up to a day.
   const [refreshing, setRefreshing] = useState(false);
   const [refreshNote, setRefreshNote] = useState<string | null>(null);
-  const refresh = useCallback(async () => {
-    setRefreshing(true); setRefreshNote(null);
+  // A4 — the last time an import was ATTEMPTED, successful or not. See `shouldImport`: keying the
+  // interval on success would turn a broken connection into a request loop against Google.
+  const lastImportAttempt = useRef<number | null>(null);
+
+  const refresh = useCallback(async (silent = false) => {
+    lastImportAttempt.current = Date.now();
+    if (!silent) { setRefreshing(true); setRefreshNote(null); }
     try {
       const res = await fetch('/api/admin/marketing/spend/refresh', {
         method: 'POST',
@@ -124,16 +140,58 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
       });
       const out = await res.json() as { imported?: number; error?: string; skipped?: boolean; warning?: string };
       // The reason is shown verbatim. "Nothing happened" with no explanation is the state that gets
-      // pressed eleven times.
-      const outcome = out.error
-        ? out.error
-        : out.imported ? `Imported ${out.imported} rows from Google.` : 'Google reported no rows for this range.';
-      setRefreshNote(out.warning ? `${outcome} ${out.warning}` : outcome);
-      await load();
+      // pressed eleven times. On a silent tick nothing is said at all — an automatic action the
+      // person did not take should not narrate itself over the page they are reading.
+      if (!silent) {
+        const outcome = out.error
+          ? out.error
+          : out.imported ? `Imported ${out.imported} rows from Google.` : 'Google reported no rows for this range.';
+        setRefreshNote(out.warning ? `${outcome} ${out.warning}` : outcome);
+      }
+      await load(silent);
     } catch (e) {
-      setRefreshNote(e instanceof Error ? e.message : 'The refresh failed.');
-    } finally { setRefreshing(false); }
+      if (!silent) setRefreshNote(e instanceof Error ? e.message : 'The refresh failed.');
+    } finally { if (!silent) setRefreshing(false); }
   }, [from, to, load]);
+
+  /**
+   * A4 — the actual "in real time" part.
+   *
+   * One timer, two different jobs at two different rates: re-READ our own database every minute
+   * (cheap, no quota), and re-IMPORT from Google only every fifteen (quota, and Google's figures do
+   * not move faster than that anyway). The decision lives in `lib/marketing/live-refresh.ts` so it
+   * is testable without a browser; this effect is only the wiring.
+   *
+   * It also refreshes the moment the tab becomes visible. Coming back to a laptop after lunch and
+   * reading a number that was true two hours ago — with a stamp that only updates on the next tick —
+   * is exactly the silent staleness this slice exists to remove.
+   */
+  useEffect(() => {
+    const visible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+
+    const tick = (): void => {
+      if (!visible()) return;
+      const now = new Date();
+      // A closed month cannot change, so re-reading it every minute is work that can only ever
+      // return the same bytes. The page says "final" for those ranges instead of pretending to
+      // watch them.
+      if (!isLiveRange(range, now)) return;
+      void load(true);
+      if (shouldImport({ visible: true, range, lastAttemptAt: lastImportAttempt.current, now })) {
+        void refresh(true);
+      }
+    };
+
+    const timer = window.setInterval(tick, READ_INTERVAL_MS);
+    const onVisible = () => { if (visible()) tick(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [load, refresh, range]);
+
+  // Recomputed on every render rather than stored, so the stamp ages while you look at it instead of
+  // freezing at whatever it said when the data arrived.
+  const freshness = data ? describeFreshness(data.lastImportedAt, new Date()) : null;
+  const live = isLiveRange(range, new Date());
 
   const top = data?.funnel[0]?.count ?? 0;
   const perf = data?.performance;
@@ -216,9 +274,25 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
             </p>
           )}
           {refreshNote && <p className="mk__muted" role="status">{refreshNote}</p>}
-          {data.lastImportedAt && (
-            <p className="mk__tiny">
-              Last imported {new Date(data.lastImportedAt).toLocaleString()}.
+
+          {/* A4 — the freshness stamp. ALWAYS rendered, never conditional on having a timestamp:
+              a component that disappears when it has no timestamp leaves the page looking most
+              confident exactly where it knows least. `describeFreshness` guarantees a sentence. */}
+          {freshness && (
+            <p className={`mk__stamp${freshness.stale ? ' mk__stamp--stale' : ''}`} data-testid="mk-freshness">
+              <i className="mk__pulse" aria-hidden />
+              {freshness.label}
+              {live
+                ? <> · checking every minute</>
+                : freshness.ageMs === null
+                  // A closed period we never imported must NOT be called final. "Final" says these
+                  // figures are the settled truth; the truth is we never asked Google, and the
+                  // zeroes below are the absence of an import rather than the absence of spend.
+                  // That is the exact confusion A3 found live, one sentence away from repeating.
+                  ? <> · nothing was ever imported for it — <strong>Refresh from Google</strong> to pull it</>
+                  // Said plainly rather than left ambiguous. A past month is not "not updating
+                  // because something broke", it is finished, and those look identical without a word.
+                  : <> · this period has closed, so the figures are final</>}
             </p>
           )}
         </section>

@@ -831,3 +831,40 @@
   background: #93C5FD;
   border-radius: 2px 2px 0 0;
 }
+
+/* ── A4 · the freshness stamp ──────────────────────────────────────────────────────────────────
+ *
+ * "Real time" that silently is not is worse than a timestamp. This line is always present, and it
+ * turns amber when the figures are old enough that presenting them as current would mislead.
+ */
+.mk__stamp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: #6B7280;
+}
+
+.mk__stamp--stale { color: #92400E; font-weight: 600; }
+
+.mk__pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16A34A;
+  flex: none;
+  animation: mk-pulse 2.4s ease-in-out infinite;
+}
+.mk__stamp--stale .mk__pulse { background: #F59E0B; animation: none; }
+
+@keyframes mk-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* A pulsing dot is decoration, and decoration that moves forever is a problem for anyone who has
+ * asked their system to stop animating things. The colour still carries the whole meaning. */
+@media (prefers-reduced-motion: reduce) {
+  .mk__pulse { animation: none; }
+}

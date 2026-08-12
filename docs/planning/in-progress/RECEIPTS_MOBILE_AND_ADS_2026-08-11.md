@@ -769,13 +769,75 @@ in isolation. The only way to see it was to make a real request.
 recorded no conversion for this campaign at all, which is why cost-per-conversion renders as "—".
 That is either a real result or the conversion tracking not firing, and A7 is where it gets answered.
 
-### A4 — Actually live
+### A4 — Actually live ✅ SHIPPED 2026-08-12
 
 - Auto-refresh on an interval while the tab is visible (`document.visibilityState`), plus a manual
   refresh, plus a visible "updated HH:MM" stamp.
 - Never show a stale number without saying it is stale — "real time" that silently isn't is worse
   than a timestamp.
 - **Done when:** leaving the page open across a data refresh updates it without a reload.
+
+**Completion note (2026-08-12). Done.**
+
+### There are two clocks, and conflating them is the whole trap
+
+"Auto-refresh on an interval" sounds like one behaviour. It is two, running at wildly different
+speeds:
+
+| | cost | how fast it can change |
+|---|---|---|
+| **read** — our database → the page | free | instantly |
+| **import** — Google → our database | API quota | minutes to hours; conversions land days late |
+
+Polling Google every minute would spend fifteen times the quota to receive the same rows fourteen
+times. So the page **re-reads every minute and re-imports every fifteen**, and the freshness stamp
+reports the *import* time — not the read time, which is always a few seconds old and would make a
+two-day-old figure look fresh. That single choice is the difference between a stamp that means
+something and one that always says "just now".
+
+### Three things that stop it working hard to learn nothing
+
+`shouldImport()` refuses on any of: the tab is hidden (a tab open all weekend spends quota nobody is
+reading), **the range has closed** (July 2025 cannot change; every request returns identical bytes),
+or the interval has not elapsed. The interval is keyed on the last *attempt*, not the last success —
+keying it on success would turn one broken connection into a request loop against Google from every
+open tab at once.
+
+`isLiveRange` uses the **local** calendar day. `toISOString()` would roll over to tomorrow at 6pm in
+a US timezone, so a range ending today would be declared closed for the last few hours of every day
+and the page would quietly stop updating every evening.
+
+### Honesty, which is what this slice is actually for
+
+- The stamp is **always rendered**, never conditional on having a timestamp. A component that
+  disappears when it has no timestamp leaves the page looking most confident exactly where it knows
+  least. `describeFreshness` is guaranteed to return a sentence — including *"never imported from
+  Google"*.
+- Amber past two hours, not two minutes. The nightly cron is the normal source, so "4 hours ago" at
+  noon is healthy; flagging that would train everyone to ignore the flag, and then the real failure
+  goes unnoticed too.
+- A background tick is **silent**: it never sets `loading` (an auto-refresh that flips the page to
+  "Loading…" every minute makes it unreadable), never narrates itself, and never replaces a screen
+  of good numbers with an error banner because one request failed on a train.
+- A closed period says *"the figures are final"* — but only if something was actually imported. If
+  nothing ever was, it says so and points at the refresh button instead. Calling an empty period
+  "final" would repeat, one sentence later, the exact confusion A3 was created to fix: zeroes that
+  mean "we never asked" reading as zeroes that mean "nothing was spent".
+
+### Verified
+
+14 tests on the pure logic in `lib/marketing/live-refresh.ts` (clock as an argument throughout, same
+rule as `date-range.ts`), plus an e2e assertion, plus driven in a browser:
+
+```
+LIVE   → "updated 10 min ago · checking every minute"
+CLOSED → "never imported from Google · nothing was ever imported for it — Refresh from Google to pull it"
+panel survived a background tick: true      page shows "Loading…" after tick: false
+```
+
+**One guard fixed at the cause.** `marketing-pages-are-styled` split the stylesheet on `}` and read
+keyframe stops (`0%`, `50%`) as unscoped selectors, so it rejected *any* animation in these pages —
+a rule it does not mean to have. `@keyframes` blocks are now stripped whole before the split.
 
 ### A5 — Make it worth looking at
 
@@ -1494,7 +1556,7 @@ is an owner decision about staffing, not an engineering task.
 | A1 | ✅ shipped | One /admin/marketing with 4 tabs, URL-held state, old routes redirect, 4 nav rows → 1 |
 | A2 | ✅ shipped | lib/marketing/date-range.ts (25 tests incl. the 1st-of-month rollover) + RangePicker in the shell; one control, four tabs |
 | A3 | ✅ shipped | Table was EMPTY while the account spent $184. 3 silent defects: reporting gated on the upload check, the bad login-customer-id, two importers. Live-verified 16,666 impr / 399 clicks |
-| A4 | ☐ | Auto-refresh + freshness stamp |
+| A4 | ✅ shipped | Two clocks at two rates (read 1 min / import 15 min); stamp reports the IMPORT time and is never blank; closed ranges say final, or say nothing was imported |
 | A5 | ☐ | Visual overhaul |
 | A6 | ✅ shipped | ANSWER: token IS approved. Found v18 API retired (every call dead) + a wrong LOGIN_CUSTOMER_ID that 403s a working connection |
 | A7 | ☐ | Unique customer behind each click / conversion / form / call — inventory first |

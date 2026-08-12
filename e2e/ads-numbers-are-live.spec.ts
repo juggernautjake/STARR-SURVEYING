@@ -138,6 +138,31 @@ test.describe('A3 — the advertising numbers are real', () => {
     await ctx.close();
   });
 
+  test('A4 — the page always says how old the numbers are', async ({ browser }) => {
+    // "Real time" that silently is not is worse than a timestamp. The way that fails in practice is
+    // a stamp that renders nothing when it has no timestamp — so the page looks most confident
+    // exactly where it knows least. This asserts the line is present and says something.
+    const ctx = await adminContext(browser);
+    const page = await ctx.newPage();
+    await page.goto(`${BASE}/admin/marketing`, { waitUntil: 'domcontentloaded' });
+
+    const stamp = page.getByTestId('mk-freshness');
+    await expect(stamp).toBeVisible({ timeout: 30_000 });
+    // The current month is still running, so the page must claim to be watching it.
+    await expect(stamp).toContainText('checking every minute');
+
+    // A closed month must NOT claim to be watching — polling it would return identical bytes
+    // forever, and saying "checking every minute" over a finished period is a lie with a moving dot.
+    await page.goto(`${BASE}/admin/marketing?preset=custom&from=2025-07-01&to=2025-07-31`, {
+      waitUntil: 'domcontentloaded',
+    });
+    const closed = page.getByTestId('mk-freshness');
+    await expect(closed).toBeVisible({ timeout: 30_000 });
+    await expect(closed).not.toContainText('checking every minute');
+
+    await ctx.close();
+  });
+
   test('the tiles do not push the page sideways at 360px', async ({ browser }) => {
     // M4's rule, applied to the panel this slice adds: four KPI tiles reflow to two rows of two on a
     // phone. The failure mode is a fixed four-column grid, which fits on a laptop and silently gives

@@ -68,7 +68,13 @@ describe('the shared stylesheet behaves', () => {
     // matches `.mk__title`. The first version of this assertion used `\b`, decided every rule in the
     // file was unscoped, and failed — a test wrong about the thing it was guarding.
     const withoutComments = SHARED.replace(/\/\*[\s\S]*?\*\//g, '');
-    const selectors = withoutComments
+    // `@keyframes` blocks are removed WHOLE before splitting. Their inner blocks are keyframe stops
+    // — `0%`, `50%`, `from`, `to` — which look exactly like unscoped selectors to a split on '}' and
+    // are nothing of the kind: a stop cannot match an element and cannot leak anywhere. Without
+    // this, the guard rejects any animation in these pages, which is a rule it does not mean to
+    // have. The nested-brace pattern is deliberate; `[\s\S]*?\}` would stop at the first inner one.
+    const withoutKeyframes = withoutComments.replace(/@keyframes[^{]*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}/g, '');
+    const selectors = withoutKeyframes
       .split('}')
       .map((block) => block.split('{')[0].trim())
       .filter((s) => s.length > 0 && !s.startsWith('@'));
