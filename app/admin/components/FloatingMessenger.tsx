@@ -34,7 +34,7 @@ import RichMessageInput, { type RichMessageInputHandle } from '@/app/admin/compo
 import MessageBody from '@/app/admin/components/messaging/MessageBody';
 import { htmlToPlainText } from '@/lib/messages/rich-text';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
-import { emitConversationRead } from '@/lib/messages/read-sync';
+import { emitConversationRead, subscribeConversationRead } from '@/lib/messages/read-sync';
 
 interface Conversation {
   id: string;
@@ -349,6 +349,13 @@ export default function FloatingMessenger() {
     }, 15000);
     return () => clearInterval(interval);
   }, [fetchConversations, fetchUnread, activeConv, fetchMessages]);
+
+  // N3 — the messenger already ANNOUNCES its own reads; this is the other direction. When a
+  // conversation is read somewhere else — the /admin/messages list, a conversation page opened from a
+  // bell notification, or another tab — the FAB's unread badge sat on the old number until the next
+  // 15s poll. Only the unread counts are refetched, not the conversation list: this can fire while the
+  // user is reading, and re-fetching the list mid-read is what causes a visible reflow.
+  useEffect(() => subscribeConversationRead(() => { void fetchUnread(); }), [fetchUnread]);
 
   // Scroll to bottom when the message count grows.
   // Scroll behavior: when a conversation FIRST loads, jump straight to the

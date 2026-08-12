@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
+import { emitConversationRead } from '@/lib/messages/read-sync';
 import MessageBubble from '../../components/messaging/MessageBubble';
 import ComposeBox from '../../components/messaging/ComposeBox';
 import ConversationHeader from '../../components/messaging/ConversationHeader';
@@ -95,6 +96,12 @@ export default function ConversationPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conversation_id: conversationId }),
       });
+      // N3 — this was the one read path that told nobody. The messenger and the /admin/messages list
+      // both emit; opening a conversation directly (which is exactly what N2 made the bell's own
+      // notification link do) marked the server side read and left the bell's bubble and the
+      // home-screen badge showing a count the user had just cleared. Emitted only after the POST
+      // resolves, so a failed write cannot clear a badge that the next poll would bring back.
+      emitConversationRead(conversationId);
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'mark as read' });
     }

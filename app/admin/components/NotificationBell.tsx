@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { subscribeConversationRead } from '@/lib/messages/read-sync';
 
 interface Notification {
   id: string;
@@ -128,6 +129,20 @@ export default function NotificationBell() {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [fetchNotifications]);
+
+  // N3's remaining half — "read once, read everywhere".
+  //
+  // A message read in the popup messenger, the /admin/messages list, or a conversation page cleared
+  // those surfaces instantly (they share `lib/messages/read-sync`), but the bell was NOT subscribed:
+  // its bubble, and with it the home-screen app-icon badge below, kept the old count until the next
+  // 15s poll. The comment on that badge effect claimed "every mark-read flows through unreadCount",
+  // and it was not true of the message surfaces — the bell simply never heard about them.
+  //
+  // Refetching rather than decrementing a local counter is deliberate: one conversation can hold
+  // several unread notifications, and a subtraction that guesses how many would drift from the server
+  // and eventually strand the badge at a number no page agrees with. The fetch is the same one the
+  // poll already makes, so this only changes *when* it happens.
+  useEffect(() => subscribeConversationRead(() => { void fetchNotifications(); }), [fetchNotifications]);
 
   // Keep the home-screen app-icon badge in step with the in-app unread count. The service worker
   // sets it when a push arrives while the app is closed; this covers the app being OPEN — every poll,

@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { defineWidget, type WidgetProps, type WidgetSettingsFormProps } from '@/lib/hub/widget-registry';
 import { sizeBucket, type SizeBucket } from '@/lib/hub/size-bucket';
 import { conversationHref } from '@/lib/hub/widgets/_shared/widget-links';
-import { MESSAGES_READ_EVENT } from '@/lib/messages/read-sync';
+import { subscribeConversationRead } from '@/lib/messages/read-sync';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
 import WidgetSkeleton from '@/lib/hub/components/WidgetSkeleton';
 import WidgetError from '@/lib/hub/components/WidgetError';
@@ -221,17 +221,20 @@ function MessagesWidget({ size, content }: WidgetProps<MessagesContent>) {
     fetchConversations();
   }, [fetchConversations]);
 
-  // Cross-surface read sync: when a conversation is marked read anywhere (the
-  // popup messenger or the /admin/messages page), refresh silently so this
-  // widget's unread dot/highlight clears instantly — no page reload. Also catch
-  // up when the tab returns to the foreground.
+  // Cross-surface read sync: when a conversation is marked read anywhere — the popup messenger, the
+  // /admin/messages list, a conversation page, or another TAB — refresh silently so this widget's
+  // unread dot clears instantly, with no page reload. Also catch up when the tab returns to the
+  // foreground.
+  //
+  // N3: this used to attach `MESSAGES_READ_EVENT` directly, which is same-tab only. It now goes
+  // through the shared subscriber so it picks up the cross-tab BroadcastChannel as well, and so there
+  // is one place to change if the transport ever does.
   useEffect(() => {
-    const onRead = () => fetchConversations({ silent: true });
+    const unsubscribe = subscribeConversationRead(() => fetchConversations({ silent: true }));
     const onVisible = () => { if (!document.hidden) fetchConversations({ silent: true }); };
-    window.addEventListener(MESSAGES_READ_EVENT, onRead);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
-      window.removeEventListener(MESSAGES_READ_EVENT, onRead);
+      unsubscribe();
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, [fetchConversations]);

@@ -1598,7 +1598,7 @@ now is for the first time.
   there and opens that thread, not the messages index.
 - **Done when:** the click lands on the right conversation from a cold app start.
 
-### N3 — Read once, read everywhere ✅ SHIPPED 2026-08-11 (server side; live push to open tabs still open)
+### N3 — Read once, read everywhere ✅ SHIPPED 2026-08-11 (server side) · ✅ COMPLETED 2026-08-12 (live, no reload)
 
 The hard half. Three surfaces can mark a message read — the floating messenger, the full messaging
 page, and the bell itself — and all three must converge without a refresh.
@@ -1612,6 +1612,54 @@ page, and the bell itself — and all three must converge without a refresh.
   zero, not merely on next app open.
 - **Done when:** reading a message in the bottom-right popup clears the bell bubble and the
   home-screen badge without a reload, and the same holds for every other read path.
+
+**Completion note (2026-08-12).** The remaining half was not a missing mechanism — it was a bus with
+the wrong subscribers. `lib/messages/read-sync.ts` already existed with two emitters (the popup
+messenger, the `/admin/messages` list) and exactly one listener (the Hub messages widget). So:
+
+- **The bell was never subscribed.** Its own comment claimed "every poll, every mark-read and
+  mark-all-read flows through `unreadCount`" — true of the bell's own actions, and false of every
+  message surface. Reading in the messenger left the red bubble, and therefore the **home-screen
+  app-icon badge**, showing a count the user had just cleared, for up to 15 seconds.
+- **The conversation page announced nothing.** `/admin/messages/[conversationId]` POSTed the read and
+  told no one. That is precisely where N2's bell link now lands, so **the bell was undoing its own
+  fix**: tap the notification, read the message, watch the bubble stay.
+- **The messenger's FAB badge only heard itself.** It emitted, but never listened, so a read on any
+  other surface left its badge stale too.
+
+All three are wired now, and the Hub widget was moved onto the shared subscriber instead of attaching
+the window event by hand.
+
+**Extended to cross-tab, because the app-icon badge made "same-window only" wrong.** The module
+documented itself as same-window by design, leaning on each surface's poll for other tabs. That is
+defensible for an in-page dot and wrong for the icon badge: the badge is **one per installed app, not
+one per tab**, so a second open tab keeps re-asserting a badge the user already cleared. A
+`BroadcastChannel` closes it in a few lines.
+
+**The trap worth recording:** `BroadcastChannel` does **not** deliver to the context that called
+`postMessage`. A broadcast-only implementation would update every tab *except the one the user is
+looking at* — the exact opposite of the goal. Both transports are required, which is why the
+`CustomEvent` is not redundant, and there is now a test that fails if either is removed.
+
+**Why refetch instead of decrementing.** A conversation can carry several unread notifications, so
+subtracting a guessed number drifts from the server and eventually strands the badge on a figure no
+surface agrees with. The subscriber calls the same fetch the poll already makes — this changes *when*,
+not *what*.
+
+**Verified:** 19 new tests in `__tests__/admin/messages-read-sync.test.ts`, red-tested by reverting
+each half (removing the bell's subscription fails 2; removing the conversation page's emit fails 2).
+They cover same-context delivery, multiple subscribers, unsubscribe, the empty-id guard, the
+no-`BroadcastChannel` browser, a constructor that throws, and that the channel is closed rather than
+leaked once per read. `tsc` clean, lint clean, and the existing messenger suites (51 tests) still pass.
+
+Two notes on the tests themselves, since both bit me: the suite runs under `environment: 'node'`, so
+`window` is shimmed with a bare `EventTarget` rather than pulling in jsdom for one module (Node
+already provides `EventTarget`, `CustomEvent` and `BroadcastChannel`); and the source-level assertions
+read comment-stripped source, because the first draft's character windows matched **this file's own
+prose** instead of the code they were meant to check.
+
+**Still not claimed:** a second *device* does not update live — it waits for its own 15s poll or a
+push. That is what N4 verifies on real hardware, and it is a different mechanism from this one.
 
 ### N4 — Verify the badge on real devices
 
@@ -2033,7 +2081,7 @@ is an owner decision about staffing, not an engineering task.
 | E2 | ✅ shipped | seed 581 + /admin/role-requests; approving calls the ONE existing grant path; verified end to end incl. 403 on self-approve |
 | N1 | ✅ shipped | thread_id had an FK to admin_discussion_threads — EVERY message notification insert had been failing 23503 into a silent catch |
 | N2 | ✅ shipped | link was ?conversation= which nothing reads; now /admin/messages/<id>, verified 200 |
-| N3 | ◐ shipped | reading clears the bell + badge server-side (verified 1→0). Live push to an already-open tab remains |
+| N3 | ✅ shipped | The bus existed with the WRONG subscribers: bell never subscribed, conversation page never emitted (so the bell undid N2), messenger FAB only heard itself. All wired + cross-tab BroadcastChannel, because the app-icon badge is one per APP not per tab. 19 tests, red-tested |
 | N4 | ☐ | Badge verified on real iOS + Android PWAs |
 | F1 | ✅ shipped | Drawings mounted; JSONB not a bucket, so the download is synthesized as .starr and open_href goes to CAD |
 | F2 | ✅ shipped | Search over file_nodes + all mounts; never reports a total (that is the leak) |
