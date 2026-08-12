@@ -74,6 +74,8 @@ export interface ExtractedReceipt {
   payment_method: string | null;
   payment_last4: string | null;
   card_brand: string | null;
+  /** Cardholder name as printed on the slip. Read so a card that is not on file can be named. */
+  card_holder_name: string | null;
   receipt_number: string | null;
   category: Category | null;
   tax_deductible_flag: TaxFlag | null;
@@ -163,6 +165,7 @@ export function buildReceiptUpdate(
       review_flags: extracted.review_flags,
       vendor_phone: extracted.vendor_phone,
       card_brand: extracted.card_brand,
+      card_holder_name: extracted.card_holder_name,
       receipt_number: extracted.receipt_number,
       discount_cents: extracted.discount_cents,
       currency: extracted.currency,
@@ -226,6 +229,7 @@ export function parseExtraction(raw: string): ExtractedReceipt {
     payment_method: trimOrNull(parsed.payment_method),
     payment_last4: digits4OrNull(parsed.payment_last4),
     card_brand: trimOrNull(parsed.card_brand),
+    card_holder_name: trimOrNull(parsed.card_holder_name),
     receipt_number: trimOrNull(parsed.receipt_number),
     category: enumOrNull(parsed.category, CATEGORIES),
     tax_deductible_flag: enumOrNull(parsed.tax_deductible_flag, TAX_FLAGS),
@@ -343,6 +347,7 @@ The user has uploaded a photo of a paper receipt (gas station, hardware store, r
   "payment_method":       string | null,    // 'card' | 'cash' | 'check' | 'other' or null if unclear
   "payment_last4":        string | null,    // Last 4 of card number, digits only; null if not visible
   "card_brand":           string | null,    // 'visa' | 'mastercard' | 'amex' | 'discover' | other as printed; null if absent
+  "card_holder_name":     string | null,    // Cardholder name as printed on the slip (often ALL CAPS, e.g. "MADDUX/JACOB"); null if absent
   "receipt_number":       string | null,    // Receipt / invoice / transaction number as printed
   "category":             string | null,    // EXACTLY one of: fuel, meals, supplies, equipment, tolls, parking, lodging, professional_services, office_supplies, client_entertainment, other
   "tax_deductible_flag":  string | null,    // EXACTLY one of: full, partial_50, none, review
@@ -362,6 +367,32 @@ The user has uploaded a photo of a paper receipt (gas station, hardware store, r
 Rules:
 - Currency is USD unless the receipt says otherwise. Convert all dollar amounts to integer cents (e.g. $42.18 → 4218). Round to the nearest cent.
 - If a field is illegible, blurry, or genuinely missing from the receipt, return null for it. Do NOT guess.
+
+- **MAKE THE ARITHMETIC CLOSE. This is the most important rule after reading the total.**
+  The identity that must hold is:
+
+        subtotal + tax + tip - discount = total
+
+  Before you answer, compute it with the numbers you read. If it does not balance, you have either
+  misread a figure or missed one that is not printed. Work out which, and account for the difference —
+  do not return numbers that contradict each other and leave it to a person to notice.
+
+  * **An unprinted tip is the most common missing figure, and you must infer it.** On a restaurant or
+    bar slip, if the printed items and tax come to less than the total the customer actually paid, the
+    difference is a handwritten or terminal-entered gratuity. Example: items and tax come to $85.00,
+    the total charged is $100.00 → \`tip_cents: 1500\`. Set the tip even when no line says "TIP" or the
+    tip line is blank, because the customer wrote it in after the slip printed. This is inference from
+    arithmetic, not a guess: record it with a confidence around 0.7 and say so in ai_summary.
+  * Restaurants often print TWO slips in one photo — an itemised bill and a card slip with a larger
+    total. Treat the LARGER charged amount as \`total_cents\` and the difference as the tip.
+  * If the gap cannot be a tip — a hardware store, a fuel pump, a toll — then you have misread
+    something. Re-read the figures. If it still will not balance, return what is printed and raise the
+    review flag "Subtotal + tax does not equal total" with both numbers in the flag text.
+  * Never invent a subtotal, tax or discount purely to force the equation to balance. Only the tip may
+    be inferred this way, and only when the gap is plausibly a gratuity (roughly 10–35% of the
+    subtotal). A gap far outside that range is a misread or a second transaction — flag it instead.
+  * If only the total is legible, return the total and leave the parts null. A null is honest; a
+    fabricated breakdown is not.
 - Transcribe EVERY line item you can read, in the order printed. This is the part a bookkeeper cannot reconstruct later from the photo alone, so it is worth the tokens. If the receipt has no itemised lines (a fuel pump slip, a toll), return an empty array.
 - Category guidelines:
     * fuel              — gas pump, fuel cards

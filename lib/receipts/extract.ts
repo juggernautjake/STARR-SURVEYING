@@ -35,6 +35,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { matchCardOnFile } from './card-on-file';
+import { reconcileAmounts } from './reconcile';
 import {
   EXTRACTION_PROMPT,
   MAX_TOKENS,
@@ -284,6 +286,69 @@ async function writeBack(
 
   const cur = (current ?? {}) as Partial<ReceiptCurrentSnapshot>;
   const update = buildReceiptUpdate(cur, extracted, costCents, new Date().toISOString());
+
+  // ── THE ARITHMETIC IS CHECKED IN CODE, NOT TRUSTED TO THE MODEL ────────────────────────────────
+  //
+  // The prompt asks for this and the model mostly complies, but "mostly" is the wrong standard for
+  // money. On the very first real test one meal produced both failure directions: the card slip
+  // correctly inferred an unprinted $15.66 tip, while the itemised bill for the same meal invented a
+  // $6.00 tip whose own numbers then summed to $90.34 against a printed total of $84.34 — and raised
+  // no flag. Subtraction settles this; a language model should not be the last line of defence on it.
+  const recon = reconcileAmounts({
+    subtotal_cents: (update.subtotal_cents as number | null) ?? cur.subtotal_cents ?? extracted.subtotal_cents,
+    tax_cents: (update.tax_cents as number | null) ?? cur.tax_cents ?? extracted.tax_cents,
+    tip_cents: (update.tip_cents as number | null) ?? cur.tip_cents ?? extracted.tip_cents,
+    discount_cents: extracted.discount_cents,
+    total_cents: (update.total_cents as number | null) ?? cur.total_cents ?? extracted.total_cents,
+    category: (update.category as string | null) ?? cur.category ?? extracted.category,
+  });
+  // Only ever writes the tip, and only when the figure is derived rather than read: an inferred
+  // gratuity, or the removal of one that cannot exist. Nothing else is rewritten — a receipt whose
+  // numbers disagree needs a person, and silently "correcting" one would destroy the evidence.
+  if (recon.tipCents !== null) {
+    // `fillIfEmpty` would refuse to overwrite a tip the model wrongly supplied, which is exactly the
+    // case being corrected, so this is a deliberate direct write.
+    update.tip_cents = recon.tipCents;
+  }
+  if (recon.flag) {
+    const extras = update.ai_extras as { review_flags?: string[] } | undefined;
+    if (extras) extras.review_flags = [...(extras.review_flags ?? []), recon.flag];
+  }
+
+  // ── IS THIS CARD ONE OF OURS? (owner request, 2026-08-12) ──────────────────────────────────────
+  //
+  // *"if a receipt uses a card that is not on file, it needs to be flagged."*
+  //
+  // Deliberately here and not in the prompt: the model reads what is printed on the slip and has no
+  // idea which cards the firm owns. Asking it would be asking it to invent a fact it cannot see, so it
+  // reports last four / brand / cardholder and the database answers the actual question.
+  //
+  // Best-effort. If the lookup fails the extraction still lands — losing every read field because the
+  // card table was briefly unavailable would be a much worse trade than a missing flag.
+  try {
+    const { data: cards } = await supabaseAdmin
+      .from('payment_cards')
+      .select('id, last4, brand, label, holder_name, retired_at');
+    const match = matchCardOnFile(
+      {
+        payment_method: (update.payment_method as string | null) ?? cur.payment_method ?? extracted.payment_method,
+        payment_last4: (update.payment_last4 as string | null) ?? cur.payment_last4 ?? extracted.payment_last4,
+        card_brand: extracted.card_brand,
+        card_holder_name: extracted.card_holder_name,
+      },
+      cards ?? [],
+    );
+    if (match.cardId) update.payment_card_id = match.cardId;
+    if (match.flag) {
+      // Appended to whatever the model already flagged, not replacing it: the two are independent
+      // questions and a bookkeeper needs both. `ai_extras` was built above, so this edits that object.
+      const extras = update.ai_extras as { review_flags?: string[] } | undefined;
+      if (extras) extras.review_flags = [...(extras.review_flags ?? []), match.flag];
+    }
+    update.card_match_status = match.status;
+  } catch {
+    /* card check unavailable — the extracted fields still save */
+  }
 
   // Duplicate detection: the fingerprint can only be computed once vendor + total + date exist, so
   // it lives here rather than at insert time. A match is surfaced, never auto-discarded — two $5
