@@ -21,7 +21,44 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   // Read-only mounted file (receipts, job files, …) — resolve to its source bucket.
   if (params.id.startsWith(MOUNT_PREFIX)) {
     const ref = await resolveMountFile(params.id, user, admin);
-    if (!ref.ok || !ref.bucket || !ref.path) {
+    if (!ref.ok) {
+      return NextResponse.json({ error: ref.error ?? 'File not found.' }, { status: ref.status ?? 404 });
+    }
+
+    // F1 — a source whose "file" lives in the database rather than a bucket.
+    //
+    // `cad_drawings.document` is JSONB, so there is nothing to sign. The obvious move — returning
+    // the bytes here — would have broken every existing caller: the explorer does
+    // `await res.json()` and reads `{ url }`, so a raw body would parse as the drawing and leave
+    // `url` undefined. **The contract of this endpoint is "you get a URL", and it stays that.**
+    //
+    // So the URL points back at this same route with `?raw=1`, which is the branch below. The role
+    // gate is re-validated on that request too, because it is a normal request that anybody could
+    // make directly.
+    if (ref.inlineBody !== undefined) {
+      const raw = new URL(req.url).searchParams.get('raw') === '1';
+      if (raw) {
+        return new NextResponse(ref.inlineBody, {
+          status: 200,
+          headers: {
+            'Content-Type': ref.mime ?? 'application/octet-stream',
+            'Content-Disposition': `${inlineReq ? 'inline' : 'attachment'}; filename="${(ref.name ?? 'file').replace(/"/g, '')}"`,
+            // Never cached: a drawing changes, and a stale copy of somebody's boundary is worse
+            // than a slow download.
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
+      const self = new URL(req.url);
+      self.searchParams.set('raw', '1');
+      return NextResponse.json({
+        url: `${self.pathname}${self.search}`,
+        name: ref.name,
+        mime_type: ref.mime,
+      });
+    }
+
+    if (!ref.bucket || !ref.path) {
       return NextResponse.json({ error: ref.error ?? 'File not found.' }, { status: ref.status ?? 404 });
     }
     const { data, error } = await supabaseAdmin.storage

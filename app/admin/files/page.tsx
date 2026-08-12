@@ -45,6 +45,10 @@ interface FileNode {
   size_bytes: number | null;
   updated_at: string;
   access: AccessLevel;
+  /** F1 — set on mounted nodes whose natural action is a PAGE rather than a download. Today that is
+   *  CAD drawings: `cad_drawings.document` is JSONB in the database, and a `.starr` blob is not what
+   *  anyone wants when they click a drawing — opening it in the editor is. */
+  open_href?: string;
 }
 interface Crumb {
   id: string;
@@ -267,8 +271,12 @@ export default function FilesPage(): React.ReactElement {
   }, []);
 
   function onNameClick(n: FileNode) {
-    if (n.node_type === 'folder') setParentId(n.id);
-    else if (isPreviewable(n)) openViewer(n);
+    if (n.node_type === 'folder') { setParentId(n.id); return; }
+    // F1 — checked BEFORE preview and download. A drawing is `application/json`, so without this it
+    // would fall through to `download()` and hand somebody a .starr blob when what they wanted was
+    // to open the drawing. Ordinary files have no `open_href` and are unaffected.
+    if (n.open_href) { window.location.href = n.open_href; return; }
+    if (isPreviewable(n)) openViewer(n);
     else download(n);
   }
 

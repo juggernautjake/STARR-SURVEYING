@@ -13,7 +13,7 @@ import type { AccessLevel, FileUser } from './permissions';
 
 export const MOUNT_PREFIX = 'mnt:';
 
-type SourceKey = 'receipts' | 'job-files' | 'research' | 'field-media';
+type SourceKey = 'receipts' | 'job-files' | 'research' | 'field-media' | 'drawings';
 
 interface MountSource {
   key: SourceKey;
@@ -27,6 +27,14 @@ const SOURCES: MountSource[] = [
   { key: 'job-files', label: 'Job Files', roles: ['admin', 'developer', 'field_crew'] },
   { key: 'research', label: 'Research Documents', roles: ['admin', 'developer', 'researcher', 'drawer'] },
   { key: 'field-media', label: 'Field Media', roles: ['admin', 'developer', 'field_crew'] },
+  // F1 (2026-08-11) — the source the owner named that had no mount: *"find all of the drawings,
+  // images, receipt images, jobs, folders, files, docs, and everything."*
+  //
+  // Drawings are UNLIKE the four above and the difference is not cosmetic: `cad_drawings.document`
+  // is JSONB **in the database**, not an object in a storage bucket. There is no path to sign. See
+  // `resolveMountFile` for how a download is synthesized instead, and `MountNode.open_href` for why
+  // opening one in the CAD editor is the primary action rather than downloading it.
+  { key: 'drawings', label: 'Drawings', roles: ['admin', 'developer', 'drawer'] },
 ];
 
 export interface MountNode {
@@ -38,6 +46,12 @@ export interface MountNode {
   size_bytes: number | null;
   updated_at: string;
   access: AccessLevel;
+  /** F1 — where this node's natural "open" action goes, when that is a page rather than a download.
+   *
+   *  A CAD drawing is the case this exists for. Downloading a `.starr` JSON blob is not what anyone
+   *  wants from a drawing; opening it in the editor is. Absent for every ordinary file, where the
+   *  viewer and the download already say everything there is to say. */
+  open_href?: string;
 }
 
 function canSee(source: MountSource, user: FileUser, isAdmin: boolean): boolean {
@@ -155,6 +169,41 @@ export async function listMount(mountId: string, user: FileUser, isAdmin: boolea
     return { ok: true, name: source.label, nodes };
   }
 
+  if (key === 'drawings') {
+    // `document` is deliberately NOT selected. It is the entire serialised drawing, and pulling 500
+    // of them to render a file list would move megabytes to print names. The size shown is the
+    // feature/layer count instead of bytes, because bytes of a JSONB column is not a number that
+    // means anything to a surveyor.
+    const { data, error } = await supabaseAdmin
+      .from('cad_drawings')
+      .select('id, name, job_id, feature_count, layer_count, updated_at')
+      .order('updated_at', { ascending: false })
+      .limit(LIMIT);
+    if (error) return { ok: false, status: 500, error: error.message };
+    const nodes = (data ?? []).map(
+      (r: {
+        id: string;
+        name: string;
+        job_id: string | null;
+        feature_count: number;
+        layer_count: number;
+        updated_at: string;
+      }) => ({
+        ...file(
+          r.id,
+          `${r.name?.trim() || 'Drawing'} (${r.feature_count} features, ${r.layer_count} layers)`,
+          // The mime the download actually serves — see resolveMountFile. Naming it here keeps the
+          // format filter (F3) and the viewer honest about what this is.
+          'application/json',
+          null,
+          r.updated_at,
+        ),
+        open_href: `/admin/cad?drawing=${r.id}`,
+      }),
+    );
+    return { ok: true, name: source.label, nodes };
+  }
+
   // field-media
   const { data, error } = await supabaseAdmin
     .from('field_media')
@@ -180,6 +229,14 @@ export interface MountFileRef {
   name?: string;
   mime?: string | null;
   previewable?: boolean;
+  /** F1 — the file's bytes, when the source has no storage object to sign.
+   *
+   *  `cad_drawings.document` is JSONB in the database; there is no bucket and no path. Rather than
+   *  bend the drawings into a fake storage location, the download route serves this directly. Every
+   *  other source leaves it undefined and keeps the signed-URL path unchanged. */
+  inlineBody?: string;
+  /** Where "open" should go when the natural action is a page, not a download. */
+  open_href?: string;
 }
 
 /** Resolve a mounted file id (`mnt:<source>:<rowId>`) to a storage object,
@@ -214,6 +271,31 @@ export async function resolveMountFile(fileId: string, user: FileUser, isAdmin: 
     if (!r?.storage_path) return { ok: false, status: 404, error: 'File not found.' };
     const mime = mimeFromPath(r.storage_path);
     return { ok: true, bucket: 'research-documents', path: r.storage_path, name: r.document_label?.trim() || r.original_filename?.trim() || 'Document', mime, previewable: isImageMime(mime) || isPdfMime(mime) };
+  }
+  if (key === 'drawings') {
+    // The one source with no storage object. `document` IS the file — the schema's own comment says
+    // it is "the same payload as .starr file" — so the download is synthesized from it rather than
+    // signed. This is the only place `document` is read, and only ever for one row.
+    const { data } = await supabaseAdmin
+      .from('cad_drawings')
+      .select('name, document, updated_at')
+      .eq('id', rowId)
+      .maybeSingle();
+    const r = data as { name: string; document: unknown; updated_at: string } | null;
+    if (!r) return { ok: false, status: 404, error: 'Drawing not found.' };
+    // `.starr` rather than `.json`: it is what the CAD editor writes and reads, so a file downloaded
+    // here can be opened again without renaming it.
+    const safeName = (r.name?.trim() || 'Drawing').replace(/[\\/:*?"<>|]/g, '-');
+    return {
+      ok: true,
+      name: `${safeName}.starr`,
+      mime: 'application/json',
+      // Not previewable: the viewer renders images and PDFs, and a wall of raw JSON is not a preview
+      // of a drawing — it is a worse version of opening it in CAD.
+      previewable: false,
+      inlineBody: JSON.stringify(r.document ?? {}),
+      open_href: `/admin/cad?drawing=${rowId}`,
+    };
   }
   // field-media
   const { data } = await supabaseAdmin.from('field_media').select('media_type, storage_url, captured_at').eq('id', rowId).maybeSingle();
