@@ -118,7 +118,7 @@ the honest verification is one receipt end to end, not draining a queue that doe
 The 2-job count is also worth noting for R5: the "create the job inline" path is not an edge case
 here, it is going to be the common path.
 
-### R5 — Replace the 500-job `<select>` with the picker, everywhere a job is chosen
+### R5 — Replace the 500-job `<select>` with the picker, everywhere a job is chosen ✅ SHIPPED 2026-08-11
 
 `app/admin/receipts/page.tsx` still fetches `/api/admin/jobs?limit=500` and renders every job into a
 native `<select>`. On a phone that is a 500-row wheel, and it silently truncates at 500 — the job
@@ -130,6 +130,22 @@ you want is the one that isn't there.
 - Delete the now-unused `jobs` fetch + prop threading in the receipts page.
 - **Done when:** assigning a receipt to a job that does not exist offers to create it, from the
   bookkeeper queue as well as from capture.
+
+**Completion note.** Receipts queue done: the mount-time `/api/admin/jobs?limit=500` fetch, the
+`jobs` state and the prop threaded down to every row are all deleted, and the expanded row now uses
+`<JobRefPicker compact />`. The selected value is reconstructed from `job_name` / `job_number`,
+which the list API already annotates onto each row, so showing the current selection costs no extra
+request. The wrapper gets `flex: 1 1 240px; min-width: 0` — the dropdown is absolutely positioned
+and needs a box to grow into, and the `min-width: 0` is the M4 rule applied at the point of change
+rather than left for the sweep.
+
+**The `JobFileManager` half of this slice was wrong and is withdrawn, not deferred.** That component
+is rendered *inside* a job page and is already scoped to one job — it has no job selector to
+replace, so there was nothing to do. Checked the rest of the product for the same shape rather than
+assuming: the only other `jobs.map` selectors are `contacts/[id]` (linking a contact to a job) and
+`FieldCrewWorkspace` (a job *switcher*, not an assignment). Neither is a file or receipt being filed
+against a job that might not exist, so neither is in this slice's question. If a general file upload
+ever grows a job field, it should use the same picker.
 
 ### R6 — Show everything the AI read
 
@@ -490,7 +506,7 @@ Simulators lie about badging, and this is the part the owner will judge by looki
 | R2 | ✅ shipped | `job-ref.ts`, resolve route, `JobRefPicker`, capture page + upload route wired |
 | R3 | ✅ shipped | Core split, web runner, extract route, hourly cron, seed 580 authored |
 | R4 | ✅ shipped | Seed 580 applied to production; column + index + PostgREST verified |
-| R5 | ☐ | Picker into the bookkeeper queue + job files |
+| R5 | ✅ shipped | Picker into the bookkeeper queue; the job-files half was withdrawn (no selector exists there) |
 | R6 | ☐ | Line items, summary, flags, dedup, confidence in the UI |
 | R7 | ☐ | Run-AI button + "needs review" filter |
 | R8 | ☐ | My-receipts list |

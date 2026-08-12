@@ -21,6 +21,7 @@ import type { AdminReceiptRow } from './receipt-types';
 import { MaintenancePicker, maintLinkStateChip, maintLinkStyles } from './MaintenanceLink';
 import { PromoteToAssetPanel } from './PromoteToAsset';
 import { receiptTaxLine } from '@/lib/finance/tax-summary';
+import JobRefPicker from '@/app/admin/components/jobs/JobRefPicker';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -120,21 +121,22 @@ export default function ReceiptsApprovalPage() {
     () => new Set()
   );
   const [bulkBusy, setBulkBusy] = useState(false);
-  // Jobs list for the per-receipt job-assignment dropdown.
-  const [jobs, setJobs] = useState<{ id: string; name: string; job_number: string | null }[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/jobs?limit=500');
-        if (!res.ok) return;
-        const d = await res.json() as { jobs?: { id: string; name: string; job_number: string | null }[] };
-        if (!cancelled) setJobs(d.jobs ?? []);
-      } catch { /* non-fatal — the dropdown just stays empty */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
+  // ── THE JOB LIST USED TO BE FETCHED HERE, ALL 500 OF IT (R5, 2026-08-11) ──────────────────────
+  //
+  // This page pulled `/api/admin/jobs?limit=500` on mount and rendered every row into a native
+  // `<select>` on each expanded receipt. Three things were wrong with that, and only the first is
+  // cosmetic:
+  //
+  //   1. On a phone a 500-option `<select>` is a scroll wheel nobody can aim.
+  //   2. It truncated at 500 SILENTLY — past that, the job you want is simply not in the list, and
+  //      the control gives you no way to tell that from "this job does not exist".
+  //   3. It could only ever offer jobs that already exist, which is exactly the case the owner
+  //      raised: *"it might be that we have not created a job yet on the backend, but that we are
+  //      working on that job."*
+  //
+  // `JobRefPicker` searches server-side, so there is no cap and no upfront fetch, and it can offer
+  // to create the job when the search comes back empty.
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -417,7 +419,6 @@ export default function ReceiptsApprovalPage() {
               }
               selected={selectedIds.has(r.id)}
               onToggleSelected={() => onToggleSelected(r.id)}
-              jobs={jobs}
             />
           ))}
         </div>
@@ -469,8 +470,6 @@ interface ReceiptRowProps {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
-  /** Jobs for the assignment dropdown (assign / reassign this receipt). */
-  jobs: { id: string; name: string; job_number: string | null }[];
 }
 
 function ReceiptRow({
@@ -482,7 +481,6 @@ function ReceiptRow({
   selected,
   onToggleSelected,
   onRefresh,
-  jobs,
 }: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -690,24 +688,30 @@ function ReceiptRow({
                 ))}
               </select>
             </label>
-            <label style={styles.editLabel}>
-              Job
-              <select
-                value={row.job_id ?? ''}
-                disabled={!!busy}
-                onChange={(e) =>
-                  void wrap('assigning job', { job_id: e.target.value || null })
+            {/* R5 — searches server-side and can create the job it cannot find. The value is
+                reconstructed from the columns the list API already annotates onto the row
+                (`job_name` / `job_number`), so selecting a job needs no extra fetch to render
+                what is currently selected. */}
+            <div style={styles.editJob}>
+              <JobRefPicker
+                compact
+                label="Job"
+                value={
+                  row.job_id
+                    ? {
+                        id: row.job_id,
+                        name: row.job_name ?? '(unnamed job)',
+                        job_number: row.job_number,
+                      }
+                    : null
                 }
-                style={styles.select}
-              >
-                <option value="">— Unassigned —</option>
-                {jobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.job_number ? `${j.job_number} · ${j.name}` : j.name}
-                  </option>
-                ))}
-              </select>
-            </label>
+                disabled={!!busy}
+                clearLabel="— Unassigned (office / overhead) —"
+                onChange={(picked) =>
+                  void wrap('assigning job', { job_id: picked?.id ?? null })
+                }
+              />
+            </div>
           </div>
 
           {/* F10.7 tail — equipment-maintenance cross-link prompt.
@@ -1230,6 +1234,10 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#666',
     gap: 4,
   },
+  // The job picker owns a dropdown that is absolutely positioned against this box, so it needs a
+  // width to grow into rather than the shrink-to-fit that `editLabel`'s siblings get. `minWidth: 0`
+  // keeps it from forcing the flex row wider than the phone — the shape M4 exists to hunt down.
+  editJob: { flex: '1 1 240px', minWidth: 0 },
   actionRow: {
     gridColumn: '1 / -1',
     display: 'flex',
