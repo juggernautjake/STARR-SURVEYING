@@ -78,9 +78,18 @@ CREATE INDEX IF NOT EXISTS idx_vehicles_active_name
 
 
 -- ── Optional FK from job_time_entries.vehicle_id ─────────────────────────────
--- Added by seeds/220 ALTER as plain UUID; we wire the FK now that
--- the vehicles table exists. Defensive — only add when the column
--- exists (guards a fresh-DB run that hasn't applied 220 yet).
+-- Defensive — only added when the column exists.
+--
+-- CORRECTION (verified against the live schema, 2026-08-12): this said the column was
+-- "added by seeds/220 ALTER as plain UUID". It is not. **No seed in this directory adds
+-- `job_time_entries.vehicle_id`**, so the guard below has always skipped and this FK has
+-- never existed. That is the guard working, not a seed that failed to apply — but the
+-- comment sent a reader looking for an ALTER in 220 that is not there.
+--
+-- Left as-is rather than adding the column: `job_time_entries` holds zero rows and the
+-- application logs hours to `daily_time_logs`. Adding a foreign key to a dead table would
+-- be tidying a fossil. The sibling FK on `location_segments.vehicle_id` DID apply, because
+-- seed 224 really does create that column.
 DO $$ BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
