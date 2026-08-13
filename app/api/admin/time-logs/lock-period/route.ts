@@ -14,10 +14,21 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { locksOverlapping } from '@/lib/hours/period-lock';
 
+// ── READING A LOCK IS NOT AN ADMIN ACTION ────────────────────────────────────────────────────────
+//
+// This GET was admin-only, and the effect was that the people a lock actually CONSTRAINS could not
+// ask about it. An employee whose week had been locked saw the ordinary "Log Hours" form, filled in
+// a day, pressed submit, and got a 423 — the first they knew of it was a failed save, after typing.
+//
+// A locked period is a fact about the calendar, not a secret: the employee is the party subject to
+// it, and telling them before they type is the entire point. Writing a lock stays admin-only below.
+//
+// `note` is withheld from non-admins. It is free text an admin wrote for other admins ("holding this
+// until the Henderson invoice clears") and is the one field here that could carry something not
+// meant for the person being locked out.
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const { searchParams } = new URL(req.url);
   const from = searchParams.get('from');
@@ -25,7 +36,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!from || !to) return NextResponse.json({ error: 'from and to required' }, { status: 400 });
 
   const locks = await locksOverlapping(from, to);
-  return NextResponse.json({ locks });
+  if (isAdmin(session.user.roles)) return NextResponse.json({ locks });
+
+  // `locked_by` is kept: "ask Michael" is more use to somebody than "this is locked".
+  return NextResponse.json({
+    locks: locks.map(({ note: _note, ...rest }) => rest),
+  });
 }, { routeName: 'time-logs/lock-period/GET' });
 
 export const POST = withErrorHandler(async (req: NextRequest) => {

@@ -313,6 +313,21 @@ source of truth; the period is a reporting and dispatch boundary.
 - Closing implies locking (`pay_period_locks`), so the two stop being separate rituals.
 - Late entries against a closed period carry a visible "late — paid in period N+1" marker.
 
+**✅ Shipped 2026-08-12 — the half of this that needs no engine decision: the lock is now visible to
+the person it constrains.** `pay_period_locks` froze employee edits and was invisible on
+`/admin/my-hours`: an employee whose week had been closed saw the ordinary form, filled in a day,
+pressed submit and found out from a 423. The office had a lock banner; the people the lock actually
+applies to did not.
+
+The `GET` on `lock-period` was admin-only, which is what made that impossible to fix on the client —
+so it now answers any signed-in user, because a locked period is a fact about the calendar rather
+than a secret, and the employee is the party subject to it. Writing a lock stays admin-only, and
+`note` is withheld from non-admins: it is free text an admin wrote for other admins and is the one
+field that could carry something not meant for the person being locked out.
+
+The rest of S7 — the `pay_period_closes` record and the late-entry marker — still waits on D2,
+because what a close *produces* is a batch or a run.
+
 *Tests:* an entry logged after close is paid in the following batch and never dropped; closing twice
 is refused; the running total is unaffected by a close.
 

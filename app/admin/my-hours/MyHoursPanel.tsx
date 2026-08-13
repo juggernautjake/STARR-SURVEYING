@@ -204,6 +204,14 @@ export default function MyHoursPanel() {
   // A separate fetch from the week view rather than summing `logs`: the week view deliberately loads
   // one week, and totalling a year out of it would silently report a year as seven days. The range
   // is asked for explicitly and the arithmetic lives in `lib/hours/summarise.ts`.
+  // ── IS THIS WEEK LOCKED? ─────────────────────────────────────────────────────────────────────
+  //
+  // `pay_period_locks` freezes employee edits for its dates, enforced in the time-logs route with a
+  // 423. This page knew nothing about it: an employee whose week had been locked saw the ordinary
+  // form, filled in a day, pressed submit, and found out from a failed save. The office had a lock
+  // banner; the people the lock actually constrains did not.
+  const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
+
   const [grain, setGrain] = useState<Grain>('week');
   const [rangeLogs, setRangeLogs] = useState<TimeLog[] | null>(null);
   const [rangeLoading, setRangeLoading] = useState(false);
@@ -220,10 +228,27 @@ export default function MyHoursPanel() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [logsRes, advRes] = await Promise.all([
+      const weekEnd = (() => {
+        const d = new Date(`${weekStart}T12:00:00Z`);
+        d.setUTCDate(d.getUTCDate() + 6);
+        return d.toISOString().slice(0, 10);
+      })();
+
+      const [logsRes, advRes, lockRes] = await Promise.all([
         fetch(`/api/admin/time-logs?week_start=${weekStart}`),
         fetch('/api/admin/time-logs/advances'),
+        fetch(`/api/admin/time-logs/lock-period?from=${weekStart}&to=${weekEnd}`),
       ]);
+
+      // Best-effort. A lock that fails to load leaves the form usable and the server still refuses
+      // the save with its own message — the banner is the courtesy, not the enforcement.
+      if (lockRes.ok) {
+        const data = await lockRes.json();
+        const locks = (data.locks ?? []) as Array<{ period_start: string; period_end: string; locked_by: string }>;
+        setWeekLock(locks.find((l) => l.period_start <= weekStart && l.period_end >= weekStart) ?? locks[0] ?? null);
+      } else {
+        setWeekLock(null);
+      }
 
       if (logsRes.ok) {
         const data = await logsRes.json();
@@ -625,6 +650,16 @@ export default function MyHoursPanel() {
             submit them — your manager approves them at the end of the pay period.
           </p>
 
+          {/* Said BEFORE the form, not after a failed save. The server enforces this with a 423
+              either way; what was missing was anybody telling the person it applied to them. */}
+          {weekLock && (
+            <p className="tl-lock-note" role="status">
+              This week has been closed off for payroll by {weekLock.locked_by}, so you can’t add or
+              change hours for it. Anything already submitted still counts. If a day is missing or
+              wrong, ask them to add it for you.
+            </p>
+          )}
+
           {/*
             The facts every rate on this page is computed from, stated on the page that uses them.
             Without this, the person sees numbers that differ from the one figure they were told
@@ -805,12 +840,19 @@ export default function MyHoursPanel() {
               <div className="tl-log-footer__total">
                 Total: <strong>{totalHours.toFixed(1)} hours</strong>
               </div>
+              {/* Disabled rather than left to fail: the server refuses a locked week with a 423
+                  regardless, and letting somebody fill in a whole day first is the part that wastes
+                  their time. `weekLock` covers the WEEK being viewed, which is the week these
+                  entries belong to. */}
               <button
                 className="tl-btn tl-btn--primary"
                 onClick={submitEntries}
-                disabled={submitting || totalHours === 0}
+                disabled={submitting || totalHours === 0 || !!weekLock}
+                title={weekLock ? 'This week is closed for payroll — ask your manager to add it for you.' : undefined}
               >
-                {submitting ? 'Submitting...' : hasExistingEditable ? 'Update & Resubmit' : 'Submit Hours'}
+                {weekLock ? 'Week closed for payroll'
+                  : submitting ? 'Submitting...'
+                    : hasExistingEditable ? 'Update & Resubmit' : 'Submit Hours'}
               </button>
             </div>
           )}
