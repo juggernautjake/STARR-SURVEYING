@@ -234,25 +234,64 @@ async function runExtraction(row: ClaimableReceipt): Promise<ExtractionResult> {
 /**
  * Claim the row atomically.
  *
- * The UPDATE carries the eligibility test in its own WHERE clause, so two callers racing produce one
- * winner and one empty result — not two Vision calls billed for the same photo and two sets of line
- * items written over each other. `force` widens the predicate to any status, which is what the
- * manual "Run AI again" button needs and what nothing automatic is allowed to do.
+ * Two callers racing must produce one winner and one empty result — not two Vision calls billed for
+ * the same photo and two sets of line items written over each other. `force` claims regardless of
+ * status, which is what the manual "Run AI again" button needs and what nothing automatic may do.
+ *
+ * ── WHY THIS IS NOT ONE UPDATE WITH AN `.or()` (2026-08-13) ──────────────────────────────────────
+ *
+ * It was, and **it never claimed anything**. PostgREST rejects an `.or()` filter on an UPDATE to this
+ * table with `column receipts.extraction_status does not exist` — the same filter on a SELECT matches
+ * the row perfectly. So every claim errored, and `if (error) return false` reported that as "somebody
+ * else has it": indistinguishable, from the caller's side, from the healthy race this function exists
+ * to handle.
+ *
+ * The effect was that **no receipt was ever extracted through this path**. An upload sat at `queued`,
+ * the hourly cron called `extractReceipt`, the claim silently failed, and the sweep moved on
+ * reporting `skipped` — no error, no failed row, no log. Owner, 2026-08-13: *"It stored it, but it
+ * did not actually analyze it."* The receipt uploaded that morning had a photo, no cost, no error and
+ * no extraction, and the AI had never been called about it.
+ *
+ * So the eligibility test is now made in code and the UPDATE carries a single equality on the status
+ * it read. That is still a compare-and-set and still atomic: if anything moves the row between the
+ * read and the write, the equality does not match, the update touches nothing, and this returns
+ * false. It gives up the one-round-trip version for a version that works.
  */
 async function claimRow(receiptId: string, force: boolean): Promise<boolean> {
-  const startedAt = new Date().toISOString();
-  const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
+  const { data: cur, error: readErr } = await supabaseAdmin
+    .from('receipts')
+    .select('extraction_status, extraction_started_at')
+    .eq('id', receiptId)
+    .maybeSingle();
+  if (readErr || !cur) return false;
+
+  const status = (cur as { extraction_status: string | null }).extraction_status;
+  const startedAt = (cur as { extraction_started_at: string | null }).extraction_started_at;
+
+  // A `running` row whose start is older than the stale window was abandoned mid-flight — a killed
+  // lambda leaves one behind — and must be reclaimable, or one crash parks a receipt forever.
+  const staleRunning =
+    status === 'running'
+    && (!startedAt || Date.now() - new Date(startedAt).getTime() > STALE_RUNNING_MS);
+  const claimable =
+    force || status === null || status === 'queued' || status === 'failed' || staleRunning;
+  if (!claimable) return false;
+
   let q = supabaseAdmin
     .from('receipts')
-    .update({ extraction_status: 'running', extraction_started_at: startedAt })
+    .update({ extraction_status: 'running', extraction_started_at: new Date().toISOString() })
     .eq('id', receiptId);
-  if (!force) {
-    q = q.or(
-      `extraction_status.eq.queued,extraction_status.is.null,extraction_status.eq.failed,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`,
-    );
-  }
+  // The compare half of compare-and-set. `null` needs `.is`, not `.eq` — `= NULL` is never true, so
+  // an `.eq` here would silently refuse to claim exactly the rows that most need claiming.
+  if (!force) q = status === null ? q.is('extraction_status', null) : q.eq('extraction_status', status);
+
   const { data, error } = await q.select('id');
-  if (error) return false;
+  if (error) {
+    // Logged, not swallowed. A claim that cannot run is a different fact from a claim that lost a
+    // race, and reporting them identically is what hid this bug for as long as it hid.
+    console.error('[receipts/extract] claim failed', { receiptId, error: error.message });
+    return false;
+  }
   return Array.isArray(data) && data.length > 0;
 }
 
