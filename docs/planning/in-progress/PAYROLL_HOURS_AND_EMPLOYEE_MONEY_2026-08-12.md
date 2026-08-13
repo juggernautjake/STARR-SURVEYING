@@ -185,7 +185,7 @@ nobody can run payroll at all:
 |---|---|
 | **S9a′** | ✅ **SHIPPED 2026-08-12.** Advance recovery now runs in both batch builders (hand-built and the weekly cron), writes a `pay_advance_repayments` row per (advance, item), and every money-moving surface sends the disbursed figure. Seed 588. **The schema decision:** the recovery is a WITHHOLDING from `total_cents`, not a component of it — `owed.ts` counts `total_cents` as paid, so netting it would leave the person owed the advance for ever. `adjustments_cents` was the tempting home and is wrong for exactly that reason (seed 325 defines the total as the sum of its components). |
 | **§2b** | ✅ **SHIPPED 2026-08-12.** Unpriced employees are skipped and NAMED — never written as `base_rate: 0`, which would be a stub claiming somebody worked for free. A run that ends up paying nobody now deletes itself and returns 409 rather than reporting an empty $0.00 payroll as complete; that second half was found by testing, not by reading. |
-| **S9b** | Move stub generation onto the batch path. A missing stub is a compliance problem, not a bug. |
+| **S9b** | ⚠️ **SCOPE WAS WRONG — corrected 2026-08-12, see §S9b below.** Porting stub generation would print invented tax figures on a wage statement. The honest half shipped (`lib/payroll/payment-statement.ts`); whether the firm should withhold at all is an accountant's decision, not this codebase's. |
 | **S9c** | *Now* close `POST /api/admin/payroll/runs` — once nothing unique lives behind it. Keep `GET` (historical runs and stubs are records of real payments) and `PUT` (an existing run must still be finishable). |
 | **S7** | Link a close to the batch it produced. |
 | **S5** | Whether approval credits the balance ahead of dispatch. |
@@ -483,6 +483,39 @@ been running correctly and reconciling for a while first.
 
 *Tests:* threshold boundaries; `hold` never auto-dispatches; an `immediate` employee still gets a
 stub and a ledger row.
+
+---
+
+### S9b. Pay statements — why "move the stub across" was the wrong instruction
+
+**Found 2026-08-12 by reading both engines before building.** They do fundamentally different things
+with tax, and the difference is not a detail of stub generation — it is what payroll *means* here:
+
+| | withholding | pays | tax handled by |
+|---|---|---|---|
+| `payroll_runs` (retiring) | flat ESTIMATES — 12% federal, 6.2% SS, 1.45% medicare (`DEFAULT_DEDUCTIONS`) | net | itself |
+| `payout_batches` (surviving) | **none** | gross | downstream: W-2/1099 classification → a tax preparer |
+
+`pay-stub.ts`'s own comment disclaims its figures: *"an estimate … real withholding depends on a
+W-4, filing status and year-to-date wages, and belongs to a payroll provider rather than to this
+codebase."*
+
+So porting it would print **"Federal Tax −$120.00"** and a net figure on a document an employee is
+entitled to, while the payment they actually received was the GROSS amount. A wage statement whose
+net does not equal the payment is worse than no statement: it is wrong, and the reader has no way to
+know which number to believe.
+
+**✅ Shipped instead: `lib/payroll/payment-statement.ts`** — what happened, from figures that exist,
+inventing nothing. Earned, advance repaid (named a *repayment*, never a "deduction" — an advance is
+money already handed over), and what was actually sent. It states out loud that **no tax was
+withheld**, because silence invites the reader to assume it was, and they would discover otherwise
+from a tax bill. 16 tests, including one asserting the statement carries no federal/state/SS/medicare
+line at all.
+
+**Still open, and it is not an engineering question.** Whether the firm should be withholding —
+and therefore whether real pay stubs are required — is for an accountant or a payroll provider, as
+D1 already flags. Until that is answered there is nothing to port, and inventing the figures in the
+meantime is the one thing that must not happen.
 
 ---
 
