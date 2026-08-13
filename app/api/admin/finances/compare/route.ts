@@ -43,8 +43,14 @@ async function totalsFor(from: string, to: string): Promise<PeriodTotals> {
     // by the same amount — in the month-to-month comparison the owner reads.
     supabaseAdmin.from('payout_batch_items').select('total_cents, recovered_cents')
       .eq('status', 'paid').gte('paid_at', fromTs).lte('paid_at', toTs),
+    // `superseded_by_receipt_id` (seed 590): the itemised bill for a meal already paid for by its
+    // card slip is one purchase across two rows. Counting both inflates the month it falls in.
     supabaseAdmin.from('receipts').select('total_cents')
       .in('status', ['approved', 'exported']).is('deleted_at', null)
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+      // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .gte('transaction_at', fromTs).lte('transaction_at', toTs),
     // `spend_date` is a DATE — compared against bare YYYY-MM-DD, or the first day of every range is lost.
     supabaseAdmin.from('ad_spend_daily').select('cost_micros')

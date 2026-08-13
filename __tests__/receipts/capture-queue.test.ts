@@ -154,6 +154,47 @@ describe('what the AI still needs asked', () => {
     expect(missingInformation({ extraction_status: 'queued', vendor_name: null })).toEqual([]);
     expect(missingInformation({ extraction_status: 'running', total_cents: null })).toEqual([]);
   });
+
+  // Owner, 2026-08-13: *"make sure we really build out the receipt handling so that we can really
+  // know if there is information missing."* A card slip alone is the case where every field the row
+  // HAS is filled in and something is still missing.
+  describe('a meal whose parts cannot be told apart', () => {
+    const slipOnly = {
+      ...done, vendor_name: 'Texas Roadhouse', transaction_at: '2026-08-12',
+      total_cents: 10000, category: 'meals', subtotal_cents: null, tax_cents: null,
+    };
+
+    it('says the tax and the tip cannot be separated', () => {
+      const asks = missingInformation(slipOnly);
+      expect(asks).toHaveLength(1);
+      expect(asks[0]).toMatch(/tax and the tip cannot be told apart/i);
+    });
+
+    it('tells the person what would fix it', () => {
+      // An "information missing" note that does not say what to do is a complaint.
+      expect(missingInformation(slipOnly)[0]).toMatch(/itemised bill/i);
+    });
+
+    it('stays quiet once either part is known', () => {
+      expect(missingInformation({ ...slipOnly, tax_cents: 643 })).toEqual([]);
+      expect(missingInformation({ ...slipOnly, subtotal_cents: 8434 })).toEqual([]);
+    });
+
+    it('does not ask it of a fuel receipt', () => {
+      // A pump slip has no meaningful split, and asking on every one is how a prompt stops being read.
+      expect(missingInformation({ ...slipOnly, category: 'fuel' })).toEqual([]);
+    });
+  });
+
+  it('asks nothing at all about a receipt superseded by another for the same purchase', () => {
+    // Its questions belong to the row that was actually charged. Asking here puts the same question
+    // in front of a person twice for one meal.
+    const asks = missingInformation({
+      ...done, vendor_name: null, total_cents: null, category: null,
+      superseded_by_receipt_id: 'the-card-slip',
+    });
+    expect(asks).toEqual([]);
+  });
 });
 
 describe('the sentence shown above the review grid', () => {

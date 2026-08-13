@@ -480,7 +480,21 @@ export default function FieldbookPanel() {
       ) : (
         <div className="fbfull__grid">
           {entries.map(entry => (
-            <button key={entry.id} className="fbfull__card" onClick={() => openEntry(entry)}>
+            // A <div role="button">, not a <button>. The card contains its own Delete button, and a
+            // button inside a button is invalid HTML — React reported it as "This will cause a
+            // hydration error", which is the real cost: the server and client disagree about the
+            // tree, because the browser's parser silently un-nests the inner button while React's
+            // does not. Keyboard access is kept explicitly rather than lost with the element.
+            <div
+              key={entry.id}
+              className="fbfull__card"
+              role="button"
+              tabIndex={0}
+              onClick={() => openEntry(entry)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEntry(entry); }
+              }}
+            >
               <div className="fbfull__card-header">
                 <h3 className="fbfull__card-title">{entry.title || 'Untitled Note'}</h3>
                 {entry.media && entry.media.length > 0 && (
@@ -507,7 +521,7 @@ export default function FieldbookPanel() {
               >
                 🗑
               </button>
-            </button>
+            </div>
           ))}
         </div>
       )}

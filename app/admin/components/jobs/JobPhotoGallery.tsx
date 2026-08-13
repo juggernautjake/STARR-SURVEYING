@@ -165,7 +165,7 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
         onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files) upload(e.dataTransfer.files); }}
         style={{
           marginTop: '1rem', padding: '1rem', borderRadius: 8,
-          border: `2px dashed ${dragOver ? 'var(--color-brand-navy)' : 'var(--border, #cbd5e1)'}`,
+          border: `2px dashed ${dragOver ? 'var(--color-brand-navy)' : 'var(--color-border)'}`,
           background: dragOver ? 'rgba(29,48,149,0.05)' : 'transparent',
           textAlign: 'center', color: 'var(--text-secondary, #64748b)', fontSize: '0.85rem',
         }}
@@ -195,8 +195,8 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
               onClick={() => setLightboxIdx(idx)}
               title={p.file_name}
               style={{
-                padding: 0, border: '1px solid var(--border, #e2e8f0)', borderRadius: 8,
-                overflow: 'hidden', cursor: 'pointer', background: 'var(--surface, #fff)', aspectRatio: '4 / 3',
+                padding: 0, border: '1px solid var(--color-border)', borderRadius: 8,
+                overflow: 'hidden', cursor: 'pointer', background: 'var(--color-surface)', aspectRatio: '4 / 3',
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

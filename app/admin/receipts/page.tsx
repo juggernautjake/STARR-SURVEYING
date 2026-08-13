@@ -17,7 +17,8 @@ import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
 import { usePageError } from '../hooks/usePageError';
-import type { AdminReceiptRow } from './receipt-types';
+import type { AdminReceiptRow, ReceiptPaymentCard } from './receipt-types';
+import PayerDecision from './PayerDecision';
 import { MaintenancePicker, maintLinkStateChip, maintLinkStyles } from './MaintenanceLink';
 import { PromoteToAssetPanel } from './PromoteToAsset';
 import { receiptTaxLine } from '@/lib/finance/tax-summary';
@@ -171,6 +172,22 @@ export default function ReceiptsApprovalPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // The cards on file, fetched once for the whole page rather than per row: the payer panel offers
+  // them as "it was actually this one", and a per-row fetch on a hundred-row queue is a hundred
+  // requests for one small, unchanging list. Silent on failure — the panel simply offers the link to
+  // /admin/cards instead, which is the answer for a card that is not on the list anyway.
+  const [cards, setCards] = useState<ReceiptPaymentCard[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/admin/payment-cards')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled && j?.cards) setCards(j.cards as ReceiptPaymentCard[]);
+      })
+      .catch(() => { /* the "Add a card to file" link still works */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Re-checked whenever the list reloads, so pressing "Run AI" and watching the notice clear is the
   // confirmation that the deployment is healthy again — rather than a stale banner that has to be
@@ -453,6 +470,7 @@ export default function ReceiptsApprovalPage() {
               expanded={expandedId === r.id}
               onToggle={() => setExpandedId(expandedId === r.id ? null : r.id)}
               onMutate={onMutate}
+              cards={cards}
               onRefresh={load}
               selectable={
                 tab === 'pending' &&
@@ -503,6 +521,8 @@ interface ReceiptRowProps {
   expanded: boolean;
   onToggle: () => void;
   onMutate: (id: string, body: Record<string, unknown>, label: string) => Promise<void>;
+  /** Cards on file, for the payer panel's "it was actually this one". */
+  cards: readonly ReceiptPaymentCard[];
   /** F10.7 tail — refetches the parent receipts list. Used after
    *  a maintenance link/unlink to refresh the linked-events
    *  annotation. */
@@ -519,6 +539,7 @@ function ReceiptRow({
   expanded,
   onToggle,
   onMutate,
+  cards,
   selectable,
   selected,
   onToggleSelected,
@@ -812,20 +833,36 @@ function ReceiptRow({
               </div>
             ) : null}
 
-            {/* Whose card paid for this (seed 584). The matcher already writes a sentence into the
-                review flags, which is enough to SEE on a row; this is the state itself, so the
-                bookkeeper can tell "we have never seen this card" from "you used the old fuel card"
-                at a glance. `unknown` is not shown as a problem: it means the digits were not
-                legible, and badging every blurry photo is how a badge stops being read. */}
-            {row.card_match_status === 'not_on_file' ? (
-              <div style={styles.dupBand} role="note">
-                Paid on a card that is not on file. Add it under{' '}
-                <a href="/admin/cards">company cards</a>, or confirm it was personal and is being
-                reimbursed.
-              </div>
-            ) : row.card_match_status === 'retired' ? (
+            {/* Whose card paid for this (seed 584), and what was decided about it (seed 591).
+                This used to be two static bands that stated a problem and offered no way to answer
+                it — so the same sentence sat on the same receipt indefinitely. `PayerDecision` shows
+                the same facts and takes the answer, which is what removes the row from the review
+                queue. `retired` is folded in there too, for the same reason. */}
+            <PayerDecision
+              row={row}
+              cards={cards}
+              busy={!!busy}
+              onAnswer={(label, body) => wrap(label, body)}
+            />
+
+            {row.card_match_status === 'retired' ? (
               <div style={styles.dupBand} role="note">
                 Paid on a company card marked retired — worth checking the purchase was authorised.
+              </div>
+            ) : null}
+
+            {/* Seed 590. Not a duplicate warning: this row and another are the two pieces of paper
+                for one meal, and the totals already exclude whichever one is the itemisation. Said
+                out loud because a receipt silently missing from a total is indistinguishable from a
+                receipt that was lost — and the bookkeeper is the person who would have to tell. */}
+            {row.superseded_by_receipt_id ? (
+              <div style={styles.dupBand} role="note">
+                <Copy size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
+                This is the itemised bill for a card slip already on file — one purchase, two
+                receipts. Kept for its detail, and <strong>not counted</strong> as a second expense.
+                {row.same_purchase_confidence === 'likely'
+                  ? ' Worth a glance: the match is likely rather than certain.'
+                  : null}
               </div>
             ) : null}
           </div>
@@ -846,6 +883,19 @@ function ReceiptRow({
             />
             <Field label="Tax" value={formatCents(row.tax_cents)} confidence={conf.tax_cents} />
             <Field label="Tip" value={formatCents(row.tip_cents)} confidence={conf.tip_cents} />
+            {/* Seed 590 — shown only when there is something to say. A service-charge row reading
+                "—" on every fuel receipt would train people to skip the block that matters. The
+                labels name WHO added the money, because that is the distinction the owner asked
+                for and "Tip: $15.66" answers it either way. */}
+            {row.service_charge_cents ? (
+              <Field
+                label="Service charge (added by the business)"
+                value={formatCents(row.service_charge_cents)}
+              />
+            ) : null}
+            {row.customer_tip_cents ? (
+              <Field label="Tip you added" value={formatCents(row.customer_tip_cents)} />
+            ) : null}
             <Field label="Total" value={total} confidence={conf.total_cents} />
             {row.ai_extras?.discount_cents ? (
               <Field label="Discount" value={formatCents(row.ai_extras.discount_cents)} />
@@ -1599,7 +1649,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: '1 1 220px',
     margin: 0,
     fontSize: 13,
-    color: 'var(--theme-fg-tertiary, #6B7280)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     minWidth: 0,
   },
   aiButton: {
@@ -1713,7 +1763,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'left',
     padding: '6px 10px',
     borderBottom: '1px solid #E5E7EB',
-    color: 'var(--theme-fg-tertiary, #6B7280)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     fontWeight: 600,
     whiteSpace: 'nowrap',
   },
@@ -1727,7 +1777,7 @@ const styles: Record<string, React.CSSProperties> = {
   lineItemsNote: {
     margin: 0,
     fontSize: 11.5,
-    color: 'var(--theme-fg-tertiary, #6B7280)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     fontStyle: 'italic',
   },
   fields: { margin: 0, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },

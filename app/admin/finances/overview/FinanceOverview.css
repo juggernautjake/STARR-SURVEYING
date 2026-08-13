@@ -97,7 +97,7 @@
   font: inherit;
   font-size: 0.9rem;
   color: var(--theme-fg-primary, #111827);
-  background: var(--theme-bg-input, #fff);
+  background: var(--theme-bg-surface, #fff);
   border: 1px solid var(--theme-border, #d1d5db);
   border-radius: 8px;
 }
@@ -207,7 +207,7 @@
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--theme-fg-muted, #6b7280);
-  background: var(--theme-bg-subtle, #f9fafb);
+  background: var(--theme-bg-elevated, #f9fafb);
   border-bottom: 1px solid var(--theme-border, #e5e7eb);
 }
 
@@ -365,7 +365,7 @@
   margin: 0 0 1rem;
   padding: 0.9rem 1.05rem;
   border-left: 3px solid var(--brand-blue, #1d3095);
-  background: var(--theme-bg-subtle, #f9fafb);
+  background: var(--theme-bg-elevated, #f9fafb);
   border-radius: 0 8px 8px 0;
   font-size: 0.92rem;
   line-height: 1.65;

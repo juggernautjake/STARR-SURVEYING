@@ -73,7 +73,7 @@ const NEEDS_HOLDER = new Set(['OWNER_PERSONAL', 'EMPLOYEE_PERSONAL']);
 
 const inputStyle: React.CSSProperties = {
   padding: '0.4rem 0.5rem', borderRadius: 6, border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '0.85rem', width: '100%',
+  background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontSize: '0.85rem', width: '100%',
 };
 
 const labelStyle: React.CSSProperties = {
@@ -83,7 +83,7 @@ const labelStyle: React.CSSProperties = {
 
 const buttonStyle: React.CSSProperties = {
   padding: '0.45rem 0.8rem', borderRadius: 6, border: '1px solid var(--color-border)',
-  background: 'var(--color-surface)', color: 'var(--color-text)', fontSize: '0.85rem', cursor: 'pointer',
+  background: 'var(--color-surface)', color: 'var(--color-text-primary)', fontSize: '0.85rem', cursor: 'pointer',
 };
 
 interface DraftCard {

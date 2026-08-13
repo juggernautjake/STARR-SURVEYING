@@ -126,6 +126,10 @@ export interface ExtractedSummary {
   category?: string | null;
   extraction_status?: string | null;
   ai_extras?: { review_flags?: string[] } | null;
+  subtotal_cents?: number | null;
+  tax_cents?: number | null;
+  /** Set when this row is the itemised bill for another receipt's card slip. Seed 590. */
+  superseded_by_receipt_id?: string | null;
 }
 
 /**
@@ -147,11 +151,39 @@ export function missingInformation(r: ExtractedSummary): string[] {
     return ['The AI could not read this photo at all — retake it, or type the details in by hand.'];
   }
   if (r.extraction_status !== 'done') return [];
+  // A receipt superseded by another for the same purchase has nothing left to answer: it is the
+  // itemisation, and every question about the purchase belongs to the row that was actually charged.
+  // Asking here would put the same question in front of a person twice for one meal.
+  if (r.superseded_by_receipt_id) return [];
 
   if (!r.vendor_name) asks.push('Which shop or supplier was this from?');
   if (!r.transaction_at) asks.push('What date was this purchase?');
   if (r.total_cents == null) asks.push('What was the total? The amount was not legible.');
   if (!r.category) asks.push('What kind of expense is this — fuel, meals, supplies?');
+
+  // ── A MEAL WHOSE PARTS ARE UNKNOWN (owner request, 2026-08-13) ─────────────────────────────────
+  //
+  // *"we need to recognize how much tax and tip the business applied, and how much tip I gave besides
+  // that… so that we can really know if there is information missing."*
+  //
+  // A card slip alone gives a total and nothing else: it prints one figure for the whole bill, so the
+  // tax is not on it and neither is the split. That is a genuine gap in what the books can say about
+  // the purchase, and it is invisible unless somebody names it — the row looks complete, because
+  // every field it has is filled in.
+  //
+  // Restricted to meals, and only when BOTH parts are missing. A fuel receipt has no meaningful
+  // split, and a receipt with a subtotal but no tax line is a tax-free purchase, not a gap.
+  if (
+    r.category === 'meals'
+    && r.total_cents != null
+    && r.subtotal_cents == null
+    && r.tax_cents == null
+  ) {
+    asks.push(
+      'Only the total is readable on this one — the tax and the tip cannot be told apart. '
+      + 'If you still have the itemised bill, photograph that too and the two will be matched up.',
+    );
+  }
   return asks;
 }
 

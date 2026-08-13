@@ -29,7 +29,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 //
 // Imported now, and re-exported so existing importers of `AdminReceiptRow` from this route keep
 // working unchanged.
-import type { ReceiptRow, AdminReceiptRow } from '@/app/admin/receipts/receipt-types';
+import type { ReceiptRow, AdminReceiptRow, ReceiptPaymentCard } from '@/app/admin/receipts/receipt-types';
 // `needsReview` is imported as a VALUE, not re-implemented here: the tab's count and the rows
 // behind it must answer the question the same way, and the surest way to guarantee that is one
 // function. See its note in receipt-types.ts for why `queued` is deliberately not "needs review".
@@ -101,10 +101,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // "which of these did the AI struggle with, or warn about?" — and it is the view that makes R6's
   // flags actionable rather than merely visible.
   //
-  // Three things qualify, each for a different reason:
+  // FOUR things qualify, each for a different reason:
   //   · extraction_status = 'failed'  — the AI never read it; somebody must key it in or re-run.
   //   · dedup_match_id IS NOT NULL    — possibly the same receipt twice. Only a person can tell.
   //   · review_flags is a non-empty array — the AI read it and saw something off.
+  //   · an unrecognised card with no decision recorded (seed 591) — the owner's case: an employee
+  //     may have paid on their own card, and whether we owe them, or should disregard it as a
+  //     personal purchase, is a question nothing can derive. `and(…)` because the pair is one
+  //     condition: an unrecognised card that HAS been answered is finished business and must leave
+  //     this view, or the queue never empties and stops being read.
   //
   // The third predicate is the load-bearing one, and its SQL was VERIFIED rather than assumed:
   // PostgREST renders `ai_extras->>review_flags=neq.[]` as `(ai_extras->>'review_flags') <> '[]'`,
@@ -112,11 +117,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // absent, yields NULL and is correctly excluded — an unextracted receipt is not a flagged one.
   // (Checked against production SQL with a four-case VALUES table, because a probe against an
   // empty table returns 200 for a predicate that matches nothing and a predicate that is wrong.)
+  //
+  // The predicate is a named constant because it is used TWICE — once to fetch the view, and once to
+  // count it for the tab badge (see `needsReviewTotal` below). Two copies of a four-clause `or` is
+  // how the badge and the list start disagreeing.
+  const NEEDS_REVIEW_PREDICATE =
+    'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[],'
+    + 'and(card_match_status.eq.not_on_file,expense_nature.is.null)';
+
   const needsReviewView = status === 'needs_review';
   if (needsReviewView) {
-    query = query.or(
-      'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[]',
-    );
+    query = query.or(NEEDS_REVIEW_PREDICATE);
   } else if (status) {
     query = query.eq('status', status);
   }
@@ -279,6 +290,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // (No more post-filter — resolvedUserId already constrained the query.)
   const filtered = receiptRows;
 
+  // ── The card that paid, resolved (2026-08-13) ─────────────────────────────────────────────────
+  //
+  // `payment_card_id` has been written by the matcher since seed 584 and read by nothing. Resolving
+  // it here is what makes the whole "whose money was it" precedence in `lib/finance/tax-summary.ts`
+  // reachable — without the row, that rule ranked first and never fired, and a dinner on somebody's
+  // own Visa was filed as a 50%-deductible company meal.
+  //
+  // One batched query, like every other lookup on this route. The cards table is small; the whole of
+  // it would be a reasonable fetch, but the ids are already to hand.
+  const cardIds = unique(
+    filtered.map((r) => (r as { payment_card_id?: string | null }).payment_card_id).filter(isString),
+  );
+  const cardById = new Map<string, ReceiptPaymentCard>();
+  if (cardIds.length > 0) {
+    const { data: cards, error: cardErr } = await supabaseAdmin
+      .from('payment_cards')
+      .select('id, label, last4, brand, role, holder_name, retired_at')
+      .in('id', cardIds);
+    if (cardErr) {
+      // Not fatal. A receipt queue that will not load because a lookup failed is worse than one
+      // whose card column is blank — and the blank is honest: nothing is filed without the card.
+      console.warn('[admin/receipts] payment-card lookup failed', { error: cardErr.message });
+    }
+    for (const c of (cards ?? []) as ReceiptPaymentCard[]) cardById.set(c.id, c);
+  }
+
+
   // Generate signed photo URLs in parallel. Failure is non-fatal —
   // the row still renders with a "photo unavailable" placeholder. We
   // log the FIRST FEW failures per request so a misconfigured bucket
@@ -324,8 +362,43 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       ai_extras: (r as { ai_extras?: AdminReceiptRow['ai_extras'] }).ai_extras ?? null,
       dedup_match_id: (r as { dedup_match_id?: string | null }).dedup_match_id ?? null,
       line_items: lineItemsByReceiptId.get(r.id) ?? [],
+      // The card row itself, not just its id. The page needs `role` to say whose money this was, and
+      // an id it would have to look up per row is an id it will not look up at all.
+      payment_card: (() => {
+        const id = (r as { payment_card_id?: string | null }).payment_card_id;
+        return id ? cardById.get(id) ?? null : null;
+      })(),
     };
   });
+
+  // ── How many receipts need a person, across the whole table ───────────────────────────────────
+  //
+  // A HEAD request with an exact count — no rows come back, so this is cheap enough to run on every
+  // list call. It repeats the scoping filters (submitter, job, deleted, dates) deliberately: the
+  // badge must count the same population the user is looking at, or filtering to one submitter would
+  // still show the firm's whole backlog.
+  //
+  // Not scoped by `status`, because needing review is not a status — a receipt that needs a person
+  // can be pending, approved or exported, which is the whole reason R7 exists as a separate view.
+  const needsReviewTotal = await (async (): Promise<number | null> => {
+    let q = supabaseAdmin
+      .from('receipts')
+      .select('id', { count: 'exact', head: true })
+      .or(NEEDS_REVIEW_PREDICATE);
+    if (jobId) q = q.eq('job_id', jobId);
+    if (resolvedUserId) q = q.eq('user_id', resolvedUserId);
+    if (!includeDeleted) q = q.is('deleted_at', null);
+    if (from) q = q.gte('created_at', `${from}T00:00:00.000Z`);
+    if (to) q = q.lte('created_at', `${to}T23:59:59.999Z`);
+    const { count, error: countErr } = await q;
+    if (countErr) {
+      // Non-fatal: a queue that will not load because a badge could not be counted is a worse
+      // failure than a badge that falls back to counting the page.
+      console.warn('[admin/receipts] needs-review count failed', { error: countErr.message });
+      return null;
+    }
+    return count ?? 0;
+  })();
 
   // Aggregate counters for the header — useful for "12 awaiting review."
   //
@@ -338,12 +411,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     approved: receiptRows.filter((r) => r.status === 'approved').length,
     rejected: receiptRows.filter((r) => r.status === 'rejected').length,
     exported: receiptRows.filter((r) => r.status === 'exported').length,
-    // R7 — recomputed in JS from the same three conditions the query above filters on, so the
-    // number on the tab and the rows behind it can never disagree. Only meaningful while the
-    // needs-review view is the active one; on the other tabs the fetched page is a different set.
-    needs_review: needsReviewView
-      ? receiptRows.filter((r) => needsReview(r as unknown as AdminReceiptRow)).length
-      : 0,
+    // R7. This used to be `needsReviewView ? …count the page… : 0`, which made the tab read
+    // **"Needs review 0" whenever you were not already on the Needs-review tab** — so the badge
+    // whose entire job is to send you there only told the truth after you had gone. Production on
+    // 2026-08-13 had nine receipts waiting behind a badge reading 0.
+    //
+    // Now counted against the TABLE, with the same predicate the view filters on, so it is a real
+    // total rather than a count of the page — and it is right on every tab. `needsReviewTotal` is
+    // null only if the count query itself failed, in which case the page count is a better answer
+    // than pretending there is nothing to review.
+    needs_review: needsReviewTotal
+      ?? receiptRows.filter((r) => needsReview(r as unknown as AdminReceiptRow)).length,
     total: receiptRows.length,
   };
 

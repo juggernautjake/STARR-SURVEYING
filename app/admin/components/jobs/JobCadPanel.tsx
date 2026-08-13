@@ -92,8 +92,8 @@ export default function JobCadPanel({ jobId, jobName, onCountChange }: Props) {
                 className="job-cad__row"
                 style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem',
-                  padding: '0.75rem 1rem', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8,
-                  textDecoration: 'none', color: 'inherit', background: 'var(--surface, #fff)',
+                  padding: '0.75rem 1rem', border: '1px solid var(--color-border)', borderRadius: 8,
+                  textDecoration: 'none', color: 'inherit', background: 'var(--color-surface)',
                 }}
               >
                 <div style={{ minWidth: 0 }}>

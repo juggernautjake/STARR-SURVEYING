@@ -166,6 +166,22 @@ function findUnreachable(): string[] {
   return orphans;
 }
 
+/**
+ * The scan, computed once.
+ *
+ * It reads every module under `lib/` and every text in the repo, and it costs ~7.5 s. Three of the
+ * tests below called `findUnreachable()` separately, so the file paid that three times — fine on its
+ * own (23 s), and a timeout at 20 s when the whole suite is running and 1,600 files are competing
+ * for the same cores. It failed as *"Test timed out"*, not as an assertion, which is the tell: the
+ * answer was never wrong, there was just never time to finish computing it.
+ *
+ * A flaky ratchet is worse than a slow one — it is the check people learn to re-run rather than read.
+ * The result is pure with respect to the working tree, so caching it changes nothing except that the
+ * work happens once.
+ */
+let cachedUnreachable: string[] | null = null;
+const unreachable = (): string[] => (cachedUnreachable ??= findUnreachable());
+
 describe('THE RATCHET — unreachable modules across lib/', () => {
   it('scans a meaningful number of modules', () => {
     // Guards the guard: a walker returning [] would make every assertion below pass forever.
@@ -174,7 +190,7 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
 
   it('gains no NEW unreachable module', () => {
     const known = new Set(KNOWN_ORPHANS);
-    const added = findUnreachable().filter((m) => !known.has(m));
+    const added = unreachable().filter((m) => !known.has(m));
     expect(
       added,
       'New module(s) under lib/ with no PRODUCTION importer. A module imported only by its own test '
@@ -186,7 +202,7 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
   it('never grows the total', () => {
     // Belt and braces with the check above: that one catches a new PATH, this one catches the set
     // getting bigger by any route at all.
-    expect(findUnreachable().length).toBeLessThanOrEqual(KNOWN_ORPHANS.length);
+    expect(unreachable().length).toBeLessThanOrEqual(KNOWN_ORPHANS.length);
   });
 
   it('lists no module that has since been WIRED', () => {
@@ -199,7 +215,7 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
     // module to appear without failing anything. The allowance has to shrink as the work lands.
     //
     // `cad-modules-are-reachable` has always had this check; this file was written without it.
-    const stillDead = new Set(findUnreachable());
+    const stillDead = new Set(unreachable());
     const wired = KNOWN_ORPHANS
       .filter((m) => fs.existsSync(path.join(process.cwd(), 'lib', m)))
       .filter((m) => !stillDead.has(m));

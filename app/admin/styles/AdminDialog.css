@@ -157,7 +157,7 @@
   margin-bottom: 0.6rem;
   border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 8px;
-  color: var(--theme-fg-tertiary, #6B7280);
+  color: var(--theme-fg-muted, #6B7280);
   min-width: 0;
 }
 .fp__search input {
@@ -171,7 +171,7 @@
 }
 .fp__search button {
   border: none; background: transparent; cursor: pointer;
-  color: var(--theme-fg-tertiary, #6B7280);
+  color: var(--theme-fg-muted, #6B7280);
   display: inline-flex; align-items: center;
 }
 
@@ -204,23 +204,23 @@
 .fp__row:hover:not(:disabled) { background: var(--theme-bg-hover, #F3F4F6); }
 .fp__row:disabled { opacity: 0.45; cursor: not-allowed; }
 .fp__row--sel {
-  background: var(--theme-bg-subtle, #EEF2F7);
+  background: var(--theme-bg-elevated, #EEF2F7);
   border-color: var(--color-brand-navy, #1E3A5F);
 }
 
 .fp__name { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; font-size: 0.86rem; }
-.fp__path { font-size: 0.7rem; color: var(--theme-fg-tertiary, #6B7280); }
+.fp__path { font-size: 0.7rem; color: var(--theme-fg-muted, #6B7280); }
 
 /* A nested control, so it is a span with a button role rather than a <button> inside a <button> —
  * which is invalid HTML and which browsers resolve by dropping one of them. */
 .fp__open {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   width: 32px; height: 32px; border-radius: 6px;
-  color: var(--theme-fg-tertiary, #6B7280);
+  color: var(--theme-fg-muted, #6B7280);
 }
 .fp__open:hover { background: rgba(0, 0, 0, 0.06); }
 
-.fp__muted { margin: 0.5rem 0; font-size: 0.82rem; color: var(--theme-fg-tertiary, #6B7280); display: flex; align-items: center; gap: 0.35rem; }
+.fp__muted { margin: 0.5rem 0; font-size: 0.82rem; color: var(--theme-fg-muted, #6B7280); display: flex; align-items: center; gap: 0.35rem; }
 .fp__error { margin: 0.5rem 0; font-size: 0.82rem; color: #B91C1C; overflow-wrap: anywhere; }
 .fp__spin { animation: fp-spin 0.9s linear infinite; }
 @keyframes fp-spin { to { transform: rotate(360deg); } }

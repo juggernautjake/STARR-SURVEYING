@@ -55,7 +55,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .from('research_projects')
     .select('id, property_address, county, state')
     .eq('created_by', session.user.email)
-    .eq('is_archived', false);
+    // `archived_at IS NULL`, not `is_archived = false`. There has never been an `is_archived`
+    // column on `research_projects` — archiving is recorded as the timestamp `archived_at` — so
+    // this query returned `column research_projects.is_archived does not exist` and the whole
+    // Library page showed "Failed to load library" with an HTTP 500 behind it. A wrong column name
+    // is a runtime error PostgREST reports at query time, which is why nothing caught it earlier:
+    // there is no type over this call, and the page it breaks is one nobody had opened recently.
+    .is('archived_at', null);
 
   if (projErr) return NextResponse.json({ error: projErr.message }, { status: 500 });
 

@@ -260,6 +260,6 @@ const btn = (primary: boolean): React.CSSProperties => ({
   background: primary
     ? 'linear-gradient(180deg, var(--theme-success), color-mix(in srgb, var(--theme-success) 80%, var(--theme-fg-primary)))'
     : 'var(--color-surface)',
-  color: primary ? 'var(--theme-accent-fg)' : 'var(--color-text)',
+  color: primary ? 'var(--theme-accent-fg)' : 'var(--color-text-primary)',
   fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
 });

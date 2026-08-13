@@ -19,6 +19,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { sweepQueuedReceipts } from '@/lib/receipts/extract';
+import { sweepSamePurchase } from '@/lib/receipts/pair-sweep';
+import { rematchOpenReceipts } from '@/lib/receipts/rematch-cards';
 
 /** A batch of receipts, each a Vision call, run in sequence. 300 s is the ceiling this plan allows
  *  and the batch size below is chosen to finish inside it with room to spare. */
@@ -38,11 +40,37 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  // Pairing runs FIRST, and runs even without an API key: it is arithmetic over rows already in the
+  // table, needs no Vision call, and is how receipts extracted before seed 590 ever get linked. An
+  // extraction-only sweep would have left the pair that prompted the feature unpaired forever.
+  const pairing = await sweepSamePurchase();
+  if (pairing.paired > 0 || pairing.errors.length > 0) {
+    console.log(
+      `[cron/receipt-extraction] same-purchase: ${pairing.paired} linked of ${pairing.scanned} scanned`
+        + (pairing.errors.length ? ` — ${pairing.errors.length} failed` : ''),
+    );
+  }
+
+  // The card check, re-asked. Also arithmetic over rows already on file, so it too runs without an
+  // API key — and it has to, because the receipts that need it most are the ones captured BEFORE the
+  // matcher existed, which will never be extracted again and so would never be checked at all.
+  //
+  // Registering a card already triggers this (see `rematchOpenReceipts`), but that only helps a
+  // receipt somebody is actively chasing. Running it here is what makes the answer converge on its
+  // own: a receipt whose card question is open gets re-asked every cron tick until it is settled.
+  const cardMatching = await rematchOpenReceipts();
+  if (cardMatching.updated > 0) {
+    console.log(
+      `[cron/receipt-extraction] card check: ${cardMatching.updated} updated of `
+        + `${cardMatching.considered} open — ${cardMatching.resolved} now matched to a card on file`,
+    );
+  }
+
   if (!process.env.ANTHROPIC_API_KEY) {
     // Not a 500. The sweep has nothing to do and saying why is more useful than a stack trace in a
     // cron log nobody reads — a missing key is a deployment fact, not a runtime fault.
     return NextResponse.json(
-      { skipped: true, reason: 'ANTHROPIC_API_KEY is not set on this deployment.' },
+      { skipped: true, reason: 'ANTHROPIC_API_KEY is not set on this deployment.', pairing, cardMatching },
       { status: 200 },
     );
   }
@@ -61,5 +89,5 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // unnoticed for months in the first place.
   console.log(`[cron/receipt-extraction] ${done} done, ${failed} failed, ${skipped} already running, ${costCents}¢`);
 
-  return NextResponse.json({ attempted: results.length, done, failed, skipped, costCents });
+  return NextResponse.json({ attempted: results.length, done, failed, skipped, costCents, pairing, cardMatching });
 }, { routeName: 'cron/receipt-extraction' });

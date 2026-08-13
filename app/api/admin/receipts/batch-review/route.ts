@@ -38,6 +38,10 @@ export interface BatchReviewRow {
   id: string;
   vendor_name: string | null;
   total_cents: number | null;
+  /** Seed 590. Carried so `missingInformation` can tell a card slip (total only) from an itemised
+   *  bill, and say when the tax and the tip cannot be separated. */
+  subtotal_cents: number | null;
+  tax_cents: number | null;
   transaction_at: string | null;
   category: string | null;
   extraction_status: string | null;
@@ -45,6 +49,9 @@ export interface BatchReviewRow {
   review_flags: string[];
   /** Set when this receipt matches an earlier one of yours on vendor + total + date. */
   duplicateOf: { id: string; vendor_name: string | null; total_cents: number | null } | null;
+  /** Seed 590. Set when this is the itemised bill for a card slip already on file — one purchase,
+   *  two photos. The row is kept and not counted. */
+  superseded_by_receipt_id: string | null;
 }
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -68,7 +75,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: rows, error } = await supabaseAdmin
     .from('receipts')
-    .select('id, vendor_name, total_cents, transaction_at, category, extraction_status, ai_extras, dedup_match_id')
+    // `subtotal_cents`, `tax_cents` and `superseded_by_receipt_id` (seed 590) are here for
+    // `missingInformation`, which cannot ask "is the tax and tip separable on this meal?" without
+    // them — and would have shipped as a rule that never fired.
+    .select(
+      'id, vendor_name, total_cents, subtotal_cents, tax_cents, transaction_at, category, '
+      + 'extraction_status, ai_extras, dedup_match_id, superseded_by_receipt_id',
+    )
     .in('id', ids)
     // The predicate that makes the ids a filter rather than a key. Not conditional on anything.
     .eq('user_id', me.id);
@@ -78,11 +91,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     id: string;
     vendor_name: string | null;
     total_cents: number | null;
+    subtotal_cents: number | null;
+    tax_cents: number | null;
     transaction_at: string | null;
     category: string | null;
     extraction_status: string | null;
     ai_extras: { review_flags?: string[] } | null;
     dedup_match_id: string | null;
+    superseded_by_receipt_id: string | null;
   }>;
 
   // One lookup for every duplicate, not one per row: naming the receipt this repeats ("the Buc-ee's
@@ -105,11 +121,14 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     id: r.id,
     vendor_name: r.vendor_name,
     total_cents: r.total_cents,
+    subtotal_cents: r.subtotal_cents,
+    tax_cents: r.tax_cents,
     transaction_at: r.transaction_at,
     category: r.category,
     extraction_status: r.extraction_status,
     review_flags: r.ai_extras?.review_flags ?? [],
     duplicateOf: r.dedup_match_id ? (matches.get(r.dedup_match_id) ?? null) : null,
+    superseded_by_receipt_id: r.superseded_by_receipt_id,
   }));
 
   return NextResponse.json({ receipts });

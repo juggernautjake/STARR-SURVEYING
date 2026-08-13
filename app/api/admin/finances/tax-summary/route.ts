@@ -213,12 +213,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       // Those dollars land on the depreciation ledger via the
       // equipment block below, so leaving them in the receipts
       // sum would double-count on Schedule C.
+      // Seed 590 — and exclude a receipt superseded by another for the same
+      // purchase, for the same reason in a different costume: the itemised
+      // bill and the card slip for one meal are two rows and one expense.
+      // The slip is what left the account and is the row that counts.
       .select(
         'id, user_id, vendor_name, category, tax_deductible_flag, total_cents, status, deleted_at, transaction_at, created_at, exported_at, exported_period'
       )
       .in('status', statusSet)
       .is('deleted_at', null)
       .is('promoted_to_equipment_id', null)
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — and the owner's case: *"we might want to disregard the receipt entirely from our
+      // taxes because it might have just been a personal purchase."* This is the query that decides
+      // what reaches Schedule C, so this is where "disregard entirely" has to mean something.
+      // `neq` rather than `is not` so an undecided receipt (NULL) still counts — a purchase nobody
+      // has questioned is a business purchase until somebody says otherwise.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .gte('created_at', window.fromIso)
       .lte('created_at', window.toIso),
     supabaseAdmin

@@ -61,6 +61,12 @@ export const GET = withErrorHandler(async () => {
       .select('id, total_cents, transaction_at, vendor_name')
       .in('status', ['approved', 'exported'])
       .is('deleted_at', null)
+      // Seed 590 — this route matches rows against a bank statement, and a superseded itemised bill
+      // is precisely the row that has no line on the statement to match: only the slip was charged.
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+      // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .gte('transaction_at', lo)
       .lte('transaction_at', hi),
     supabaseAdmin

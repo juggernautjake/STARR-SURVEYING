@@ -27,6 +27,12 @@ interface ReceiptRow {
   subtotal_cents: number | null;
   tax_cents: number | null;
   tip_cents: number | null;
+  /** Added by the business (auto-gratuity, service fee). Seed 590. */
+  service_charge_cents: number | null;
+  /** Chosen by the payer, on the tip line. Seed 590. */
+  customer_tip_cents: number | null;
+  /** Set when this row is the itemised bill for another receipt's card slip. Seed 590. */
+  superseded_by_receipt_id: string | null;
   total_cents: number | null;
   payment_method: string | null;
   payment_last4: string | null;
@@ -54,7 +60,16 @@ const HEADERS = [
   'subtotal',
   'tax',
   'tip',
+  // Seed 590. `tip` is whatever was read off the paper; these two say who put it there. An 18%
+  // auto-gratuity the restaurant imposed and a figure the payer wrote on the tip line are different
+  // facts, and an accountant reading one column cannot tell them apart.
+  'service_charge_business_added',
+  'customer_tip',
   'total',
+  // Blank for an ordinary receipt. When set, this row is the itemised bill for the receipt named,
+  // and only that receipt was charged — SUM the `total` column without excluding these and every
+  // restaurant meal is counted twice.
+  'superseded_by_receipt_id',
   'payment_method',
   'payment_last4',
   'category',
@@ -191,7 +206,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         centsToDollarString(r.subtotal_cents),
         centsToDollarString(r.tax_cents),
         centsToDollarString(r.tip_cents),
+        centsToDollarString(r.service_charge_cents),
+        centsToDollarString(r.customer_tip_cents),
         centsToDollarString(r.total_cents),
+        r.superseded_by_receipt_id ?? '',
         r.payment_method ?? '',
         r.payment_last4 ?? '',
         r.category ?? '',

@@ -126,7 +126,7 @@ const S: Record<string, React.CSSProperties> = {
     padding: '10px 12px',
     border: '1px solid var(--theme-border, #E5E7EB)',
     borderRadius: 8,
-    background: 'var(--theme-bg-card, #FFFFFF)',
+    background: 'var(--theme-bg-surface, #FFFFFF)',
     minWidth: 0,
   },
   main: { display: 'flex', flexDirection: 'column', gap: 2, flex: '1 1 200px', minWidth: 0 },
@@ -138,7 +138,7 @@ const S: Record<string, React.CSSProperties> = {
   },
   meta: {
     fontSize: 12,
-    color: 'var(--theme-fg-tertiary, #6B7280)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     overflowWrap: 'anywhere',
   },
   reason: { fontSize: 12, color: '#991B1B', overflowWrap: 'anywhere' },

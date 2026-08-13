@@ -27,8 +27,21 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import { matchCardOnFile, type CardOnFile } from './card-on-file';
 
-/** The statuses that represent an unanswered question. See the header for why `on_file` is absent. */
-const OPEN_STATUSES = ['not_on_file', 'unknown'];
+/**
+ * The statuses that represent an unanswered question. See the header for why `on_file` is absent.
+ *
+ * `not_a_card` is here, and NULL is handled separately below, for a reason found by looking at
+ * production on 2026-08-13: of twelve receipts, **ten had `card_match_status = NULL`** — eight of
+ * them card purchases with a legible last four. They were captured before the matcher existed
+ * (2026-08-12), so nothing ever asked the question about them, and because this sweep selected only
+ * the two OPEN statuses it never asked either. They were not "on file" and not "flagged"; they were
+ * absent from the feature entirely, which is the one state nobody would think to look for.
+ *
+ * That is why the sweep is now defined by what it EXCLUDES. `on_file` and `retired` are settled
+ * matches and are left alone (see the header). Everything else — including a status this code has
+ * never written — is re-asked, so a receipt cannot go unexamined merely by predating the check.
+ */
+const SETTLED_STATUSES = ['on_file', 'retired'];
 
 export interface RematchSummary {
   /** Receipts examined. */
@@ -63,10 +76,15 @@ export async function rematchOpenReceipts(): Promise<RematchSummary> {
       .from('payment_cards')
       .select('id, last4, brand, label, holder_name, retired_at');
 
+    // `not.in` alone would drop the NULL rows: in SQL, `status NOT IN ('on_file','retired')` is
+    // UNKNOWN — not TRUE — when status is NULL, so the never-checked receipts would be filtered out
+    // by the very predicate written to include them. The explicit `is.null` arm is what makes this
+    // a fix rather than a rewording.
     const { data: rows } = await supabaseAdmin
       .from('receipts')
       .select('id, payment_method, payment_last4, card_match_status, ai_extras')
-      .in('card_match_status', OPEN_STATUSES);
+      .is('deleted_at', null)
+      .or(`card_match_status.is.null,card_match_status.not.in.(${SETTLED_STATUSES.join(',')})`);
 
     const list = (rows ?? []) as ReceiptRow[];
     summary.considered = list.length;

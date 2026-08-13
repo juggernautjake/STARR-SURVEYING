@@ -92,6 +92,22 @@ const ROW: AdminReceiptRow = {
     { id: 'li-2', description: 'Prism pole replacement tip, 5/8-11', amount_cents: 3500, quantity: 2, position: 2 },
   ],
   linked_maintenance_events: [],
+  // Seed 590 — an ordinary receipt, not one half of a pair. The same-purchase band is measured by
+  // its own case rather than folded in here; this fixture already carries the widest row.
+  superseded_by_receipt_id: null,
+  same_purchase_kind: null,
+  same_purchase_confidence: null,
+  service_charge_cents: null,
+  customer_tip_cents: null,
+  // Seed 591 — nobody has answered whose card this was, which is the state that renders the payer
+  // panel. Consistent with `card_match_status: 'not_on_file'` above, and it is now the widest band
+  // on the row: a question, three buttons and a card picker, all of which must fit a phone.
+  payment_card_id: null,
+  payment_card: null,
+  card_confirmed_at: null,
+  card_confirmed_by: null,
+  expense_nature: null,
+  expense_nature_note: null,
 };
 
 const PAYLOAD = {
