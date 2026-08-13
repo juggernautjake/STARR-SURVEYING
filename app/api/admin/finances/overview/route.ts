@@ -41,6 +41,7 @@ import {
   type Granularity,
 } from '@/lib/payments/finance-overview';
 import { microsToCents } from '@/lib/integrations/google-ads/spend';
+import { disbursedCents } from '@/lib/payroll/disbursement';
 import { looksLikeAdVendor, type ReceiptLike } from '@/lib/finances/ad-spend-reconcile';
 import { findDuplicateExpenses, duplicateRiskTotal } from '@/lib/finances/duplicate-expenses';
 
@@ -78,7 +79,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .lte('cleared_at', toTs),
     supabaseAdmin
       .from('payout_batch_items')
-      .select('total_cents, paid_at')
+      // `recovered_cents` is part of the cash-flow answer: this stream is headed "money that
+      // actually moved", and what moved is total − recovered. A payout that repaid a $200 advance
+      // sent $800 to the bank, and counting $1,000 overstates the month's outgoings by the recovery.
+      .select('total_cents, recovered_cents, paid_at')
       .eq('status', 'paid')
       .gte('paid_at', fromTs)
       .lte('paid_at', toTs),
@@ -105,7 +109,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   const payRows = (payRes.data ?? []) as Array<{ amount_cents: number | null; cleared_at: string | null }>;
-  const payoutRows = (payoutRes.data ?? []) as Array<{ total_cents: number | null; paid_at: string | null }>;
+  const payoutRows = (payoutRes.data ?? []) as Array<{
+    total_cents: number | null; recovered_cents: number | null; paid_at: string | null;
+  }>;
   const recRows = (recRes.data ?? []) as Array<{
     id: string; vendor_name: string | null; total_cents: number | null; transaction_at: string | null;
   }>;
@@ -118,7 +124,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .map((r) => ({ amount_cents: r.amount_cents ?? 0, at: r.cleared_at as string }));
   const payouts: MoneyEvent[] = payoutRows
     .filter((r) => Boolean(r.paid_at))
-    .map((r) => ({ amount_cents: r.total_cents ?? 0, at: r.paid_at as string }));
+    // The DISBURSED figure. `total_cents` is what the payment settled; only total − recovered left
+    // the bank account, and this stream is explicitly the cash-flow one.
+    .map((r) => ({ amount_cents: disbursedCents(r), at: r.paid_at as string }));
   const expenses: MoneyEvent[] = recRows
     .filter((r) => Boolean(r.transaction_at))
     .map((r) => ({ amount_cents: r.total_cents ?? 0, at: r.transaction_at as string }));

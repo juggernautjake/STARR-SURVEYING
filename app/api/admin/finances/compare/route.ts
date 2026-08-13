@@ -21,6 +21,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { microsToCents } from '@/lib/integrations/google-ads/spend';
+import { disbursedCents } from '@/lib/payroll/disbursement';
 import {
   comparePeriods,
   previousWindow,
@@ -37,7 +38,10 @@ async function totalsFor(from: string, to: string): Promise<PeriodTotals> {
   const [payRes, payoutRes, recRes, adRes, leadRes, jobRes] = await Promise.all([
     supabaseAdmin.from('payments').select('amount_cents')
       .eq('status', 'succeeded').gte('cleared_at', fromTs).lte('cleared_at', toTs),
-    supabaseAdmin.from('payout_batch_items').select('total_cents')
+    // `recovered_cents` too: what left the bank is total − recovered. Counting the settled figure
+    // overstates payouts for any month containing an advance repayment, and understates `net_cents`
+    // by the same amount — in the month-to-month comparison the owner reads.
+    supabaseAdmin.from('payout_batch_items').select('total_cents, recovered_cents')
       .eq('status', 'paid').gte('paid_at', fromTs).lte('paid_at', toTs),
     supabaseAdmin.from('receipts').select('total_cents')
       .in('status', ['approved', 'exported']).is('deleted_at', null)
@@ -56,7 +60,8 @@ async function totalsFor(from: string, to: string): Promise<PeriodTotals> {
       .reduce((s, r) => s + Math.max(0, Math.round(Number(r[field] ?? 0))), 0);
 
   const revenue_cents = sum(payRes.data, 'amount_cents');
-  const payouts_cents = sum(payoutRes.data, 'total_cents');
+  const payouts_cents = ((payoutRes.data ?? []) as Array<{ total_cents: number | null; recovered_cents: number | null }>)
+    .reduce((s, r) => s + disbursedCents(r), 0);
   const expenses_cents = sum(recRes.data, 'total_cents');
   // Micros → cents at the one documented boundary, on the TOTAL rather than per row: flooring each row
   // separately loses up to a cent per day, which across a year is a visible drift against the invoice.

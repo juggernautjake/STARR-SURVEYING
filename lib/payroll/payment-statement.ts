@@ -68,10 +68,6 @@ export interface PaymentStatement {
 
 const money = (cents: number): string => `$${(cents / 100).toFixed(2)}`;
 
-/** Payment methods where "paid" means the money has genuinely left the firm. `account` has not —
- *  it moved the obligation from "we owe you for hours" to "we hold this for you". */
-const LEAVES_THE_FIRM = new Set(['cash', 'check', 'venmo', 'cashapp', 'zelle', 'ach', 'other']);
-
 /**
  * Build an honest statement of one payment.
  *

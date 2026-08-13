@@ -246,7 +246,12 @@ export default function MyHoursPanel() {
       if (lockRes.ok) {
         const data = await lockRes.json();
         const locks = (data.locks ?? []) as Array<{ period_start: string; period_end: string; locked_by: string }>;
-        setWeekLock(locks.find((l) => l.period_start <= weekStart && l.period_end >= weekStart) ?? locks[0] ?? null);
+        // Only a lock that covers the MONDAY this view starts on, with no `?? locks[0]` fallback.
+        // The endpoint returns every lock OVERLAPPING the week, so falling back to the first meant a
+        // lock covering only Friday painted the whole week as closed — telling somebody they could
+        // not edit Monday when Monday was open. The server's 423 is per-date and stayed correct, so
+        // this was a banner that lied in the safe direction, which is still a banner that lies.
+        setWeekLock(locks.find((l) => l.period_start <= weekStart && l.period_end >= weekStart) ?? null);
       } else {
         setWeekLock(null);
       }

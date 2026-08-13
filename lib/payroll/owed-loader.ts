@@ -69,11 +69,27 @@ export async function loadOwed(scopeToEmail?: string | null): Promise<LoadOwedRe
     }
   }
 
-  const { payouts, error: payoutError } = await readPayouts({
+  const { payouts, error: payoutError, truncated } = await readPayouts({
     userEmail: scopeToEmail ?? undefined,
     limit: 5000,
   });
   if (payoutError) return { rows: [], error: `the payout ledger could not be read: ${payoutError}` };
+  // ── A PARTIAL LEDGER IS NOT A BALANCE ────────────────────────────────────────────────────────
+  //
+  // `owed` is approved earnings MINUS everything already paid. Reading only part of the payout side
+  // makes every balance too high — by exactly the payments that fell outside the page — and the
+  // next batch built from those balances pays hours that were already paid.
+  //
+  // Refused rather than returned partial, matching what the batch builder does with a bad read:
+  // *"Building a batch from a balance we could not fully read pays wrong amounts, and a payout is
+  // much harder to take back than to not make."*
+  if (truncated) {
+    return {
+      rows: [],
+      error: 'the payout ledger is larger than one page, so balances could not be computed safely — '
+        + 'raise the read limit before paying anybody from this figure',
+    };
+  }
 
   const byPerson = new Map<
     string,

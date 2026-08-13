@@ -50,12 +50,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const results = await sweepQueuedReceipts(BATCH_SIZE);
   const done = results.filter((r) => r.status === 'done').length;
   const failed = results.filter((r) => r.status === 'failed').length;
+  // Rows another entry point had already claimed. Counted separately so the log line does not read
+  // as a fault: the sweep reaching a receipt the capture page is already extracting is the normal
+  // race, and the claim refusing it is the guard working.
+  const skipped = results.filter((r) => r.status === 'skipped').length;
   const costCents = results.reduce((sum, r) => sum + (r.costCents ?? 0), 0);
 
   // Always log a line, including for an empty sweep. A silent run makes a stuck cron
   // indistinguishable from a healthy idle one — the exact confusion that let the queued backlog sit
   // unnoticed for months in the first place.
-  console.log(`[cron/receipt-extraction] ${done} done, ${failed} failed, ${costCents}¢`);
+  console.log(`[cron/receipt-extraction] ${done} done, ${failed} failed, ${skipped} already running, ${costCents}¢`);
 
-  return NextResponse.json({ attempted: results.length, done, failed, costCents });
+  return NextResponse.json({ attempted: results.length, done, failed, skipped, costCents });
 }, { routeName: 'cron/receipt-extraction' });

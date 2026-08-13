@@ -207,6 +207,16 @@ export default function HoursApprovalPage() {
    *  an entry added AFTER its week was closed off belongs to that week but is paid in the next
    *  payout, and until now looked identical to one submitted on time. */
   const [weekLocks, setWeekLocks] = useState<PeriodLock[]>([]);
+  /**
+   * EVERY entry in the visible week — all employees, all statuses — regardless of the filters.
+   *
+   * The close snapshot counts the whole period, so comparing it against `logs` compared a superset
+   * against a filtered subset: the default tab shows `pending,disputed` only, so "N entries have
+   * arrived since the close" computed a negative and the sentence could never appear on the tab it
+   * was rendered on. Worse for the case it exists to catch — an office-entered late day arrives
+   * `approved`, so it is invisible in that filter by definition.
+   */
+  const [periodLogs, setPeriodLogs] = useState<TimeLog[]>([]);
 
   // ── SET PAY (owner request, 2026-08-04) ──────────────────────────────────────────────────
   //
@@ -325,6 +335,16 @@ export default function HoursApprovalPage() {
           (l: { period_start: string; period_end: string }) => l.period_start === weekStart && l.period_end === weekEnd,
         );
         setWeekLock(exact || null);
+        // The unfiltered week, for the snapshot comparison and the late-entry count. Only fetched
+        // when the week is actually locked — there is nothing to compare against otherwise.
+        if (exact) {
+          try {
+            const allRes = await fetch(`/api/admin/time-logs?date_from=${weekStart}&date_to=${weekEnd}`);
+            if (allRes.ok) setPeriodLogs(((await allRes.json()).logs ?? []) as TimeLog[]);
+          } catch { /* the banner falls back to saying only what the period held at close */ }
+        } else {
+          setPeriodLogs([]);
+        }
         // ALL overlapping locks, not just the exact-week one. An entry is late relative to whichever
         // lock covers its own day — a monthly close, or a week that was locked, unlocked and locked
         // again — and the exact-match row above only answers "is the week I am looking at locked".
@@ -780,8 +800,10 @@ export default function HoursApprovalPage() {
               a payout. Says nothing at all for a period closed before snapshots were recorded —
               inventing the figure by re-totalling today is what the snapshot exists to prevent. */}
           {(() => {
-            const line = describeSnapshot(weekLock, logs.length);
-            const late = countLateEntries(logs, weekLocks);
+            // `periodLogs`, not `logs` — the snapshot counted the whole period, so the comparison
+            // has to as well. See the note on `periodLogs`.
+            const line = describeSnapshot(weekLock, periodLogs.length);
+            const late = countLateEntries(periodLogs, weekLocks);
             return (
               <>
                 {line && <> <strong>{line}</strong></>}

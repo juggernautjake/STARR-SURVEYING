@@ -590,6 +590,12 @@ function ReceiptRow({
         setAiMsg(
           `✓ Read it${json.result.costCents ? ` · ${formatCents(json.result.costCents)}` : ''}.`,
         );
+      } else if (json?.result?.status === 'skipped') {
+        // Not a failure and not shown as one. Two entry points racing is the NORMAL case — the
+        // capture page kicks an extraction and the hourly sweep may reach the same row seconds
+        // later — and whichever loses simply could not claim it, which is the claim working. This
+        // rendered "⚠ already being extracted" on receipts that were extracting perfectly well.
+        setAiMsg('The AI is already reading this one — it will appear in a moment.');
       } else {
         // A per-receipt failure comes back 200 with a failed result — the endpoint reserves
         // non-2xx for "the AI is not available at all". Both are shown, in the words of what went

@@ -112,7 +112,18 @@ export interface ReceiptCurrentSnapshot {
 
 export interface ExtractionResult {
   receiptId: string;
-  status: 'done' | 'failed';
+  /**
+   * `skipped` is not a failure and must not be rendered as one.
+   *
+   * Two of the three entry points firing at once is the NORMAL case — the capture page kicks an
+   * extraction and the hourly cron sweep may reach the same row seconds later. Whichever loses the
+   * race could not claim the row, which is the claim working. It was returned as
+   * `status: 'failed', error: 'already being extracted'`, directly under a comment saying that
+   * *"reporting this as a failure would put a red banner on a receipt that is being processed
+   * correctly"* — and the receipts page duly rendered `⚠ already being extracted` on receipts that
+   * were extracting perfectly well.
+   */
+  status: 'done' | 'failed' | 'skipped';
   error?: string;
   costCents?: number;
 }

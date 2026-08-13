@@ -248,11 +248,27 @@ export function filterPayouts(payouts: PayoutRecord[], filter: PayoutFilter = {}
  * the row filters live on the child, and expressing that as one embedded query is where this kind
  * of read silently starts returning the wrong set. Both tables are small.
  */
-export async function readPayouts(query: PayoutQuery = {}): Promise<{ payouts: PayoutRecord[]; error: string | null }> {
+export async function readPayouts(
+  query: PayoutQuery = {},
+): Promise<{ payouts: PayoutRecord[]; error: string | null; truncated: boolean }> {
   let items = supabaseAdmin
     .from('payout_batch_items')
     .select(ITEM_COLUMNS)
-    .order('paid_at', { ascending: false, nullsFirst: false })
+    // ── ORDER BY created_at, NOT paid_at — THE LIMIT MUST NOT EAT THE DRAFTS ────────────────────
+    //
+    // This ordered by `paid_at` with `nullsFirst: false`, which puts every UNPAID row last — and
+    // unpaid rows in a draft batch are exactly what stops a week being paid twice. `owed.ts` counts
+    // drafts as committed on purpose: *"pressing the button twice would build two batches for the
+    // same hours and somebody would be paid double."*
+    //
+    // So once the ledger exceeded the limit, the first rows dropped were the guard itself. Every
+    // balance would re-inflate to full, and the next `pay-owed` POST — or the Friday cron, with
+    // nobody watching — would build a SECOND batch for hours already in a draft. Both would
+    // dispatch.
+    //
+    // `created_at` truncates the oldest settled history instead, which is the harmless end: a stale
+    // payment falling out of a search is a display gap, while a missing draft is a double payment.
+    .order('created_at', { ascending: false, nullsFirst: false })
     .limit(query.limit ?? 500);
 
   if (query.userEmail) items = items.eq('user_email', query.userEmail.toLowerCase());
@@ -260,11 +276,16 @@ export async function readPayouts(query: PayoutQuery = {}): Promise<{ payouts: P
   if (query.to) items = items.lte('paid_at', query.to);
   if (query.paidOnly) items = items.eq('status', 'paid');
 
+  const limit = query.limit ?? 500;
   const { data: itemRows, error: itemError } = await items;
-  if (itemError) return { payouts: [], error: itemError.message };
+  if (itemError) return { payouts: [], error: itemError.message, truncated: false };
 
   const rows = (itemRows ?? []) as BatchItemRow[];
-  if (rows.length === 0) return { payouts: [], error: null };
+  // A full page means there is almost certainly more. Reported rather than assumed complete: a
+  // caller computing a BALANCE from a partial ledger under-counts what has been paid and re-inflates
+  // somebody's owed figure, which is how the same hours get paid twice.
+  const truncated = rows.length >= limit;
+  if (rows.length === 0) return { payouts: [], error: null, truncated: false };
 
   const { data: batchData, error: batchError } = await supabaseAdmin
     .from('payout_batches')
@@ -275,7 +296,7 @@ export async function readPayouts(query: PayoutQuery = {}): Promise<{ payouts: P
   // Named, not swallowed. The items are still worth returning — they carry the amounts — but the
   // caller should know the period and label will be missing rather than assume the payouts had none.
   if (batchError) {
-    return { payouts: rows.map((r) => toRecord(r, undefined)), error: batchError.message };
+    return { payouts: rows.map((r) => toRecord(r, undefined)), error: batchError.message, truncated };
   }
 
   const batches = new Map(batchRows.map((b) => [b.id, b]));
@@ -286,7 +307,7 @@ export async function readPayouts(query: PayoutQuery = {}): Promise<{ payouts: P
     ? rows.filter((r) => batches.get(r.batch_id)?.org_id === query.orgId)
     : rows;
 
-  return { payouts: scoped.map((r) => toRecord(r, batches.get(r.batch_id))), error: null };
+  return { payouts: scoped.map((r) => toRecord(r, batches.get(r.batch_id))), error: null, truncated };
 }
 
 /** Total paid, in cents, over the rows a query returns. */

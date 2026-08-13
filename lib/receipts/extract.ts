@@ -112,7 +112,7 @@ export async function extractReceipt(
     // firing at once is the NORMAL case — the capture page kicks an extraction, and the cron sweep
     // may reach the same row seconds later. Reporting this as a failure would put a red banner on a
     // receipt that is being processed correctly.
-    return { receiptId, status: 'failed', error: 'already being extracted' };
+    return { receiptId, status: 'skipped', error: 'already being extracted' };
   }
 
   return runExtraction({
