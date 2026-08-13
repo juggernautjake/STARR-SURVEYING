@@ -188,7 +188,7 @@ nobody can run payroll at all:
 | **S9b** | ⚠️ **SCOPE WAS WRONG — corrected 2026-08-12, see §S9b below.** Porting stub generation would print invented tax figures on a wage statement. The honest half shipped (`lib/payroll/payment-statement.ts`); whether the firm should withhold at all is an accountant's decision, not this codebase's. |
 | **S9c** | *Now* close `POST /api/admin/payroll/runs` — once nothing unique lives behind it. Keep `GET` (historical runs and stubs are records of real payments) and `PUT` (an existing run must still be finishable). |
 | **S7** | ✅ **SHIPPED 2026-08-12** (seed 589). Closing a week offers "Prepare the payout" and records which batch it produced, so "did we ever pay the week we closed?" stops being a comparison of dates by eye. The link means *what prompted the payout* — NOT "this batch holds exactly this week's hours", because the surviving engine is balance-driven and reading it that way would re-introduce the period-window thinking `owed.ts` exists to avoid. |
-| **S5** | Whether approval credits the balance ahead of dispatch. |
+| **S5** | ✅ **ANSWERED + GUARDED 2026-08-12: no.** `available_balance` means "we hold this and you can withdraw it"; approving a batch means "the firm agrees it owes this" and the batch can still be voided. Crediting at approval would let somebody withdraw against a payment that never happened. The credit stays where the obligation actually changes shape — an `account`-method item marked paid. Closed by a decision plus `__tests__/payroll/balance-writers.test.ts`, not by new crediting code. |
 | **S8** | Auto-transfer. Last, on a ledger that has been reconciling for a while. |
 
 **One thing D2 settles for free.** The surviving engine is **balance-driven, not period-driven**:

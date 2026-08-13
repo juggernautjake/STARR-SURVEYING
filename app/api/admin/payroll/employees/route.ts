@@ -248,6 +248,29 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // ── THE BALANCE MOVES THROUGH THE LEDGER, OR IT DOES NOT MOVE ─────────────────────────────────
+  //
+  // This handler spreads `updates` straight into the row, so `available_balance` could be PATCHed to
+  // any figure — with no `balance_transactions` row behind it. That is precisely the drift
+  // `checkBalanceIntegrity` reports as "unexplained", and an employee can withdraw against it.
+  //
+  // A balance is a running total of its ledger, not an editable field. Every legitimate movement has
+  // a writer already: a payout item marked paid on the `account` method, a completed legacy run, and
+  // a processed withdrawal. Anything else is a number somebody typed, and it cannot be reconciled,
+  // reversed or explained afterwards.
+  //
+  // Refused loudly rather than stripped silently: a caller trying to set a balance has a reason, and
+  // it is one somebody should hear out loud rather than have quietly ignored.
+  const LEDGER_OWNED = ['available_balance', 'total_earned', 'total_withdrawn'];
+  const attempted = LEDGER_OWNED.filter((f) => f in updates);
+  if (attempted.length > 0) {
+    return NextResponse.json({
+      error: `${attempted.join(' and ')} cannot be set directly — a balance is the sum of its `
+        + 'movements, and one written by hand cannot be explained or reversed. Credit it through a '
+        + 'payout, or record a withdrawal.',
+    }, { status: 400 });
+  }
+
   // ── HOW THIS PERSON GETS PAID ─────────────────────────────────────────────────────────────────
   //
   // `payout_method` is what the batch builder stamps onto every payout item, and it was READ by the
