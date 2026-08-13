@@ -1,6 +1,6 @@
 // app/api/admin/payroll/balance/route.ts — Balance & withdrawal management
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, isAdmin } from '@/lib/auth';
+import { auth, isAdmin, canHandleMoney } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
@@ -23,7 +23,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // had `approve`, `reject` and `process` since it was written and nothing has ever listed what
   // there was to approve — so a request went into a void, exactly as submitting hours used to.
   if (type === 'queue') {
-    if (!isAdmin(session.user.roles)) {
+    if (!canHandleMoney(session.user.roles)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     const { data, error } = await supabaseAdmin
@@ -57,7 +57,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const targetEmail = email || session.user.email;
 
-  if (!isAdmin(session.user.roles) && targetEmail !== session.user.email) {
+  // Your own money, always. Somebody ELSE's takes the money-handling role — this is the read the
+  // owner named: *"Only people with money handling permissions will be able to see the accounts of
+  // the employees."*
+  if (!canHandleMoney(session.user.roles) && targetEmail !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -233,9 +236,9 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ request: data });
   }
 
-  // Admin actions
-  if (!isAdmin(session.user.roles)) {
-    return NextResponse.json({ error: 'Admin only' }, { status: 403 });
+  // Deciding a withdrawal moves money, so it takes the money-handling role rather than plain admin.
+  if (!canHandleMoney(session.user.roles)) {
+    return NextResponse.json({ error: 'You do not have permission to handle money.' }, { status: 403 });
   }
 
   if (action === 'approve') {

@@ -27,6 +27,20 @@ export const ALL_ROLES = [
   // unreturned gear at end of day. Often a hat worn by an existing admin at Starr's current size;
   // modelled cleanly so a future dedicated hire is a permission flip, not a refactor.
   'equipment_manager',
+  // Owner, 2026-08-12: *"Only people with money handling permissions will be able to see the
+  // accounts of the employees."*
+  //
+  // Until now there was no such thing. Everything financial gated on `admin`, plus one
+  // `PAYOUT_ADMIN_EMAILS` env allowlist whose own header calls itself a placeholder for exactly
+  // this role. `admin` is the person who can do everything, which makes it useless as the answer to
+  // "who may look at what somebody earns" — a bookkeeper who approves receipts and an office
+  // manager who resets passwords are the same role today, and only one of them should see wages.
+  //
+  // Deliberately additive rather than a split of `admin`: every existing admin keeps every
+  // capability (see `canHandleMoney`), so this changes nothing until somebody is given the role
+  // WITHOUT admin. A permission model that revokes access the day it ships is one that gets
+  // reverted the day after.
+  'finance',
 ] as const;
 
 export type UserRole = (typeof ALL_ROLES)[number];
@@ -44,6 +58,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   guest: 'Guest',
   tech_support: 'Tech Support',
   equipment_manager: 'Equipment Manager',
+  finance: 'Finance',
 };
 
 /** Role descriptions for the admin UI. */
@@ -59,6 +74,7 @@ export const ROLE_DESCRIPTIONS: Record<UserRole, string> = {
   guest: 'External user. Limited to dashboard, profile, and basic learning.',
   tech_support: 'Error logs, view-only access to most pages for troubleshooting.',
   equipment_manager: 'Owns the equipment + supplies inventory: morning checkout, end-of-day reconcile, maintenance schedules, low-stock restock, and damaged/lost triage. Cannot approve receipts or hours.',
+  finance: 'Handles money: can see what employees have earned, review withdrawal requests, and move payouts. Give this to a bookkeeper who should see wages without being able to manage users or roles.',
 };
 
 /** How often (in seconds) to re-fetch roles from the DB for an active session. */
@@ -70,6 +86,8 @@ export const ROLES_REFRESH_INTERVAL_SECONDS = 30;
  *  the generic field roles for display purposes — and below admin / developer / teacher / support. */
 export const ROLE_PRIORITY: UserRole[] = [
   'admin', 'developer', 'teacher', 'tech_support',
+  // Above equipment_manager: handling wages is the more accountable hat of the two.
+  'finance',
   'equipment_manager',
   'researcher', 'drawer', 'field_crew', 'student', 'guest', 'employee',
 ];
@@ -94,4 +112,25 @@ export function isAdminRoles(roles: UserRole[] | null | undefined): boolean {
 /** Admin or developer — both have broad access. */
 export function isDeveloperRoles(roles: UserRole[] | null | undefined): boolean {
   return !!roles && (roles.includes('admin') || roles.includes('developer'));
+}
+
+/**
+ * May this person see what employees have earned, and move money?
+ *
+ * *"Only people with money handling permissions will be able to see the accounts of the
+ * employees."*
+ *
+ * ── WHAT THIS DELIBERATELY DOES NOT DO ───────────────────────────────────────────────────────────
+ *
+ * It does not take anything away from `admin`. Every admin already handles money today, and a
+ * permission model whose first act is to lock the owner out of payroll is one that gets reverted
+ * before it is understood. The value arrives the other way round: a bookkeeper can now be given
+ * `finance` WITHOUT `admin` and see wages without also being able to manage users, roles, jobs or
+ * settings — which is not expressible today at all.
+ *
+ * `developer` is deliberately absent. It exists so somebody can test the application, and a testing
+ * role that can read every employee's earnings is the one role that should not.
+ */
+export function canHandleMoney(roles: UserRole[] | null | undefined): boolean {
+  return !!roles && (roles.includes('admin') || roles.includes('finance'));
 }

@@ -52,6 +52,7 @@ const ROLE_DISPLAY: Record<UserRole, string> = {
   guest: 'Guest',
   tech_support: 'Tech Support',
   equipment_manager: 'Equipment Manager',
+  finance: 'Finance',
 };
 
 const BRAND_LABELS: Record<string, string> = {

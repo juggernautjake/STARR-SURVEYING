@@ -62,7 +62,9 @@ export default function WithdrawalQueuePage() {
       if (!res.ok) {
         throw new Error(
           res.status === 403
-            ? 'You need admin access to review withdrawals.'
+            // Names the role, because "access denied" leaves somebody guessing which of their
+            // permissions is missing and who can grant it.
+            ? 'You need the Finance role (or admin) to review withdrawals.'
             : json.error || `The queue could not be loaded (HTTP ${res.status}).`,
         );
       }

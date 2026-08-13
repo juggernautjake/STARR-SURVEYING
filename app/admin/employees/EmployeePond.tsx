@@ -116,6 +116,7 @@ const ROLE_FILTER_LABELS: Record<UserRole, string> = {
   student: 'Student',
   developer: 'Developer',
   guest: 'Guest',
+  finance: 'Finance',
 };
 
 /** Slice E2 — search + role filter contract. Search prefix-matches the

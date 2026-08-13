@@ -3,8 +3,9 @@ import 'next-auth';
 // Mirror of `lib/auth.ts ALL_ROLES`. Keep in sync — adding a role
 // to ALL_ROLES requires adding it here too or session.user.role
 // assignments fail TS2322. Phase F10.0e (ded0b67) added
-// 'equipment_manager'.
-type UserRoleType = 'admin' | 'developer' | 'teacher' | 'student' | 'researcher' | 'drawer' | 'field_crew' | 'employee' | 'guest' | 'tech_support' | 'equipment_manager';
+// 'equipment_manager'; 2026-08-12 added 'finance' (money handling —
+// see `canHandleMoney` in lib/auth-roles.ts).
+type UserRoleType = 'admin' | 'developer' | 'teacher' | 'student' | 'researcher' | 'drawer' | 'field_crew' | 'employee' | 'guest' | 'tech_support' | 'equipment_manager' | 'finance';
 
 // SaaS pivot — per docs/planning/in-progress/MULTI_TENANCY_FOUNDATION.md §4.1.
 // Optional additive fields so the new auth path can be wired without

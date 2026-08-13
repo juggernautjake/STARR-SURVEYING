@@ -38,6 +38,7 @@ const ROLE_BACKGROUND: Record<UserRole, string> = {
   employee:          '#475569', // slate
   guest:             '#6B7280', // gray
   tech_support:      '#0369A1', // sky blue
+  finance:           '#166534', // dark green — money
   equipment_manager: '#B91C1C', // red
 };
 

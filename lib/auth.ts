@@ -18,12 +18,12 @@ import { resolveIsCompanyUser } from '@/lib/saas/internal-user';
 // every existing server-side `from '@/lib/auth'` keeps working. See lib/auth-roles.ts.
 import {
   ALL_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_PRIORITY, ROLES_REFRESH_INTERVAL_SECONDS,
-  getPrimaryRole, isAdminRoles, isDeveloperRoles, type UserRole,
+  getPrimaryRole, isAdminRoles, isDeveloperRoles, canHandleMoney, type UserRole,
 } from '@/lib/auth-roles';
 
 export {
   ALL_ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_PRIORITY, ROLES_REFRESH_INTERVAL_SECONDS,
-  getPrimaryRole, isAdminRoles, isDeveloperRoles,
+  getPrimaryRole, isAdminRoles, isDeveloperRoles, canHandleMoney,
 };
 export type { UserRole };
 
