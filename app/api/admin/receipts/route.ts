@@ -29,7 +29,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 //
 // Imported now, and re-exported so existing importers of `AdminReceiptRow` from this route keep
 // working unchanged.
-import type { ReceiptRow, AdminReceiptRow } from '@/app/admin/receipts/receipt-types';
+import type { ReceiptRow, AdminReceiptRow, ReceiptPaymentCard } from '@/app/admin/receipts/receipt-types';
 // `needsReview` is imported as a VALUE, not re-implemented here: the tab's count and the rows
 // behind it must answer the question the same way, and the surest way to guarantee that is one
 // function. See its note in receipt-types.ts for why `queued` is deliberately not "needs review".
@@ -101,10 +101,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // "which of these did the AI struggle with, or warn about?" — and it is the view that makes R6's
   // flags actionable rather than merely visible.
   //
-  // Three things qualify, each for a different reason:
+  // FOUR things qualify, each for a different reason:
   //   · extraction_status = 'failed'  — the AI never read it; somebody must key it in or re-run.
   //   · dedup_match_id IS NOT NULL    — possibly the same receipt twice. Only a person can tell.
   //   · review_flags is a non-empty array — the AI read it and saw something off.
+  //   · an unrecognised card with no decision recorded (seed 591) — the owner's case: an employee
+  //     may have paid on their own card, and whether we owe them, or should disregard it as a
+  //     personal purchase, is a question nothing can derive. `and(…)` because the pair is one
+  //     condition: an unrecognised card that HAS been answered is finished business and must leave
+  //     this view, or the queue never empties and stops being read.
   //
   // The third predicate is the load-bearing one, and its SQL was VERIFIED rather than assumed:
   // PostgREST renders `ai_extras->>review_flags=neq.[]` as `(ai_extras->>'review_flags') <> '[]'`,
@@ -115,7 +120,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const needsReviewView = status === 'needs_review';
   if (needsReviewView) {
     query = query.or(
-      'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[]',
+      'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[],'
+        + 'and(card_match_status.eq.not_on_file,expense_nature.is.null)',
     );
   } else if (status) {
     query = query.eq('status', status);
@@ -279,6 +285,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // (No more post-filter — resolvedUserId already constrained the query.)
   const filtered = receiptRows;
 
+  // ── The card that paid, resolved (2026-08-13) ─────────────────────────────────────────────────
+  //
+  // `payment_card_id` has been written by the matcher since seed 584 and read by nothing. Resolving
+  // it here is what makes the whole "whose money was it" precedence in `lib/finance/tax-summary.ts`
+  // reachable — without the row, that rule ranked first and never fired, and a dinner on somebody's
+  // own Visa was filed as a 50%-deductible company meal.
+  //
+  // One batched query, like every other lookup on this route. The cards table is small; the whole of
+  // it would be a reasonable fetch, but the ids are already to hand.
+  const cardIds = unique(
+    filtered.map((r) => (r as { payment_card_id?: string | null }).payment_card_id).filter(isString),
+  );
+  const cardById = new Map<string, ReceiptPaymentCard>();
+  if (cardIds.length > 0) {
+    const { data: cards, error: cardErr } = await supabaseAdmin
+      .from('payment_cards')
+      .select('id, label, last4, brand, role, holder_name, retired_at')
+      .in('id', cardIds);
+    if (cardErr) {
+      // Not fatal. A receipt queue that will not load because a lookup failed is worse than one
+      // whose card column is blank — and the blank is honest: nothing is filed without the card.
+      console.warn('[admin/receipts] payment-card lookup failed', { error: cardErr.message });
+    }
+    for (const c of (cards ?? []) as ReceiptPaymentCard[]) cardById.set(c.id, c);
+  }
+
+
   // Generate signed photo URLs in parallel. Failure is non-fatal —
   // the row still renders with a "photo unavailable" placeholder. We
   // log the FIRST FEW failures per request so a misconfigured bucket
@@ -324,6 +357,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       ai_extras: (r as { ai_extras?: AdminReceiptRow['ai_extras'] }).ai_extras ?? null,
       dedup_match_id: (r as { dedup_match_id?: string | null }).dedup_match_id ?? null,
       line_items: lineItemsByReceiptId.get(r.id) ?? [],
+      // The card row itself, not just its id. The page needs `role` to say whose money this was, and
+      // an id it would have to look up per row is an id it will not look up at all.
+      payment_card: (() => {
+        const id = (r as { payment_card_id?: string | null }).payment_card_id;
+        return id ? cardById.get(id) ?? null : null;
+      })(),
     };
   });
 

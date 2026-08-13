@@ -112,8 +112,29 @@ describe('the cases that must NOT be called "not on file"', () => {
     expect(r.flag).toBeNull();
   });
 
-  it('a receipt with no payment detail at all raises nothing', () => {
-    expect(matchCardOnFile({}, CARDS).status).toBe('not_a_card');
+  it('a cheque raises nothing either', () => {
+    for (const method of ['check', 'cheque', 'Money Order']) {
+      expect(matchCardOnFile({ payment_method: method }, CARDS).status, method).toBe('not_a_card');
+    }
+  });
+
+  // Changed 2026-08-13. This used to assert `not_a_card`, on the reasoning that a blank receipt has
+  // nothing to check. Owner: *"We need to know what card is paying for each receipt unless it is
+  // cash or check."* A receipt whose payment line was never read is not a receipt we know was cash —
+  // it is one we know nothing about, and filing it as "no card involved" is the one outcome that
+  // removes it from the check without anybody deciding to.
+  it('a receipt with no payment detail is "unknown", NOT "not a card"', () => {
+    const r = matchCardOnFile({}, CARDS);
+    expect(r.status).toBe('unknown');
+    expect(r.flag).toMatch(/cannot tell whether a card was used/i);
+    expect(r.flag, 'must not accuse a card of being unrecognised').not.toMatch(/NOT on file/);
+  });
+
+  it('an unrecognised payment method is unknown rather than assumed cash', () => {
+    // "debit" is not the literal string 'card' and is not in the cash/cheque list. The old rule
+    // answered "not a card" to everything that was not exactly 'card', which is how a debit-card
+    // purchase would have left the check silently.
+    expect(matchCardOnFile({ payment_method: 'debit' }, CARDS).status).toBe('unknown');
   });
 
   it('a retired company card is ours, and says so', () => {
@@ -151,7 +172,18 @@ describe('the extraction prompt accounts for money that is not printed', () => {
   const prompt = EXTRACTION_PROMPT;
 
   it('states the identity the numbers must satisfy', () => {
-    expect(prompt).toMatch(/subtotal \+ tax \+ tip - discount = total/);
+    // Seed 590 added `service_charge` to the identity. It has to be a term in its own right: an
+    // 18% auto-gratuity folded into either the tax or the tip makes the equation balance while
+    // misattributing the money, which is the failure that has no symptom.
+    expect(prompt).toMatch(/subtotal \+ tax \+ service_charge \+ tip - discount = total/);
+  });
+
+  it('tells the model a service charge is not a tip the customer chose', () => {
+    expect(prompt).toMatch(/A SERVICE CHARGE IS NOT A TIP/);
+    expect(prompt).toMatch(/service_charge_cents/);
+    // Both directions of the mistake, because either one alone reads as a rule about one field.
+    expect(prompt).toMatch(/the BUSINESS added/);
+    expect(prompt).toMatch(/what the CUSTOMER chose/);
   });
 
   it('tells the model to infer an unprinted tip, with the owner’s own example', () => {

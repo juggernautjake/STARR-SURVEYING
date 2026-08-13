@@ -38,7 +38,15 @@ interface PatchBody {
   tax_deductible_flag?: string | null;
   notes?: string | null;
   job_id?: string | null;
+  // ── Seed 591 — answering "whose money was this?" ────────────────────────────────────────────
+  /** 'business' | 'personal' | null. The one fact nothing can derive. */
+  expense_nature?: string | null;
+  expense_nature_note?: string | null;
+  /** The card on file that really paid. Sending this CONFIRMS it — `null` un-confirms and clears. */
+  payment_card_id?: string | null;
 }
+
+const ALLOWED_EXPENSE_NATURE = new Set(['business', 'personal']);
 
 export const PATCH = withErrorHandler(
   async (req: NextRequest) => {
@@ -119,6 +127,40 @@ export const PATCH = withErrorHandler(
       }
       update.job_id = body.job_id ? body.job_id : null;
     }
+    // ── Whose money was it, and was it business at all (seed 591) ─────────────────────────────
+    //
+    // Owner, 2026-08-13: *"maybe one of the employees paid for something without using the business
+    // card… we might reimburse them, or maybe not depending. We might want to disregard the receipt
+    // entirely from our taxes because it might have just been a personal purchase."*
+    //
+    // These two are the write half of that. Everything else in the feature reads them.
+    if (body.expense_nature !== undefined) {
+      if (body.expense_nature !== null && !ALLOWED_EXPENSE_NATURE.has(body.expense_nature)) {
+        return NextResponse.json(
+          { error: `Invalid expense_nature: ${body.expense_nature}. Expected 'business', 'personal' or null.` },
+          { status: 400 },
+        );
+      }
+      update.expense_nature = body.expense_nature;
+    }
+    if (body.expense_nature_note !== undefined) {
+      update.expense_nature_note = body.expense_nature_note;
+    }
+    if (body.payment_card_id !== undefined) {
+      if (body.payment_card_id !== null && typeof body.payment_card_id !== 'string') {
+        return NextResponse.json({ error: 'payment_card_id must be a string or null' }, { status: 400 });
+      }
+      update.payment_card_id = body.payment_card_id ? body.payment_card_id : null;
+      // Naming the card IS the confirmation — a person picked it from the list of cards on file, and
+      // that is precisely the human agreement `card_confirmed_at` records. Clearing the card clears
+      // the confirmation with it: leaving a stale timestamp behind would say somebody had confirmed
+      // a card that is no longer set, and `taxSummaryFor` would then file on nothing.
+      update.card_confirmed_at = body.payment_card_id ? new Date().toISOString() : null;
+      update.card_confirmed_by = body.payment_card_id
+        ? await resolveAdminUserId(session.user.email)
+        : null;
+    }
+
     if (body.rejected_reason !== undefined && body.status === undefined) {
       // Allow updating the rejection reason without changing status
       // (bookkeeper clarifying after the fact).

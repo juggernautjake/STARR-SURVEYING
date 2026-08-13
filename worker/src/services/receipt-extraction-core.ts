@@ -68,6 +68,14 @@ export interface ExtractedReceipt {
   subtotal_cents: number | null;
   tax_cents: number | null;
   tip_cents: number | null;
+  /**
+   * A gratuity or service fee the BUSINESS added — an 18% large-party charge, a service fee.
+   *
+   * Kept apart from tip_cents because they are different facts: a party billed 18% has not tipped
+   * voluntarily, and somebody who wrote a figure on the tip line did not have it imposed. See
+   * lib/receipts/charges.ts for how the two are attributed.
+   */
+  service_charge_cents: number | null;
   discount_cents: number | null;
   total_cents: number | null;
   currency: string | null;
@@ -179,6 +187,7 @@ export function buildReceiptUpdate(
       card_holder_name: extracted.card_holder_name,
       receipt_number: extracted.receipt_number,
       discount_cents: extracted.discount_cents,
+      service_charge_cents: extracted.service_charge_cents,
       currency: extracted.currency,
     },
   };
@@ -234,6 +243,7 @@ export function parseExtraction(raw: string): ExtractedReceipt {
     subtotal_cents: nonNegIntOrNull(parsed.subtotal_cents),
     tax_cents: nonNegIntOrNull(parsed.tax_cents),
     tip_cents: nonNegIntOrNull(parsed.tip_cents),
+    service_charge_cents: nonNegIntOrNull(parsed.service_charge_cents),
     discount_cents: nonNegIntOrNull(parsed.discount_cents),
     total_cents: nonNegIntOrNull(parsed.total_cents),
     currency: trimOrNull(parsed.currency),
@@ -351,7 +361,8 @@ The user has uploaded a photo of a paper receipt (gas station, hardware store, r
   "transaction_at":       string | null,    // ISO-8601 if date+time visible (e.g. "2026-04-26T14:35:00-05:00"); date-only if no time ("2026-04-26"); null if illegible
   "subtotal_cents":       int | null,       // Pre-tax pre-tip subtotal in cents
   "tax_cents":            int | null,       // Sales tax in cents
-  "tip_cents":            int | null,       // Tip / gratuity in cents (restaurants only; null for retail)
+  "tip_cents":            int | null,       // Tip the CUSTOMER chose, in cents. The tip line. Null for retail.
+  "service_charge_cents": int | null,       // Gratuity the BUSINESS added: "Service charge", "Gratuity 18%", "Large party fee". NOT the same as tip_cents — see the rule below.
   "discount_cents":       int | null,       // Discounts / coupons applied, as a POSITIVE number of cents
   "total_cents":          int | null,       // Grand total in cents
   "currency":             string | null,    // ISO code, e.g. "USD". Null if not stated and not obviously USD
@@ -382,7 +393,7 @@ Rules:
 - **MAKE THE ARITHMETIC CLOSE. This is the most important rule after reading the total.**
   The identity that must hold is:
 
-        subtotal + tax + tip - discount = total
+        subtotal + tax + service_charge + tip - discount = total
 
   Before you answer, compute it with the numbers you read. If it does not balance, you have either
   misread a figure or missed one that is not printed. Work out which, and account for the difference —
@@ -396,6 +407,21 @@ Rules:
     arithmetic, not a guess: record it with a confidence around 0.7 and say so in ai_summary.
   * Restaurants often print TWO slips in one photo — an itemised bill and a card slip with a larger
     total. Treat the LARGER charged amount as \`total_cents\` and the difference as the tip.
+    If the photo shows ONLY ONE of the two, read that one faithfully and do not invent the other:
+    the two slips are frequently photographed separately, and the pair is matched afterwards by the
+    fact that the bill's total equals the slip's subtotal. Reporting a card slip's subtotal as if it
+    were the pre-tax subtotal is fine and expected — that is what the slip prints.
+
+- **A SERVICE CHARGE IS NOT A TIP, and they must not be merged.**
+  \`service_charge_cents\` is what the BUSINESS added and the customer had no say in: "Gratuity 18%",
+  "Service charge", "Large party 20%", a delivery or service fee. It is usually printed in the same
+  column as the tax, above the total, and it is already included in the amount charged.
+  \`tip_cents\` is what the CUSTOMER chose — the tip line, usually handwritten, usually the only
+  figure on the paper that is not typed.
+  A receipt can have BOTH: a party of twelve billed an 18% auto-gratuity who still rounded up. Report
+  each in its own field. Reporting one as the other misstates both the payer and the business, so
+  when a line's wording genuinely does not say who added it, put it in \`service_charge_cents\` only
+  if it is printed and included in the total, and raise a review flag naming the line as printed.
   * If the gap cannot be a tip — a hardware store, a fuel pump, a toll — then you have misread
     something. Re-read the figures. If it still will not balance, return what is printed and raise the
     review flag "Subtotal + tax does not equal total" with both numbers in the flag text.

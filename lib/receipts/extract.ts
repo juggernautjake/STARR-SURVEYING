@@ -36,7 +36,9 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { matchCardOnFile } from './card-on-file';
+import { breakdownCharges } from './charges';
 import { reconcileAmounts } from './reconcile';
+import { findSamePurchase, type ComparableReceipt } from './same-purchase';
 import {
   EXTRACTION_PROMPT,
   MAX_TOKENS,
@@ -372,6 +374,90 @@ async function writeBack(
     if (matches && matches.length > 0) {
       update.dedup_match_id = (matches[0] as { id: string }).id;
     }
+  }
+
+  // ── TWO PIECES OF PAPER, ONE MEAL (owner request, 2026-08-13) ──────────────────────────────────
+  //
+  // *"I think I added two receipts for texas roadhouse… one that is $100 and one that is $84.34, but
+  // really they are for the same meal… so that we don't count the purchase twice."*
+  //
+  // The fingerprint above cannot find this pair and never could: it is vendor|total|date, and these
+  // two receipts have different totals (the tip) on different dates (23:59 and 00:04). What finds
+  // them is that the bill's TOTAL is the slip's SUBTOTAL — see `same-purchase.ts`.
+  //
+  // The link is written but nothing is deleted or hidden: the superseded row stops counting toward
+  // expenses and keeps its itemisation, which is the only record of what the food and the tax were.
+  let settledBillTotalCents: number | null = null;
+  const amounts = {
+    vendor_name: (update.vendor_name as string | null) ?? cur.vendor_name ?? null,
+    transaction_at: (update.transaction_at as string | null) ?? cur.transaction_at ?? null,
+    subtotal_cents: (update.subtotal_cents as number | null) ?? cur.subtotal_cents ?? null,
+    tax_cents: (update.tax_cents as number | null) ?? cur.tax_cents ?? null,
+    tip_cents: (update.tip_cents as number | null) ?? cur.tip_cents ?? null,
+    total_cents: (update.total_cents as number | null) ?? cur.total_cents ?? null,
+  };
+  try {
+    const candidate: ComparableReceipt = { id: row.id, ...amounts, created_at: null };
+    const { data: nearby } = await supabaseAdmin
+      .from('receipts')
+      .select('id, vendor_name, transaction_at, subtotal_cents, tax_cents, tip_cents, total_cents, created_at')
+      .eq('user_id', row.user_id)
+      .neq('id', row.id)
+      .neq('status', 'rejected')
+      // Rows already superseded are spoken for; pairing a third receipt to one of them would build a
+      // chain, and a chain is how a total starts double-counting again from the other end.
+      .is('superseded_by_receipt_id', null)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    const match = findSamePurchase(candidate, (nearby ?? []) as ComparableReceipt[]);
+    if (match) {
+      if (match.supersededId === row.id) {
+        // This receipt is the itemisation; the one already on file is what left the account.
+        update.superseded_by_receipt_id = match.countId;
+        update.same_purchase_kind = match.kind;
+        update.same_purchase_confidence = match.confidence;
+      } else {
+        // This receipt is the card slip. The bill on file becomes the itemisation — and its total is
+        // exactly the figure that lets the handwritten tip be recovered below.
+        const bill = ((nearby ?? []) as ComparableReceipt[]).find((r) => r.id === match.supersededId);
+        settledBillTotalCents = bill?.total_cents ?? null;
+        await supabaseAdmin
+          .from('receipts')
+          .update({
+            superseded_by_receipt_id: row.id,
+            same_purchase_kind: match.kind,
+            same_purchase_confidence: match.confidence,
+          })
+          .eq('id', match.supersededId);
+      }
+      const extras = update.ai_extras as { review_flags?: string[] } | undefined;
+      if (extras) extras.review_flags = [...(extras.review_flags ?? []), match.reason];
+    }
+  } catch {
+    /* pairing unavailable — the extracted fields still save, and the nightly sweep retries */
+  }
+
+  // ── WHO ADDED WHAT (same request) ──────────────────────────────────────────────────────────────
+  //
+  // *"we need to recognize how much tax and tip the business applied, and how much tip I gave besides
+  // that."* An 18% auto-gratuity and a figure written on the tip line are different facts, and when
+  // this receipt settles a known bill the second one is pure arithmetic. See `charges.ts`.
+  const charges = breakdownCharges({
+    subtotal_cents: amounts.subtotal_cents,
+    tax_cents: amounts.tax_cents,
+    service_charge_cents: extracted.service_charge_cents,
+    tip_cents: amounts.tip_cents,
+    discount_cents: extracted.discount_cents,
+    total_cents: amounts.total_cents,
+    settledBillTotalCents,
+  });
+  update.service_charge_cents = charges.businessGratuityCents;
+  update.customer_tip_cents = charges.customerTipCents;
+  if (settledBillTotalCents !== null && charges.customerTipCents > 0) {
+    // The slip's own tip line and the arithmetic against the settled bill are the same figure; when
+    // the bill is known the arithmetic is the better source, because the tip line is handwritten.
+    update.tip_cents = charges.customerTipCents;
   }
 
   const { error: updateErr } = await supabaseAdmin

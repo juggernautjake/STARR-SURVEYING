@@ -382,6 +382,12 @@ async function loadReceipts(orgId: string, fromIso: string, toIso: string, warni
     .from('receipts')
     .select('id, user_id, job_id, vendor_name, transaction_at, total_cents, status, category')
     .eq('org_id', orgId)
+    // Seed 590 — a receipt superseded by another for the same purchase (the itemised bill behind a
+    // card slip) would otherwise charge the job twice for one meal.
+    .is('superseded_by_receipt_id', null)
+    // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+    // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+    .or('expense_nature.is.null,expense_nature.eq.business')
     .gte('transaction_at', fromIso)
     .lte('transaction_at', toIso);
   if (employeeUserId) {

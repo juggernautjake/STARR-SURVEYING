@@ -69,6 +69,12 @@ export async function GET(_req: Request, ctx: RouteContext): Promise<NextRespons
       .from('receipts')
       .select('id, user_id, vendor_name, transaction_at, total_cents, status, category')
       .eq('job_id', jobId)
+      // Seed 590 — the itemised bill behind a card slip is the same purchase as the slip. Job cost
+      // is what this report exists to state, and stating it twice is the whole failure mode.
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+      // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .order('transaction_at', { ascending: true }),
     supabaseAdmin
       .from('mileage_entries')

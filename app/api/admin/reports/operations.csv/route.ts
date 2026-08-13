@@ -109,6 +109,13 @@ export async function GET(req: NextRequest): Promise<Response> {
         .from('receipts')
         .select('id, user_id, job_id, vendor_name, transaction_at, total_cents, status, category')
         .eq('org_id', orgId)
+        // Seed 590 — this CSV has a `total_cents` column and no way to say "do not add this row up",
+        // so the row is left out rather than exported with a footnote nobody will read. The full
+        // receipts export at /api/admin/receipts/export keeps both rows and names the link.
+        .is('superseded_by_receipt_id', null)
+        // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+        // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+        .or('expense_nature.is.null,expense_nature.eq.business')
         .gte('transaction_at', fromIso)
         .lte('transaction_at', toIso);
       csv = rowsToCsv(

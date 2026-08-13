@@ -173,6 +173,21 @@ export interface ReceiptTaxRow {
   promoted_to_equipment_id?: string | null;
   tax_deductible_flag?: string | null;
   category?: string | null;
+  /**
+   * The card that paid, resolved from `payment_card_id` (seeds 572/584), in the shape the DATABASE
+   * returns it — `holder_name`, not `holderName`.
+   *
+   * Deliberately not `Pick<PaymentCard, …>`: this function's whole reason for existing is that the
+   * mapping from a row to the summary's inputs is the part unit tests of `taxSummaryFor` cannot
+   * protect. Taking the row's own shape and converting here keeps the conversion in one place
+   * instead of at every call site, where a silently-undefined `holderName` would produce "the
+   * cardholder" in a sentence about somebody's money.
+   */
+  payment_card?: { role?: string | null; holder_name?: string | null; label?: string | null } | null;
+  /** Seed 591. Set when a person agreed the matched card is really the one that paid. */
+  card_confirmed_at?: string | null;
+  /** Seed 591. 'personal' means this was never a business purchase, whatever card paid for it. */
+  expense_nature?: string | null;
 }
 
 /**
@@ -192,15 +207,44 @@ export interface ReceiptTaxRow {
  * that still reads perfectly — which is exactly the failure this summary exists to prevent, wearing
  * the summary's own voice.
  *
- * Card role (F1) and pass-through recovery (F2) are deliberately not passed: those columns arrive
- * with seeds 572/573. `taxSummaryFor` answers what it can without them rather than assuming company
- * money, and this function inherits that.
+ * ── THE CARD IS NOW PASSED (2026-08-13) ─────────────────────────────────────────────────────────
+ *
+ * It was not, and the note that used to sit here said the columns had not arrived yet. They had —
+ * seed 572 shipped `payment_cards.role`, seed 584 shipped the matcher that fills `payment_card_id` —
+ * and the note outlived them. The consequence was not cosmetic: `taxSummaryFor` puts "whose money
+ * was it" ABOVE the category on purpose, and with no card to look at that entire first rule was
+ * dead. A $200 dinner on an employee's own Visa read *"50% deductible meal"* — a company deduction
+ * for money the company had not spent, and a debt to a person that never appeared anywhere.
+ *
+ * Owner, 2026-08-13: *"maybe one of the employees paid for something without using the business
+ * card… we might reimburse them, or maybe not depending. We might want to disregard the receipt
+ * entirely from our taxes because it might have just been a personal purchase."*
+ *
+ * `cardConfirmed` is passed explicitly rather than defaulted, because the default in `taxSummaryFor`
+ * is the permissive one and a suggestion filed as a fact is the exact failure the F1 matcher refuses
+ * to make.
  */
 export function receiptTaxLine(row: ReceiptTaxRow): string {
+  // A purchase somebody has marked personal is not a tax question at all — it is not the business's
+  // receipt. Checked before the card, because it is true whatever card paid: the company card buying
+  // somebody's groceries is still not a deduction.
+  if (row.expense_nature === 'personal') {
+    return 'Personal purchase — not a business expense, and excluded from every tax total.\n'
+      + 'Decided by: somebody marked this personal. Whose card paid does not change it.';
+  }
   const t = taxSummaryFor({
     promotedToAsset: !!row.promoted_to_equipment_id,
     deductibleFlag: (row.tax_deductible_flag as DeductibleFlag) ?? null,
     category: row.category ?? null,
+    card: row.payment_card
+      ? {
+          role: (row.payment_card.role ?? 'UNKNOWN') as PaymentCard['role'],
+          holderName: row.payment_card.holder_name ?? null,
+          label: row.payment_card.label ?? null,
+        }
+      : null,
+    // Only meaningful when there IS a card; `taxSummaryFor` ignores it otherwise.
+    cardConfirmed: Boolean(row.card_confirmed_at),
   });
   return `${t.summary}\n${explainBasis(t.basis)}`;
 }

@@ -201,6 +201,13 @@ async function duplicateExpenses(): Promise<ProactiveAlert[]> {
       .select('id, vendor_name, total_cents, transaction_at')
       .in('status', ['approved', 'exported'])
       .is('deleted_at', null)
+      // Seed 590. This alert hunts duplicate expenses, so a superseded bill would be its most
+      // reliable false positive: it IS a second receipt for one purchase, already recognised as one
+      // and already excluded from every total. Reporting it would be the system flagging its own fix.
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+      // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .gte('transaction_at', since),
     supabaseAdmin
       .from('ad_spend_daily')

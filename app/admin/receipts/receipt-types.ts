@@ -92,6 +92,37 @@ export interface ReceiptRow {
    * while nothing read it back — so the queryable answer the seed was added for did not exist.
    */
   card_match_status: string | null;
+
+  // ── Seed 590 — two pieces of paper, one purchase ─────────────────────────────────────────────
+  //
+  // Distinct from `dedup_match_id` above, which is "this might be the same photo twice". These say
+  // "these are the itemised bill and the card slip for one meal", which is not a suspicion but
+  // arithmetic: the bill's total is the slip's subtotal.
+
+  /** When set, this row is the itemisation and the named receipt is what was charged. Every expense
+   *  total excludes rows where this is set — see the finance routes. */
+  superseded_by_receipt_id: string | null;
+  /** `bill_and_slip` | `duplicate_photo`, or null when nothing was paired. */
+  same_purchase_kind: string | null;
+  /** `certain` | `likely`. `likely` means a person should glance before trusting the exclusion. */
+  same_purchase_confidence: string | null;
+  /** Gratuity the BUSINESS added — auto-gratuity, service fee. The payer had no say. */
+  service_charge_cents: number | null;
+  /** The tip the PAYER chose, on the tip line. Often derived rather than printed. */
+  customer_tip_cents: number | null;
+
+  // ── Seed 591 — whose money, and was it business at all ───────────────────────────────────────
+
+  /** The card the matcher suggested. A suggestion until `card_confirmed_at` is set. */
+  payment_card_id: string | null;
+  /** Set when a PERSON agreed the matched card really is the one that paid. Four printed digits are
+   *  not an identifier, and nothing is filed on a suggestion. */
+  card_confirmed_at: string | null;
+  card_confirmed_by: string | null;
+  /** `business` | `personal` | null. The one fact nothing can derive: a personal card is used for
+   *  both kinds of purchase, and only a person knows which this was. */
+  expense_nature: string | null;
+  expense_nature_note: string | null;
 }
 
 /**
@@ -119,9 +150,19 @@ export function needsReview(row: {
   extraction_status: string | null;
   dedup_match_id: string | null;
   ai_extras: { review_flags?: string[] } | null;
+  card_match_status?: string | null;
+  expense_nature?: string | null;
 }): boolean {
   if (row.extraction_status === 'failed') return true;
   if (row.dedup_match_id) return true;
+  // A fourth condition (2026-08-13): a card nobody recognises, with nobody having said what it was.
+  //
+  // Owner: *"maybe one of the employees paid for something without using the business card… we might
+  // reimburse them, or maybe not."* The matcher already writes a sentence into `review_flags`, which
+  // makes the row appear here today — but only for receipts extracted since the matcher existed, and
+  // a flag is prose. This is the state, so the tab and the SQL agree on it and a decision that HAS
+  // been made removes the row from the queue.
+  if (row.card_match_status === 'not_on_file' && !row.expense_nature) return true;
   return (row.ai_extras?.review_flags?.length ?? 0) > 0;
 }
 
@@ -160,4 +201,23 @@ export interface AdminReceiptRow extends ReceiptRow {
     equipment_inventory_id: string | null;
     equipment_name: string | null;
   }>;
+  /**
+   * The card that paid, resolved from `payment_card_id` (2026-08-13).
+   *
+   * `role` is the field that matters and the reason this is the row rather than the id: whose money
+   * paid outranks what was bought, and until this was resolved that rule had nothing to read.
+   */
+  payment_card: ReceiptPaymentCard | null;
+}
+
+/** One row of `payment_cards`, as the receipts queue receives it. */
+export interface ReceiptPaymentCard {
+  id: string;
+  label: string | null;
+  last4: string | null;
+  brand: string | null;
+  /** `COMPANY` | `OWNER_PERSONAL` | `EMPLOYEE_PERSONAL` | `CLIENT` | `UNKNOWN` — seed 572. */
+  role: string | null;
+  holder_name: string | null;
+  retired_at: string | null;
 }

@@ -72,6 +72,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select('id, vendor_name, category, tax_deductible_flag, total_cents, status, transaction_at, created_at')
       .in('status', ['approved', 'exported'])
       .is('deleted_at', null)
+      // Seed 590 — one purchase, two rows: the superseded bill is kept for its itemisation and
+      // must not reach an audit total as a second expense.
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+      // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .gte('transaction_at', fromTs)
       .lte('transaction_at', toTs),
     supabaseAdmin

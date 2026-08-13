@@ -92,6 +92,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .select('id, vendor_name, total_cents, transaction_at')
       .in('status', ['approved', 'exported'])
       .is('deleted_at', null)
+      // Seed 590 — an itemised bill superseded by its card slip is the same purchase as the slip.
+      // Both rows are real and both are kept; only the slip left the bank account.
+      .is('superseded_by_receipt_id', null)
+      // Seed 591 — a purchase somebody marked personal is not the business's, whatever card paid
+      // for it. NULL still counts: a receipt nobody has questioned is a business purchase.
+      .or('expense_nature.is.null,expense_nature.eq.business')
       .gte('transaction_at', fromTs)
       .lte('transaction_at', toTs),
     // `spend_date` is a DATE, not a timestamp, so it is compared against bare YYYY-MM-DD. Handing it

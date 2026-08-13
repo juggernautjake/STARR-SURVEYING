@@ -46,7 +46,7 @@ export interface ReceiptCardDetails {
 }
 
 export type CardMatchStatus =
-  /** Not a card purchase at all — cash, cheque, or no payment detail. Nothing to check. */
+  /** Not a card purchase at all — the receipt SAYS cash or cheque. Nothing to check. */
   | 'not_a_card'
   /** A card was used but the slip does not show the last four, so it CANNOT be checked. */
   | 'unknown'
@@ -67,6 +67,18 @@ export interface CardMatchResult {
 
 const norm = (s: string | null | undefined): string =>
   (s ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Payment methods that genuinely have no card behind them.
+ *
+ * Owner, 2026-08-13: *"We need to know what card is paying for each receipt unless it is cash or
+ * check."* That sentence is the whole reason this set is a LIST rather than the negation of "card":
+ * "not the string 'card'" and "not a card purchase" are different claims, and treating an
+ * unrecognised method as the second is how a card purchase leaves the check silently.
+ */
+const NON_CARD_METHODS = new Set([
+  'cash', 'check', 'cheque', 'money order', 'moneyorder', 'ach', 'banktransfer', 'wire', 'invoice',
+]);
 
 /** Brands are written a dozen ways ("VISA", "Visa Credit", "VISA DEBIT"). Compare on the stem. */
 function brandsConflict(receipt: string | null | undefined, onFile: string | null | undefined): boolean {
@@ -104,7 +116,23 @@ export function matchCardOnFile(
   // Only card purchases are in scope. Cash and cheques have no card to be on file, and flagging them
   // would train people to ignore the flag — which is how the one real problem gets approved with the rest.
   const looksLikeCard = method === 'card' || Boolean(receipt.payment_last4) || Boolean(receipt.card_brand);
-  if (!looksLikeCard) return { status: 'not_a_card', cardId: null, flag: null };
+  if (!looksLikeCard) {
+    // The receipt SAYS cash or cheque. Settled, and nothing to ask.
+    if (NON_CARD_METHODS.has(method)) return { status: 'not_a_card', cardId: null, flag: null };
+
+    // Nothing was read off the paper about how this was paid — which is NOT the same as "it was not
+    // a card", though this function used to answer both with `not_a_card` (2026-08-13). The
+    // difference is the owner's requirement: every receipt must end up with a card named against it
+    // unless it was cash or a cheque, and a receipt silently filed as "no card involved" because the
+    // method line was blank is exactly the one that escapes that. `unknown` is the honest answer —
+    // a question, not an accusation — and it is a status the re-match sweep revisits.
+    return {
+      status: 'unknown',
+      cardId: null,
+      flag: 'No payment method was read off this receipt — we cannot tell whether a card was used. '
+        + 'Confirm whether this was cash, a cheque, or a card.',
+    };
+  }
 
   const last4 = (receipt.payment_last4 ?? '').replace(/\D/g, '');
   if (last4.length !== 4) {
