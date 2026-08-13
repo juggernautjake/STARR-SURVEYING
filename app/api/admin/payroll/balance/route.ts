@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notify } from '@/lib/notifications';
+import { buildWithdrawalNotification } from '@/lib/notifications/withdrawal';
 
 // GET: Get balance info and transaction history
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -11,8 +13,47 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { searchParams } = new URL(req.url);
   const email = searchParams.get('email');
-  const type = searchParams.get('type') || 'summary'; // summary, transactions, withdrawals
+  const type = searchParams.get('type') || 'summary'; // summary, transactions, withdrawals, queue
   const limit = parseInt(searchParams.get('limit') || '50', 10);
+
+  // ── THE QUEUE (owner request, 2026-08-12) ─────────────────────────────────────────────────────
+  //
+  // Every other read here is pinned to ONE person, which is right for an employee looking at their
+  // own money and is why no page could ever show the requests waiting for a decision. The API has
+  // had `approve`, `reject` and `process` since it was written and nothing has ever listed what
+  // there was to approve — so a request went into a void, exactly as submitting hours used to.
+  if (type === 'queue') {
+    if (!isAdmin(session.user.roles)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('withdrawal_requests')
+      .select('*')
+      // Open requests first, and the settled ones after: a queue that hides what was decided
+      // yesterday cannot answer "did anybody already handle this?".
+      .order('requested_at', { ascending: false, nullsFirst: false })
+      .limit(Math.max(1, Math.min(200, limit)));
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    const rows = (data ?? []) as Array<{ user_email: string; status: string }>;
+    const OPEN = new Set(['pending', 'approved', 'processing']);
+
+    // The balance each request is drawn against, so an approver can see whether it is still covered
+    // without opening a second screen per person. One query for the page, never one per row.
+    const emails = Array.from(new Set(rows.filter((r) => OPEN.has(r.status)).map((r) => r.user_email)));
+    const balances: Record<string, number> = {};
+    if (emails.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('employee_profiles')
+        .select('user_email, available_balance')
+        .in('user_email', emails);
+      for (const p of (profiles ?? []) as Array<{ user_email: string; available_balance: number | null }>) {
+        balances[p.user_email] = Number(p.available_balance ?? 0);
+      }
+    }
+
+    return NextResponse.json({ withdrawals: rows, balances });
+  }
 
   const targetEmail = email || session.user.email;
 
@@ -188,6 +229,7 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await tellThem(data, 'cancelled');
     return NextResponse.json({ request: data });
   }
 
@@ -197,6 +239,33 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   }
 
   if (action === 'approve') {
+    // Only from `pending`. Without this, approving twice is possible, and approving something
+    // already rejected or already sent silently reopens it — on a row whose whole purpose is to
+    // record that a decision was made.
+    if (request.status !== 'pending') {
+      return NextResponse.json(
+        { error: `This request is already ${request.status}.` },
+        { status: 409 },
+      );
+    }
+
+    // The balance is re-checked HERE, not only when the request was made. Hours can be paid out, an
+    // earlier withdrawal can complete, and a correction can land between somebody asking for money
+    // and somebody approving it — so the figure that mattered at request time is not the figure that
+    // matters now.
+    const { data: profile } = await supabaseAdmin
+      .from('employee_profiles')
+      .select('available_balance')
+      .eq('user_email', request.user_email)
+      .single();
+    const available = Number(profile?.available_balance ?? 0);
+    if (available < Number(request.amount)) {
+      return NextResponse.json(
+        { error: `Their balance is now $${available.toFixed(2)}, which does not cover $${Number(request.amount).toFixed(2)}.` },
+        { status: 400 },
+      );
+    }
+
     const { data, error } = await supabaseAdmin
       .from('withdrawal_requests')
       .update({ status: 'approved', reviewed_by: session.user.email, reviewed_at: new Date().toISOString() })
@@ -205,10 +274,23 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await tellThem(data, 'approved');
     return NextResponse.json({ request: data });
   }
 
   if (action === 'reject') {
+    // Required, mirroring the hours rejection. "Your withdrawal was declined" with no reason is a
+    // dead end about somebody's wages, and the person cannot even tell whether to ask again.
+    if (!String(rejection_reason ?? '').trim()) {
+      return NextResponse.json(
+        { error: 'Give a reason — the employee is told, and a refusal with no reason leaves them nothing to do.' },
+        { status: 400 },
+      );
+    }
+    if (request.status === 'completed') {
+      return NextResponse.json({ error: 'That withdrawal has already been sent.' }, { status: 409 });
+    }
+
     const { data, error } = await supabaseAdmin
       .from('withdrawal_requests')
       .update({
@@ -222,10 +304,20 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await tellThem(data, 'rejected');
     return NextResponse.json({ request: data });
   }
 
   if (action === 'process') {
+    // Money only leaves against a decision. Processing a `pending` request would skip approval
+    // entirely, and processing a `rejected` or `completed` one would pay it out after it was
+    // refused, or twice.
+    if (request.status !== 'approved' && request.status !== 'processing') {
+      return NextResponse.json(
+        { error: `Only an approved withdrawal can be sent — this one is ${request.status}.` },
+        { status: 409 },
+      );
+    }
     // Actually process the withdrawal — deduct from balance
     const { data: profile } = await supabaseAdmin
       .from('employee_profiles')
@@ -280,8 +372,37 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await tellThem(data, 'completed');
     return NextResponse.json({ request: data, new_balance: balanceAfter });
   }
 
   return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 }, { routeName: 'payroll/balance' });
+
+/**
+ * Tell the employee what happened to their request.
+ *
+ * Best-effort and never throwing: this runs after the decision — and, for `completed`, after the
+ * money has already come off the balance. A push failure must not turn a sent withdrawal into a 500
+ * that invites somebody to retry it.
+ *
+ * Every transition notifies. Silence on a request for your own wages is indistinguishable from the
+ * system being broken, which is the state this endpoint has been in since it was written.
+ */
+async function tellThem(
+  row: { user_email?: string | null; amount?: number | null; destination?: string | null; rejection_reason?: string | null } | null,
+  outcome: 'approved' | 'rejected' | 'completed' | 'cancelled',
+): Promise<void> {
+  try {
+    const n = buildWithdrawalNotification({
+      userEmail: row?.user_email,
+      outcome,
+      amount: row?.amount == null ? null : Number(row.amount),
+      destination: row?.destination,
+      reason: row?.rejection_reason,
+    });
+    if (n) await notify(n);
+  } catch (err) {
+    console.error('[payroll/balance] could not notify about a withdrawal:', err instanceof Error ? err.message : String(err));
+  }
+}
