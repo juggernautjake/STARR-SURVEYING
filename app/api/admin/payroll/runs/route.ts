@@ -7,6 +7,7 @@ import { notify } from '@/lib/notifications';
 import { buildPayStubNotification } from '@/lib/notifications/payout';
 import { buildStubTotals, type PayableHours } from '@/lib/payroll/pay-stub';
 import { planAdvanceRecovery, type OutstandingAdvance } from '@/lib/payroll/advance-recovery';
+import { findPeriodOverlap, type ExistingSettlement } from '@/lib/payroll/engine-overlap';
 
 interface TimeLogRow {
   id: string;
@@ -102,6 +103,44 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (!pay_period_start || !pay_period_end) {
     return NextResponse.json({ error: 'pay_period_start and pay_period_end required' }, { status: 400 });
+  }
+
+  // ── HAS THIS WEEK ALREADY BEEN SETTLED? ───────────────────────────────────────────────────────
+  //
+  // Two payroll engines exist here and neither reads anything the other writes: this one, and
+  // `payout_batches`. Both take the same approved hours as input, so a week paid by a batch on
+  // Friday can be paid again by a run on Monday and nothing objects — the second engine simply does
+  // what it was asked. `owed.ts` protects the running balance from over-payment; it does not stop
+  // the second settlement being created, because neither engine consults it before building.
+  //
+  // See `lib/payroll/engine-overlap.ts` for why this is a period check rather than a row-level one:
+  // neither engine records which time logs a payment covered.
+  {
+    const [{ data: runRows }, { data: batchRows }] = await Promise.all([
+      supabaseAdmin
+        .from('payroll_runs')
+        .select('id, pay_period_start, pay_period_end, status')
+        .lte('pay_period_start', pay_period_end)
+        .gte('pay_period_end', pay_period_start),
+      supabaseAdmin
+        .from('payout_batches')
+        .select('id, label, week_start, week_end, status')
+        .lte('week_start', pay_period_end)
+        .gte('week_end', pay_period_start),
+    ]);
+
+    const existing: ExistingSettlement[] = [
+      ...((runRows ?? []) as Array<{ id: string; pay_period_start: string | null; pay_period_end: string | null; status: string }>)
+        .map((r) => ({ id: r.id, kind: 'payroll_run' as const, from: r.pay_period_start, to: r.pay_period_end, status: r.status })),
+      ...((batchRows ?? []) as Array<{ id: string; label: string | null; week_start: string | null; week_end: string | null; status: string }>)
+        .map((b) => ({ id: b.id, kind: 'payout_batch' as const, from: b.week_start, to: b.week_end, status: b.status, label: b.label })),
+    ];
+
+    const overlap = findPeriodOverlap({ from: pay_period_start, to: pay_period_end }, existing);
+    if (!overlap.ok) {
+      // 409, not 400: the request is well-formed and the state is what refuses it.
+      return NextResponse.json({ error: overlap.message, conflicts: overlap.conflicts }, { status: 409 });
+    }
   }
 
   // Get all active employees

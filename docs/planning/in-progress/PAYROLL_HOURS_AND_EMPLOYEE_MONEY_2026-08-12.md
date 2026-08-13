@@ -315,6 +315,29 @@ Only after S0, S5 and S7 have been live long enough to trust.
 
 ---
 
+## 2b. Found while building S0 — a live crash in the legacy engine
+
+Creating a payroll run for a clear week returns **500: `null value in column "base_rate" of relation
+"pay_stubs" violates not-null constraint`**. `pay_stubs.base_rate` is `NOT NULL`, and
+`resolvePayRate` correctly returns `null` for an active employee who has no agreed rate and no
+override — which is a real and ordinary state, deliberately distinguished from zero everywhere else
+in `lib/payroll`.
+
+So the legacy engine cannot run payroll at all while any active employee is unpriced. Not fixed here
+because the fix is a decision, not a patch, and it belongs with S9:
+
+- omit unpriced people from the run and report them by name (they are not owed a *computed* amount —
+  somebody has to decide), **or**
+- relax the constraint and let a stub carry a null rate, which means every screen reading a stub has
+  to handle it.
+
+The first is almost certainly right: a payroll run that silently skips somebody is the same failure
+class as everything else in this document, so it must skip them *loudly*. Writing zero is the one
+option that must not be taken — it is the "worked for free" bug the rest of `lib/payroll` was
+rewritten to avoid.
+
+---
+
 ## 3. Things found during the audit that are not slices
 
 Worth recording so nobody re-derives them:
