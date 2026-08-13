@@ -2704,7 +2704,7 @@ export default function ResearchProjectPage() {
                             const color = c.qualityScore >= 70 ? '#22c55e' : c.qualityScore >= 40 ? '#eab308' : '#ef4444';
                             const QIcon = c.qualityScore >= 70 ? Check : c.qualityScore >= 40 ? AlertTriangle : X;
                             return (
-                              <div key={i} style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', background: 'var(--bg-elevated, #f9fafb)', border: '1px solid var(--border, #e5e7eb)' }}>
+                              <div key={i} style={{ padding: '0.5rem 0.75rem', borderRadius: '6px', background: 'var(--color-surface-subtle)', border: '1px solid var(--color-border)' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                                   <span style={{ color, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: "0.25rem" }}><QIcon size={14} strokeWidth={2.5} /> {c.qualityScore}/100</span>
                                   <span style={{ fontSize: '0.8rem', fontWeight: 500 }}>{c.label}</span>

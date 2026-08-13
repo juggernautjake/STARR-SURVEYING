@@ -40,8 +40,8 @@ interface Props {
 }
 
 const band: React.CSSProperties = {
-  border: '1px solid var(--border, #d8d8d8)',
-  borderLeft: '4px solid var(--warning, #c98a12)',
+  border: '1px solid var(--color-border)',
+  borderLeft: '4px solid var(--color-warning)',
   borderRadius: 6,
   padding: '0.6rem 0.75rem',
   marginTop: '0.5rem',
@@ -49,12 +49,17 @@ const band: React.CSSProperties = {
   lineHeight: 1.45,
 };
 
-const settled: React.CSSProperties = { ...band, borderLeftColor: 'var(--muted, #9aa0a6)' };
+const settled: React.CSSProperties = { ...band, borderLeftColor: 'var(--color-text-muted)' };
 
+// `--color-border` / `--color-surface`, not `--border` / `--surface`. The first draft used the short
+// names with hex fallbacks, and neither token exists (see app/styles/tokens.css) — so every control
+// in this panel took the fallback and rendered as a light-grey-bordered white box in EVERY theme,
+// including the dark skins, where it appeared as a white slab. A `var()` fallback makes that failure
+// silent and permanent: nothing errors, the colour is simply never the theme's.
 const btn: React.CSSProperties = {
-  border: '1px solid var(--border, #d8d8d8)',
-  background: 'var(--surface, #fff)',
-  color: 'inherit',
+  border: '1px solid var(--color-border)',
+  background: 'var(--color-surface)',
+  color: 'var(--color-text-primary)',
   borderRadius: 5,
   padding: '0.3rem 0.7rem',
   fontSize: '0.8rem',
@@ -118,7 +123,10 @@ export default function PayerDecision({ row, cards, busy, onAnswer }: Props) {
               "Company Amex" and "Dave personal" lead to different money. */}
           {cards.length > 0 ? (
             <select
-              style={{ ...btn, cursor: 'default' }}
+              // `cursor: default` said "not clickable" on the one control here that opens a menu.
+              // `maxWidth` because a select sizes to its widest option, and a card labelled
+              // "Mastercard seen on a receipt — role not set" stretched this row past the buttons.
+              style={{ ...btn, maxWidth: '15rem' }}
               disabled={busy}
               value={row.card_confirmed_at ? row.payment_card_id ?? '' : ''}
               onChange={(e) => void onAnswer('confirming which card paid', {

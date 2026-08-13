@@ -79,8 +79,8 @@ export default function ReferenceLibraryPage() {
     await fetch(`/api/admin/learn/references/${d.id}`, { method: 'DELETE' }).catch(() => {});
   }
 
-  const card: React.CSSProperties = { background: 'var(--surface, #fff)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 12, padding: 18 };
-  const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border, #cbd5e1)', borderRadius: 8, fontSize: 14 };
+  const card: React.CSSProperties = { background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 12, padding: 18 };
+  const input: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 14 };
 
   if (forbidden) {
     return <div style={{ maxWidth: 720, margin: '40px auto', padding: 20 }}><p>You don&apos;t have access to the reference library. (Content-manager/admin only.)</p></div>;
