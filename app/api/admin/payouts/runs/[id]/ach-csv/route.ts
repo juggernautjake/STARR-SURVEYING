@@ -38,7 +38,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { data: items } = await supabaseAdmin
     .from('payout_batch_items')
-    .select('id, user_email, user_name, total_cents, method, method_handle, status')
+    // `recovered_cents` is selected because the CSV amount is total − recovered. Omitting it would
+    // silently export the gross figure and pay back every advance the batch just withheld.
+    .select('id, user_email, user_name, total_cents, recovered_cents, method, method_handle, status')
     .eq('batch_id', id)
     .eq('method', 'ach');
   const achItems = (items ?? []) as DispatchItem[];

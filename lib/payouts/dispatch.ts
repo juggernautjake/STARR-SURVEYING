@@ -24,6 +24,7 @@
 // `unassigned` and the office saw a payment with no method.
 export { PAYOUT_METHODS, type PayoutMethod } from './methods.js';
 import { PAYOUT_METHODS, normalizePayoutMethod, type PayoutMethod } from './methods.js';
+import { disbursedCents } from '../payroll/disbursement.js';
 export type PayoutItemStatus = 'pending' | 'sent' | 'paid' | 'failed';
 export type PayoutBatchStatus = 'draft' | 'approved' | 'dispatched' | 'completed' | 'voided';
 
@@ -31,7 +32,18 @@ export interface DispatchItem {
   id: string;
   user_email: string;
   user_name: string | null;
+  /**
+   * What this item SETTLES — the full value of the hours. **This is not what to send.**
+   *
+   * Since seed 588 a payout can withhold part of itself to repay an advance, so the amount that
+   * goes to a bank or a Venmo handle is `disbursedCents(item)`, never this. `total_cents` stays the
+   * settled figure because `lib/payroll/owed.ts` counts it as paid — netting the recovery into it
+   * would leave the person owed the advance for ever.
+   */
   total_cents: number;
+  /** Of `total_cents`, how much is held back against an outstanding advance. Optional: rows written
+   *  before seed 588 have none, and absent means zero. */
+  recovered_cents?: number | null;
   method: PayoutMethod | null;
   method_handle: string | null;
   status: PayoutItemStatus;
@@ -72,7 +84,10 @@ export function buildPayoutDeepLink(
   batchLabel: string,
 ): string | null {
   if (!item.method || !item.method_handle) return null;
-  const dollars = (Math.max(0, item.total_cents) / 100).toFixed(2);
+  // The DISBURSED amount, not the settled one. This string becomes the sum pre-filled into a Venmo
+  // or Cash App payment — sending `total_cents` here would hand back the advance the batch just
+  // withheld, and the only evidence would be an advance that never goes down.
+  const dollars = (disbursedCents(item) / 100).toFixed(2);
   const note = encodeURIComponent(buildPayoutNote(batchLabel, item));
   const handle = encodeURIComponent(item.method_handle.replace(/^[@$]/, ''));
   switch (item.method) {
@@ -126,7 +141,9 @@ export function batchStatusFromItems(
  *  tell us their preferred upload format when the account is set
  *  up. For now this CSV is the lingua franca. */
 export function buildAchCsvLine(item: DispatchItem, batchLabel: string): string {
-  const amount = (Math.max(0, item.total_cents) / 100).toFixed(2);
+  // The DISBURSED amount. This row is uploaded to a bank and moves real money; `total_cents` would
+  // send the advance straight back to the person it was just recovered from.
+  const amount = (disbursedCents(item) / 100).toFixed(2);
   const handle = item.method_handle ?? '';
   // CSV-safe — quote any field that contains a comma or quote.
   const q = (s: string) => /[,"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;

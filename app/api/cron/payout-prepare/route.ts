@@ -44,6 +44,7 @@ import { notify } from '@/lib/notifications';
 import { loadOwed } from '@/lib/payroll/owed-loader';
 import { canDecideHours } from '@/lib/notifications/hours-submitted';
 import { isPayoutMethod, type PayoutMethod } from '@/lib/payouts/methods';
+import { planAdvanceRecovery, type OutstandingAdvance } from '@/lib/payroll/advance-recovery';
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
@@ -106,15 +107,57 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: batchError?.message ?? 'Could not create the batch' }, { status: 500 });
   }
 
-  const { error: itemError } = await supabaseAdmin.from('payout_batch_items').insert(
+  // ── OUTSTANDING ADVANCES ──────────────────────────────────────────────────────────────────────
+  //
+  // The scheduled batch has to recover advances for the same reason the hand-built one does: this is
+  // the surviving payroll engine, and the recovery used to live only in the retired one. A weekly
+  // cron that quietly skipped it would be the worst version of the bug — nobody is watching when it
+  // runs.
+  //
+  // The VIEW, not `pay_advance_requests`: it filters to advances actually PAID OUT. Recovering
+  // against an approved-but-unpaid advance takes back money never handed over.
+  const advancesByEmail = new Map<string, OutstandingAdvance[]>();
+  {
+    const { data: advanceRows } = await supabaseAdmin
+      .from('pay_advances_outstanding')
+      .select('id, user_email, outstanding, repay_per_period, paid_at')
+      .in('user_email', payable.map((r) => r.user_email));
+    for (const a of (advanceRows ?? []) as Array<OutstandingAdvance & { user_email: string }>) {
+      const list = advancesByEmail.get(a.user_email) ?? [];
+      list.push(a);
+      advancesByEmail.set(a.user_email, list);
+    }
+  }
+
+  /** email → cents withheld, kept so the repayment rows below can be written against each item. */
+  const recoveryByEmail = new Map<string, { cents: number; recoveries: Array<{ advanceId: string; amount: number }> }>();
+
+  const { data: insertedItems, error: itemError } = await supabaseAdmin
+    .from('payout_batch_items')
+    .insert(
     payable.map((r) => {
       const pay = methodByEmail.get(r.user_email);
+      // `planAdvanceRecovery` works in DOLLARS; everything here is CENTS. Converting at the boundary
+      // keeps the one implementation of the rules — including the floor that never takes somebody's
+      // whole cheque — and no unit crosses the call, so the 100× error stays impossible.
+      const advances = advancesByEmail.get(r.user_email) ?? [];
+      const plan = advances.length ? planAdvanceRecovery({ advances, netPay: r.owedCents / 100 }) : null;
+      const recoveredCents = plan ? Math.round(plan.totalRecovered * 100) : 0;
+      if (plan && recoveredCents > 0) {
+        recoveryByEmail.set(r.user_email, {
+          cents: recoveredCents,
+          recoveries: plan.recoveries.map((x) => ({ advanceId: x.advanceId, amount: x.amount })),
+        });
+      }
       return {
         batch_id: batch.id,
         user_email: r.user_email,
         user_name: r.user_name,
         hours_cents: r.owedCents,
+        // Withheld FROM the total, never netted into it — see seed 588. `total_cents` is what this
+        // settles, and `lib/payroll/owed.ts` counts it as paid.
         total_cents: r.owedCents,
+        recovered_cents: recoveredCents,
         // No method on file is not a blocker — the line lands in the dispatch screen's
         // "Method not assigned" column. Refusing the whole run because one person has no Venmo
         // handle would stop everybody else being paid, on a schedule, silently.
@@ -124,7 +167,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         notes: `Approved hours owed as at ${today}`,
       };
     }),
-  );
+    )
+    .select('id, user_email');
 
   if (itemError) {
     // Remove the header rather than leave a batch with a total and no lines — which would commit
@@ -132,6 +176,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     await supabaseAdmin.from('payout_batches').delete().eq('id', batch.id);
     console.error('[cron/payout-prepare] could not create the lines:', itemError.message);
     return NextResponse.json({ error: itemError.message }, { status: 500 });
+  }
+
+  // One repayment row per (advance, item), so a recovery can be traced to the payout that took it
+  // and reversed if that payout is voided. Best-effort — the batch is already created and correct,
+  // and the withholding itself is on the item as `recovered_cents`.
+  {
+    const itemIdByEmail = new Map(
+      ((insertedItems ?? []) as Array<{ id: string; user_email: string }>).map((i) => [i.user_email, i.id]),
+    );
+    const repayments = [...recoveryByEmail.entries()].flatMap(([email, rec]) => {
+      const itemId = itemIdByEmail.get(email);
+      if (!itemId) return [];
+      return rec.recoveries.map((r) => ({
+        advance_id: r.advanceId,
+        payout_batch_item_id: itemId,
+        pay_stub_id: null,
+        user_email: email,
+        amount: r.amount,
+        note: `Recovered from the scheduled payout prepared ${today}`,
+      }));
+    });
+    if (repayments.length > 0) {
+      const { error: repayError } = await supabaseAdmin.from('pay_advance_repayments').insert(repayments);
+      if (repayError) {
+        console.error('[cron/payout-prepare] advance repayments could not be recorded:', repayError.message);
+      }
+    }
   }
 
   const missingMethod = payable.filter((r) => !methodByEmail.get(r.user_email)?.method).length;

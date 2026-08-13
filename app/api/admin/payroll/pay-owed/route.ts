@@ -31,6 +31,8 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { loadOwed, type OwedRow } from '@/lib/payroll/owed-loader';
 import { isPayoutMethod, type PayoutMethod } from '@/lib/payouts/methods';
 import { notify } from '@/lib/notifications';
+import { planAdvanceRecovery, type OutstandingAdvance } from '@/lib/payroll/advance-recovery';
+import { disbursedCents, totalRecoveredCents } from '@/lib/payroll/disbursement';
 
 /** Nobody is paid a fraction of a cent, and a zero line is not a payment. */
 const MIN_PAYABLE_CENTS = 1;
@@ -38,9 +40,36 @@ const MIN_PAYABLE_CENTS = 1;
 interface PayableLine {
   user_email: string;
   user_name: string | null;
+  /** What this line SETTLES — the full approved balance. See lib/payroll/disbursement.ts. */
   total_cents: number;
+  /** Of that, how much is held back against an outstanding advance. */
+  recovered_cents: number;
+  /** Which advances that recovery clears, so repayment rows can be written against the item. */
+  recoveries: Array<{ advanceId: string; amount: number }>;
   method: PayoutMethod | null;
   method_handle: string | null;
+}
+
+/**
+ * Outstanding advances per person, oldest first.
+ *
+ * Reads the `pay_advances_outstanding` VIEW, never `pay_advance_requests` — the view filters to
+ * advances actually PAID OUT. Approving an advance is a decision; paying it is an event, and
+ * recovering against an approved-but-unpaid one takes back money never handed over.
+ */
+async function loadAdvances(emails: string[]): Promise<Map<string, OutstandingAdvance[]>> {
+  const out = new Map<string, OutstandingAdvance[]>();
+  if (emails.length === 0) return out;
+  const { data } = await supabaseAdmin
+    .from('pay_advances_outstanding')
+    .select('id, user_email, outstanding, repay_per_period, paid_at')
+    .in('user_email', emails);
+  for (const a of (data ?? []) as Array<OutstandingAdvance & { user_email: string }>) {
+    const list = out.get(a.user_email) ?? [];
+    list.push(a);
+    out.set(a.user_email, list);
+  }
+  return out;
 }
 
 /**
@@ -51,7 +80,11 @@ interface PayableLine {
  * finding, and an approver needs to know whether that means "everyone is paid up" or "everyone was
  * excluded for a reason".
  */
-function toLines(rows: OwedRow[], methodByEmail: Map<string, { method: PayoutMethod | null; handle: string | null }>) {
+function toLines(
+  rows: OwedRow[],
+  methodByEmail: Map<string, { method: PayoutMethod | null; handle: string | null }>,
+  advancesByEmail: Map<string, OutstandingAdvance[]> = new Map(),
+) {
   const lines: PayableLine[] = [];
   const skipped: Array<{ user_email: string; reason: string }> = [];
 
@@ -74,10 +107,31 @@ function toLines(rows: OwedRow[], methodByEmail: Map<string, { method: PayoutMet
     }
 
     const pay = methodByEmail.get(row.user_email);
+
+    // ── TAKE BACK ANY OUTSTANDING ADVANCE ──────────────────────────────────────────────────────
+    //
+    // This is the recovery that used to live only in the retired payroll-run engine, and whose
+    // absence would have turned every advance into a gift the moment that engine closed.
+    //
+    // `planAdvanceRecovery` works in DOLLARS (it was written for pay stubs) while everything on this
+    // path is CENTS. Converting at the boundary and back, rather than reaching into the module, keeps
+    // the one implementation of the rules — including the floor that never takes somebody's whole
+    // cheque — and the 100× error stays impossible because neither unit crosses the call.
+    const advances = advancesByEmail.get(row.user_email) ?? [];
+    const plan = advances.length
+      ? planAdvanceRecovery({ advances, netPay: row.owedCents / 100 })
+      : null;
+    const recoveredCents = plan ? Math.round(plan.totalRecovered * 100) : 0;
+
     lines.push({
       user_email: row.user_email,
       user_name: row.user_name,
+      // NOT reduced by the recovery. `total_cents` is what this settles, and lib/payroll/owed.ts
+      // counts it as paid — netting the recovery here would leave the person owed the advance for
+      // ever and the firm would hand it straight back. See lib/payroll/disbursement.ts.
       total_cents: row.owedCents,
+      recovered_cents: recoveredCents,
+      recoveries: plan ? plan.recoveries.map((r) => ({ advanceId: r.advanceId, amount: r.amount })) : [],
       // No method is NOT a blocker. The batch is built, the line lands in the dispatch screen's
       // "Method not assigned" column, and somebody assigns it there. Refusing the whole batch
       // because one person has no Venmo handle on file would stop everyone else being paid.
@@ -119,11 +173,21 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (error) return NextResponse.json({ error: `No preview — ${error}` }, { status: 500 });
 
   const scoped = only.length ? rows.filter((r) => only.includes(r.user_email)) : rows;
-  const { lines, skipped } = toLines(scoped, await loadMethods(scoped.map((r) => r.user_email)));
+  // Preview and build must see the same advances, or the screen promises an amount the batch
+  // does not send.
+  const { lines, skipped } = toLines(
+    scoped,
+    await loadMethods(scoped.map((r) => r.user_email)),
+    await loadAdvances(scoped.map((r) => r.user_email)),
+  );
 
   return NextResponse.json({
     lines,
     skipped,
+    // What the bank account actually pays once advances are held back. Distinct from `totalCents`
+    // below, which is what the batch SETTLES — see lib/payroll/disbursement.ts.
+    disbursedCents: lines.reduce((sum, l) => sum + disbursedCents(l), 0),
+    recoveredCents: totalRecoveredCents(lines),
     totalCents: lines.reduce((sum, l) => sum + l.total_cents, 0),
     // Named so the screen can prompt for it rather than letting somebody discover it at the bank.
     missingMethod: lines.filter((l) => !l.method).map((l) => l.user_email),
@@ -147,7 +211,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (error) return NextResponse.json({ error: `No payout was created — ${error}` }, { status: 500 });
 
   const scoped = only.length ? rows.filter((r) => only.includes(r.user_email)) : rows;
-  const { lines, skipped } = toLines(scoped, await loadMethods(scoped.map((r) => r.user_email)));
+  const { lines, skipped } = toLines(
+    scoped,
+    await loadMethods(scoped.map((r) => r.user_email)),
+    await loadAdvances(scoped.map((r) => r.user_email)),
+  );
 
   if (lines.length === 0) {
     // A 200 with an empty batch would read as "paid". This says which of the two it is.
@@ -179,25 +247,62 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: batchError?.message ?? 'Could not create the payout' }, { status: 500 });
   }
 
-  const { error: itemError } = await supabaseAdmin.from('payout_batch_items').insert(
-    lines.map((l) => ({
-      batch_id: batch.id,
-      user_email: l.user_email,
-      user_name: l.user_name,
-      hours_cents: l.total_cents,
-      total_cents: l.total_cents,
-      method: l.method,
-      method_handle: l.method_handle,
-      status: 'pending',
-      notes: `Approved hours owed as at ${today}`,
-    })),
-  );
+  const { data: insertedItems, error: itemError } = await supabaseAdmin
+    .from('payout_batch_items')
+    .insert(
+      lines.map((l) => ({
+        batch_id: batch.id,
+        user_email: l.user_email,
+        user_name: l.user_name,
+        hours_cents: l.total_cents,
+        total_cents: l.total_cents,
+        // Withheld FROM the total, never subtracted from it — see the seed 588 header for why
+        // netting it here would leave the person owed the advance for ever.
+        recovered_cents: l.recovered_cents,
+        method: l.method,
+        method_handle: l.method_handle,
+        status: 'pending',
+        notes: `Approved hours owed as at ${today}`,
+      })),
+    )
+    .select('id, user_email');
 
   if (itemError) {
     // Remove the header rather than leave a batch with a total and no lines — which would commit
     // money against nobody and hold down every balance it claimed to cover.
     await supabaseAdmin.from('payout_batches').delete().eq('id', batch.id);
     return NextResponse.json({ error: itemError.message }, { status: 500 });
+  }
+
+  // ── RECORD WHAT EACH RECOVERY CLEARED ─────────────────────────────────────────────────────────
+  //
+  // A running total on the advance alone cannot answer "which payout took this", and cannot be
+  // reversed when a batch is voided. One row per (advance, item) — the unique index in seed 588
+  // enforces it, because re-running a build must not deduct the same instalment twice.
+  //
+  // Written AFTER the items so each repayment can point at the item that took it. Best-effort: the
+  // batch is already created and correct, and failing a whole payout because an audit row would not
+  // write is the wrong trade. The withholding itself is still on the item as `recovered_cents`.
+  const itemIdByEmail = new Map(
+    ((insertedItems ?? []) as Array<{ id: string; user_email: string }>).map((i) => [i.user_email, i.id]),
+  );
+  const repayments = lines.flatMap((l) => {
+    const itemId = itemIdByEmail.get(l.user_email);
+    if (!itemId) return [];
+    return l.recoveries.map((r) => ({
+      advance_id: r.advanceId,
+      payout_batch_item_id: itemId,
+      pay_stub_id: null,
+      user_email: l.user_email,
+      amount: r.amount,
+      note: `Recovered from the payout prepared ${today}`,
+    }));
+  });
+  if (repayments.length > 0) {
+    const { error: repayError } = await supabaseAdmin.from('pay_advance_repayments').insert(repayments);
+    if (repayError) {
+      console.error('[payroll/pay-owed] advance repayments could not be recorded:', repayError.message);
+    }
   }
 
   try {
@@ -217,8 +322,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       await notify({
         user_email: line.user_email,
         type: 'payout_queued',
-        title: `$${(line.total_cents / 100).toFixed(2)} queued for payment`,
-        body: 'Your approved hours are in a payout that has been prepared. You will see it here when it goes out.',
+        // The NET figure in the title. A title stating the gross when a smaller sum arrives is the
+        // message somebody screenshots and queries — and they would be right to.
+        title: `$${(disbursedCents(line) / 100).toFixed(2)} queued for payment`,
+        body: line.recovered_cents > 0
+          ? `Your approved hours came to $${(line.total_cents / 100).toFixed(2)}, and `
+            + `$${(line.recovered_cents / 100).toFixed(2)} of that goes against your pay advance. `
+            + 'You will see it here when it goes out.'
+          : 'Your approved hours are in a payout that has been prepared. You will see it here when it goes out.',
         link: '/admin/my-pay',
         source_type: 'payout_batches',
         source_id: batch.id,

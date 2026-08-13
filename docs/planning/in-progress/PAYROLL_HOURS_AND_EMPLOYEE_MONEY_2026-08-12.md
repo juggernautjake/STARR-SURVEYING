@@ -183,7 +183,7 @@ nobody can run payroll at all:
 
 | | |
 |---|---|
-| **S9a′** | **Re-home advance recovery onto the batch path — before anything is retired.** `pay_advance_repayments.pay_stub_id` links a repayment to a stub, and batches have no stubs, so this needs a schema decision (nullable stub link, or a batch-item link) before any code. It is money logic and must not be rushed. |
+| **S9a′** | ✅ **SHIPPED 2026-08-12.** Advance recovery now runs in both batch builders (hand-built and the weekly cron), writes a `pay_advance_repayments` row per (advance, item), and every money-moving surface sends the disbursed figure. Seed 588. **The schema decision:** the recovery is a WITHHOLDING from `total_cents`, not a component of it — `owed.ts` counts `total_cents` as paid, so netting it would leave the person owed the advance for ever. `adjustments_cents` was the tempting home and is wrong for exactly that reason (seed 325 defines the total as the sum of its components). |
 | **§2b** | The `pay_stubs.base_rate` NOT NULL crash. D2 settles the fix: stubs are moving to the batch path, so do not relax the constraint — skip unpriced employees and name them. |
 | **S9b** | Move stub generation onto the batch path. A missing stub is a compliance problem, not a bug. |
 | **S9c** | *Now* close `POST /api/admin/payroll/runs` — once nothing unique lives behind it. Keep `GET` (historical runs and stubs are records of real payments) and `PUT` (an existing run must still be finishable). |

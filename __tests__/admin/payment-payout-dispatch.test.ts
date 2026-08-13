@@ -139,6 +139,59 @@ describe('buildAchCsv + buildAchCsvLine (pure)', () => {
   });
 });
 
+// ── The amount that leaves the bank is NOT the amount the payout settles ─────────────────────────
+//
+// Since seed 588 a payout can withhold part of itself to repay a pay advance. `total_cents` stays
+// the full settled figure — `lib/payroll/owed.ts` counts it as paid, and netting the recovery into
+// it would leave the person owed the advance for ever. So every surface that actually MOVES money
+// has to send `total − recovered`, and these are those surfaces.
+describe('a payout that repays an advance sends the net amount', () => {
+  it('the ACH row carries the disbursed figure, not the settled one', () => {
+    // $500 earned, $200 held back → the bank is told $300. Sending 500 here would hand the advance
+    // straight back, and the only evidence would be an advance balance that never goes down.
+    const line = buildAchCsvLine(
+      mkItem({ user_email: 'a@b.com', user_name: 'A B', method_handle: '123-456', total_cents: 50000, recovered_cents: 20000, method: 'ach' }),
+      'Week X',
+    );
+    expect(line).toContain(',300.00,');
+    expect(line, 'the gross figure must not reach the bank file').not.toContain(',500.00,');
+  });
+
+  it('a Venmo deep link pre-fills the disbursed figure', () => {
+    const link = buildPayoutDeepLink(
+      mkItem({ method: 'venmo', method_handle: '@maryvenmo', total_cents: 12345, recovered_cents: 2345 }),
+      'Week X',
+    )!;
+    expect(link).toContain('amount=100.00');
+    expect(link).not.toContain('amount=123.45');
+  });
+
+  it('is unchanged for the ordinary payout that withholds nothing', () => {
+    // Every row written before seed 588 has no `recovered_cents` at all, and the overwhelming
+    // majority written after it will have zero. Those must behave exactly as they did.
+    const line = buildAchCsvLine(
+      mkItem({ user_email: 'a@b.com', user_name: 'A B', method_handle: '123-456', total_cents: 50000, method: 'ach' }),
+      'Week X',
+    );
+    expect(line).toContain(',500.00,');
+  });
+
+  it('never emits a negative amount, even if the figures are impossible', () => {
+    // The database CHECK forbids `recovered > total`, but a CSV row reading "-50.00" would be
+    // uploaded to a bank, and nothing downstream is written to survive that.
+    const line = buildAchCsvLine(
+      mkItem({ user_email: 'a@b.com', user_name: 'A B', method_handle: '123-456', total_cents: 5000, recovered_cents: 10000, method: 'ach' }),
+      'Week X',
+    );
+    expect(line).toContain(',0.00,');
+    // Checked on the AMOUNT field rather than the whole line — a bare `not.toContain('-')` fails on
+    // the account number "123-456", which is a hyphen that belongs there.
+    const amount = line.split(',')[3];
+    expect(amount).toBe('0.00');
+    expect(amount.startsWith('-'), 'a negative amount must never reach a bank file').toBe(false);
+  });
+});
+
 describe('POST mark item — source-lock', () => {
   const SRC = read('app/api/admin/payouts/runs/[id]/items/[itemId]/mark/route.ts');
 

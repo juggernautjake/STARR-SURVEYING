@@ -121,6 +121,60 @@ describe('pay advances come back out', () => {
   // advance the firm has made.
   const runs = () => code(read('app/api/admin/payroll/runs/route.ts'));
 
+  // ── AND IT MUST COME OUT OF THE SURVIVING ENGINE TOO (D2, 2026-08-12) ─────────────────────────
+  //
+  // Every assertion below this point used to apply only to `payroll/runs`, and that was the whole
+  // problem: `planAdvanceRecovery` was called in exactly ONE place in the codebase, and retiring
+  // that engine — which D2 decided to do — would have silently stopped the firm ever recovering an
+  // advance again. Nothing would have failed. The money would just have stopped coming back.
+  //
+  // Caught by trying the retirement and watching seven tests go red. These are the checks that make
+  // the retirement safe when it finally happens.
+  const payOwed = () => code(read('app/api/admin/payroll/pay-owed/route.ts'));
+  const cron = () => code(read('app/api/cron/payout-prepare/route.ts'));
+
+  it('the hand-built payout batch recovers outstanding advances', () => {
+    expect(payOwed()).toContain('planAdvanceRecovery({');
+    expect(payOwed()).toContain("'pay_advances_outstanding'");
+  });
+
+  it('the SCHEDULED payout batch recovers them too', () => {
+    // The worst place to skip it: nobody is watching when a cron runs.
+    expect(cron()).toContain('planAdvanceRecovery({');
+    expect(cron()).toContain("'pay_advances_outstanding'");
+  });
+
+  it('both write a repayment row linked to the payout item that took it', () => {
+    for (const src of [payOwed(), cron()]) {
+      expect(src).toContain("'pay_advance_repayments'");
+      expect(src).toContain('payout_batch_item_id');
+    }
+  });
+
+  it('neither nets the recovery into total_cents', () => {
+    // The one mistake that cannot be seen once made. `lib/payroll/owed.ts` counts `total_cents` as
+    // paid, so a netted total leaves the person owed the advance for ever and the firm hands it
+    // straight back. It is withheld via `recovered_cents` instead.
+    for (const src of [payOwed(), cron()]) {
+      expect(src).toContain('recovered_cents');
+      expect(
+        /total_cents:\s*[^,\n]*-\s*recover/i.test(src),
+        'total_cents must be the settled figure, never net of the recovery',
+      ).toBe(false);
+    }
+  });
+
+  it('the money that actually leaves is the disbursed figure, everywhere it leaves', () => {
+    // A bank file or a Venmo deep link built from `total_cents` would hand back the advance the
+    // batch just withheld, and the only evidence would be a balance that never goes down.
+    const dispatch = code(read('lib/payouts/dispatch.ts'));
+    expect(dispatch).toContain('disbursedCents(item)');
+    expect(
+      /const (amount|dollars) = \(Math\.max\(0, item\.total_cents\)/.test(dispatch),
+      'dispatch must not send total_cents',
+    ).toBe(false);
+  });
+
   it('the payroll run recovers outstanding advances', () => {
     // The CALL, not the identifier. Matching the bare name passes on the import line alone, so
     // deleting the invocation would have left this test green — a check that cannot fail for the
