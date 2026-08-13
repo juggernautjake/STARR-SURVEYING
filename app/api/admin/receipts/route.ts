@@ -117,12 +117,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // absent, yields NULL and is correctly excluded — an unextracted receipt is not a flagged one.
   // (Checked against production SQL with a four-case VALUES table, because a probe against an
   // empty table returns 200 for a predicate that matches nothing and a predicate that is wrong.)
+  //
+  // The predicate is a named constant because it is used TWICE — once to fetch the view, and once to
+  // count it for the tab badge (see `needsReviewTotal` below). Two copies of a four-clause `or` is
+  // how the badge and the list start disagreeing.
+  const NEEDS_REVIEW_PREDICATE =
+    'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[],'
+    + 'and(card_match_status.eq.not_on_file,expense_nature.is.null)';
+
   const needsReviewView = status === 'needs_review';
   if (needsReviewView) {
-    query = query.or(
-      'extraction_status.eq.failed,dedup_match_id.not.is.null,ai_extras->>review_flags.neq.[],'
-        + 'and(card_match_status.eq.not_on_file,expense_nature.is.null)',
-    );
+    query = query.or(NEEDS_REVIEW_PREDICATE);
   } else if (status) {
     query = query.eq('status', status);
   }
@@ -366,6 +371,35 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     };
   });
 
+  // ── How many receipts need a person, across the whole table ───────────────────────────────────
+  //
+  // A HEAD request with an exact count — no rows come back, so this is cheap enough to run on every
+  // list call. It repeats the scoping filters (submitter, job, deleted, dates) deliberately: the
+  // badge must count the same population the user is looking at, or filtering to one submitter would
+  // still show the firm's whole backlog.
+  //
+  // Not scoped by `status`, because needing review is not a status — a receipt that needs a person
+  // can be pending, approved or exported, which is the whole reason R7 exists as a separate view.
+  const needsReviewTotal = await (async (): Promise<number | null> => {
+    let q = supabaseAdmin
+      .from('receipts')
+      .select('id', { count: 'exact', head: true })
+      .or(NEEDS_REVIEW_PREDICATE);
+    if (jobId) q = q.eq('job_id', jobId);
+    if (resolvedUserId) q = q.eq('user_id', resolvedUserId);
+    if (!includeDeleted) q = q.is('deleted_at', null);
+    if (from) q = q.gte('created_at', `${from}T00:00:00.000Z`);
+    if (to) q = q.lte('created_at', `${to}T23:59:59.999Z`);
+    const { count, error: countErr } = await q;
+    if (countErr) {
+      // Non-fatal: a queue that will not load because a badge could not be counted is a worse
+      // failure than a badge that falls back to counting the page.
+      console.warn('[admin/receipts] needs-review count failed', { error: countErr.message });
+      return null;
+    }
+    return count ?? 0;
+  })();
+
   // Aggregate counters for the header — useful for "12 awaiting review."
   //
   // These count the RETURNED PAGE, not the table. That is pre-existing behaviour and it is left
@@ -377,12 +411,17 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     approved: receiptRows.filter((r) => r.status === 'approved').length,
     rejected: receiptRows.filter((r) => r.status === 'rejected').length,
     exported: receiptRows.filter((r) => r.status === 'exported').length,
-    // R7 — recomputed in JS from the same three conditions the query above filters on, so the
-    // number on the tab and the rows behind it can never disagree. Only meaningful while the
-    // needs-review view is the active one; on the other tabs the fetched page is a different set.
-    needs_review: needsReviewView
-      ? receiptRows.filter((r) => needsReview(r as unknown as AdminReceiptRow)).length
-      : 0,
+    // R7. This used to be `needsReviewView ? …count the page… : 0`, which made the tab read
+    // **"Needs review 0" whenever you were not already on the Needs-review tab** — so the badge
+    // whose entire job is to send you there only told the truth after you had gone. Production on
+    // 2026-08-13 had nine receipts waiting behind a badge reading 0.
+    //
+    // Now counted against the TABLE, with the same predicate the view filters on, so it is a real
+    // total rather than a count of the page — and it is right on every tab. `needsReviewTotal` is
+    // null only if the count query itself failed, in which case the page count is a better answer
+    // than pretending there is nothing to review.
+    needs_review: needsReviewTotal
+      ?? receiptRows.filter((r) => needsReview(r as unknown as AdminReceiptRow)).length,
     total: receiptRows.length,
   };
 
