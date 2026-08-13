@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { isPayoutMethod } from '@/lib/payouts/methods';
 
 // GET: Get employee profile(s)
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -245,6 +246,32 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
 
   if (!isAdmin(session.user.roles) && user_email !== session.user.email) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // ── HOW THIS PERSON GETS PAID ─────────────────────────────────────────────────────────────────
+  //
+  // `payout_method` is what the batch builder stamps onto every payout item, and it was READ by the
+  // weekly cron and the ad-hoc pay route and written by nothing at all — no form, no API field, no
+  // default. Every item was therefore built with no method and arrived on the dispatch screen under
+  // "Method not assigned". It is also why the employee balance never funded: `account` is a payout
+  // method, so the one path that credits a balance was unreachable.
+  //
+  // Validated rather than passed through, because an unrecognised string is stored happily and then
+  // silently rejected by `isPayoutMethod` downstream — the form would show a method set and every
+  // payout would still say "unassigned", which is the worst of both.
+  if ('payout_method' in updates) {
+    const m = updates.payout_method;
+    if (m !== null && m !== '' && !isPayoutMethod(m)) {
+      return NextResponse.json(
+        { error: `“${String(m)}” is not a way this firm pays people. Pick one from the list.` },
+        { status: 400 },
+      );
+    }
+    // Deciding how somebody is paid is a pay setting, not a contact detail.
+    if (!isAdmin(session.user.roles)) {
+      return NextResponse.json({ error: 'Only admins can change how somebody is paid.' }, { status: 403 });
+    }
+    updates.payout_method = m === '' ? null : m;
   }
 
   const { data, error } = await supabaseAdmin

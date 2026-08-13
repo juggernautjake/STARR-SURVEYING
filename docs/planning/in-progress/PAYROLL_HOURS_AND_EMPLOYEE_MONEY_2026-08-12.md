@@ -250,8 +250,13 @@ and `available_balance`, guarded against double-crediting by `alreadyCredited()`
 The real gap is narrower and duller: **nobody chooses that method**, and nothing on the payout
 screens says it exists or what it means. So the remaining work is not plumbing:
 
-1. Make `account` a visible, explained choice at dispatch — *"hold this in their balance rather than
-   sending it"* — a UI slice on `/admin/payouts/runs/[id]/dispatch`.
+1. ~~Make `account` a visible, explained choice.~~ **✅ SHIPPED 2026-08-12**, and it turned out to be
+   the whole of the gap. `employee_profiles.payout_method` — what the batch builder stamps onto every
+   item — was read by two routes and **written by nothing**: no form, no API field, no default. Every
+   payout item was built with no method and arrived on the dispatch screen as "Method not assigned".
+   And it was unreachable twice over: seed 578's CHECK listed seven methods and `account` was added
+   to `lib/payouts/methods.ts` afterwards, so even with a form the database would have refused the
+   one value that funds a balance. Seed 586 widens it; the employee page now sets it.
 2. Decide whether **approval alone** should credit, ahead of dispatch. **That is D2**: it only makes
    sense if the batch path is the surviving engine, and wiring balance crediting into a path that may
    be retired is the wrong order. Deferred until the owner answers D2.

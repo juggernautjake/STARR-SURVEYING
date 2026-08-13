@@ -13,6 +13,7 @@ import BalanceCard from '../../components/payroll/BalanceCard';
 import PayStubView from '../../components/payroll/PayStubView';
 import { formatCurrency, formatDate } from '../../components/payroll/PayrollConstants';
 import { useJobTitles } from '../../components/payroll/useJobTitles';
+import { PAYOUT_METHODS, PAYOUT_METHOD_INFO, isPayoutMethod } from '@/lib/payouts/methods';
 
 interface EmployeeProfile {
   id: string;
@@ -62,6 +63,8 @@ export default function EmployeeDetailPage({ params }: { params: { email: string
     salary_type: 'hourly',
     hire_date: '',
     is_active: true,
+    payout_method: '',
+    payout_handle: '',
   });
 
   const isAdmin = session?.user?.roles?.includes('admin') ?? false;
@@ -79,6 +82,8 @@ export default function EmployeeDetailPage({ params }: { params: { email: string
           salary_type: data.profile.salary_type,
           hire_date: data.profile.hire_date || '',
           is_active: data.profile.is_active,
+          payout_method: data.profile.payout_method || '',
+          payout_handle: data.profile.payout_handle || '',
         });
       }
     } catch (err) {
@@ -110,6 +115,10 @@ export default function EmployeeDetailPage({ params }: { params: { email: string
           salary_type: editForm.salary_type,
           hire_date: editForm.hire_date || null,
           is_active: editForm.is_active,
+          // Empty string becomes NULL. '' is not a payout method, and storing it would leave
+          // `isPayoutMethod` rejecting it downstream while this form showed something was set.
+          payout_method: editForm.payout_method || null,
+          payout_handle: editForm.payout_handle.trim() || null,
         }),
       });
       if (res.ok) {
@@ -198,6 +207,45 @@ export default function EmployeeDetailPage({ params }: { params: { email: string
                 onChange={e => setEditForm(f => ({ ...f, hourly_rate: e.target.value }))}
               />
             </div>
+            {/* ── HOW THIS PERSON GETS PAID ────────────────────────────────────────────────────
+                `employee_profiles.payout_method` is what the batch builder stamps onto every
+                payout item. It was READ by the weekly cron and the ad-hoc pay route and written
+                by nothing — no form, no API field, no default — so every item was built with no
+                method and landed on the dispatch screen under "Method not assigned".
+
+                That is also why the balance never funded: `account` is a payout method, and no
+                method could ever be set, so the one path that credits an employee's balance was
+                unreachable. */}
+            <div className="payroll-form-group">
+              <label htmlFor="payout-method">How they get paid</label>
+              <select
+                id="payout-method"
+                value={editForm.payout_method}
+                onChange={e => setEditForm(f => ({ ...f, payout_method: e.target.value }))}
+              >
+                <option value="">Not set — payouts land as “method not assigned”</option>
+                {PAYOUT_METHODS.map(m => (
+                  <option key={m} value={m}>{PAYOUT_METHOD_INFO[m].label}</option>
+                ))}
+              </select>
+              {isPayoutMethod(editForm.payout_method) && (
+                <small>{PAYOUT_METHOD_INFO[editForm.payout_method].note}</small>
+              )}
+            </div>
+            {/* Shown only for the methods that pay TO something. Asking for a Venmo handle on a
+                cash payout is how a form teaches people to type anything into it. */}
+            {isPayoutMethod(editForm.payout_method) && PAYOUT_METHOD_INFO[editForm.payout_method].needsHandle && (
+              <div className="payroll-form-group">
+                <label htmlFor="payout-handle">Where to send it</label>
+                <input
+                  id="payout-handle"
+                  type="text"
+                  value={editForm.payout_handle}
+                  onChange={e => setEditForm(f => ({ ...f, payout_handle: e.target.value }))}
+                  placeholder="@their-venmo, a phone number, a bank nickname"
+                />
+              </div>
+            )}
             <div className="payroll-form-group">
               <label>Hire Date</label>
               <input
