@@ -3,6 +3,8 @@
 
 import React, { useState } from 'react';
 
+import styles from './DrawerWorkspace.module.css';
+
 interface JobNode { id: string; label: string; children?: JobNode[]; }
 
 const SAMPLE_TREE: JobNode[] = [
@@ -20,7 +22,7 @@ const SAMPLE_TREE: JobNode[] = [
 export default function DrawerWorkspace() {
   const [selected, setSelected] = useState<string | null>(null);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr 280px', gap: 'var(--hub-spc-3, 12px)' }}>
+    <div className={styles.shell}>
       <aside style={asideStyle}>
         <h2 style={headerStyle}>Jobs</h2>
         <ul role="tree" style={{ listStyle: 'none', padding: 0, margin: 0 }}>

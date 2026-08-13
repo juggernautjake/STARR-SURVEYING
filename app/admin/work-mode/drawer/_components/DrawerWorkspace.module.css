@@ -1,0 +1,27 @@
+/* DrawerWorkspace.module.css
+ *
+ * The drafter workspace is a three-column shell: job tree, CAD pane, comms rail. That was written
+ * as an inline `gridTemplateColumns: '260px 1fr 280px'`, and inline styles cannot carry a media
+ * query — so the 540px of fixed side columns stayed fixed at every width. On a 390px phone the page
+ * scrolled sideways to 695px, which is the one layout failure the QA sweep found across 139 routes.
+ *
+ * It is a CSS module rather than more inline style because the fix IS the media query: the desktop
+ * proportions are deliberate (the CAD pane must dominate) and collapsing them into equal `auto-fit`
+ * tracks would have traded a phone bug for a desktop regression.
+ */
+
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr 280px;
+  gap: var(--hub-spc-3, 12px);
+}
+
+/* Below the point where 260 + 280 + gaps stops leaving a usable centre pane, the rails stack above
+ * and below the drawing instead of squeezing it. `minmax(0, …)` on the middle track matters even
+ * here: a grid item's default `min-width: auto` refuses to shrink below its content, which is how a
+ * wide canvas pushes a column past the viewport while the template itself looks correct. */
+@media (max-width: 900px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

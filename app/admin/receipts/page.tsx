@@ -1649,7 +1649,7 @@ const styles: Record<string, React.CSSProperties> = {
     flex: '1 1 220px',
     margin: 0,
     fontSize: 13,
-    color: 'var(--theme-fg-muted)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     minWidth: 0,
   },
   aiButton: {
@@ -1763,7 +1763,7 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'left',
     padding: '6px 10px',
     borderBottom: '1px solid #E5E7EB',
-    color: 'var(--theme-fg-muted)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     fontWeight: 600,
     whiteSpace: 'nowrap',
   },
@@ -1777,7 +1777,7 @@ const styles: Record<string, React.CSSProperties> = {
   lineItemsNote: {
     margin: 0,
     fontSize: 11.5,
-    color: 'var(--theme-fg-muted)',
+    color: 'var(--theme-fg-muted, #6B7280)',
     fontStyle: 'italic',
   },
   fields: { margin: 0, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },

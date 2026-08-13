@@ -100,7 +100,13 @@ describe('item 16 — proactive alerts reach a channel people watch', () => {
     // `manager` and `owner` are not in the UserRole union. A PostgREST filter for a role nobody has
     // returns zero rows, which looks exactly like "there was nothing to send".
     const proactive = read('lib/ai/proactive.ts');
-    const filter = proactive.match(/\.or\('([^']+)'\)/)?.[1] ?? '';
+    // The ROLES filter specifically, not "the first `.or(` in the file". This matched the first one
+    // until 2026-08-13, when a receipts filter (`expense_nature.is.null,…`) was added above it and
+    // the test started asserting about somebody else's query — failing while the code it is about
+    // was unchanged and correct. A test that finds its subject by position finds a new subject
+    // whenever the file grows.
+    const filter = proactive.match(/\.or\('(roles\.[^']+)'\)/)?.[1] ?? '';
+    expect(filter, 'no roles filter found in lib/ai/proactive.ts').not.toBe('');
     expect(filter).toContain('roles.cs.{admin}');
     expect(filter).not.toContain('manager');
     expect(filter).not.toContain('owner');

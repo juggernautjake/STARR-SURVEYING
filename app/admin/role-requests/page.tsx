@@ -251,10 +251,10 @@ export default function RoleRequestsPage(): React.ReactElement {
       <style jsx>{`
         .rr { max-width: 780px; min-width: 0; }
         .rr__title { font-family: 'Sora', sans-serif; font-size: 1.4rem; font-weight: 700; margin: 0 0 0.3rem; color: var(--theme-fg-primary, #0F1419); }
-        .rr__lead { margin: 0 0 1.2rem; font-size: 0.88rem; color: var(--theme-fg-muted); }
+        .rr__lead { margin: 0 0 1.2rem; font-size: 0.88rem; color: var(--theme-fg-muted, #6B7280); }
         .rr__card { border: 1px solid var(--theme-border, #E5E7EB); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; background: var(--theme-bg-surface, #FFF); min-width: 0; }
         .rr__h2 { display: flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 700; margin: 0 0 0.75rem; color: var(--theme-fg-primary, #1F2937); }
-        .rr__muted { margin: 0; font-size: 0.85rem; color: var(--theme-fg-muted); }
+        .rr__muted { margin: 0; font-size: 0.85rem; color: var(--theme-fg-muted, #6B7280); }
         .rr__error { font-size: 0.85rem; color: #B91C1C; margin: 0 0 0.75rem; overflow-wrap: anywhere; }
         .rr__ok { font-size: 0.85rem; color: #065F46; margin: 0 0 0.75rem; }
 
@@ -264,10 +264,10 @@ export default function RoleRequestsPage(): React.ReactElement {
         .rr__roles { display: grid; grid-template-columns: 1fr; gap: 0.4rem; margin-bottom: 0.75rem; }
         @media (min-width: 620px) { .rr__roles { grid-template-columns: 1fr 1fr; } }
         .rr__role { display: flex; gap: 0.5rem; align-items: flex-start; padding: 0.6rem; min-height: 44px; border: 1px solid var(--theme-border, #E5E7EB); border-radius: 8px; cursor: pointer; min-width: 0; }
-        .rr__role--on { border-color: var(--color-brand-navy, #1E3A5F); background: var(--theme-bg-elevated); }
+        .rr__role--on { border-color: var(--color-brand-navy, #1E3A5F); background: var(--theme-bg-elevated, #F4F7FB); }
         .rr__role span { display: flex; flex-direction: column; min-width: 0; }
         .rr__role strong { font-size: 0.85rem; color: var(--theme-fg-primary, #1F2937); }
-        .rr__role em { font-style: normal; font-size: 0.74rem; color: var(--theme-fg-muted); overflow-wrap: anywhere; }
+        .rr__role em { font-style: normal; font-size: 0.74rem; color: var(--theme-fg-muted, #6B7280); overflow-wrap: anywhere; }
 
         .rr__field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; min-width: 0; }
         .rr__field span { font-size: 0.75rem; font-weight: 600; color: var(--theme-fg-secondary, #4B5563); }
@@ -277,7 +277,7 @@ export default function RoleRequestsPage(): React.ReactElement {
         .rr__item { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: space-between; padding: 0.6rem; border: 1px solid var(--theme-border, #E5E7EB); border-radius: 8px; min-width: 0; }
         .rr__item-main { display: flex; flex-direction: column; gap: 0.15rem; flex: 1 1 200px; min-width: 0; }
         .rr__asked { font-size: 0.86rem; font-weight: 600; color: var(--theme-fg-primary, #1F2937); overflow-wrap: anywhere; }
-        .rr__reason { font-size: 0.76rem; color: var(--theme-fg-muted); overflow-wrap: anywhere; }
+        .rr__reason { font-size: 0.76rem; color: var(--theme-fg-muted, #6B7280); overflow-wrap: anywhere; }
         .rr__reason--none { font-style: italic; }
         .rr__chip { align-self: flex-start; padding: 0.05rem 0.45rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; }
         .rr__item-actions { display: flex; gap: 0.35rem; flex-shrink: 0; }

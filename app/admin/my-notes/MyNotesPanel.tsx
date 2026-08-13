@@ -528,7 +528,20 @@ export default function MyNotesPanel() {
       ) : (
         <div className="mynotes__grid">
           {displayEntries.map(entry => (
-            <button key={entry.id} className="mynotes__card" onClick={() => openEntry(entry)}>
+            // A <div role="button">, not a <button>: the card contains its own Delete button, and a
+            // button inside a button is invalid HTML that React reports as a hydration error — the
+            // browser's parser un-nests the inner button and React's does not, so the two disagree
+            // about the tree. Same defect, same fix as the fieldbook's note card.
+            <div
+              key={entry.id}
+              className="mynotes__card"
+              role="button"
+              tabIndex={0}
+              onClick={() => openEntry(entry)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openEntry(entry); }
+              }}
+            >
               <div className="mynotes__card-header">
                 <h3 className="mynotes__card-title">
                   {entry.is_public ? '🌐 ' : '🔒 '}
@@ -563,7 +576,7 @@ export default function MyNotesPanel() {
                   </button>
                 )}
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}

@@ -111,6 +111,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@auth/core": "^0.41.0",
     "@playwright/test": "^1.60.0",
     "@tauri-apps/cli": "^2.0.0",
     "@types/dompurify": "^3.0.5",
