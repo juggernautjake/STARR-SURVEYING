@@ -57,6 +57,35 @@ describe('resolvePayRate — base pay', () => {
     expect(r.rate).toBeNull();
     expect(r.source).toBe('unset');
   });
+
+  // ── A STORED ZERO IS THE COLUMN DEFAULT, NOT AN AGREED WAGE (found 2026-08-12) ────────────────
+  //
+  // `employee_profiles.hourly_rate` is `numeric(10,2) DEFAULT 0 NOT NULL`. It cannot hold null, so
+  // "nobody has agreed a rate yet" is STORED AS 0 — and this resolver used to accept it, returning
+  // `{ rate: 0, source: 'base' }`. Priced, decided, worth nothing.
+  //
+  // A new hire whose profile was created without a rate had every hour settled at $0.00, `owed`
+  // reported them fully paid up, and a stub would print "$0.00/hr". The module's own principle,
+  // defeated by a column default.
+  it('treats a stored 0 base pay as NOT SET, because that is the column default', () => {
+    const r = resolvePayRate({ basePay: 0 });
+    expect(r.rate, 'a defaulted 0 must never be priced as an agreed wage').toBeNull();
+    expect(r.source).toBe('unset');
+  });
+
+  it('still pays any real rate, including a small one', () => {
+    // The fix must not swallow genuine low rates — the boundary is zero, not "small".
+    expect(resolvePayRate({ basePay: 0.01 }).rate).toBe(0.01);
+    expect(resolvePayRate({ basePay: 7.25 }).rate).toBe(7.25);
+  });
+
+  it('leaves the deliberate sources alone — only base pay has a defaulting column', () => {
+    // A manual rate, an override and a flat activity rate are all typed by a person on purpose, and
+    // none of them has a column default that manufactures zeros. The mechanism for "this day is
+    // worth nothing" is a pay DECISION with total_pay 0, which is a separate deliberate act.
+    expect(resolvePayRate({ manualRate: 0 }).source).toBe('manual');
+    expect(resolvePayRate({ override: { fixed_rate: 0 } as never }).source).toBe('override');
+  });
 });
 
 describe('resolvePayRate — activities that pay base pay', () => {

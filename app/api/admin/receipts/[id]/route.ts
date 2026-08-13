@@ -26,6 +26,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildReceiptDecisionNotification } from '@/lib/notifications/receipt-decision';
+import { resolveSubmitterEmails } from '@/lib/receipts/submitter';
 
 const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'exported']);
 const ALLOWED_TAX_FLAGS = new Set(['full', 'partial_50', 'none', 'review']);
@@ -157,12 +158,24 @@ export const PATCH = withErrorHandler(
     // Best-effort: a notification failure must not fail the decision.
     if (body.status === 'approved' || body.status === 'rejected') {
       try {
+        // ── THE FIELDS THIS USED TO ASK FOR DO NOT EXIST ──────────────────────────────────────
+        //
+        // It read `submitted_by`, `vendor` and `total` off the row. The real columns are `user_id`
+        // (an auth.users UUID), `vendor_name` and `total_cents` — so all three arrived `undefined`,
+        // the builder returned null on the missing submitter, and `if (notice)` swallowed it.
+        //
+        // **Every receipt approval and rejection has notified nobody**, silently. A crew member
+        // whose receipt was rejected with a reason was never told and there was no error to notice.
+        // The `as Record<string, unknown>` cast is exactly what stopped the compiler catching it,
+        // which is why it is gone rather than corrected.
+        const row = data as { user_id?: string | null; vendor_name?: string | null; total_cents?: number | null; rejected_reason?: string | null };
+        const emailById = await resolveSubmitterEmails([row.user_id]);
         const notice = buildReceiptDecisionNotification(
           {
-            submitted_by: (data as Record<string, unknown>).submitted_by as string | null,
-            vendor: (data as Record<string, unknown>).vendor as string | null,
-            total: (data as Record<string, unknown>).total as number | null,
-            rejected_reason: (data as Record<string, unknown>).rejected_reason as string | null,
+            user_email: row.user_id ? emailById.get(row.user_id) ?? null : null,
+            vendor_name: row.vendor_name ?? null,
+            total_cents: row.total_cents ?? null,
+            rejected_reason: row.rejected_reason ?? null,
           },
           body.status,
         );

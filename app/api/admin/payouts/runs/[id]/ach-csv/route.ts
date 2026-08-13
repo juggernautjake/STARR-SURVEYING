@@ -42,7 +42,18 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // silently export the gross figure and pay back every advance the batch just withheld.
     .select('id, user_email, user_name, total_cents, recovered_cents, method, method_handle, status')
     .eq('batch_id', id)
-    .eq('method', 'ach');
+    .eq('method', 'ach')
+    // ── ALREADY-PAID ROWS MUST NOT BE IN THE FILE ───────────────────────────────────────────────
+    //
+    // This route is reachable while a batch is `dispatched` — i.e. mid-dispatch, which is exactly
+    // when somebody re-downloads. `status` was selected and never used, so the second file contained
+    // every ACH line again, including the ones already sent. Uploading it to the bank pays those
+    // people a second time, and nothing downstream objects: marking an already-`paid` item `paid`
+    // is a deliberate no-op, and the batch header only rolls forward.
+    //
+    // A `failed` row is deliberately still exported: it is a payment the bank rejected and the
+    // person is still owed it, so it belongs in the next file.
+    .neq('status', 'paid');
   const achItems = (items ?? []) as DispatchItem[];
   const csv = buildAchCsv(achItems, batch.label);
 

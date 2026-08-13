@@ -23,6 +23,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { planAccountCredit, type BalanceTransaction } from '@/lib/payroll/account-credit';
+import { disbursedCents } from '@/lib/payroll/disbursement';
 import {
   batchStatusFromItems,
   type PayoutBatchStatus,
@@ -56,7 +57,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const { data: batch } = await supabaseAdmin
     .from('payout_batches')
-    .select('id, status')
+    // `label` is read because the account-credit description names the batch the money came from.
+    // It was omitted here while `(batch as { label?: string }).label` was read below, so the
+    // description silently fell back to the generic string on every credit — a cast asking for a
+    // column the query never fetched, which the compiler cannot catch.
+    .select('id, status, label')
     .eq('id', batchId)
     .maybeSingle();
   if (!batch) return NextResponse.json({ error: 'Batch not found' }, { status: 404 });
@@ -141,11 +146,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     try {
       const { data: item } = await supabaseAdmin
         .from('payout_batch_items')
-        .select('user_email, total_cents, method')
+        // `recovered_cents` is not optional here. Crediting `total_cents` would put the GROSS amount
+        // into the balance while the advance was simultaneously recorded as repaid — see below.
+        .select('user_email, total_cents, recovered_cents, method')
         .eq('id', itemId)
         .maybeSingle();
 
-      const row = item as { user_email: string; total_cents: number; method: string | null } | null;
+      const row = item as {
+        user_email: string; total_cents: number; recovered_cents: number | null; method: string | null;
+      } | null;
       if (row?.method === 'account') {
         const [{ data: profile }, { data: existing }] = await Promise.all([
           supabaseAdmin.from('employee_profiles').select('available_balance').eq('user_email', row.user_email).maybeSingle(),
@@ -158,7 +167,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
         const plan = planAccountCredit({
           method: row.method,
-          amountCents: Number(row.total_cents),
+          // ── THE DISBURSED FIGURE, NOT THE SETTLED ONE ─────────────────────────────────────────
+          //
+          // `account` is the one method where "paid" means "credited to their balance" rather than
+          // "sent". Crediting `total_cents` would hand back the advance this very payout withheld:
+          // the balance would rise by $1,000 while `pay_advance_repayments` recorded $200 repaid,
+          // the employee could withdraw the full $1,000, and the firm would be $200 down.
+          //
+          // Nothing would look wrong. `owed` would read zero, the pay statement would correctly say
+          // "$800 to be paid to you", and the balance would say $1,000 — three screens, three
+          // different truths, all internally consistent. Every other rail already derives the amount
+          // this way; this was the one that did not.
+          amountCents: disbursedCents(row),
           payoutItemId: itemId,
           currentBalanceDollars: Number((profile as { available_balance: number } | null)?.available_balance ?? 0),
           existingTransactions: (existing ?? []) as BalanceTransaction[],

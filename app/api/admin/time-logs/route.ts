@@ -469,9 +469,27 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       updateData.approved_at = new Date().toISOString();
       updateData.adjustment_note = updates.adjustment_note || '';
       updateData.adjusted_hours = updates.adjusted_hours;
-      // Recalculate pay with adjusted hours
+      // Recalculate pay with adjusted hours.
+      //
+      // ── NULL, NOT ZERO — AND NOT `|| 0` ────────────────────────────────────────────────────────
+      //
+      // This was `(existing.effective_rate || 0) * updates.adjusted_hours`, which turned an entry
+      // nobody had priced yet into one worth exactly $0.00. The creation path a few hundred lines up
+      // gets this right and says why: *"a zero here would total into a pay period as 'worked for
+      // free' instead of 'waiting on a decision', and the difference is somebody's wages."*
+      //
+      // The consequence was not cosmetic. In `lib/payroll/owed.ts` a `payDollars` of 0 is finite, so
+      // it takes the PRICED branch: the hours move into `paidHours`, leave `undecidedHours`, and the
+      // one sentence that would have surfaced them — "9h are approved but not yet priced" — stops
+      // printing. The person is never paid for that day and nothing says so.
+      //
+      // Rounded for the same reason the creation path rounds: 25.5 × 7.1 is 181.04999999999998 in
+      // floating point, and a NUMERIC column should not be storing that.
       if (updates.adjusted_hours) {
-        updateData.total_pay = (existing.effective_rate || 0) * updates.adjusted_hours;
+        const rate = existing.effective_rate;
+        updateData.total_pay = rate === null || rate === undefined
+          ? null
+          : Math.round(Number(rate) * updates.adjusted_hours * 100) / 100;
       }
     }
 
@@ -554,9 +572,13 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (updates.description !== undefined) editUpdates.description = updates.description;
   if (updates.notes !== undefined) editUpdates.notes = updates.notes;
 
-  // If hours changed, recalculate
+  // If hours changed, recalculate. Same rule as the adjust path above — null stays null, because a
+  // zero is a decision that the work was worth nothing, and nobody made that decision here.
   if (updates.hours !== undefined) {
-    editUpdates.total_pay = (existing.effective_rate || 0) * updates.hours;
+    const rate = existing.effective_rate;
+    editUpdates.total_pay = rate === null || rate === undefined
+      ? null
+      : Math.round(Number(rate) * updates.hours * 100) / 100;
     editUpdates.status = 'pending'; // re-submit for approval
   }
 

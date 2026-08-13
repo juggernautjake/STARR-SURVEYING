@@ -127,6 +127,35 @@ function isRate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0;
 }
 
+/**
+ * Is this an AGREED base rate, as opposed to a column nobody filled in?
+ *
+ * ── WHY 0 IS NOT A BASE RATE (found 2026-08-12) ─────────────────────────────────────────────────
+ *
+ * `employee_profiles.hourly_rate` is `numeric(10,2) DEFAULT 0 NOT NULL`. It cannot hold null, so
+ * "nobody has agreed a rate with this person yet" is stored as **0** — and `isRate` accepted 0,
+ * which meant every hour that person logged resolved to:
+ *
+ *     { rate: 0, source: 'base', explanation: '$0.00/hr — base pay.' }
+ *
+ * Priced. Decided. Worth nothing. A new hire whose profile was created without a rate would have
+ * every hour settled at $0.00, `owed` would report them fully paid up, and a pay stub would print
+ * $0.00/hr — the precise thing the header of this file says must never happen: *"a zero totals into
+ * a payroll figure and reads as 'worked for free'; null reads as 'nobody has set this yet', which
+ * is both true and actionable."* The module's own principle, defeated by a column default.
+ *
+ * Rejecting 0 here sends it to `unset` instead, which is the honest answer and the one that puts the
+ * hours in front of an approver.
+ *
+ * **Only base pay.** A manual rate, a standing override and a flat activity rate are all values a
+ * person typed on purpose, so a 0 there is at least arguably deliberate, and none of them has a
+ * column default that manufactures zeros. The mechanism for "this day is worth nothing" is a pay
+ * DECISION with `total_pay: 0`, which is a separate and deliberate act that this does not touch.
+ */
+function isAgreedBasePay(value: unknown): value is number {
+  return isRate(value) && value > 0;
+}
+
 /** Turn `field_work` into `field work` for a sentence. */
 function readable(workType: string): string {
   return workType.replace(/_/g, ' ');
@@ -197,7 +226,7 @@ export function resolvePayRate(input: ResolveRateInput): ResolvedRate {
   //
   // *"I want to log 7 hours of field work at $25 an hour"* — $25 because that is what THEY are on,
   // not because field work has a price. Naming the activity still records what they did.
-  if (isRate(input.basePay)) {
+  if (isAgreedBasePay(input.basePay)) {
     const rate = round2(Number(input.basePay));
     return {
       rate,

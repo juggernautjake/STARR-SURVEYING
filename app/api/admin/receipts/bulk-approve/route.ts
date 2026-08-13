@@ -25,6 +25,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildReceiptDecisionNotification } from '@/lib/notifications/receipt-decision';
+import { resolveSubmitterEmails } from '@/lib/receipts/submitter';
 
 /** Hard cap so a runaway client can't approve thousands of rows
  *  by accident. Bookkeeper queues rarely exceed 50/day; 200 is a
@@ -181,7 +182,16 @@ export const POST = withErrorHandler(
       })
       .in('id', toApprove)
       .eq('status', 'pending')
-      .select('id, submitted_by, vendor, total');
+      // ── THE COLUMNS THAT ACTUALLY EXIST ──────────────────────────────────────────────────────
+      //
+      // This asked for `submitted_by, vendor, total`. None of the three is a column on `receipts`;
+      // the real ones are `user_id`, `vendor_name`, `total_cents`. PostgREST renders an update with
+      // a select as a single `UPDATE … RETURNING …`, so the unknown column was a PARSE ERROR — the
+      // statement never ran, nothing was approved, and the route answered 500.
+      //
+      // **Bulk approval has therefore never worked.** The per-row PATCH beside it does, which is
+      // why this read as "bulk is flaky" rather than "bulk is broken".
+      .select('id, user_id, vendor_name, total_cents');
     if (updateErr) {
       console.error('[admin/receipts/bulk-approve] update failed', {
         error: updateErr.message,
@@ -192,9 +202,9 @@ export const POST = withErrorHandler(
 
     type ApprovedRow = {
       id: string;
-      submitted_by: string | null;
-      vendor: string | null;
-      total: number | null;
+      user_id: string | null;
+      vendor_name: string | null;
+      total_cents: number | null;
     };
     const approvedRows = (updated ?? []) as ApprovedRow[];
     const approvedIds = new Set(approvedRows.map((r) => r.id));
@@ -204,8 +214,15 @@ export const POST = withErrorHandler(
     // receipt was approved. Best-effort: notification failures never
     // fail the batch.
     try {
+      // `user_id` is an auth.users UUID; a notification needs an address. Resolved once for the
+      // batch rather than per row.
+      const emailById = await resolveSubmitterEmails(approvedRows.map((r) => r.user_id));
       const notices = approvedRows
-        .map((r) => buildReceiptDecisionNotification(r, 'approved'))
+        .map((r) => buildReceiptDecisionNotification({
+          user_email: r.user_id ? emailById.get(r.user_id) ?? null : null,
+          vendor_name: r.vendor_name,
+          total_cents: r.total_cents,
+        }, 'approved'))
         .filter((n): n is NonNullable<typeof n> => n !== null);
       await Promise.all(notices.map((n) => notify(n)));
     } catch { /* ignore notification failures */ }

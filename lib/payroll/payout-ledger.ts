@@ -38,6 +38,7 @@
 // All of these tables are empty, so this is a repoint rather than a migration.
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { normalizePayoutMethod } from '@/lib/payouts/methods';
 
 /** One payout as every screen needs it, whatever it was called before. */
 export interface PayoutRecord {
@@ -206,7 +207,20 @@ export function filterPayouts(payouts: PayoutRecord[], filter: PayoutFilter = {}
   const text = filter.text?.trim().toLowerCase();
   return payouts.filter((p) => {
     if (filter.committedOnly && !isCommittedPayout(p)) return false;
-    if (filter.method && p.method !== filter.method) return false;
+    // ── BOTH SIDES NORMALISED, OR THE FILTER HIDES REAL PAYMENTS ────────────────────────────────
+    //
+    // The caller normalises its input (`normalizePayoutMethod` in the search route) while `p.method`
+    // is the raw column, and that function exists precisely because retired spellings are stored:
+    // `direct_deposit` → `ach`, `stripe` → `other`, `cash_app` → `cashapp`, `cheque` → `check`.
+    //
+    // Comparing one against the other meant filtering by ACH silently dropped every historical
+    // `direct_deposit` row — the screen said "0 payouts" and an operator would conclude the payment
+    // was never made. The inverse was worse: filtering `stripe` normalised to `other` and returned
+    // genuine `other` rows while excluding the actual Stripe ones, attributing a payment to the
+    // wrong rail. The row was still findable by TYPING the method, because the free-text search
+    // includes the raw value — which is what made this look like a display quirk rather than a
+    // filter that lies.
+    if (filter.method && normalizePayoutMethod(p.method) !== filter.method) return false;
     if (filter.status && p.status !== filter.status) return false;
     if (filter.batchId && p.batch_id !== filter.batchId) return false;
     if (typeof filter.minCents === 'number' && p.amount_cents < filter.minCents) return false;

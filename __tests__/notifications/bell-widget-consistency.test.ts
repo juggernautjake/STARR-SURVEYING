@@ -36,7 +36,7 @@ describe('notification links match the widget-links registry', () => {
   });
 
   it('receipt decision → pending-receipts widget route', () => {
-    const link = buildReceiptDecisionNotification({ submitted_by: 'a@x.com', total: 1 }, 'approved')!.link;
+    const link = buildReceiptDecisionNotification({ user_email: 'a@x.com', total_cents: 100 }, 'approved')!.link;
     expect(link).toBe(WIDGET_LINKS['pending-receipts'].href);
   });
 
