@@ -106,6 +106,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     .filter((u: { email: string; roles: string[] | null }) =>
       !withProfile.has(u.email.toLowerCase()) && (u.roles ?? []).includes('employee'))
     .map((u: { email: string; name: string | null }) => ({
+      // A staff member with no `employee_profiles` row has no profile id, and this object shipped
+      // without an `id` at all — so the payroll page rendered five of the firm's six people with
+      // `key={undefined}`. React warned, and the real cost is worse than the warning: unkeyed
+      // siblings reconcile by POSITION, so re-sorting or filtering the roster can leave one
+      // person's name above another person's pay.
+      //
+      // Prefixed rather than bare, and email rather than an index: an index is not stable across a
+      // filter, and a bare email could be mistaken for a profile id by anything that later reads
+      // this field. `id` is only ever used as a key here — the row is addressed by `user_email`.
+      id: `no-profile:${u.email.toLowerCase()}`,
       user_email: u.email,
       user_name: u.name ?? u.email,
       job_title: null,

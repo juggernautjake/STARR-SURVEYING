@@ -1376,7 +1376,7 @@ const styles = `
     border: 1px solid var(--theme-border, #E5E7EB);
     border-radius: 8px;
     background: var(--theme-bg-surface, #FFF);
-    color: var(--theme-fg-tertiary, #6B7280);
+    color: var(--theme-fg-muted);
   }
 
   .fx__search-box input {
@@ -1426,7 +1426,7 @@ const styles = `
   .fx__search-status {
     margin: 0 0 0.6rem;
     font-size: 0.8rem;
-    color: var(--theme-fg-tertiary, #6B7280);
+    color: var(--theme-fg-muted);
     overflow-wrap: anywhere;
   }
 
@@ -1459,7 +1459,7 @@ const styles = `
   .fx__hit-path {
     display: block;
     font-size: 0.72rem;
-    color: var(--theme-fg-tertiary, #6B7280);
+    color: var(--theme-fg-muted);
     overflow-wrap: anywhere;
   }
   /* ── F6 — phone overrides, LAST ON PURPOSE ──────────────────────────────────────────────────

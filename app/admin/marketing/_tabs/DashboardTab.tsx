@@ -603,14 +603,14 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
         .mk__lead { color: var(--theme-fg-muted, #4b5563); margin: 0 0 18px; }
         .mk__panel { border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px; padding: 14px 16px;
           margin-bottom: 14px; background: var(--theme-bg-surface, #fff); }
-        .mk__panel--meter { border-color: var(--theme-border-strong, #c7d2fe); background: var(--theme-bg-subtle, #f8faff); }
+        .mk__panel--meter { border-color: var(--theme-border-strong, #c7d2fe); background: var(--theme-bg-elevated); }
         .mk__h2 { font-size: 1.05rem; margin: 0 0 6px; font-weight: 600; }
         .mk__row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .mk__row label { font-weight: 600; font-size: 0.85rem; }
         .mk__muted { color: var(--theme-fg-muted, #6b7280); font-size: 0.88rem; margin: 4px 0; }
         .mk__hint { color: var(--theme-fg-muted, #6b7280); font-size: 0.82rem; margin: 10px 0 0; }
         .mk__tiny { color: var(--theme-fg-muted, #9ca3af); font-size: 0.75rem; font-style: normal; }
-        .mk__warn { background: var(--theme-bg-subtle, #fffbeb); border: 1px solid var(--theme-warning, #fde68a);
+        .mk__warn { background: var(--theme-bg-elevated); border: 1px solid var(--theme-warning, #fde68a);
           border-radius: 8px; padding: 9px 11px; font-size: 0.85rem;
           color: var(--theme-warning, #78350f); margin: 10px 0; }
         .mk__error { color: var(--theme-danger, #991b1b); }
@@ -636,11 +636,11 @@ export default function MarketingDashboardPage({ range }: { range: DateRange }):
           border-bottom: 1px solid var(--theme-border, #f0f1f3); }
         .mk__table th { color: var(--theme-fg-secondary, #4b5563); font-weight: 600; white-space: nowrap; }
         .mk__stagebar { position: relative; min-width: 150px; }
-        .mk__stagebar span { position: absolute; inset: 0 auto 0 0; background: var(--theme-bg-subtle, #dbeafe);
+        .mk__stagebar span { position: absolute; inset: 0 auto 0 0; background: var(--theme-bg-elevated);
           border-radius: 4px; }
         .mk__stagebar strong { position: relative; font-weight: 600; padding-left: 4px; }
         select, input { padding: 8px 10px; border: 1px solid var(--theme-border, #d1d5db); border-radius: 8px;
-          font: inherit; min-height: 40px; background: var(--theme-bg-input, #fff);
+          font: inherit; min-height: 40px; background: var(--theme-bg-surface);
           color: var(--theme-fg-primary, #111827); }
         /* A3's panel styles live in Marketing.css, not here. A styled-jsx block is invisible to the
            guard in __tests__/marketing/marketing-pages-are-styled.test.ts — the one that catches a
