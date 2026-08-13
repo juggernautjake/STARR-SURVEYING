@@ -325,8 +325,24 @@ than a secret, and the employee is the party subject to it. Writing a lock stays
 `note` is withheld from non-admins: it is free text an admin wrote for other admins and is the one
 field that could carry something not meant for the person being locked out.
 
-The rest of S7 — the `pay_period_closes` record and the late-entry marker — still waits on D2,
-because what a close *produces* is a batch or a run.
+**✅ Also shipped — the late-entry marker.** `lib/hours/late-entry.ts` compares an entry's
+`created_at` against the `locked_at` of whichever lock covers its own day, so a day added *after* its
+week was closed off is marked on the approval row and counted on the lock banner. It needed no engine
+decision: the running-balance model already pays such an entry in the next payout, and what was
+missing was anyone being able to SEE that a closed week had moved. Comparing dates instead of
+timestamps would have marked every entry in a locked week as late, including the ones the lock was
+closed over. 12 tests.
+
+**A live bug found by driving that check in a browser:** this page's `getMonday` omitted the
+`setHours(0, 0, 0, 0)` that `MyHoursPanel`'s copy has always had, and every caller immediately does
+`.toISOString()`. West of Greenwich, any local time past about 19:00 has already rolled over in UTC —
+so opening the approval queue on a Wednesday evening in Texas produced a week starting **Tuesday**,
+header and all. Not merely cosmetic: `weekStart` is the API's week filter and is compared for an
+exact match against `pay_period_locks.period_start`, so a real Monday–Sunday lock silently failed to
+match and the "this period is locked" banner never appeared for anybody working late. Fixed.
+
+What remains of S7 — the `pay_period_closes` record itself — still waits on D2, because what a close
+*produces* is either a payout batch or a payroll run.
 
 *Tests:* an entry logged after close is paid in the following batch and never dropped; closing twice
 is refused; the running total is unaffected by a close.

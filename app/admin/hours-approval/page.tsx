@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import { computeHoursFlags, effectiveHours } from '@/lib/hours/hours-flags';
+import { detectLateEntry, countLateEntries, type PeriodLock } from '@/lib/hours/late-entry';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
 import { useSearchParams } from 'next/navigation';
@@ -96,6 +97,21 @@ function getMonday(d: Date): Date {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   const mon = new Date(d);
   mon.setDate(diff);
+  // ── THE MISSING LINE ────────────────────────────────────────────────────────────────────────
+  //
+  // Without this, `mon` keeps the CURRENT time of day, and every caller immediately does
+  // `.toISOString().split('T')[0]`. West of Greenwich, any local time past about 19:00 has already
+  // rolled over in UTC — so opening this page on a Wednesday evening in Texas produced a week
+  // starting **Tuesday**, and the header read "Tue, Aug 11 — Mon, Aug 17".
+  //
+  // It is not only cosmetic. `weekStart` is sent to the API as the week filter and compared against
+  // `pay_period_locks.period_start` for an exact match, so a real Monday–Sunday lock silently failed
+  // to match and the "this period is locked" banner never appeared for anybody working late.
+  //
+  // `MyHoursPanel`'s copy of this function has always had the line; this one did not. Two
+  // implementations of the same rule, and only one of them right — which is the argument for there
+  // being one.
+  mon.setHours(0, 0, 0, 0);
   return mon;
 }
 
@@ -166,6 +182,10 @@ export default function HoursApprovalPage() {
     getMonday(linkedDate ? new Date(`${linkedDate}T00:00:00`) : new Date()).toISOString().split('T')[0]);
   // H6 — whether THIS week (weekStart .. weekStart+6) is locked for editing.
   const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
+  /** Every lock overlapping the visible week, for the late-entry check. See `lib/hours/late-entry.ts`:
+   *  an entry added AFTER its week was closed off belongs to that week but is paid in the next
+   *  payout, and until now looked identical to one submitted on time. */
+  const [weekLocks, setWeekLocks] = useState<PeriodLock[]>([]);
 
   // ── SET PAY (owner request, 2026-08-04) ──────────────────────────────────────────────────
   //
@@ -284,6 +304,10 @@ export default function HoursApprovalPage() {
           (l: { period_start: string; period_end: string }) => l.period_start === weekStart && l.period_end === weekEnd,
         );
         setWeekLock(exact || null);
+        // ALL overlapping locks, not just the exact-week one. An entry is late relative to whichever
+        // lock covers its own day — a monthly close, or a week that was locked, unlocked and locked
+        // again — and the exact-match row above only answers "is the week I am looking at locked".
+        setWeekLocks((data.locks || []) as PeriodLock[]);
       }
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error('Failed to load'));
@@ -723,6 +747,14 @@ export default function HoursApprovalPage() {
       {weekLock && (tab === 'pending' || tab === 'history') && (
         <p className="tl-lock-note">
           This pay period is locked — employees can&apos;t edit these hours. You can still adjust any entry (the employee is notified).
+          {/* What has moved since you closed it. A closed week that has quietly gained three entries
+              looks exactly like one that has not, and the difference is a payout. */}
+          {(() => {
+            const late = countLateEntries(logs, weekLocks);
+            return late > 0 ? (
+              <> <strong>{late} {late === 1 ? 'entry has' : 'entries have'} been added since it was closed</strong> — they belong to this week but will be paid in the next payout.</>
+            ) : null;
+          })()}
         </p>
       )}
 
@@ -822,6 +854,15 @@ export default function HoursApprovalPage() {
                         {log.entered_by && (
                           <div className="tl-approval-entry__meta">Entered by {log.entered_by} — not submitted by the employee</div>
                         )}
+                        {/* Arrived after its own week was closed off. The running-balance model pays
+                            it in the next payout either way; this is what makes the event visible,
+                            so a closed week can be told apart from one that has moved since. */}
+                        {(() => {
+                          const late = detectLateEntry(log, weekLocks);
+                          return late.isLate ? (
+                            <div className="tl-approval-entry__meta">⏱ {late.note}</div>
+                          ) : null;
+                        })()}
                         {log.job_name && <div className="tl-approval-entry__meta">Job: {log.job_name}</div>}
                         {log.notes && <div className="tl-approval-entry__meta">Notes: {log.notes}</div>}
                         {log.rejection_reason && <div className="tl-approval-entry__rejection">Rejection: {log.rejection_reason}</div>}
