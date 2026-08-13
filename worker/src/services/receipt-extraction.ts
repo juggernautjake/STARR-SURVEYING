@@ -354,22 +354,49 @@ async function claimRow(
   startedAt: string,
   logger: ProcessLogger
 ): Promise<boolean> {
-  const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
-  // The PostgREST `.or()` filter inside an UPDATE+select gives us the
-  // atomic claim semantics we need. If no row matches the predicate
-  // (because another worker already flipped it), the result data is
-  // empty and we know we lost. The timestamp is wrapped in double
-  // quotes per PostgREST's logic-tree escaping (the colons in an
-  // ISO-8601 string can confuse the parser otherwise).
-  const { data, error } = await supabase
+  // ── The `.or()` version of this claim never claimed anything (2026-08-13) ─────────────────────
+  //
+  // It read: `.update({…}).eq('id', …).or('extraction_status.eq.queued,and(…)')`, and PostgREST
+  // rejects an `.or()` filter on an UPDATE to this table with `column receipts.extraction_status
+  // does not exist` — while the identical filter on a SELECT matches the row. The error was then
+  // "treated as a lost race", so the failure was indistinguishable from healthy contention and the
+  // worker silently skipped every receipt it was given.
+  //
+  // Same defect and same fix as `lib/receipts/extract.ts`, which is the path production actually
+  // runs; this copy is corrected too so the worker does not reintroduce the symptom the day somebody
+  // starts running it.
+  //
+  // Eligibility is decided here and the UPDATE carries a single equality on the status just read —
+  // still a compare-and-set, so a racing writer still makes this return false.
+  const { data: cur, error: readErr } = await supabase
+    .from('receipts')
+    .select('extraction_status, extraction_started_at')
+    .eq('id', receiptId)
+    .maybeSingle();
+  if (readErr || !cur) return false;
+
+  const curStatus = (cur as { extraction_status: string | null }).extraction_status;
+  const curStarted = (cur as { extraction_started_at: string | null }).extraction_started_at;
+  const staleRunning =
+    curStatus === 'running'
+    && (!curStarted || Date.now() - new Date(curStarted).getTime() > STALE_RUNNING_MS);
+  if (!(curStatus === null || curStatus === 'queued' || curStatus === 'failed' || staleRunning)) {
+    return false;
+  }
+
+  let claimQuery = supabase
     .from('receipts')
     .update({
       extraction_status: 'running',
       extraction_started_at: startedAt,
     })
-    .eq('id', receiptId)
-    .or(`extraction_status.eq.queued,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`)
-    .select('id');
+    .eq('id', receiptId);
+  // `= NULL` is never true, so a NULL status needs `.is` or the claim refuses the rows that most
+  // need claiming — the ones no extractor has ever touched.
+  claimQuery = curStatus === null
+    ? claimQuery.is('extraction_status', null)
+    : claimQuery.eq('extraction_status', curStatus);
+  const { data, error } = await claimQuery.select('id');
 
   if (error) {
     // DB error — treat as a lost race so the worker bails for this
