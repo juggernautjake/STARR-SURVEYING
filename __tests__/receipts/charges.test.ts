@@ -104,6 +104,43 @@ describe('an ordinary receipt with nothing added', () => {
   });
 });
 
+describe('an arithmetic gap is only a tip where a tip line exists', () => {
+  // Found in production 2026-08-13, on the receipt that made this rule necessary: CIRCLE K, fuel,
+  // subtotal $53.99, total $57.31, no tax legible. The $3.32 difference was recorded as "tip you
+  // added". Nobody tips a fuel pump — that gap is tax the extractor could not read, and calling it a
+  // gratuity puts a number in front of the owner that is not merely wrong but slightly accusatory.
+  const FUEL = { subtotal_cents: 5399, total_cents: 5731, category: 'fuel' };
+
+  it('does not invent a tip on a fuel receipt', () => {
+    const b = breakdownCharges(FUEL);
+    expect(b.customerTipCents).toBe(0);
+    expect(b.summary, 'and says nothing rather than reporting a $0.00 tip').toBeNull();
+  });
+
+  it('still infers one on a meal, which is the case the inference was written for', () => {
+    const b = breakdownCharges({ ...FUEL, category: 'meals' });
+    expect(b.customerTipCents).toBe(332);
+    expect(b.customerTipWasInferred).toBe(true);
+  });
+
+  it('does not infer one when the category is unknown', () => {
+    // An unknown category is not evidence that somebody tipped. Guessing here is what produced the
+    // fuel-receipt tip in the first place.
+    expect(breakdownCharges({ ...FUEL, category: null }).customerTipCents).toBe(0);
+  });
+
+  it('is unaffected on the two branches that have real evidence', () => {
+    // A settled bill makes the gap the tip BY DEFINITION, and a printed tip is a printed tip —
+    // neither is guessing, so neither is gated on the category.
+    const settled = breakdownCharges({
+      subtotal_cents: 8434, total_cents: 10000, settledBillTotalCents: 8434, category: 'fuel',
+    });
+    expect(settled.customerTipCents).toBe(1566);
+    const printed = breakdownCharges({ subtotal_cents: 5000, tip_cents: 1000, total_cents: 6000, category: 'fuel' });
+    expect(printed.customerTipCents).toBe(1000);
+  });
+});
+
 describe('a printed tip is taken at its word', () => {
   it('uses the tip the extractor actually read', () => {
     const b = breakdownCharges({ subtotal_cents: 5000, tip_cents: 1000, total_cents: 6000 });

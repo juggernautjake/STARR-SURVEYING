@@ -45,7 +45,15 @@ export interface ReceiptAmounts {
   total_cents?: number | null;
   /** When this receipt is the card slip settling an itemised bill, the bill's total. */
   settledBillTotalCents?: number | null;
+  /**
+   * The receipt's category, when known. Used for exactly one decision: whether an unexplained
+   * arithmetic gap may be called a tip. See `breakdownCharges`.
+   */
+  category?: string | null;
 }
+
+/** Categories where a customer writes a figure on a tip line. Nobody tips a fuel pump. */
+const TIPPABLE = new Set(['meals', 'lodging', 'entertainment']);
 
 export interface ChargeBreakdown {
   /** The goods or food, before anything was added. */
@@ -101,8 +109,25 @@ export function breakdownCharges(a: ReceiptAmounts): ChargeBreakdown {
     // The model read a tip. On a card slip the printed subtotal already includes the tax, so the tip
     // it read is the customer's.
     customerTip = readTip;
-  } else if (total !== null && subtotal !== null) {
-    // Nothing printed. Whatever the total exceeds subtotal + tax + service by was added by hand.
+  } else if (
+    total !== null && subtotal !== null
+    // Either the category says this is somewhere people tip, or the bill itself printed a service
+    // charge — which only appears on the kind of bill that has a tip line under it. The second arm
+    // matters because the category is the extractor's guess and can be absent or wrong, while a
+    // printed auto-gratuity is a fact read off the paper.
+    && (TIPPABLE.has((a.category ?? '').toLowerCase()) || service > 0)
+  ) {
+    // Nothing printed. Whatever the total exceeds subtotal + tax + service by was added by hand —
+    // but ONLY where a tip line exists in the first place.
+    //
+    // Found in production 2026-08-13: a CIRCLE K fuel receipt (subtotal $53.99, total $57.31, no tax
+    // legible) had the $3.32 difference recorded as "tip you added". Nobody tips a fuel pump; that
+    // gap is tax the extractor could not read. The rule was inferring from arithmetic alone, and
+    // arithmetic cannot tell an unread tax line from a gratuity — only the kind of purchase can.
+    //
+    // The two branches above are unaffected and remain category-blind, because both have direct
+    // evidence: a settled bill makes the gap the tip by definition, and a printed tip is a printed
+    // tip. This branch is the only one that was guessing.
     const explained = subtotal + tax + service - discount;
     const gap = total - explained;
     if (gap > 0) {

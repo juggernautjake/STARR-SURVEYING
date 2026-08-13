@@ -400,7 +400,7 @@ async function writeBack(
     const candidate: ComparableReceipt = { id: row.id, ...amounts, created_at: null };
     const { data: nearby } = await supabaseAdmin
       .from('receipts')
-      .select('id, vendor_name, transaction_at, subtotal_cents, tax_cents, tip_cents, total_cents, created_at')
+      .select('id, vendor_name, transaction_at, subtotal_cents, tax_cents, tip_cents, total_cents, created_at, category')
       .eq('user_id', row.user_id)
       .neq('id', row.id)
       .neq('status', 'rejected')
@@ -451,6 +451,8 @@ async function writeBack(
     discount_cents: extracted.discount_cents,
     total_cents: amounts.total_cents,
     settledBillTotalCents,
+    // Decides whether an unexplained gap may be called a tip — a fuel receipt's is unread tax.
+    category: (update.category as string | null) ?? cur.category ?? null,
   });
   update.service_charge_cents = charges.businessGratuityCents;
   update.customer_tip_cents = charges.customerTipCents;

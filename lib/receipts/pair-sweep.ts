@@ -74,6 +74,8 @@ export function planPairings(rows: readonly ComparableReceipt[]): PlannedPairing
 export interface PairSweepResult {
   scanned: number;
   paired: number;
+  /** Receipts whose tax/tip split was filled in after the fact — see `repairChargeSplits`. */
+  repaired: number;
   errors: string[];
 }
 
@@ -91,7 +93,7 @@ export async function sweepSamePurchase(lookbackDays = 120): Promise<PairSweepRe
 
   const { data, error } = await supabaseAdmin
     .from('receipts')
-    .select('id, user_id, vendor_name, transaction_at, subtotal_cents, tax_cents, tip_cents, total_cents, created_at')
+    .select('id, user_id, vendor_name, transaction_at, subtotal_cents, tax_cents, tip_cents, total_cents, created_at, category')
     .neq('status', 'rejected')
     .is('deleted_at', null)
     // Already linked — leaving these out is what makes a repeat run a no-op rather than a churn of
@@ -100,7 +102,7 @@ export async function sweepSamePurchase(lookbackDays = 120): Promise<PairSweepRe
     .gte('created_at', since)
     .order('created_at', { ascending: true });
 
-  if (error) return { scanned: 0, paired: 0, errors: [error.message] };
+  if (error) return { scanned: 0, paired: 0, repaired: 0, errors: [error.message] };
 
   const rows = (data ?? []) as Array<ComparableReceipt & { user_id: string | null }>;
 
@@ -148,6 +150,7 @@ export async function sweepSamePurchase(lookbackDays = 120): Promise<PairSweepRe
         tip_cents: slip.tip_cents,
         total_cents: slip.total_cents,
         settledBillTotalCents: bill?.total_cents ?? null,
+        category: slip.category ?? null,
       });
       const { error: chargeErr } = await supabaseAdmin
         .from('receipts')
@@ -160,5 +163,73 @@ export async function sweepSamePurchase(lookbackDays = 120): Promise<PairSweepRe
     }
   }
 
-  return { scanned: rows.length, paired, errors };
+  const repaired = await repairChargeSplits(errors);
+  return { scanned: rows.length, paired, repaired, errors };
+}
+
+/**
+ * Fill in the tax/tip split on receipts that were paired BEFORE anything computed it.
+ *
+ * The split above only runs for a pair this sweep has just created, which is correct as far as it
+ * goes and leaves a hole exactly where it matters most: the receipt that prompted the feature. The
+ * owner's Texas Roadhouse pair was already linked by an earlier extraction, so the sweep's own query
+ * — which deliberately skips linked rows to stay a no-op on repeat runs — never looked at it again.
+ * Production had the $100 slip carrying `tip_cents = 1566` and `customer_tip_cents = NULL`, so the
+ * queue showed a generic "Tip" and could not say the $15.66 was the owner's rather than the
+ * restaurant's. That is the one question the column was added to answer.
+ *
+ * Idempotent by construction: it only considers rows where the split is still NULL, and only writes
+ * when there is something to say. A receipt with no tip and no service charge is left alone rather
+ * than stamped with zeroes, because 0 and NULL mean different things here — "there was none" versus
+ * "nobody has established it" — and that distinction is the rest of this schema's convention.
+ */
+async function repairChargeSplits(errors: string[]): Promise<number> {
+  const { data, error } = await supabaseAdmin
+    .from('receipts')
+    .select('id, subtotal_cents, tax_cents, tip_cents, total_cents, superseded_by_receipt_id, category')
+    .is('deleted_at', null)
+    .is('customer_tip_cents', null)
+    .not('total_cents', 'is', null)
+    .limit(500);
+  if (error) { errors.push(`charge repair: ${error.message}`); return 0; }
+
+  let repaired = 0;
+  for (const row of (data ?? []) as Array<ComparableReceipt & { superseded_by_receipt_id: string | null }>) {
+    // When this row is itself an itemisation, the slip that settled it is the row that carries a
+    // tip; nothing here to recover. The link points bill -> slip, so a row WITH the link set is the
+    // bill.
+    if (row.superseded_by_receipt_id) continue;
+
+    // A slip that settles a known bill is the strong case — the gap between them is the handwritten
+    // tip. Find the bill pointing AT this row.
+    const { data: billRows } = await supabaseAdmin
+      .from('receipts')
+      .select('total_cents')
+      .eq('superseded_by_receipt_id', row.id)
+      .limit(1);
+    const billTotal = (billRows?.[0] as { total_cents: number | null } | undefined)?.total_cents ?? null;
+
+    const charges = breakdownCharges({
+      subtotal_cents: row.subtotal_cents,
+      tax_cents: row.tax_cents,
+      tip_cents: row.tip_cents,
+      total_cents: row.total_cents,
+      settledBillTotalCents: billTotal,
+      category: row.category ?? null,
+    });
+    if (charges.customerTipCents === 0 && charges.businessGratuityCents === 0) continue;
+
+    const { error: wErr } = await supabaseAdmin
+      .from('receipts')
+      .update({
+        customer_tip_cents: charges.customerTipCents,
+        service_charge_cents: charges.businessGratuityCents,
+      })
+      .eq('id', row.id)
+      // Still unset — an extraction may have filled it in since the read above.
+      .is('customer_tip_cents', null);
+    if (wErr) { errors.push(`${row.id} charge repair: ${wErr.message}`); continue; }
+    repaired += 1;
+  }
+  return repaired;
 }

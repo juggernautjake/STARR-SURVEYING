@@ -49,6 +49,8 @@ export interface ComparableReceipt {
   tip_cents?: number | null;
   total_cents?: number | null;
   created_at?: string | null;
+  /** Not used for matching — carried so the charge split can tell a meal from a fuel stop. */
+  category?: string | null;
 }
 
 export type SamePurchaseKind =
