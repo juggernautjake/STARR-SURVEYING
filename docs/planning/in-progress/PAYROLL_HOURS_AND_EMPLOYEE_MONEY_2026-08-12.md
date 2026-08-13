@@ -341,8 +341,25 @@ header and all. Not merely cosmetic: `weekStart` is the API's week filter and is
 exact match against `pay_period_locks.period_start`, so a real Monday–Sunday lock silently failed to
 match and the "this period is locked" banner never appeared for anybody working late. Fixed.
 
-What remains of S7 — the `pay_period_closes` record itself — still waits on D2, because what a close
-*produces* is either a payout batch or a payroll run.
+**✅ Also shipped — the close snapshot, on the lock rather than in a new table.** Seed 587 adds
+`closed_hours`, `closed_pay_cents`, `closed_entry_count` and `closed_people` to `pay_period_locks`,
+recorded at the instant a period is locked and shown on the banner ("Closed at 31.5h · $703.50 across
+3 people").
+
+**Why not the `pay_period_closes` table this section sketched.** That row was to carry *"the batch it
+produced"*, and whether a close produces a batch or a run is exactly what D2 has not answered — a
+second table whose relationship to `pay_period_locks` is undecided would have to be reshaped once it
+is. What IS decided is that closing and locking are the same act (this section says so), so the
+snapshot goes on the lock. Adding `payout_batch_id` here, or migrating the rows, is no harder later.
+
+The snapshot matters because a closed period does not stop moving: admins are exempt from locks by
+design, hours get adjusted, decisions get revised, and the office can add days on somebody's behalf.
+Re-totalling later says what the week holds NOW; the figure a payment was made against is otherwise
+unrecoverable. Columns are nullable and deliberately **not backfilled** — recomputing an old week
+would store today's number wearing a historical date, which is the fabrication the record exists to
+prevent. 14 tests.
+
+Nothing of S7 now remains except linking a close to whatever settles it, which is D2.
 
 *Tests:* an entry logged after close is paid in the following batch and never dropped; closing twice
 is refused; the running total is unaffected by a close.

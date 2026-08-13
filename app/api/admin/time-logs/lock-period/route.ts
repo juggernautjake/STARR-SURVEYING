@@ -13,6 +13,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { locksOverlapping } from '@/lib/hours/period-lock';
+import { snapshotPeriod, type SnapshotEntry } from '@/lib/hours/period-snapshot';
 
 // ── READING A LOCK IS NOT AN ADMIN ACTION ────────────────────────────────────────────────────────
 //
@@ -62,6 +63,47 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'period_end must be on or after period_start' }, { status: 400 });
   }
 
+  // ── WHAT THE PERIOD HELD WHEN IT WAS CLOSED ───────────────────────────────────────────────────
+  //
+  // A closed period keeps moving: admins are exempt from locks by design, hours get adjusted, pay
+  // decisions get revised, and the office can add whole days on somebody's behalf. Re-totalling the
+  // week later answers "what does it hold now" — and there is no way to recover what it held when a
+  // person decided it was finished, which is the figure a payment was made against.
+  //
+  // Taken here, at the instant of the close, because that is the only moment it is available.
+  let snapshot: Record<string, number> = {};
+  try {
+    const { data: entries } = await supabaseAdmin
+      .from('daily_time_logs')
+      .select('id, user_email, hours, adjusted_hours, status, total_pay')
+      .gte('log_date', period_start)
+      .lte('log_date', period_end);
+
+    const rows = (entries ?? []) as Array<{ id: string } & SnapshotEntry>;
+    // Pay decisions outrank the rules' figure — the same COALESCE the `time_log_pay` view applies.
+    const ids = rows.map((r) => r.id);
+    if (ids.length > 0) {
+      const { data: decisions } = await supabaseAdmin
+        .from('time_log_pay_decisions')
+        .select('time_log_id, total_pay')
+        .in('time_log_id', ids);
+      const byLog = new Map(
+        ((decisions ?? []) as Array<{ time_log_id: string; total_pay: number | null }>)
+          .map((d) => [d.time_log_id, d]),
+      );
+      for (const r of rows) {
+        const d = byLog.get(r.id);
+        if (d) r.pay_decision = { total_pay: d.total_pay };
+      }
+    }
+    snapshot = snapshotPeriod(rows) as unknown as Record<string, number>;
+  } catch (err) {
+    // Best-effort. A snapshot that cannot be taken must not stop the period being locked — the lock
+    // is the thing with teeth, and refusing it over a reporting figure would be the wrong trade.
+    // The columns stay NULL, which reads as "closed before this was recorded" and never as a zero.
+    console.error('[lock-period] could not snapshot the period:', err instanceof Error ? err.message : String(err));
+  }
+
   const { data, error } = await supabaseAdmin
     .from('pay_period_locks')
     .upsert(
@@ -71,13 +113,35 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         locked_by: session.user.email,
         locked_at: new Date().toISOString(),
         note: note ?? null,
+        ...snapshot,
       },
       { onConflict: 'period_start,period_end' },
     )
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Seed 587 adds the snapshot columns. If a deploy runs ahead of the seed, the lock itself is far
+    // too important to lose over four reporting columns — so retry without them.
+    if (/closed_(hours|pay_cents|entry_count|people)/i.test(error.message)) {
+      const { data: retry, error: retryErr } = await supabaseAdmin
+        .from('pay_period_locks')
+        .upsert(
+          {
+            period_start, period_end,
+            locked_by: session.user.email,
+            locked_at: new Date().toISOString(),
+            note: note ?? null,
+          },
+          { onConflict: 'period_start,period_end' },
+        )
+        .select()
+        .single();
+      if (retryErr) return NextResponse.json({ error: retryErr.message }, { status: 500 });
+      return NextResponse.json({ lock: retry, snapshotUnavailable: true });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ lock: data });
 }, { routeName: 'time-logs/lock-period/POST' });
 

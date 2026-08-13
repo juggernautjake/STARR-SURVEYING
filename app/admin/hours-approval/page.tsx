@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import { computeHoursFlags, effectiveHours } from '@/lib/hours/hours-flags';
 import { detectLateEntry, countLateEntries, type PeriodLock } from '@/lib/hours/late-entry';
+import { describeSnapshot } from '@/lib/hours/period-snapshot';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
 import { useSearchParams } from 'next/navigation';
@@ -181,7 +182,17 @@ export default function HoursApprovalPage() {
   const [weekStart, setWeekStart] = useState(() =>
     getMonday(linkedDate ? new Date(`${linkedDate}T00:00:00`) : new Date()).toISOString().split('T')[0]);
   // H6 — whether THIS week (weekStart .. weekStart+6) is locked for editing.
-  const [weekLock, setWeekLock] = useState<{ period_start: string; period_end: string; locked_by: string } | null>(null);
+  const [weekLock, setWeekLock] = useState<
+    {
+      period_start: string; period_end: string; locked_by: string;
+      /** Seed 587 — what the period held at the instant it was closed. Absent on locks taken before
+       *  snapshots existed, which is deliberately distinguishable from a period that held nothing. */
+      closed_hours?: number | null;
+      closed_pay_cents?: number | null;
+      closed_entry_count?: number | null;
+      closed_people?: number | null;
+    } | null
+  >(null);
   /** Every lock overlapping the visible week, for the late-entry check. See `lib/hours/late-entry.ts`:
    *  an entry added AFTER its week was closed off belongs to that week but is paid in the next
    *  payout, and until now looked identical to one submitted on time. */
@@ -747,13 +758,21 @@ export default function HoursApprovalPage() {
       {weekLock && (tab === 'pending' || tab === 'history') && (
         <p className="tl-lock-note">
           This pay period is locked — employees can&apos;t edit these hours. You can still adjust any entry (the employee is notified).
-          {/* What has moved since you closed it. A closed week that has quietly gained three entries
-              looks exactly like one that has not, and the difference is a payout. */}
+          {/* What it held when you closed it, and what has moved since. A closed week that has
+              quietly gained three entries looks exactly like one that has not, and the difference is
+              a payout. Says nothing at all for a period closed before snapshots were recorded —
+              inventing the figure by re-totalling today is what the snapshot exists to prevent. */}
           {(() => {
+            const line = describeSnapshot(weekLock, logs.length);
             const late = countLateEntries(logs, weekLocks);
-            return late > 0 ? (
-              <> <strong>{late} {late === 1 ? 'entry has' : 'entries have'} been added since it was closed</strong> — they belong to this week but will be paid in the next payout.</>
-            ) : null;
+            return (
+              <>
+                {line && <> <strong>{line}</strong></>}
+                {late > 0 && (
+                  <> {late} {late === 1 ? 'entry' : 'entries'} arrived after the close — they belong to this week but will be paid in the next payout.</>
+                )}
+              </>
+            );
           })()}
         </p>
       )}
