@@ -166,8 +166,8 @@ export default function WithdrawalQueuePage() {
           <p
             style={{
               margin: '0.4rem 0 0', padding: '0.5rem 0.6rem', borderRadius: 6, fontSize: '0.82rem',
-              border: '1px solid var(--theme-warning, #f59e0b)',
-              background: 'color-mix(in srgb, var(--theme-warning, #f59e0b) 13%, transparent)',
+              border: '1px solid var(--theme-warning)',
+              background: 'color-mix(in srgb, var(--theme-warning) 13%, transparent)',
               fontWeight: 600,
             }}
             role="alert"
@@ -252,7 +252,14 @@ export default function WithdrawalQueuePage() {
 const btn = (primary: boolean): React.CSSProperties => ({
   padding: '0.4rem 0.8rem', borderRadius: 6,
   border: primary ? 'none' : '1px solid var(--color-border)',
-  background: primary ? 'var(--gradient-green, linear-gradient(180deg, #10b981, #059669))' : 'var(--color-surface)',
-  color: primary ? '#fff' : 'var(--color-text)',
+  // No hex at all, not even as a fallback. The inline-style ratchet counts literals wherever they
+  // appear inside `style={{…}}`, and it is right to: a fallback hex is still a colour no theme,
+  // media query, print stylesheet or contrast audit can reach — it just only bites when the token is
+  // missing, which is the worst moment to discover it. `--theme-*` is defined by themes.css for
+  // every skin on the admin shell, so there is nothing to fall back FROM.
+  background: primary
+    ? 'linear-gradient(180deg, var(--theme-success), color-mix(in srgb, var(--theme-success) 80%, var(--theme-fg-primary)))'
+    : 'var(--color-surface)',
+  color: primary ? 'var(--theme-accent-fg)' : 'var(--color-text)',
   fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer',
 });

@@ -102,6 +102,21 @@ describe('the themes are actually consumed', () => {
     // small part of that is correct and must stay: print blocks, brand colours, status colours, and
     // white text on dark buttons. **The floor is not zero**, and pretending otherwise would push
     // somebody to convert the six that must not be.
+    //
+    // ── 2026-08-12: 2,346 → back to 2,297, and the ceiling was NOT raised ────────────────────────
+    //
+    // This test had been red for days. 47 of the 49 were two stylesheets added on 2026-08-07 —
+    // `app/admin/marketing/Marketing.css` and `app/admin/finances/overview/FinanceOverview.css` —
+    // and every other stylesheet added since 2026-08-01 contributed **zero**, so the discipline was
+    // holding everywhere else.
+    //
+    // Both were converted, and doing so fixed a real bug rather than only a count: each carried its
+    // own `@media (prefers-color-scheme: dark)` overrides. That media query reads the OPERATING
+    // SYSTEM, while this app sets `--theme-*` from the skin the USER chose — so somebody on the
+    // light skin with a dark laptop got dark banners on a light page. Those blocks are deleted, not
+    // re-tokenised: the tokens follow whichever theme is actually active, which is what the blocks
+    // were badly approximating. The last two were an XP pill and the fieldbook panel from the
+    // mobile-topbar work, both painting a surface with a literal next to an already-tokenised border.
     const { hardcoded } = counts();
     expect(
       hardcoded,

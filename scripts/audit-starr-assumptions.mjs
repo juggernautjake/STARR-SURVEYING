@@ -101,6 +101,20 @@ const CORRECT_FOREVER = [
   { prefix: 'app/components/ServiceAreaMap', bucket: 'own-site', why: 'the public site’s service-area map' },
   { prefix: 'app/components/GoogleReviewWidget', bucket: 'own-site', why: 'the firm’s own Google reviews' },
   { prefix: 'app/components/SurveyCalculator', bucket: 'own-site', why: 'a public marketing calculator' },
+  // Added 2026-08-12. Both were landing in the `tenant` backlog only because the bucket is a
+  // fallthrough — any path matching nothing above is counted as debt — and neither had been added
+  // to this list when it was written.
+  //
+  // The privacy policy is the clearest own-site file in the repo: it is a legal document naming the
+  // DATA CONTROLLER by its registered trade name, and it names the legal entity (Starr Technical
+  // Services Inc.) that the tenant profile does not even model. "Fixing" it would mean a privacy
+  // policy that does not say whose policy it is. It sits beside app/about and app/contact, which
+  // have always been here.
+  { prefix: 'app/privacy', bucket: 'own-site', why: 'the firm’s own privacy policy — a legal document naming the data controller' },
+  // A host allow-list gating the firm's OWN Google Ads conversion tag to its own production domain.
+  // Every other file in app/components/* that names the site is already here; this was the only one
+  // missed, and it arrived after the list was written.
+  { prefix: 'app/components/GoogleAdsScript', bucket: 'own-site', why: 'gates the firm’s own conversion tag to its own domain' },
   { prefix: 'app/dnd', bucket: 'vendor', why: 'a separate product, explicitly out of this audit’s scope' },
 
   // Added 2026-08-02. Andrew Ash's voice-over platform — a different person's business, hosted here

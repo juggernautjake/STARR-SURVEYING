@@ -101,7 +101,12 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // `/api/admin/cost-recoveries` exactly. The rows say what a job really cost and what the customer
   // was really charged, which is the margin on the job stated out loud.
   { prefix: '/admin/pass-through', roles: ['admin'] },
-  { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'teacher', 'student', 'researcher', 'drawer', 'field_crew', 'employee', 'guest', 'tech_support', 'equipment_manager'] },
+  // Every role in ALL_ROLES, deliberately — the API behind this page checks only that a session
+  // exists, so anything narrower locks somebody out of filing an expense while the endpoint would
+  // have accepted them. `finance` was added on 2026-08-12 and appended here in the same change;
+  // `__tests__/middleware/admin-route-gates.test.ts` caught the omission, which is precisely the
+  // twelfth-role case its comment was written to predict.
+  { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'teacher', 'student', 'researcher', 'drawer', 'field_crew', 'employee', 'guest', 'tech_support', 'equipment_manager', 'finance'] },
   { prefix: '/admin/receipts', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/invoicing', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/receivables', roles: ['admin', 'developer'] },

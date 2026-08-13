@@ -115,8 +115,20 @@ describe('the shared stylesheet behaves', () => {
   it('colours a warning amber rather than red', () => {
     // A manual-share note or a suspected duplicate is something to KNOW, not something that has gone
     // wrong. Red teaches people to dismiss the colour, and then the real errors go unread too.
-    const warn = SHARED.slice(SHARED.indexOf('.mk__warn,\n.ms__warn {'));
-    expect(warn).toMatch(/#fffbeb|#fde68a/);
+    //
+    // 2026-08-12: this used to match the amber LITERALS (#fffbeb / #fde68a). Those were replaced by
+    // `--theme-warning`, so the assertion now names the token — which is a stronger check of the same
+    // intent: it fails if the block is ever pointed at `--theme-danger`, whereas the literal version
+    // would have passed on any hex that happened to be in range.
+    // The slice must be BOUNDED. `.mk__warn` appears twice — a layout rule and, later, the colour
+    // rule — and slicing from the first to end-of-file swept in the error block that follows, so a
+    // "must not be red" assertion matched `--theme-danger` from a completely different selector.
+    // Caught by the assertion failing on correct CSS.
+    const start = SHARED.indexOf('.mk__warn,\n.ms__warn {\n  color:');
+    expect(start, 'the warning colour rule must exist').toBeGreaterThan(-1);
+    const warn = SHARED.slice(start, SHARED.indexOf('}', start));
+    expect(warn).toMatch(/--theme-warning/);
+    expect(warn, 'a warning must not be painted with the danger colour').not.toMatch(/--theme-danger/);
   });
 
   it('stacks filter controls on a phone instead of squeezing them', () => {
@@ -124,7 +136,20 @@ describe('the shared stylesheet behaves', () => {
     expect(SHARED).toMatch(/flex-direction:\s*column/);
   });
 
-  it('has a dark theme', () => {
-    expect(SHARED).toMatch(/@media \(prefers-color-scheme: dark\)/);
+  it('follows the theme the user picked, not the one their laptop is set to', () => {
+    // This asserted `@media (prefers-color-scheme: dark)` until 2026-08-12, and that was the wrong
+    // mechanism for this app. `prefers-color-scheme` reads the OPERATING SYSTEM; this app sets
+    // `--theme-*` on the root from the skin the USER chose. The two disagree constantly — somebody on
+    // the light skin with a dark laptop got dark banners on a light page, and the reverse.
+    //
+    // The media query is gone and the colours are token-derived, so the page now has a dark theme on
+    // the dark skins and a light one on the light skins, which is what "has a dark theme" was
+    // reaching for. This checks that, and checks the wrong mechanism has not come back.
+    //
+    // These two assertions were also in direct conflict with `theme-vars-are-adopted.test.ts`, which
+    // counts the literals a `prefers-color-scheme` block necessarily contains: one test demanded the
+    // block, the other counted its cost. Only one of them could pass.
+    expect(SHARED, 'status colours must come from theme tokens').toMatch(/var\(--theme-(danger|warning|success|info)/);
+    expect(SHARED, 'the OS media query reads the wrong source of truth').not.toMatch(/@media \(prefers-color-scheme/);
   });
 });

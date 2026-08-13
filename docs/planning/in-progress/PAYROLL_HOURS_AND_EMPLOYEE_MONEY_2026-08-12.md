@@ -1,26 +1,29 @@
 # Hours, payroll, and the money employees can see
 
-> ## ⚠️ STATUS: mostly SHIPPED; the remainder is PARKED on one decision
+> ## STATUS 2026-08-12: mostly shipped · **D2 is now ANSWERED** · back in progress
 >
-> **Moved to `pending/` on 2026-08-12.** Not abandoned, and not unstarted — read this before
-> assuming either.
+> Parked in `pending/` for part of a day awaiting D2, then reactivated when the owner delegated the
+> decision: *"Do what you think makes the most sense."*
 >
-> **Shipped that day:** S0 (double-pay guard), S1 (rejection reason reaches the employee), S2 (the
-> office can log hours for an employee, seed 585), S3 (totals by day/week/month/year), S4 (the
-> `finance` role), S6 (the withdrawal queue), the balance-vs-ledger integrity check from S5, the
-> payout-method picker (seed 586), employee-visible pay-period locks, the late-entry marker, and the
-> close snapshot (seed 587). Plus two live bugs found on the way: a payroll run that 500s on an
-> unpriced employee (§2b), and an approval queue whose week started on the wrong day.
+> **D2 is decided: `payout_batches` survives. `payroll_runs` becomes read-only history.** The full
+> reasoning is in §D2 below; the short version is that the batch path already has everything money
+> movement needs (dispatch methods, IP-stamped approval, ACH export, void, tax reporting,
+> employee-visible history) and is what the live UI drives, while the legacy engine's only unique
+> contributions are pay stubs and balance crediting — both of which move rather than being lost.
 >
-> **Parked, and why.** Four items remain — S5's approval-credits question, S7's link from a close to
-> whatever settles it, S8 (auto-transfer) and S9 (retire the second engine). Every one of them turns
-> on **D2 below: which of the two payroll engines survives.** That is the owner's decision, not a
-> cost-versus-value judgement, so none of them is marked "deferred": each is worth building, and
-> each would have to be rebuilt if D2 were answered the other way.
+> **Shipped:** S0 (double-pay guard), S1 (rejection reason reaches the employee), S2 (the office can
+> log hours for an employee, seed 585), S3 (totals by day/week/month/year), S4 (the `finance` role),
+> S6 (the withdrawal queue), the balance-vs-ledger integrity check from S5, the payout-method picker
+> (seed 586), employee-visible pay-period locks, the late-entry marker, and the close snapshot
+> (seed 587). Plus two live bugs found on the way: a payroll run that 500s on an unpriced employee
+> (§2b), and an approval queue whose week started on the wrong day west of Greenwich.
 >
-> **To restart:** answer D2, move this doc back to `in-progress/`, and build S5 → S7 → S9 in that
-> order. Until then, S0's period-overlap guard is what stands between the two engines and a week
-> paid twice — a guard, not a resolution.
+> **Remaining, now unblocked and ordered:** S9a′ (re-home advance recovery onto the batch path) →
+> §2b (the unpriced-employee crash) → S9b (move stub generation) → S9c (close the legacy engine) →
+> S7's close→batch link → S5's approval-credits question → S8. The first attempt at this ordering
+> put S9c first and would have silently stopped advance recovery for ever — see the boxed correction
+> in §D2. S8 stays last by design: automatic money movement should sit on a ledger that has been
+> reconciling in production for a while.
 
 **Opened 2026-08-12** from the owner's spec, given in one long burst:
 
@@ -126,6 +129,75 @@ to move stub generation and balance crediting onto the batch path, not to delete
 in place.
 
 Until that is done, **there is a guard test to write today** (S0 below) rather than a rewrite.
+
+### ✅ D2 ANSWERED — 2026-08-12: `payout_batches` survives
+
+The owner delegated the call (*"Do what you think makes the most sense"*). Recorded here rather than
+in a commit message, because every remaining slice reads back to it.
+
+**`payout_batches` + `payout_batch_items` is the surviving engine. `payroll_runs` + `pay_stubs`
+becomes read-only history.**
+
+Why, in the order the reasons actually matter:
+
+1. **It is the one that pays people.** Dispatch methods, an IP-stamped approval with no-self-approve,
+   ACH CSV export, void, the tax report, per-item mark-paid with an external reference, and
+   employee-visible history. `payroll_runs` computes and credits; it does not move money anywhere.
+2. **It is what the UI drives.** `/admin/payouts` and its five sub-screens are built on batches. The
+   legacy engine's surface is one panel.
+3. **It is the one already integrated with everything else built this week** — the withdrawal queue
+   draws on the balance the batch path credits via `method: 'account'`, and `lib/payroll/owed.ts`
+   counts batch items (drafts included) as committed.
+4. **The legacy engine's two unique contributions both move rather than die.** It is the only
+   producer of `pay_stubs` — which several states require — and, with the `account` method, one of
+   two writers of `available_balance`. Stub generation moves onto the batch path (S9b); crediting is
+   already there.
+
+**What this decision does NOT license.** It is not a mandate to delete `payroll_runs`. Historical
+runs are records of payments actually made, and `pay_stubs` rows are documents employees are
+entitled to. "Read-only history" means exactly that: the tables stay, the reads stay, and only the
+ability to create NEW work through that path goes away.
+
+**The order the remaining work must happen in**, because getting it wrong leaves a window where
+nobody can run payroll at all:
+
+> ### ⚠️ THIS ORDERING WAS WRONG, AND WAS CORRECTED THE SAME DAY
+>
+> The table below originally opened with *"S9a — close the legacy engine to new work. Cheap,
+> reversible, and it makes every later step safe. **Do this first.**"* That reasoning is exactly
+> backwards, and it was caught by trying it: retiring `POST /api/admin/payroll/runs` turned seven
+> tests in `__tests__/payroll/one-pay-model.test.ts` red, and the most important of them said
+> *"the payroll run recovers outstanding advances"*.
+>
+> **`planAdvanceRecovery` is called in exactly one place in the entire codebase: the run-creation
+> body.** The batch path does not recover advances at all. So closing that door first would have
+> silently stopped the firm ever recovering a pay advance again — and, as that test's own comment
+> puts it, *an advance that is never recovered is a gift.* Nothing would have failed; the money
+> would just have stopped coming back.
+>
+> **The rule that ordering violated:** retiring an engine cannot come before re-homing the
+> guarantees that only live in it. "Cheap and reversible" described the code change, not the
+> consequence.
+>
+> The change was reverted before it was committed. The corrected order is below.
+
+| | |
+|---|---|
+| **S9a′** | **Re-home advance recovery onto the batch path — before anything is retired.** `pay_advance_repayments.pay_stub_id` links a repayment to a stub, and batches have no stubs, so this needs a schema decision (nullable stub link, or a batch-item link) before any code. It is money logic and must not be rushed. |
+| **§2b** | The `pay_stubs.base_rate` NOT NULL crash. D2 settles the fix: stubs are moving to the batch path, so do not relax the constraint — skip unpriced employees and name them. |
+| **S9b** | Move stub generation onto the batch path. A missing stub is a compliance problem, not a bug. |
+| **S9c** | *Now* close `POST /api/admin/payroll/runs` — once nothing unique lives behind it. Keep `GET` (historical runs and stubs are records of real payments) and `PUT` (an existing run must still be finishable). |
+| **S7** | Link a close to the batch it produced. |
+| **S5** | Whether approval credits the balance ahead of dispatch. |
+| **S8** | Auto-transfer. Last, on a ledger that has been reconciling for a while. |
+
+**One thing D2 settles for free.** The surviving engine is **balance-driven, not period-driven**:
+`pay-owed` and `payout-prepare` both build batches with no `week_start`/`week_end`, from
+`loadOwed` = approved minus everything already committed. Two batches for the same week cannot
+double-pay, because the second finds nothing owed. Period-overlap comparison
+(`lib/payroll/engine-overlap.ts`, S0) therefore guards a risk that only exists while the legacy
+engine can still create period-scoped runs — it retires with S9c, and should be deleted rather than
+left as an uncalled module.
 
 ---
 

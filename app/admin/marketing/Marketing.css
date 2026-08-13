@@ -231,7 +231,7 @@
 
 .ms__btn--primary,
 .mx__btn--primary {
-  color: #fff;
+  color: var(--theme-accent-fg, #fff);
   background: var(--brand-blue, #1d3095);
   border-color: var(--brand-blue, #1d3095);
 }
@@ -338,25 +338,25 @@
 .mk__error,
 .ms__error,
 .mx__error {
-  color: #7f1d1d;
-  background: #fef2f2;
-  border-color: #fecaca;
+  color: var(--theme-danger, #7f1d1d);
+  background: color-mix(in srgb, var(--theme-danger, #dc2626) 12%, var(--theme-bg-surface, #fff));
+  border-color: color-mix(in srgb, var(--theme-danger, #dc2626) 35%, transparent);
 }
 
 .ms__ok,
 .mx__ok {
-  color: #14532d;
-  background: #f0fdf4;
-  border-color: #bbf7d0;
+  color: var(--theme-success, #14532d);
+  background: color-mix(in srgb, var(--theme-success, #16a34a) 12%, var(--theme-bg-surface, #fff));
+  border-color: color-mix(in srgb, var(--theme-success, #16a34a) 35%, transparent);
 }
 
 /* Amber, not red. A manual-entry share or a suspected duplicate is something to KNOW, not something
    that has gone wrong — colouring it as an error teaches people to dismiss the colour. */
 .mk__warn,
 .ms__warn {
-  color: #713f12;
-  background: #fffbeb;
-  border-color: #fde68a;
+  color: var(--theme-warning, #713f12);
+  background: color-mix(in srgb, var(--theme-warning, #d97706) 12%, var(--theme-bg-surface, #fff));
+  border-color: color-mix(in srgb, var(--theme-warning, #d97706) 35%, transparent);
 }
 
 .mk__hint,
@@ -390,8 +390,8 @@
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #713f12;
-  background: #fef3c7;
+  color: var(--theme-warning, #713f12);
+  background: color-mix(in srgb, var(--theme-warning, #d97706) 18%, transparent);
   white-space: nowrap;
 }
 
@@ -399,8 +399,8 @@
    The distinction is the point — an estimate shown with the authority of a measurement is worse
    than no number, because it gets acted on with confidence. */
 .ms__tag--api {
-  color: #1e3a8a;
-  background: #dbeafe;
+  color: var(--theme-info, #1e3a8a);
+  background: color-mix(in srgb, var(--theme-info, #2563eb) 15%, transparent);
 }
 
 /* =============================================================================
@@ -503,9 +503,9 @@
   transition: width 0.3s ease;
 }
 
-.mk__seg--click { background: #1d3095; }
-.mk__seg--match { background: #60a5fa; }
-.mk__seg--none  { background: #e5e7eb; }
+.mk__seg--click { background: var(--brand-blue, #1d3095); }
+.mk__seg--match { background: color-mix(in srgb, var(--brand-blue, #1d3095) 45%, #fff); }
+.mk__seg--none  { background: color-mix(in srgb, var(--theme-fg-muted, #6b7280) 20%, transparent); }
 
 .mk__legend {
   display: flex;
@@ -531,9 +531,9 @@
   flex: 0 0 auto;
 }
 
-.mk__dot--click { background: #1d3095; }
-.mk__dot--match { background: #60a5fa; }
-.mk__dot--none  { background: #e5e7eb; border: 1px solid #d1d5db; }
+.mk__dot--click { background: var(--brand-blue, #1d3095); }
+.mk__dot--match { background: color-mix(in srgb, var(--brand-blue, #1d3095) 45%, #fff); }
+.mk__dot--none  { background: color-mix(in srgb, var(--theme-fg-muted, #6b7280) 20%, transparent); border: 1px solid var(--theme-border, #d1d5db); }
 
 /* =============================================================================
    10. RESPONSIVE
@@ -571,46 +571,6 @@
   .mx__row label {
     width: 100%;
   }
-}
-
-/* =============================================================================
-   11. DARK THEME
-   ============================================================================= */
-@media (prefers-color-scheme: dark) {
-  .mk__error,
-  .ms__error,
-  .mx__error {
-    color: #fecaca;
-    background: rgba(127, 29, 29, 0.25);
-    border-color: rgba(248, 113, 113, 0.4);
-  }
-
-  .ms__ok,
-  .mx__ok {
-    color: #bbf7d0;
-    background: rgba(20, 83, 45, 0.25);
-    border-color: rgba(74, 222, 128, 0.35);
-  }
-
-  .mk__warn,
-  .ms__warn {
-    color: #fde68a;
-    background: rgba(113, 63, 18, 0.25);
-    border-color: rgba(251, 191, 36, 0.35);
-  }
-
-  .ms__tag {
-    color: #fde68a;
-    background: rgba(113, 63, 18, 0.35);
-  }
-
-  .ms__tag--api {
-    color: #bfdbfe;
-    background: rgba(30, 58, 138, 0.4);
-  }
-
-  .mk__seg--none { background: #374151; }
-  .mk__dot--none { background: #374151; border-color: #4b5563; }
 }
 
 /* ── A1 (2026-08-11) — the tabbed shell ────────────────────────────────────────────────────────

@@ -454,7 +454,7 @@
 .admin-topbar__username { font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:var(--theme-fg-secondary, #374151); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px; }
 /* M5–M8: min-height matches the bell, the avatar and the clock pill. It was 26px — a tappable link
    at two-thirds the size of everything around it. Width is deliberately left alone. */
-.admin-topbar__xp { display:inline-flex; align-items:center; min-height:40px; gap:.25rem; padding:.3rem .65rem; background:#F8F9FA; border:1px solid var(--theme-border, #E5E7EB); border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all .15s; position:relative; white-space:nowrap; flex-shrink:0; }
+.admin-topbar__xp { display:inline-flex; align-items:center; min-height:40px; gap:.25rem; padding:.3rem .65rem; background:var(--theme-bg-elevated, #F8F9FA); border:1px solid var(--theme-border, #E5E7EB); border-radius:20px; font-family:'Inter',sans-serif; font-size:.78rem; font-weight:700; text-decoration:none; cursor:pointer; transition:all .15s; position:relative; white-space:nowrap; flex-shrink:0; }
 .admin-topbar__xp:hover { background:#EFF6FF; border-color:var(--color-brand-navy); box-shadow:0 2px 8px rgba(29,48,149,.15); }
 .admin-topbar__xp:hover::after { content:'Click to spend reward points!'; position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%); background:#0F1419; color:#FFF; padding:.35rem .65rem; border-radius:6px; font-size:.68rem; font-weight:500; white-space:nowrap; z-index:50; pointer-events:none; box-shadow:0 2px 8px rgba(0,0,0,.15); }
 .admin-topbar__xp:hover::before { content:''; position:absolute; top:calc(100% + 2px); left:50%; transform:translateX(-50%); border:4px solid transparent; border-bottom-color:#0F1419; z-index:50; pointer-events:none; }
@@ -809,7 +809,7 @@
 .fieldbook-fab-wrap:hover .fieldbook-fab-tooltip { opacity:1; transform:translateY(0); }
 
 /* ── Main fieldbook container ── */
-.fb { position:fixed; bottom:0; right:0; width:620px; max-width:100vw; height:85vh; height:85dvh; max-height:700px; background:#F5F0E8; border-top-left-radius:12px; box-shadow:-4px -4px 24px rgba(0,0,0,.18); z-index:95; display:flex; flex-direction:column; animation:fb-slide .25s ease-out; overflow:hidden; }
+.fb { position:fixed; bottom:0; right:0; width:620px; max-width:100vw; height:85vh; height:85dvh; max-height:700px; background:var(--theme-bg-surface, #F5F0E8); border-top-left-radius:12px; box-shadow:-4px -4px 24px rgba(0,0,0,.18); z-index:95; display:flex; flex-direction:column; animation:fb-slide .25s ease-out; overflow:hidden; }
 @keyframes fb-slide { from{transform:translateY(100%)} to{transform:translateY(0)} }
 
 /* ── Top bar ── */

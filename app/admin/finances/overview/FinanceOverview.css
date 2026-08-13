@@ -171,10 +171,10 @@
   color: var(--theme-fg-muted, #6b7280);
 }
 
-.fin-card--in       { border-left-color: #16a34a; }
-.fin-card--out      { border-left-color: #d97706; }
-.fin-card--net-pos  { border-left-color: #16a34a; }
-.fin-card--net-neg  { border-left-color: #dc2626; }
+.fin-card--in       { border-left-color: var(--theme-success, #16a34a); }
+.fin-card--out      { border-left-color: var(--theme-warning, #d97706); }
+.fin-card--net-pos  { border-left-color: var(--theme-success, #16a34a); }
+.fin-card--net-neg  { border-left-color: var(--theme-danger, #dc2626); }
 
 /* ── Period table ─────────────────────────────────────────────────────── */
 .fin-table-wrap {
@@ -230,8 +230,8 @@
   white-space: nowrap;
 }
 
-.fin-pos    { color: #15803d; }
-.fin-neg    { color: #b45309; }
+.fin-pos    { color: var(--theme-success, #15803d); }
+.fin-neg    { color: var(--theme-warning, #b45309); }
 .fin-strong { font-weight: 700; }
 
 .fin-empty,
@@ -249,9 +249,9 @@
   border-radius: 9px;
   font-size: 0.87rem;
   line-height: 1.5;
-  color: #7f1d1d;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--theme-danger, #7f1d1d);
+  background: color-mix(in srgb, var(--theme-danger, #dc2626) 12%, var(--theme-bg-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--theme-danger, #dc2626) 35%, transparent);
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */
@@ -273,19 +273,6 @@
   .fin-card__value { font-size: 1.35rem; }
 }
 
-/* ── Dark theme ───────────────────────────────────────────────────────── */
-@media (prefers-color-scheme: dark) {
-  .fin-pos { color: #4ade80; }
-  .fin-neg { color: #fbbf24; }
-
-  .fin-error,
-  .fin-page__error {
-    color: #fecaca;
-    background: rgba(127, 29, 29, 0.25);
-    border-color: rgba(248, 113, 113, 0.4);
-  }
-}
-
 /* ── Double-count warning ─────────────────────────────────────────────────
  *
  * Amber, not red. Advertising appearing twice is something to KNOW and decide about, not something
@@ -298,9 +285,9 @@
   border-radius: 10px;
   font-size: 0.87rem;
   line-height: 1.55;
-  color: #713f12;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: var(--theme-warning, #713f12);
+  background: color-mix(in srgb, var(--theme-warning, #d97706) 12%, var(--theme-bg-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--theme-warning, #d97706) 35%, transparent);
 }
 
 .fin-dupe ul {
@@ -311,14 +298,6 @@
 .fin-dupe li {
   margin: 0.2rem 0;
   font-variant-numeric: tabular-nums;
-}
-
-@media (prefers-color-scheme: dark) {
-  .fin-dupe {
-    color: #fde68a;
-    background: rgba(113, 63, 18, 0.25);
-    border-color: rgba(251, 191, 36, 0.35);
-  }
 }
 
 .fin-dupe__why {
@@ -376,9 +355,9 @@
 .fin-audit__degraded {
   padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
-  color: #713f12;
+  background: color-mix(in srgb, var(--theme-warning, #d97706) 12%, var(--theme-bg-surface, #fff));
+  border: 1px solid color-mix(in srgb, var(--theme-warning, #d97706) 35%, transparent);
+  color: var(--theme-warning, #713f12);
 }
 
 /* The written summary reads as prose, set apart from the mechanical list below it. */
@@ -408,9 +387,9 @@
   border-radius: 8px;
 }
 
-.fin-audit__item--high   { border-left-color: #dc2626; }
-.fin-audit__item--medium { border-left-color: #d97706; }
-.fin-audit__item--low    { border-left-color: #9ca3af; }
+.fin-audit__item--high   { border-left-color: var(--theme-danger, #dc2626); }
+.fin-audit__item--medium { border-left-color: var(--theme-warning, #d97706); }
+.fin-audit__item--low    { border-left-color: var(--theme-border-strong, #9ca3af); }
 
 .fin-audit__item-head {
   display: flex;
@@ -430,9 +409,9 @@
   text-transform: uppercase;
 }
 
-.fin-audit__sev--high   { color: #7f1d1d; background: #fee2e2; }
-.fin-audit__sev--medium { color: #713f12; background: #fef3c7; }
-.fin-audit__sev--low    { color: #374151; background: #f3f4f6; }
+.fin-audit__sev--high   { color: var(--theme-danger, #7f1d1d); background: color-mix(in srgb, var(--theme-danger, #dc2626) 15%, transparent); }
+.fin-audit__sev--medium { color: var(--theme-warning, #713f12); background: color-mix(in srgb, var(--theme-warning, #d97706) 15%, transparent); }
+.fin-audit__sev--low    { color: var(--theme-fg-secondary, #374151); background: color-mix(in srgb, var(--theme-fg-muted, #6b7280) 12%, transparent); }
 
 .fin-audit__detail {
   margin: 0 0 0.3rem;
@@ -449,7 +428,7 @@
 }
 
 .fin-btn--audit {
-  color: #fff;
+  color: var(--theme-accent-fg, #fff);
   background: var(--brand-blue, #1d3095);
   border-color: var(--brand-blue, #1d3095);
 }
@@ -464,13 +443,3 @@
   cursor: progress;
 }
 
-@media (prefers-color-scheme: dark) {
-  .fin-audit__degraded {
-    color: #fde68a;
-    background: rgba(113, 63, 18, 0.25);
-    border-color: rgba(251, 191, 36, 0.35);
-  }
-  .fin-audit__sev--high   { color: #fecaca; background: rgba(127, 29, 29, 0.35); }
-  .fin-audit__sev--medium { color: #fde68a; background: rgba(113, 63, 18, 0.35); }
-  .fin-audit__sev--low    { color: #d1d5db; background: rgba(55, 65, 81, 0.5); }
-}
