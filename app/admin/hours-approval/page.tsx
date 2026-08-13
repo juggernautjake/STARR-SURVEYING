@@ -201,8 +201,12 @@ export default function HoursApprovalPage() {
       closed_pay_cents?: number | null;
       closed_entry_count?: number | null;
       closed_people?: number | null;
+      /** The payout prepared when this week was closed (seed 589), when one was. */
+      payout_batch_id?: string | null;
     } | null
   >(null);
+  /** Set while a payout is being prepared from a closed week, so the button cannot be pressed twice. */
+  const [preparingPayout, setPreparingPayout] = useState(false);
   /** Every lock overlapping the visible week, for the late-entry check. See `lib/hours/late-entry.ts`:
    *  an entry added AFTER its week was closed off belongs to that week but is paid in the next
    *  payout, and until now looked identical to one submitted on time. */
@@ -398,6 +402,61 @@ export default function HoursApprovalPage() {
       setEntryError(e instanceof Error ? e.message : String(e));
     } finally {
       setEntrySaving(false);
+    }
+  };
+
+  /**
+   * Prepare the payout for a week that has just been closed, and record which batch it produced.
+   *
+   * ── WHAT THIS DOES NOT DO ──────────────────────────────────────────────────────────────────────
+   *
+   * It does not pay "this week's hours". The surviving engine is balance-driven on purpose — the
+   * batch settles everything each person is owed at this moment, which is usually this week plus
+   * anything older that had not been paid. Building a period-scoped payout instead would drop hours
+   * logged late, which is the exact failure `lib/payroll/owed.ts` was written to prevent.
+   *
+   * So the link means "closing this week is what prompted this payout", which is the question
+   * somebody actually asks six weeks later. Nothing is sent: the batch is a DRAFT.
+   */
+  const preparePayoutForWeek = async () => {
+    if (!weekLock || preparingPayout) return;
+    if (!confirm(
+      'Prepare a payout for everybody who is owed?\n\n'
+      + 'This creates a DRAFT batch — nothing is sent until you dispatch it. It covers everything '
+      + 'currently owed, not only this week, so nobody with older unpaid hours is missed.',
+    )) return;
+
+    setPreparingPayout(true);
+    try {
+      const res = await fetch('/api/admin/payroll/pay-owed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: `Closing ${weekLock.period_start} – ${weekLock.period_end}` }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        // 409 means nobody had a positive balance, which is an ordinary outcome and not an error to
+        // bury — the week is still closed either way.
+        alert(json.error ?? `The payout could not be prepared (HTTP ${res.status}).`);
+        return;
+      }
+      // Record what the close produced. Best-effort: the batch exists and is correct regardless, and
+      // failing here would leave somebody thinking no payout was made.
+      const batchId = json?.batch?.id ?? json?.batch_id;
+      if (batchId) {
+        await fetch('/api/admin/time-logs/lock-period', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            period_start: weekLock.period_start,
+            period_end: weekLock.period_end,
+            payout_batch_id: batchId,
+          }),
+        }).catch(() => { /* the batch is still findable on /admin/payouts */ });
+      }
+      await loadData();
+    } finally {
+      setPreparingPayout(false);
     }
   };
 
@@ -813,6 +872,23 @@ export default function HoursApprovalPage() {
               </>
             );
           })()}
+          {/* S7 — closing a week and paying for it were two unconnected acts, so "did we ever pay
+              the week we closed?" could only be answered by comparing dates by eye. */}
+          {weekLock.payout_batch_id ? (
+            <> <a href={`/admin/payouts/runs/${weekLock.payout_batch_id}`}>See the payout this close prepared →</a></>
+          ) : (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="tl-btn tl-btn--sm"
+                onClick={preparePayoutForWeek}
+                disabled={preparingPayout}
+              >
+                {preparingPayout ? 'Preparing…' : 'Prepare the payout'}
+              </button>
+            </>
+          )}
         </p>
       )}
 

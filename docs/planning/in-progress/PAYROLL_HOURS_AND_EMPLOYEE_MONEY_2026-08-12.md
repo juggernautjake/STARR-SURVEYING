@@ -187,7 +187,7 @@ nobody can run payroll at all:
 | **§2b** | ✅ **SHIPPED 2026-08-12.** Unpriced employees are skipped and NAMED — never written as `base_rate: 0`, which would be a stub claiming somebody worked for free. A run that ends up paying nobody now deletes itself and returns 409 rather than reporting an empty $0.00 payroll as complete; that second half was found by testing, not by reading. |
 | **S9b** | ⚠️ **SCOPE WAS WRONG — corrected 2026-08-12, see §S9b below.** Porting stub generation would print invented tax figures on a wage statement. The honest half shipped (`lib/payroll/payment-statement.ts`); whether the firm should withhold at all is an accountant's decision, not this codebase's. |
 | **S9c** | *Now* close `POST /api/admin/payroll/runs` — once nothing unique lives behind it. Keep `GET` (historical runs and stubs are records of real payments) and `PUT` (an existing run must still be finishable). |
-| **S7** | Link a close to the batch it produced. |
+| **S7** | ✅ **SHIPPED 2026-08-12** (seed 589). Closing a week offers "Prepare the payout" and records which batch it produced, so "did we ever pay the week we closed?" stops being a comparison of dates by eye. The link means *what prompted the payout* — NOT "this batch holds exactly this week's hours", because the surviving engine is balance-driven and reading it that way would re-introduce the period-window thinking `owed.ts` exists to avoid. |
 | **S5** | Whether approval credits the balance ahead of dispatch. |
 | **S8** | Auto-transfer. Last, on a ledger that has been reconciling for a while. |
 

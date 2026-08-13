@@ -51,10 +51,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Admin only' }, { status: 403 });
 
   const body = await req.json();
-  const { period_start, period_end, note } = body as {
+  const { period_start, period_end, note, payout_batch_id } = body as {
     period_start?: string;
     period_end?: string;
     note?: string;
+    /**
+     * The payout prepared when this week was closed, when one was (S7).
+     *
+     * Records what PROMPTED the payout, not that the batch contains exactly this week's hours —
+     * the surviving engine is balance-driven, so a batch settles whatever was owed at that moment.
+     * See seed 589.
+     */
+    payout_batch_id?: string | null;
   };
   if (!period_start || !period_end) {
     return NextResponse.json({ error: 'period_start and period_end required' }, { status: 400 });
@@ -113,6 +121,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         locked_by: session.user.email,
         locked_at: new Date().toISOString(),
         note: note ?? null,
+        // Only written when supplied. An upsert re-locking a week must not blank a link recorded
+        // earlier, which `payout_batch_id: undefined` avoids and `: null` would not.
+        ...(payout_batch_id ? { payout_batch_id } : {}),
         ...snapshot,
       },
       { onConflict: 'period_start,period_end' },
