@@ -51,6 +51,8 @@ const STATUS_LABEL: Record<string, string> = {
 export default function WithdrawalQueuePage() {
   const [rows, setRows] = useState<WithdrawalRow[] | null>(null);
   const [balances, setBalances] = useState<Record<string, number>>({});
+  /** Per-employee: the balance does not match its own ledger. Keyed by email, absent when healthy. */
+  const [integrity, setIntegrity] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -70,6 +72,7 @@ export default function WithdrawalQueuePage() {
       }
       setRows((json.withdrawals ?? []) as WithdrawalRow[]);
       setBalances((json.balances ?? {}) as Record<string, number>);
+      setIntegrity((json.integrity ?? {}) as Record<string, string>);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -157,6 +160,21 @@ export default function WithdrawalQueuePage() {
           {covered === false && ' · their balance no longer covers this'}
           {covered === true && balance !== undefined && ` · balance ${money(balance)}`}
         </p>
+        {/* The balance does not add up to its own recorded movements. Shown at the moment somebody
+            is about to send money against it, which is the last useful point to find out. */}
+        {integrity[row.user_email] && (
+          <p
+            style={{
+              margin: '0.4rem 0 0', padding: '0.5rem 0.6rem', borderRadius: 6, fontSize: '0.82rem',
+              border: '1px solid var(--theme-warning, #f59e0b)',
+              background: 'color-mix(in srgb, var(--theme-warning, #f59e0b) 13%, transparent)',
+              fontWeight: 600,
+            }}
+            role="alert"
+          >
+            {integrity[row.user_email]}
+          </p>
+        )}
         {row.notes && <p style={{ margin: '0.3rem 0 0', fontSize: '0.83rem' }}>“{row.notes}”</p>}
         {row.rejection_reason && (
           <p style={{ margin: '0.3rem 0 0', fontSize: '0.83rem' }}>Declined: {row.rejection_reason}</p>

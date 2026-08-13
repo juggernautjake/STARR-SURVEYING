@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildWithdrawalNotification } from '@/lib/notifications/withdrawal';
+import { checkBalanceIntegrity, type LedgerEntry } from '@/lib/payroll/balance-integrity';
 
 // GET: Get balance info and transaction history
 export const GET = withErrorHandler(async (req: NextRequest) => {
@@ -42,6 +43,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // without opening a second screen per person. One query for the page, never one per row.
     const emails = Array.from(new Set(rows.filter((r) => OPEN.has(r.status)).map((r) => r.user_email)));
     const balances: Record<string, number> = {};
+    const integrity: Record<string, string> = {};
     if (emails.length > 0) {
       const { data: profiles } = await supabaseAdmin
         .from('employee_profiles')
@@ -50,9 +52,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       for (const p of (profiles ?? []) as Array<{ user_email: string; available_balance: number | null }>) {
         balances[p.user_email] = Number(p.available_balance ?? 0);
       }
+
+      // ── DOES THE BALANCE MATCH ITS OWN LEDGER? ────────────────────────────────────────────────
+      //
+      // `available_balance` is a running total written by three separate paths, each a
+      // read-modify-write with no transaction around it. Nothing has ever checked it against
+      // `balance_transactions`, and a drifted balance does not look wrong — it is a plausible
+      // amount of money on the right person.
+      //
+      // Checked HERE because this is the screen where somebody is about to send money against that
+      // number, which is the last useful moment to find out it cannot be derived from anything.
+      const { data: ledger } = await supabaseAdmin
+        .from('balance_transactions')
+        .select('user_email, amount, status')
+        .in('user_email', emails);
+      const byUser = new Map<string, LedgerEntry[]>();
+      for (const t of (ledger ?? []) as Array<{ user_email: string; amount: number; status: string | null }>) {
+        const list = byUser.get(t.user_email) ?? [];
+        list.push({ amount: Number(t.amount), status: t.status });
+        byUser.set(t.user_email, list);
+      }
+      for (const email of emails) {
+        const check = checkBalanceIntegrity(balances[email], byUser.get(email) ?? []);
+        if (check.needsReview && check.message) integrity[email] = check.message;
+      }
     }
 
-    return NextResponse.json({ withdrawals: rows, balances });
+    return NextResponse.json({ withdrawals: rows, balances, integrity });
   }
 
   const targetEmail = email || session.user.email;

@@ -49,6 +49,8 @@ adds to.
 3. **The balance is almost never funded.** `available_balance` is credited by exactly two paths: the
    legacy `payroll_runs` engine, and a payout item marked with `method: 'account'`. In normal use
    neither happens, so the "online bank account" reads $0 forever while `owed` says otherwise.
+   **Corrected 2026-08-12 while building S5:** the `account` path is fully wired and guarded — the
+   gap is that nobody is ever offered that method. See S5.
 4. **There are two parallel money engines that do not reconcile** — `payroll_runs`/`pay_stubs`
    (legacy) and `payout_batches`/`payout_batch_items` (live). Both can pay the same hours.
 5. **There is no money-handling permission.** Everything gates on `isAdmin`, plus one
@@ -105,13 +107,36 @@ Until that is done, **there is a guard test to write today** (S0 below) rather t
 
 ---
 
+## 1b. Where this stands — 2026-08-12
+
+**Shipped:** S0, S1, S2 (seed 585), S3, S4, S6, and the integrity guard from S5.
+
+**Not shipped, and why this doc stays open.** S5 (the rest), S7, S8 and S9 all depend on **D2** —
+which of the two payroll engines survives — and that is the owner's decision, not a cost/value
+judgement this build can make. They are NOT deferred: every one of them is worth doing, and each
+would have to be redone if D2 came back the other way.
+
+Concretely, what each is waiting on:
+
+| Slice | Waiting on |
+|---|---|
+| S5 (rest) | Whether **approval** credits the balance, which only makes sense if the batch path survives |
+| S7 | Whether a period close builds a payout batch or a payroll run |
+| S8 | A ledger that has been reconciling in production for a while first — and S7 |
+| S9 | D2 by definition; it *is* retiring the loser |
+
+Until D2 is answered, S0's overlap guard is what stands between the two engines and a week paid
+twice. That is a guard, not a resolution, and it is stated that way on purpose.
+
+---
+
 ## 2. Slices
 
 Ordered so that each one is shippable on its own and the dangerous ones come after the guards.
 
 ---
 
-### S0. A guard against paying the same hours twice — *do this first*
+### S0. A guard against paying the same hours twice — ✅ SHIPPED 2026-08-12
 
 The only slice that is urgent. Both engines can pay the same `daily_time_logs` rows, and nothing
 notices.
@@ -128,7 +153,7 @@ notices.
 
 ---
 
-### S1. The rejection reason reaches the employee
+### S1. The rejection reason reaches the employee — ✅ SHIPPED 2026-08-12
 
 The smallest real gap, and the one the owner asked for by name: *"reject… with required reason and
 employee notified."*
@@ -147,7 +172,7 @@ produces the existing sentence and no dangling "Reason:".
 
 ---
 
-### S2. The employer logs hours for an employee
+### S2. The employer logs hours for an employee — ✅ SHIPPED 2026-08-12 (seed 585)
 
 Build from zero. *"The employer will also be able to log hours for employees and create entries
 setting the hours and pay for the employee."*
@@ -172,7 +197,7 @@ setting the hours and pay for the employee."*
 
 ---
 
-### S3. Employee review by day, week, month and year
+### S3. Employee review by day, week, month and year — ✅ SHIPPED 2026-08-12
 
 *"They need to be able to review their hours by day, week, month, and year."*
 
@@ -190,7 +215,7 @@ timezone edges (a log dated the 1st must not fall into the previous month).
 
 ---
 
-### S4. A money-handling permission
+### S4. A money-handling permission — ✅ SHIPPED 2026-08-12 (the `finance` role)
 
 *"Only people with money handling permissions will be able to see the accounts of the employees."*
 
@@ -215,27 +240,38 @@ env allowlist still wins for batch approval.
 
 ---
 
-### S5. Fund the balance from the payout path
+### S5. Fund the balance from the payout path — **integrity guard SHIPPED; the rest is gated on D2**
 
-The reason the "account" reads $0. `available_balance` is written by the legacy run engine and by a
-payout item marked `method: 'account'`; in normal use neither happens.
+**Correction, made while building this.** The slice above was written as *"in normal use nothing
+credits the balance"*, and that overstates it. `lib/payroll/account-credit.ts` is complete, tested
+and **wired**: marking a payout item paid with `method: 'account'` credits `balance_transactions`
+and `available_balance`, guarded against double-crediting by `alreadyCredited()` keyed on the item.
 
-- When a payout batch is **approved**, each item credits `balance_transactions` and
-  `employee_profiles.available_balance` — with `alreadyCredited()` from `lib/payroll/account-credit.ts`
-  guarding re-entry (it exists and is tested).
-- Dispatching by an external method (Venmo, ACH, cash) then **debits** the balance as it leaves. The
-  balance means *"approved, not yet in your hands"*, and every movement is a `balance_transactions`
-  row so the number can always be explained.
-- **The invariant, asserted in a test:** `available_balance` equals the sum of that employee's
-  `balance_transactions`. A balance that cannot be derived from its ledger is a number nobody can
-  defend in a dispute.
+The real gap is narrower and duller: **nobody chooses that method**, and nothing on the payout
+screens says it exists or what it means. So the remaining work is not plumbing:
 
-*Tests:* approve → credit; dispatch → debit; approve twice → credited once; the sum invariant over a
-generated sequence of movements.
+1. Make `account` a visible, explained choice at dispatch — *"hold this in their balance rather than
+   sending it"* — a UI slice on `/admin/payouts/runs/[id]/dispatch`.
+2. Decide whether **approval alone** should credit, ahead of dispatch. **That is D2**: it only makes
+   sense if the batch path is the surviving engine, and wiring balance crediting into a path that may
+   be retired is the wrong order. Deferred until the owner answers D2.
+
+**✅ Shipped 2026-08-12 — the invariant this slice asked for.** `lib/payroll/balance-integrity.ts`
+checks `available_balance` against the sum of `balance_transactions` and reports in both directions
+without ever repairing anything: which of the two figures is right is a person's decision, and
+"correcting" either would destroy evidence or invent a transaction. It runs on the withdrawal queue —
+the last useful moment before somebody sends money against a number that cannot be derived from
+anything. Three separate paths write that balance with an unguarded read-modify-write and nothing
+had ever checked it. 14 tests.
+
+Two findings worth keeping: the first version rounded both figures to cents *before* differencing,
+which made its own float-dust tolerance unreachable — any surviving difference was already a whole
+cent, so the branch could never fire. And a NaN amount is skipped rather than counted as zero,
+because a silent zero turns a data problem into a confident wrong verdict about somebody's wages.
 
 ---
 
-### S6. The withdrawal queue
+### S6. The withdrawal queue — ✅ SHIPPED 2026-08-12
 
 The API verbs exist. Nothing calls them, so a request goes into a void.
 
