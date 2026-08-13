@@ -7,10 +7,13 @@
 
 import '../styles/AdminTimeLogs.css';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import { summarizeWeek } from '@/lib/payroll/week-summary';
+import {
+  summariseHours, totalOf, labelFor, type Grain, type SummarisableLog,
+} from '@/lib/hours/summarise';
 
 interface WorkType {
   id: string;
@@ -132,7 +135,7 @@ interface Advance {
   pay_date: string | null;
 }
 
-type ViewTab = 'log' | 'history' | 'advances';
+type ViewTab = 'log' | 'history' | 'totals' | 'advances';
 
 const STATUS_BADGES: Record<string, { label: string; cls: string }> = {
   pending: { label: 'Pending', cls: 'tl-badge--pending' },
@@ -194,6 +197,17 @@ export default function MyHoursPanel() {
     return mon.toISOString().split('T')[0];
   });
 
+  // ── Totals by day / week / month / year (owner request, 2026-08-12) ──────────────────────────
+  //
+  // *"They will be able to review their hours by day, week, month, and year."*
+  //
+  // A separate fetch from the week view rather than summing `logs`: the week view deliberately loads
+  // one week, and totalling a year out of it would silently report a year as seven days. The range
+  // is asked for explicitly and the arithmetic lives in `lib/hours/summarise.ts`.
+  const [grain, setGrain] = useState<Grain>('week');
+  const [rangeLogs, setRangeLogs] = useState<TimeLog[] | null>(null);
+  const [rangeLoading, setRangeLoading] = useState(false);
+
   // Advance form
   const [showAdvanceForm, setShowAdvanceForm] = useState(false);
   const [advanceAmount, setAdvanceAmount] = useState('');
@@ -251,6 +265,54 @@ export default function MyHoursPanel() {
   }, [weekStart, reportPageError]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  /**
+   * How far back each grain looks.
+   *
+   * Chosen so the screen answers the question the grain implies rather than returning everything:
+   * "by day" means the last few weeks of days, "by year" means the years you have worked here. A
+   * single unbounded fetch would grow without limit on a phone.
+   */
+  const RANGE_DAYS: Record<Grain, number> = { day: 45, week: 180, month: 730, year: 3650 };
+
+  useEffect(() => {
+    if (tab !== 'totals') return;
+    let cancelled = false;
+    (async () => {
+      setRangeLoading(true);
+      try {
+        const to = new Date();
+        const from = new Date(to.getTime() - RANGE_DAYS[grain] * 86_400_000);
+        // No `status` param at all. The route treats `status` as a literal value or comma list, so
+        // `status=all` would filter to entries whose status is the string "all" and return nothing —
+        // the approval page handles its "All Statuses" option client-side for the same reason.
+        // Omitting it is what actually means "every status".
+        const params = new URLSearchParams({
+          date_from: from.toISOString().slice(0, 10),
+          date_to: to.toISOString().slice(0, 10),
+        });
+        const res = await fetch(`/api/admin/time-logs?${params.toString()}`);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setRangeLogs((data.logs ?? []) as TimeLog[]);
+        }
+      } catch (err) {
+        if (!cancelled) reportPageError(err instanceof Error ? err : new Error('Failed to load totals'));
+      } finally {
+        if (!cancelled) setRangeLoading(false);
+      }
+    })();
+    // The grain can change while a fetch is in flight; without this, a slow "year" response can land
+    // after a fast "day" one and paint the wrong totals under the wrong heading.
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, grain, reportPageError]);
+
+  const buckets = useMemo(
+    () => summariseHours((rangeLogs ?? []) as SummarisableLog[], grain),
+    [rangeLogs, grain],
+  );
+  const rangeTotal = useMemo(() => totalOf(buckets), [buckets]);
 
   // Pre-populate the editable form with this day's EDITABLE logs (pending or
   // rejected). Approved/adjusted/disputed logs are locked: they're shown
@@ -534,6 +596,9 @@ export default function MyHoursPanel() {
         <button className={`tl-tabs__btn ${tab === 'history' ? 'tl-tabs__btn--active' : ''}`} onClick={() => setTab('history')}>
           Week History
         </button>
+        <button className={`tl-tabs__btn ${tab === 'totals' ? 'tl-tabs__btn--active' : ''}`} onClick={() => setTab('totals')}>
+          Totals
+        </button>
         <button className={`tl-tabs__btn ${tab === 'advances' ? 'tl-tabs__btn--active' : ''}`} onClick={() => setTab('advances')}>
           Pay Advances
         </button>
@@ -748,6 +813,90 @@ export default function MyHoursPanel() {
                 {submitting ? 'Submitting...' : hasExistingEditable ? 'Update & Resubmit' : 'Submit Hours'}
               </button>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── TOTALS TAB ────────────────────────────────────────────────────────────────────────
+          *"They will be able to review their hours by day, week, month, and year."*
+
+          Three numbers per period, not one: what is settled, what is still waiting on somebody, and
+          what has no rate attached. "40h" alone cannot answer the question people actually open this
+          screen with, which is whether they are going to be paid for it. */}
+      {tab === 'totals' && (
+        <div className="tl-history-section">
+          <div className="tl-tabs" style={{ marginBottom: '0.75rem' }}>
+            {(['day', 'week', 'month', 'year'] as Grain[]).map((g) => (
+              <button
+                key={g}
+                className={`tl-tabs__btn ${grain === g ? 'tl-tabs__btn--active' : ''}`}
+                onClick={() => setGrain(g)}
+              >
+                {g === 'day' ? 'By day' : g === 'week' ? 'By week' : g === 'month' ? 'By month' : 'By year'}
+              </button>
+            ))}
+          </div>
+
+          {rangeLoading && <div className="tl-loading">Loading…</div>}
+
+          {!rangeLoading && buckets.length === 0 && (
+            <div className="tl-empty-day"><p>No hours logged in this period.</p></div>
+          )}
+
+          {!rangeLoading && buckets.length > 0 && (
+            <>
+              <div className="tl-history-day">
+                <div className="tl-history-day__header">
+                  <span className="tl-history-day__title">
+                    All {buckets.length} {grain === 'day' ? 'days' : `${grain}s`}
+                  </span>
+                  <span className="tl-history-day__total">
+                    {rangeTotal.hours.toFixed(1)}h · {formatCurrency(rangeTotal.pay)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="tl-history-list">
+                {buckets.map((b) => (
+                  <div key={b.key} className="tl-history-day">
+                    <div className="tl-history-day__header">
+                      <span className="tl-history-day__title">{labelFor(b, grain)}</span>
+                      <span className="tl-history-day__total">
+                        {b.hours.toFixed(1)}h · {formatCurrency(b.pay)}
+                      </span>
+                    </div>
+                    <div className="tl-history-entry">
+                      <div className="tl-history-entry__left">
+                        <div>
+                          <div className="tl-history-entry__desc">
+                            {b.entries} {b.entries === 1 ? 'entry' : 'entries'}
+                            {b.settledHours > 0 && ` · ${b.settledHours.toFixed(1)}h approved`}
+                          </div>
+                          {/* Each of these is a different thing to chase, so none of them is
+                              folded into the headline figure. */}
+                          {b.awaitingHours > 0 && (
+                            <div className="tl-history-entry__job">
+                              {b.awaitingHours.toFixed(1)}h still waiting on a decision
+                            </div>
+                          )}
+                          {b.unpricedHours > 0 && (
+                            <div className="tl-history-entry__job">
+                              {b.unpricedHours.toFixed(1)}h with no rate set yet — the pay above does
+                              not include them
+                            </div>
+                          )}
+                          {b.rejectedHours > 0 && (
+                            <div className="tl-history-entry__rejection">
+                              {b.rejectedHours.toFixed(1)}h rejected — not counted above
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </div>
       )}
