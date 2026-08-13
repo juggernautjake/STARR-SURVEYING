@@ -127,6 +127,39 @@ describe('summarizeWeek — hours awaiting a rate', () => {
     ]);
     expect(s.undecidedHours).toBe(6);
   });
+
+  // ── THE COMMON CASE, WHICH WAS MISSED (found 2026-08-12) ───────────────────────────────────────
+  //
+  // `undecidedHours` only ever came from a pay DECISION's `undecided_hours`, which catches an
+  // approver pricing part of a day. It missed the far more common shape: an entry submitted with no
+  // rate at all — the DEFAULT on /admin/my-hours — and approved as it stands.
+  //
+  // That entry has `total_pay: null`, and `Number(null)` is 0, which `Number.isFinite` accepts. So
+  // the hours reported as earning $0.00 and the "awaiting a rate" banner never rendered: the screen
+  // read "8.0h Approved · $0.00 Approved pay" with nothing saying nobody had priced it. The Totals
+  // tab on the SAME page got it right, so the two halves disagreed.
+  it('counts an approved entry that nobody has priced at all', () => {
+    const s = summarizeWeek([entry({ hours: 8, status: 'approved', total_pay: null })]);
+    expect(s.undecidedHours, 'unpriced hours must be visible, not reported as $0 earned').toBe(8);
+    expect(s.approvedHours).toBe(8);
+    expect(s.approvedPay).toBe(0);
+  });
+
+  it('does not double-count when a decision exists', () => {
+    // A decision means the approver has spoken; `undecided_hours` already carries whatever they
+    // left open. Adding the entry's hours on top would report more undecided than were worked.
+    const s = summarizeWeek([entry({ hours: 8, pay_decision: { total_pay: 200, undecided_hours: 0 } })]);
+    expect(s.undecidedHours).toBe(0);
+  });
+
+  it('does not flag a genuinely priced entry', () => {
+    expect(summarizeWeek([entry({ hours: 8, total_pay: 200 })]).undecidedHours).toBe(0);
+  });
+
+  it('does not flag a deliberate zero', () => {
+    // $0 stored is a decision that the work was worth nothing — distinct from nobody deciding.
+    expect(summarizeWeek([entry({ hours: 8, total_pay: 0 })]).undecidedHours).toBe(0);
+  });
 });
 
 describe('summarizeWeek — bad input', () => {

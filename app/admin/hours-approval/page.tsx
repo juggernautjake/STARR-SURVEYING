@@ -8,6 +8,7 @@ import { usePageError } from '../hooks/usePageError';
 import { computeHoursFlags, effectiveHours } from '@/lib/hours/hours-flags';
 import { detectLateEntry, countLateEntries, type PeriodLock } from '@/lib/hours/late-entry';
 import { describeSnapshot } from '@/lib/hours/period-snapshot';
+import { decidedPay } from '@/lib/hours/summarise';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
 import { useSearchParams } from 'next/navigation';
@@ -37,6 +38,15 @@ interface TimeLog {
    *  see seed 585. Not the same question as `approved_by`, which agrees with it on office-entered
    *  rows and cannot distinguish them from an ordinary approval. */
   entered_by: string | null;
+  /**
+   * What an approver DECIDED this entry is worth, when they decided anything.
+   *
+   * `/api/admin/time-logs` has always attached this — it exists so the money on this page can be
+   * right — but the interface did not declare it, so every read of it was dropped and the totals
+   * showed the pre-decision figure. Setting pay via "Set pay" writes `time_log_pay_decisions` and
+   * never touches `daily_time_logs.total_pay`, so the two disagree by design; the decision wins.
+   */
+  pay_decision: { total_pay: number | null } | null;
   created_at: string;
 }
 
@@ -690,7 +700,14 @@ export default function HoursApprovalPage() {
         </div>
         <div className="tl-summary-card">
           <div className="tl-summary-card__icon">&#128176;</div>
-          <div className="tl-summary-card__value">{formatCurrency(logs.reduce((s, l) => s + (l.total_pay || 0), 0))}</div>
+          {/* `decidedPay`, not `total_pay`. The approver sets pay on THIS page via "Set pay", which
+              writes `time_log_pay_decisions` and never touches `daily_time_logs.total_pay` — so this
+              card showed the pre-decision figure and disagreed with the employee's own screen, which
+              reads the decision. The hours card above was fixed to use `effectiveHours`; the dollars
+              beside it were left on the raw column. */}
+          <div className="tl-summary-card__value">
+            {formatCurrency(logs.reduce((s, l) => s + (decidedPay(l) ?? 0), 0))}
+          </div>
           <div className="tl-summary-card__label">Total Pay</div>
         </div>
         <div className="tl-summary-card">
@@ -801,7 +818,8 @@ export default function HoursApprovalPage() {
             // Same rule as the page total, and the same rule `computeHoursFlags` below already used —
             // the per-employee heading was the third number on this screen disagreeing with the other two.
             const empTotal = empLogs.reduce((s, l) => s + effectiveHours(l), 0);
-            const empPay = empLogs.reduce((s, l) => s + (l.total_pay || 0), 0);
+            // Same rule as the page total: the decision wins over the rules' figure.
+            const empPay = empLogs.reduce((s, l) => s + (decidedPay(l) ?? 0), 0);
             const empFlags = computeHoursFlags(empLogs);
             return (
               <div key={email} className="tl-employee-group">

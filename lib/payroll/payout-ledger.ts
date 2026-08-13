@@ -52,6 +52,10 @@ export interface PayoutRecord {
   bonuses_cents: number | null;
   reimbursements_cents: number | null;
   adjustments_cents: number | null;
+  /** Of `total_cents`, how much was withheld to repay a pay advance rather than sent. Null on every
+   *  row written before seed 588, and null means zero. See `lib/payroll/disbursement.ts` for why it
+   *  is a withholding rather than a component of the total. */
+  recovered_cents: number | null;
   method: string | null;
   /** The bank's or processor's reference for this payment. */
   reference: string | null;
@@ -82,6 +86,7 @@ interface BatchItemRow {
   bonuses_cents: number | null;
   reimbursements_cents: number | null;
   adjustments_cents: number | null;
+  recovered_cents: number | null;
   total_cents: number | null;
   method: string | null;
   external_ref: string | null;
@@ -102,7 +107,7 @@ interface BatchRow {
 
 const ITEM_COLUMNS =
   'id, batch_id, user_email, user_name, hours_cents, bonuses_cents, reimbursements_cents, ' +
-  'adjustments_cents, total_cents, method, external_ref, status, paid_at, notes, created_at';
+  'adjustments_cents, recovered_cents, total_cents, method, external_ref, status, paid_at, notes, created_at';
 
 function toRecord(item: BatchItemRow, batch: BatchRow | undefined): PayoutRecord {
   return {
@@ -114,6 +119,7 @@ function toRecord(item: BatchItemRow, batch: BatchRow | undefined): PayoutRecord
     bonuses_cents: item.bonuses_cents,
     reimbursements_cents: item.reimbursements_cents,
     adjustments_cents: item.adjustments_cents,
+    recovered_cents: item.recovered_cents,
     method: item.method,
     reference: item.external_ref,
     status: item.status,

@@ -80,6 +80,32 @@ function entryPay(entry: WeekEntry): number {
 }
 
 /**
+ * Are this entry's hours still waiting on somebody to say what they are worth?
+ *
+ * ── THE HOLE THIS CLOSES ────────────────────────────────────────────────────────────────────────
+ *
+ * `undecidedHours` was only ever incremented from a pay DECISION's `undecided_hours` — so it caught
+ * the case where an approver priced part of a day and left the rest. It missed the far more common
+ * one: an entry submitted with no rate at all and approved as it stands.
+ *
+ * That entry has `total_pay: null`, and `Number(null)` is **0**, which `Number.isFinite` accepts. So
+ * `entryPay` returned 0, the hours were reported as earning $0.00, and the banner that would have
+ * explained it — rendered on `week.undecidedHours > 0` — never appeared. The screen read
+ * "8.0h Approved · $0.00 Approved pay" with no indication that nobody had priced it.
+ *
+ * Worse, the same screen's Totals tab uses `lib/hours/summarise.ts`, which gets this right — so the
+ * two halves of one page disagreed about whether the hours were unpriced or worthless.
+ *
+ * The file header claims this was already fixed. It was fixed for the decision case only.
+ */
+function isUnpriced(entry: WeekEntry): boolean {
+  // A decision exists → the approver has spoken, even if they left part of it undecided (which the
+  // `undecided_hours` path already counts).
+  if (entry.pay_decision) return false;
+  return entry.total_pay === null || entry.total_pay === undefined;
+}
+
+/**
  * Summarise a week of entries.
  *
  * `adjusted` and `disputed` entries are counted as pending: neither is settled, and both are still
@@ -107,6 +133,10 @@ export function summarizeWeek(entries: WeekEntry[]): WeekSummary {
       summary.hasDecisions = true;
       const undecided = Number(entry.pay_decision.undecided_hours);
       if (Number.isFinite(undecided) && undecided > 0) summary.undecidedHours += undecided;
+    } else if (isUnpriced(entry)) {
+      // No rate and no decision — the whole entry is waiting on somebody. Counted here so the
+      // "awaiting a rate" banner fires, instead of the hours quietly reporting $0.00 earned.
+      summary.undecidedHours += hours;
     }
 
     switch (entry.status) {

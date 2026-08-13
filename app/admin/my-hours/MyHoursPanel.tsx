@@ -14,6 +14,7 @@ import { summarizeWeek } from '@/lib/payroll/week-summary';
 import {
   summariseHours, totalOf, labelFor, type Grain, type SummarisableLog,
 } from '@/lib/hours/summarise';
+import { effectiveHours } from '@/lib/hours/hours-flags';
 
 interface WorkType {
   id: string;
@@ -595,7 +596,11 @@ export default function MyHoursPanel() {
       <div className="tl-day-strip">
         {weekDays.map((day) => {
           const dayLogs = logs.filter((l) => l.log_date === day);
-          const dayHrs = dayLogs.reduce((s, l) => s + l.hours, 0);
+          // `effectiveHours`, not raw `hours` — the last uncorrected copy of this. A manager cutting
+          // Tuesday from 10h to 8h left the Total Hours card reading 8.0h and the Tuesday button
+          // directly above it reading 10.0h: the same screen telling somebody two different things
+          // about the same day, with the larger of the two being the one they did not get.
+          const dayHrs = dayLogs.reduce((s, l) => s + effectiveHours(l), 0);
           const hasRejected = dayLogs.some((l) => l.status === 'rejected');
           const allApproved = dayLogs.length > 0 && dayLogs.every((l) => l.status === 'approved');
           const isToday = day === new Date().toISOString().split('T')[0];

@@ -9,7 +9,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { PAYOUT_METHODS, type PayoutMethod } from '@/lib/payouts/methods';
-import { readPayouts } from '@/lib/payroll/payout-ledger';
+import { readPayouts, isCommittedPayout, isSettledPayout } from '@/lib/payroll/payout-ledger';
 import { notify } from '@/lib/notifications';
 import { buildPayoutNotification } from '@/lib/notifications/payout';
 
@@ -107,15 +107,40 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     createdAt: r.created_at ?? '',
   }));
 
-  // Aggregate totals by method (the boss wants this for reconciliation).
+  // ── RECONCILIATION MEANS MONEY THAT ACTUALLY LEFT ─────────────────────────────────────────────
+  //
+  // This summed EVERY row `readPayouts` returned — including items in a voided batch, items the bank
+  // rejected as `failed`, and drafts that have never been sent. The comment said the total was for
+  // reconciliation, and a total that includes money which did not move cannot be reconciled against
+  // a bank statement: a voided $1,200 batch plus a $500 bounced ACH plus a $3,000 unsent draft made
+  // the figure $4,700 too high, with nothing on the screen saying so.
+  //
+  // `isSettledPayout` is the existing answer to "has this actually gone" — the sibling search route
+  // already uses it and explains why: *"One number pretending to be both is how a reconciliation
+  // goes wrong."* Both figures are returned rather than one, because "what has gone" and "what is
+  // committed" are different questions and an approver needs both.
   const byMethod: Record<string, number> = {};
-  let totalCents = 0;
-  for (const p of payouts) {
-    byMethod[p.method] = (byMethod[p.method] ?? 0) + p.amountCents;
-    totalCents += p.amountCents;
+  let settledCents = 0;
+  let committedCents = 0;
+  for (const p of ledgerRows) {
+    if (isCommittedPayout(p)) committedCents += Number(p.amount_cents) || 0;
+    if (!isSettledPayout(p)) continue;
+    const method = p.method ?? 'unassigned';
+    byMethod[method] = (byMethod[method] ?? 0) + (Number(p.amount_cents) || 0);
+    settledCents += Number(p.amount_cents) || 0;
   }
 
-  return NextResponse.json({ payouts, totalCents, byMethod });
+  return NextResponse.json({
+    payouts,
+    // Kept as the settled figure — this is the field the reconciliation screen reads, and it was
+    // the one that was wrong.
+    totalCents: settledCents,
+    settledCents,
+    // Committed but not yet gone: approved and draft batches. Money the firm owes and has
+    // earmarked, which is a real number and a different one.
+    committedCents,
+    byMethod,
+  });
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {

@@ -27,6 +27,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { formatCurrency } from './PayrollConstants';
+import { disbursedCents } from '@/lib/payroll/disbursement';
+import { summarisePayment } from '@/lib/payroll/payment-statement';
 
 interface OwedSummary {
   owedCents: number;
@@ -40,6 +42,8 @@ interface OwedSummary {
 interface PayoutRow {
   id: string;
   amount_cents: number;
+  /** Of the amount, how much was held back to repay a pay advance. Absent means none. */
+  recovered_cents?: number | null;
   method_label: string;
   reference: string | null;
   status: string | null;
@@ -120,7 +124,13 @@ export default function MyOwedAndPayouts({ email }: { email: string }) {
         <ul className="payroll-owed-list">
           {payouts.map((p) => (
             <li key={p.id} className="payroll-owed-list__row">
-              <span className="payroll-owed-list__amount">{money(p.amount_cents)}</span>
+              {/* The DISBURSED figure — what actually reached them. `amount_cents` is what the
+                  payment settles, which is larger whenever an advance was repaid out of it, and
+                  showing the larger number beside a smaller bank deposit is the discrepancy
+                  somebody queries. See lib/payroll/disbursement.ts. */}
+              <span className="payroll-owed-list__amount">
+                {money(disbursedCents({ total_cents: p.amount_cents, recovered_cents: p.recovered_cents }))}
+              </span>
               <span className="payroll-owed-list__method">
                 {p.method_label}
                 {p.reference ? ` · ${p.reference}` : ''}
@@ -135,6 +145,19 @@ export default function MyOwedAndPayouts({ email }: { email: string }) {
               )}
               {p.status === 'failed' && (
                 <span className="payroll-owed-list__voided">failed — you are still owed this</span>
+              )}
+              {/* Why this payment is smaller than the hours behind it. Rendered only when something
+                  was actually withheld — a note on every ordinary payout is one people stop
+                  reading. An unexplained smaller number is the thing that starts an argument. */}
+              {(p.recovered_cents ?? 0) > 0 && (
+                <span className="payroll-owed-list__method">
+                  {summarisePayment({
+                    total_cents: p.amount_cents,
+                    recovered_cents: p.recovered_cents,
+                    status: p.status,
+                    paid_at: p.paid_at,
+                  })}
+                </span>
               )}
             </li>
           ))}
