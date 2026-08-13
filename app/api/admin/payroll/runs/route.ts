@@ -251,6 +251,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const stubs = [];
   let totalGross = 0;
   let totalNet = 0;
+  /** Worked, but nobody has said what those hours are worth. Reported by name — see §2b below. */
+  const unpriced: Array<{ user_email: string; hours: number; reason: string }> = [];
 
   for (const emp of employees) {
     const employee = emp as { user_email: string; user_name: string | null };
@@ -288,6 +290,36 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
 
     const totals = buildStubTotals({ entries: payable, overtimeThreshold, overtimeMultiplier });
+
+    // ── AN UNPRICED EMPLOYEE MUST NOT 500 THE WHOLE RUN (§2b) ──────────────────────────────────
+    //
+    // `pay_stubs.base_rate` is NOT NULL. `buildStubTotals` returns `regularRate: null` whenever no
+    // PAID hours exist, and `resolvePayRate` correctly reports null — never a stand-in zero — for an
+    // active employee with no agreed rate and no override. So creating a run while ANY active
+    // employee was unpriced failed the whole thing with:
+    //
+    //     null value in column "base_rate" of relation "pay_stubs" violates not-null constraint
+    //
+    // Nobody could run payroll at all, and the message named a column rather than a person.
+    //
+    // **Not fixed by relaxing the constraint.** D2 moves stub generation onto the batch path, and a
+    // nullable `base_rate` would mean every screen that reads a stub has to handle it. **And not
+    // fixed by writing 0**, which is the one option that must never be taken: a stub reading
+    // $0.00/hr is a claim that somebody worked for free, printed on a document they are entitled to.
+    //
+    // They are skipped and NAMED. A run that silently omitted somebody would be the same failure in
+    // a quieter coat — which is why the two nulls are told apart below: no hours at all is an
+    // ordinary week off, while hours with no rate is a person waiting on a decision about their pay.
+    if (totals.regularRate === null) {
+      if (totals.unpaidHours > 0) {
+        unpriced.push({
+          user_email: employee.user_email,
+          hours: totals.unpaidHours,
+          reason: `${totals.unpaidHours}h logged with no rate set — decide what those hours are worth, then run this again.`,
+        });
+      }
+      continue;
+    }
 
     // Recovery comes out of NET, after tax — an advance is money already handed over, not a
     // pre-tax deduction. Taking it from gross would reduce the tax withheld on wages the person
@@ -337,6 +369,31 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
     totalGross += totals.grossPay;
     totalNet += recovery.netAfterRecovery;
+  }
+
+  // ── A RUN THAT PAID NOBODY IS NOT A COMPLETED PAYROLL ─────────────────────────────────────────
+  //
+  // If every employee with hours was unpriced, the loop above produces no stubs — and without this,
+  // the route would create an empty `payroll_runs` row, total it at $0.00 and answer 201. An empty
+  // result reading as a finished payroll is the exact failure this codebase keeps finding, and here
+  // it would be a period somebody believes is paid.
+  //
+  // The run row is removed rather than left in draft: a $0 draft for a period that genuinely has
+  // hours in it is a thing somebody would later try to process.
+  // Broadened after testing: the first version only caught the all-unpriced case, so a period where
+  // simply NOBODY had approved hours still produced an empty run, totalled $0.00, and answered 201.
+  // A payroll that paid nobody is not a completed payroll whatever the reason — and the two reasons
+  // need different sentences, because one is waiting on a person and the other is waiting on hours.
+  if (stubs.length === 0) {
+    await supabaseAdmin.from('payroll_runs').delete().eq('id', run.id);
+    return NextResponse.json({
+      error: unpriced.length > 0
+        ? 'Nothing could be paid — everybody with hours in this period has no rate set. No run was '
+          + `created. Waiting on a pay decision: ${unpriced.map((u) => `${u.user_email} (${u.hours}h)`).join(', ')}.`
+        : `No approved hours were found between ${pay_period_start} and ${pay_period_end}, so no run `
+          + 'was created. Approve the hours for this period first.',
+      unpriced,
+    }, { status: 409 });
   }
 
   // Insert all stubs
@@ -428,7 +485,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     });
   } catch { /* ignore */ }
 
-  return NextResponse.json({ run: { ...run, total_gross: totalGross, total_net: totalNet }, stub_count: stubs.length }, { status: 201 });
+  return NextResponse.json({
+    run: { ...run, total_gross: totalGross, total_net: totalNet },
+    stub_count: stubs.length,
+    // Named, never a count. "1 employee was skipped" cannot be acted on; the person's address and
+    // the hours waiting on a decision can. A run that quietly omitted somebody would be the same
+    // failure as the 500 it replaced, only harder to notice.
+    unpriced,
+    // Only when there is something to say. A message on every successful run is one people stop
+    // reading before they reach the run where it matters.
+    warning: unpriced.length > 0
+      ? `${unpriced.length} ${unpriced.length === 1 ? 'person has' : 'people have'} hours in this `
+        + 'period with no rate set, and are NOT on this run: '
+        + `${unpriced.map((u) => `${u.user_email} (${u.hours}h)`).join(', ')}. `
+        + 'Decide what those hours are worth, then run the period again to pick them up.'
+      : undefined,
+  }, { status: 201 });
 }, { routeName: 'payroll/runs' });
 
 // PUT: Update payroll run status (process/complete/cancel)
