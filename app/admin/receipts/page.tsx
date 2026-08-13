@@ -811,6 +811,23 @@ function ReceiptRow({
                 from this person. Check before approving; it may still be a genuine second purchase.
               </div>
             ) : null}
+
+            {/* Whose card paid for this (seed 584). The matcher already writes a sentence into the
+                review flags, which is enough to SEE on a row; this is the state itself, so the
+                bookkeeper can tell "we have never seen this card" from "you used the old fuel card"
+                at a glance. `unknown` is not shown as a problem: it means the digits were not
+                legible, and badging every blurry photo is how a badge stops being read. */}
+            {row.card_match_status === 'not_on_file' ? (
+              <div style={styles.dupBand} role="note">
+                Paid on a card that is not on file. Add it under{' '}
+                <a href="/admin/cards">company cards</a>, or confirm it was personal and is being
+                reimbursed.
+              </div>
+            ) : row.card_match_status === 'retired' ? (
+              <div style={styles.dupBand} role="note">
+                Paid on a company card marked retired — worth checking the purchase was authorised.
+              </div>
+            ) : null}
           </div>
 
           <dl style={styles.fields}>

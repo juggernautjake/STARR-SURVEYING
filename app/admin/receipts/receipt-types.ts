@@ -79,6 +79,19 @@ export interface ReceiptRow {
    *  same submitter. A WARNING, never an auto-discard — two $5 coffees on the same day are both
    *  real, and only a person can tell those from a receipt photographed twice. */
   dedup_match_id: string | null;
+  /**
+   * Whether the card printed on the receipt is one the firm owns (seed 584).
+   *
+   * `not_a_card` · `unknown` · `on_file` · `retired` · `not_on_file`, or null when the check has not
+   * run — which is every receipt extracted before 2026-08-12, and is deliberately distinguishable
+   * from `unknown` ("checked and could not tell").
+   *
+   * The column exists so *"show me every receipt this quarter charged to a card we do not own"* is a
+   * QUERY: the matcher also writes a sentence into `ai_extras.review_flags`, which is enough to see
+   * the problem on a row and not enough to ask the question. It was written, indexed and maintained
+   * while nothing read it back — so the queryable answer the seed was added for did not exist.
+   */
+  card_match_status: string | null;
 }
 
 /**

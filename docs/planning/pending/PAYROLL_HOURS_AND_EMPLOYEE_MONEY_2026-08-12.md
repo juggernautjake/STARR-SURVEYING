@@ -18,12 +18,27 @@
 > (seed 587). Plus two live bugs found on the way: a payroll run that 500s on an unpriced employee
 > (§2b), and an approval queue whose week started on the wrong day west of Greenwich.
 >
-> **Remaining, now unblocked and ordered:** S9a′ (re-home advance recovery onto the batch path) →
-> §2b (the unpriced-employee crash) → S9b (move stub generation) → S9c (close the legacy engine) →
-> S7's close→batch link → S5's approval-credits question → S8. The first attempt at this ordering
-> put S9c first and would have silently stopped advance recovery for ever — see the boxed correction
-> in §D2. S8 stays last by design: automatic money movement should sit on a ledger that has been
-> reconciling in production for a while.
+> **Everything buildable has been built.** S9a′ (advance recovery re-homed), §2b (the
+> unpriced-employee crash), S7 (close→batch link, seed 589) and S5 (answered: approval must NOT
+> credit, guarded by `balance-writers.test.ts`) all shipped on 2026-08-12, in that order — the first
+> attempt put S9c first and would have silently stopped advance recovery for ever, see the boxed
+> correction in §D2.
+>
+> **Two items remain, and neither is waiting on engineering effort:**
+>
+> | | Waiting on |
+> |---|---|
+> | **S9b / S9c** | **An accountant.** Porting the legacy engine's flat 12% / 6.2% / 1.45% ESTIMATES onto a wage statement would print invented tax figures on a document an employee is entitled to, while the surviving path withholds nothing and pays gross (§S9b). Until somebody decides whether the firm should withhold — and therefore whether real pay stubs are required — there is nothing to port, and closing `POST /payroll/runs` would leave no way to produce a stub at all. |
+> | **S8** | **Elapsed time.** Auto-transfer should sit on a ledger that has been reconciling in production for a while. The integrity check that makes that judgement possible only shipped today. |
+>
+> **This doc therefore moves to `pending/`**, per the rubric in `docs/planning/README.md`: *"planned
+> work we intend to build later — scoped and parked deliberately, or a doc that is unfinished/on
+> hold. Not being worked now; move it to `in-progress/` when work starts."* It is neither
+> `completed/` (two real items are unbuilt) nor deferred (deferring means the cost exceeds the
+> value, and here the cost is a conversation with an accountant).
+>
+> **To restart:** answer the withholding question, move this back to `in-progress/`, and build
+> S9b → S9c.
 
 **Opened 2026-08-12** from the owner's spec, given in one long burst:
 

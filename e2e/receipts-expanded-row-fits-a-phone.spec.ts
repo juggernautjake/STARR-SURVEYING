@@ -79,6 +79,9 @@ const ROW: AdminReceiptRow = {
     currency: 'USD',
   },
   dedup_match_id: null,
+  // The unkindest value, in the spirit of this fixture: a card nobody recognises adds another
+  // full-width band to the expanded row, which is exactly what this spec measures.
+  card_match_status: 'not_on_file',
   submitted_by_email: 'fieldcrew@starr-surveying.com',
   submitted_by_name: 'Field Crew',
   job_name: null,
