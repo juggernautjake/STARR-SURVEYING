@@ -1,5 +1,27 @@
 # Hours, payroll, and the money employees can see
 
+> ## ⚠️ STATUS: mostly SHIPPED; the remainder is PARKED on one decision
+>
+> **Moved to `pending/` on 2026-08-12.** Not abandoned, and not unstarted — read this before
+> assuming either.
+>
+> **Shipped that day:** S0 (double-pay guard), S1 (rejection reason reaches the employee), S2 (the
+> office can log hours for an employee, seed 585), S3 (totals by day/week/month/year), S4 (the
+> `finance` role), S6 (the withdrawal queue), the balance-vs-ledger integrity check from S5, the
+> payout-method picker (seed 586), employee-visible pay-period locks, the late-entry marker, and the
+> close snapshot (seed 587). Plus two live bugs found on the way: a payroll run that 500s on an
+> unpriced employee (§2b), and an approval queue whose week started on the wrong day.
+>
+> **Parked, and why.** Four items remain — S5's approval-credits question, S7's link from a close to
+> whatever settles it, S8 (auto-transfer) and S9 (retire the second engine). Every one of them turns
+> on **D2 below: which of the two payroll engines survives.** That is the owner's decision, not a
+> cost-versus-value judgement, so none of them is marked "deferred": each is worth building, and
+> each would have to be rebuilt if D2 were answered the other way.
+>
+> **To restart:** answer D2, move this doc back to `in-progress/`, and build S5 → S7 → S9 in that
+> order. Until then, S0's period-overlap guard is what stands between the two engines and a week
+> paid twice — a guard, not a resolution.
+
 **Opened 2026-08-12** from the owner's spec, given in one long burst:
 
 > Employees need a UI to submit hours, check whether they were approved, check whether they were
