@@ -1,5 +1,5 @@
 // __tests__/receipts/edit.test.ts — slice V4 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // Every case here is a way a hand-corrected receipt ends up holding a plausible wrong number
 // instead of an error. None of them throws.

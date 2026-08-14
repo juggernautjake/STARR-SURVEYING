@@ -1,5 +1,5 @@
 // __tests__/receipts/filters.test.ts — slice F1 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // The rules behind "review receipts by job, by date, by type, by location, by card". Two of them
 // are the kind that returns plausible-but-wrong rows rather than an error:

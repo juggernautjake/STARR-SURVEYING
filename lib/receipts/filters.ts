@@ -1,5 +1,5 @@
 // lib/receipts/filters.ts — slice F1 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // Owner, 2026-08-14: *"we need to be able to review receipts based on what job they are assigned to,
 // what day they were recorded or the purchase on them was made, and we need to be able to search

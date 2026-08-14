@@ -1,5 +1,5 @@
 // app/admin/receipts/ReceiptSlideshow.tsx — slices V1, V3, V4, V5, V6 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // Owner, 2026-08-14: *"instead of having to go down and individually click each receipt to open it,
 // (which we can also do), we will have it where we get a slide show element that shows the receipt

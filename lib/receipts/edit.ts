@@ -1,5 +1,5 @@
 // lib/receipts/edit.ts — slice V4 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // Owner: *"we need to be able to manually edit all of the info for each receipt if needed."*
 //

@@ -282,10 +282,10 @@ Fix what is broken.
 | V3 Detail panel | ✅ SHIPPED 2026-08-14 |
 | V4 Edit anything | ✅ SHIPPED 2026-08-14 |
 | V5 Re-run AI — one | ✅ SHIPPED 2026-08-14 |
-| V5b Re-run AI — bulk over the filter | ⬜ |
+| V5b Re-run AI — bulk over the filter | ✅ SHIPPED 2026-08-14 |
 | V6 Phone layout | ✅ SHIPPED 2026-08-14 |
 | P1 Styling pass | ✅ SHIPPED 2026-08-14 |
-| P2 Browser QA | 🔶 desktop + phone driven; bulk re-run untested because unbuilt |
+| P2 Browser QA | ✅ SHIPPED 2026-08-14 |
 
 ### What the build found (2026-08-14)
 
@@ -317,7 +317,32 @@ property test and is reachable from a pinch whose two pointers land on the same 
 **A service worker served stale chunks through three dev-server restarts.** `starr-admin-v1-static`
 kept handing the browser the previous build, so a fixed layout kept measuring broken. Worth knowing
 before diagnosing "my change did not apply" as anything else: unregister the worker and clear
-`caches` first.
+`caches` first. (Running `npm run build` while `next dev` is up is the other half of this — it
+overwrites `.next` under the running server and every route 500s with `Cannot find module './x.js'`.)
+
+**The hardcoded-colour ratchet caught three `color: #f4f6fa`.** The floating zoom bar and the
+prev/next buttons sit on their own dark scrim in both themes, which the ratchet's own note says is a
+legitimate case — but the count must not grow to record it. `--color-text-on-dark` is the palette's
+name for exactly that, so the literals are gone rather than excused, and neither ceiling was raised.
+
+### Verified in a browser, 2026-08-14
+
+Against the 13 live receipts, at 1440px and 390px, signed in as an admin:
+
+- the viewer opens on the row clicked, reports *"1 of 13"*, and its header names the active filter;
+- `←`/`→` and the on-screen arrows walk the set; the arrows disable correctly at each end;
+- zoom to 156% via the button turns the cursor to a grab, a drag pans and **clamps** (the horizontal
+  move stopped at 5px on a narrow receipt while the vertical took the full 60px), and Fit resets;
+- the phone layout measures **exactly 46%** of the viewport for the image with the summary
+  scrollable underneath, and the page itself never scrolls sideways;
+- the bulk re-run counted 14 for the whole filter and **2** with `category=fuel` applied, confirmed
+  with a sentence naming the count and the cost, re-read both against the real API, and reported
+  *"Re-read 2 receipts · $0.04"* with both rows updating to *"AI done · cost $0.02"*.
+
+**Still open:** nothing in this doc. The one thing deliberately NOT built is a way to edit
+`ai_extras` or the line items by hand — the line items are replaced wholesale by each extraction, so
+a hand-edited item would silently vanish on the next re-run. Correcting a line item is really a
+correction to the total, which is editable.
 
 **Order:** F1 first — every other slice reads the set it returns. Then V1–V3 as one run, because a
 shell with no panel is not reviewable and a panel with no shell has nowhere to live. V4 and V5 are

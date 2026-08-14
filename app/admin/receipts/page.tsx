@@ -143,6 +143,10 @@ export default function ReceiptsApprovalPage() {
   // The index, not the id: the arrows walk the filtered list in the order shown, and an id would
   // need a lookup on every keypress.
   const [slideshowAt, setSlideshowAt] = useState<number | null>(null);
+  /** V5b — bulk re-extract state. The message is kept on screen rather than shown as a toast: it
+   *  reports what a paid action actually did, and that is worth being able to re-read. */
+  const [bulkAiBusy, setBulkAiBusy] = useState(false);
+  const [bulkAiMsg, setBulkAiMsg] = useState<string | null>(null);
   // F1 — the review filters. Kept beside the existing date/email ones rather than replacing them.
   const [q, setQ] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -238,6 +242,77 @@ export default function ReceiptsApprovalPage() {
 
   const counters = data?.counters ?? zeroCounters();
   const receipts = useMemo(() => data?.receipts ?? [], [data?.receipts]);
+
+  /** The query string the bulk re-extract shares with the list, so "re-read these" means exactly
+   *  the receipts on screen. */
+  const filterParams = useCallback(() => {
+    const p = new URLSearchParams({ status: tab, from, to, dateField });
+    if (emailFilter.trim()) p.set('email', emailFilter.trim());
+    if (q.trim()) p.set('q', q.trim());
+    if (categoryFilter) p.set('category', categoryFilter);
+    if (methodFilter) p.set('paymentMethod', methodFilter);
+    if (cardFilter) p.set('cardId', cardFilter);
+    if (last4Filter.trim()) p.set('last4', last4Filter.trim());
+    return p;
+  }, [tab, from, to, dateField, emailFilter, q, categoryFilter, methodFilter, cardFilter, last4Filter]);
+
+  /**
+   * V5b — re-read every receipt in the current filter.
+   *
+   * Counts first and asks, because each one is a paid vision call. Then loops in server-bounded
+   * batches, passing back the ids already done: ordering alone cannot guarantee progress, since a
+   * receipt that FAILS keeps its place in any ordering by completion time and would be re-read
+   * forever.
+   */
+  const reextractAll = useCallback(async () => {
+    const params = filterParams();
+    const head = await fetch(`/api/admin/receipts/reextract?${params}`);
+    const info = (await head.json().catch(() => ({}))) as { count?: number; error?: string };
+    if (!head.ok) { setBulkAiMsg(info.error ?? 'Could not count the receipts to re-read.'); return; }
+    const count = info.count ?? 0;
+    if (count === 0) { setBulkAiMsg('Nothing in this filter has a photo to re-read.'); return; }
+    if (!window.confirm(
+      `Re-read ${count} receipt${count === 1 ? '' : 's'} with the AI?\n\n`
+      + 'This overwrites what the AI previously found on each one. Corrections you saved by hand to '
+      + 'a field the AI does not return are kept. It costs roughly a cent or two per receipt.',
+    )) return;
+
+    setBulkAiBusy(true);
+    setBulkAiMsg(`Re-reading ${count}…`);
+    try {
+      let done: string[] = [];
+      let processed = 0; let failed = 0; let cost = 0;
+      // A hard ceiling on iterations as well as on the server's batch: a bug that stops making
+      // progress must stop, not bill until somebody notices.
+      for (let i = 0; i < 200; i++) {
+        const res = await fetch(`/api/admin/receipts/reextract?${params}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ done }),
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          processed?: number; failed?: number; costCents?: number;
+          doneIds?: string[]; remaining?: number; error?: string;
+        };
+        if (!res.ok) { setBulkAiMsg(j.error ?? `Stopped after ${processed}.`); break; }
+        processed += j.processed ?? 0;
+        failed += j.failed ?? 0;
+        cost += j.costCents ?? 0;
+        done = j.doneIds ?? done;
+        setBulkAiMsg(`Re-read ${processed} of ${count}…`);
+        if (!j.processed || (j.remaining ?? 0) <= 0) break;
+      }
+      setBulkAiMsg(
+        `Re-read ${processed} receipt${processed === 1 ? '' : 's'}`
+        + `${failed > 0 ? `, ${failed} could not be read` : ''} · $${(cost / 100).toFixed(2)}`,
+      );
+      await load();
+    } catch (e) {
+      setBulkAiMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkAiBusy(false);
+    }
+  }, [filterParams, load]);
 
   /** A sentence naming the active filter, shown in the viewer's header. Without it, a reviewer who
    *  walked 8 receipts and expected 40 has no way to tell a filter from a missing receipt. */
@@ -562,6 +637,26 @@ export default function ReceiptsApprovalPage() {
               Review {receipts.length > 0 ? `all ${receipts.length}` : ''}
             </button>
           </label>
+          {/* V5b — re-read the whole filtered set. Counts and confirms first, because every one of
+              these is a paid vision call. */}
+          <label style={styles.filterLabel} aria-label="Run the AI again over every receipt in this filter">
+            <span aria-hidden>&nbsp;</span>
+            <button
+              type="button"
+              onClick={() => void reextractAll()}
+              disabled={bulkAiBusy || receipts.length === 0}
+              style={{
+                ...styles.rowViewBtn,
+                marginRight: 0,
+                height: 36,
+                opacity: bulkAiBusy || receipts.length === 0 ? 0.5 : 1,
+                cursor: bulkAiBusy || receipts.length === 0 ? 'default' : 'pointer',
+              }}
+              title="Re-read every receipt matching the filters above. Overwrites what the AI found; hand-typed corrections to fields it does not return are kept."
+            >
+              {bulkAiBusy ? 'Re-reading…' : 'Re-run AI on all'}
+            </button>
+          </label>
           <label style={styles.filterLabel} aria-label="Refresh the list">
             <span aria-hidden>&nbsp;</span>
             <button type="button" onClick={() => void load()} style={styles.refreshButton}>
@@ -580,6 +675,33 @@ export default function ReceiptsApprovalPage() {
           </label>
         </div>
       </div>
+
+      {/* What the bulk re-read did. Persistent, not a toast — it reports the outcome of a paid
+          action, including how much it cost, and that is worth being able to read twice. */}
+      {bulkAiMsg && (
+        <p
+          role="status"
+          style={{
+            margin: '0 0 12px',
+            fontSize: 13,
+            color: 'var(--color-text-secondary)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid var(--color-info)',
+            borderRadius: 6,
+            padding: '8px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span style={{ flex: 1 }}>{bulkAiMsg}</span>
+          {!bulkAiBusy && (
+            <button type="button" onClick={() => setBulkAiMsg(null)} style={styles.rowViewBtn}>
+              Dismiss
+            </button>
+          )}
+        </p>
+      )}
 
       {loading ? (
         <p style={styles.empty}>Loading…</p>

@@ -1,5 +1,5 @@
 // __tests__/receipts/zoom-pan.test.ts — slice V2 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // Zoom-and-pan looks trivial and fails in three ways that never throw:
 //

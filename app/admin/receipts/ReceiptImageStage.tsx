@@ -1,5 +1,5 @@
 // app/admin/receipts/ReceiptImageStage.tsx — slice V2 of
-// docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+// docs/planning/completed/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
 //
 // Owner: *"make it so that we can zoom in on the receipts to review the information and pan around
 // on the image."*
