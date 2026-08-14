@@ -299,23 +299,45 @@ for all four office roles to manage this well; that is a claim to be tested, not
 |---|---|
 | J1 Instructions authoring | ✅ SHIPPED 2026-08-14 |
 | J2 Deliverables screen | ✅ SHIPPED 2026-08-14 |
-| J3 Payment legibility | ⬜ |
-| J4 Lead → job continuity | ⬜ |
+| J3 Payment legibility | ✅ SHIPPED 2026-08-14 |
+| J4 Lead → job continuity | ✅ SHIPPED 2026-08-14 |
 | B1 Briefing schema | ✅ SHIPPED 2026-08-14 |
-| B2 Screen + voice recorder | ⬜ |
-| B3 Direct-to-storage upload | ⬜ |
-| B4 Compose a briefing | ⬜ |
-| B5 Publish | ⬜ |
-| B6 Append later | ⬜ |
-| B7 Watch | ⬜ |
+| B2 Screen + voice recorder | ✅ SHIPPED 2026-08-14 |
+| B3 Direct-to-storage upload | ✅ SHIPPED 2026-08-14 |
+| B4 Compose a briefing | ✅ SHIPPED 2026-08-14 |
+| B5 Publish | ✅ SHIPPED 2026-08-14 |
+| B6 Append later | ✅ SHIPPED 2026-08-14 |
+| B7 Watch | ✅ SHIPPED 2026-08-14 |
 | N1 Recipients | ✅ SHIPPED 2026-08-14 |
 | N2 Notifier | ✅ SHIPPED 2026-08-14 |
-| N3 Wire mutations | 🔶 PARTIAL — deliverables + instructions wired; files, photos, team, receipts, payments, schedule remain |
-| N4 Volume control | ⬜ |
-| N5 Guard | ⬜ |
+| N3 Wire mutations | ✅ SHIPPED 2026-08-14 |
+| N4 Volume control | ✅ SHIPPED 2026-08-14 |
+| N5 Guard | ✅ SHIPPED 2026-08-14 |
 | Q1 Screen pass | ⬜ |
 | Q2 Portrait pass | ⬜ |
 | Q3 Role matrix | ⬜ |
+
+### What the build found (2026-08-14)
+
+Five defects that no test was going to catch, because each one **looked like working software**:
+
+1. **`jobs.amount_paid` ignored refunds.** The payments route summed everything that was not a
+   refund. Recording a refund left the job showing the money as received and its status as `paid`;
+   the GET on the same route already netted them off, which is how the two disagreed. (J3)
+2. **`JobQuoteBuilder.onAddPayment` had never been passed.** The component rendered a payment
+   history for payments the job page had no way to create — the signature defect, in the money. (J3)
+3. **The Files tab's section tabs did nothing.** `!activeSection || f.section === section`
+   short-circuited every file through the filter. They highlighted on click and filtered nothing.
+4. **The Instructions file picker was always empty.** `files` was fetched only for the Files tab, so
+   the picker said "no files on this job yet" on a job with forty files.
+5. **Applying an equipment template staffed a crew silently.** Found by the N5 scan, not by a
+   person: the route inserts `job_team` rows and notified nobody — not the crew, not the people
+   assigned. This is exactly what N5 was written to catch, and it caught one on the day it shipped.
+
+And one in a guard rather than in the product: **`lib-orphan-ratchet` matched any import specifier
+ENDING in a module's basename**, so `from './job-prefs'` counted as an import of
+`saas/notifications/prefs.ts`. A false positive in the direction that marks a dead module live.
+Tightened to a whole path segment, which immediately surfaced a real orphan (`cad/styles/index.ts`).
 
 **Order:** J2 first (highest stakes, least work — the API is done). Then N1–N2 (everything else wants
 to notify). Then B1–B7 as one run, because a half-built briefing is not usable. N3–N5 once the events
