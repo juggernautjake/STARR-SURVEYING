@@ -164,7 +164,7 @@ links back to the lead it came from.
 
 ## Group B — Briefings (the new feature)
 
-### B1 — Schema
+### B1 — Schema ✅ SHIPPED 2026-08-14 — seed 592, applied to production
 
 ```sql
 job_briefings
@@ -301,7 +301,7 @@ for all four office roles to manage this well; that is a claim to be tested, not
 | J2 Deliverables screen | ✅ SHIPPED 2026-08-14 |
 | J3 Payment legibility | ⬜ |
 | J4 Lead → job continuity | ⬜ |
-| B1 Briefing schema | ⬜ |
+| B1 Briefing schema | ✅ SHIPPED 2026-08-14 |
 | B2 Screen + voice recorder | ⬜ |
 | B3 Direct-to-storage upload | ⬜ |
 | B4 Compose a briefing | ⬜ |
