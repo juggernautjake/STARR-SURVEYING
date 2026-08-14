@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { readTwilioWebhook } from '@/lib/phone/webhook';
 import { updateCallBySid, recordingPath, CALL_RECORDING_BUCKET } from '@/lib/phone/calls';
 import { twilioAuthHeader } from '@/lib/phone/config';
+import { transcribeCall, canTranscribeInProcess } from '@/lib/phone/transcribe';
 import { supabaseAdmin } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
@@ -99,4 +100,20 @@ async function copyRecording(callSid: string, recordingUrl: string): Promise<voi
     return;
   }
   await updateCallBySid(callSid, { recording_path: path, transcript_status: 'queued' });
+
+  // Transcribe now if this deployment can. When it cannot, the row stays `queued` with its
+  // recording_path set — which is precisely what the worker polls for — so doing nothing here is
+  // the correct behaviour rather than a gap. See the D2 amendment in the plan.
+  if (canTranscribeInProcess()) {
+    const { data } = await supabaseAdmin
+      .from('calls')
+      .select('id')
+      .eq('provider_call_sid', callSid)
+      .maybeSingle();
+    const id = (data as { id: string } | null)?.id;
+    if (id) {
+      const result = await transcribeCall(id);
+      if (result.status === 'failed') console.error(`[twilio/recording] transcription failed: ${result.detail}`);
+    }
+  }
 }

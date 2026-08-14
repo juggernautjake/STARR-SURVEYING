@@ -1,0 +1,393 @@
+/* app/admin/phone/phone.css — slices S1/S2 of
+ * docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+ *
+ * Every colour and measurement here is a token from app/styles/tokens.css. That is enforced by
+ * __tests__/admin/css-tokens-exist.test.ts, which exists because an undefined custom property is
+ * invalid at computed-value time — the declaration is simply dropped, so a typo'd token renders as
+ * nothing at all rather than as an error. `--color-danger` does not exist in this repo;
+ * `--color-error` does, and that mistake has already been made once.
+ */
+
+.phonePage {
+  padding: var(--space-5);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.phonePage__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-4);
+}
+
+.phonePage__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-heading);
+  font-size: var(--text-2xl);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.phonePage__sub {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.phonePage__tabs {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-3);
+  /* The tab strip scrolls rather than wrapping on a phone: a wrapped strip changes height and
+     pushes the list down as the window narrows. */
+  overflow-x: auto;
+}
+
+.phonePage__tab {
+  appearance: none;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.phonePage__tab:hover { color: var(--color-text-primary); }
+
+.phonePage__tab.is-active {
+  color: var(--color-brand-navy);
+  border-bottom-color: var(--color-brand-gold);
+  font-weight: 600;
+}
+
+.phonePage__search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  color: var(--color-text-tertiary);
+}
+
+.phonePage__search input {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--color-text-primary);
+  /* 16px so iOS does not zoom the whole page when the field is focused. */
+  font-size: 16px;
+  outline: none;
+  min-width: 0;
+}
+
+.phonePage__error {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.phonePage__muted {
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+  padding: var(--space-5) var(--space-3);
+  text-align: center;
+}
+
+.phonePage__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* ── one row ─────────────────────────────────────────────────────────────────────────────────── */
+
+.callRow {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  cursor: pointer;
+  color: var(--color-text-primary);
+}
+
+.callRow:hover { background: var(--color-bg-hover); }
+
+.callRow.is-open {
+  border-color: var(--color-brand-gold);
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+/* Unread is carried by a left edge AND a dot, not by colour alone — a single hue is invisible to
+   a good share of readers and disappears entirely in high-contrast mode. */
+.callRow.is-unread { border-left: 3px solid var(--color-brand-gold); }
+
+.callRow__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
+.callRow__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.callRow__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.callRow__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-brand-gold);
+  flex: 0 0 7px;
+}
+
+.callRow__line {
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  /* One line, ellipsised. A summary that wraps to four lines makes the list unscannable, which is
+     the only thing the list is for. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.callRow__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  flex: 0 0 auto;
+  font-size: var(--text-xs);
+  color: var(--color-text-tertiary);
+}
+
+.callRow__filed {
+  color: var(--color-success-text);
+  font-weight: 600;
+}
+
+.callRow__urgency,
+.callDetail__urgency {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-pill);
+}
+
+.callRow__urgency--urgent,
+.callDetail__urgency--urgent {
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+}
+
+.callRow__urgency--soon,
+.callDetail__urgency--soon {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+}
+
+/* ── the opened call ─────────────────────────────────────────────────────────────────────────── */
+
+.callDetail {
+  border: 1px solid var(--color-brand-gold);
+  border-top: none;
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+  background: var(--color-surface);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.callDetail__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.callDetail__who {
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-lg);
+  color: var(--color-text-primary);
+}
+
+.callDetail__meta {
+  margin: 2px 0 0;
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+}
+
+.callDetail__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.callDetail__audio {
+  width: 100%;
+  /* The native player is left alone on purpose — reimplementing scrubbing, keyboard control and
+     the OS media keys to match a colour scheme is a bad trade. */
+}
+
+.callDetail__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.callDetail__h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-tertiary);
+}
+
+/* Says out loud that a machine wrote the summary. A generated paragraph that looks like a
+   colleague's note gets trusted like one. */
+.callDetail__tag {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-info-text);
+  background: var(--color-info-bg);
+  border-radius: var(--radius-pill);
+  padding: 1px var(--space-2);
+}
+
+.callDetail__summary {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--text-base);
+  line-height: 1.55;
+}
+
+.callDetail__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.callDetail__facts dt {
+  color: var(--color-text-tertiary);
+  font-weight: 600;
+}
+
+.callDetail__facts dd {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.callDetail__transcript,
+.callDetail__notes {
+  width: 100%;
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.callDetail__transcript:focus,
+.callDetail__notes:focus {
+  outline: none;
+  border-color: var(--color-brand-gold);
+  box-shadow: var(--shadow-focus);
+}
+
+.callDetail__muted {
+  margin: 0;
+  color: var(--color-text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.callDetail__error {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-error-bg);
+  color: var(--color-error-text);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.callDetail__notice {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+@media (max-width: 640px) {
+  .phonePage { padding: var(--space-3); }
+
+  /* The timestamp column moves under the summary rather than squeezing it to nothing. */
+  .callRow { align-items: flex-start; }
+  .callRow__side { flex-direction: row; gap: var(--space-2); }
+  .callDetail__facts { grid-template-columns: 1fr; }
+  .callDetail__facts dt { margin-top: var(--space-2); }
+}

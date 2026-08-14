@@ -1,0 +1,208 @@
+/* app/admin/phone/settings/settings.css — slice I1 of
+ * docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+ *
+ * Tokens only — see the note at the top of ../phone.css.
+ */
+
+.phoneStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  /* Not colour alone: the word "Open"/"Closed" carries the state, and the border gives it a second
+     channel for anyone the hue does not reach. */
+  border-left: 4px solid var(--color-border-strong);
+  background: var(--color-bg-subtle);
+  color: var(--color-text-secondary);
+}
+
+.phoneStatus.is-open {
+  background: var(--color-success-bg);
+  color: var(--color-success-text);
+  border-left-color: var(--color-success);
+}
+
+.phoneStatus.is-closed {
+  background: var(--color-bg-subtle);
+  border-left-color: var(--color-text-tertiary);
+}
+
+.phoneStatus strong {
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+}
+
+.phoneWarn {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-2);
+}
+
+.phoneHint {
+  background: var(--color-info-bg);
+  color: var(--color-info-text);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.phoneHint p { margin: 0 0 var(--space-2); }
+
+.phoneHint code {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  margin-bottom: var(--space-1);
+  /* A URL must never widen the page; it scrolls inside its own box. */
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.phoneCard {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.phoneCard__h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: var(--text-base);
+  color: var(--color-text-primary);
+}
+
+.phoneToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.phoneDay {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.phoneDay__name {
+  flex: 0 0 96px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  padding-top: var(--space-1);
+}
+
+.phoneDay__windows {
+  flex: 1 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.phoneDay__window {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-tertiary);
+}
+
+.phoneDay__window input,
+.phoneRowInput input,
+.phoneField input,
+.phoneField textarea,
+.phoneWide {
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  /* 16px keeps iOS from zooming the page on focus. */
+  font-size: 16px;
+}
+
+.phoneDay__window input:focus,
+.phoneRowInput input:focus,
+.phoneField input:focus,
+.phoneField textarea:focus,
+.phoneWide:focus {
+  outline: none;
+  border-color: var(--color-brand-gold);
+  box-shadow: var(--shadow-focus);
+}
+
+.phoneRowInput {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.phoneRowInput input { flex: 1 1 auto; min-width: 0; }
+
+.phoneField {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.phoneField--stack {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+
+.phoneField input[type='number'] { width: 5rem; }
+
+.phoneField textarea {
+  width: 100%;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.phoneWide { width: 100%; }
+
+.phoneSave {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) 0;
+  background: var(--color-bg-app);
+  border-top: 1px solid var(--color-border);
+}
+
+@media (max-width: 640px) {
+  /* The day label moves above its ranges — at 96px plus two time inputs, the row cannot fit a
+     phone without the inputs collapsing to unusable widths. */
+  .phoneDay { flex-direction: column; gap: var(--space-1); }
+  .phoneDay__name { flex: none; padding-top: 0; }
+}

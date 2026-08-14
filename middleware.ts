@@ -108,6 +108,12 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // twelfth-role case its comment was written to predict.
   { prefix: '/admin/receipts/new', roles: ['admin', 'developer', 'teacher', 'student', 'researcher', 'drawer', 'field_crew', 'employee', 'guest', 'tech_support', 'equipment_manager', 'finance'] },
   { prefix: '/admin/receipts', roles: ['admin', 'developer', 'tech_support'] },
+  // The call log. Narrow on purpose, and narrower than most screens here: these pages hold recorded
+  // customer conversations, transcripts and voicemail. `tech_support` is deliberately NOT included —
+  // it is granted for troubleshooting, and troubleshooting has never needed to listen to a
+  // customer's voicemail. The API routes gate on isAdmin independently, so this is the outer of two
+  // checks rather than the only one.
+  { prefix: '/admin/phone', roles: ['admin', 'developer'] },
   { prefix: '/admin/invoicing', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/receivables', roles: ['admin', 'developer'] },
   { prefix: '/admin/reports', roles: ['admin', 'developer', 'tech_support'] },

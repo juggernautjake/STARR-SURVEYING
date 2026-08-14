@@ -321,6 +321,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/rewards/admin',         label: 'Manage Rewards',   workspace: 'money', section: 'Money out', iconName: 'Settings2',    description: 'Configure rewards + store catalog.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/rewards/how-it-works',  label: 'How Rewards Work', workspace: 'money', section: 'Money out', iconName: 'HelpCircle',   description: 'Rewards program explainer.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
   { href: '/admin/messages',              label: 'Messages',         workspace: 'office', section: 'Talking to people', iconName: 'MessageSquare', description: 'Chat with a teammate, one-to-one or in a group. NOT email to a customer (Compose Email), and NOT a topic thread that outlives the day (Discussions).', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['chat', 'dm'] },
+  // The business phone (2026-08-14). Roles match middleware.ts exactly — admin and developer only,
+  // deliberately excluding tech_support, because troubleshooting has never required listening to a
+  // customer's voicemail.
+  { href: '/admin/phone',                 label: 'Calls',            workspace: 'office', section: 'Talking to people', iconName: 'Phone',        description: 'Every business call, recorded and summarised. Listen, read the transcript, file it against a job, or call back.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['phone', 'voicemail', 'calls', 'twilio', 'recording', 'transcript', 'messages left'] },
+  { href: '/admin/phone/settings',        label: 'Phone Hours',      workspace: 'office', section: 'Talking to people', iconName: 'Clock',        description: 'When calls ring the office and when they go to voicemail, plus the greetings callers hear.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['hours', 'voicemail', 'forwarding', 'greeting', 'after hours'] },
   // consolidation Slice 6 (2026-05-30) — clarified description so it
   // reads distinctly from the firm-wide `/admin/contacts` CRM. This
   // surface is for picking a teammate to message; the CRM page is for
