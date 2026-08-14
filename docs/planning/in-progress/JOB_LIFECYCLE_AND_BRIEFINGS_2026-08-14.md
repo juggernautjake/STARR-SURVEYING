@@ -241,17 +241,17 @@ who wrote it and when, and what has been appended since.
 
 ## Group N — every job event reaches the people on the job
 
-### N1 — One answer to "who is on this job"
+### N1 — One answer to "who is on this job" ✅ SHIPPED 2026-08-14
 
 Generalise `resolveStageRecipients` into `jobRecipients(jobId, { excludeActor })`: the active
 `job_team` (not removed, not declined), plus the lead RPLS, de-duped, actor dropped.
 
-### N2 — One notifier
+### N2 — One notifier ✅ SHIPPED 2026-08-14
 
 `notifyJobEvent(jobId, event, actor)` where `event` names the thing that happened and carries the link.
 Every job mutation calls this and nothing else.
 
-### N3 — Wire every existing mutation
+### N3 — Wire every existing mutation 🔶 PARTIAL 2026-08-14
 
 Stage change (already done — move it onto N2), file uploaded, photo uploaded, briefing published,
 briefing appended, instructions changed, deliverable created/sealed/issued, receipt linked to the job,
@@ -308,9 +308,9 @@ for all four office roles to manage this well; that is a claim to be tested, not
 | B5 Publish | ⬜ |
 | B6 Append later | ⬜ |
 | B7 Watch | ⬜ |
-| N1 Recipients | ⬜ |
-| N2 Notifier | ⬜ |
-| N3 Wire mutations | ⬜ |
+| N1 Recipients | ✅ SHIPPED 2026-08-14 |
+| N2 Notifier | ✅ SHIPPED 2026-08-14 |
+| N3 Wire mutations | 🔶 PARTIAL — deliverables + instructions wired; files, photos, team, receipts, payments, schedule remain |
 | N4 Volume control | ⬜ |
 | N5 Guard | ⬜ |
 | Q1 Screen pass | ⬜ |
