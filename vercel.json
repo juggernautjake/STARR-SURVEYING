@@ -106,7 +106,7 @@
     },
     {
       "path": "/api/cron/receipt-extraction",
-      "schedule": "5 * * * *"
+      "schedule": "*/2 * * * *"
     }
   ]
 }

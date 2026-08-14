@@ -18,19 +18,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { sweepQueuedReceipts } from '@/lib/receipts/extract';
+import { sweepQueuedReceipts, countQueuedReceipts } from '@/lib/receipts/extract';
 import { sweepSamePurchase } from '@/lib/receipts/pair-sweep';
 import { rematchOpenReceipts } from '@/lib/receipts/rematch-cards';
 
-/** A batch of receipts, each a Vision call, run in sequence. 300 s is the ceiling this plan allows
- *  and the batch size below is chosen to finish inside it with room to spare. */
+/** Each receipt is a Vision call, run in sequence. 300 s is the ceiling this plan allows. */
 export const maxDuration = 300;
+const MAX_DURATION_MS = 300_000;
 
-/** Sized so a full batch of slow calls still lands inside `maxDuration`: 25 × ~10 s ≈ 250 s.
- *  Anything left over is picked up by the next hourly run rather than being lost. */
+/** Held back from the sweep's budget so this handler can still count what is left and return a
+ *  response. A run killed by the platform mid-JSON is a run whose log line never appears, which is
+ *  the state that made the original stuck queue invisible. */
+const CRON_MARGIN_MS = 15_000;
+
+/** Rows fetched per round trip inside the sweep. NOT a cap on the run: since 2026-08-13 the sweep
+ *  re-fetches and keeps going until the queue is dry or its budget is spent, because at one page an
+ *  hour a shoebox of receipts took a working day to read. */
 const BATCH_SIZE = 25;
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
+  const startedAt = Date.now();
   const expected = process.env.CRON_SECRET;
   if (!expected) {
     console.error('[cron/receipt-extraction] CRON_SECRET not set');
@@ -40,42 +47,64 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Pairing runs FIRST, and runs even without an API key: it is arithmetic over rows already in the
-  // table, needs no Vision call, and is how receipts extracted before seed 590 ever get linked. An
-  // extraction-only sweep would have left the pair that prompted the feature unpaired forever.
-  const pairing = await sweepSamePurchase();
-  if (pairing.paired > 0 || pairing.errors.length > 0) {
-    console.log(
-      `[cron/receipt-extraction] same-purchase: ${pairing.paired} linked of ${pairing.scanned} scanned`
-        + (pairing.errors.length ? ` — ${pairing.errors.length} failed` : ''),
-    );
-  }
-
-  // The card check, re-asked. Also arithmetic over rows already on file, so it too runs without an
-  // API key — and it has to, because the receipts that need it most are the ones captured BEFORE the
-  // matcher existed, which will never be extracted again and so would never be checked at all.
+  // ── The two catch-up sweeps do NOT run every tick ──────────────────────────────────────────────
   //
-  // Registering a card already triggers this (see `rematchOpenReceipts`), but that only helps a
-  // receipt somebody is actively chasing. Running it here is what makes the answer converge on its
-  // own: a receipt whose card question is open gets re-asked every cron tick until it is settled.
-  const cardMatching = await rematchOpenReceipts();
-  if (cardMatching.updated > 0) {
-    console.log(
-      `[cron/receipt-extraction] card check: ${cardMatching.updated} updated of `
-        + `${cardMatching.considered} open — ${cardMatching.resolved} now matched to a card on file`,
-    );
-  }
+  // This cron went from hourly to every two minutes so a receipt is never waiting long for the AI.
+  // Extraction earns that frequency; these two do not. Both are full scans — pairing reads 120 days
+  // of receipts, the card check reads every row whose card question is unsettled — and both exist to
+  // catch rows that arrived before some rule did. Running them 720 times a day instead of 24 would
+  // be a thirtyfold cost increase to re-derive the same answer about the same rows.
+  //
+  // So they run twice an hour by the clock, AND immediately after any tick that actually extracted
+  // something — which is the only event that can create a new pair or a new card to recognise. The
+  // clock arm is what keeps them running on a deployment with no API key, where extraction never
+  // reports work but receipts extracted long ago still need pairing.
+  const minute = new Date().getUTCMinutes();
+  const catchUpDue = minute % 30 < 2;
+
+  const runCatchUps = async () => {
+    const pairing = await sweepSamePurchase();
+    if (pairing.paired > 0 || pairing.repaired > 0 || pairing.errors.length > 0) {
+      console.log(
+        `[cron/receipt-extraction] same-purchase: ${pairing.paired} linked of ${pairing.scanned} scanned`
+          + (pairing.repaired ? `, ${pairing.repaired} charge splits filled in` : '')
+          + (pairing.errors.length ? ` — ${pairing.errors.length} failed` : ''),
+      );
+    }
+    // Registering a card already triggers this, but that only helps a receipt somebody is actively
+    // chasing. Running it here is what makes the answer converge on its own.
+    const cardMatching = await rematchOpenReceipts();
+    if (cardMatching.updated > 0) {
+      console.log(
+        `[cron/receipt-extraction] card check: ${cardMatching.updated} updated of `
+          + `${cardMatching.considered} open — ${cardMatching.resolved} now matched to a card on file`,
+      );
+    }
+    return { pairing, cardMatching };
+  };
 
   if (!process.env.ANTHROPIC_API_KEY) {
     // Not a 500. The sweep has nothing to do and saying why is more useful than a stack trace in a
-    // cron log nobody reads — a missing key is a deployment fact, not a runtime fault.
+    // cron log nobody reads — a missing key is a deployment fact, not a runtime fault. The catch-ups
+    // still run, because neither needs a Vision call.
+    const catchUps = catchUpDue ? await runCatchUps() : null;
     return NextResponse.json(
-      { skipped: true, reason: 'ANTHROPIC_API_KEY is not set on this deployment.', pairing, cardMatching },
+      { skipped: true, reason: 'ANTHROPIC_API_KEY is not set on this deployment.', ...catchUps },
       { status: 200 },
     );
   }
 
-  const results = await sweepQueuedReceipts(BATCH_SIZE);
+  // Extraction FIRST, and it gets the whole budget. It is the part somebody is waiting on — the
+  // catch-ups below re-derive facts about rows already read, and a receipt whose total is still
+  // blank is the one a person is looking at.
+  //
+  // The sweep DRAINS rather than taking one page: it keeps claiming until the queue is empty or the
+  // budget is spent. The budget is what is left of `maxDuration`, minus a margin this handler keeps
+  // so it can still count the remainder and return a response.
+  const spentMs = Date.now() - startedAt;
+  const results = await sweepQueuedReceipts(BATCH_SIZE, {
+    budgetMs: Math.max(0, MAX_DURATION_MS - spentMs - CRON_MARGIN_MS),
+  });
   const done = results.filter((r) => r.status === 'done').length;
   const failed = results.filter((r) => r.status === 'failed').length;
   // Rows another entry point had already claimed. Counted separately so the log line does not read
@@ -84,10 +113,25 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const skipped = results.filter((r) => r.status === 'skipped').length;
   const costCents = results.reduce((sum, r) => sum + (r.costCents ?? 0), 0);
 
+  // What is STILL waiting after this run. Without it a drain that ran out of time is indistinguish-
+  // able from one that finished the queue, and "did it get through them all?" — the owner's actual
+  // question — has no answer anywhere. Runs every two minutes, so a remainder is a schedule, not a
+  // backlog; it is logged as a fact rather than a warning.
+  const remaining = await countQueuedReceipts();
+
+  // Now the catch-ups — on the clock, or because this tick read receipts that may have created a
+  // pair or produced a card nobody has recognised yet.
+  const catchUps = catchUpDue || done > 0 ? await runCatchUps() : null;
+
   // Always log a line, including for an empty sweep. A silent run makes a stuck cron
   // indistinguishable from a healthy idle one — the exact confusion that let the queued backlog sit
   // unnoticed for months in the first place.
-  console.log(`[cron/receipt-extraction] ${done} done, ${failed} failed, ${skipped} already running, ${costCents}¢`);
+  console.log(
+    `[cron/receipt-extraction] ${done} done, ${failed} failed, ${skipped} already running, `
+      + `${costCents}¢ — ${remaining} still queued`,
+  );
 
-  return NextResponse.json({ attempted: results.length, done, failed, skipped, costCents, pairing, cardMatching });
+  return NextResponse.json({
+    attempted: results.length, done, failed, skipped, costCents, remaining, ...catchUps,
+  });
 }, { routeName: 'cron/receipt-extraction' });

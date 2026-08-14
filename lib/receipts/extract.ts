@@ -124,33 +124,105 @@ export async function extractReceipt(
   });
 }
 
-/**
- * Sweep the queue. Used by the cron route.
- *
- * Sequential rather than parallel: a batch of twenty receipts fired at once is twenty concurrent
- * Vision calls, which is how a nightly sweep turns into a rate-limit wall and marks a pile of
- * perfectly good receipts 'failed'. The cron runs daily and the queue is small; there is nothing to
- * win by racing.
- */
-export async function sweepQueuedReceipts(batchSize = 25): Promise<ExtractionResult[]> {
+export interface SweepOptions {
+  /**
+   * How long the sweep may keep STARTING new extractions, in ms. It always finishes the one it is
+   * on, so the real ceiling is this plus one extraction — which is what `RESERVE_MS` reserves for.
+   */
+  budgetMs?: number;
+}
+
+/** Roughly one extraction: photo download + Vision + write-back, with room for a slow one. A sweep
+ *  that starts a call it cannot finish gets killed mid-flight and leaves a `running` row for the
+ *  stale-reclaim to clean up later — work done and thrown away. */
+const RESERVE_MS = 45_000;
+
+/** Default budget. The cron declares `maxDuration = 300`, and the pairing and card sweeps run before
+ *  this one, so the extraction phase is given a little under four minutes of it. */
+const DEFAULT_BUDGET_MS = 210_000;
+
+/** Fetched per round trip. Not the total — see the loop. */
+const PAGE_SIZE = 25;
+
+/** How many rows are still waiting, after a sweep has done what it could. */
+export async function countQueuedReceipts(): Promise<number> {
   const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
-  const { data: rows, error } = await supabaseAdmin
+  const { count } = await supabaseAdmin
     .from('receipts')
-    .select('id, user_id, photo_url')
+    .select('id', { count: 'exact', head: true })
     .or(
       `extraction_status.eq.queued,extraction_status.is.null,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`,
     )
     .not('photo_url', 'is', null)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: true })
-    .limit(batchSize);
-  if (error) throw new Error(`receipts fetch failed: ${error.message}`);
+    .is('deleted_at', null);
+  return count ?? 0;
+}
+
+/**
+ * Sweep the queue until it is EMPTY, or until the time budget runs out.
+ *
+ * ── WHY THIS LOOPS (2026-08-13) ─────────────────────────────────────────────────────────────────
+ *
+ * It used to fetch one page of `batchSize` rows, extract those, and return. With an hourly cron that
+ * made the drain rate 25 receipts per hour: photograph a shoebox of sixty and the last of them is
+ * read the morning after. Owner: *"it should work through all queued receipts until it has analyzed
+ * all of them."*
+ *
+ * So it now re-fetches after each page and keeps going while there is work and time. A page is a
+ * round trip, not a quota.
+ *
+ * ── WHY IT IS STILL SEQUENTIAL ──────────────────────────────────────────────────────────────────
+ *
+ * Twenty concurrent Vision calls is how a sweep turns into a rate-limit wall and marks a pile of
+ * perfectly good receipts `failed`. One at a time is slower per batch and finishes more of them.
+ * (The capture page still fires its own extraction per receipt the moment each upload lands, so the
+ * common case — a few receipts, photographed now — does not wait for this at all.)
+ *
+ * ── WHY IT CANNOT SPIN ──────────────────────────────────────────────────────────────────────────
+ *
+ * Three independent stops: rows already seen are never re-processed, a page with nothing new ends
+ * the loop, and the budget ends it regardless. A receipt that fails is marked `failed`, and `failed`
+ * is not in the fetch predicate — so a permanently bad photo cannot be picked up forever.
+ */
+export async function sweepQueuedReceipts(
+  batchSize = PAGE_SIZE,
+  options: SweepOptions = {},
+): Promise<ExtractionResult[]> {
+  const startedAt = Date.now();
+  const budgetMs = options.budgetMs ?? DEFAULT_BUDGET_MS;
+  const outOfTime = () => Date.now() - startedAt > budgetMs - RESERVE_MS;
 
   const results: ExtractionResult[] = [];
-  for (const row of (rows ?? []) as ClaimableReceipt[]) {
-    if (!(await claimRow(row.id, false))) continue;
-    results.push(await runExtraction(row));
+  const seen = new Set<string>();
+
+  while (!outOfTime()) {
+    const staleBefore = new Date(Date.now() - STALE_RUNNING_MS).toISOString();
+    const { data: rows, error } = await supabaseAdmin
+      .from('receipts')
+      .select('id, user_id, photo_url')
+      .or(
+        `extraction_status.eq.queued,extraction_status.is.null,and(extraction_status.eq.running,extraction_started_at.lt."${staleBefore}")`,
+      )
+      .not('photo_url', 'is', null)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: true })
+      .limit(batchSize);
+    if (error) throw new Error(`receipts fetch failed: ${error.message}`);
+
+    // Rows this sweep has already handled are excluded rather than re-claimed. Without it, a row
+    // another process is extracting stays in the fetch result and the loop reads the same page
+    // forever, doing nothing, until the budget expires.
+    const fresh = ((rows ?? []) as ClaimableReceipt[]).filter((r) => !seen.has(r.id));
+    if (fresh.length === 0) break;
+
+    for (const row of fresh) {
+      seen.add(row.id);
+      if (outOfTime()) break;
+      if (!(await claimRow(row.id, false))) continue;
+      results.push(await runExtraction(row));
+    }
   }
+
   return results;
 }
 
