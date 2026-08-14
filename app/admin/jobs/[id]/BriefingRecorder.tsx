@@ -439,8 +439,8 @@ const recordBtn: React.CSSProperties = {
 };
 const stopBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
-  border: '1px solid var(--color-danger)', background: 'var(--color-danger-surface)',
-  color: 'var(--color-danger-text)', borderRadius: 6, padding: '0.35rem 0.8rem',
+  border: '1px solid var(--color-error)', background: 'var(--color-error-surface)',
+  color: 'var(--color-error-text)', borderRadius: 6, padding: '0.35rem 0.8rem',
   fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer',
 };
 const ghostBtn: React.CSSProperties = {
@@ -452,6 +452,6 @@ const ghostBtn: React.CSSProperties = {
 function dotStyle(live: boolean): React.CSSProperties {
   return {
     width: 10, height: 10, borderRadius: 999, display: 'inline-block',
-    background: live ? 'var(--color-danger)' : 'var(--color-text-tertiary)',
+    background: live ? 'var(--color-error)' : 'var(--color-text-tertiary)',
   };
 }

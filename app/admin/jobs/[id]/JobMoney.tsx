@@ -227,7 +227,7 @@ export default function JobMoney({ jobId, canRecordPayment, onChanged }: Props) 
               </div>
               <span style={{
                 fontVariantNumeric: 'tabular-nums', fontWeight: 600, fontSize: '0.86rem',
-                color: refund ? 'var(--color-danger-text)' : 'var(--color-success-text)',
+                color: refund ? 'var(--color-error-text)' : 'var(--color-success-text)',
               }}>
                 {refund ? '−' : '+'}{formatMoney(p.amount)}
               </span>
@@ -306,7 +306,7 @@ function Figure({ label, value, hint, tone }: {
   label: string; value: string; hint?: string; tone?: 'good' | 'owed' | 'warn';
 }) {
   const color =
-    tone === 'owed' ? 'var(--color-danger-text)'
+    tone === 'owed' ? 'var(--color-error-text)'
     : tone === 'warn' ? 'var(--color-warning-text)'
     : tone === 'good' ? 'var(--color-success-text)'
     : 'var(--color-text-primary)';
