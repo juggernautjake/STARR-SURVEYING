@@ -1,5 +1,5 @@
 // app/admin/phone/CallDetail.tsx — slices S2/S3/L1/L2 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // One call, opened: play it, read it, correct it, file it, ring them back.
 //

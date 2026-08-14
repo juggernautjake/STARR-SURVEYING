@@ -1,5 +1,5 @@
 // app/api/twilio/voice/route.ts — slices I2/I3 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // The number in the Twilio console points here. This is the whole of "a call comes in": decide
 // whether the office is open, ring it or take a message, and write down that it happened.
@@ -59,7 +59,14 @@ export async function POST(req: NextRequest) {
           // Show the business number to whoever we ring, not the customer's — otherwise the office
           // cannot tell a forwarded business call from a personal one.
           callerId: cfg.fromNumber ?? undefined,
-          fallbackGreeting: hours.afterHoursGreeting,
+          // What the caller hears when the ringing produces nobody. The after-hours wording says
+          // "our office is closed", which is false during opening hours — and flatly wrong when
+          // there is simply nobody configured to ring, which is the state of a deployment that has
+          // not finished being set up.
+          fallbackGreeting:
+            hours.forwardTo.length === 0
+              ? `${hours.greeting} Nobody is available to take your call right now. Please leave your name, number, and a short message after the tone, and we will call you back.`
+              : 'Nobody is available to take your call right now. Please leave your name, number, and a short message after the tone, and we will call you back.',
           urls,
         })
       : afterHoursTwiml(hours.afterHoursGreeting, urls);

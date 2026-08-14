@@ -1,5 +1,5 @@
 // __tests__/phone/every-twilio-route-verifies.test.ts — slice P0b of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // A source scan, not a behaviour test, and deliberately so.
 //

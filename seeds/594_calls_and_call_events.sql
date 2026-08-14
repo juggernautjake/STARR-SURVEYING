@@ -1,5 +1,5 @@
 -- seeds/594_calls_and_call_events.sql — slice P0c of
--- docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+-- docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 --
 -- Owner, 2026-08-14: *"when business calls come through, they are transcribed and recorded and there
 -- is a summary created… I want it so that we can assign calls to specific jobs, or we can use a call

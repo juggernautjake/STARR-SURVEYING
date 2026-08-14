@@ -1,5 +1,5 @@
 // app/api/admin/phone/health/route.ts — slice P0a of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // "Is the phone system actually working?" answered truthfully, because the existing Twilio adapter
 // answers it falsely: with no credentials it logs and returns `true`, so every caller believes the

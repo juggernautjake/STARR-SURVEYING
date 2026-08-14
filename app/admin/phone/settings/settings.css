@@ -1,5 +1,5 @@
 /* app/admin/phone/settings/settings.css — slice I1 of
- * docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+ * docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
  *
  * Tokens only — see the note at the top of ../phone.css.
  */
@@ -100,6 +100,15 @@
   font-size: var(--text-sm);
   color: var(--color-text-primary);
   cursor: pointer;
+  align-self: flex-start;
+}
+
+/* `.phoneCard` is a flex column, so a bare button stretches the full card width and its label
+   floats in the middle of a very wide target. These are "add one more" actions and should be the
+   size of their text. */
+.phoneCard > button,
+.phoneDay__windows > button {
+  align-self: flex-start;
 }
 
 .phoneDay {
@@ -205,4 +214,11 @@
      phone without the inputs collapsing to unusable widths. */
   .phoneDay { flex-direction: column; gap: var(--space-1); }
   .phoneDay__name { flex: none; padding-top: 0; }
+
+  /* Two time inputs, a dash and a remove button do not fit 375px, and `input[type=time]` has an
+     intrinsic minimum width that ignores a flex container's size — so the row pushed 3px past the
+     viewport and the whole page scrolled sideways. Browser QA at 390px found it; nothing else can.
+     Wrapping plus `min-width: 0` lets the pair reflow instead of forcing the document wider. */
+  .phoneDay__window { flex-wrap: wrap; max-width: 100%; }
+  .phoneDay__window input[type='time'] { flex: 1 1 7rem; min-width: 0; }
 }

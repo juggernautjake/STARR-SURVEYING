@@ -1,5 +1,5 @@
 // __tests__/phone/twiml.test.ts — slice I2 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // TwiML is what the caller hears, and every bug in it is audible rather than logged. Three classes
 // here, in descending order of how much they cost:
@@ -216,5 +216,37 @@ describe('the call-back bridge', () => {
 describe('the thanks message', () => {
   it('closes the call rather than leaving the line open', () => {
     expect(voicemailThanksTwiml()).toContain('<Hangup/>');
+  });
+});
+
+describe('the office is open but nobody is configured to ring', () => {
+  // Found by a live webhook test against a deployment with no forwarding numbers set — the state
+  // every deployment is in before somebody finishes configuring it.
+  const base = {
+    greeting: 'Thank you for calling.',
+    forwardTo: [] as string[],
+    ringSeconds: 20,
+    fallbackGreeting: 'Nobody is available. Leave a message.',
+  };
+
+  it('does not thank the caller twice', () => {
+    // With no numbers, the greeting and the fallback play back to back, and both open with a
+    // thank-you. The caller hears the firm thank them, then thank them again.
+    const xml = inHoursTwiml(base);
+    const thanks = xml.match(/Thank you for calling/g) ?? [];
+    expect(thanks.length).toBeLessThanOrEqual(1);
+  });
+
+  it('still says the fallback and records', () => {
+    const xml = inHoursTwiml(base);
+    expect(xml).toContain('Nobody is available');
+    expect(xml).toContain('<Record');
+  });
+
+  it('still says the greeting when there IS somebody to ring', () => {
+    // The fix must not silence the greeting on the ordinary path.
+    const xml = inHoursTwiml({ ...base, forwardTo: ['+19366620077'] });
+    expect(xml).toContain('Thank you for calling.');
+    expect(xml).toContain('<Dial');
   });
 });

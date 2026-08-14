@@ -1,5 +1,5 @@
 /* app/admin/phone/phone.css — slices S1/S2 of
- * docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+ * docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
  *
  * Every colour and measurement here is a token from app/styles/tokens.css. That is enforced by
  * __tests__/admin/css-tokens-exist.test.ts, which exists because an undefined custom property is
@@ -101,9 +101,20 @@
   font-size: var(--text-sm);
 }
 
+/* Ordinary helper text: left-aligned, no padding of its own.
+ *
+ * This started life centred with list-sized padding, which is right for the "nothing here" line in
+ * the call list and wrong everywhere else — the settings screen reuses the class for the hint under
+ * each field, and every one of them rendered centred with a blank half-inch above it. Browser QA
+ * found it; neither the type-checker nor 24,000 tests can see a centred paragraph. */
 .phonePage__muted {
   color: var(--color-text-tertiary);
   font-size: var(--text-sm);
+  margin: 0;
+}
+
+/* The empty state, which is the case the centring was written for. */
+.phonePage__list .phonePage__muted {
   padding: var(--space-5) var(--space-3);
   text-align: center;
 }

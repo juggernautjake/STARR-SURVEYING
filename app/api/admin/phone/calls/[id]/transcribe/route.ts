@@ -1,5 +1,5 @@
 // app/api/admin/phone/calls/[id]/transcribe/route.ts — slices T2/T3 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // Re-run the AI over one call. The same request the receipt queue grew — the first pass is
 // sometimes wrong, and a person looking at a wrong summary needs a way to ask again.

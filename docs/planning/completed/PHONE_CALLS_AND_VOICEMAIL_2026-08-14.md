@@ -1,6 +1,7 @@
 # The business phone: recorded, transcribed, summarised, and answerable from the app
 
-**Started 2026-08-14. Active.**
+**Started 2026-08-14. All fifteen slices shipped the same day; what is left is owner configuration,
+listed at the end.**
 
 Owner, 2026-08-14:
 
@@ -61,7 +62,7 @@ signature against `TWILIO_AUTH_TOKEN` before it does anything, and **P0 ships th
 not as a later hardening pass, because the window between "the webhook works" and "the webhook is
 verified" is the window in which it is live and open.
 
-### D2 — Where transcription runs is the owner's call ⚠️ **BLOCKING for P2**
+### D2 — Where transcription runs is the owner's call ~~⚠️ BLOCKING for P2~~ → **resolved as an adapter, see the amendment below**
 
 Three real options, and this plan does not pick one silently:
 
@@ -218,14 +219,76 @@ A new `JobEventKind` (`call_linked`), which is the whole cost of notifying about
 | I2 Answer | ✅ `/api/twilio/voice`, `/api/twilio/status`, `/api/twilio/dial-status` |
 | I3 Voicemail | ✅ `/api/twilio/voicemail` |
 | T1 Store the recording | ✅ `/api/twilio/recording` + seed 595 (private bucket) |
-| T2 Transcribe | ⬜ D2 — see the amendment below |
-| T3 Summarise | ⬜ |
-| S1 Calls list | ⬜ |
-| S2 One call | ⬜ |
-| S3 Call back | ⬜ |
-| L1 Assign to a job | ⬜ |
-| L2 Create a job | ⬜ |
-| L3 Notify | ⬜ |
+| T2 Transcribe | ✅ `lib/phone/transcribe.ts` — adapter, see the D2 amendment below |
+| T3 Summarise | ✅ `lib/phone/summary.ts` + `/api/admin/phone/calls/[id]/transcribe` |
+| S1 Calls list | ✅ `/admin/phone` |
+| S2 One call | ✅ `app/admin/phone/CallDetail.tsx` |
+| S3 Call back | ✅ `/api/admin/phone/callback` — dial-me-first bridge |
+| L1 Assign to a job | ✅ PATCH on the call, via `JobRefPicker` |
+| L2 Create a job | ✅ creates a LEAD — see below |
+| L3 Notify | ✅ `lib/phone/notify.ts`, fired after the summary rather than on pick-up |
+
+**Every slice is shipped.** What remains is owner configuration, listed at the bottom.
+
+### Two judgement calls that read as deviations
+
+**"Create a job from a call" creates a LEAD.** A job here has a number, a scope and a price and is
+the unit the firm bills against. Minting one from a two-line voicemail produces a job with no scope
+that then has to be completed by hand or deleted — and a deleted job burns a job number. A lead is
+precisely "an enquiry that has not become work yet", and the lead → job conversion already exists
+and already carries contacts, quote and attachments across. The call is linked to the lead so the
+two never drift apart.
+
+**Call-back rings a number from the configured list, never one from the request body.** Otherwise
+the endpoint dials any two numbers an authenticated user names, which is a toll-fraud engine wearing
+a callback button.
+
+### Amendment to D2, 2026-08-14
+
+The plan treated "where transcription runs" as blocking. It is not, and treating it as blocking
+would have parked a finished recording pipeline behind a preference.
+
+The resolution: **transcription is an adapter with two implementations**, chosen by what the
+deployment actually has. If `OPENAI_API_KEY` is present the transcript is produced in-process; if it
+is not, the call is left `queued` for the worker, which already owns that key and a Whisper batch
+runner. Both write the same columns, so nothing downstream knows or cares which ran.
+
+The owner's decision then becomes a *deployment* choice — set the key in Vercel or don't — instead
+of a code change, and the recommendation from D2 (reuse the worker) remains the default because it
+is what happens when nothing is configured.
+
+### Verified against production, 2026-08-14
+
+Seeds 594 and 595 applied and checked (`job_id` nullable, duplicate `CallSid` blocked, bad
+`direction` blocked, private bucket created). The health probe confirms the audit's central finding
+live: credentials are valid and complete, and `fromNumberSource` really is `TWILIO_PHONE_NUMBER`.
+
+The inbound path was then driven end to end against the running app with a real HMAC:
+
+| Attempt | Result |
+|---|---|
+| No signature | Polite hangup, no `<Record>`, no call row |
+| Wrong signature | Same |
+| Genuine signature | Recording notice, greeting, `<Record>`; call row written with E.164 numbers |
+
+`call_events` recorded all three, including the two rejections with `signature_ok = false` — which
+is the design: a rejected webhook is evidence, not litter. Probe rows were deleted afterwards
+(`calls = 0`, `call_events = 0`).
+
+### Three defects only the browser and a live call could find
+
+None of these is visible to the type-checker or to 24,000 tests.
+
+1. **Helper text centred with list-sized padding.** `.phonePage__muted` was written for the call
+   list's empty state and reused for every hint on the settings screen, so each one rendered centred
+   under a blank half-inch.
+2. **The time-range row pushed the page 3px wide at 390px.** `input[type=time]` has an intrinsic
+   minimum width that ignores its flex container, so two of them plus a remove button could not fit
+   a phone — and the whole document scrolled sideways.
+3. **The firm thanked the caller twice.** With no forwarding numbers configured, the open-hours
+   greeting and the fallback play back to back and both open with "Thank you for calling" — and the
+   fallback went on to say the office was closed, during opening hours. Found by the live webhook
+   test; there is now a regression test named for it.
 
 ### What the build found that the audit did not
 
@@ -245,24 +308,3 @@ of them were invisible on reading:
 - **`route-authorization`** and **`api-bundle-gate`** required the new routes to be classified.
   `/api/twilio/*` is registered as *signature-authenticated* rather than unauthenticated, and
   `/api/admin/phone` is gated to the `office` bundle.
-
-### Amendment to D2, 2026-08-14
-
-The plan treated "where transcription runs" as blocking. It is not, and treating it as blocking
-would have parked a finished recording pipeline behind a preference.
-
-The resolution: **transcription is an adapter with two implementations**, chosen by what the
-deployment actually has. If `OPENAI_API_KEY` is present the transcript is produced in-process; if it
-is not, the call is left `queued` for the worker, which already owns that key and a Whisper batch
-runner. Both write the same columns, so nothing downstream knows or cares which ran.
-
-The owner's decision then becomes a *deployment* choice — set the key in Vercel or don't — instead
-of a code change, and the recommendation from D2 (reuse the worker) remains the default because it
-is what happens when nothing is configured.
-
-**Order:** P0 first and completely — a webhook without signature verification is a live open door.
-Then I1–I3, which is the owner's most concrete ask and works with no AI at all. T after that. S and L
-last, over data that already exists.
-
-**Owner actions this needs:** a Twilio number configured to point its Voice webhook at the deployed
-URL, the D2 transcription decision, and the office phone number(s) to ring.

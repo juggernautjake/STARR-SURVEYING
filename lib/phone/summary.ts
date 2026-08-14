@@ -1,5 +1,5 @@
 // lib/phone/summary.ts — slice T3 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // Owner, 2026-08-14: *"there is a summary created."*
 //

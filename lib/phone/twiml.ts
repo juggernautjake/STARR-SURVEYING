@@ -1,5 +1,5 @@
 // lib/phone/twiml.ts — slice I2 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // TwiML is the XML document Twilio asks for when a call arrives; whatever this returns is what the
 // caller hears. Built as pure strings so the behaviour is testable without a phone — a webhook that
@@ -169,10 +169,15 @@ export function inHoursTwiml(opts: {
   urls?: GreetingUrls;
 }): string {
   const urls = opts.urls ?? {};
-  const verbs: string[] = [say('This call may be recorded.'), say(opts.greeting)];
+  const verbs: string[] = [say('This call may be recorded.')];
 
+  // The greeting is said here only when there is somebody to ring. With no numbers configured the
+  // call falls straight through to `fallbackGreeting`, which opens with its own "thank you for
+  // calling" — so saying both makes the caller hear the firm thank them twice in a row. A live
+  // webhook test is what surfaced this; it is invisible in the markup.
   if (opts.forwardTo.length > 0) {
     verbs.push(
+      say(opts.greeting),
       dial({
         numbers: opts.forwardTo,
         timeoutSeconds: opts.ringSeconds,

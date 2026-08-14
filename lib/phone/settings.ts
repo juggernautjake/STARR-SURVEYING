@@ -1,5 +1,5 @@
 // lib/phone/settings.ts — slice I1 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // Reading and writing the `phone` section of `app_settings`.
 //

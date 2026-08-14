@@ -1,5 +1,5 @@
 -- seeds/595_call_recording_url_and_bucket.sql — slice T1 of
--- docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+-- docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 --
 -- Two things the recording copy needs that 594 did not anticipate.
 --

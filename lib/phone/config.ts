@@ -1,5 +1,5 @@
 // lib/phone/config.ts — slice P0a of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // One place that answers "can this deployment actually receive and place calls", because the two
 // existing Twilio adapters each answered it themselves and both got it wrong in the same way.

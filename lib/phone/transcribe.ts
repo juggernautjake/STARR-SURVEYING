@@ -1,5 +1,5 @@
 // lib/phone/transcribe.ts — slices T2/T3 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // Turning a stored recording into a transcript and then a summary.
 //

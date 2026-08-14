@@ -1,5 +1,5 @@
 // __tests__/phone/summary.test.ts — slice T3 of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // Reading a model's answer into a business record. The failures worth testing are not "the API was
 // down" — they are the ones that write something plausible and wrong:

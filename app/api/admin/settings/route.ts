@@ -14,7 +14,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 // Sections the UI is allowed to write. Keeps arbitrary keys out of the store.
 //
 // 'phone' holds the calling hours, forwarding numbers and greetings — see lib/phone/hours.ts and
-// slice I1 of docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md. It is written
+// slice I1 of docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md. It is written
 // through /api/admin/phone/settings, which validates the shape; this route can write it too, so the
 // shape is re-validated on read rather than trusted.
 const ALLOWED_KEYS = new Set(['general', 'company', 'phone']);

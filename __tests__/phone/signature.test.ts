@@ -1,5 +1,5 @@
 // __tests__/phone/signature.test.ts — slice P0b of
-// docs/planning/in-progress/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
+// docs/planning/completed/PHONE_CALLS_AND_VOICEMAIL_2026-08-14.md
 //
 // The webhook signature is the only thing standing between a public URL and an attacker who can
 // make the firm's Twilio account place calls. Two failure directions, and they are not symmetric:
