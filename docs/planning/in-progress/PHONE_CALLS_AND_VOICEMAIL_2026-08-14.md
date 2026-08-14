@@ -211,14 +211,14 @@ A new `JobEventKind` (`call_linked`), which is the whole cost of notifying about
 
 | Slice | State |
 |---|---|
-| P0a Credentials + health | ⬜ |
-| P0b Signature verification | ⬜ |
-| P0c Schema | ⬜ |
-| I1 Business hours | ⬜ |
-| I2 Answer | ⬜ |
-| I3 Voicemail | ⬜ |
-| T1 Store the recording | ⬜ |
-| T2 Transcribe | ⛔ blocked on D2 |
+| P0a Credentials + health | ✅ `lib/phone/config.ts`, `/api/admin/phone/health` |
+| P0b Signature verification | ✅ `lib/phone/signature.ts` + directory guard test |
+| P0c Schema | ✅ seed 594, applied + verified against production |
+| I1 Business hours | ✅ `lib/phone/hours.ts`, `/api/admin/phone/settings` |
+| I2 Answer | ✅ `/api/twilio/voice`, `/api/twilio/status`, `/api/twilio/dial-status` |
+| I3 Voicemail | ✅ `/api/twilio/voicemail` |
+| T1 Store the recording | ✅ `/api/twilio/recording` + seed 595 (private bucket) |
+| T2 Transcribe | ⬜ D2 — see the amendment below |
 | T3 Summarise | ⬜ |
 | S1 Calls list | ⬜ |
 | S2 One call | ⬜ |
@@ -226,6 +226,39 @@ A new `JobEventKind` (`call_linked`), which is the whole cost of notifying about
 | L1 Assign to a job | ⬜ |
 | L2 Create a job | ⬜ |
 | L3 Notify | ⬜ |
+
+### What the build found that the audit did not
+
+**`app/api/voice/*` was already taken** by an unrelated product surface (the AndrewAsh tenant). So
+telephony lives under `lib/phone/` and `/api/twilio/`, and the two never meet.
+
+**The repo's own ratchets caught four defects in this work**, which is worth recording because three
+of them were invisible on reading:
+
+- The **ordering ratchet** was correct about my own tests. `expect(a.indexOf(x)).toBeLessThan(...)`
+  passes when `indexOf` returns −1, so the test guarding the *recording notice* would have gone
+  green the moment the notice was deleted. Rewritten with `expectOrder`.
+- The same sweep found a **literal NUL byte** in a test file where an escape was meant.
+- **`starr-assumptions`** caught the firm's name hardcoded into the default greetings — the
+  definition of a per-tenant setting. Defaults are now firm-neutral. The count returned to exactly
+  160; the ceiling was not raised.
+- **`route-authorization`** and **`api-bundle-gate`** required the new routes to be classified.
+  `/api/twilio/*` is registered as *signature-authenticated* rather than unauthenticated, and
+  `/api/admin/phone` is gated to the `office` bundle.
+
+### Amendment to D2, 2026-08-14
+
+The plan treated "where transcription runs" as blocking. It is not, and treating it as blocking
+would have parked a finished recording pipeline behind a preference.
+
+The resolution: **transcription is an adapter with two implementations**, chosen by what the
+deployment actually has. If `OPENAI_API_KEY` is present the transcript is produced in-process; if it
+is not, the call is left `queued` for the worker, which already owns that key and a Whisper batch
+runner. Both write the same columns, so nothing downstream knows or cares which ran.
+
+The owner's decision then becomes a *deployment* choice — set the key in Vercel or don't — instead
+of a code change, and the recommendation from D2 (reuse the worker) remains the default because it
+is what happens when nothing is configured.
 
 **Order:** P0 first and completely — a webhook without signature verification is a live open door.
 Then I1–I3, which is the owner's most concrete ask and works with no AI at all. T after that. S and L
