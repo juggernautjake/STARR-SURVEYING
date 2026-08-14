@@ -81,6 +81,12 @@ const KNOWN_ORPHANS: readonly string[] = [
   'cad/geometry/spline-to-arc.ts',
   'cad/persistence/native-autosave.ts',
   'cad/platform/index.ts',
+  // Added 2026-08-14 when the needle was tightened to a path SEGMENT (see `re` below). It is a
+  // barrel re-exporting nine style modules, and every consumer imports those modules directly —
+  // `@/lib/cad/styles/default-layers`, `.../symbol-library`, and so on. Genuinely unimported, and
+  // hidden until now by a regex that counted any specifier merely ending in `styles`. Alongside
+  // `cad/codes/index.ts` and `cad/platform/index.ts`, which are the same shape.
+  'cad/styles/index.ts',
   'dnd/ai-scope.ts',
   'dnd/backgrounds/index.ts',
   'dnd/bestiary/ig-curation.ts',
@@ -151,7 +157,20 @@ function findUnreachable(): string[] {
     const base = path.basename(f).replace(/\.ts$/, '');
     // A barrel is imported by its DIRECTORY name, not "index".
     const needle = base === 'index' ? path.basename(path.dirname(f)) : base;
-    const re = new RegExp(`(?:from|import)\\s+['"][^'"]*${esc(needle)}['"]`);
+    // ── THE NEEDLE IS A PATH SEGMENT, NOT A SUFFIX (fixed 2026-08-14) ──────────────────────────
+    //
+    // This was `['"][^'"]*needle['"]`, which matches any specifier ENDING in the basename — so
+    // `from './job-prefs'` counted as an import of `saas/notifications/prefs.ts`, and the ratchet
+    // reported a module as newly wired that nothing had touched. It found the first genuine
+    // collision the day a file called `job-prefs.ts` was added; before that the bug was invisible.
+    //
+    // Exactly the failure its own header warns about — "a checker that is confidently wrong is
+    // worse than no checker" — and it fails in the dangerous direction: a false POSITIVE here marks
+    // a dead module as live, which is the thing this file exists to notice.
+    //
+    // `(?:[^'"]*\/)?` requires the needle to be the whole last segment, so `./prefs`,
+    // `@/lib/saas/notifications/prefs` and `../../prefs` all match and `./job-prefs` does not.
+    const re = new RegExp(`(?:from|import)\\s+['"](?:[^'"]*\\/)?${esc(needle)}['"]`);
     let found = false;
     for (const [g, txt] of texts) {
       if (g === f) continue;

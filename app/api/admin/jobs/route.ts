@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
 import { recordMilestone, toCents } from '@/lib/pipeline/events';
+import { carryLeadOntoJob } from '@/lib/leads/carry-over';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -224,6 +225,24 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       role: 'lead_rpls',
     });
     if (teamErr) warnings.push(`Lead RPLS not added to team: ${teamErr.message}`);
+  }
+
+  // ── J4 (2026-08-14) — bring the lead with it ────────────────────────────────────────────────
+  //
+  // The form prefill carried the TYPED fields — name, address, acreage, the quote number. It did
+  // not carry the customer's FILES, which is where their deed and their old plat were, nor the
+  // agreed scope, nor a link in the address book. So a conversion produced a job whose file list
+  // was empty on a job whose customer had already sent the plat.
+  //
+  // A warning, never a failure: the job exists and the customer has accepted. Losing that because
+  // a file copy timed out would be the worse outcome by a distance.
+  if (origin_lead_id) {
+    const carried = await carryLeadOntoJob({
+      leadId: origin_lead_id,
+      jobId: (job as { id: string }).id,
+      actorEmail: session.user.email,
+    });
+    for (const problem of carried.problems) warnings.push(`From the lead: ${problem}`);
   }
 
   const { error: stageErr } = await supabaseAdmin.from('job_stages_history').insert({

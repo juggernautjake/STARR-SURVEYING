@@ -30,6 +30,7 @@ import JobPhaseScheduler from './JobPhaseScheduler';
 import JobInstructions from './JobInstructions';
 import JobDeliverables from './JobDeliverables';
 import JobBriefings from './JobBriefings';
+import JobMoney from './JobMoney';
 // contacts plan Slice 6 (2026-05-30) — job ↔ contact linking.
 import LinkContactDialog from '../../components/jobs/LinkContactDialog';
 import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
@@ -940,6 +941,15 @@ export default function JobDetailPage() {
               // saveField expects a string (coerced to a number inside)
               // so we stringify the value here.
               onUpdateQuote={(val) => { void saveField('quote_amount', String(val)); }}
+            />
+            {/* J2/J3 — the panel that answers "what is still owed", and the first screen anywhere
+                that can RECORD a payment against a job. `JobQuoteBuilder` has taken an
+                `onAddPayment` prop since it was written and nothing ever passed one, so the payment
+                history it renders was a history of payments this page could not create. */}
+            <JobMoney
+              jobId={jobId}
+              canRecordPayment={isAdmin}
+              onChanged={loadJob}
             />
             <JobTimeTracker
               entries={timeEntries}

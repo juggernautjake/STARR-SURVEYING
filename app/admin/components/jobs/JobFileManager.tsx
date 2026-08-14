@@ -62,14 +62,25 @@ const FILE_TYPE_ICONS: Record<string, string> = {
   other: '\u{1F4CE}',
 };
 
+// `all` first, and it is the default — see the filter below for why the tabs used to do nothing.
+// `from-customer` (J4) and `briefings` (B3) are written by paths that do not go through this
+// component's upload form, and a file whose section has no tab is a file with no way to be found.
 const SECTIONS = [
+  { key: 'all', label: 'All' },
+  { key: 'from-customer', label: 'From the customer' },
   { key: 'general', label: 'General' },
   { key: 'research', label: 'Research' },
   { key: 'fieldwork', label: 'Field Work' },
+  { key: 'briefings', label: 'Briefings' },
   { key: 'drawing', label: 'Drawing' },
   { key: 'legal', label: 'Legal' },
   { key: 'delivery', label: 'Delivery' },
 ];
+
+/** Where a NEW upload goes. `all` is a view, not a place to put something, and neither of the two
+ *  machine-written sections should be a choice in a manual upload form: "from the customer" means
+ *  they sent it, and a briefing's files arrive with the briefing. */
+const UPLOAD_SECTIONS = SECTIONS.filter((s) => !['all', 'from-customer', 'briefings'].includes(s.key));
 
 // Auto-detect file type from extension
 function detectFileType(fileName: string): string {
@@ -99,7 +110,12 @@ interface Props {
 }
 
 export default function JobFileManager({ files, onUpload, onDelete, activeSection, onAttachFromFiles }: Props) {
-  const [section, setSection] = useState(activeSection || 'general');
+  const [section, setSection] = useState(activeSection || 'all');
+  /** Which section a NEW file is filed under — separate from which one is being VIEWED. They were
+   *  the same value, so uploading while looking at "Legal" quietly filed a plat as legal. */
+  const [uploadSection, setUploadSection] = useState(
+    activeSection && activeSection !== 'all' ? activeSection : 'general',
+  );
   const [showUpload, setShowUpload] = useState(false);
   const [uploadType, setUploadType] = useState('document');
   const [description, setDescription] = useState('');
@@ -109,7 +125,17 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
   const [uploadCount, setUploadCount] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
 
-  const sectionFiles = files.filter(f => !activeSection || f.section === section);
+  // ── THE SECTION TABS DID NOTHING (fixed 2026-08-14) ────────────────────────────────────────────
+  //
+  // This read `!activeSection || f.section === section`. The job page does not pass `activeSection`,
+  // so `!activeSection` was true on every file and the left side short-circuited the whole
+  // expression — the tabs rendered, highlighted on click, updated `section`, and filtered nothing.
+  // It looked like a working control on a job with few enough files that nobody counted.
+  //
+  // `activeSection` still LOCKS the view when a caller supplies one; otherwise the tab the user
+  // picked is honoured, and `all` is what they start on so no file is hidden by a default.
+  const shownSection = activeSection ?? section;
+  const sectionFiles = files.filter(f => shownSection === 'all' || f.section === shownSection);
 
   function formatFileSize(bytes?: number): string {
     if (!bytes) return '';
@@ -128,7 +154,7 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
         file_url: reader.result as string,
         file_size: file.size,
         mime_type: file.type,
-        section,
+        section: uploadSection,
         description,
       });
     };
@@ -198,18 +224,23 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
 
       {!activeSection && (
         <div className="job-files__sections">
-          {SECTIONS.map(s => (
-            <button
-              key={s.key}
-              className={`job-files__section-tab ${section === s.key ? 'job-files__section-tab--active' : ''}`}
-              onClick={() => setSection(s.key)}
-            >
-              {s.label}
-              <span className="job-files__section-count">
-                {files.filter(f => f.section === s.key).length}
-              </span>
-            </button>
-          ))}
+          {SECTIONS.map(s => {
+            const count = s.key === 'all' ? files.length : files.filter(f => f.section === s.key).length;
+            // An empty machine-written section is hidden rather than shown as a zero. A job with no
+            // briefings has no reason to advertise a Briefings tab; a job whose customer sent
+            // nothing has no reason to advertise that either.
+            if (count === 0 && ['from-customer', 'briefings'].includes(s.key)) return null;
+            return (
+              <button
+                key={s.key}
+                className={`job-files__section-tab ${section === s.key ? 'job-files__section-tab--active' : ''}`}
+                onClick={() => setSection(s.key)}
+              >
+                {s.label}
+                <span className="job-files__section-count">{count}</span>
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -223,6 +254,19 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
             >
               {Object.entries(FILE_TYPES).filter(([k]) => k !== 'backup').map(([key, val]) => (
                 <option key={key} value={key}>{val.label}</option>
+              ))}
+            </select>
+            {/* Where it goes, said explicitly. The upload used to inherit whichever section tab was
+                selected — which stopped being a real place the moment "All" became the default, and
+                was invisible before that: a file filed under the tab you happened to be looking at. */}
+            <select
+              className="job-files__type-select"
+              aria-label="Which section to file it under"
+              value={uploadSection}
+              onChange={e => setUploadSection(e.target.value)}
+            >
+              {UPLOAD_SECTIONS.map(s => (
+                <option key={s.key} value={s.key}>{s.label}</option>
               ))}
             </select>
             <input
@@ -384,7 +428,9 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
               // Guess the type from the name so the row gets a sensible icon and section filter; the
               // picker returns only id + name, and re-deriving here beats threading mime through.
               file_type: detectFileType(node.name),
-              section,
+              // The same "where does it go" as an upload, not the tab being viewed — otherwise
+              // attaching while looking at "All" files a document under a section that is a view.
+              section: uploadSection,
               description,
             });
             setShowPicker(false);

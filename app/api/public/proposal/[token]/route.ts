@@ -30,6 +30,7 @@ import { supabaseUnscoped } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { getTenantProfile } from '@/lib/saas/tenant-profile';
 import { customerFacingProposal, hashIp, jobFromAcceptedProposal, proposalViewState, type Proposal } from '@/lib/proposals/proposals';
+import { carryLeadOntoJob } from '@/lib/leads/carry-over';
 
 // The UNSCOPED client on purpose: a customer has no session and therefore no tenant scope, so the
 // scoped client would filter every row away. The token IS the authorisation — 256 bits of it — and
@@ -159,6 +160,28 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   await db.from('lead_quotes').update({ status: 'accepted', decided_at: acceptedAt, updated_at: acceptedAt }).eq('id', proposal.id);
   if (leadRow) {
     await db.from('leads').update({ status: 'won', converted_job_id: jobId, updated_at: acceptedAt }).eq('id', leadRow.id);
+  }
+
+  // ── 4. Bring the lead with it (J4, 2026-08-14) ──
+  //
+  // The SECOND path from a lead to a job, and the one that would have stayed broken if the carry-
+  // over had been written inline in the admin conversion route instead of as a lib. This one
+  // matters more, not less: nobody is watching. A customer accepts at 11pm, the job appears, and
+  // the deed they attached to their enquiry is in a bucket only the lead page can reach.
+  //
+  // Ordered AFTER the quote is marked accepted, because the carry-over reads `lead_quotes` looking
+  // for the accepted one to lift its scope notes off — run before this update it would find none.
+  if (jobId && leadRow) {
+    const carried = await carryLeadOntoJob({
+      leadId: leadRow.id,
+      jobId,
+      // No session here — this is the customer's own request. Attributed to the acceptance rather
+      // than to a person, which is the truth: nobody at the firm did this.
+      actorEmail: 'proposal-acceptance@system',
+    });
+    if (carried.problems.length > 0) {
+      console.warn('[public/proposal] carry-over incomplete', { jobId, leadId: leadRow.id, problems: carried.problems });
+    }
   }
 
   return NextResponse.json({

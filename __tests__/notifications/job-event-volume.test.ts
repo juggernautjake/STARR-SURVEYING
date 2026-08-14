@@ -9,6 +9,7 @@
 //     stops somebody being told is a bug nobody can see from either end.
 
 import { describe, it, expect } from 'vitest';
+import { expectOrder } from '../helpers/expect-order';
 import { jobRecipients, type JobTeamMemberRow } from '@/lib/notifications/job-event';
 import {
   channelFor, routeRecipients, indexPrefs, composeDigest, isDigestHour,
@@ -195,7 +196,10 @@ describe('the digest', () => {
       line('A — second', '2026-08-14T18:00:00Z'),
       line('A — first', '2026-08-14T15:00:00Z'),
     ])!;
-    expect(d.body.indexOf('first')).toBeLessThan(d.body.indexOf('second'));
+    // `expectOrder`, not `indexOf(...) < indexOf(...)`: the raw form returns -1 for an absent
+    // needle, and -1 beats every real index — so it would pass hardest if `composeDigest` stopped
+    // emitting the lines at all. See __tests__/ordering-assertion-ratchet.test.ts.
+    expectOrder(d.body, 'first', 'second', 'the digest lists events oldest-first');
   });
 
   it('survives a title with no job prefix', () => {
