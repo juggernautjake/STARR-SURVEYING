@@ -63,12 +63,34 @@ export const DEFAULT_PHONE_HOURS: PhoneHours = {
   holidays: [],
   forwardTo: [],
   ringSeconds: 20,
-  greeting: 'Thank you for calling Starr Surveying.',
+  // Deliberately firm-neutral. The greeting is the definition of a per-tenant setting — every firm
+  // on this platform needs its own — so baking one firm's name into the fallback would make the
+  // default actively wrong for everybody else, and wrong in the most audible place there is. The
+  // settings screen seeds the real wording from the configured company name; until somebody sets
+  // it, a greeting that names nobody is correct for everybody.
+  greeting: 'Thank you for calling.',
   afterHoursGreeting:
-    'Thank you for calling Starr Surveying. Our office is closed right now. ' +
+    'Thank you for calling. Our office is closed right now. ' +
     'Please leave your name, number, and a short message after the tone, and we will call you back.',
   enabled: true,
 };
+
+/**
+ * The greeting a firm should start from, given its name.
+ *
+ * Used to seed the settings form rather than to answer calls — so that the name appears because
+ * somebody configured it, not because a default guessed it.
+ */
+export function suggestedGreetings(companyName: string | null | undefined): Pick<PhoneHours, 'greeting' | 'afterHoursGreeting'> {
+  const name = (companyName ?? '').trim();
+  if (!name) return { greeting: DEFAULT_PHONE_HOURS.greeting, afterHoursGreeting: DEFAULT_PHONE_HOURS.afterHoursGreeting };
+  return {
+    greeting: `Thank you for calling ${name}.`,
+    afterHoursGreeting:
+      `Thank you for calling ${name}. Our office is closed right now. ` +
+      'Please leave your name, number, and a short message after the tone, and we will call you back.',
+  };
+}
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

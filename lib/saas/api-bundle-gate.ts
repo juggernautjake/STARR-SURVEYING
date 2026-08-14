@@ -143,6 +143,16 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'clock-session': { bundle: 'office', reason: 'Time capture — the "clock in → get paid" spine (D3).' },
   'time-logs': { bundle: 'office', reason: 'Time capture — the "clock in → get paid" spine (D3).' },
   'pto': { bundle: 'office', reason: 'Leave management is people operations.' },
+  // The business phone (2026-08-14). `office`, for the same reason as receipts and receivables: a
+  // call is how work arrives and how a customer is answered, which is the back-office product. It
+  // is deliberately NOT open — recorded calls, transcripts and voicemail are among the most
+  // sensitive data the app holds, and "open" here would mean a firm on any plan reaching another
+  // firm's customer conversations.
+  //
+  // Note the split: this gates the ADMIN screens under /api/admin/phone. The Twilio webhooks live
+  // under /api/twilio and are not admin routes at all — they are authenticated by request
+  // signature, since Twilio cannot hold a session or a subscription.
+  'phone': { bundle: 'office', reason: 'Business calls, voicemail and call history are the office product.' },
   'pay-config': { bundle: 'office', reason: 'Pay rules are people operations.' },
   'badges': { bundle: 'office', reason: 'Rewards/XP sit in the Office workspace with pay progression.' },
   'xp': { bundle: 'office', reason: 'Rewards/XP sit in the Office workspace with pay progression.' },

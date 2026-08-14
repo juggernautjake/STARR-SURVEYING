@@ -126,6 +126,32 @@ const INTENTIONALLY_PUBLIC = new Map([
   ['app/api/voice/uploads/route.ts', 'a stranger attaching a script to a quote request — a short type allow-list checked on BOTH extension and MIME, 15 MB × 5 per request, a private bucket, and throttled per IP on contact-form + contact-storage-daily. This sweep is what found it unthrottled'],
   ['app/api/voice/sign/[token]/route.ts', 'a client signs their own contract — refuses a second signature rather than overwriting the first, and captures the evidence bundle'],
   ['app/api/voice/pay/[token]/route.ts', 'a client paying is not signed in — the AMOUNT is read from the invoice server-side and never from the request, and the declare path writes a PENDING payment that moves no money'],
+
+  // ── the Twilio webhooks, added 2026-08-14 with the phone system ────────────────────────────────
+  //
+  // These are called by Twilio's servers, which cannot hold a session — so `auth()` is not merely
+  // absent, it is impossible. The credential is the HMAC-SHA1 `X-Twilio-Signature` over the exact
+  // URL and body, verified against TWILIO_AUTH_TOKEN before any handler reads a field. That is a
+  // STRONGER check than a session cookie for this traffic: it is per-request, unforgeable without
+  // the account token, and covers the payload rather than just the caller's identity.
+  //
+  // Three properties make the exemption safe, and all three are themselves tested in
+  // __tests__/phone/signature.test.ts and __tests__/phone/every-twilio-route-verifies.test.ts:
+  //
+  //   · a MISSING token REFUSES rather than passes, so an unconfigured deployment is closed, not
+  //     open — the failure mode that would otherwise turn every one of these into a free endpoint;
+  //   · the comparison is constant-time, and a wrong-length signature is rejected rather than
+  //     throwing (a 500 would make Twilio RETRY the forged request);
+  //   · a directory-level guard test fails the suite if any future route under app/api/twilio is
+  //     added without calling readTwilioWebhook and checking its verdict.
+  //
+  // `recording` additionally uses the service role — it writes the fetched audio to a private
+  // bucket and patches the call row. It reaches that code only after the signature check passes.
+  ['app/api/twilio/voice/route.ts', 'Twilio cannot hold a session — authenticated by X-Twilio-Signature (HMAC-SHA1 over URL+body) before any field is read; a missing token refuses rather than passes. Its GET returns a static "POST only" document and touches nothing'],
+  ['app/api/twilio/status/route.ts', 'the call-status callback — same signature check, and it only patches the call row it names'],
+  ['app/api/twilio/dial-status/route.ts', 'the dial-outcome callback — same signature check; decides whether the caller falls through to voicemail'],
+  ['app/api/twilio/voicemail/route.ts', 'the Record action callback — same signature check; marks the call as voicemail and thanks the caller'],
+  ['app/api/twilio/recording/route.ts', 'the recording-ready callback — same signature check, then copies the audio from Twilio into a PRIVATE bucket via the service role. Signature is verified before the fetch, so an unsigned request cannot make us download anything'],
 ]);
 
 function walk(dir) {
