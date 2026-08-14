@@ -173,7 +173,7 @@ export default function JobInstructions({ jobId, files }: Props) {
             </button>
           )}
           {notice && (
-            <span style={{ fontSize: '0.8rem', color: 'var(--color-success-text, #027A48)' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--color-success-text)' }}>
               <Check size={13} style={{ verticalAlign: '-2px', marginRight: '0.25rem' }} />{notice}
             </span>
           )}
@@ -185,7 +185,7 @@ export default function JobInstructions({ jobId, files }: Props) {
       {/* Reported by the save, because a link that points at a deleted file renders as plain text on
           the crew's phone — it fails by looking fine. */}
       {brokenRefs.length > 0 && (
-        <div role="alert" style={{ ...bandStyle, borderLeftColor: 'var(--theme-warning, #F59E0B)', marginTop: '0.6rem' }}>
+        <div role="alert" style={{ ...bandStyle, borderLeftColor: 'var(--color-warning)', marginTop: '0.6rem' }}>
           <AlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
           {brokenRefs.length} attached file{brokenRefs.length === 1 ? '' : 's'} no longer exist
           {brokenRefs.length === 1 ? 's' : ''} on this job. Those links will show as plain text to the
@@ -255,7 +255,7 @@ const ghostBtn: React.CSSProperties = {
 
 const bandStyle: React.CSSProperties = {
   border: '1px solid var(--color-border)',
-  borderLeft: '4px solid var(--color-info, #3B82F6)',
+  borderLeft: '4px solid var(--color-info)',
   borderRadius: 6,
   padding: '0.55rem 0.7rem',
   fontSize: '0.83rem',

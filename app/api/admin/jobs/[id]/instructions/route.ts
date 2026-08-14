@@ -13,6 +13,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { resolveInstructions, brokenInstructionRefs } from '@/lib/jobs/instructions';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 export const runtime = 'nodejs';
 
@@ -85,6 +86,21 @@ export async function PUT(req: NextRequest, ctx: RouteContext): Promise<NextResp
 
   const { error } = await supabaseAdmin.from('jobs').update({ instructions: text }).eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // N2 (2026-08-14) — the crew reads these before they leave, so a change to them is the single most
+  // worth-knowing thing that can happen to a job they are on. `high`, unlike most job events: this is
+  // the one where finding out late means driving somewhere with the wrong instructions.
+  await notifyJobEvent(
+    id,
+    {
+      kind: 'instructions_changed',
+      title: 'Field instructions updated',
+      body: 'Read them before you head out.',
+      link: `/admin/jobs/${id}`,
+      escalation: 'high',
+    },
+    session.user.email,
+  );
 
   // Warn the RPLS if any embedded file link points at a file that isn't on the job (removed/typo'd).
   const files = await jobFiles(id);

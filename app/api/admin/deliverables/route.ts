@@ -14,6 +14,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+// N2 — every job mutation tells the people on the job, through one function. Never throws.
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const COLS = 'id, job_id, name, kind, revision, state, file_url, sealed_by, sealed_at, seal_number, issued_at, issued_to, delivery_method, delivery_note, received_at, supersedes_id, notes, created_by, created_at';
 
@@ -82,6 +84,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     await supabaseAdmin.from('deliverables').update({ state: 'superseded', updated_at: new Date().toISOString() }).eq('id', previous.id);
   }
 
+  await notifyJobEvent(
+    jobId,
+    {
+      kind: 'deliverable_created',
+      title: revision > 1 ? `${name} — revision ${revision}` : `${name} added as a deliverable`,
+      body: revision > 1 ? 'The previous revision is now marked superseded.' : undefined,
+      link: `/admin/jobs/${jobId}`,
+      escalation: 'low',
+    },
+    session.user.email,
+  );
+
   return NextResponse.json({ deliverable: data });
 });
 
@@ -110,6 +124,12 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
       .select(COLS)
       .single();
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Not found.' }, { status: error ? 500 : 404 });
+    // Sealing is the moment a deliverable becomes a professional assertion. Worth telling the job.
+    await notifyJobEvent(
+      data.job_id,
+      { kind: 'deliverable_sealed', title: `${data.name} sealed as final`, body: `By ${sealedBy} · reg. ${sealNumber}` },
+      session.user.email,
+    );
     return NextResponse.json({ deliverable: data });
   }
 
@@ -139,6 +159,11 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
       .select(COLS)
       .single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    await notifyJobEvent(
+      data.job_id,
+      { kind: 'deliverable_issued', title: `${data.name} issued to ${issuedTo}`, body: body.delivery_method ? `By ${body.delivery_method}` : undefined },
+      session.user.email,
+    );
     return NextResponse.json({ deliverable: data });
   }
 

@@ -27,7 +27,7 @@ interface NotifyOptions {
  *  `notify` — job assignment, hours decision, payment, raise, message — gets phone banners and the
  *  app-icon badge for free by funnelling through here. */
 export async function notify(opts: NotifyOptions) {
-  await supabaseAdmin.from('notifications').insert({
+  const { error } = await supabaseAdmin.from('notifications').insert({
     user_email: opts.user_email,
     type: opts.type,
     title: opts.title,
@@ -39,6 +39,21 @@ export async function notify(opts: NotifyOptions) {
     escalation_level: opts.escalation_level || 'normal',
     thread_id: opts.thread_id || null,
   });
+  // ── A DROPPED NOTIFICATION USED TO BE SILENT (2026-08-14) ──────────────────────────────────────
+  //
+  // supabase-js RETURNS `{ error }`; it does not throw. This call ignored it, so any row the database
+  // rejected — a `thread_id` that is not a uuid, an `escalation_level` outside the CHECK, a column
+  // renamed under it — vanished with no error, no log, and a caller that had every reason to believe
+  // the person had been told. Found by a job event that reported "notified 2" and wrote nothing.
+  //
+  // Logged rather than thrown: this is called after the work it reports has already committed, and
+  // failing an upload because its notification could not be written is the worse bug. But it is no
+  // longer silent, which is the whole difference.
+  if (error) {
+    console.error('[notify] notification was NOT written', {
+      user: opts.user_email, type: opts.type, error: error.message,
+    });
+  }
   await sendAdminPush(opts.user_email, {
     title: opts.title,
     body: opts.body,
@@ -62,7 +77,14 @@ export async function notifyMany(users: string[], base: Omit<NotifyOptions, 'use
     escalation_level: base.escalation_level || 'normal',
     thread_id: base.thread_id || null,
   }));
-  await supabaseAdmin.from('notifications').insert(rows);
+  const { error } = await supabaseAdmin.from('notifications').insert(rows);
+  if (error) {
+    // Same reasoning as `notify` above. Worse here, because one bad field drops the whole batch:
+    // every recipient is silently missed, not just one.
+    console.error('[notifyMany] notifications were NOT written', {
+      recipients: users.length, type: base.type, error: error.message,
+    });
+  }
   await sendAdminPushMany(users, {
     title: base.title,
     body: base.body,
