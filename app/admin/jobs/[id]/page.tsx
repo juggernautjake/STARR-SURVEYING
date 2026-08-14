@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder,
   Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
-  Circle, type LucideIcon,
+  Circle, ListChecks, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
@@ -27,6 +27,7 @@ import { jobMapsUrl, hasJobLocation, telHref } from '@/lib/jobs/location';
 import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
 import JobPhaseScheduler from './JobPhaseScheduler';
+import JobInstructions from './JobInstructions';
 // contacts plan Slice 6 (2026-05-30) — job ↔ contact linking.
 import LinkContactDialog from '../../components/jobs/LinkContactDialog';
 import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
@@ -87,6 +88,10 @@ const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   { key: 'schedule', label: 'Schedule', Icon: CalendarDays, tip: 'Pick day(s) for the three job phases — Research, Field Work, Drawing & Deliverables. Each pick lands on the org-wide calendar at /admin/calendar and fires day-before + day-of reminders to the assignee.' },
   { key: 'research', label: 'Research', Icon: Search, tip: 'Deed records, plat maps, previous surveys, legal descriptions, and other research documents organized by category. Upload and manage all background research for this job.' },
   { key: 'cad', label: 'CAD', Icon: DraftingCompass, tip: 'Draft the survey in the Starr CAD editor. Drawings created here stay linked to the job — open existing ones or start a new drawing in one click.' },
+  // Instructions sit next to Field Work because that is who reads them. The API has authorised the
+  // office to write these since 2026-07-18; until now the only screen that called it was the field
+  // crew's own, so the people meant to author them had nowhere to do it.
+  { key: 'instructions', label: 'Instructions', Icon: ListChecks, tip: 'What the field crew is told before they leave — access, monuments, what to shoot, who to call. Attach any file from this job and it travels with the instruction. This is what the crew sees in Work Mode.' },
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
   { key: 'files', label: 'Files', Icon: Folder, tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
   { key: 'photos', label: 'Photos', Icon: Camera, tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
@@ -839,6 +844,10 @@ export default function JobDetailPage() {
 
         {activeTab === 'cad' && (
           <JobCadPanel jobId={jobId} jobName={job.name} onCountChange={setCadCount} />
+        )}
+
+        {activeTab === 'instructions' && (
+          <JobInstructions jobId={jobId} files={files} />
         )}
 
         {activeTab === 'fieldwork' && (
