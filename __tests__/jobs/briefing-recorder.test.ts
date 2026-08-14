@@ -1,5 +1,5 @@
 // __tests__/jobs/briefing-recorder.test.ts — slice B2 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Everything here is a decision the recorder makes BEFORE any bytes exist, and every one of them
 // fails silently when it is wrong: a codec the browser cannot encode throws on construction with a

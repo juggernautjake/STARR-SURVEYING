@@ -1,5 +1,5 @@
 // lib/leads/carry-over.ts — slice J4 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // > **Done when:** converting a lead carries its contacts, quote and attachments onto the job, and
 // > the job links back to the lead it came from.

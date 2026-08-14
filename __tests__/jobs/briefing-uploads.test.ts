@@ -1,5 +1,5 @@
 // __tests__/jobs/briefing-uploads.test.ts — slice B3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // The two rules that decide whether a 120 MB screen recording arrives intact, both of which fail
 // quietly when they are wrong:

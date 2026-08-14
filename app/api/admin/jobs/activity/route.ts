@@ -6,6 +6,22 @@
 //     photo uploads, team changes, drawings saved, job created, etc.
 //   - job_stages_history rows: stage transitions with notes.
 // Returns newest-first, normalized to { type, label, actor, at, detail }.
+//
+// ── THE COLUMNS ARE action_type AND metadata (fixed 2026-08-14) ─────────────────────────────────
+//
+// This route selected `action, details`. The table has **`action_type`** and **`metadata`** — so
+// every read here returned `column activity_log.action does not exist` and the Activity tab showed
+// an error banner instead of a timeline.
+//
+// The writers had the mirror-image bug and it was worse, because it was SILENT: five routes (job
+// created, file uploaded, team added, stage changed, CAD drawing saved) inserted `action`/`details`
+// through `fireAndForget`, which swallows the rejection. **Not one job event has ever been written
+// to the activity log.** The read error is the only reason anybody found out; had the select been
+// correct, the tab would simply have been permanently empty and read as "nothing has happened yet".
+//
+// Found by opening the tab in a browser during the Q1 pass. Both halves individually type-check,
+// and `activity_log` has 59 rows written by the five routes that got the names right, so nothing
+// about the table looked broken from the outside.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -66,7 +82,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const [logRes, stageRes] = await Promise.all([
       supabaseAdmin
         .from('activity_log')
-        .select('id, user_email, action, details, entity_id, created_at')
+        .select('id, user_email, action_type, metadata, entity_id, created_at')
         .eq('entity_type', 'job')
         .order('created_at', { ascending: false })
         .limit(limit * 3),
@@ -92,7 +108,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
     const feed: Array<ActivityItem & { id: string; job_id: string | null; job_name: string | null; job_number: string | null }> = [];
     for (const row of logRes.data ?? []) {
-      const action = String(row.action ?? '');
+      const action = String(row.action_type ?? '');
       if (action === 'job_stage_changed') continue; // richer copy lives in stage history
       const job = row.entity_id ? jobMap.get(String(row.entity_id)) : undefined;
       feed.push({
@@ -101,7 +117,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         label: ACTION_LABELS[action] ?? action.replace(/_/g, ' '),
         actor: String(row.user_email ?? 'system'),
         at: String(row.created_at),
-        detail: summarizeDetails(action, row.details),
+        detail: summarizeDetails(action, row.metadata),
         job_id: row.entity_id ? String(row.entity_id) : null,
         job_name: job?.name ?? null,
         job_number: job?.job_number ?? null,
@@ -131,7 +147,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const [logRes, stageRes] = await Promise.all([
     supabaseAdmin
       .from('activity_log')
-      .select('user_email, action, details, created_at')
+      .select('user_email, action_type, metadata, created_at')
       .eq('entity_type', 'job')
       .eq('entity_id', jobId)
       .order('created_at', { ascending: false })
@@ -150,7 +166,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const items: ActivityItem[] = [];
 
   for (const row of logRes.data ?? []) {
-    const action = String(row.action ?? '');
+    const action = String(row.action_type ?? '');
     // Stage changes also live in job_stages_history with richer data —
     // skip the activity_log copy to avoid duplicates.
     if (action === 'job_stage_changed') continue;
@@ -159,7 +175,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       label: ACTION_LABELS[action] ?? action.replace(/_/g, ' '),
       actor: String(row.user_email ?? 'system'),
       at: String(row.created_at),
-      detail: summarizeDetails(action, row.details),
+      detail: summarizeDetails(action, row.metadata),
     });
   }
 

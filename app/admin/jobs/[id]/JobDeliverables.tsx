@@ -1,5 +1,5 @@
 // app/admin/jobs/[id]/JobDeliverables.tsx — slice J2 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Owner: *"tracking throughout the rest of the job phases for deliverables and payment and all of that."*
 //

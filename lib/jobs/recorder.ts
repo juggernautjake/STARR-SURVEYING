@@ -1,5 +1,5 @@
 // lib/jobs/recorder.ts — the decisions a screen recorder makes that are not about the DOM.
-// Slice B2 of docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// Slice B2 of docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // ── WHY ANY OF THIS IS OUT HERE ─────────────────────────────────────────────────────────────────
 //

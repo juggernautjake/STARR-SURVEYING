@@ -1,5 +1,5 @@
 // app/admin/settings/JobNotificationSettings.tsx — slice N4 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // ── WHY THIS SHIPS WITH N3 AND NOT AFTER IT ─────────────────────────────────────────────────────
 //

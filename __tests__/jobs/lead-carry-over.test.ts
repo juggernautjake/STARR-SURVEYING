@@ -1,5 +1,5 @@
 // __tests__/jobs/lead-carry-over.test.ts — slice J4 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // The rule that decides whether the customer's deed reaches the job, tested without storage.
 //

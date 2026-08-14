@@ -1,5 +1,5 @@
 // __tests__/jobs/job-financials.test.ts — slice J3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Every case here is a way of getting "what is still owed on this job" wrong that produces a
 // PLAUSIBLE number. That is the whole hazard: a wrong balance does not look wrong, it looks like a

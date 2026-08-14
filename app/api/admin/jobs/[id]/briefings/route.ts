@@ -1,5 +1,5 @@
 // app/api/admin/jobs/[id]/briefings/route.ts — slice B3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 //   GET  → the job's briefings. Published ones for everyone on the job; your own drafts as well.
 //   POST → start a draft. Nobody is notified and nobody else can see it (see B5 for publishing).

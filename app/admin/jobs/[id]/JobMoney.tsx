@@ -1,5 +1,5 @@
 // app/admin/jobs/[id]/JobMoney.tsx — slice J3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // > `job_payments` and `job_payment_allocations` exist with no UI; the Financial tab shows the quote
 // > and time entries. Surface what is recorded, and make "what is still owed on this job"

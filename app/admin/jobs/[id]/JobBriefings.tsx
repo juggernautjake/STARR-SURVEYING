@@ -1,5 +1,5 @@
 // app/admin/jobs/[id]/JobBriefings.tsx — slices B4, B5, B6 and B7 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Owner, 2026-08-13: *"Once he has compiled his notes and instructions and stuff, he can post it and
 // make it so that all of the people involved in the job can see it. He will also be able to add more

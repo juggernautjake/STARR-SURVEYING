@@ -1,7 +1,7 @@
 // lib/notifications/job-stage.ts
 //
 // Slice 2d of hub-widget-excellence-03-notifications, reduced to one function on 2026-08-14 by
-// slice N3 of docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md.
+// slice N3 of docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md.
 //
 // ── resolveStageRecipients IS GONE, DELIBERATELY ────────────────────────────────────────────────
 //

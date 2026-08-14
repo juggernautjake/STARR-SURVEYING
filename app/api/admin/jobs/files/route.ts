@@ -138,10 +138,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
-    action: 'job_file_uploaded',
+    action_type: 'job_file_uploaded',
     entity_type: 'job',
     entity_id: job_id,
-    details: { file_name, file_type },
+    metadata: { file_name, file_type },
   }));
 
   // ── N3 (2026-08-14) ─────────────────────────────────────────────────────────────────────────

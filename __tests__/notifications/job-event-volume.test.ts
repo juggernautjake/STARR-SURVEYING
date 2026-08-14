@@ -1,5 +1,5 @@
 // __tests__/notifications/job-event-volume.test.ts — slices N1 and N4 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Two rules, both of which fail by making somebody hear nothing:
 //

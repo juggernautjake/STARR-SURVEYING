@@ -1,5 +1,5 @@
 // app/api/cron/job-event-digest/route.ts — slice N4 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // GET /api/cron/job-event-digest — hourly. Folds each user's queued job events into ONE
 // notification, at the hour that user chose.

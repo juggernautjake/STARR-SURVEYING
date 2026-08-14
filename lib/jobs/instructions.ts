@@ -91,3 +91,56 @@ export function brokenInstructionRefs(text: string | null | undefined, available
   const have = new Set(availableFileIds);
   return extractFileRefs(text).filter((id) => !have.has(id));
 }
+
+// ── WHO MAY READ AND WRITE THE INSTRUCTIONS ─────────────────────────────────────────────────────
+//
+// Extracted from the route on 2026-08-14, after the Q3 role-matrix pass found that **the field crew
+// could not read the instructions written for them**. Read access was org membership alone —
+// `registered_users.default_org_id` plus a matching `organization_members` row — and the firm's only
+// `field_crew` user has neither, so Work Mode's Instructions tab (which calls that route) answered
+// *"Could not load instructions."* on the truck. The office side worked perfectly, because every
+// admin has an org row, so nothing looked wrong from where anybody was looking.
+//
+// Pure and here rather than inline in the route, because the rule is the thing worth pinning: it has
+// three distinct actors and one asymmetry (being on the crew reads but never writes), and none of
+// that is visible from a status code in a route body.
+
+export interface InstructionsActor {
+  /** Their `organization_members.role` for the org that owns this job, when they have one. */
+  orgRole: string | null;
+  /** True when the actor's org is the job's org. An org member on ANOTHER tenant's job is not a
+   *  member for this purpose, which is why this is separate from `orgRole`. */
+  sameOrg: boolean;
+  /** An active `job_team` row on THIS job — not removed, not declined. */
+  onCrew: boolean;
+  /** They are the job's `lead_rpls_email`. */
+  isLeadRpls: boolean;
+}
+
+/**
+ * May they READ this job's instructions?
+ *
+ * Being on the job's crew is a STRONGER claim than generic org membership — it names this one job
+ * rather than every job in the tenant — so it is an additional path, not a relaxation.
+ *
+ * `isLeadRpls` is here for a reason found by the invariant test at the bottom of
+ * __tests__/jobs/instructions-access.test.ts, not by design: without it, a lead RPLS holding no org
+ * row and no crew row could WRITE the instructions and then be told the job does not exist when
+ * they tried to read them back. Anyone who may write must be able to read, and the lead RPLS is
+ * accountable for the job whether or not anybody remembered to add them to anything — the same rule
+ * `jobRecipients` applies when deciding who hears about it.
+ */
+export function canReadInstructions(a: InstructionsActor): boolean {
+  return a.sameOrg || a.onCrew || a.isLeadRpls;
+}
+
+/**
+ * May they WRITE them?
+ *
+ * Unchanged by the crew fix, and deliberately so: the instructions are what the office tells the
+ * field, and a crew member editing the instructions they were given would erase the record of what
+ * they were actually told. An org admin on the job's own org, or the job's lead RPLS.
+ */
+export function canWriteInstructions(a: InstructionsActor): boolean {
+  return (a.sameOrg && a.orgRole === 'admin') || a.isLeadRpls;
+}

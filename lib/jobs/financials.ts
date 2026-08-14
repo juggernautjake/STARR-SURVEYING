@@ -1,5 +1,5 @@
 // lib/jobs/financials.ts — slice J3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // > **Done when:** the Financial tab states quoted / invoiced / paid / outstanding, and payments
 // > recorded elsewhere appear here rather than only in the finance area.

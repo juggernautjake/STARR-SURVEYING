@@ -73,10 +73,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Log activity
   await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
-    action: 'job_stage_changed',
+    action_type: 'job_stage_changed',
     entity_type: 'job',
     entity_id: job_id,
-    details: { from: job.stage, to: to_stage },
+    metadata: { from: job.stage, to: to_stage },
   }));
 
   // ── N3 (2026-08-14): moved onto the one notifier ────────────────────────────────────────────

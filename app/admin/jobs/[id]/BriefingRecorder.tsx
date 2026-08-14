@@ -1,5 +1,5 @@
 // app/admin/jobs/[id]/BriefingRecorder.tsx — slice B2 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Owner, 2026-08-13: *"I also want my dad to be able to take screen recordings and talk at the same
 // time so that he can go over everything with the given job and post the video so I can watch it on

@@ -1,6 +1,6 @@
 // lib/jobs/briefings.ts — the rules the briefing routes share, kept pure so they can be tested
 // without a database. Slice B3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // ── WHY THE STORAGE PATH IS A FUNCTION ──────────────────────────────────────────────────────────
 //

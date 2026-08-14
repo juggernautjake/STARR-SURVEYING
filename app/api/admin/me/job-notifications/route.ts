@@ -1,5 +1,5 @@
 // app/api/admin/me/job-notifications/route.ts — slice N4 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 //   GET   → my settings, with the product defaults filled in for anything I never chose.
 //   PATCH → change some of them.

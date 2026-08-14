@@ -1,5 +1,5 @@
 // lib/jobs/briefing-upload.ts — the browser half of the direct-to-storage upload. Slice B3 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // ── WHY XMLHttpRequest IN 2026 ──────────────────────────────────────────────────────────────────
 //

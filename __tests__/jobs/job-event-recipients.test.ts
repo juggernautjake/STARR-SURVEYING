@@ -1,5 +1,5 @@
 // __tests__/jobs/job-event-recipients.test.ts — slice N1 of
-// docs/planning/in-progress/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
+// docs/planning/completed/JOB_LIFECYCLE_AND_BRIEFINGS_2026-08-14.md
 //
 // Owner: *"Every time something happens with a job that someone is assigned to, they should get a
 // notification about that thing."*

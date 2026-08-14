@@ -313,9 +313,64 @@ for all four office roles to manage this well; that is a claim to be tested, not
 | N3 Wire mutations | ✅ SHIPPED 2026-08-14 |
 | N4 Volume control | ✅ SHIPPED 2026-08-14 |
 | N5 Guard | ✅ SHIPPED 2026-08-14 |
-| Q1 Screen pass | ⬜ |
-| Q2 Portrait pass | ⬜ |
-| Q3 Role matrix | ⬜ |
+| Q1 Screen pass | ✅ SHIPPED 2026-08-14 |
+| Q2 Portrait pass | ✅ SHIPPED 2026-08-14 |
+| Q3 Role matrix | ✅ SHIPPED 2026-08-14 — one deferral, below |
+
+### Q1–Q3 — driven in a browser, 2026-08-14
+
+Signed in as four real accounts against the live database, on a temporary job (`2026-0003`,
+soft-deleted afterwards — production is back to zero active jobs).
+
+**Q1 — every tab of the job detail, plus the `?tab=` deep links notifications now emit.** All
+thirteen render. Three (`instructions`, `briefings`, `financial`) appear stuck on "Loading…" on a
+cold dev server and are simply waiting on first compile; warm, all three render correctly. One real
+failure:
+
+> **The Activity tab 500'd, and the writers behind it had never worked.** `activity_log` has
+> `action_type` and `metadata`; five routes — job created, file uploaded, team added, stage changed,
+> CAD drawing saved — inserted `action` and `details`. Those inserts go through `fireAndForget`,
+> which swallows the rejection, so **not one job event had ever been logged**. Five *other* routes
+> (employees/manage, the three time-logs routes) used the right names, so the table had 59 rows in
+> it and looked healthy. The reader had the mirror-image bug, and reads are not fire-and-forget —
+> which is the only reason anybody found out. Had the select been right, the tab would have been
+> permanently empty and read as "nothing has happened on this job yet".
+> Fixed on both sides; guarded by `__tests__/admin/activity-log-column-names.test.ts`.
+
+**Q2 — 390 × 844, every tab.** No page-level horizontal scroll anywhere (`scrollWidth − clientWidth`
+is 0 on all of them). The Files section-tab row is wider than the viewport by design and scrolls
+inside its own container — verified by scrolling it and confirming the last tab lands fully on
+screen. The two machine-written sections (`From the customer`, `Briefings`) correctly hide
+themselves when empty rather than showing a row of zeroes.
+
+**Q3 — admin, owner/lead RPLS, field crew, office employee.** Money is correctly closed (receipts
+and recording a payment are 403 for both non-admins) and the job record is correctly open. One
+important thing WAS admin-only by accident, and it was the worst possible one:
+
+> **The field crew could not read the field-crew instructions.** Read access was org membership
+> alone — a `registered_users.default_org_id` plus a matching `organization_members` row — and the
+> firm's only `field_crew` user has neither. Work Mode's Instructions tab calls exactly that route,
+> so on the truck it answered *"Could not load instructions."* The office side worked perfectly,
+> because every admin has an org row; the defect is invisible unless you sign in as somebody else.
+> Being on the job's crew is now an additional read path — a *stronger* claim than generic org
+> membership, since it names one job rather than every job in the tenant — and it is read-only:
+> authoring is still lead-RPLS-or-admin. Verified live: crew on the job reads (`canEdit: false`),
+> crew cannot write (403), a job they are not on stays invisible (404).
+>
+> The rule moved into `canReadInstructions` / `canWriteInstructions` and a write-implies-read
+> invariant test immediately found a second hole I had just introduced: a lead RPLS with no org row
+> could WRITE the instructions and then be told the job did not exist when reading them back.
+
+**Deferred, with reason:** the *researcher* row of the matrix was not tested against a real account,
+because no researcher-without-admin user exists in the database — every researcher is also an admin,
+so the probe would only have re-measured the admin row. The rule that governs them is covered by
+`__tests__/jobs/instructions-access.test.ts` (an org member who is not an admin reads and does not
+author). Worth a live pass the day such an account exists.
+
+**Owner action, not a code fix:** `jackcabaniss@starr-surveying.com` — the only field crew account —
+has `default_org_id: NULL` and no `organization_members` row. The instructions fix makes the crew
+feature work regardless, but that account is still invisible to everything else org-scoped. Granting
+org membership is a permission change on live data and is left for the owner to make deliberately.
 
 ### What the build found (2026-08-14)
 
