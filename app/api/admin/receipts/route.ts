@@ -34,6 +34,9 @@ import type { ReceiptRow, AdminReceiptRow, ReceiptPaymentCard } from '@/app/admi
 // behind it must answer the question the same way, and the surest way to guarantee that is one
 // function. See its note in receipt-types.ts for why `queued` is deliberately not "needs review".
 import { needsReview } from '@/app/admin/receipts/receipt-types';
+// F1 — the filter rules live in a pure module so they can be tested without a database, and so the
+// UI and the route agree about what "search by location" means. See its header for the date bug.
+import { parseReceiptFilters, truthy, vendorSearchExpression } from '@/lib/receipts/filters';
 export type { AdminReceiptRow };
 
 const SIGNED_URL_TTL_SEC = 60 * 15;
@@ -49,25 +52,34 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   const { searchParams } = new URL(req.url);
-  const status = searchParams.get('status');
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
-  const email = searchParams.get('email');
-  const jobId = searchParams.get('jobId');
-  // Soft-deleted rows (Batch CC) are hidden by default — they're
-  // tombstones for IRS retention, not part of the day-to-day
-  // queue. The bookkeeper can flip the "Show deleted" toggle to
-  // include them when reviewing the audit trail (Batch FF). Accept
-  // any of '1', 'true', 'yes' so curl-from-the-CLI calls don't
-  // need to remember the canonical form.
-  const includeDeleted = (() => {
-    const raw = (searchParams.get('include_deleted') ?? '').toLowerCase();
-    return raw === '1' || raw === 'true' || raw === 'yes';
-  })();
-  // Cap at 500: bookkeeper queue rarely needs more in one page — a
-  // tighter date range is the recommended path for big exports. The
-  // client default of 100 fits ~3 screens of rows.
-  const limit = Math.max(1, Math.min(500, parseInt(searchParams.get('limit') ?? '100', 10)));
+  // F1 — one parser for every filter, shared with the UI and tested without a database. See
+  // lib/receipts/filters.ts for why `dateField` exists.
+  const f = parseReceiptFilters({
+    status: searchParams.get('status'),
+    from: searchParams.get('from'),
+    to: searchParams.get('to'),
+    dateField: searchParams.get('dateField'),
+    email: searchParams.get('email'),
+    jobId: searchParams.get('jobId'),
+    q: searchParams.get('q'),
+    category: searchParams.get('category'),
+    paymentMethod: searchParams.get('paymentMethod'),
+    last4: searchParams.get('last4'),
+    cardId: searchParams.get('cardId'),
+    includeDeleted: truthy(searchParams.get('include_deleted')),
+    limit: searchParams.get('limit'),
+  });
+  const status = f.status;
+  const email = f.email;
+  const jobId = f.jobId;
+  // Soft-deleted rows (Batch CC) are hidden by default — they're tombstones for IRS retention, not
+  // part of the day-to-day queue. The bookkeeper can flip the "Show deleted" toggle to include them
+  // when reviewing the audit trail (Batch FF). `truthy` accepts '1' / 'true' / 'yes' / 'on' so a
+  // curl-from-the-CLI call doesn't need to remember the canonical form.
+  const includeDeleted = f.includeDeleted;
+  // Cap at 500: the bookkeeper queue rarely needs more in one page — a tighter date range is the
+  // recommended path for big exports. The client default of 100 fits ~3 screens of rows.
+  const limit = f.limit;
 
   // When the bookkeeper filters by submitter email, resolve to the
   // matching auth.users.id BEFORE running the Postgres query so the
@@ -131,6 +143,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   } else if (status) {
     query = query.eq('status', status);
   }
+  // D3 — one receipt by id, which the slideshow uses to re-sign a photo whose 15-minute URL expired
+  // mid-review. Cheaper and less surprising than a second endpoint that would have to duplicate all
+  // the annotation batching this route already does.
+  const receiptId = searchParams.get('receiptId');
+  if (receiptId) query = query.eq('id', receiptId);
+
   if (jobId) query = query.eq('job_id', jobId);
   if (resolvedUserId) query = query.eq('user_id', resolvedUserId);
   if (!includeDeleted) {
@@ -139,14 +157,53 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     // explicit IS NULL guard.
     query = query.is('deleted_at', null);
   }
-  if (from) {
-    // Date filter applies to created_at only — see the in-line note
-    // on the export route for the reasoning. Bookkeepers rarely care
-    // about a single-day boundary cliff.
-    query = query.gte('created_at', `${from}T00:00:00.000Z`);
-  }
-  if (to) {
-    query = query.lte('created_at', `${to}T23:59:59.999Z`);
+  // ── F1 (2026-08-14) — the date range now bounds the column it says it does ──────────────────
+  //
+  // This filtered `created_at` while the header of this file claimed it used `transaction_at` "OR
+  // (when null) created_at". There was no COALESCE and never had been, so "show me April" meant
+  // *recorded* in April: a receipt photographed on 2 May for a 28 April purchase filed under May,
+  // with no query able to say otherwise.
+  //
+  // `dateField` makes the choice explicit — `purchase` (`transaction_at`) or `recorded`
+  // (`created_at`) — and defaults to `recorded`, which is what every existing caller has been
+  // getting. Changing the default instead would silently move everyone's results.
+  //
+  // On `purchase`, rows with a null `transaction_at` drop out of a bounded range. That is correct
+  // and is the point: a receipt whose purchase date the AI could not read cannot answer "what was
+  // bought in April", and quietly substituting the upload date is how a May expense lands in an
+  // April tax period.
+  if (f.from) query = query.gte(f.dateColumn, `${f.from}T00:00:00.000Z`);
+  if (f.to) query = query.lte(f.dateColumn, `${f.to}T23:59:59.999Z`);
+
+  // ── F1 — find the set worth reviewing ───────────────────────────────────────────────────────
+  if (f.category) query = query.eq('category', f.category);
+  if (f.paymentMethod) query = query.eq('payment_method', f.paymentMethod);
+  if (f.cardId) query = query.eq('payment_card_id', f.cardId);
+  // `last4` matches the digits PRINTED ON THE SLIP, which is deliberately not the same question as
+  // `cardId`: the owner's case is a card that is *not* in the registry, and those receipts have a
+  // `payment_last4` and a null `payment_card_id`. Searching the printed digits finds both.
+  if (f.last4) query = query.eq('payment_last4', f.last4);
+
+  // Free text over vendor name AND address — somebody searching "Las Cruces" does not know or care
+  // which column the town is stored in. Escaped, because PostgREST parses `,` and `.` as separators
+  // inside an `or()` and an unescaped vendor like "Smith, Jones & Co." would not error, it would
+  // quietly return the wrong rows.
+  //
+  // NOT combined with the needs-review `or()` above: two `.or()` calls on one PostgREST query are
+  // OR'd together, not AND'd, so searching inside the needs-review tab would WIDEN the result to
+  // everything matching the text. They are applied as separate steps only when compatible.
+  const searchExpr = vendorSearchExpression(f.q);
+  if (searchExpr) {
+    if (needsReviewView) {
+      // Text search inside the needs-review view would need `and(or(…),or(…))`, which PostgREST
+      // supports but which no caller asks for yet. Refused loudly rather than silently returning a
+      // wider set than the person asked for.
+      return NextResponse.json(
+        { error: 'Text search is not available inside the “needs review” view. Pick a status tab first.' },
+        { status: 400 },
+      );
+    }
+    query = query.or(searchExpr);
   }
 
   const { data: rows, error } = await query;
@@ -159,8 +216,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       error: error.message,
       code: (error as { code?: string }).code ?? null,
       status,
-      from,
-      to,
+      from: f.from,
+      to: f.to,
+      dateField: f.dateField,
       email,
       jobId,
     });
@@ -388,8 +446,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     if (jobId) q = q.eq('job_id', jobId);
     if (resolvedUserId) q = q.eq('user_id', resolvedUserId);
     if (!includeDeleted) q = q.is('deleted_at', null);
-    if (from) q = q.gte('created_at', `${from}T00:00:00.000Z`);
-    if (to) q = q.lte('created_at', `${to}T23:59:59.999Z`);
+    // F1 — the badge counts the same set the list would return, on the same date column and under
+    // the same narrowing filters. The alternative is a "12 need review" badge over a filtered list
+    // showing three, which is exactly the badge/list disagreement the predicate constant above was
+    // extracted to prevent.
+    if (f.from) q = q.gte(f.dateColumn, `${f.from}T00:00:00.000Z`);
+    if (f.to) q = q.lte(f.dateColumn, `${f.to}T23:59:59.999Z`);
+    if (f.category) q = q.eq('category', f.category);
+    if (f.paymentMethod) q = q.eq('payment_method', f.paymentMethod);
+    if (f.cardId) q = q.eq('payment_card_id', f.cardId);
+    if (f.last4) q = q.eq('payment_last4', f.last4);
     const { count, error: countErr } = await q;
     if (countErr) {
       // Non-fatal: a queue that will not load because a badge could not be counted is a worse

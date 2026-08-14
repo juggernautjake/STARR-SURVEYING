@@ -24,6 +24,8 @@ import { PromoteToAssetPanel } from './PromoteToAsset';
 import { receiptTaxLine } from '@/lib/finance/tax-summary';
 import JobRefPicker from '@/app/admin/components/jobs/JobRefPicker';
 import type { ReceiptAiHealth } from '@/app/api/admin/receipts/ai-health/route';
+import ReceiptSlideshow from './ReceiptSlideshow';
+import { parseReceiptFilters, describeFilters } from '@/lib/receipts/filters';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -132,6 +134,24 @@ export default function ReceiptsApprovalPage() {
   /** Whether this deployment can run the AI at all, and what is waiting. Null until the first check. */
   const [aiHealth, setAiHealth] = useState<ReceiptAiHealth | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // ── The slideshow (RECEIPT_REVIEW_SLIDESHOW_2026-08-14) ──────────────────────────────────────
+  //
+  // Owner: *"instead of having to go down and individually click each receipt to open it, (which we
+  // can also do)"* — so this is ADDITIVE. `expandedId` above is untouched; the row still expands in
+  // place for somebody who only wants to glance at one.
+  //
+  // The index, not the id: the arrows walk the filtered list in the order shown, and an id would
+  // need a lookup on every keypress.
+  const [slideshowAt, setSlideshowAt] = useState<number | null>(null);
+  // F1 — the review filters. Kept beside the existing date/email ones rather than replacing them.
+  const [q, setQ] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
+  const [cardFilter, setCardFilter] = useState('');
+  const [last4Filter, setLast4Filter] = useState('');
+  const [dateField, setDateField] = useState<'recorded' | 'purchase'>('recorded');
+  // The saved cards are already fetched once below for the payer panel — the card filter and the
+  // slideshow's card picker reuse that list rather than fetching it a second time.
   // Bulk-approve selection (Batch JJ). Only meaningful on the
   // 'pending' tab — when the bookkeeper switches tabs we drop the
   // selection so a stale set can't leak to the wrong status.
@@ -159,15 +179,21 @@ export default function ReceiptsApprovalPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ status: tab, from, to });
+      const params = new URLSearchParams({ status: tab, from, to, dateField });
       if (emailFilter.trim()) params.set('email', emailFilter.trim());
       if (showDeleted) params.set('include_deleted', '1');
+      // F1 — only sent when set, so an untouched control does not narrow the list.
+      if (q.trim()) params.set('q', q.trim());
+      if (categoryFilter) params.set('category', categoryFilter);
+      if (methodFilter) params.set('paymentMethod', methodFilter);
+      if (cardFilter) params.set('cardId', cardFilter);
+      if (last4Filter.trim()) params.set('last4', last4Filter.trim());
       const res = await safeFetch<ListResponse>(`/api/admin/receipts?${params}`);
       setData(res ?? { receipts: [], counters: zeroCounters() });
     } finally {
       setLoading(false);
     }
-  }, [tab, from, to, emailFilter, showDeleted, safeFetch]);
+  }, [tab, from, to, dateField, emailFilter, showDeleted, q, categoryFilter, methodFilter, cardFilter, last4Filter, safeFetch]);
 
   useEffect(() => {
     void load();
@@ -212,6 +238,20 @@ export default function ReceiptsApprovalPage() {
 
   const counters = data?.counters ?? zeroCounters();
   const receipts = useMemo(() => data?.receipts ?? [], [data?.receipts]);
+
+  /** A sentence naming the active filter, shown in the viewer's header. Without it, a reviewer who
+   *  walked 8 receipts and expected 40 has no way to tell a filter from a missing receipt. */
+  const slideshowFilterNote = useMemo(() => {
+    const parts = describeFilters(
+      parseReceiptFilters({
+        status: tab, from, to, dateField, email: emailFilter, q,
+        category: categoryFilter, paymentMethod: methodFilter,
+        cardId: cardFilter, last4: last4Filter,
+      }),
+      cards.find((c) => c.id === cardFilter)?.label ?? null,
+    );
+    return parts.length > 0 ? `${tab} · ${parts.join(' · ')}` : tab;
+  }, [tab, from, to, dateField, emailFilter, q, categoryFilter, methodFilter, cardFilter, last4Filter, cards]);
 
   const onToggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -392,7 +432,77 @@ export default function ReceiptsApprovalPage() {
               style={styles.input}
             />
           </label>
-          <label style={{ ...styles.filterLabel, flex: 1 }}>
+          {/* F1 — WHICH date the range bounds. The endpoint has always filtered `created_at` while
+              its own header claimed `transaction_at`, so "show me April" meant *recorded* in April
+              and a 28 April purchase photographed on 2 May was filed under May with no way to ask
+              otherwise. These are two different questions and this says which one is being asked. */}
+          <label style={styles.filterLabel}>
+            Dates are
+            <select
+              value={dateField}
+              onChange={(e) => setDateField(e.target.value as 'recorded' | 'purchase')}
+              style={styles.select}
+              title="Whether the range above applies to when the purchase was made, or when the receipt was recorded"
+            >
+              <option value="recorded">when recorded</option>
+              <option value="purchase">when purchased</option>
+            </select>
+          </label>
+          <label style={{ ...styles.filterLabel, flex: 1, minWidth: 180 }}>
+            Vendor or place
+            <input
+              type="search"
+              placeholder="Desert Sands, Las Cruces…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={styles.input}
+              title="Searches the vendor name and the address printed on the receipt"
+            />
+          </label>
+          <label style={styles.filterLabel}>
+            Type
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={styles.select}>
+              <option value="">Any type</option>
+              {['supplies', 'meals', 'fuel', 'lodging', 'equipment', 'materials', 'travel', 'office', 'permits', 'subcontractor', 'other']
+                .map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={styles.filterLabel}>
+            Paid by
+            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} style={styles.select}>
+              <option value="">Any method</option>
+              <option value="card">card</option>
+              <option value="cash">cash</option>
+              <option value="check">check</option>
+              <option value="other">other</option>
+            </select>
+          </label>
+          <label style={styles.filterLabel}>
+            Card on file
+            <select value={cardFilter} onChange={(e) => setCardFilter(e.target.value)} style={styles.select}>
+              <option value="">Any card</option>
+              {cards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {(c.label || c.brand || 'Card')} ···· {c.last4 ?? ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {/* Deliberately separate from the picker above: the owner's case is a card that is NOT on
+              file — an employee's own card that printed four digits and matched nothing. Those
+              receipts have a `payment_last4` and a null `payment_card_id`, so only a search on the
+              printed digits finds them. */}
+          <label style={styles.filterLabel}>
+            or card ending
+            <input
+              type="text" inputMode="numeric" placeholder="4824" maxLength={19}
+              value={last4Filter}
+              onChange={(e) => setLast4Filter(e.target.value)}
+              style={{ ...styles.input, minWidth: 110 }}
+              title="Type any part of a card number — only the last four digits are used"
+            />
+          </label>
+          <label style={{ ...styles.filterLabel, flex: 1, minWidth: 160 }}>
             Submitter email (optional)
             <input
               type="text"
@@ -425,6 +535,32 @@ export default function ReceiptsApprovalPage() {
               />
               <span>Show deleted</span>
             </span>
+          </label>
+          {/* The slideshow, over whatever the filters above have selected. Disabled with a reason
+              when there is nothing to walk — a button that opens an empty viewer teaches people it
+              is broken. */}
+          <label style={styles.filterLabel} aria-label="Review these receipts one at a time">
+            <span aria-hidden>&nbsp;</span>
+            <button
+              type="button"
+              onClick={() => setSlideshowAt(0)}
+              disabled={receipts.length === 0}
+              style={{
+                ...styles.refreshButton,
+                background: receipts.length === 0 ? undefined : 'var(--color-brand-navy)',
+                color: receipts.length === 0 ? undefined : 'var(--color-text-on-brand)',
+                borderColor: receipts.length === 0 ? undefined : 'var(--color-brand-navy)',
+                opacity: receipts.length === 0 ? 0.5 : 1,
+                cursor: receipts.length === 0 ? 'default' : 'pointer',
+              }}
+              title={
+                receipts.length === 0
+                  ? 'Nothing to review in this filter'
+                  : `Step through all ${receipts.length} of these one at a time, with the photo enlarged`
+              }
+            >
+              Review {receipts.length > 0 ? `all ${receipts.length}` : ''}
+            </button>
           </label>
           <label style={styles.filterLabel} aria-label="Refresh the list">
             <span aria-hidden>&nbsp;</span>
@@ -479,9 +615,24 @@ export default function ReceiptsApprovalPage() {
               }
               selected={selectedIds.has(r.id)}
               onToggleSelected={() => onToggleSelected(r.id)}
+              onOpenSlideshow={() => setSlideshowAt(receipts.indexOf(r))}
             />
           ))}
         </div>
+      )}
+
+      {/* The slideshow. Mounted only while open, so its keyboard handlers and body-scroll lock are
+          not live over the list. It walks `receipts` — the filtered set, in the order shown — which
+          is why it takes an index rather than an id. */}
+      {slideshowAt !== null && receipts.length > 0 && (
+        <ReceiptSlideshow
+          receipts={receipts}
+          startIndex={slideshowAt}
+          filterNote={slideshowFilterNote}
+          cards={cards}
+          onClose={() => setSlideshowAt(null)}
+          onChanged={() => void load()}
+        />
       )}
 
       {/* Sticky bulk-approve action bar (Batch JJ). Renders only on
@@ -532,6 +683,9 @@ interface ReceiptRowProps {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
+  /** Opens the slideshow starting on THIS receipt. The row's own expand-in-place is unchanged —
+   *  the owner asked for both paths ("which we can also do"). */
+  onOpenSlideshow?: () => void;
 }
 
 function ReceiptRow({
@@ -543,6 +697,7 @@ function ReceiptRow({
   selectable,
   selected,
   onToggleSelected,
+  onOpenSlideshow,
   onRefresh,
 }: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
@@ -752,6 +907,19 @@ function ReceiptRow({
           </span>
         </div>
       </button>
+      {/* Outside the summary button, because a button inside a button is invalid HTML and the
+          browser silently un-nests it — which drops the click handler. */}
+      {onOpenSlideshow ? (
+        <button
+          type="button"
+          onClick={onOpenSlideshow}
+          style={styles.rowViewBtn}
+          title="Open this receipt in the reviewer, with the photo enlarged and zoomable"
+          aria-label={`Review ${row.vendor_name ?? 'this receipt'} in the slideshow`}
+        >
+          Review
+        </button>
+      ) : null}
       </div>
 
       {expanded ? (
@@ -1447,6 +1615,22 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#374151',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
+  },
+  /** The per-row "Review" button. Tokens throughout — the older styles in this file mix raw hex
+   *  (`#666`, `#ccc`) which is invisible in one of the two themes. */
+  rowViewBtn: {
+    alignSelf: 'center',
+    marginRight: 12,
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-primary)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   refreshButton: {
     padding: '0 16px',

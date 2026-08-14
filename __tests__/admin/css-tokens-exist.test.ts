@@ -75,6 +75,20 @@ function definedTokens(): Set<string> {
   return out;
 }
 
+/**
+ * Strip comments before scanning.
+ *
+ * Necessary, not tidiness: the files that document this very bug quote the wrong token names while
+ * explaining them — `ReceiptSlideshow.css`'s header names `var(--border)`/`var(--surface)` as the
+ * mistake to avoid, and `PayerDecision.tsx` does the same. A scanner over raw text flags the
+ * explanation as the defect, which teaches people to delete the explanation.
+ *
+ * The `//` rule spares `://` so a URL in a comment does not truncate the line.
+ */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 /** Every `var(--token)` reference WITHOUT a fallback, across components and stylesheets. */
 function bareReferences(): Array<{ file: string; token: string }> {
   const out: Array<{ file: string; token: string }> = [];
@@ -90,7 +104,7 @@ function bareReferences(): Array<{ file: string; token: string }> {
   walk(path.join(ROOT, 'app'));
   walk(path.join(ROOT, 'components'));
   for (const f of files) {
-    const src = fs.readFileSync(f, 'utf8');
+    const src = stripComments(fs.readFileSync(f, 'utf8'));
     // `var(--x)` with no comma before the closing paren — i.e. no fallback supplied.
     for (const m of src.matchAll(/var\(\s*(--[a-zA-Z0-9_-]+)\s*\)/g)) {
       out.push({ file: path.relative(ROOT, f).split(path.sep).join('/'), token: m[1]! });

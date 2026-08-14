@@ -31,6 +31,16 @@ import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'exported']);
 const ALLOWED_TAX_FLAGS = new Set(['full', 'partial_50', 'none', 'review']);
+/** The column has no CHECK constraint — seed 220 records these four in a comment only — so the
+ *  validation has to live here or the column accepts anything a client sends. */
+const ALLOWED_PAYMENT_METHODS = new Set(['card', 'cash', 'check', 'other']);
+/** Editing any of these means a human has corrected what the AI read, which is what
+ *  `user_reviewed_at` records. Deciding a status or filing to a job is not that. */
+const TOUCHES_EXTRACTED_FIELDS = [
+  'vendor_name', 'vendor_address', 'transaction_at',
+  'subtotal_cents', 'tax_cents', 'tip_cents', 'total_cents',
+  'payment_method', 'payment_last4',
+] as const;
 
 interface PatchBody {
   status?: string;
@@ -39,6 +49,25 @@ interface PatchBody {
   tax_deductible_flag?: string | null;
   notes?: string | null;
   job_id?: string | null;
+  // ── V4 (2026-08-14) — the extracted fields became editable ──────────────────────────────────
+  //
+  // Owner: *"sometimes the AI gets info wrong… we need to be able to manually edit all of the info
+  // for each receipt if needed."* Until now this route accepted the bookkeeper's DECISIONS
+  // (status, category, tax flag, job) but none of the facts the AI had read — so a mis-read vendor
+  // or a transposed total could be seen and not corrected. The only recourse was re-running the AI
+  // and hoping it read it differently the second time.
+  //
+  // Each one is validated below rather than passed through: these write to typed columns, and a
+  // total of "12.3.4" reaching an INT column is a 500 the bookkeeper cannot act on.
+  vendor_name?: string | null;
+  vendor_address?: string | null;
+  transaction_at?: string | null;
+  subtotal_cents?: number | null;
+  tax_cents?: number | null;
+  tip_cents?: number | null;
+  total_cents?: number | null;
+  payment_method?: string | null;
+  payment_last4?: string | null;
   // ── Seed 591 — answering "whose money was this?" ────────────────────────────────────────────
   /** 'business' | 'personal' | null. The one fact nothing can derive. */
   expense_nature?: string | null;
@@ -119,6 +148,77 @@ export const PATCH = withErrorHandler(
     }
     if (body.notes !== undefined) {
       update.notes = body.notes;
+    }
+
+    // ── V4 — the extracted facts, each validated for the column it lands in ─────────────────────
+    for (const key of ['vendor_name', 'vendor_address'] as const) {
+      if (body[key] !== undefined) {
+        const v = body[key];
+        if (v !== null && typeof v !== 'string') {
+          return NextResponse.json({ error: `${key} must be text or null` }, { status: 400 });
+        }
+        // An empty box means "clear it", not "store an empty string" — a blank vendor and a vendor
+        // of "" read the same on screen and sort differently in an export.
+        update[key] = v === null ? null : v.trim() || null;
+      }
+    }
+
+    if (body.transaction_at !== undefined) {
+      if (body.transaction_at === null) {
+        update.transaction_at = null;
+      } else if (typeof body.transaction_at !== 'string' || Number.isNaN(Date.parse(body.transaction_at))) {
+        return NextResponse.json({ error: 'transaction_at must be an ISO timestamp or null' }, { status: 400 });
+      } else {
+        update.transaction_at = new Date(body.transaction_at).toISOString();
+      }
+    }
+
+    for (const key of ['subtotal_cents', 'tax_cents', 'tip_cents', 'total_cents'] as const) {
+      if (body[key] === undefined) continue;
+      const v = body[key];
+      if (v === null) { update[key] = null; continue; }
+      // Integer cents only. A float here is silently truncated by Postgres, so $12.345 would become
+      // $12.34 with no indication — the parsing belongs on the client (lib/receipts/edit.ts) and
+      // this is the guard that says so if it did not happen.
+      if (typeof v !== 'number' || !Number.isFinite(v) || !Number.isInteger(v)) {
+        return NextResponse.json(
+          { error: `${key} must be a whole number of cents (or null) — 12.34 dollars is 1234` },
+          { status: 400 },
+        );
+      }
+      if (v < 0) return NextResponse.json({ error: `${key} cannot be negative` }, { status: 400 });
+      update[key] = v;
+    }
+
+    if (body.payment_method !== undefined) {
+      const v = body.payment_method;
+      if (v !== null && !ALLOWED_PAYMENT_METHODS.has(v)) {
+        return NextResponse.json(
+          { error: `Invalid payment_method: ${String(v)}. Expected ${[...ALLOWED_PAYMENT_METHODS].join(', ')} or null.` },
+          { status: 400 },
+        );
+      }
+      update.payment_method = v;
+    }
+
+    if (body.payment_last4 !== undefined) {
+      const v = body.payment_last4;
+      if (v === null) {
+        update.payment_last4 = null;
+      } else if (typeof v !== 'string' || !/^\d{4}$/.test(v)) {
+        // Exactly four digits. Anything longer would put more of a card number in the database than
+        // the receipt itself ever prints.
+        return NextResponse.json({ error: 'payment_last4 must be exactly four digits, or null' }, { status: 400 });
+      } else {
+        update.payment_last4 = v;
+      }
+    }
+
+    // A person touched this row. `user_reviewed_at` is what a later automatic pass reads to know a
+    // human has been here — without it, a re-extraction can silently overwrite a correction and the
+    // bookkeeper finds the same wrong vendor back again next week.
+    if (TOUCHES_EXTRACTED_FIELDS.some((k) => k in update)) {
+      update.user_reviewed_at = new Date().toISOString();
     }
     // N3 — the job this receipt was on BEFORE the patch, so "linked to a job" can be told apart
     // from "re-saved with the same job". Read only when `job_id` is in the body, so an ordinary

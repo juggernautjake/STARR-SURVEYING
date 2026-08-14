@@ -1,0 +1,458 @@
+/* app/admin/receipts/ReceiptSlideshow.css — slices V1/V2/V3/V6/P1 of
+   docs/planning/in-progress/RECEIPT_REVIEW_SLIDESHOW_2026-08-14.md
+
+   ── WHY A STYLESHEET AND NOT INLINE STYLES ────────────────────────────────────────────────────
+   The rest of the receipts UI is `style={{…}}` objects, and that is exactly why it has no
+   responsive behaviour: an inline style cannot contain a media query, and cannot express :hover,
+   :focus-visible or :active either. The owner's requirement is two layouts — image beside the
+   summary on a PC, image stacked above it on a phone — so the media query IS the requirement.
+
+   ── EVERY COLOUR IS A TOKEN, AND THE NAMES WERE CHECKED ───────────────────────────────────────
+   The palette is app/styles/tokens.css. It defines --color-error*; there is NO --color-danger*.
+   A var() naming a token that does not exist is dropped at computed-value time and the property
+   renders with no value at all — invisible text, uncoloured buttons, no error anywhere. That has
+   bitten this repo twice: PayerDecision.tsx records a first draft using var(--border)/var(--surface)
+   (neither exists), and the briefing recorder shipped --color-danger on 2026-08-14.
+   __tests__/admin/css-tokens-exist.test.ts now fails the build on it. */
+
+/* ── the overlay ──────────────────────────────────────────────────────────────────────────────
+   Fixed, not nested. `styles.row` in page.tsx carries `overflow: hidden`, which has already
+   clipped an expanded panel out of existence once — anything that must be visible cannot live
+   inside that card. */
+.rcv__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200; /* above MaintenancePicker's 1000, which may be open underneath */
+  background: rgba(9, 14, 22, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(0px, 2vw, 24px);
+  overscroll-behavior: contain;
+}
+
+.rcv__shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  max-width: 1600px;
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
+}
+
+/* ── header ─────────────────────────────────────────────────────────────────────────────────── */
+.rcv__bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-subtle);
+  flex: 0 0 auto;
+  min-height: 52px;
+}
+
+.rcv__counter {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rcv__vendor {
+  font-size: 0.95rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.rcv__filterNote {
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40ch;
+}
+
+.rcv__barSpacer { flex: 1 1 auto; min-width: 0; }
+
+/* ── the two panes ──────────────────────────────────────────────────────────────────────────── */
+.rcv__body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0; /* without this the flex child refuses to shrink and the panel scrolls the page */
+}
+
+/* The flex child of `.rcv__body` — it holds the stage plus the prev/next buttons, which are
+   absolutely positioned against it. The sizing lives HERE rather than on `.rcv__stage`, because
+   this is the element the row/column split actually measures. */
+.rcv__stageWrap {
+  position: relative;
+  display: flex;
+  flex: 1 1 60%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.rcv__stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* A flat, slightly recessed ground — NOT a transparency checkerboard. The first version used one
+     and it was wrong for the content: a receipt photo is fully opaque, so the checks indicate
+     nothing and actively compete with the printed text the reader is trying to make out. A plain
+     surface lets the paper be the brightest thing on screen, which is what you want when the job is
+     reading small print. */
+  background: var(--color-bg-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  touch-action: none; /* we handle pan/pinch ourselves; without this the browser steals the gesture */
+  user-select: none;
+}
+
+.rcv__img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  transform-origin: center center;
+  will-change: transform;
+  /* No CSS transition: a transition on transform fights every wheel tick and makes zoom feel like
+     it is lagging behind the cursor. Snapping is correct for a direct-manipulation gesture. */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.rcv__img--grab { cursor: grab; }
+.rcv__img--grabbing { cursor: grabbing; }
+
+.rcv__stageEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+  color: var(--color-text-tertiary);
+  font-size: 0.85rem;
+  max-width: 44ch;
+}
+
+/* ── zoom controls, floating over the image ─────────────────────────────────────────────────── */
+.rcv__zoomBar {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(12, 18, 28, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(6px);
+}
+
+.rcv__zoomBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #f4f6fa; /* deliberate literal: this bar always sits on its own dark scrim, in both themes */
+  cursor: pointer;
+}
+.rcv__zoomBtn:hover { background: rgba(255, 255, 255, 0.14); }
+.rcv__zoomBtn:disabled { opacity: 0.4; cursor: default; }
+.rcv__zoomBtn:focus-visible { outline: 2px solid var(--color-brand-gold); outline-offset: 2px; }
+
+.rcv__zoomLevel {
+  min-width: 4.5ch;
+  text-align: center;
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  color: #f4f6fa;
+  padding: 0 4px;
+}
+
+/* ── previous / next ────────────────────────────────────────────────────────────────────────── */
+.rcv__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 64px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(12, 18, 28, 0.7);
+  color: #f4f6fa;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.rcv__nav:hover { background: rgba(12, 18, 28, 0.92); }
+.rcv__nav:disabled { opacity: 0.25; cursor: default; }
+.rcv__nav:focus-visible { outline: 2px solid var(--color-brand-gold); outline-offset: 2px; }
+.rcv__nav--prev { left: 10px; }
+.rcv__nav--next { right: 10px; }
+
+/* ── the detail pane ────────────────────────────────────────────────────────────────────────── */
+.rcv__panel {
+  flex: 0 0 clamp(340px, 34%, 520px);
+  border-left: 1px solid var(--color-border);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-bg-card);
+  padding: 14px 16px 28px;
+}
+
+.rcv__section + .rcv__section {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--color-border);
+}
+
+.rcv__sectionTitle {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.rcv__total {
+  font-size: 1.65rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.rcv__totalRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* field grid — label left, value right, wrapping to two lines on a narrow pane */
+.rcv__fields { display: grid; gap: 6px; }
+
+.rcv__field {
+  display: grid;
+  grid-template-columns: minmax(90px, 34%) 1fr;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.84rem;
+  padding: 3px 0;
+}
+
+.rcv__fieldLabel { color: var(--color-text-tertiary); }
+.rcv__fieldValue { min-width: 0; overflow-wrap: anywhere; }
+.rcv__fieldValue--num { font-variant-numeric: tabular-nums; }
+.rcv__fieldValue--empty { color: var(--color-text-tertiary); font-style: italic; }
+
+/* A field the AI was unsure about. Marked, not shouted at — the point is to draw the eye to the
+   two fields worth checking, and a panel where everything is highlighted highlights nothing. */
+.rcv__lowConf {
+  box-shadow: inset 2px 0 0 var(--color-warning);
+  padding-left: 8px;
+  margin-left: -10px;
+}
+
+.rcv__confTag {
+  margin-left: 6px;
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* status + info bands */
+.rcv__band {
+  border: 1px solid var(--color-border);
+  border-left: 4px solid var(--color-info);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--color-text-secondary);
+  margin-bottom: 10px;
+}
+.rcv__band--warn { border-left-color: var(--color-warning); }
+.rcv__band--error { border-left-color: var(--color-error); }
+.rcv__band--ok { border-left-color: var(--color-success); }
+
+.rcv__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.rcv__chip--pending  { background: var(--color-warning-surface); color: var(--color-warning-text); }
+.rcv__chip--approved { background: var(--color-success-surface); color: var(--color-success-text); }
+.rcv__chip--rejected { background: var(--color-error-surface);   color: var(--color-error-text); }
+.rcv__chip--exported { background: var(--color-bg-subtle);       color: var(--color-text-tertiary); }
+
+/* line items */
+.rcv__items { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.rcv__items th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  border-bottom: 1px solid var(--color-border);
+  padding: 4px 6px;
+}
+.rcv__items td { padding: 4px 6px; border-bottom: 1px solid var(--color-border); }
+.rcv__items td:last-child, .rcv__items th:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* controls */
+.rcv__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  border-radius: 6px;
+  padding: 7px 12px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 36px;
+}
+.rcv__btn:hover:not(:disabled) { background: var(--color-bg-hover); }
+.rcv__btn:disabled { opacity: 0.5; cursor: default; }
+.rcv__btn:focus-visible { outline: 2px solid var(--color-brand-gold); outline-offset: 2px; }
+
+.rcv__btn--primary {
+  border-color: var(--color-brand-navy);
+  background: var(--color-brand-navy);
+  color: var(--color-text-on-brand);
+  font-weight: 600;
+}
+.rcv__btn--primary:hover:not(:disabled) { background: var(--color-brand-navy-d); }
+
+.rcv__btn--approve {
+  border-color: var(--color-success);
+  background: var(--color-success);
+  color: var(--color-text-on-brand);
+  font-weight: 600;
+}
+.rcv__btn--danger { border-color: var(--color-error); color: var(--color-error-text); }
+
+.rcv__btnRow { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+.rcv__input,
+.rcv__select,
+.rcv__textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-size: 0.84rem;
+  font-family: inherit;
+  min-height: 36px;
+}
+.rcv__input:focus-visible,
+.rcv__select:focus-visible,
+.rcv__textarea:focus-visible {
+  outline: 2px solid var(--color-brand-gold);
+  outline-offset: 1px;
+}
+.rcv__textarea { min-height: 64px; resize: vertical; line-height: 1.45; }
+
+.rcv__editGrid { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.rcv__editGrid--one { grid-template-columns: 1fr; }
+.rcv__label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  margin-bottom: 3px;
+}
+
+.rcv__dirtyBar {
+  position: sticky;
+  bottom: -28px;
+  margin: 12px -16px -28px;
+  padding: 10px 16px;
+  background: var(--color-bg-subtle);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.rcv__saved { font-size: 0.8rem; color: var(--color-success-text); }
+.rcv__error { font-size: 0.8rem; color: var(--color-error-text); }
+.rcv__muted { font-size: 0.78rem; color: var(--color-text-tertiary); line-height: 1.45; }
+
+.rcv__spin { animation: rcv-spin 1s linear infinite; }
+@keyframes rcv-spin { to { transform: rotate(360deg); } }
+
+/* ── the phone (V6) ───────────────────────────────────────────────────────────────────────────
+   Owner: *"just the image on top of the summary and AI results on mobile."*
+   Below 860px the two panes stack. The stage takes a fixed share of the viewport height rather
+   than flexing, so the summary underneath is always reachable by scrolling — a flexed stage grows
+   to fill and pushes the panel off screen entirely on a tall photo. */
+@media (max-width: 860px) {
+  .rcv__backdrop { padding: 0; }
+  .rcv__shell { border-radius: 0; border: 0; height: 100%; max-width: none; }
+  .rcv__body { flex-direction: column; }
+  /* The WRAPPER is the flex child, so this is where the share is set. Fixed rather than flexed:
+     a flexed stage grows to fit a tall photo and pushes the summary off the screen entirely. */
+  .rcv__stageWrap { flex: 0 0 46vh; }
+  .rcv__panel {
+    flex: 1 1 auto;
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+    padding: 12px 14px 32px;
+  }
+  .rcv__filterNote { display: none; }
+  .rcv__editGrid { grid-template-columns: 1fr; }
+  /* Thumb-sized, and clear of the image so a tap to advance is not a tap on the receipt. */
+  .rcv__nav { width: 40px; height: 52px; }
+  .rcv__nav--prev { left: 6px; }
+  .rcv__nav--next { right: 6px; }
+  .rcv__btn { min-height: 42px; padding: 9px 14px; }
+  .rcv__input, .rcv__select, .rcv__textarea { min-height: 42px; font-size: 16px; }
+}
+
+/* 16px on the inputs above is deliberate and not a typo: iOS Safari zooms the whole page when a
+   focused input's font-size is below 16px, which on a fixed overlay looks like the viewer breaking. */
+
+@media (prefers-reduced-motion: reduce) {
+  .rcv__spin { animation: none; }
+}
