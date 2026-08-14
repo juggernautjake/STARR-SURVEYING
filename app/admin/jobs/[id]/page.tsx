@@ -8,7 +8,7 @@ import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder,
   Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
-  Circle, ListChecks, type LucideIcon,
+  Circle, ListChecks, FileCheck2, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
@@ -28,6 +28,7 @@ import JobActivityFeed from '../../components/jobs/JobActivityFeed';
 import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
 import JobPhaseScheduler from './JobPhaseScheduler';
 import JobInstructions from './JobInstructions';
+import JobDeliverables from './JobDeliverables';
 // contacts plan Slice 6 (2026-05-30) — job ↔ contact linking.
 import LinkContactDialog from '../../components/jobs/LinkContactDialog';
 import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
@@ -95,6 +96,10 @@ const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
   { key: 'files', label: 'Files', Icon: Folder, tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
   { key: 'photos', label: 'Photos', Icon: Camera, tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
+  // Deliverables sit before Financial because that is the order the job happens in: you hand it over,
+  // then you get paid for it. The API behind this has been complete since it was written and had no
+  // screen — the client portal listed deliverables the firm had no way to create.
+  { key: 'deliverables', label: 'Deliverables', Icon: FileCheck2, tip: 'What this job hands over — plats, drawings, certificates — and what happened to each: sealed by whom, issued to whom, and whether it was received. A new revision supersedes the one before it rather than overwriting it.' },
   { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
   { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
@@ -885,6 +890,10 @@ export default function JobDetailPage() {
 
         {activeTab === 'photos' && (
           <JobPhotoGallery jobId={jobId} onCountChange={setPhotoCount} />
+        )}
+
+        {activeTab === 'deliverables' && (
+          <JobDeliverables jobId={jobId} selfName={session?.user?.name ?? ''} />
         )}
 
         {activeTab === 'financial' && (
