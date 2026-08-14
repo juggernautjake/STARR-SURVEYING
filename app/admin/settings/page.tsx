@@ -8,6 +8,7 @@ import {
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import HoursNotificationSetting from './HoursNotificationSetting';
+import JobNotificationSettings from './JobNotificationSettings';
 
 interface GeneralSettings {
   companyName: string;
@@ -202,6 +203,11 @@ export default function SettingsPage() {
             {/* Renders nothing for somebody who cannot approve hours — a toggle that changes
                 nothing teaches people the settings page lies. */}
             <HoursNotificationSetting />
+
+            {/* N4 — ships with N3, not after it. Wiring twelve job events to notify without a way
+                to turn the volume down is how a phone gets muted, which loses the events that
+                mattered along with the ones that did not. */}
+            <JobNotificationSettings />
           </div>
         )}
 

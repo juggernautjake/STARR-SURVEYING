@@ -65,6 +65,8 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyJobAssignment } from '@/lib/notifications';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 import {
   resolveTemplate,
   type ResolvedItem,
@@ -721,6 +723,34 @@ export const POST = withErrorHandler(
         );
       }
       assignments = insertedSlots ?? [];
+    }
+
+    // ── N3 (2026-08-14) — applying a template staffs the job ────
+    //
+    // Found by the N5 source scan, not by anybody noticing. This route inserts `job_team` rows —
+    // it is a second, quieter way to put people on a crew, alongside personnel/assign — and it
+    // notified nobody at all: not the people assigned, not the crew they were joining. A dispatcher
+    // applying the "2-man boundary crew" template staffed a job in one click and the crew found out
+    // from the dashboard, if they looked.
+    //
+    // `notifyJobAssignment` for each person, then one message for the job. Same shape as
+    // personnel/assign, so the two paths onto a crew feel identical from the outside.
+    if (assignments.length > 0) {
+      const { data: job } = await supabaseAdmin
+        .from('jobs').select('job_number, name').eq('id', jobId).maybeSingle();
+      const jobRow = job as { job_number: string | null; name: string | null } | null;
+      const assigned = assignments as Array<{ user_email: string; slot_role: string | null }>;
+      for (const a of assigned) {
+        await notifyJobAssignment(
+          a.user_email, jobRow?.job_number ?? '', jobRow?.name ?? 'a job', jobId,
+        );
+      }
+      const names = assigned.map((a) => `${a.user_email}${a.slot_role ? ` (${a.slot_role})` : ''}`).join(', ');
+      await notifyJobEvent(jobId, {
+        kind: 'team_changed',
+        title: assigned.length === 1 ? `${names} added to the crew` : `${assigned.length} added to the crew`,
+        body: assigned.length === 1 ? undefined : names,
+      }, session.user.email, assigned.map((a) => a.user_email));
     }
 
     console.log('[admin/equipment/templates/apply POST] ok', {

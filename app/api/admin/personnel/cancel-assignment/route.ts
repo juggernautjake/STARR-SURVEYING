@@ -31,6 +31,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -204,6 +205,17 @@ export const POST = withErrorHandler(
         { error: (err as Error).message }
       );
     }
+
+    // ── N3 (2026-08-14) — and the crew who were counting on them ─
+    //
+    // Losing the crew lead the day before is exactly the thing the rest of the crew must not find
+    // out on site. The cancelled person is excluded: they have the personal message above.
+    await notifyJobEvent(row.job_id, {
+      kind: 'team_changed',
+      title: `${row.user_email} came off the crew${row.is_crew_lead ? ' — they were the crew lead' : ''}`,
+      body: reason ?? undefined,
+      escalation: row.is_crew_lead ? 'high' : 'normal',
+    }, actorEmail, [row.user_email]);
 
     console.log('[admin/personnel/cancel-assignment POST] ok', {
       assignment_id: assignmentId,

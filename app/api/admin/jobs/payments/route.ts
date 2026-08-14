@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
+
+/** Dollars, for a notification banner. Cents matter on an invoice and are noise on a phone. */
+function money(n: number): string {
+  return `$${Math.round(Number(n) || 0).toLocaleString('en-US')}`;
+}
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -63,12 +69,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .select('amount, payment_type')
     .eq('job_id', job_id);
 
-  const totalPaid = (allPayments || [])
-    .filter((p: { payment_type: string }) => p.payment_type !== 'refund')
-    .reduce((sum: number, p: { amount: number }) => sum + (p.amount || 0), 0);
+  // ── A REFUND USED TO NOT COUNT (J3, 2026-08-14) ─────────────────────────────────────────────
+  //
+  // This summed everything that was not a refund and wrote it to `jobs.amount_paid` — so recording
+  // a refund LEFT THE JOB SHOWING THE MONEY AS STILL RECEIVED. The job stayed `paid`, the dashboard
+  // kept counting the revenue, and the only place the refund appeared was the payments list nobody
+  // had a screen for. The GET above already netted them off, which is how the two disagreed.
+  const rows = (allPayments || []) as Array<{ amount: number; payment_type: string }>;
+  const received = rows.filter((p) => p.payment_type !== 'refund').reduce((s, p) => s + (p.amount || 0), 0);
+  const refunded = rows.filter((p) => p.payment_type === 'refund').reduce((s, p) => s + (p.amount || 0), 0);
+  const totalPaid = received - refunded;
 
   // Get job quote for status
-  const { data: job } = await supabaseAdmin.from('jobs').select('quote_amount, final_amount').eq('id', job_id).single();
+  const { data: job } = await supabaseAdmin.from('jobs').select('quote_amount, final_amount, job_number, name').eq('id', job_id).single();
   const owed = (job?.final_amount || job?.quote_amount || 0);
   let paymentStatus = 'unpaid';
   if (totalPaid >= owed && owed > 0) paymentStatus = 'paid';
@@ -78,6 +91,19 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     amount_paid: totalPaid,
     payment_status: paymentStatus,
   }).eq('id', job_id);
+
+  // N3 — money arriving is one of the events that changes what people do: it is what closes a job
+  // out, and the crew lead chasing a client needs to know it landed before they call again.
+  const isRefund = (payment_type || 'payment') === 'refund';
+  const outstanding = Math.max(0, owed - totalPaid);
+  await notifyJobEvent(job_id, {
+    kind: 'payment_recorded',
+    title: `${isRefund ? 'refund' : 'payment'} recorded — ${money(amount)}`,
+    body: owed > 0
+      ? `${money(totalPaid)} of ${money(owed)} received${outstanding > 0 ? `, ${money(outstanding)} still outstanding.` : ' — paid in full.'}`
+      : undefined,
+    link: `/admin/jobs/${job_id}?tab=financial`,
+  }, session.user.email);
 
   return NextResponse.json({ payment: data }, { status: 201 });
 }, { routeName: 'jobs/payments' });

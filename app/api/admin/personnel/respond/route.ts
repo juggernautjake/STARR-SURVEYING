@@ -38,6 +38,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notifyMany } from '@/lib/notifications';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -258,6 +259,21 @@ export const POST = withErrorHandler(
       // Quiet success on confirm — the dispatcher sees the state
       // flip on next dashboard refresh; no notification.
     }
+
+    // ── N3 (2026-08-14) — the crew hears either way ─────────────
+    //
+    // A decline already fans out to dispatchers (above), and a confirm was silent to everyone. Both
+    // change who is actually turning up, which is the crew's business and not only the office's:
+    // `jobRecipients` drops a declined member, so the person who declined stops hearing about this
+    // job from the moment they decline — which is the correct behaviour and also means this message
+    // reaches exactly the people still on it.
+    await notifyJobEvent(row.job_id, {
+      kind: 'team_changed',
+      title: response === 'confirm'
+        ? `${row.user_name || row.user_email} confirmed for ${row.slot_role}`
+        : `${row.user_name || row.user_email} declined ${row.slot_role}`,
+      body: response === 'decline' && declineReason ? declineReason : undefined,
+    }, actorEmail, [row.user_email]);
 
     // §5.12.4 step 6 audit: when a privileged user confirmed/
     // declined on behalf of someone else, log it explicitly so

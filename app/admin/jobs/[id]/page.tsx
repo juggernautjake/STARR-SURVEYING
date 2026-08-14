@@ -2,13 +2,13 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder,
   Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
-  Circle, ListChecks, FileCheck2, type LucideIcon,
+  Circle, ListChecks, FileCheck2, Megaphone, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
 import JobTeamPanel from '../../components/jobs/JobTeamPanel';
@@ -29,6 +29,7 @@ import JobMessagesPanel from '../../components/jobs/JobMessagesPanel';
 import JobPhaseScheduler from './JobPhaseScheduler';
 import JobInstructions from './JobInstructions';
 import JobDeliverables from './JobDeliverables';
+import JobBriefings from './JobBriefings';
 // contacts plan Slice 6 (2026-05-30) — job ↔ contact linking.
 import LinkContactDialog from '../../components/jobs/LinkContactDialog';
 import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
@@ -94,6 +95,9 @@ const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   // crew's own, so the people meant to author them had nowhere to do it.
   { key: 'instructions', label: 'Instructions', Icon: ListChecks, tip: 'What the field crew is told before they leave — access, monuments, what to shoot, who to call. Attach any file from this job and it travels with the instruction. This is what the crew sees in Work Mode.' },
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
+  // Briefings sit after Field Work because a briefing is how the office hands the crew the whole
+  // picture — the recording, the notes and the files together — rather than as one more folder.
+  { key: 'briefings', label: 'Briefings', Icon: Megaphone, tip: 'Record your screen while talking through the job, write the notes that go with it, attach files and photos, and post it. Everyone on the job is told once and can watch it whenever they get to it. You can add to a posted briefing later without announcing it again.' },
   { key: 'files', label: 'Files', Icon: Folder, tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
   { key: 'photos', label: 'Photos', Icon: Camera, tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
   // Deliverables sit before Financial because that is the order the job happens in: you hand it over,
@@ -115,7 +119,18 @@ export default function JobDetailPage() {
 
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  // ── landing where the notification pointed ──────────────────────────────────────────────────
+  //
+  // `notifyJobEvent` links to `/admin/jobs/<id>?tab=briefings&briefing=<bid>`. Without reading these
+  // the link opens the Overview tab, and a notification that lands somewhere other than the thing it
+  // is about is a notification people stop tapping. The tab is validated against TABS rather than
+  // trusted — an unknown `?tab=` value would otherwise render a page with no content at all.
+  const searchParams = useSearchParams();
+  const requestedTab = searchParams.get('tab');
+  const focusBriefingId = searchParams.get('briefing');
+  const [activeTab, setActiveTab] = useState(
+    requestedTab && TABS.some((t) => t.key === requestedTab) ? requestedTab : 'overview',
+  );
   // Live tab counts. CAD + Photos report theirs via onCountChange when
   // their tab is opened (we avoid preloading photos — their data URLs
   // are heavy). null = not yet known, so no badge shows.
@@ -222,7 +237,11 @@ export default function JobDetailPage() {
     if (activeTab === 'fieldwork') {
       fetch(`/api/admin/jobs/field-data?job_id=${jobId}`).then(r => r.json()).then(d => setFieldData(d.field_data || [])).catch((err: unknown) => { handleError(err, 'load field data'); });
     }
-    if (activeTab === 'files') {
+    // Three tabs need the file list, not one. Instructions and Briefings both offer the job's files
+    // as `[label](job-file:<id>)` embeds — and until this loaded for them too, their pickers said
+    // "No files on this job yet" on a job with forty files, unless you happened to open the Files
+    // tab first. The picker was correct and the data behind it had never been fetched.
+    if (activeTab === 'files' || activeTab === 'instructions' || activeTab === 'briefings') {
       fetch(`/api/admin/jobs/files?job_id=${jobId}`).then(r => r.json()).then(d => setFiles(d.files || [])).catch((err: unknown) => { handleError(err, 'load files'); });
     }
     if (activeTab === 'financial') {
@@ -876,6 +895,16 @@ export default function JobDetailPage() {
               team: job.team,
               totalHours: job.total_hours,
             } as JobContext}
+          />
+        )}
+
+        {activeTab === 'briefings' && (
+          <JobBriefings
+            jobId={jobId}
+            jobNumber={job.job_number}
+            selfEmail={session?.user?.email ?? null}
+            files={files}
+            focusBriefingId={focusBriefingId}
           />
         )}
 

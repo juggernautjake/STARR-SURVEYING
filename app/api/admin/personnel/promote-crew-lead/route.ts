@@ -35,6 +35,7 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -290,6 +291,17 @@ export const POST = withErrorHandler(
         { status: 409 }
       );
     }
+
+    // ── N3 (2026-08-14) ─────────────────────────────────────────
+    //
+    // Who the crew lead is decides who the rest of the crew takes direction from on site. This
+    // route promoted somebody and told nobody at all — not even the person promoted, which is why
+    // they are NOT excluded here.
+    await notifyJobEvent(jobId, {
+      kind: 'team_changed',
+      title: `${winner.user_name || winner.user_email} is now the crew lead`,
+      escalation: 'high',
+    }, session.user.email);
 
     console.log('[admin/personnel/promote-crew-lead POST] ok', {
       job_id: jobId,

@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
-import { notifyJobStageUpdate } from '@/lib/notifications';
-import { resolveStageRecipients, isStageTransition } from '@/lib/notifications/job-stage';
+import { isStageTransition } from '@/lib/notifications/job-stage';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const STAGE_ORDER = ['quote', 'research', 'fieldwork', 'drawing', 'legal', 'delivery', 'completed'];
 const STAGE_DATE_MAP: Record<string, string> = {
@@ -79,30 +79,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     details: { from: job.stage, to: to_stage },
   }));
 
-  // hub-widget-excellence-03 Slice 2d — notify the job's crew when the
-  // stage genuinely changes (skip no-op "set to same stage"). Recipients
-  // are the job_team emails minus the actor. Best-effort.
+  // ── N3 (2026-08-14): moved onto the one notifier ────────────────────────────────────────────
+  //
+  // This was the ONLY job mutation in the product that told anybody anything, and it resolved its
+  // own recipients from `job_team` — which meant it notified people who had been REMOVED from the
+  // job (`removed_at`) and people who had DECLINED it (`declined_at`), because the local resolver
+  // never learned about either column. `jobRecipients` inside `notifyJobEvent` knows about both,
+  // and includes the lead RPLS whether or not anybody remembered to add them to the crew list.
+  //
+  // `isStageTransition` stays: a no-op "set to the same stage" must not notify, and that guard is
+  // about this route's semantics rather than about who hears.
   if (isStageTransition(job.stage as string, to_stage)) {
-    try {
-      const { data: team } = await supabaseAdmin
-        .from('job_team')
-        .select('user_email')
-        .eq('job_id', job_id);
-      const teamRows = (team ?? []) as Array<{ user_email: string | null }>;
-      const recipients = resolveStageRecipients(
-        teamRows.map((t) => t.user_email),
-        session.user.email,
-      );
-      if (recipients.length > 0) {
-        await notifyJobStageUpdate(
-          recipients,
-          (job.job_number as string) ?? String(job_id),
-          job_id,
-          job.stage as string,
-          to_stage,
-        );
-      }
-    } catch { /* ignore notification failures */ }
+    await notifyJobEvent(job_id, {
+      kind: 'stage_changed',
+      title: `${job.stage} → ${to_stage}`,
+      body: notes ? String(notes) : undefined,
+      escalation: 'high',
+    }, session.user.email);
   }
 
   return NextResponse.json({ success: true, from_stage: job.stage, to_stage });

@@ -14,6 +14,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { expandRecurrence } from '@/lib/schedule/recurrence';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 // Slice S2 — visibility + viewer_emails join the column list so every
 // GET / POST / PATCH echoes the new fields.
@@ -201,8 +202,37 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .select(SELECT_COLS)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // N3 (2026-08-14) — only when the event is ON a job. Most calendar entries are not (time off,
+  // an office meeting, a maintenance window), and notifying a job's crew about somebody's dentist
+  // appointment is how a feature earns the reputation this one is trying to avoid.
+  //
+  // The assignee is excluded: `assigned_to` gets the existing day-before/day-of reminder, so the
+  // crew-wide "the schedule moved" would be their second message about the same event.
+  if (body.job_id) {
+    await notifyJobEvent(body.job_id, {
+      kind: 'schedule_changed',
+      title: `scheduled — ${title}`,
+      body: `${describeWhen(body.start_time, body.all_day === true)}${assignedTo ? ` · ${assignedTo}` : ''}`,
+      link: `/admin/jobs/${body.job_id}?tab=schedule`,
+    }, session.user.email, [assignedTo]);
+  }
+
   return NextResponse.json({ event: data }, { status: 201 });
 }, { routeName: 'admin/schedule' });
+
+/** "Tue, Aug 18" or "Tue, Aug 18 at 8:00 AM". Central, because that is the day this firm keeps and
+ *  a UTC timestamp on a phone banner is a scheduling bug waiting to be reported. */
+function describeWhen(iso: string | undefined, allDay: boolean): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('en-US', { timeZone: 'America/Chicago', weekday: 'short', month: 'short', day: 'numeric' });
+    if (allDay) return date;
+    const time = d.toLocaleTimeString('en-US', { timeZone: 'America/Chicago', hour: 'numeric', minute: '2-digit' });
+    return `${date} at ${time}`;
+  } catch { return ''; }
+}
 
 // Helper — returns events overlapping the window for the assignee. Excludes
 // the optional `excludeId` so PATCHing an event doesn't conflict with itself.
@@ -297,6 +327,24 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+
+  // N3 — a job event that MOVED is the case this exists for. A crew that was told "Tuesday" once
+  // and never told it became Wednesday is the single most expensive kind of silence on this list.
+  //
+  // Only when the time actually changed: patching a colour or a note is not a schedule change, and
+  // this route is patched for all of those.
+  const row = data as { job_id: string | null; title: string; start_time: string; all_day: boolean; assigned_to: string | null };
+  if (row.job_id && ('start_time' in patch || 'end_time' in patch || 'all_day' in patch)) {
+    await notifyJobEvent(row.job_id, {
+      kind: 'schedule_changed',
+      title: `moved — ${row.title}`,
+      body: `Now ${describeWhen(row.start_time, row.all_day)}${row.assigned_to ? ` · ${row.assigned_to}` : ''}`,
+      link: `/admin/jobs/${row.job_id}?tab=schedule`,
+      // The one schedule case worth a loud banner: somebody's day just changed.
+      escalation: 'high',
+    }, session.user.email);
+  }
+
   return NextResponse.json({ event: data });
 }, { routeName: 'admin/schedule' });
 

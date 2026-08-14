@@ -57,6 +57,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 import {
   assessPerson,
   type PersonAssessment,
@@ -358,6 +359,22 @@ export const POST = withErrorHandler(
         jobId,
         overrideRows,
       });
+    }
+
+    // ── N3 (2026-08-14) — the rest of the crew ──────────────────
+    // The people assigned above each got a personal "tap to accept" message. Everyone ALREADY on
+    // the job got nothing, and "who else is coming on Tuesday" is the thing a crew lead needs
+    // before Tuesday. One message for the batch, not one per slot: assigning three people is one
+    // decision and three banners about it is the volume problem N4 exists to fix.
+    //
+    // The assignees are excluded — they have their own notification about this same insert.
+    if (insertedRows.length > 0) {
+      const names = insertedRows.map((r) => `${r.user_email} (${r.slot_role})`).join(', ');
+      await notifyJobEvent(jobId, {
+        kind: 'team_changed',
+        title: insertedRows.length === 1 ? `${names} added to the crew` : `${insertedRows.length} added to the crew`,
+        body: insertedRows.length === 1 ? undefined : names,
+      }, actorEmail, insertedRows.map((r) => r.user_email));
     }
 
     console.log('[admin/personnel/assign POST] ok', {

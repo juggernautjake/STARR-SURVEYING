@@ -27,6 +27,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildReceiptDecisionNotification } from '@/lib/notifications/receipt-decision';
 import { resolveSubmitterEmails } from '@/lib/receipts/submitter';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'exported']);
 const ALLOWED_TAX_FLAGS = new Set(['full', 'partial_50', 'none', 'review']);
@@ -119,6 +120,10 @@ export const PATCH = withErrorHandler(
     if (body.notes !== undefined) {
       update.notes = body.notes;
     }
+    // N3 — the job this receipt was on BEFORE the patch, so "linked to a job" can be told apart
+    // from "re-saved with the same job". Read only when `job_id` is in the body, so an ordinary
+    // category edit does not pay for a query it will not use.
+    let previousJobId: string | null = null;
     if (body.job_id !== undefined) {
       // Assign / reassign the receipt to a job (or clear with null). Empty
       // string is normalized to null so the FK clears cleanly.
@@ -126,6 +131,9 @@ export const PATCH = withErrorHandler(
         return NextResponse.json({ error: 'job_id must be a string or null' }, { status: 400 });
       }
       update.job_id = body.job_id ? body.job_id : null;
+      const { data: prior } = await supabaseAdmin
+        .from('receipts').select('job_id').eq('id', id).maybeSingle();
+      previousJobId = (prior as { job_id: string | null } | null)?.job_id ?? null;
     }
     // ── Whose money was it, and was it business at all (seed 591) ─────────────────────────────
     //
@@ -223,6 +231,27 @@ export const PATCH = withErrorHandler(
         );
         if (notice) await notify(notice);
       } catch { /* ignore notification failures */ }
+    }
+
+    // ── N3 (2026-08-14) — a receipt landing on a job ────────────────────────────────────────────
+    //
+    // Only on the transition, and only ONTO a job: `update.job_id` is set whenever the field was in
+    // the body, including when it is unchanged or being cleared. Notifying on all of those makes
+    // every receipt edit tell the crew something, which is the failure mode this whole group is
+    // arranged to avoid.
+    //
+    // Cost matters here too — the job's crew is not told about somebody's fuel receipt at full
+    // volume; it defaults to the digest (see DEFAULT_JOB_EVENT_CHANNELS).
+    if (typeof update.job_id === 'string' && update.job_id && update.job_id !== previousJobId) {
+      const receipt = data as { vendor_name?: string | null; total_cents?: number | null };
+      const dollars = typeof receipt.total_cents === 'number'
+        ? `$${Math.round(receipt.total_cents / 100).toLocaleString('en-US')}`
+        : null;
+      await notifyJobEvent(update.job_id, {
+        kind: 'receipt_linked',
+        title: `expense linked — ${receipt.vendor_name ?? 'a receipt'}${dollars ? ` (${dollars})` : ''}`,
+        link: `/admin/jobs/${update.job_id}?tab=financial`,
+      }, session.user.email);
     }
 
     return NextResponse.json({ receipt: data });

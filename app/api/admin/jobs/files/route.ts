@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { accessForNode } from '@/lib/files/server';
 import { canDownload, type FileUser } from '@/lib/files/permissions';
+import { notifyJobEvent } from '@/lib/notifications/job-event';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -142,6 +143,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     entity_id: job_id,
     details: { file_name, file_type },
   }));
+
+  // ── N3 (2026-08-14) ─────────────────────────────────────────────────────────────────────────
+  //
+  // A photo and a document are separate events, not one "file_uploaded" with a type in the body:
+  // they route differently in N4 and read differently on a phone. `file_type` is free text here
+  // (the column has no CHECK), so the test is on what it CONTAINS rather than an equality that
+  // would quietly classify `image/jpeg` as a document.
+  //
+  // The `[BACKUP]` row above deliberately does not notify. It is the same file, copied by us, and
+  // announcing it would double every upload on the job.
+  const isPhoto = /photo|image/i.test(String(file_type ?? '')) || /^image\//i.test(String(mime_type ?? ''));
+  await notifyJobEvent(job_id, {
+    kind: isPhoto ? 'photo_uploaded' : 'file_uploaded',
+    title: `${isPhoto ? 'photo' : 'file'} added — ${file_name}`,
+    body: section && section !== 'general' ? `Filed under ${section}.` : undefined,
+    link: `/admin/jobs/${job_id}?tab=${isPhoto ? 'photos' : 'files'}`,
+  }, session.user.email);
 
   return NextResponse.json({ file }, { status: 201 });
 }, { routeName: 'jobs/files' });

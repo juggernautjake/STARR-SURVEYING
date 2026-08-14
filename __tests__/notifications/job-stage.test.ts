@@ -1,40 +1,15 @@
 // __tests__/notifications/job-stage.test.ts
 //
-// Slice 2d of hub-widget-excellence-03-notifications. Locks the pure
-// job-stage recipient + transition helpers.
+// Slice 2d of hub-widget-excellence-03-notifications.
+//
+// The `resolveStageRecipients` cases that used to live here moved to
+// __tests__/notifications/job-event.test.ts when N3 (2026-08-14) retired that helper in favour of
+// `jobRecipients` — which knows about `removed_at` and `declined_at`, neither of which the stage
+// resolver had ever heard of. Every property those tests asserted (de-dupe, case-insensitive actor
+// exclusion, dropping empties) is asserted there against the surviving function.
 
 import { describe, it, expect } from 'vitest';
-import {
-  resolveStageRecipients,
-  isStageTransition,
-} from '@/lib/notifications/job-stage';
-
-describe('resolveStageRecipients', () => {
-  it('returns the team emails minus the actor', () => {
-    const out = resolveStageRecipients(
-      ['crew@x.com', 'lead@x.com', 'admin@x.com'],
-      'admin@x.com',
-    );
-    expect(out).toEqual(['crew@x.com', 'lead@x.com']);
-  });
-
-  it('excludes the actor case-insensitively', () => {
-    const out = resolveStageRecipients(['Crew@X.com', 'ADMIN@x.com'], 'admin@x.com');
-    expect(out).toEqual(['Crew@X.com']);
-  });
-
-  it('de-dupes (case-insensitive, keeps first-seen casing) + drops empties', () => {
-    const out = resolveStageRecipients(
-      ['crew@x.com', 'CREW@x.com', null, '  ', 'lead@x.com'],
-      'someone-else@x.com',
-    );
-    expect(out).toEqual(['crew@x.com', 'lead@x.com']);
-  });
-
-  it('returns an empty list when the only member is the actor', () => {
-    expect(resolveStageRecipients(['admin@x.com'], 'admin@x.com')).toEqual([]);
-  });
-});
+import { isStageTransition } from '@/lib/notifications/job-stage';
 
 describe('isStageTransition', () => {
   it('is true when the stage actually changes', () => {

@@ -30,6 +30,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { notifyMany } from '@/lib/notifications';
+import { indexPrefs, routeRecipients, type JobNotificationPrefRow } from './job-prefs';
 
 /** A row of `job_team`, narrowed to what recipient resolution needs. */
 export interface JobTeamMemberRow {
@@ -49,8 +50,17 @@ export function jobRecipients(
   team: ReadonlyArray<JobTeamMemberRow>,
   leadRplsEmail: string | null | undefined,
   actorEmail: string | null | undefined,
+  /** Anyone else who has already been told, individually, about this exact thing. The case that
+   *  needs it: adding somebody to a crew sends THEM "you are on this job" and the rest of the crew
+   *  "somebody joined". Without this the new member gets both, and the alternative dodge — passing
+   *  them as the actor — silences the wrong person and lets the real actor notify themselves. */
+  alsoExclude: readonly (string | null | undefined)[] = [],
 ): string[] {
-  const actor = actorEmail?.trim().toLowerCase() ?? '';
+  const excluded = new Set(
+    [actorEmail, ...alsoExclude]
+      .map((e) => e?.trim().toLowerCase())
+      .filter((e): e is string => Boolean(e)),
+  );
   const seen = new Set<string>();
   const out: string[] = [];
 
@@ -58,7 +68,7 @@ export function jobRecipients(
     const email = raw?.trim();
     if (!email) return;
     const key = email.toLowerCase();
-    if (key === actor || seen.has(key)) return;
+    if (excluded.has(key) || seen.has(key)) return;
     seen.add(key);
     out.push(email);
   };
@@ -113,47 +123,89 @@ export async function notifyJobEvent(
   jobId: string,
   event: JobEvent,
   actorEmail: string | null | undefined,
-): Promise<{ notified: number }> {
+  /** Passed straight to `jobRecipients` — see its note. Used where somebody has already had a
+   *  personal notification about this same event and must not also get the crew-wide one. */
+  alsoExclude: readonly (string | null | undefined)[] = [],
+): Promise<{ notified: number; digested: number; silenced: number }> {
   try {
     const [{ data: job }, { data: team }] = await Promise.all([
       supabaseAdmin.from('jobs').select('job_number, name, lead_rpls_email').eq('id', jobId).maybeSingle(),
       supabaseAdmin.from('job_team').select('user_email, removed_at, declined_at').eq('job_id', jobId),
     ]);
-    if (!job) return { notified: 0 };
+    if (!job) return EMPTY;
 
     const recipients = jobRecipients(
       (team ?? []) as JobTeamMemberRow[],
       (job as { lead_rpls_email: string | null }).lead_rpls_email,
       actorEmail,
+      alsoExclude,
     );
-    if (recipients.length === 0) return { notified: 0 };
+    if (recipients.length === 0) return EMPTY;
 
     const number = (job as { job_number: string | null }).job_number ?? '';
     const jobName = (job as { name: string | null }).name ?? 'a job';
+    const title = `${number ? `${number} · ` : ''}${jobName} — ${event.title}`;
+    const link = event.link ?? `/admin/jobs/${jobId}`;
 
-    await notifyMany(recipients, {
-      type: `job_${event.kind}`,
-      // The job is named in the title because a phone banner shows the title and little else, and
-      // "A file was uploaded" about an unnamed job is a notification you have to open to triage.
-      title: `${number ? `${number} · ` : ''}${jobName} — ${event.title}`,
-      body: event.body,
-      link: event.link ?? `/admin/jobs/${jobId}`,
-      source_type: 'job',
-      source_id: jobId,
-      escalation_level: event.escalation ?? 'normal',
-      // NO `thread_id`. The intent was to group a day's activity on one job rather than stack twelve
-      // banners, and `thread_id` looked like the field for it — but it is a FK to
-      // `admin_discussion_threads`, so a job id fails the constraint. `source_type`/`source_id`
-      // already identify the job and are what a grouping view should read.
-      //
-      // Both wrong guesses were invisible until `notifyMany` was made to check the error it gets
-      // back: this reported "notified 2" and wrote nothing, twice, before the log existed.
-    });
-    return { notified: recipients.length };
+    // ── volume control (N4) ────────────────────────────────────────────────────────────────────
+    //
+    // Ships here rather than in each caller, for the same reason recipient resolution does: a
+    // preference honoured by eleven routes and forgotten by the twelfth is a setting that reads as
+    // broken. A failed preference read falls through to the code defaults for everybody rather than
+    // to silence: somebody hearing about a file upload they had switched off is a nuisance, and
+    // somebody not hearing about a posted briefing is the failure this group of slices exists for.
+    const { data: prefRows } = await supabaseAdmin
+      .from('job_notification_prefs')
+      .select('user_email, channels, digest_hour')
+      .in('user_email', recipients);
+    const routed = routeRecipients(
+      recipients, event.kind, indexPrefs((prefRows ?? []) as JobNotificationPrefRow[]),
+    );
+
+    if (routed.immediate.length > 0) {
+      await notifyMany(routed.immediate, {
+        type: `job_${event.kind}`,
+        // The job is named in the title because a phone banner shows the title and little else, and
+        // "A file was uploaded" about an unnamed job is a notification you have to open to triage.
+        title,
+        body: event.body,
+        link,
+        source_type: 'job',
+        source_id: jobId,
+        escalation_level: event.escalation ?? 'normal',
+        // NO `thread_id`. The intent was to group a day's activity on one job rather than stack twelve
+        // banners, and `thread_id` looked like the field for it — but it is a FK to
+        // `admin_discussion_threads`, so a job id fails the constraint. `source_type`/`source_id`
+        // already identify the job and are what a grouping view should read.
+        //
+        // Both wrong guesses were invisible until `notifyMany` was made to check the error it gets
+        // back: this reported "notified 2" and wrote nothing, twice, before the log existed.
+      });
+    }
+
+    if (routed.digest.length > 0) {
+      const { error: qErr } = await supabaseAdmin.from('job_notification_digest_queue').insert(
+        routed.digest.map((email) => ({
+          user_email: email, job_id: jobId, kind: event.kind, title, body: event.body ?? null, link,
+        })),
+      );
+      // Checked, for the reason the header of lib/notifications.ts records: supabase-js returns the
+      // error rather than throwing, and a queue insert that fails silently is an event nobody ever
+      // hears about — the worst of both settings.
+      if (qErr) {
+        console.error('[notifyJobEvent] digest rows were NOT queued', {
+          jobId, kind: event.kind, recipients: routed.digest.length, error: qErr.message,
+        });
+      }
+    }
+
+    return { notified: routed.immediate.length, digested: routed.digest.length, silenced: routed.off.length };
   } catch (err) {
     console.warn('[notifyJobEvent] could not notify', {
       jobId, kind: event.kind, error: err instanceof Error ? err.message : String(err),
     });
-    return { notified: 0 };
+    return EMPTY;
   }
 }
+
+const EMPTY = { notified: 0, digested: 0, silenced: 0 } as const;
