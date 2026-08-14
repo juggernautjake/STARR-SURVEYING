@@ -66,6 +66,7 @@ import { describeCapacity, planCapacity, readMachine } from './infra/capacity.js
 // The research queue: what may run (R29), when to ask (R28/R29), and how to talk to the app.
 import { pollOnce, type QueuedRequest, type RunningRun } from './infra/queue-worker.js';
 import { pollerEnabled, startPoller } from './infra/queue-poller.js';
+import { receiptPollerEnabled, makeSupabaseReceiptTick } from './infra/receipt-poller.js';
 import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
@@ -4875,6 +4876,47 @@ app.listen(PORT, () => {
       process.on(sig, () => {
         console.log(`[Queue] ${sig} — no longer claiming; in-flight runs are left to finish.`);
         poller.stop();
+      });
+    }
+  })();
+
+  // ── Receipt extraction, unattended (2026-08-13) ────────────────────────────────────────────────
+  //
+  // Owner: *"if the browser/app is closed, then it should still run in the background on the server
+  // or on our dedicated AI server, the same one we use for research purposes."* This is that.
+  //
+  // The capture page still fires an extraction per receipt as each upload lands — that is the fast
+  // path and it is unchanged. This is the one that does not care whether a browser is open: it
+  // drains whatever is queued, including rows the mobile app inserted, which never had a browser to
+  // fire from at all.
+  //
+  // Safe to run beside the Vercel cron. The claim in `receipt-extraction.ts` is a compare-and-set,
+  // so two drainers racing produce one winner per row and the loser moves to the next.
+  void (async () => {
+    const gate = receiptPollerEnabled();
+    console.log(`[startup] receipt extraction poller — ${gate.reason}`);
+    if (!gate.enabled) return;
+
+    const supabase = await getSupabase();
+    if (!supabase) {
+      console.log('[startup] receipt extraction poller — Supabase is not configured; not polling.');
+      return;
+    }
+
+    const receiptPoller = startPoller(
+      {
+        tick: makeSupabaseReceiptTick(supabase, (m) => console.log(m)),
+        log: (m) => console.log(m),
+      },
+      // Tighter than the research poller's defaults. A receipt is seconds of work, not half an hour,
+      // and somebody is usually waiting to see the total appear on the row they just photographed.
+      { busyIntervalMs: 1_000, idleIntervalMs: 10_000, maxIdleIntervalMs: 60_000 },
+    );
+
+    for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+      process.on(sig, () => {
+        console.log(`[receipt-poller] ${sig} — no longer claiming receipts.`);
+        receiptPoller.stop();
       });
     }
   })();
