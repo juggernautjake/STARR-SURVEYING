@@ -15,6 +15,8 @@ import GenericCalculator from './GenericCalculator';
 // suite (frameless body; the legacy ModalFrame entry stays for the
 // onPlace canvas-placement flow).
 import CurveCalculatorBody from './CurveCalculatorBody';
+// C29 — compound / reverse / spiral, the three solvers C27 found unreachable.
+import AdvancedCurveCalculator from './AdvancedCurveCalculator';
 import { useCalculatorStore } from '@/lib/cad/store';
 
 interface CalculatorModalProps {
@@ -44,6 +46,7 @@ export default function CalculatorModal({ open, onClose }: CalculatorModalProps)
           new picker entry + new branch here. */}
       {activeId === 'generic' && <GenericCalculator />}
       {activeId === 'curve' && <CurveCalculatorBody />}
+      {activeId === 'advanced-curve' && <AdvancedCurveCalculator />}
     </ResizableModal>
   );
 }

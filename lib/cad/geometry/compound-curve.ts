@@ -50,6 +50,47 @@ export function computeReverseCurve(
   return { curve1, curve2, prc: curve1.pt };
 }
 
+/**
+ * C29 — the spiral as drawable points.
+ *
+ * `computeClothoidSpiral` returns the TS and SC and nothing between them, which is enough for a
+ * curve table and not enough to draw. A clothoid is not an arc and cannot be faked with one — its
+ * radius varies along its length, which is the entire reason it exists — so placement needs the
+ * curve sampled.
+ *
+ * Deliberately the SAME truncated series the solver uses, evaluated at `s ≤ L` instead of only at
+ * `L`. Using a different (even a better) expansion here would put a polyline on the drawing that
+ * does not end at the SC point the curve table reports, and a curve table that disagrees with the
+ * geometry beside it is worse than either alone. A test pins that the last sample IS `sc`.
+ *
+ * `segments` is the number of chords; 32 holds a 100 ft spiral to well under a hundredth of a foot.
+ */
+export function spiralPolyline(
+  R: number,
+  spiralLength: number,
+  direction: 'LEFT' | 'RIGHT',
+  ts: Point2D,
+  tangentBearing: number,
+  segments = 32,
+): Point2D[] {
+  const A = Math.sqrt(R * spiralLength);
+  const bearingRad = tangentBearing * (Math.PI / 180);
+  const sign = direction === 'RIGHT' ? 1 : -1;
+  const n = Math.max(2, Math.floor(segments));
+
+  const out: Point2D[] = [];
+  for (let i = 0; i <= n; i += 1) {
+    const s = (spiralLength * i) / n;
+    const X = s - (s ** 5) / (40 * A ** 4);
+    const Y = (s ** 3) / (6 * A ** 2);
+    out.push({
+      x: ts.x + X * Math.sin(bearingRad) + sign * Y * Math.cos(bearingRad),
+      y: ts.y + X * Math.cos(bearingRad) - sign * Y * Math.sin(bearingRad),
+    });
+  }
+  return out;
+}
+
 export function computeClothoidSpiral(
   R: number,
   spiralLength: number,

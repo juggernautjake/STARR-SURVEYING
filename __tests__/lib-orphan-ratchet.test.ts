@@ -77,7 +77,7 @@ const KNOWN_ORPHANS: readonly string[] = [
   'cad/ai/mock-proposer.ts',
   'cad/ai-engine/index.ts',
   'cad/codes/index.ts',
-  'cad/geometry/compound-curve.ts',
+  // 'cad/geometry/compound-curve.ts' removed by C29 — `AdvancedCurveCalculator` imports it.
   'cad/geometry/spline-to-arc.ts',
   'cad/persistence/native-autosave.ts',
   'cad/platform/index.ts',

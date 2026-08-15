@@ -55,7 +55,10 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
 
   // ── Genuinely unused today ────────────────────────────────────────────────────────────────────
   'ai/mock-proposer.ts': 'test/dev double for the AI proposer',
-  'geometry/compound-curve.ts': 'compound-curve solving, built ahead of a UI that can express it',
+  // 'geometry/compound-curve.ts' was here, described as "built ahead of a UI that can express it".
+  // C29 built that UI (`AdvancedCurveCalculator`), so the entry went stale and this ratchet said
+  // so on the same run. Compound curves, reverse curves and clothoid spirals are now solved AND
+  // drawable — which is the outcome the note was hoping for rather than excusing.
   'geometry/spline-to-arc.ts': 'spline→arc conversion, for a DXF export path not yet taken',
   // 'io/trv-bearings.ts' was here, described as "superseded by the parser doing it inline". Deleted
   // 2026-08-04 (S4c) with its two test files, once the supersession was actually traced:

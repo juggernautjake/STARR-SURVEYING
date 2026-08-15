@@ -25,7 +25,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
  *  per registered calculator; switching just changes
  *  `activeCalculatorId`. Adding a new calculator = registering a
  *  new id here + a matching component.  */
-export type CalculatorId = 'generic' | 'curve';
+// C29 — 'advanced-curve' reaches the compound / reverse / spiral solvers, which C27 found had no
+// UI at all. The registry in lib/cad/calculators/registry.ts is the list a surveyor sees; this
+// union is what the modal can render inline.
+export type CalculatorId = 'generic' | 'curve' | 'advanced-curve';
 
 export const DEFAULT_CALCULATOR_ID: CalculatorId = 'generic';
 

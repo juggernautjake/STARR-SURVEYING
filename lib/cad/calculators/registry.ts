@@ -80,9 +80,22 @@ export const CALCULATOR_REGISTRY: ReadonlyArray<CalculatorEntry> = [
   {
     id: 'curve-place',
     label: 'Curve → place on drawing',
-    summary: 'The same curve solve, then draw it. The only curve path that creates geometry.',
+    // C29 — this claimed `writesGeometry: true` when C28 wrote it, on the strength of the
+    // `onPlace` prop existing in the type. Nothing passed it, so the button never rendered. It is
+    // wired now, and the claim is finally true.
+    summary: 'The same curve solve, then draw it as an ARC on the active layer.',
     mode: 'DIALOG',
     openEvent: 'cad:openCurveCalculator',
+    usesSelection: false,
+    writesGeometry: true,
+    group: 'CURVES',
+  },
+  {
+    id: 'advanced-curve',
+    label: 'Compound / reverse / spiral',
+    // C29 — the UI `compound-curve.ts` was "built ahead of", per the reachability test's own note.
+    summary: 'Compound and reverse curves and clothoid spirals, solved and drawn.',
+    mode: 'INLINE',
     usesSelection: false,
     writesGeometry: true,
     group: 'CURVES',
