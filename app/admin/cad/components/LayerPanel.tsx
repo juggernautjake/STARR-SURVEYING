@@ -9,7 +9,7 @@ import { useSelectionStore } from '@/lib/cad/store';
 import { useUIStore } from '@/lib/cad/store';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { useMediaStore } from '@/lib/cad/media/media-store';
-import { confirmAction } from './ConfirmDialog';
+import { confirmAction, alertAction } from './ConfirmDialog';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import { generateId } from '@/lib/cad/types';
 import type { Layer, TitleBlockConfig } from '@/lib/cad/types';
@@ -23,6 +23,7 @@ import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 import NewLayerDialog from './NewLayerDialog';
 import LayerPropertiesDialog from './LayerPropertiesDialog';
+import { planLayerMerge, describeMergeRefusal } from '@/lib/cad/operations/merge-layers';
 // cad-layer-grouping Slice 5 — unified context menu for layer-panel
 // group rows (and, in future slices, feature rows + layer rows).
 import TargetContextMenu, { type ContextMenuTarget } from './TargetContextMenu';
@@ -68,6 +69,53 @@ export default function LayerPanel() {
   /** C6 — the layer whose properties dialog is open. Line type, line weight, opacity, freeze and
    *  description had no editor anywhere in the product before this (C5). */
   const [propertiesLayerId, setPropertiesLayerId] = useState<string | null>(null);
+  /** C7 — the layer being merged AWAY (its features move to the chosen target, then it is deleted). */
+  const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
+
+  /**
+   * C7 — apply a merge as ONE undo entry.
+   *
+   * The move and the delete must not land as two. A merge undone halfway leaves features parented
+   * to a layer that no longer exists, and `getVisibleFeatures` drops those silently — geometry that
+   * exists, is selectable, is saved, and cannot be seen.
+   */
+  async function handleMerge(targetLayerId: string) {
+    const sourceId = mergeSourceId;
+    if (!sourceId) return;
+    const docNow = useDrawingStore.getState().document;
+    const plan = planLayerMerge({
+      sourceLayerId: sourceId,
+      targetLayerId,
+      layers: docNow.layers,
+      features: docNow.features,
+    });
+    if (!plan.ok) {
+      void alertAction({ title: 'Starr CAD', message: describeMergeRefusal(plan.reason) });
+      return;
+    }
+    const ok = await confirmAction({
+      title: 'Merge layers',
+      message: plan.featureIds.length
+        ? `Move ${plan.featureIds.length} feature(s) from "${plan.sourceName}" into "${plan.targetName}" and delete "${plan.sourceName}"?`
+        : `"${plan.sourceName}" is empty. Delete it and keep "${plan.targetName}"?`,
+      confirmLabel: 'Merge',
+      danger: true,
+    });
+    if (!ok) return;
+
+    // P6d convention, enforced by `layer-panel-store-selectors.test.ts`: no local `store` handle.
+    // Every call resolves through `getState()` at the moment it runs, so a mutation earlier in this
+    // function cannot leave a later call working from a snapshot taken before it — and the loop
+    // below mutates on every iteration.
+    for (const id of plan.featureIds) {
+      useDrawingStore.getState().updateFeature(id, { layerId: targetLayerId });
+    }
+    useDrawingStore.getState().removeLayer(sourceId);
+    useUndoStore.getState().pushUndo(
+      makeBatchEntry(`Merge "${plan.sourceName}" into "${plan.targetName}"`, plan.operations),
+    );
+    setMergeSourceId(null);
+  }
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
   const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -1330,6 +1378,16 @@ export default function LayerPanel() {
           >
             <Plus size={11} /> Quick-add points…
           </button>
+          {/* C7 — merge. Without it, folding one layer into another is select-all-on-a-layer,
+              move, delete: three operations, three undo steps, and a selection that is easy to get
+              wrong on a busy drawing. Layers arrive from imports and field codes and other
+              people's files, and three of them routinely mean the same thing. */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5"
+            onClick={() => { setMergeSourceId(contextMenu.layerId); setContextMenu(null); }}
+          >
+            <Layers size={11} /> Merge into…
+          </button>
           {/* C6 — line type, line weight, opacity, freeze and description. Every one of these was
               in the model, honoured by the renderer, and reachable from nowhere (C5). */}
           <button
@@ -1540,6 +1598,47 @@ export default function LayerPanel() {
             onClick={() => { window.dispatchEvent(new CustomEvent('cad:openExportLayers')); setPanelMenu(null); }}>
             <Send size={12} /> Export layers…
           </button>
+        </div>
+      )}
+
+      {/* C7 — pick the layer to merge INTO. Deliberately a plain list rather than a dropdown: the
+          destructive half is which layer survives, and a list shows every candidate at once. */}
+      {mergeSourceId && doc.layers[mergeSourceId] && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50" role="dialog" aria-modal>
+          <div className="bg-gray-800 border border-gray-600 rounded-lg shadow-2xl w-[320px] max-w-[92vw] max-h-[70vh] flex flex-col">
+            <div className="px-3 py-2 border-b border-gray-700 text-xs text-gray-200">
+              Merge <span className="font-semibold">{doc.layers[mergeSourceId].name}</span> into…
+              <div className="text-[10px] text-gray-400 mt-0.5">
+                Its features move across, then it is deleted. One undo step.
+              </div>
+            </div>
+            <div className="overflow-y-auto flex-1 py-1">
+              {doc.layerOrder
+                .map((id) => doc.layers[id])
+                .filter((l) => l && l.id !== mergeSourceId)
+                .map((l) => (
+                  <button
+                    key={l.id}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-gray-700 flex items-center gap-2 disabled:opacity-40"
+                    disabled={l.locked}
+                    title={l.locked ? 'Locked — unlock it to merge into it' : undefined}
+                    onClick={() => void handleMerge(l.id)}
+                  >
+                    <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: l.color }} />
+                    <span className="flex-1 truncate text-gray-200">{l.name}</span>
+                    {l.locked && <Lock size={10} className="text-gray-500" />}
+                  </button>
+                ))}
+            </div>
+            <div className="px-3 py-2 border-t border-gray-700 text-right">
+              <button
+                className="px-2 py-1 text-xs rounded border border-gray-600 text-gray-300 hover:bg-gray-700"
+                onClick={() => setMergeSourceId(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
