@@ -1113,6 +1113,7 @@ function commitTransform(
   features: Feature[],
   fn: (p: Point2D) => Point2D,
   description: string,
+  aiBatchId?: string,
 ): ToolResult<{ changed: number }> {
   const store = useDrawingStore.getState();
   const ops: Array<{ type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }> = [];
@@ -1121,7 +1122,11 @@ function commitTransform(
     store.updateFeature(before.id, { geometry: after.geometry });
     ops.push({ type: 'MODIFY_FEATURE', data: { id: before.id, before, after } });
   }
-  useUndoStore.getState().pushUndo(makeBatchEntry(description, ops));
+  // C37 — the batch id rides on the ENTRY, not on the features. Stamping AI provenance onto
+  // geometry the surveyor drew would claim authorship the AI does not have: it moved the fence, it
+  // did not draw it.
+  const entry = makeBatchEntry(description, ops);
+  useUndoStore.getState().pushUndo(aiBatchId ? { ...entry, aiBatchId } : entry);
   return { ok: true, result: { changed: features.length } };
 }
 
@@ -1129,6 +1134,8 @@ export interface MoveFeaturesArgs {
   ids: string[];
   dx: number;
   dy: number;
+  /** C37 — groups this call with the rest of one AI turn so the whole request reverses at once. */
+  aiBatchId?: string;
 }
 
 export const moveFeatures: ToolDefinition<MoveFeaturesArgs, { changed: number }> = {
@@ -1155,6 +1162,7 @@ export const moveFeatures: ToolDefinition<MoveFeaturesArgs, { changed: number }>
       loaded.result,
       (p) => translate(p, args.dx, args.dy),
       `AI move ${loaded.result.length} feature(s)`,
+      args.aiBatchId,
     );
   },
 };
@@ -1163,6 +1171,8 @@ export interface RotateFeaturesArgs {
   ids: string[];
   angleDeg: number;
   about?: Point2D;
+  /** C37 — groups this call with the rest of one AI turn so the whole request reverses at once. */
+  aiBatchId?: string;
 }
 
 export const rotateFeatures: ToolDefinition<RotateFeaturesArgs, { changed: number }> = {
@@ -1196,6 +1206,7 @@ export const rotateFeatures: ToolDefinition<RotateFeaturesArgs, { changed: numbe
       loaded.result,
       (p) => rotate(p, pivot, rad),
       `AI rotate ${loaded.result.length} feature(s)`,
+      args.aiBatchId,
     );
   },
 };
@@ -1204,6 +1215,8 @@ export interface ScaleFeaturesArgs {
   ids: string[];
   factor: number;
   about?: Point2D;
+  /** C37 — groups this call with the rest of one AI turn so the whole request reverses at once. */
+  aiBatchId?: string;
 }
 
 export const scaleFeatures: ToolDefinition<ScaleFeaturesArgs, { changed: number }> = {
@@ -1238,6 +1251,7 @@ export const scaleFeatures: ToolDefinition<ScaleFeaturesArgs, { changed: number 
       loaded.result,
       (p) => scale(p, pivot, args.factor),
       `AI scale ${loaded.result.length} feature(s)`,
+      args.aiBatchId,
     );
   },
 };
@@ -1246,6 +1260,8 @@ export interface MirrorFeaturesArgs {
   ids: string[];
   axisStart: Point2D;
   axisEnd: Point2D;
+  /** C37 — groups this call with the rest of one AI turn so the whole request reverses at once. */
+  aiBatchId?: string;
 }
 
 export const mirrorFeatures: ToolDefinition<MirrorFeaturesArgs, { changed: number }> = {
@@ -1278,12 +1294,15 @@ export const mirrorFeatures: ToolDefinition<MirrorFeaturesArgs, { changed: numbe
       loaded.result,
       (p) => mirror(p, args.axisStart, args.axisEnd),
       `AI mirror ${loaded.result.length} feature(s)`,
+      args.aiBatchId,
     );
   },
 };
 
 export interface DeleteFeaturesArgs {
   ids: string[];
+  /** C37 — groups this call with the rest of one AI turn so the whole request reverses at once. */
+  aiBatchId?: string;
 }
 
 export const deleteFeatures: ToolDefinition<DeleteFeaturesArgs, { deleted: number }> = {
@@ -1302,12 +1321,16 @@ export const deleteFeatures: ToolDefinition<DeleteFeaturesArgs, { deleted: numbe
     if (!loaded.ok) return loaded;
     const store = useDrawingStore.getState();
     for (const f of loaded.result) store.removeFeature(f.id);
-    useUndoStore.getState().pushUndo(
-      makeBatchEntry(
-        `AI delete ${loaded.result.length} feature(s)`,
-        loaded.result.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f })),
-      ),
+    const entry = makeBatchEntry(
+      `AI delete ${loaded.result.length} feature(s)`,
+      loaded.result.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f })),
     );
+    // C37 — a delete leaves nothing behind to carry provenance. The removed features keep whatever
+    // stamps they had, which say who drew them, not who deleted them; the batch id has to live on
+    // the entry or the "undo that whole AI turn" walk has no way to see this step at all.
+    useUndoStore
+      .getState()
+      .pushUndo(args.aiBatchId ? { ...entry, aiBatchId: args.aiBatchId } : entry);
     return { ok: true, result: { deleted: loaded.result.length } };
   },
 };

@@ -11,8 +11,47 @@
 // 47 features Claude just dropped with one click instead of
 // 47 Ctrl+Z taps.
 
-import { useUndoStore } from '../store';
+// Imported from the module rather than the `../store` barrel on purpose: the barrel re-exports
+// `ai-conversations-store`, which now imports this file, and routing through it would make that a
+// cycle. Same singleton either way.
+import { useUndoStore } from '../store/undo-store';
 import type { UndoEntry, UndoOperation, Feature } from '../types';
+import { generateId } from '../types';
+
+/**
+ * C37 — run `fn` and label every undo entry it pushes with one shared `aiBatchId`, so the whole
+ * AI turn reverses in one press. Returns whatever `fn` returned; the batch id comes back too for
+ * callers that want to report it.
+ *
+ * This wraps the CALL sites rather than threading an id through all 25 tools' arguments, and the
+ * difference matters: a tool added tomorrow is covered by having been called from here, where the
+ * threaded version would be one more place to forget. The five modify tools still accept an
+ * explicit `aiBatchId` for callers that drive them directly (a proposer applying a plan), and this
+ * only stamps entries that do not already carry one, so the two compose instead of fighting.
+ */
+export function runAsOneAIBatch<T>(fn: () => T, batchId?: string): { batchId: string; result: T } {
+  const id = batchId && batchId.length > 0 ? batchId : generateId();
+  const stackBefore = useUndoStore.getState().undoStack;
+  // Two independent stops for the backwards walk. The marker is the precise one; the timestamp
+  // bounds the damage if the marker fell off the far end of a full 500-entry stack mid-call, where
+  // walking to the bottom would label the surveyor's entire session as this one AI request.
+  const marker = stackBefore.length > 0 ? stackBefore[stackBefore.length - 1].id : null;
+  const startedAt = Date.now();
+  const result = fn();
+  useUndoStore.setState((state) => {
+    const next = state.undoStack.slice();
+    let changed = false;
+    for (let i = next.length - 1; i >= 0; i--) {
+      if (next[i].id === marker || next[i].timestamp < startedAt) break;
+      if (!next[i].aiBatchId) {
+        next[i] = { ...next[i], aiBatchId: id };
+        changed = true;
+      }
+    }
+    return changed ? { undoStack: next } : {};
+  });
+  return { batchId: id, result };
+}
 
 /**
  * Extract the AI batch id from the first feature-producing op
@@ -22,6 +61,17 @@ import type { UndoEntry, UndoOperation, Feature } from '../types';
  * existing legacy entries…).
  */
 export function aiBatchIdFromEntry(entry: UndoEntry): string | null {
+  // C37 — the entry's own id wins.
+  //
+  // The feature scan below only ever sees `ADD_FEATURE` ops, so it is blind to every tool that
+  // MODIFIES or REMOVES: C35's move/rotate/scale/mirror push `MODIFY_FEATURE` batches and delete
+  // pushes `REMOVE_FEATURE`. An AI request that moved forty features produced an undo entry this
+  // function returned null for, and the "undo the whole AI turn" walk stopped dead at it — one
+  // step short, with thirty-nine of the forty still moved.
+  //
+  // The scan is kept as a fallback so entries written before C37, and any caller that stamps only
+  // the feature, keep working.
+  if (typeof entry.aiBatchId === 'string' && entry.aiBatchId.length > 0) return entry.aiBatchId;
   return readFromOps(entry.operations);
 }
 

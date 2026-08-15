@@ -32,6 +32,8 @@ import { useAIStore } from './ai-store';
 // on both AI surfaces by existing.
 import { toolRegistry } from '../ai/tool-registry';
 import { isAICapability } from '../ai/capabilities';
+// C37 — one AI turn, one undo: everything a tool call pushes is labelled with a single batch id.
+import { runAsOneAIBatch } from '../ai/undo-batch';
 // C32 — the AI scope is explicit and visible, not inferred from whatever happens to be selected
 // at the moment send is pressed.
 import { resolveScopeIds } from '../ai/scope';
@@ -375,9 +377,19 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
             return;
           }
           try {
-            const result = toolRegistry[name].execute(
-              (action.toolArgs ?? {}) as never,
-            ) as { ok: boolean; reason?: string };
+            // C37 — the turn is labelled here, not asked of the model.
+            //
+            // The batch id is deliberately absent from every tool's `inputSchema` (the same
+            // treatment `provenance` and `sandbox` already get): a model free to invent the id is a
+            // model free to reuse one, and two unrelated turns sharing an id would make "undo that
+            // AI request" swallow the earlier one as well. The caller knows what a turn is.
+            const { result } = runAsOneAIBatch(
+              () =>
+                toolRegistry[name].execute((action.toolArgs ?? {}) as never) as {
+                  ok: boolean;
+                  reason?: string;
+                },
+            );
             appendAi(
               set,
               activeId,

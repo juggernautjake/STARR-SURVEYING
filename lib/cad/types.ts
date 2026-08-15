@@ -1095,6 +1095,20 @@ export interface UndoEntry {
   description: string;
   timestamp: number;
   operations: UndoOperation[];
+  /**
+   * C37 — the AI turn this entry belongs to, so one request reverses in one step.
+   *
+   * Previously the batch id was read only off `ADD_FEATURE` ops, by looking at the created
+   * feature's `aiBatchId` property. That works for tools that CREATE and is blind to everything
+   * else: C35's move/rotate/scale/mirror produce `MODIFY_FEATURE` batches and delete produces
+   * `REMOVE_FEATURE`, so an AI request that moved forty features was invisible to the batch walker
+   * and the "undo the whole AI turn" button stopped short of it.
+   *
+   * On the ENTRY rather than on the features, because stamping AI provenance onto geometry the
+   * surveyor drew would claim authorship the AI does not have — the AI moved it, it did not make
+   * it. An entry-level id says exactly what happened: this edit was part of that turn.
+   */
+  aiBatchId?: string;
 }
 
 // --- COMMAND BAR ---
