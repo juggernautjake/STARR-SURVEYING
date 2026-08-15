@@ -181,6 +181,112 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
       return drawingPointsCount === 0
         ? 'Click to place NURBS control points — double-click or Enter to finish (min 4 pts)'
         : `${drawingPointsCount} control point${drawingPointsCount !== 1 ? 's' : ''} — continue clicking or double-click/Enter to finish  [U] removes last pt`;
+    // ── C15 — the 29 tools that had no prompt ────────────────────────────────────────────────────
+    //
+    // Measured: 22 of the 51 tools had a case here. The other 29 fell through to the default below,
+    // which reads "Type a command (e.g. line, polyline, move, rotate)". That is the IDLE message.
+    // So picking Trim and looking at the command line told the surveyor to type a command — not
+    // silence, which would be merely unhelpful, but active misdirection about what the tool wants.
+    //
+    // The wording follows `docs/cad-click-order-contract.md`: say what is wanted NEXT, name which
+    // of two picks is which, and state how a variable-length tool ends. Grouped below by the
+    // contract's tool shapes rather than alphabetically, because that is what makes the phrasing
+    // consistent between them — the whole point of writing the contract before the prompts.
+
+    // Pick-then-act: one click, acts immediately.
+    case 'EXPLODE':
+      return 'Click a polyline, polygon or spline to break it into separate segments';
+    case 'REVERSE':
+      return 'Click a line or polyline to reverse its direction — start becomes end';
+    case 'LIST':
+      return 'Click any feature to print its full description here — type, layer, length, area';
+    case 'SMOOTH_POLYLINE':
+      return 'Click a polyline to convert it into a smooth spline through its vertices';
+    case 'SIMPLIFY_POLYLINE':
+      return 'Click a polyline to remove redundant vertices — tolerance is set in the options bar';
+    case 'SPLIT':
+      return 'Click anywhere on a line, polyline or polygon to break it in two at that point';
+    case 'TRIM':
+      return 'Click the section between two crossings — that section is removed';
+    case 'EXTEND':
+      return 'Click near the END you want to lengthen — it extends along its own direction to the next feature';
+    case 'DIVIDE':
+      return 'Click a line, polyline or polygon to drop station points at equal intervals — count is in the options bar';
+
+    // Pick-two: the prompt must name which pick is which.
+    case 'FILLET':
+      return drawingPointsCount === 0
+        ? 'Click the FIRST line, on the side you want to keep — radius is set in the options bar'
+        : 'Click the SECOND line, on the side you want to keep';
+    case 'CHAMFER':
+      return drawingPointsCount === 0
+        ? 'Click the FIRST line, on the side you want to keep'
+        : 'Click the SECOND line, on the side you want to keep';
+    case 'JOIN':
+      return 'Click each line or polyline to add it to the chain — Enter to merge them into one polyline';
+    case 'MATCH_PROPERTIES':
+      return 'Click the feature to copy style FROM, then click each feature to apply it to';
+
+    // Vertex editing.
+    case 'INSERT_VERTEX':
+      return 'Click a point on a polyline segment to insert a new vertex there';
+    case 'REMOVE_VERTEX':
+      return 'Click a vertex to remove it from its polyline';
+
+    // Selection-then-act.
+    case 'ARRAY':
+      return 'Select the objects to replicate — set rows, columns and spacing in the options bar, then confirm';
+    case 'FLIP':
+      return 'Select objects, choose H / V / D1 / D2 in the options bar, then click the canvas to reflect them';
+    case 'INVERT':
+      return 'Select objects, then click the centre point to invert through — a 180° rotation about that point';
+
+    // Two-click fixed.
+    case 'DIM':
+      return drawingPointsCount === 0
+        ? 'Specify the first point of the dimension — click or snap'
+        : 'Specify the second point — the bearing and distance label is placed on commit';
+    case 'DRAW_ARC':
+      return drawingPointsCount === 0
+        ? 'Specify the arc start point — click or type x,y'
+        : drawingPointsCount === 1
+          ? 'Specify a point ALONG the arc — click or type x,y'
+          : 'Specify the arc end point — click or type x,y';
+    case 'DRAW_CIRCLE_EDGE':
+      return drawingPointsCount === 0
+        ? 'Specify a point on the circle edge — click or type x,y'
+        : 'Specify the opposite edge point — the circle is drawn through both';
+    case 'DRAW_ELLIPSE':
+      return drawingPointsCount === 0
+        ? 'Specify the ellipse centre — click or type x,y'
+        : 'Specify the corner of the bounding box — click or type x,y';
+    case 'DRAW_ELLIPSE_EDGE':
+      return drawingPointsCount === 0
+        ? 'Specify the first edge point of the ellipse — click or type x,y'
+        : 'Specify the opposite edge point — click or type x,y';
+
+    // One-click place.
+    case 'DRAW_TEXT':
+      return 'Click where the text should start — then type it and press Enter';
+    case 'DRAW_IMAGE':
+      return 'Click where the image should go — a dialog opens to choose the file';
+
+    // Numeric-assisted.
+    case 'POINT_AT_DISTANCE':
+      return 'Click a line, polyline or polygon near the END to measure from — then type the distance and press Enter';
+    case 'PERPENDICULAR':
+      return drawingPointsCount === 0
+        ? 'Hover a line to lock the start point onto it, then click to anchor'
+        : 'Click the end point, or type a distance and press Enter';
+
+    // Drag-capture and variable-length.
+    case 'DRAW_FREEHAND':
+      return 'Press and drag to draw freehand — release to finish. Esc cancels.';
+    case 'MEASURE_AREA':
+      return drawingPointsCount === 0
+        ? 'Click the first vertex of the area to measure'
+        : `Click the next vertex (${drawingPointsCount} pt${drawingPointsCount !== 1 ? 's' : ''}) — perimeter and area appear here. Enter to finish, Esc to clear.`;
+
     default:
       return 'Type a command (e.g. line, polyline, move, rotate) or coordinates (x,y or @dx,dy)';
   }
