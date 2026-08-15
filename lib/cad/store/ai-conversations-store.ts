@@ -28,6 +28,10 @@ import { transformFeature, translate, rotate, scale } from '../geometry/transfor
 import { fitPointsToBezier, arcFrom3Points } from '../geometry/curve-render';
 import { fitOrientedRectangle, fitCircle, fitLine } from '../geometry/fit';
 import { useAIStore } from './ai-store';
+// C31 / D4 — the chat path reaches the typed tool registry, so a tool added there is available
+// on both AI surfaces by existing.
+import { toolRegistry } from '../ai/tool-registry';
+import { isAICapability } from '../ai/capabilities';
 import { useDrawingStore } from './drawing-store';
 import { useSelectionStore } from './selection-store';
 import { useUndoStore, makeBatchEntry } from './undo-store';
@@ -313,6 +317,41 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
         if (action.type === 'EDIT_DRAWING') {
           const summary = applyEditDrawing(action);
           appendAi(set, activeId, summary);
+          return;
+        }
+
+        // C31 / D4 — the chat path can now run a registry tool.
+        //
+        // Before this the two AI vocabularies could not reach each other at all: `claude-proposer`
+        // derives its tool list from `toolRegistry`, and this orchestrator knew nothing about it.
+        // Adding 38 tools in C34–C36 would have left this path 38 tools behind, silently — which is
+        // the drift D4 exists to prevent and the reason it is sequenced first.
+        //
+        // The tool's own `{ ok, reason }` envelope is surfaced verbatim. A tool that refuses has
+        // already said why in the surveyor's terms, and paraphrasing it here would be a second
+        // wording of the same refusal, free to drift from the first.
+        if (action.type === 'CALL_TOOL') {
+          const name = action.toolName;
+          if (!name || !isAICapability(name)) {
+            appendAi(set, activeId, `⚠ Unknown tool "${name ?? '(none)'}" — nothing was changed.`);
+            return;
+          }
+          try {
+            const result = toolRegistry[name].execute(
+              (action.toolArgs ?? {}) as never,
+            ) as { ok: boolean; reason?: string };
+            appendAi(
+              set,
+              activeId,
+              result.ok
+                ? `✓ ${name} — ${action.description}`
+                : `⚠ ${name} refused: ${result.reason ?? 'no reason given'}`,
+            );
+          } catch (err) {
+            // A tool that throws is a bug, not a refusal, and must not take the conversation down
+            // with it — the surveyor still needs the reply that came with the action.
+            appendAi(set, activeId, `⚠ ${name} failed: ${(err as Error).message}`);
+          }
           return;
         }
 

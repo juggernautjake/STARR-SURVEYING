@@ -31,6 +31,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 
+import { capabilityPromptLines, isAICapability } from '../ai/capabilities';
 import type { DrawingDocument } from '../types';
 import { MissingApiKeyError } from './claude-deed-parser';
 import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
@@ -55,7 +56,17 @@ export type DrawingChatActionType =
   | 'UPDATE_TITLE_BLOCK'
   | 'UPDATE_SETTING'
   | 'REDRAW_LAYER'
-  | 'EDIT_DRAWING';
+  | 'EDIT_DRAWING'
+  /**
+   * C31 / D4 — call a tool from `lib/cad/ai/tool-registry.ts`.
+   *
+   * The bridge between the two AI vocabularies, added rather than merged. `EDIT_DRAWING` expresses
+   * bulk geometry edits the registry has no shape for, and rewriting this orchestrator to fold one
+   * into the other would be the risk D4 warns about taken for no gain. What the chat path could not
+   * do was reach a registry tool AT ALL — so a tool added in C34–C36 would leave this path behind,
+   * silently. Now it does not.
+   */
+  | 'CALL_TOOL';
 
 /** A coordinate the model emits, in survey northing/easting (matching the
  *  selection digest the model is shown). The client converts to world. */
@@ -169,6 +180,11 @@ export interface DrawingChatAction {
   createLayers?: ChatLayerSpec[];
   hideIds?:     string[];
   unhideIds?:   string[];
+  /** CALL_TOOL — the registry tool to run, and its arguments. Validated against the registry
+   *  before execution: a model naming a tool that does not exist is the boundary where an
+   *  invention would otherwise become a store write. */
+  toolName?:    string;
+  toolArgs?:    Record<string, unknown>;
 }
 
 export interface DrawingChatAttachment {
@@ -243,7 +259,7 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
 {
   "reply": "<full sentences, plain text>",
   "action": null | {
-    "type": "NO_ACTION" | "EDIT_DRAWING" | "REGENERATE_PIPELINE" | "UPDATE_TITLE_BLOCK" | "UPDATE_SETTING" | "REDRAW_LAYER",
+    "type": "NO_ACTION" | "EDIT_DRAWING" | "CALL_TOOL" | "REGENERATE_PIPELINE" | "UPDATE_TITLE_BLOCK" | "UPDATE_SETTING" | "REDRAW_LAYER",
     "description": "<one-line summary>",
     "patch": { "<field>": "<newValue>", ... },
     "layerName": "<layer name>",
@@ -254,7 +270,8 @@ Respond with EXACTLY ONE JSON object on a single line, no prose, no markdown fen
     "transform": { "ids": "SELECTION" | ["<featureId>", ...], "translate": { "north": <ft>, "east": <ft> }, "rotateDeg": <deg CCW>, "scale": <factor>, "about": "CENTROID" | { "northing": <n>, "easting": <e> } },
     "fit": [ { "shape": "RECTANGLE|CIRCLE|LINE|CURVE", "fromIds": ["<featureId>", ...], "points": [ { "northing": <n>, "easting": <e> }, ... ], "closed": <bool, CURVE>, "color": "<#hex>", "opacity": <0-1>, "lineWeight": <mm>, "layerName": "<optional>", "deleteSource": <bool> } ],
     "createLayers": [ { "name": "<layer>", "color": "<#hex optional>" } ],
-    "hideIds": [ "<featureId>", ... ], "unhideIds": [ "<featureId>", ... ]
+    "hideIds": [ "<featureId>", ... ], "unhideIds": [ "<featureId>", ... ],
+    "toolName": "<one of the tools listed below>", "toolArgs": { "<arg>": <value>, ... }
   }
 }
 
@@ -339,6 +356,11 @@ Action selection rules:
 * REDRAW_LAYER — recompute the geometry for one layer's
   features. Populate "layerName" with the canonical layer
   name shown in the snapshot.
+* CALL_TOOL — run one of the typed survey tools below. Prefer this over
+  EDIT_DRAWING whenever a tool matches the request: the tools validate their
+  own arguments, return a reason when they refuse, and compute the way the
+  app does. Populate "toolName" and "toolArgs".
+${capabilityPromptLines().join('\n')}
 
 Output rules:
 * JSON only. No prose outside the object.
@@ -527,6 +549,7 @@ const ACTION_TYPES: ReadonlyArray<DrawingChatActionType> = [
   'UPDATE_SETTING',
   'REDRAW_LAYER',
   'EDIT_DRAWING',
+  'CALL_TOOL',
 ];
 
 function num(v: unknown): number | null {
@@ -733,7 +756,32 @@ export function parseAction(raw: unknown): DrawingChatAction | null {
       ? { instruction: a.instruction }
       : {}),
     ...(type === 'EDIT_DRAWING' ? parseEditFields(a) : {}),
+    ...(type === 'CALL_TOOL' ? parseToolCall(a) : {}),
   };
+}
+
+/**
+ * C31 — read a `CALL_TOOL` action, refusing anything the registry does not know.
+ *
+ * **The name is checked here, not at execution.** A model that invents `deleteEverything` should
+ * fail while it is still a string in a JSON blob, not after the orchestrator has decided it is an
+ * action worth applying — the boundary where an invention becomes a store write is the one place
+ * this check is cheap and the one place it is load-bearing.
+ *
+ * An unknown name yields no `toolName`, which downgrades the action to a description the client
+ * cannot act on, rather than throwing and losing the model's reply along with it.
+ */
+function parseToolCall(a: Record<string, unknown>): {
+  toolName?: string;
+  toolArgs?: Record<string, unknown>;
+} {
+  const name = typeof a.toolName === 'string' ? a.toolName : '';
+  if (!name || !isAICapability(name)) return {};
+  const args =
+    a.toolArgs && typeof a.toolArgs === 'object' && !Array.isArray(a.toolArgs)
+      ? (a.toolArgs as Record<string, unknown>)
+      : {};
+  return { toolName: name, toolArgs: args };
 }
 
 function safeParseJson(raw: string): {
