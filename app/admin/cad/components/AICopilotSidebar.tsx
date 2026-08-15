@@ -20,6 +20,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Sparkles, Send, Loader2, Trash2, X, FileWarning, Paperclip, Play, Pause } from 'lucide-react';
 import { useAIStore, REFERENCE_DOC_DAMPENING } from '@/lib/cad/store';
 import type { AIReferenceDoc } from '@/lib/cad/store';
+// C39 — how much of the editor the AI can drive, reported where the surveyor is about to ask it
+// for something. Derived from the reach map, so the chip cannot claim more than the code does.
+import { aiReach } from '@/lib/cad/ai/reach';
+
+/** Computed once at module load — the map is static, so recomputing it per render buys nothing. */
+const REACH = aiReach();
 
 export default function AICopilotSidebar() {
   const isOpen = useAIStore((s) => s.isCopilotSidebarOpen);
@@ -121,6 +127,14 @@ export default function AICopilotSidebar() {
           <Sparkles size={14} className="text-blue-300" />
           <span className="text-[12px] font-semibold tracking-wide text-blue-200">AI Copilot</span>
           <span className="text-[10px] font-mono text-gray-400 uppercase">{mode}</span>
+          {/* C39 — the reach figure. The tooltip names what the AI CANNOT do, which is the half a
+              surveyor needs before asking: a number alone says how much, never which. */}
+          <span
+            className="text-[10px] font-mono text-gray-500 border border-gray-700 rounded px-1 py-[1px] cursor-help"
+            title={`The AI can drive ${REACH.reachable} of the editor's ${REACH.total} tools (${REACH.exempt} are viewport or file-input tools it has no reason to drive).\n\nIt cannot yet: ${REACH.gapList.join(', ')}.`}
+          >
+            {REACH.reachable}/{REACH.total} tools
+          </span>
         </div>
         <div className="flex items-center gap-1">
           {queueLength > 0 && (
