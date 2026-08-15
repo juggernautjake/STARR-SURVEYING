@@ -205,7 +205,41 @@ widget, and only then does the shell go.
 | # | Slice | What it does |
 |---|---|---|
 | **C0a** | ✅ **DONE** — move clock + activity tags out of `lib/work-mode/` | `clock-session`, `clock-modals`, `activity-tags`, `use-activity-tags` → `lib/time-tracking/`, with their tests. Imports updated across `ClockInPill`, `HubGreeting`, the Quick Actions widget and `/api/admin/activity-tags`. It left `lib/work-mode/` holding exactly one file, which confirmed D7's split was the real boundary. |
-| **C0b** | Rehome **mileage capture** | The highest-stakes one: it feeds financials and the hub widget only displays a summary. Give it a real capture surface (extend the `mileage-tracker` widget, or a page under Work) and verify a trip saves through `/api/admin/mileage`. |
+| **C0b** | Rehome + **redesign** mileage capture — see D9 | Not a straight move: the owner has respecified it from odometer readings to addresses. Split into C0b1–C0b4 below. |
+
+#### D9 — Mileage becomes address-based, and that is a new integration, not a rehome
+
+> **Owner, 2026-08-15:** *"For mileage capture, I think I want to simplify. I just want it so that
+> there is a manual capture. I want it so that we can put in the starting address and the job address
+> and the distance will be calculated and then that will use the miles per gallon to calculate the
+> cost as well. So all mileage tracking will just be manually entered for each job/trip."*
+
+Today's capture is **odometer-based**: start reading, end reading, `resolveOdometerEntry` → miles →
+dollars at `IRS_BUSINESS_RATE_2025`. The new design replaces the *input* (two addresses) and adds an
+*output* (fuel cost from MPG). Three things it needs do not exist yet — checked on 2026-08-15:
+
+| Needed | State today |
+|---|---|
+| Address → address distance | **Nothing.** No geocoding, no distance-matrix, no maps provider anywhere in `lib/` or `app/api/`. This is a new external integration with an API key and billing attached. |
+| Miles per gallon | **No MPG field** on vehicles. Schema + seed. |
+| Fuel price | No source. Either an org setting or a per-trip input. |
+
+**The reimbursement question, which must not be answered by accident.** The IRS rate and a fuel-cost
+estimate are different numbers for different purposes — one is what the firm reimburses and reports,
+the other is what the trip actually cost in fuel. Quietly replacing the first with the second would
+change what lands in the mileage report and downstream in `/admin/payouts/tax-report`.
+
+**So both are kept:** distance still drives the IRS reimbursement exactly as it does now, and the
+fuel cost is computed and stored *alongside* it. Nothing about the existing money path changes;
+"calculate the cost as well" is served as an addition, and the owner can retire the IRS figure later
+as a deliberate decision rather than a side effect.
+
+| # | Slice | What it does |
+|---|---|---|
+| **C0b1** | Distance provider | Add the address→address distance integration behind one adapter, so the provider can change without touching the form. **Owner-gated: needs a maps API key and billing enabled.** Until it is, the form accepts a typed distance and the lookup is the enhancement — capture must not be blocked on a key. |
+| **C0b2** | MPG on vehicles + a fuel price | Schema, seed, and the settings surface. Per-vehicle MPG, org-level fuel price with a per-trip override. |
+| **C0b3** | The manual trip form, rehomed | Start address, job address, job, vehicle, date. Shows distance, IRS reimbursement **and** fuel cost before saving. Lives on a real page + the `mileage-tracker` widget gains capture, since the widget today can only read `?summary=1`. |
+| **C0b4** | Retire the odometer path | Only after C0b3 is proven: remove `resolveOdometerEntry` capture from the UI, keep historical odometer-derived rows readable. Existing `mileage_entries` rows must not be orphaned by the new shape. |
 | **C0c** | Rehome **job instructions** | Read + save, onto the job page where the rest of a job's detail already lives. |
 | **C0d** | Rehome **field notes, job media, job files** | Same destination logic — these are per-job records and the job page is their home. Check for overlap with the existing files/media surfaces before building a second one. |
 | **C0e** | Rehome the **field AI assistant** | Decide whether it survives as its own surface or folds into the existing admin AI entry point. `/api/admin/work-mode/assistant` gets renamed out of the work-mode namespace either way. |
@@ -376,7 +410,10 @@ half-built schema and a merge of half-finished work are both hard to walk back.
 |---|---|
 | **A14** CAD narrow-width (prerequisite, done) | ✅ Committed `140e37463`. 390px **28 → 2**; 1440px unchanged at 2. Three defects, not 28: both bars were non-wrapping flex rows (Save/Exit up to 156px off-screen, status strip 463px off); `overflow-hidden` on the status bar was clipping the snap popover **at every width, desktop included**; and docked panels claimed 436px of a 390px screen, leaving the canvas **zero width**. Fixed by wrapping (not `overflow-x: auto`, which would have clipped the same popovers) and by floating the docks over the canvas below 900px. |
 | C0a Move clock + tags to `lib/time-tracking/` | ✅ `642349b39`. Pure move + import rewrites; tsc clean, 52 tests pass. Left `lib/work-mode/` holding one file, confirming D7's boundary. |
-| C0b Rehome mileage capture | ⬜ |
+| C0b1 Distance provider (address→address) | ⬜ **owner-gated: maps API key + billing** |
+| C0b2 MPG on vehicles + fuel price | ⬜ |
+| C0b3 Manual trip form, rehomed | ⬜ |
+| C0b4 Retire the odometer capture path | ⬜ |
 | C0c Rehome job instructions | ⬜ |
 | C0d Rehome field notes / media / files | ⬜ |
 | C0e Rehome the field AI assistant | ⬜ |
