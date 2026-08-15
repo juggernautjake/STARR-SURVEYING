@@ -289,7 +289,19 @@
  * them relies on that margin to keep the options apart. */
 .admin-layout label:has(> input:not([type="checkbox"]):not([type="radio"])),
 .admin-layout label:has(> select),
-.admin-layout label:has(> textarea) {
+.admin-layout label:has(> textarea),
+/* admin-ui-alignment-2026-08-15 — and the button column beside them.
+ *
+ * Zeroing the margin on the labels that wrap a FIELD, and not on the one that wraps the row's
+ * button, left the two ends of the same row disagreeing by the same 10px — just in the other
+ * direction. /admin/field-data and /admin/timeline both build their Refresh control as
+ *
+ *     <label><span aria-hidden>&nbsp;</span><button>Refresh</button></label>
+ *
+ * precisely so its column is shaped like the labelled fields to its left, and both measured 10px
+ * and 9.4px out. A half-applied reset is worse than none: it moves the defect rather than fixing
+ * it, and it hides the original comment's reasoning from whoever reads the row next. */
+.admin-layout label:has(> button) {
   margin-bottom: 0;
 }
 

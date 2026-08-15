@@ -497,11 +497,17 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     minWidth: 200,
   },
+  /* admin-ui-alignment-2026-08-15 — both buttons sized themselves from 8px of vertical padding,
+   * which put Refresh at 38.8px and Recompute at 36.8px beside a 40px field: three heights on one
+   * toolbar, none of them a number anyone chose. Height from the token; padding on the x-axis
+   * only, or it stacks on top. */
   refreshBtn: {
     background: 'transparent',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
-    padding: '8px 14px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
   },
@@ -510,7 +516,9 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#FFFFFF',
     border: 'none',
     borderRadius: 8,
-    padding: '8px 14px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,

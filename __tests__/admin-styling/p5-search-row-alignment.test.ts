@@ -32,9 +32,23 @@ describe('/admin/jobs — search row width + Deleted button height', () => {
     expect(blockMatch![1]).not.toMatch(/flex:\s*1\s*;/);
   });
 
-  it("the Deleted toggle button is height: 36 so it sits on the row baseline", () => {
+  // admin-ui-alignment-2026-08-15 — this used to assert the literal `height: 36`. The row moved to
+  // the token, because `.jobs-page__search` is a typeless <input> and now matches forms.css's
+  // `input:not([type])` rule at 40px, which the page's own 36px could never outrank. Locking a
+  // literal here is what let the row drift in the first place: the number changed and the intent
+  // did not. The assertion is now the intent — the Deleted toggle reads the same height token as
+  // the controls beside it.
+  it('the Deleted toggle button takes its height from the shared token, not a literal', () => {
     const SRC = read('app/admin/jobs/page.tsx');
-    expect(SRC).toMatch(/height:\s*36,[\s\S]*?Deleted/);
+    expect(SRC).toMatch(/height:\s*'var\(--button-height\)',[\s\S]*?Deleted/);
+    expect(SRC).not.toMatch(/height:\s*36,[\s\S]*?Deleted/);
+  });
+
+  it('the search row controls read the same token', () => {
+    const CSS = read('app/admin/styles/AdminJobs.css');
+    expect(CSS).toMatch(
+      /\.jobs-page__search,\s*\.jobs-page__search-btn,\s*\.jobs-page__view-toggle\s*\{[\s\S]*?height:\s*var\(--button-height\)/,
+    );
   });
 });
 

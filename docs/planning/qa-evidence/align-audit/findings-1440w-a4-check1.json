@@ -1,0 +1,23 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 3,
+  "byRule": {
+    "row-centre": 1
+  },
+  "byRoute": {
+    "/admin/timeline": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/timeline",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 1.6,
+      "detail": "input and button \"Recompute\" sit side by side but their centres differ by 1.6px",
+      "container": "label \"Date\"",
+      "sig": "input|button|label",
+      "count": 2
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 13,
+  "byRule": {
+    "height-spread": 1,
+    "row-centre": 2
+  },
+  "byRoute": {
+    "/admin/calendar": 1,
+    "/admin/field-data": 1,
+    "/admin/timeline": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/calendar",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 28, 36, 38, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/field-data",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10,
+      "detail": "input and button \"Refresh\" sit side by side but their centres differ by 10.0px",
+      "container": "label \"Search\"",
+      "sig": "input|button|label",
+      "count": 2
+    },
+    {
+      "route": "/admin/timeline",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 9.4,
+      "detail": "input and button \"Refresh\" sit side by side but their centres differ by 9.4px",
+      "container": "label \"Date\"",
+      "sig": "input|button|label",
+      "count": 4
+    }
+  ]
+}

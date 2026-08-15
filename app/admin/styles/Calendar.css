@@ -45,12 +45,17 @@
   border: 1px solid var(--theme-border, #E5E7EB);
   background: var(--color-bg-card);
   color: var(--color-text-primary);
-  padding: var(--space-2) var(--space-3);
+  /* admin-ui-alignment-2026-08-15 — `min-height: 36px` plus vertical padding rendered these at
+   * 39.8px, next to 40px selects, 38px view-switcher segments and a pair of 36px icon buttons:
+   * four heights within 4px of each other on one toolbar, which reads as unconsidered rather than
+   * as any of them being wrong. The token, and no vertical padding to fight it. */
+  padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  min-height: 36px;
+  height: var(--button-height);
+  box-sizing: border-box;
   transition: border-color 120ms ease, color 120ms ease;
 }
 .calendar-page__nav button:hover {

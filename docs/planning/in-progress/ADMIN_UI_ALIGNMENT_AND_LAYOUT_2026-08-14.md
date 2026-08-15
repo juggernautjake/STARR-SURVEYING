@@ -185,6 +185,27 @@ Neither is a Hub bug. Both were found from Hub numbers, and fixing them moves ev
 once — which is the entire argument of D3, arriving one slice later than planned because the
 evidence for it only existed after A1 corrected the contract.
 
+## D4e — A half-applied fix moves the defect; it does not remove it
+
+A3 zeroed `margin-bottom` on the admin labels that *wrap a field*, because `globals.css` gives every
+label 10px and a row aligned to `flex-end` aligns margin boxes, not borders. That was right, and it
+was half the row.
+
+`/admin/field-data` and `/admin/timeline` build their Refresh control as
+
+```html
+<label><span aria-hidden>&nbsp;</span><button>Refresh</button></label>
+```
+
+on purpose, so the button's column is shaped exactly like the labelled fields beside it. Those
+labels wrap a *button*, matched none of the three `:has()` selectors, and kept their 10px — so
+after A3 the button end of the row was 10px out of line with the field end. Measured 10.0px and
+9.4px, both high severity, and both are the owner's sentence verbatim.
+
+The reset now covers `label:has(> button)` too. The lesson is the one worth carrying into A5–A9:
+**when a rule is written for "the row wrapper", enumerate every shape the row wrapper takes.** A
+partial reset is harder to find than no reset, because the comment above it says the bug is fixed.
+
 ## D5 — Layout changes are allowed; broken functionality is not
 
 The owner explicitly invited better layouts where the current one is wrong, so a slice may
@@ -323,33 +344,36 @@ evaluated; **Findings** is that page's measured count at 1440px.
 
 ### Work — jobs, crews, the field (25)
 
+Measured 2026-08-15, after A3's shared-layer fixes had already landed — which is why most of this
+workspace starts at zero.
+
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Work | `/admin/work` | | ⬜ |
-| Calendar | `/admin/calendar` | | ⬜ |
-| All Jobs | `/admin/jobs` | | ⬜ |
-| New Job | `/admin/jobs/new` | | ⬜ |
-| Import Jobs | `/admin/jobs/import` | | ⬜ |
-| Leads | `/admin/leads` | | ⬜ |
-| Advertising | `/admin/marketing` | | ⬜ |
-| Availability | `/admin/availability` | | ⬜ |
-| Pay Rates | `/admin/pay-rates` | | ⬜ |
-| Hours Approval | `/admin/hours-approval` | | ⬜ |
-| Field Team | `/admin/team` | | ⬜ |
-| Field Data | `/admin/field-data` | | ⬜ |
-| Activity Timeline | `/admin/timeline` | | ⬜ |
-| Vehicles | `/admin/vehicles` | | ⬜ |
-| Compliance | `/admin/compliance` | | ⬜ |
-| Weather | `/admin/weather` | | ⬜ |
-| Work Mode | `/admin/work-mode/start` | | ⬜ |
-| Work Mode Home | `/admin/work-mode` | | ⬜ |
-| Work Mode — Field Crew | `/admin/work-mode/field_crew` | | ⬜ |
-| Work Mode — Drafting | `/admin/work-mode/drawer` | | ⬜ |
-| Work Mode — Research | `/admin/work-mode/researcher` | | ⬜ |
-| Work Mode — Equipment | `/admin/work-mode/equipment_manager` | | ⬜ |
-| Work Mode — Support | `/admin/work-mode/tech_support` | | ⬜ |
-| Work Mode — Admin | `/admin/work-mode/admin` | | ⬜ |
-| Work Mode — Developer | `/admin/work-mode/developer` | | ⬜ |
+| Work | `/admin/work` | 0 → 0 | ✅ |
+| Calendar | `/admin/calendar` | 1 → 0 | ✅ |
+| All Jobs | `/admin/jobs` | 0 → 0 | ✅ (fixed in A3) |
+| New Job | `/admin/jobs/new` | 0 → 0 | ✅ |
+| Import Jobs | `/admin/jobs/import` | 0 → 0 | ✅ |
+| Leads | `/admin/leads` | 0 → 0 | ✅ |
+| Advertising | `/admin/marketing` | 0 → 0 | ✅ |
+| Availability | `/admin/availability` | 0 → 0 | ✅ |
+| Pay Rates | `/admin/pay-rates` | 0 → 0 | ✅ |
+| Hours Approval | `/admin/hours-approval` | 0 → 0 | ✅ |
+| Field Team | `/admin/team` | 0 → 0 | ✅ |
+| Field Data | `/admin/field-data` | 1 → 0 | ✅ |
+| Activity Timeline | `/admin/timeline` | 1 → 0 | ✅ |
+| Vehicles | `/admin/vehicles` | 0 → 0 | ✅ |
+| Compliance | `/admin/compliance` | 0 → 0 | ✅ |
+| Weather | `/admin/weather` | 0 → 0 | ✅ |
+| Work Mode | `/admin/work-mode/start` | 0 → 0 | ✅ |
+| Work Mode Home | `/admin/work-mode` | 0 → 0 | ✅ |
+| Work Mode — Field Crew | `/admin/work-mode/field_crew` | 0 → 0 | ✅ |
+| Work Mode — Drafting | `/admin/work-mode/drawer` | 0 → 0 | ✅ |
+| Work Mode — Research | `/admin/work-mode/researcher` | 0 → 0 | ✅ |
+| Work Mode — Equipment | `/admin/work-mode/equipment_manager` | 0 → 0 | ✅ |
+| Work Mode — Support | `/admin/work-mode/tech_support` | 0 → 0 | ✅ |
+| Work Mode — Admin | `/admin/work-mode/admin` | 0 → 0 | ✅ |
+| Work Mode — Developer | `/admin/work-mode/developer` | 0 → 0 | ✅ |
 
 ### Money — in, out, and profitability (30)
 
@@ -530,7 +554,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A1 Control-size contract | ✅ contract doc corrected to the enforced 40px, primitive repointed at `tokens.css`, the two moves written down (D4c) |
 | A2 Row/field primitives | ⬜ folded into A3–A9 — the contract is the primitive |
 | A3 Hub | ✅ 14 pages measured, **11 findings → 0**. Two of the three that survived A1 were shared-layer holes, not Hub bugs (D4d): `.admin-btn` (45 files) sized from padding to 43px, and `input:not([type])` missing from `forms.css` (178 inputs). Page-local: `.mynotes__tab` 42→40, `.mynotes__chip` pinned to the token, the my-notes search row moved to the dense-row move, `.tl-tabs__btn` 46→40. Plus two defects no rule can see (D5b): the Customize modal's Save was unclickable under the FAB dock, and Escape did not close the widget options panel. |
-| A4 Work | ⬜ |
+| A4 Work | ✅ 25 pages measured, **3 findings → 0**. One was the A3 label-margin reset applied to only half a row (D4e): the Refresh *button* column on `/admin/field-data` and `/admin/timeline` kept the 10px bottom margin its neighbouring field columns had just lost, so the two ends of the row disagreed by 10px and 9.4px. Page-local: the calendar toolbar's four button heights (36/38/39.8/40) went to one, and the timeline's two padding-sized buttons took the token. |
 | A5 Money | ⬜ |
 | A6 Office | ⬜ |
 | A7 Equipment | ⬜ |
