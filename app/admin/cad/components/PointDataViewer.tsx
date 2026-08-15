@@ -9,7 +9,7 @@
 //
 // Spec: docs/planning/completed/cad-standalone-and-ux-audit.md §10
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { X, RotateCcw, Image as ImageIcon, Eye } from 'lucide-react';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
@@ -23,6 +23,7 @@ import {
   type PointRowField,
 } from '@/lib/cad/points/point-rows';
 import { findNameReferences } from '@/lib/cad/points/point-rename';
+import { parsePointRangeString, buildPointNoIndex } from '@/lib/cad/operations/parse-point-range';
 import { matchesQueryTokens, tokenizeSearch, type SearchField } from '@/lib/cad/points/move-points-filters';
 import ColorSwatchInput from './ColorSwatchInput';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
@@ -159,6 +160,69 @@ export default function PointDataViewer({
   useEffect(() => {
     setPicked(new Set());
   }, [search, searchBy]);
+
+  // ── C10 — the table and the canvas are one selection ─────────────────────────────────────────
+  //
+  // Before this, picking rows reached the canvas through exactly one door: `bulkAskAI`. Every other
+  // bulk action (send to layer, recolour, delete, export) worked on the picks without the canvas
+  // ever showing which points they were — so a surveyor deleting twelve points had no way to look
+  // at them first, and a selection made on the canvas was invisible here.
+  //
+  // ── WHY THE SYNC IS ONE-WAY-AT-A-TIME RATHER THAN TRULY BIDIRECTIONAL ────────────────────────
+  //
+  // Two stores writing to each other on every change is a loop. `canvasSyncRef` marks the writes
+  // this component causes, so the effect below ignores the echo of its own push and only reacts to
+  // a selection that came from somewhere else — the canvas, a tool, the AI.
+  const canvasSyncRef = useRef(false);
+  const selectedIds = useSelectionStore((s) => s.selectedIds);
+  /** What the last range pick resolved to, including what it could NOT resolve. */
+  const [rangeText, setRangeText] = useState('');
+  const [rangeNote, setRangeNote] = useState('');
+
+  /**
+   * C10 — pick by point number, including ranges: `5-12, 20, 33-35`.
+   *
+   * Reuses `parsePointRangeString`, which `LayerTransferDialog` already relies on, rather than
+   * writing a second range grammar. Two parsers for "5-12" would drift, and the surveyor would have
+   * to learn which box understands what.
+   *
+   * It reports missing and ambiguous numbers separately, and both are surfaced: a range that
+   * silently resolves to fewer points than you asked for is how the wrong twelve get deleted.
+   */
+  function pickByRange(input: string) {
+    const index = buildPointNoIndex(Object.values(document.features));
+    const result = parsePointRangeString(input, index);
+    const next = new Set(result.resolvedFeatureIds);
+    setPicked(next);
+    pushSelectionToCanvas(next);
+
+    const problems: string[] = [];
+    if (result.invalidTokens.length) problems.push(`couldn’t read: ${result.invalidTokens.join(', ')}`);
+    if (result.missingNumbers.length) problems.push(`no such point: ${result.missingNumbers.join(', ')}`);
+    if (result.ambiguousNumbers.length) problems.push(`more than one point numbered: ${result.ambiguousNumbers.join(', ')}`);
+    setRangeNote(
+      problems.length
+        ? `${next.size} selected — ${problems.join(' · ')}`
+        : `${next.size} selected`,
+    );
+  }
+
+  /** Push the picked rows onto the canvas. */
+  const pushSelectionToCanvas = useCallback((ids: Set<string>) => {
+    canvasSyncRef.current = true;
+    useSelectionStore.getState().selectMultiple([...ids], 'REPLACE');
+    // Cleared on the next tick rather than immediately: the store notifies subscribers
+    // synchronously, so clearing here would unset the flag before the effect below ever ran.
+    queueMicrotask(() => { canvasSyncRef.current = false; });
+  }, []);
+
+  // Canvas → table. Only points the table is currently showing can be picked, so a canvas
+  // selection containing lines and arcs narrows to its points rather than picking nothing.
+  useEffect(() => {
+    if (canvasSyncRef.current) return;
+    const visibleRowIds = new Set(filtered.map((r) => r.id));
+    setPicked(new Set([...selectedIds].filter((id) => visibleRowIds.has(id))));
+  }, [selectedIds, filtered]);
 
   // Original snapshot per row (if any edits have been made). Drives the
   // "edited" indicator, original-value tooltips, and Revert.
@@ -443,6 +507,19 @@ export default function PointDataViewer({
           placeholder={searchBy === 'CODE' ? 'Search by code / description…' : 'Search by name…'}
           className="flex-1 min-w-0 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs"
         />
+        {/* C10 — pick by point number, including ranges. Separate from the search box on purpose:
+            search FILTERS the list, this SELECTS points and pushes them to the canvas. Overloading
+            one box with two verbs is how "5-12" comes to mean something different depending on a
+            mode nobody can see. */}
+        <input
+          value={rangeText}
+          onChange={(e) => setRangeText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') pickByRange(rangeText); }}
+          onBlur={() => { if (rangeText.trim()) pickByRange(rangeText); }}
+          placeholder="Select 5-12, 20…"
+          title="Select points by number. Ranges and lists: 5-12, 20, 33-35"
+          className="w-32 shrink-0 bg-gray-800 border border-gray-600 rounded px-2 py-0.5 text-xs"
+        />
         <div className="relative">
           <button
             type="button"
@@ -495,6 +572,15 @@ export default function PointDataViewer({
       </div>
 
       {/* Bulk action bar — appears when ≥1 point is checked. */}
+      {/* C10 — what the range actually resolved to, including what it could not. A range that
+          quietly selects nine of the twelve points you asked for is how the wrong nine get
+          deleted, so missing and ambiguous numbers are named rather than dropped. */}
+      {rangeNote && (
+        <div className="px-2 py-1 text-[11px] text-gray-400 border-b border-gray-700" role="status">
+          {rangeNote}
+        </div>
+      )}
+
       {picked.size > 0 && (
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-gray-700 bg-blue-950/40 shrink-0 flex-wrap">
           <span className="font-semibold text-blue-200">{picked.size} selected</span>
@@ -519,6 +605,17 @@ export default function PointDataViewer({
               aria-label="Set the color of the selected points"
             />
           </label>
+          {/* C10 — the plain version of what "Ask AI" already did as a side effect. Every other
+              bulk action here (send to layer, recolour, DELETE) acts on picks the canvas never
+              showed, so "let me look at these first" had no button. */}
+          <button
+            type="button"
+            onClick={() => pushSelectionToCanvas(picked)}
+            className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700"
+            title="Select these points on the canvas"
+          >
+            Show on canvas
+          </button>
           <button type="button" onClick={bulkAskAI} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Select these points on the canvas and open the AI to ask about them">Ask AI</button>
           <button type="button" onClick={bulkExport} className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700" title="Export the selected points to CSV">Export CSV</button>
           <button type="button" onClick={bulkDelete} className="px-2 py-0.5 rounded bg-red-900/50 border border-red-800 text-red-200 hover:bg-red-900" title="Delete the selected points">Delete</button>
