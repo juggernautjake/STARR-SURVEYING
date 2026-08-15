@@ -90,7 +90,7 @@ describe('one model config', () => {
       'app/api/admin/learn/quizzes/route.ts',
       'app/api/admin/research/testing/ai-analyze/route.ts',
       'app/api/admin/research/testing/ai-chat/route.ts',
-      'app/api/admin/work-mode/assistant/route.ts',
+      'app/api/admin/field-assistant/route.ts',
     ];
     for (const f of files) {
       const src = read(f);

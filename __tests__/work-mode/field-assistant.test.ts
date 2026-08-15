@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const route = readFileSync(join(process.cwd(), 'app/api/admin/work-mode/assistant/route.ts'), 'utf8');
+const route = readFileSync(join(process.cwd(), 'app/api/admin/field-assistant/route.ts'), 'utf8');
 const workspace = readFileSync(join(process.cwd(), 'app/admin/work-mode/field_crew/_components/FieldCrewWorkspace.tsx'), 'utf8');
 
 describe('field assistant route', () => {
@@ -27,7 +27,7 @@ describe('Ask AI tab wiring', () => {
   it('the workspace has an Ask AI tab that POSTs the assistant route with job context', () => {
     expect(workspace).toContain("{ id: 'ai'");
     expect(workspace).toContain('<FieldAssistant');
-    expect(workspace).toContain("fetch('/api/admin/work-mode/assistant'");
+    expect(workspace).toContain("fetch('/api/admin/field-assistant'");
     expect(workspace).toContain('jobContext: job ? jobLabel(job) : undefined');
   });
 });

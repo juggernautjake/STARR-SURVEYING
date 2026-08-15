@@ -452,7 +452,7 @@ function JobInstructions({ jobId }: { jobId: string | null }) {
 }
 
 /** The in-Work-Mode AI field assistant (Area D8, text): a chat scoped to surveying/field work (bearings,
- *  traverse, angle math, procedures, mileage) via POST /api/admin/work-mode/assistant. The active job's label is
+ *  traverse, angle math, procedures, mileage) via POST /api/admin/field-assistant. The active job's label is
  *  passed as context so answers can reference it. Voice I/O is device-gated and layered on later. */
 function FieldAssistant({ job }: { job: FieldJob | null }) {
   const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
@@ -466,7 +466,7 @@ function FieldAssistant({ job }: { job: FieldJob | null }) {
     const next = [...messages, { role: 'user' as const, content: q }];
     setMessages(next); setInput(''); setBusy(true); setErr(null);
     try {
-      const res = await fetch('/api/admin/work-mode/assistant', {
+      const res = await fetch('/api/admin/field-assistant', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: next, jobContext: job ? jobLabel(job) : undefined }),
       });

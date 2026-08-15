@@ -151,6 +151,8 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.
   'drawings':                 { source: 'settings-form' },
   'equipment-out-today':      { source: 'settings-form' },
+  // C0e — the surveying field assistant, rehomed from the Work Mode shell.
+  'field-assistant':          { source: 'settings-form' },
   'field-data-pending':       { source: 'settings-form' },
   'hours-this-week':          { source: 'settings-form' },
   'job-activity-feed':        { source: 'settings-form' },

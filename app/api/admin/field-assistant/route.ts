@@ -1,7 +1,11 @@
-// app/api/admin/work-mode/assistant/route.ts — the in-Work-Mode AI assistant (Area D8, TEXT half; voice I/O is
-// device-gated and layered on the client later). A field crew member types a question ("what's the back-azimuth
+// app/api/admin/field-assistant/route.ts — the AI field assistant (Area D8, TEXT half; voice I/O is
+// device-gated and layered on the client later). A crew member types a question ("what's the back-azimuth
 // of N30°E?", "how do I set up a closed traverse?", "IRS mileage rate?") and Claude answers concisely, scoped
 // to surveying field work. Reuses the same Anthropic pattern as the learn tutor / CAD chat routes.
+//
+// C0e (2026-08-15) — moved here from `/api/admin/work-mode/assistant`. Work Mode is being retired
+// (D8) and this route had exactly one caller inside it, so the path named a shell that is going
+// away. Its home is now the Field Assistant hub widget. No behaviour changed in the move.
 import Anthropic from '@anthropic-ai/sdk';
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -58,4 +62,4 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .trim();
 
   return NextResponse.json({ reply: reply || 'Sorry — I couldn’t answer that. Try rephrasing.' });
-}, { routeName: 'admin/work-mode.assistant' });
+}, { routeName: 'admin/field-assistant' });
