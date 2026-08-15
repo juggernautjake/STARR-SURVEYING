@@ -424,15 +424,12 @@
   },
   {
     "widget": "recent-activity",
-    "state": "gap",
+    "state": "complete",
     "via": "form",
     "keys": [
-      "itemLimit",
-      "includeTypes"
+      "itemLimit"
     ],
-    "missing": [
-      "includeTypes"
-    ]
+    "missing": []
   },
   {
     "widget": "recent-announcements",

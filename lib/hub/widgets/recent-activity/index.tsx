@@ -22,16 +22,31 @@ import {
   tinyStatWrapStyle,
 } from '@/lib/hub/widgets/_shared/stat-bucket';
 
-export type ActivityType = 'recent-routes';
-
+/**
+ * C0m (2026-08-15) — `includeTypes: ActivityType[]` was removed rather than given a control.
+ *
+ * The C0l audit found it as the ONE genuinely unreachable setting across all 54 widgets: the
+ * widget read it to decide whether to render recent routes, and no form ever offered it. The
+ * obvious fix is a checkbox. It would have been the wrong one.
+ *
+ * `ActivityType` had exactly one member. So the control's only "off" state renders an empty
+ * widget — a checkbox labelled, in effect, *"show nothing"*, for which removing the tile is both
+ * the better answer and the one already available.
+ *
+ * It was a placeholder: the form's own note said *"activity log integration lands in a follow-up
+ * slice"*. That follow-up landed as the separate `activity` widget, which supersedes this one —
+ * this widget stays registered only so saved layouts keep their tile. The key outlived the plan it
+ * was reserved for, which is the same shape as the `padding-right: 14rem` in C0j.
+ *
+ * Safe to drop: no external consumer, and no hub layout in the live database stores it — or even
+ * has this widget. `{ ...DEFAULTS, ...content }` ignores a stray saved key harmlessly.
+ */
 export interface RecentActivityContent extends Record<string, unknown> {
   itemLimit: number;
-  includeTypes: ActivityType[];
 }
 
 const DEFAULTS: RecentActivityContent = {
   itemLimit: 8,
-  includeTypes: ['recent-routes'],
 };
 
 function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityContent>) {
@@ -42,8 +57,8 @@ function RecentActivityWidget({ size, content }: WidgetProps<RecentActivityConte
   // R2 — resolve recent hrefs against the route table, DROPPING any that
   // no longer resolve (a retired route would be a dead link). Then cap.
   const resolved = useMemo(
-    () => (settings.includeTypes.includes('recent-routes') ? resolveRouteHrefs(recentRoutes, ADMIN_ROUTES) : []),
-    [recentRoutes, settings.includeTypes],
+    () => resolveRouteHrefs(recentRoutes, ADMIN_ROUTES),
+    [recentRoutes],
   );
   const items = useMemo(
     () => resolved.slice(0, Math.min(settings.itemLimit, capForBucket(bucket))),
@@ -113,8 +128,8 @@ function RecentActivitySettings({ value, onChange }: WidgetSettingsFormProps<Rec
         />
       </label>
       <p style={{ fontSize: '0.75rem', color: 'var(--theme-fg-secondary)', margin: 0 }}>
-        Activity log integration lands in a follow-up slice. For now,
-        this widget tracks the pages you visit most recently.
+        Tracks the pages you visit most recently. For job events and activity together, use the
+        Activity widget — it supersedes this one.
       </p>
     </div>
   );
