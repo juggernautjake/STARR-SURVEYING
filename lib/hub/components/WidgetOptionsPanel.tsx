@@ -22,7 +22,7 @@
 // store so cancel-on-close (parent unmounts the panel) doesn't need
 // any extra wiring.
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 
 import { getWidget } from '@/lib/hub/widget-registry';
 import { useHubStore } from '@/lib/hub/hub-store';
@@ -56,6 +56,9 @@ export default function WidgetOptionsPanel({
     if (!instanceId || !draftWidgets) return null;
     return draftWidgets.find((w) => w.id === instanceId) ?? null;
   }, [draftWidgets, instanceId]);
+
+  // Before the early return: hooks run on every render or not at all.
+  useCloseOnEscape(open, onClose);
 
   if (!open || !instance) return null;
 
@@ -284,17 +287,39 @@ function Backdrop({
       style={backdropStyle}
       data-testid="widget-options-backdrop"
       onPointerDown={onClose}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          onClose();
-        }
-      }}
       role="presentation"
     >
       {children}
     </div>
   );
+}
+
+/**
+ * Escape closes the panel.
+ *
+ * admin-ui-alignment-2026-08-14 — this used to be an `onKeyDown` on the backdrop `<div>`. A div
+ * with no `tabIndex` never receives focus, so it never received a keypress either, and Escape did
+ * nothing: the panel could only be dismissed by clicking outside it or hitting the ✕. React's
+ * synthetic events do not fix this — the handler was attached to an element the event never
+ * reached. The listener belongs on the document for as long as the panel is open.
+ */
+function useCloseOnEscape(open: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        // The panel is the innermost thing open, so it takes this Escape and nothing else does.
+        // GridEditor listens on `window`, which is one hop further out in the bubble path, and its
+        // own Escape cascade (cancel drag → disarm → deselect → close the editor) would otherwise
+        // run off the same keypress.
+        e.stopPropagation();
+        onClose();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
 }
 
 function CloseButton({ onClose }: { onClose: () => void }) {

@@ -155,6 +155,18 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // admin-ui-alignment-2026-08-14 — the shortcuts below are window-level, so they used to fire
+      // while the surveyor was typing. Two consequences, both real:
+      //
+      //   - Backspace to fix a typo in the Title field (or in a Quick Actions link label) DELETED
+      //     the selected widget from the layout.
+      //   - ← / → to move the caret inside a text field slid the widget across the grid instead.
+      //
+      // A keystroke aimed at a text field belongs to that field. Escape is deliberately not
+      // guarded: dismissing the thing you are in is what Escape is for everywhere else.
+      if (isTypingTarget(e.target)) {
+        if (e.key !== 'Escape') return;
+      }
       // Slice 224 — Delete / Backspace removes the selected widget.
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedPlacedId) {
         e.preventDefault();
@@ -1253,13 +1265,31 @@ export function computeResizedRect(
   return { x: current.x, y: current.y, w, h };
 }
 
+/** True when the keystroke is aimed at somewhere the user is typing, so a layout shortcut must
+ *  keep its hands off it. Covers the options panel's fields as well as the catalog search. */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  // Duck-typed rather than `instanceof HTMLElement`: the suite runs under node, where that
+  // constructor does not exist, and an `instanceof` here would throw in the one place a guard must
+  // never throw.
+  const el = target as { tagName?: unknown; isContentEditable?: unknown } | null;
+  if (!el || typeof el.tagName !== 'string') return false;
+  const tag = el.tagName.toUpperCase();
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return el.isContentEditable === true;
+}
+
 // ─── Style fragments ─────────────────────────────────────────────────
 
 const overlayStyle: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: 'color-mix(in srgb, var(--theme-bg-page, #0b1320) 75%, transparent)',
-  zIndex: 80,
+  // admin-ui-alignment-2026-08-14 — was 80, which is BELOW the floating action dock's `--z-fab: 90`
+  // (`.fab-menu` in AdminLayout.css). The dock therefore floated over this modal's footer and
+  // swallowed the clicks on Auto-format / Reset / Save: the hub editor could be opened and edited
+  // but not saved at 1440×1000. Found by a Playwright run reporting
+  // "<div class=fab-menu--expanded> intercepts pointer events". A modal belongs at the modal layer.
+  zIndex: 'var(--z-modal, 200)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',

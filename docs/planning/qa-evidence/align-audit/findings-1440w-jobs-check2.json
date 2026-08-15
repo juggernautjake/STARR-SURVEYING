@@ -1,0 +1,23 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 1,
+  "byRule": {
+    "row-height": 1
+  },
+  "byRoute": {
+    "/admin/jobs": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/jobs",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4,
+      "detail": "button.jobs-page__search-btn \"Search\" is 40px tall, button \"Deleted\" is 36px — beside each other",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "button.jobs-page__search-btn:40|button:36",
+      "count": 2
+    }
+  ]
+}

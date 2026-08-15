@@ -7,8 +7,11 @@
 .mynotes__tabs {
   display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid var(--theme-border, #E5E7EB);
 }
+/* admin-ui-alignment-2026-08-14 — was padding-sized to 42px, one of five distinct control heights
+ * the sweep found on this page. A tab is a control; it takes the standard height. */
 .mynotes__tab {
-  padding: 0.55rem 1.25rem; font-family: 'Inter', sans-serif; font-size: 0.88rem;
+  height: var(--button-height); box-sizing: border-box;
+  padding: 0 1.25rem; font-family: 'Inter', sans-serif; font-size: 0.88rem;
   font-weight: 600; background: none; border: none; border-bottom: 2px solid transparent;
   margin-bottom: -2px; color: var(--theme-fg-muted, #6B7280); cursor: pointer; transition: all 0.15s;
   white-space: nowrap;
@@ -26,21 +29,22 @@
 .mynotes__count {
   font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--theme-fg-muted, #6B7280);
 }
+/* Slice 87 — search input + Search button share one height so the button does not float in the
+ * search input's vertical space.
+ *
+ * admin-ui-alignment-2026-08-14 — Slice 87 wrote that height as a literal 36px, a number in no
+ * token. The row now opts down by REDEFINING the tokens on the container: the input follows through
+ * forms.css and the button through `.admin-btn--sm`, and no new number enters the codebase.
+ * See docs/admin-styling-contract.md, "the two moves". */
 .mynotes__search-bar {
   display: flex; gap: 0.5rem; margin-bottom: 0.75rem; align-items: center;
+  --input-height: var(--button-height-sm);
 }
-/* Slice 87 — search input + Search button share an explicit 36 px
- * box-sizing:border-box height. Before this, the search rendered ~36 px
- * but the adjacent `.admin-btn--sm` (padding .35rem .75rem + .78rem font
- * + 2 px border) rendered ~28 px — an 8 px gap on the same row, with
- * the button floating in the search input's vertical space.
- *
- * Scoped to .mynotes__search-bar so other .admin-btn--sm usages stay
- * unaffected. Same alignment-sweep pattern as Slices 83-86. */
 .mynotes__search,
 .mynotes__search-bar .admin-btn--sm {
   box-sizing: border-box;
-  height: 36px;
+  height: var(--button-height-sm);
+  min-height: var(--button-height-sm);
 }
 .mynotes__search {
   flex: 1; padding: 0 0.75rem; border: 2px solid var(--theme-border, #E5E7EB); border-radius: 8px;
@@ -54,7 +58,9 @@
   display: flex; gap: 0.35rem; margin-bottom: 1rem; flex-wrap: wrap;
 }
 .mynotes__chip {
-  padding: 0.3rem 0.65rem; font-family: 'Inter', sans-serif; font-size: 0.78rem;
+  /* Already the small size in effect; said as the token so it stays that way. */
+  height: var(--button-height-sm); box-sizing: border-box;
+  padding: 0 0.65rem; font-family: 'Inter', sans-serif; font-size: 0.78rem;
   font-weight: 600; border: 1.5px solid var(--theme-border, #E5E7EB); border-radius: 16px;
   background: var(--theme-bg-surface, #FFF); color: var(--theme-fg-secondary, #374151); cursor: pointer; white-space: nowrap;
   transition: all 0.15s;

@@ -271,17 +271,20 @@
   display: flex;
   gap: 0.35rem;
 }
-/* Slice 86 — search input + search button + view toggle share a 36 px
- * box-sizing:border-box height so the /admin/jobs top controls row sits
- * on a clean baseline. Before this, the search input rendered 2 px taller
- * than its submit button (1 px border each side without an explicit
- * height) and the view-toggle was a 3rd height again. Continues the
- * filter-row sweep started in Slices 83-85. */
+/* Slice 86 — search input + search button + view toggle share one height so the /admin/jobs top
+ * controls row sits on a clean baseline. Before this, the search input rendered 2 px taller than
+ * its submit button and the view-toggle was a 3rd height again.
+ *
+ * admin-ui-alignment-2026-08-14 — Slice 86 wrote that as a literal 36px, and the input has since
+ * stopped obeying it: `.jobs-page__search` is a typeless `<input>`, which now matches
+ * `forms.css`'s `input:not([type])` rule at specificity (0,1,1) and renders 40px, leaving the
+ * button at 36 and the view toggle at 34. Same three controls, same row, back to three heights.
+ * The row is the standard height now, from the token, so nothing can silently outrank it. */
 .jobs-page__search,
 .jobs-page__search-btn,
 .jobs-page__view-toggle {
   box-sizing: border-box;
-  height: 36px;
+  height: var(--button-height);
 }
 .jobs-page__search {
   flex: 1;
@@ -324,7 +327,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  /* Inner buttons span the toggle's 36 px height; padding only on x-axis. */
+  /* Inner buttons span the toggle's full height; padding only on x-axis. */
   padding: 0 0.6rem;
   font-size: 1rem;
   color: var(--color-text-muted);

@@ -18,7 +18,15 @@
  * ============================================================================
  */
 
-/* ── Inputs / selects / textareas ───────────────────────────────────── */
+/* ── Inputs / selects / textareas ─────────────────────────────────────
+ *
+ * admin-ui-alignment-2026-08-14 — `input:not([type])` is in this list because it was missing.
+ * HTML defaults a typeless `<input>` to text, and the admin has 178 of them; every one skipped
+ * this block entirely — height, padding, border and focus ring — and fell back to whatever its
+ * own page happened to say. That is a field rendering at 34 or 36px beside a 40px one for no
+ * reason a reader of either stylesheet could see.
+ */
+.admin-layout__content input:not([type]),
 .admin-layout__content input[type="text"],
 .admin-layout__content input[type="email"],
 .admin-layout__content input[type="password"],
@@ -51,6 +59,7 @@
   resize: vertical;
 }
 
+.admin-layout__content input:not([type]):focus-visible,
 .admin-layout__content input[type="text"]:focus-visible,
 .admin-layout__content input[type="email"]:focus-visible,
 .admin-layout__content input[type="password"]:focus-visible,

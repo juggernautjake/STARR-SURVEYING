@@ -1,0 +1,74 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 1,
+  "byRule": {
+    "row-centre": 4,
+    "row-height": 2
+  },
+  "byRoute": {
+    "/admin/jobs": 6
+  },
+  "findings": [
+    {
+      "route": "/admin/jobs",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 2,
+      "detail": "input.jobs-page__search and button.jobs-page__search-btn \"Search\" sit side by side but their centres differ by 2.0px",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "input.jobs-page__search|button.jobs-page__search-btn|form.jobs-page__search-form",
+      "count": 2
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4,
+      "detail": "input.jobs-page__search is 40px tall, button.jobs-page__search-btn \"Search\" is 36px — beside each other",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "input.jobs-page__search:40|button.jobs-page__search-btn:36",
+      "count": 2
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 6,
+      "detail": "input.jobs-page__search is 40px tall, button.jobs-page__view-btn.jobs-page__view-btn--active is 34px — beside each other",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "input.jobs-page__search:40|button.jobs-page__view-btn.jobs-page__view-btn--active:34",
+      "count": 2
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 2,
+      "detail": "button.jobs-page__search-btn \"Search\" and button.jobs-page__view-btn.jobs-page__view-btn--active sit side by side but their centres differ by 2.0px",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "button.jobs-page__search-btn|button.jobs-page__view-btn.jobs-page__view-btn--active|form.jobs-page__search-form",
+      "count": 2
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 2,
+      "detail": "button.jobs-page__search-btn \"Search\" and button.jobs-page__view-btn sit side by side but their centres differ by 2.0px",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "button.jobs-page__search-btn|button.jobs-page__view-btn|form.jobs-page__search-form",
+      "count": 2
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 2,
+      "detail": "button.jobs-page__search-btn \"Search\" and button \"Deleted\" sit side by side but their centres differ by 2.0px",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "button.jobs-page__search-btn|button|form.jobs-page__search-form",
+      "count": 2
+    }
+  ]
+}

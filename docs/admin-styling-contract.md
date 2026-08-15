@@ -243,6 +243,22 @@ has been rendering at 40px ever since.
    (`.admin-layout__content .my-page__select { … }`) works too and reads
    worse; prefer the token.
 
+**Give every `<input>` a `type`.** `forms.css` reaches inputs through an
+enumerated list — `input[type="text"]`, `[type="email"]`, and eight more.
+HTML defaults a typeless `<input>` to text, so `<input value={x} …>` looks
+like an ordinary text field and matched **none** of those selectors: it
+skipped the height, the padding, the border and the focus ring, and fell
+back to whatever its own page said. 178 admin inputs were in that state
+before 2026-08-14. `input:not([type])` is in the selector list now, so
+they are covered — but write the `type` anyway. It is what the next
+person greps for.
+
+**The shared button class is `.admin-btn`** (`AdminLearn.css`, used in 45
+files). It reads `min-height: var(--button-height)`; `.admin-btn--sm`
+reads `var(--button-height-sm)`. Reach for it before authoring another
+`{page}__btn`, and never re-add vertical padding to it — padding was how
+it drifted to 43px beside 40px fields in the first place.
+
 **Floors.** Nothing interactive renders under 28px — the alignment sweep
 fails it as `small-target`. In practice that means an inline row action is
 `--button-height-sm` (32px), not a hand-rolled 26px.

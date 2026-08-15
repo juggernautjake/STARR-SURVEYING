@@ -162,6 +162,29 @@ Recorded so the next reader does not spend an afternoon re-deriving it and "fixi
 already correct — and because it is a reminder that on this surface the global stylesheet mostly
 does not reach the admin, so fixes belong in the admin layer.
 
+## D4d — Two more holes in the shared layer, found by following the Hub's numbers back
+
+The Hub pass (A3) turned up three findings, all `height-spread`. Chasing each one to its rule found
+that two of the three were not Hub problems at all:
+
+- **`.admin-btn` sized itself from padding.** The closest thing this codebase has to a shared admin
+  button — used in **45 files** — declared `padding: .5rem 1rem` and no height, which renders 43px.
+  Every input and select beside it renders 40px, because `forms.css` enforces that. A 3px mismatch,
+  on every screen in the product that pairs this button with a field. It now takes
+  `min-height: var(--button-height)`, and `--sm` takes `var(--button-height-sm)`. `min-height`
+  rather than `height` because a few usages wrap to two lines, and the ≤768px touch rule that raises
+  it to 44px still wins.
+- **178 admin inputs carry no `type` attribute, and `forms.css` never saw them.** The selector list
+  enumerates `input[type="text"]`, `[type="email"]`, and eight more. HTML defaults a typeless
+  `<input>` to text, so these are ordinary text fields to the user — but they matched none of those
+  selectors and skipped the whole block: height, padding, border, focus ring. They fell back to
+  whatever their own page said, which is where a 34 or 36px field beside a 40px one comes from with
+  no rule anywhere admitting to it. `input:not([type])` is now in both lists.
+
+Neither is a Hub bug. Both were found from Hub numbers, and fixing them moves every workspace at
+once — which is the entire argument of D3, arriving one slice later than planned because the
+evidence for it only existed after A1 corrected the contract.
+
 ## D5 — Layout changes are allowed; broken functionality is not
 
 The owner explicitly invited better layouts where the current one is wrong, so a slice may
@@ -173,6 +196,34 @@ restructure a screen. Two guardrails, applied to every slice:
 - **Every slice re-runs the functional checks**: `scripts/qa-sweep.ts` (does every page still render,
   do its requests still succeed, is it showing an error), `npx tsc --noEmit`, and the full vitest
   suite. A slice is not done until those are as green as they were before it started.
+
+## D5b — Two things the sweep cannot see, found by driving the browser
+
+The measurement is arithmetic on rectangles. It cannot tell that a rectangle is *unreachable*.
+Both of these came out of a Playwright run of the Hub, and neither would ever appear in a finding
+count:
+
+- **The hub's Customize modal could not be saved at 1440×1000.** `GridEditor`'s overlay was
+  `zIndex: 80`; the floating action dock is `--z-fab: 90`. The dock therefore floated over the
+  modal's footer and swallowed every click on Auto-format / Reset / Save layout. Playwright named
+  the culprit outright — *"`<div class=fab-menu--expanded>` intercepts pointer events"* — where a
+  person would have concluded the Save button was broken. The overlay now sits at
+  `var(--z-modal, 200)`, which is what the token was for.
+- **Escape did not close the widget options panel.** The handler was an `onKeyDown` on the backdrop
+  `<div>`. A div with no `tabIndex` never takes focus, so it never received a keypress; the
+  listener had been attached to an element the event could not reach. It is now a `document`
+  listener for as long as the panel is open, and it stops propagation so the same Escape does not
+  also run `GridEditor`'s `window`-level cascade one hop further out.
+- **Backspace in a text field deleted the selected widget.** `GridEditor` binds Delete / Backspace
+  (remove the selected widget) and ← ↑ → ↓ (nudge it a cell) to `window`, with no check on where
+  the keystroke was aimed. Correcting a typo in the widget Title field — or in a Quick Actions link
+  label, which is how this surfaced — removed the widget from the layout instead of a character
+  from the field, and moving the caret slid the widget across the grid. Both shortcuts now stand
+  down when the target is an input, textarea, select or contenteditable (`isTypingTarget`).
+
+Recorded because the lesson generalises: **drive the surface, don't only measure it.** A screen can
+pass all six rules and still have a primary action nobody can click — and all three of these were
+found in the same twenty minutes of driving one screen, after that screen had measured clean.
 
 ## D6 — CAD is a styling island and is handled on its own
 
@@ -205,6 +256,37 @@ The corrected sweep is the baseline the ledger holds. Recording it because the t
 seeing 233, is to start fixing — and roughly half of that number was the instrument, not the
 product. **A count nobody has read the contents of is not a baseline.**
 
+## D6c — Quick Actions became the user's own, mid-pass
+
+Owner, 2026-08-15, while A3 was running:
+
+> *"for the quick actions, we need to be able to add links that when clicked takes us to that page.
+> Please make it so that we can fully customize the actions and links and stuff in the quick actions
+> widget in the hub."*
+
+The widget already let a user reorder and hide actions. What it did not let them do was *add* one:
+the catalog is eight entries chosen by us, and the settings panel could only select from it. Slice
+A13 adds user-authored links — label, destination, icon, colour — stored in the widget's own
+content and rendered beside the built-ins.
+
+Three decisions worth keeping:
+
+- **The destination is a picker over the route registry, not a URL box.** `ADMIN_ROUTES` is the same
+  table the nav and the ⌘K palette read, so every admin page is offered by its human label and its
+  real href. Hand-typed paths are how a shortcut ends up pointing at a page that has since moved.
+  A free-text field is still there, second in the list, for anything outside the app.
+- **The href allow-list is a security control.** A custom action's destination is user input that
+  ends up in an anchor's `href`. A saved `javascript:…` would execute on click, in an authenticated
+  admin session, for anyone the layout is restored to. `safeHref` permits internal paths, http(s),
+  `mailto:` and `tel:`, rejects everything else, and rejects protocol-relative `//host` explicitly
+  because it passes a naive "starts with `/`" test while navigating off-site. External destinations
+  open in a new tab with `rel="noopener noreferrer"`.
+- **The colour control had to be made real.** `colorForTint` was applied as the glyph's text colour,
+  and every glyph in the fallback table is a colour emoji, which ignores `color`. The tint each
+  catalog entry declares had therefore been invisible since the widget shipped. Offering the user a
+  colour that visibly does nothing is worse than offering none, so the glyph now sits in a tinted
+  disc — which shows the tint whatever the glyph is, and lights up the eight built-in tiles too.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -220,22 +302,24 @@ evaluated; **Findings** is that page's measured count at 1440px.
 
 ### Hub — the individual's own screens (14)
 
+**Findings** below is *baseline → after A3*.
+
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Hub | `/admin/me` | | ⬜ |
-| Search Everything | `/admin/search` | | ⬜ |
-| Profile & Settings | `/admin/profile` | | ⬜ |
-| Assignments | `/admin/assignments` | | ⬜ |
-| My Schedule | `/admin/schedule` | | ⬜ |
-| My Hours | `/admin/my-hours` | | ⬜ |
-| Time Off | `/admin/time-off` | | ⬜ |
-| My Pay | `/admin/my-pay` | | ⬜ |
-| My Notes | `/admin/my-notes` | | ⬜ |
-| Access Requests | `/admin/role-requests` | | ⬜ |
-| My Files | `/admin/my-files` | | ⬜ |
-| Get the App | `/admin/install` | | ⬜ |
-| My Fieldbook | `/admin/learn/fieldbook` | | ⬜ |
-| Privacy Settings | `/admin/me/privacy` | | ⬜ |
+| Hub | `/admin/me` | 2 → 0 | ✅ |
+| Search Everything | `/admin/search` | 0 → 0 | ✅ |
+| Profile & Settings | `/admin/profile` | 0 → 0 | ✅ |
+| Assignments | `/admin/assignments` | 1 → 0 | ✅ |
+| My Schedule | `/admin/schedule` | 5 → 0 | ✅ |
+| My Hours | `/admin/my-hours` | 1 → 0 | ✅ |
+| Time Off | `/admin/time-off` | 0 → 0 | ✅ |
+| My Pay | `/admin/my-pay` | 0 → 0 | ✅ |
+| My Notes | `/admin/my-notes` | 1 → 0 | ✅ |
+| Access Requests | `/admin/role-requests` | 0 → 0 | ✅ |
+| My Files | `/admin/my-files` | 1 → 0 | ✅ |
+| Get the App | `/admin/install` | 0 → 0 | ✅ |
+| My Fieldbook | `/admin/learn/fieldbook` | 0 → 0 | ✅ |
+| Privacy Settings | `/admin/me/privacy` | 0 → 0 | ✅ |
 
 ### Work — jobs, crews, the field (25)
 
@@ -431,6 +515,7 @@ Each is independently shippable and ends green.
 | **A10** | The CAD island | `/admin/cad` on its own — 74 findings, a second design system. |
 | **A11** | Narrow widths | Re-measure at 1280 and 390; fix what only breaks there. |
 | **A12** | Functional sweep | `qa-sweep.ts` over all 141, plus tsc and the full suite, proving nothing was broken and nothing stopped being surfaced. |
+| **A13** | Quick Actions the user can author | Owner ask that arrived during A3 (D6c): add / edit / delete your own shortcut tiles — label, destination from the route registry (or any address), icon, colour — with an href allow-list and a tint that is finally visible. |
 
 **Order matters.** A1 and A2 come first because they remove the repeated defect at its source; doing
 the page passes first would bake one-off values in and make the shared fix impossible.
@@ -444,7 +529,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A0 Audit + baseline | ✅ audit written; false-positive classes removed and the collapser fixed (D6b); baseline re-measured |
 | A1 Control-size contract | ✅ contract doc corrected to the enforced 40px, primitive repointed at `tokens.css`, the two moves written down (D4c) |
 | A2 Row/field primitives | ⬜ folded into A3–A9 — the contract is the primitive |
-| A3 Hub | ⬜ |
+| A3 Hub | ✅ 14 pages measured, **11 findings → 0**. Two of the three that survived A1 were shared-layer holes, not Hub bugs (D4d): `.admin-btn` (45 files) sized from padding to 43px, and `input:not([type])` missing from `forms.css` (178 inputs). Page-local: `.mynotes__tab` 42→40, `.mynotes__chip` pinned to the token, the my-notes search row moved to the dense-row move, `.tl-tabs__btn` 46→40. Plus two defects no rule can see (D5b): the Customize modal's Save was unclickable under the FAB dock, and Escape did not close the widget options panel. |
 | A4 Work | ⬜ |
 | A5 Money | ⬜ |
 | A6 Office | ⬜ |
@@ -454,3 +539,4 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A10 CAD island | ⬜ |
 | A11 Narrow widths | ⬜ |
 | A12 Functional sweep | ⬜ |
+| A13 Quick Actions the user can author | ✅ `lib/hub/custom-quick-actions.ts` (model + href allow-list + resolver, 30 tests), the editor in the widget's settings panel, and the tinted glyph disc that makes the colour choice visible. Browser-verified end to end: added a link, watched it reject `javascript:alert(1)`, saved, saw the tile on the hub, clicked it, landed on the page. |

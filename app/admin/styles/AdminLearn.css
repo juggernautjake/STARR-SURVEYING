@@ -713,8 +713,18 @@
 .manage__item-btn--danger { color:var(--color-brand-red) !important; border-color:#FECACA !important; }
 .manage__item-btn--danger:hover { background:var(--color-error-bg) !important; border-color:var(--color-brand-red) !important; }
 
-/* === ADMIN BUTTONS === */
-.admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; padding:.5rem 1rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; text-decoration:none; }
+/* === ADMIN BUTTONS ===
+ *
+ * admin-ui-alignment-2026-08-14 — `.admin-btn` is used in 45 admin files and sized itself from
+ * padding alone: .5rem top and bottom over a .85rem/1.2 line box renders 43px. Every input and
+ * select beside it renders 40px, because forms.css sets `height: var(--input-height)` on all of
+ * them. A 3px mismatch on every screen that pairs this button with a field is exactly the
+ * complaint this pass exists for, and fixing it here fixes it in 45 files at once.
+ *
+ * `min-height` rather than `height`: a handful of usages wrap onto two lines, and a hard height
+ * would clip them. The vertical padding goes, or it would stack on top of the min-height.
+ * The ≤768px rule in AdminResponsive.css raises this to 44px for gloved hands and still wins. */
+.admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:var(--button-height); padding:0 1rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; text-decoration:none; }
 .admin-btn--primary { background:var(--color-brand-navy); color:#FFF; border-color:var(--color-brand-navy); }
 .admin-btn--primary:hover { background:var(--color-brand-navy-d); }
 .admin-btn--primary:disabled { opacity:.5; cursor:not-allowed; }
@@ -723,7 +733,8 @@
 .admin-btn--secondary:disabled { opacity:.5; cursor:not-allowed; }
 .admin-btn--ghost { background:transparent; color:var(--color-text-tertiary); border-color:var(--theme-border, #E5E7EB); }
 .admin-btn--ghost:hover { color:var(--color-brand-navy); border-color:var(--color-brand-navy); }
-.admin-btn--sm { padding:.3rem .7rem; font-size:.78rem; }
+/* The dense variant is the contract's `--button-height-sm`, not a hand-rolled 36px. */
+.admin-btn--sm { min-height:var(--button-height-sm); padding:0 .7rem; font-size:.78rem; }
 
 /* === ADMIN EMPTY STATE === */
 .admin-empty { text-align:center; padding:3rem 1.5rem; }

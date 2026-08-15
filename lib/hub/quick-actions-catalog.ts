@@ -22,6 +22,10 @@ export interface QuickActionDef {
   description: string;
   /** Lucide icon name — resolved by the widget renderer. */
   iconName: string;
+  /** A glyph to render verbatim instead of looking `iconName` up in the renderer's table.
+   *  Set only by user-authored actions (see `custom-quick-actions.ts`), whose icon is typed in by
+   *  the person rather than chosen from our lucide set. */
+  glyph?: string;
   kind: QuickActionKind;
   /** Required for `link` kind. Where next/link sends the user. */
   href?: string;

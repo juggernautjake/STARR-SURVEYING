@@ -266,10 +266,10 @@ export default function AllJobsPage() {
             onClick={() => setShowDeleted((v) => !v)}
             title={showDeleted ? 'Back to active jobs' : 'View deleted jobs (recoverable for 30 days)'}
             style={{
-              /* Slice P5 — was 38px; the search row's other controls
-               * sit at 36 (.jobs-page__search/search-btn/view-toggle).
-               * Match them so the row baseline is flat. */
-              height: 36,
+              /* Slice P5 — was 38px; match the search row's other controls so the row baseline is
+               * flat. admin-ui-alignment-2026-08-14 — that match was written as a literal 36, and
+               * the row moved to the token; this reads the same token so it cannot drift again. */
+              height: 'var(--button-height)',
               boxSizing: 'border-box',
               padding: '0 14px',
               borderRadius: 8,

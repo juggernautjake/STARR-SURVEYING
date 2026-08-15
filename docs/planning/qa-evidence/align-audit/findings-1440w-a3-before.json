@@ -1,0 +1,56 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 14,
+  "byRule": {
+    "load": 1,
+    "height-spread": 3
+  },
+  "byRoute": {
+    "C:/Program Files/Git/admin/me": 1,
+    "/admin/schedule": 1,
+    "/admin/my-hours": 1,
+    "/admin/my-notes": 1
+  },
+  "findings": [
+    {
+      "route": "C:/Program Files/Git/admin/me",
+      "rule": "load",
+      "severity": "high",
+      "px": 0,
+      "detail": "page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040C:/Program Files/Git/admin/me\", ",
+      "container": "",
+      "count": 1
+    },
+    {
+      "route": "/admin/schedule",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 28, 36, 38, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/my-hours",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 32, 40, 46, 92px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/my-notes",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 5,
+      "detail": "5 different button heights on one page: 32, 36, 40, 42, 43px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    }
+  ]
+}
