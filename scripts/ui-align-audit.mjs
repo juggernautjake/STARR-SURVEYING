@@ -359,8 +359,27 @@ const PROBE = () => {
   }
 
   // ── RULE 5 — anything wider than the window ───────────────────────────────────────────────────
+  //
+  // Content inside a horizontal SCROLLER is not overflow — it is the point of the scroller. A chip
+  // row that scrolls sideways on a phone, a wide table in an `overflow-x: auto` wrapper, and a
+  // tab strip that slides are all deliberate, and all of them extend past the right edge by
+  // design. Measured at 390px, that distinction is most of the rule's output: the file explorer's
+  // type chips and the research library's filter row both scroll on purpose and both reported.
+  //
+  // What the rule is for is content that is CLIPPED or that pushes the page itself sideways — a
+  // table with no wrapper, a filter strip that neither wraps nor scrolls. Those have no scrollable
+  // ancestor, so they still fire.
+  const inScroller = (el) => {
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      const ox = getComputedStyle(n).overflowX;
+      if (ox === 'auto' || ox === 'scroll') return true;
+    }
+    return false;
+  };
+
   for (const el of document.querySelectorAll('body *')) {
     if (!isVisible(el)) continue;
+    if (inScroller(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.right > VIEW_W + 1 && r.width > 0 && r.width <= VIEW_W * 2) {
       findings.push({

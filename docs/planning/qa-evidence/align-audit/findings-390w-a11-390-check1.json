@@ -1,0 +1,44 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 6,
+  "byRule": {
+    "overflow": 3
+  },
+  "byRoute": {
+    "/admin/research/library": 2,
+    "/admin/learn/manage/question-builder": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/research/library",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 26,
+      "detail": "div.flex.gap-1 \"AllPlatDeedEasementSurveyPur\" extends 26px past the right edge",
+      "container": "div.bg-gray-900.border-b.border-gray-800 \"AllPlatDeedEasementSurveyPur\"",
+      "sig": "div.flex.gap-1|div.bg-gray-900.border-b.border-gray-800",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/library",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 26,
+      "detail": "button.inline-flex.items-center.h-[var(--button-height-sm)] \"Purchased\" extends 26px past the right edge",
+      "container": "div.flex.gap-1 \"AllPlatDeedEasementSurveyPur\"",
+      "sig": "button.inline-flex.items-center.h-[var(--button-height-sm)]|div.flex.gap-1",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 358,
+      "detail": "select.qb__select \"EasyMediumHard\" extends 358px past the right edge",
+      "container": "div.qb__row \"EasyMediumHardModule (option\"",
+      "sig": "select.qb__select|div.qb__row",
+      "count": 4
+    }
+  ]
+}

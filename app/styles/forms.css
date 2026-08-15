@@ -59,6 +59,24 @@
   resize: vertical;
 }
 
+/* ── No control is ever wider than what holds it ──────────────────────
+ *
+ * admin-ui-alignment-2026-08-15 (slice A11, measured at 390px). The admin reset gives controls
+ * `width: auto` so they size intrinsically instead of inheriting the marketing form's `width: 100%`
+ * — which is right on a wide screen and dangerous on a narrow one: a `<select>` sized to its widest
+ * OPTION. `/admin/learn/manage/question-builder` pushed its difficulty select **358px past the
+ * right edge of a 390px viewport**, because "Module (optional)" is a long option and nothing capped
+ * it. `flex: 1; min-width: 0` on the page's own rule does not help — in a column-direction row
+ * (which is what the ≤768px rule turns that row into) `flex` governs height, not width.
+ *
+ * A cap rather than a width, so nothing that fits is changed and nothing that does not fit escapes.
+ */
+.admin-layout__content input,
+.admin-layout__content select,
+.admin-layout__content textarea {
+  max-width: 100%;
+}
+
 .admin-layout__content input:not([type]):focus-visible,
 .admin-layout__content input[type="text"]:focus-visible,
 .admin-layout__content input[type="email"]:focus-visible,

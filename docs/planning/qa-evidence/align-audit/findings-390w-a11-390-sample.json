@@ -1,0 +1,378 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 15,
+  "byRule": {
+    "overflow": 36
+  },
+  "byRoute": {
+    "/admin/audit": 14,
+    "/admin/jobs": 5,
+    "/admin/files": 1,
+    "/admin/users": 12,
+    "/admin/research/library": 2,
+    "/admin/learn/manage/question-builder": 2
+  },
+  "findings": [
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 321,
+      "detail": "table.audit-table \"WhenActorActionSeverityDetai\" extends 321px past the right edge",
+      "container": "div.admin-table-wrap \"WhenActorActionSeverityDetai\"",
+      "sig": "table.audit-table|div.admin-table-wrap",
+      "count": 1
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 320,
+      "detail": "thead \"WhenActorActionSeverityDetai\" extends 320px past the right edge",
+      "container": "table.audit-table \"WhenActorActionSeverityDetai\"",
+      "sig": "thead|table.audit-table",
+      "count": 1
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 320,
+      "detail": "tr \"WhenActorActionSeverityDetai\" extends 320px past the right edge",
+      "container": "thead \"WhenActorActionSeverityDetai\"",
+      "sig": "tr|thead",
+      "count": 1
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 163,
+      "detail": "th \"Action\" extends 163px past the right edge",
+      "container": "tr \"WhenActorActionSeverityDetai\"",
+      "sig": "th|tr",
+      "count": 3
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 320,
+      "detail": "tbody \"8/4/2026, 1:14:34 PMjacobmad\" extends 320px past the right edge",
+      "container": "table.audit-table \"WhenActorActionSeverityDetai\"",
+      "sig": "tbody|table.audit-table",
+      "count": 1
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 320,
+      "detail": "tr \"8/4/2026, 1:14:34 PMjacobmad\" extends 320px past the right edge",
+      "container": "tbody \"8/4/2026, 1:14:34 PMjacobmad\"",
+      "sig": "tr|tbody",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 163,
+      "detail": "td.audit-action \"ORG_SETTINGS_UPDATED\" extends 163px past the right edge",
+      "container": "tr \"8/4/2026, 1:14:34 PMjacobmad\"",
+      "sig": "td.audit-action|tr",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 149,
+      "detail": "code \"ORG_SETTINGS_UPDATED\" extends 149px past the right edge",
+      "container": "td.audit-action \"ORG_SETTINGS_UPDATED\"",
+      "sig": "code|td.audit-action",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 246,
+      "detail": "td \"info\" extends 246px past the right edge",
+      "container": "tr \"8/4/2026, 1:14:34 PMjacobmad\"",
+      "sig": "td|tr",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 201,
+      "detail": "span \"info\" extends 201px past the right edge",
+      "container": "td \"info\"",
+      "sig": "span|td",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 320,
+      "detail": "td.audit-meta \"1 field{ \"changed\": { \"name\"\" extends 320px past the right edge",
+      "container": "tr \"8/4/2026, 1:14:34 PMjacobmad\"",
+      "sig": "td.audit-meta|tr",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 306,
+      "detail": "details \"1 field{ \"changed\": { \"name\"\" extends 306px past the right edge",
+      "container": "td.audit-meta \"1 field{ \"changed\": { \"name\"\"",
+      "sig": "details|td.audit-meta",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 306,
+      "detail": "summary \"1 field\" extends 306px past the right edge",
+      "container": "details \"1 field{ \"changed\": { \"name\"\"",
+      "sig": "summary|details",
+      "count": 6
+    },
+    {
+      "route": "/admin/audit",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 306,
+      "detail": "pre \"{ \"changed\": { \"name\": \"Star\" extends 306px past the right edge",
+      "container": "details \"1 field{ \"changed\": { \"name\"\"",
+      "sig": "pre|details",
+      "count": 6
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 55,
+      "detail": "span.research-tip-wrap \"⚖️Legal0\" extends 55px past the right edge",
+      "container": "div.jobs-page__pipeline \"💰Quote0🔍Research0🏗️Field \"",
+      "sig": "span.research-tip-wrap|div.jobs-page__pipeline",
+      "count": 3
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 55,
+      "detail": "button.jobs-page__pipeline-stage \"⚖️Legal0\" extends 55px past the right edge",
+      "container": "span.research-tip-wrap \"⚖️Legal0\"",
+      "sig": "button.jobs-page__pipeline-stage|span.research-tip-wrap",
+      "count": 3
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 27,
+      "detail": "span.jobs-page__pipeline-icon \"⚖️\" extends 27px past the right edge",
+      "container": "button.jobs-page__pipeline-stage \"⚖️Legal0\"",
+      "sig": "span.jobs-page__pipeline-icon|button.jobs-page__pipeline-stage",
+      "count": 3
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 30,
+      "detail": "span.jobs-page__pipeline-label \"Legal\" extends 30px past the right edge",
+      "container": "button.jobs-page__pipeline-stage \"⚖️Legal0\"",
+      "sig": "span.jobs-page__pipeline-label|button.jobs-page__pipeline-stage",
+      "count": 3
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 21,
+      "detail": "span.jobs-page__pipeline-count \"0\" extends 21px past the right edge",
+      "container": "button.jobs-page__pipeline-stage \"⚖️Legal0\"",
+      "sig": "span.jobs-page__pipeline-count|button.jobs-page__pipeline-stage",
+      "count": 3
+    },
+    {
+      "route": "/admin/files",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 97,
+      "detail": "button.fx__kind \"Spreadsheets\" extends 97px past the right edge",
+      "container": "div.fx__kinds \"ImagesPDFsDrawings & CADDocu\"",
+      "sig": "button.fx__kind|div.fx__kinds",
+      "count": 4
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 117,
+      "detail": "button.um-filter-tab \"Company0\" extends 117px past the right edge",
+      "container": "div.um-filter-tabs \"All7Pending0Active7Banned0Co\"",
+      "sig": "button.um-filter-tab|div.um-filter-tabs",
+      "count": 2
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 102,
+      "detail": "span.um-filter-tab__count \"0\" extends 102px past the right edge",
+      "container": "button.um-filter-tab \"Company0\"",
+      "sig": "span.um-filter-tab__count|button.um-filter-tab",
+      "count": 2
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 15,
+      "detail": "th \"Roles\" extends 15px past the right edge",
+      "container": "tr \"UserRolesStatusProviderLast \"",
+      "sig": "th|tr",
+      "count": 5
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 15,
+      "detail": "td.um-cell-roles \"EmployeeField Crew\" extends 15px past the right edge",
+      "container": "tr \"Jack Cabanissjackcabaniss@st\"",
+      "sig": "td.um-cell-roles|tr",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 2,
+      "detail": "div.um-roles-display \"EmployeeField Crew\" extends 2px past the right edge",
+      "container": "td.um-cell-roles \"EmployeeField Crew\"",
+      "sig": "div.um-roles-display|td.um-cell-roles",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 115,
+      "detail": "td.um-cell-status \"Active\" extends 115px past the right edge",
+      "container": "tr \"Jack Cabanissjackcabaniss@st\"",
+      "sig": "td.um-cell-status|tr",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 83,
+      "detail": "span.um-status-badge.um-status-badge--active \"Active\" extends 83px past the right edge",
+      "container": "td.um-cell-status \"Active\"",
+      "sig": "span.um-status-badge.um-status-badge--active|td.um-cell-status",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 280,
+      "detail": "td.um-cell-date \"Aug 11, 2026, 10:16 AM\" extends 280px past the right edge",
+      "container": "tr \"Jack Cabanissjackcabaniss@st\"",
+      "sig": "td.um-cell-date|tr",
+      "count": 14
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 474,
+      "detail": "td.um-cell-actions \"RolesBan\" extends 474px past the right edge",
+      "container": "tr \"Jack Cabanissjackcabaniss@st\"",
+      "sig": "td.um-cell-actions|tr",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 461,
+      "detail": "button.um-btn.um-btn--sm.um-btn--primary \"Roles\" extends 461px past the right edge",
+      "container": "td.um-cell-actions \"RolesBan\"",
+      "sig": "button.um-btn.um-btn--sm.um-btn--primary|td.um-cell-actions",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 461,
+      "detail": "button.um-btn.um-btn--sm.um-btn--warning \"Ban\" extends 461px past the right edge",
+      "container": "td.um-cell-actions \"RolesBan\"",
+      "sig": "button.um-btn.um-btn--sm.um-btn--warning|td.um-cell-actions",
+      "count": 7
+    },
+    {
+      "route": "/admin/users",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 2,
+      "detail": "span.um-role-badge \"Drawer\" extends 2px past the right edge",
+      "container": "div.um-roles-display \"EmployeeAdminDeveloperDrawer\"",
+      "sig": "span.um-role-badge|div.um-roles-display",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/library",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 26,
+      "detail": "div.flex.gap-1 \"AllPlatDeedEasementSurveyPur\" extends 26px past the right edge",
+      "container": "div.bg-gray-900.border-b.border-gray-800 \"AllPlatDeedEasementSurveyPur\"",
+      "sig": "div.flex.gap-1|div.bg-gray-900.border-b.border-gray-800",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/library",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 26,
+      "detail": "button.inline-flex.items-center.h-[var(--button-height-sm)] \"Purchased\" extends 26px past the right edge",
+      "container": "div.flex.gap-1 \"AllPlatDeedEasementSurveyPur\"",
+      "sig": "button.inline-flex.items-center.h-[var(--button-height-sm)]|div.flex.gap-1",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 150,
+      "detail": "button.qb__tab \"Auto-Generate (28)\" extends 150px past the right edge",
+      "container": "div.qb__tabs \"Questions (500)Templates (20\"",
+      "sig": "button.qb__tab|div.qb__tabs",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 358,
+      "detail": "select.qb__select \"EasyMediumHard\" extends 358px past the right edge",
+      "container": "div.qb__row \"EasyMediumHardModule (option\"",
+      "sig": "select.qb__select|div.qb__row",
+      "count": 4
+    }
+  ]
+}

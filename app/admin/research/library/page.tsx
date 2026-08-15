@@ -214,13 +214,17 @@ export default function GlobalLibraryPage() {
           syntax keeps that declaration in the class list where the rest of this page's styling
           lives, instead of opening a second styling system on the same element. */}
       <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3 [--input-height:var(--button-height-sm)]">
-        {/* Filter tabs */}
-        <div className="flex gap-1">
+        {/* Filter tabs — admin-ui-alignment-2026-08-15 (A11): six chips do not fit 390px, and they
+            were neither wrapping nor scrolling, so the last one sat 26px off-screen with no way to
+            reach it. It scrolls sideways now, the same call the file explorer's type chips make:
+            wrapping to three lines pushes the document list below the fold, and the list is what
+            people came for. `shrink-0` so the chips keep their size instead of being squeezed. */}
+        <div className="flex gap-1 overflow-x-auto max-w-full [scrollbar-width:thin]">
           {(['all', 'plat', 'deed', 'easement', 'survey', 'purchased'] as DocFilter[]).map(f => (
             <button
               key={f}
               onClick={() => { setFilter(f); resetPage(); }}
-              className={`inline-flex items-center h-[var(--button-height-sm)] px-3 rounded text-xs font-medium transition-colors ${
+              className={`inline-flex items-center shrink-0 h-[var(--button-height-sm)] px-3 rounded text-xs font-medium transition-colors ${
                 filter === f
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'

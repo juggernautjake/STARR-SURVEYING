@@ -461,6 +461,30 @@ editor, and **the honest response to a rule that is right in general and wrong h
 exception, not to move its threshold** — a rule bent to make a screen pass stops working on the next
 one.
 
+## D6k — At 390px, 33 of 36 findings were the instrument, and the 3 that were real were the same bug
+
+The phone sweep opened with 36 `overflow` findings across a 15-route sample, every one of them
+"extends N px past the right edge". Reading them before fixing anything — the D6b discipline —
+found that **content inside a horizontal scroller is not overflow; it is the point of the
+scroller.** `/admin/audit`'s wide table, `/admin/users`'s action column, `/admin/jobs`'s pipeline
+strip and `/admin/files`'s type chips are all already wrapped in `overflow-x: auto`, and all of
+them reported. Skipping elements with a scrollable ancestor took the sample from 36 to 3.
+
+The 3 that survived were real, and two of them are one bug:
+
+- **`/admin/learn/manage/question-builder` pushed a `<select>` 358px past a 390px viewport.** The
+  admin reset gives controls `width: auto` so they size intrinsically rather than inheriting the
+  marketing form's `width: 100%` — correct on a desktop, dangerous on a phone, because a `<select>`
+  then sizes to its widest OPTION. The page's own `flex: 1; min-width: 0` cannot help: the ≤768px
+  rule turns that row into a column, where `flex` governs height. `forms.css` now caps every admin
+  control at `max-width: 100%` — a cap, so nothing that fits changes and nothing that does not fit
+  escapes.
+- **`/admin/research/library`'s six filter chips** neither wrapped nor scrolled, so the last one sat
+  26px off-screen with no way to reach it. It scrolls now, the same call the file explorer makes.
+
+**1280px found nothing** beyond CAD's two accepted findings — which is the useful negative result:
+the breakpoint that hurts is the phone, not the small laptop.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -714,6 +738,6 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A8 Research | ✅ 9 pages measured, **3 findings → 0**. `/admin/research/library` turned out to be a *second* utility-class island (D6h) — its filter tabs were `py-1`, 24px, beside 40px selects, and under the floor; fixed in Tailwind's own idiom rather than by opening a second styling system on the same element. `/admin/research/testing` was the checkbox-label margin again, the third instance this pass. |
 | A9 Knowledge | ✅ 19 pages measured, **3 findings → 0**. Two were A3's own `.admin-btn--sm` fix landing in rows that should never have used the small size (D6i); the third was `.manage__item-btn` at 31px — a class that paints a thousand buttons on the question-builder alone — plus a 39px add-button on a form of 40s. |
 | A10 CAD island | ✅ **21 → 2** (D6j). Eleven were the instrument pairing a tool rail against a panel; the biggest real one was the editor inheriting `globals.css`'s marketing-form padding, because it renders outside `.admin-layout` — which is why fields asking for `h-6` measured 30px and the command line 52px. The remaining 2 are `height-spread` on a coherent 18/22/24/28 scale, accepted by design rather than by moving the threshold. |
-| A11 Narrow widths | ⬜ |
+| A11 Narrow widths | 🟡 measured at **390** and **1280** over a 15-route sample spanning every workspace. 390 opened at 36 findings, all `overflow`; 33 were the instrument counting content inside deliberate horizontal scrollers (D6k). The 3 real ones are fixed: a `<select>` sized to its widest option 358px past the edge (now capped in `forms.css` for every admin control), and a six-chip filter row with its last chip unreachable. **1280 found nothing** beyond CAD's two accepted findings. The full 139-route 390 sweep is running as the slice's final check — its number lands with A12. |
 | A12 Functional sweep | ⬜ |
 | A13 Quick Actions the user can author | ✅ `lib/hub/custom-quick-actions.ts` (model + href allow-list + resolver, 30 tests), the editor in the widget's settings panel, and the tinted glyph disc that makes the colour choice visible. Browser-verified end to end: added a link, watched it reject `javascript:alert(1)`, saved, saw the tile on the hub, clicked it, landed on the page. |
