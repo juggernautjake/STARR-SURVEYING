@@ -59,7 +59,10 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // C29 built that UI (`AdvancedCurveCalculator`), so the entry went stale and this ratchet said
   // so on the same run. Compound curves, reverse curves and clothoid spirals are now solved AND
   // drawable — which is the outcome the note was hoping for rather than excusing.
-  'geometry/spline-to-arc.ts': 'spline→arc conversion, for a DXF export path not yet taken',
+  // 'geometry/spline-to-arc.ts' was here, described as "for a DXF export path not yet taken". C29
+  // took a different path to the same need — a context-menu conversion that replaces the spline in
+  // place — and the entry went stale on the same run. Second time in this doc that building the
+  // thing an entry was excusing is what made the ratchet fire.
   // 'io/trv-bearings.ts' was here, described as "superseded by the parser doing it inline". Deleted
   // 2026-08-04 (S4c) with its two test files, once the supersession was actually traced:
   //

@@ -78,7 +78,7 @@ const KNOWN_ORPHANS: readonly string[] = [
   'cad/ai-engine/index.ts',
   'cad/codes/index.ts',
   // 'cad/geometry/compound-curve.ts' removed by C29 — `AdvancedCurveCalculator` imports it.
-  'cad/geometry/spline-to-arc.ts',
+  // 'cad/geometry/spline-to-arc.ts' removed by C29 — FeatureContextMenu imports it.
   'cad/persistence/native-autosave.ts',
   'cad/platform/index.ts',
   'dnd/ai-scope.ts',

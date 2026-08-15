@@ -41,6 +41,8 @@ import {
   makeBatchEntry,
 } from '@/lib/cad/store';
 import { hasProvenance } from '@/lib/cad/ai/provenance';
+// C29 — the conversion C27 found exported and called by nothing.
+import { convertSplineGeometryToArcs } from '@/lib/cad/geometry/spline-to-arc';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
   copyToClipboard,
@@ -72,6 +74,7 @@ import {
 import { activateOffsetTool } from '@/lib/cad/operations/activate-offset-tool';
 import { insertInflectionPoint, findClosestSplineParam } from '@/lib/cad/geometry/curve-render';
 import { generateId } from '@/lib/cad/types';
+import type { Feature, UndoOperation } from '@/lib/cad/types';
 
 interface Props {
   x: number;          // Screen X (clientX)
@@ -91,6 +94,10 @@ interface MenuItemDef {
   danger?: boolean;
   disabled?: boolean;
   separator?: false;
+  /** C29 — omit the row entirely rather than greying it. A disabled entry on every feature that is
+   *  not a spline would be noise on a menu this long; absent, it reads as "not applicable here",
+   *  which is what it means. */
+  hidden?: boolean;
   submenu?: SubMenuDef[];
   action?: () => void;
 }
@@ -167,6 +174,7 @@ function SubMenu({
           return <div key={item.id} className="my-1 border-t border-gray-700" />;
         }
         const mi = item as MenuItemDef;
+        if (mi.hidden) return null;
         return (
           <button
             key={mi.id}
@@ -265,6 +273,8 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   const selIds = Array.from(selectionStore.selectedIds);
   const selCount = selIds.length;
   const feature = featureId ? drawingStore.getFeature(featureId) : null;
+  // C29 — the spline-to-arcs entry appears only on an actual spline.
+  const splineSelected = !!feature?.geometry.spline;
   const mediaByOwner = useMediaStore((s) => s.byOwner);
   const mediaHydrate = useMediaStore((s) => s.hydrate);
   useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
@@ -403,6 +413,74 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
   // floating OffsetPanel (Slice 1) auto-mounts.
   function handleCreateOffset() {
     activateOffsetTool(featureId);
+  }
+
+  /**
+   * C29 — replace a SPLINE with the arcs and lines that reproduce it.
+   *
+   * `convertSplineToArcs` has been in the tree with no callers; C27 found it. The need is real:
+   * a spline is fine on screen and a problem in a deliverable, because plenty of packages a plat
+   * gets handed to will not accept one, and the usual fallback — a polyline of hundreds of chords —
+   * is accepted and is not the same drawing.
+   *
+   * The whole replacement is ONE undo entry. A spline that half-converted would leave the drawing
+   * holding neither the curve nor its arcs, and the surveyor would have to notice.
+   */
+  function handleSplineToArcs() {
+    if (!featureId) return;
+    const f = drawingStore.getFeature(featureId);
+    const spline = f?.geometry.spline;
+    if (!f || !spline) return;
+
+    const result = convertSplineGeometryToArcs(spline);
+    if (!result || result.segments.length === 0) {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+        detail: { text: 'Convert to arcs — this spline has too few control points to fit.' },
+      }));
+      return;
+    }
+
+    const created: Feature[] = result.segments.map((seg) => ({
+      id: generateId(),
+      type: seg.type === 'ARC' ? 'ARC' : 'LINE',
+      geometry: seg.type === 'ARC' && seg.center && seg.radius !== undefined
+        ? {
+            type: 'ARC',
+            arc: {
+              center: seg.center,
+              radius: seg.radius,
+              startAngle: Math.atan2(seg.start.y - seg.center.y, seg.start.x - seg.center.x),
+              endAngle: Math.atan2(seg.end.y - seg.center.y, seg.end.x - seg.center.x),
+              // The fitter reports the turn direction it measured; trusting it rather than
+              // re-deriving is what keeps each arc the MINOR one — the same 300-foot trap C29's
+              // curve placement hit by reasoning about a convention instead of reading it.
+              anticlockwise: seg.direction === 'CCW',
+            },
+          }
+        : { type: 'LINE', start: seg.start, end: seg.end },
+      layerId: f.layerId,
+      style: { ...f.style },
+      properties: {
+        ...f.properties,
+        calcSource: 'SPLINE_TO_ARCS',
+        // The fit is an approximation and says so, in the units of the drawing.
+        calcMaxDeviation: Math.round(result.maxDeviation * 100000) / 100000,
+      },
+    }));
+
+    const ops: UndoOperation[] = [
+      { type: 'REMOVE_FEATURE', data: f },
+      ...created.map((c) => ({ type: 'ADD_FEATURE' as const, data: c })),
+    ];
+    drawingStore.removeFeature(f.id);
+    for (const c of created) drawingStore.addFeature(c);
+    undoStore.pushUndo(makeBatchEntry('Convert spline to arcs', ops));
+
+    window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+      detail: {
+        text: `Converted to ${created.length} segment${created.length === 1 ? '' : 's'}; max deviation ${result.maxDeviation.toFixed(4)}.`,
+      },
+    }));
   }
 
   // ── Helper: move to layer ─────────────────────────────────────────────────
@@ -658,6 +736,14 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
     // ─ Move / Offset ─────────────────────────────────────────────────────
     { id: 'translate', label: 'Move by Offset…',                                              action: handleTranslate                 },
     { id: 'offset',    label: 'Create offset…',     disabled: !featureId,                     action: handleCreateOffset              },
+    {
+      id: 'splineToArcs',
+      label: 'Convert spline to arcs…',
+      // Only offered on an actual spline. A greyed entry on every other feature would be noise on
+      // a menu this long; absent, it reads as "not applicable here", which is what it means.
+      hidden: !splineSelected,
+      action: handleSplineToArcs,
+    },
     { separator: true, id: 'ms4' },
     // ─ Align (only useful with 2+ selected) ─────────────────────────────
     { id: 'alignL',   label: 'Align Left Edges',   disabled: selCount < 2,                   action: () => alignSelection('LEFT')    },
