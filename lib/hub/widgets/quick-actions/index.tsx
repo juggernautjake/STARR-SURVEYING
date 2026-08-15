@@ -45,11 +45,12 @@ import {
   type QuickActionDef,
 } from '@/lib/hub/quick-actions-catalog';
 import {
-  CUSTOM_ACTION_ICON_CHOICES,
+  CUSTOM_ACTION_ICON_GROUPS,
   CUSTOM_ACTION_LABEL_MAX,
   CUSTOM_ACTION_TINTS,
   isCustomActionId,
   isExternalHref,
+  duplicateCustomAction,
   isKnownInternalHref,
   nextCustomActionId,
   normalizeCustomActions,
@@ -632,6 +633,15 @@ function CustomLinksEditor({
 }) {
   const [draft, setDraft] = useState<LinkDraft | null>(null);
   const [error, setError] = useState('');
+  /** Which link is one click from deletion. Held here rather than per-row so opening a second
+   *  confirmation closes the first — two armed delete buttons at once is how the wrong one goes. */
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+
+  function onDuplicate(action: CustomQuickAction) {
+    // Saved as new, so `saveCustom` also appends it to the shown list — a copy the user cannot see
+    // reads as the button having done nothing.
+    onSave(duplicateCustomAction(action, existingIds), true);
+  }
 
   const routeOptions = useMemo(() => {
     return WORKSPACE_ORDER.map((ws) => ({
@@ -718,7 +728,45 @@ function CustomLinksEditor({
                 )}
               </span>
               <button type="button" onClick={() => beginEdit(action)} style={textBtnStyle}>Edit</button>
-              <button type="button" onClick={() => onDelete(action.id)} style={textBtnStyle} aria-label={`Delete ${action.label}`}>Delete</button>
+              {/* C0k — the links a surveyor makes come in families (the same page with four
+                  different query strings, or one page tinted per crew). Without this, the fifth is
+                  retyped from scratch and quietly diverges from its siblings. */}
+              <button
+                type="button"
+                onClick={() => onDuplicate(action)}
+                style={textBtnStyle}
+                aria-label={`Duplicate ${action.label}`}
+              >
+                Duplicate
+              </button>
+              {/* C0k — delete asks first. It was a single irreversible click, and a custom link is
+                  a handful of typed fields with no undo anywhere in the hub: the settings panel
+                  saves straight through to the stored layout. Two clicks is the whole safety net
+                  this action gets, so it gets them. */}
+              {confirmingDelete === action.id ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { onDelete(action.id); setConfirmingDelete(null); }}
+                    style={{ ...textBtnStyle, borderColor: 'var(--theme-danger)', color: 'var(--theme-danger)' }}
+                    aria-label={`Confirm deleting ${action.label}`}
+                  >
+                    Really delete
+                  </button>
+                  <button type="button" onClick={() => setConfirmingDelete(null)} style={textBtnStyle}>
+                    Keep
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(action.id)}
+                  style={textBtnStyle}
+                  aria-label={`Delete ${action.label}`}
+                >
+                  Delete
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -770,30 +818,50 @@ function CustomLinksEditor({
             </label>
           )}
 
+          {/* C0k — the flat row of 16 glyphs became labelled groups. A flat row stops being
+              scannable somewhere past twenty, and the answer is not fewer icons: someone picking an
+              icon already knows the CATEGORY of the thing they are linking to, so the groups mirror
+              the workspaces in the route registry. The free-text box stays first — it is the
+              escape hatch for any emoji we did not think of. */}
           <div>
             <span style={settingsLabelStyle}>Icon</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
               <input
                 type="text"
                 value={draft.icon}
                 onChange={(e) => setDraft({ ...draft, icon: e.target.value })}
                 aria-label="Icon"
-                style={{ ...fieldStyle, width: 64, textAlign: 'center' }}
+                style={{ ...fieldStyle, width: 64, textAlign: 'center', flexShrink: 0 }}
               />
-              {CUSTOM_ACTION_ICON_CHOICES.map((glyph) => (
-                <button
-                  key={glyph}
-                  type="button"
-                  onClick={() => setDraft({ ...draft, icon: glyph })}
-                  aria-label={`Use ${glyph}`}
-                  aria-pressed={draft.icon === glyph}
-                  style={{
-                    ...iconBtnStyle,
-                    borderColor: draft.icon === glyph ? 'var(--theme-accent)' : 'var(--theme-border)',
-                  }}
-                >
-                  {glyph}
-                </button>
+              <span style={{ fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)' }}>
+                Type any emoji, or pick one below.
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+              {CUSTOM_ACTION_ICON_GROUPS.map((group) => (
+                <div key={group.label}>
+                  <span style={{ display: 'block', fontSize: 'var(--hub-font-xs, 0.7rem)', color: 'var(--theme-fg-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 3 }}>
+                    {group.label}
+                  </span>
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {group.glyphs.map((glyph) => (
+                      <button
+                        key={glyph}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, icon: glyph })}
+                        aria-label={`Use ${glyph}`}
+                        aria-pressed={draft.icon === glyph}
+                        style={{
+                          ...iconBtnStyle,
+                          borderColor: draft.icon === glyph ? 'var(--theme-accent)' : 'var(--theme-border)',
+                          borderWidth: draft.icon === glyph ? 2 : 1,
+                        }}
+                      >
+                        {glyph}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

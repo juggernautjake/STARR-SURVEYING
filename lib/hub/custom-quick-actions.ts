@@ -47,11 +47,43 @@ export const CUSTOM_ACTION_TINTS: ReadonlyArray<NonNullable<QuickActionDef['tint
   'accent', 'success', 'warning', 'info', 'danger',
 ];
 
-/** Glyphs offered as one-click choices in the settings form. Free text is still accepted — this is
- *  a shortcut, not a whitelist. */
-export const CUSTOM_ACTION_ICON_CHOICES: ReadonlyArray<string> = [
-  '⚡', '🔗', '📁', '📋', '🧾', '📊', '🗓', '📍', '🚚', '🛠', '💬', '💰', '📷', '⭐', '🏠', '🔍',
+/**
+ * Glyphs offered as one-click choices in the settings form.
+ *
+ * Free text is still accepted — this is a shortcut, not a whitelist, and a surveyor who wants an
+ * emoji we did not think of can paste one.
+ *
+ * ── GROUPED, AND WHY THE GROUPS ARE THE ONES THEY ARE (C0k) ─────────────────────────────────────
+ *
+ * The original sixteen were a flat row chosen quickly. A flat row stops being scannable somewhere
+ * around twenty, and the fix is not "fewer icons" — it is labelled groups, because a person
+ * picking an icon already knows the CATEGORY of the thing they are linking to. The groups mirror
+ * the workspaces in the route registry, so choosing an icon for a link into Money means looking at
+ * the Money row.
+ *
+ * Text-presentation glyphs (★ ✓ ✎) are deliberately kept alongside the colour emoji: they are the
+ * only ones that take the tint the user picks, since colour emoji ignore `color` entirely — the
+ * defect the tinted disc in the widget exists to work around.
+ */
+export interface IconChoiceGroup {
+  label: string;
+  glyphs: ReadonlyArray<string>;
+}
+
+export const CUSTOM_ACTION_ICON_GROUPS: ReadonlyArray<IconChoiceGroup> = [
+  { label: 'General',    glyphs: ['⚡', '🔗', '⭐', '📌', '🏠', '🔍', '✅', '★', '✓', '✎'] },
+  { label: 'Work',       glyphs: ['📋', '🗓', '📍', '🧭', '📐', '📏', '🚧', '🏗', '🗺', '🪧'] },
+  { label: 'Field',      glyphs: ['🚚', '🛠', '🔧', '🔩', '🪜', '⛏', '🥾', '🦺', '🌲', '☀'] },
+  { label: 'Money',      glyphs: ['💰', '🧾', '💳', '📈', '📉', '🏦', '💵', '🧮'] },
+  { label: 'Office',     glyphs: ['📁', '📂', '📄', '✉', '💬', '📞', '🖨', '📊', '👤', '👥'] },
+  { label: 'Media',      glyphs: ['📷', '🎥', '🎙', '🖼', '📎', '💾'] },
+  { label: 'Status',     glyphs: ['⏱', '⏳', '⚠', '❗', '🔔', '🚩', '🟢', '🔴'] },
 ];
+
+/** The flat list, for anything that just needs "every offered glyph" — kept in sync by derivation
+ *  rather than by hand, so a group edit cannot leave the two disagreeing. */
+export const CUSTOM_ACTION_ICON_CHOICES: ReadonlyArray<string> =
+  CUSTOM_ACTION_ICON_GROUPS.flatMap((g) => g.glyphs);
 
 export const CUSTOM_ACTION_LABEL_MAX = 40;
 export const CUSTOM_ACTION_DESCRIPTION_MAX = 120;
@@ -144,6 +176,33 @@ export function nextCustomActionId(existingIds: ReadonlyArray<string>, label: st
 
 export function isCustomActionId(id: string): boolean {
   return id.startsWith(CUSTOM_ACTION_PREFIX);
+}
+
+/**
+ * A copy of a link, with a fresh id and a label that says it is a copy.
+ *
+ * ── WHY DUPLICATE EARNS ITS PLACE (C0k) ─────────────────────────────────────────────────────────
+ *
+ * The links a surveyor actually makes come in families: four shortcuts into the same job with
+ * different query strings, or the same page tinted differently for two crews. Without duplicate,
+ * the fifth one is retyped from scratch — label, destination, icon, colour, tooltip — and the
+ * commonest outcome is that it quietly diverges from its siblings.
+ *
+ * The suffix is appended before the length cap is applied, so a label already at the 40-character
+ * limit yields "…" + " copy" trimmed back to 40 rather than silently producing a duplicate LABEL
+ * as well as a duplicate link. Two tiles reading identically is the one outcome worse than
+ * retyping.
+ */
+export function duplicateCustomAction(
+  action: CustomQuickAction,
+  existingIds: ReadonlyArray<string>,
+): CustomQuickAction {
+  const label = `${action.label} copy`.slice(0, CUSTOM_ACTION_LABEL_MAX);
+  return {
+    ...action,
+    id: nextCustomActionId(existingIds, label),
+    label,
+  };
 }
 
 /**

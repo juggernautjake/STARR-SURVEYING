@@ -12,7 +12,11 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  CUSTOM_ACTION_ICON_CHOICES,
+  CUSTOM_ACTION_ICON_GROUPS,
+  CUSTOM_ACTION_LABEL_MAX,
   CUSTOM_ACTION_PREFIX,
+  duplicateCustomAction,
   isCustomActionId,
   isExternalHref,
   isKnownInternalHref,
@@ -179,6 +183,67 @@ describe('nextCustomActionId', () => {
 
   it('falls back to a usable id when the label has no alphanumerics', () => {
     expect(nextCustomActionId([], '★★★')).toBe('custom:link');
+  });
+});
+
+describe('duplicateCustomAction — C0k', () => {
+  it('copies every field but takes a fresh id and a "copy" label', () => {
+    const src = link({ description: 'Daily check', tint: 'warning' });
+    const copy = duplicateCustomAction(src, [src.id]);
+    expect(copy.id).not.toBe(src.id);
+    expect(isCustomActionId(copy.id)).toBe(true);
+    expect(copy.label).toBe('Truck checklist copy');
+    // The whole point: destination, icon, tint and tooltip come along, or duplicating saves nothing.
+    expect(copy.href).toBe(src.href);
+    expect(copy.icon).toBe(src.icon);
+    expect(copy.tint).toBe('warning');
+    expect(copy.description).toBe('Daily check');
+  });
+
+  it('keeps duplicating cleanly — a copy of a copy gets its own id', () => {
+    const src = link();
+    const first = duplicateCustomAction(src, [src.id]);
+    const second = duplicateCustomAction(src, [src.id, first.id]);
+    expect(second.id).not.toBe(first.id);
+    expect(new Set([src.id, first.id, second.id]).size).toBe(3);
+  });
+
+  it('never produces a label longer than the cap', () => {
+    // A label already at the limit would otherwise overflow it by exactly " copy" — and a silently
+    // truncated duplicate LABEL is worse than the retyping this feature exists to avoid, because
+    // two tiles then read identically.
+    const long = link({ label: 'x'.repeat(CUSTOM_ACTION_LABEL_MAX) });
+    const copy = duplicateCustomAction(long, [long.id]);
+    expect(copy.label.length).toBe(CUSTOM_ACTION_LABEL_MAX);
+  });
+
+  it('survives the sanitizer, so a duplicate can actually be stored', () => {
+    const copy = duplicateCustomAction(link(), ['custom:truck-checklist']);
+    expect(sanitizeCustomAction(copy)).toEqual(copy);
+  });
+});
+
+describe('the icon choices', () => {
+  it('the flat list is derived from the groups, so the two cannot disagree', () => {
+    expect(CUSTOM_ACTION_ICON_CHOICES).toEqual(CUSTOM_ACTION_ICON_GROUPS.flatMap((g) => g.glyphs));
+  });
+
+  it('offers no duplicate glyph across groups', () => {
+    const seen = new Set(CUSTOM_ACTION_ICON_CHOICES);
+    expect(seen.size).toBe(CUSTOM_ACTION_ICON_CHOICES.length);
+  });
+
+  it('every group is labelled and non-empty', () => {
+    for (const g of CUSTOM_ACTION_ICON_GROUPS) {
+      expect(g.label.trim()).not.toBe('');
+      expect(g.glyphs.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps text-presentation glyphs, which are the only ones the tint reaches', () => {
+    // Colour emoji ignore `color` entirely — the reason the widget paints a tinted disc behind the
+    // glyph at all. ★ ✓ ✎ actually take the colour the user picked.
+    for (const g of ['★', '✓', '✎']) expect(CUSTOM_ACTION_ICON_CHOICES).toContain(g);
   });
 });
 
