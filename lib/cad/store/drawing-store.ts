@@ -22,6 +22,9 @@ import { canFeatureBeRendered, canFeatureBeEdited } from '../styles/style-cascad
 import { canonicalizePointName } from '../feature-fields';
 // C8 — named layer states. Pure capture/restore planning lives beside the other style helpers.
 import { captureLayerState, planLayerStateRestore } from '../styles/layer-states';
+// C23 — the unified visibility model (decision D3). One place knows every way a feature can be
+// invisible, and it can name which one applied.
+import { isRenderable } from '../visibility';
 
 // ── CAD_AUDIT Slice S2b — the visible/selectable set is derived ONCE per document version ──
 //
@@ -1256,17 +1259,16 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     const { document } = get();
     const cache = cacheFor(document);
     if (cache.visible) return cache.visible;
-    cache.visible = Object.values(document.features).filter((f) => {
-      if (f.hidden === true) return false;
-      const layer = document.layers[f.layerId];
-      if (!layer) return false;
-      // cad-domain-audit Slice E — honor `frozen` too. The previous
-      // predicate only checked `visible`, so snap / hit-testing /
-      // render walks (every consumer of this selector) silently
-      // included frozen layers — contradicting the documented intent
-      // of `canFeatureBeRendered`.
-      return canFeatureBeRendered(layer);
-    });
+    // C23 — delegates to the unified model (`lib/cad/visibility.ts`) instead of re-implementing
+    // the flag checks here. The rules are identical to what this filter did before (feature
+    // hidden, missing layer, layer hidden, layer frozen — the last per cad-domain-audit Slice E,
+    // which fixed snap/hit-test silently including frozen layers); the difference is that there is
+    // now one place that knows them, and it can also say WHICH one applied, which is what the
+    // hidden-items panel needs. `layer-transparent` is deliberately not render-suppressing — see
+    // `RENDER_SUPPRESSING_REASONS`.
+    cache.visible = Object.values(document.features).filter(
+      (f) => isRenderable(f, document.layers[f.layerId]),
+    );
     return cache.visible;
   },
 
