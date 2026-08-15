@@ -37,6 +37,7 @@ builds it. Five streams are folded in:
    sentence saying what it is for.
 5. **The closing mobile/styling sweep** (P10) — explicitly requested to run *last*, over everything
    built by then.
+6. **Closeout** (P11) — seeds applied to the live database, then pushed and merged to main.
 
 **Two ordering rules are not negotiable.** P1 comes before P2–P8: it is the model and measurement
 work every later phase writes against, and doing a UI phase first would build on a model that then
@@ -323,6 +324,24 @@ Runs **last**, over everything the phases above built. Explicitly requested.
 | **C46** | Functional sweep | `scripts/qa-sweep.ts` over all routes: nothing throws, no failed same-origin request, no error prose, no overflow. |
 | **C47** | Green gate | `tsc`, `next lint`, `npm run build`, and the full vitest suite. `npm run build` is non-negotiable — it has been broken while tsc and 21k tests were green. |
 
+### P11 — Closeout: seeds applied, then merged
+
+> **Owner, 2026-08-15:** *"Once you are done auditing everything, fixing every issue you find, and
+> you have completed all of the requests I have made, please make sure that all sql seed files have
+> been applied to the supabase database, and also make sure that the changes get pushed and merged
+> to main at the end."*
+
+Runs **after P10**, and only after it. Nothing here is safe to do early: seeds applied against a
+half-built schema and a merge of half-finished work are both hard to walk back.
+
+| # | Slice | What it does |
+|---|---|---|
+| **C48** | Reconcile seeds against the live database | Establish which seed numbers the live DB has actually had applied, versus what is in the repo. The count is the deliverable — **do not apply anything yet.** The project's recorded method: apply with node-pg + `SUPABASE_DB_URL` (the CLI paths fail on this setup), verify through PostgREST with the service key. |
+| **C49** | Apply the outstanding seeds | Apply in order, verifying each. A seed that is already applied must be recognised as such rather than re-run — several seeds in this repo are not idempotent. |
+| **C50** | Verify against the live schema | Confirm the tables, columns and rows the seeds were supposed to create are actually there, through PostgREST rather than by trusting the apply step's exit code. |
+| **C51** | Green gate before merge | `tsc`, `next lint`, `npm run build`, full vitest suite, and the alignment audit at both widths. `npm run build` has been broken in this repo while tsc and 21k tests were green — it is the one that catches client/server boundary breakage. |
+| **C52** | Push and merge to main | **Owner instruction 2026-08-15 supersedes the standing PR-workflow preference for this initiative.** `gh` is not installed here, so if a PR is wanted instead, supply the compare URL. Confirm with the owner immediately before merging — this is the one irreversible step in the document. |
+
 ---
 
 ## Ledger
@@ -392,6 +411,11 @@ Runs **last**, over everything the phases above built. Explicitly requested.
 | C45 Drive new surfaces at 390 | ⬜ |
 | C46 Functional sweep | ⬜ |
 | C47 Green gate | ⬜ |
+| C48 Reconcile seeds vs live DB | ⬜ |
+| C49 Apply outstanding seeds | ⬜ |
+| C50 Verify against live schema | ⬜ |
+| C51 Green gate before merge | ⬜ |
+| C52 Push + merge to main | ⬜ **confirm with owner first — irreversible** |
 
 ---
 
