@@ -25,19 +25,26 @@ interface LineTypePickerProps {
 }
 
 const CATEGORY_LABEL: Record<LineTypeDefinition['category'], string> = {
+  BOUNDARY: 'Boundary & Right-of-Way',
+  TOPO: 'Topo & Surface',
+  UTILITY: 'Utilities',
+  FENCE: 'Fences',
   BASIC: 'Basic Patterns',
   PATTERN: 'Symbol Patterns',
-  FENCE: 'Fences',
-  UTILITY: 'Utilities',
   SPECIALTY: 'Specialty',
   CUSTOM: 'Custom',
 };
 
+// C21 — reordered so the two new categories lead. A boundary survey picks a boundary line far more
+// often than it picks "Dash-Dot-Dot", and the previous order put nine anonymous dash patterns
+// ahead of everything a plat is actually made of.
 const CATEGORY_ORDER: LineTypeDefinition['category'][] = [
+  'BOUNDARY',
+  'TOPO',
+  'UTILITY',
+  'FENCE',
   'BASIC',
   'PATTERN',
-  'FENCE',
-  'UTILITY',
   'SPECIALTY',
   'CUSTOM',
 ];

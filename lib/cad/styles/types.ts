@@ -58,7 +58,11 @@ export interface InlineSymbolConfig {
 export interface LineTypeDefinition {
   id: string;
   name: string;
-  category: 'BASIC' | 'FENCE' | 'UTILITY' | 'SPECIALTY' | 'PATTERN' | 'CUSTOM';
+  /** C21 — `BOUNDARY` and `TOPO` are new. Everything a boundary survey draws (section lines,
+   *  right-of-way, easements, setbacks, lot lines) and everything a topo draws (contours, edges of
+   *  pavement, banks, tree line) previously had nowhere to live but `SPECIALTY`, which held five
+   *  entries and none of them were any of those things. */
+  category: 'BASIC' | 'FENCE' | 'UTILITY' | 'BOUNDARY' | 'TOPO' | 'SPECIALTY' | 'PATTERN' | 'CUSTOM';
   dashPattern: number[];
   /** Optional plotted line weight in mm; null/undefined inherits the
    *  layer/feature weight. Lets a line type carry its own thickness. */

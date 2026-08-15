@@ -88,6 +88,96 @@ export const BUILTIN_LINE_TYPES: LineTypeDefinition[] = [
     inlineSymbols: [{ symbolId: 'VEG_TREE_DECID', interval: 8, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 8, scaleReferenceScale: 50, symbolSize: 2.5, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }] },
   { id: 'CREEK_WAVY', name: 'Creek/Stream', category: 'SPECIALTY', dashPattern: [], specialRenderer: 'WAVY', isBuiltIn: true, isEditable: false, assignedCodes: ['TP07', '632'],
     inlineSymbols: [] },
+
+  // ══════════════════════════════════════════════════════════════════════════════════════════════
+  // C21 — LIBRARY DEPTH PASS
+  //
+  // The count was right (40) and the coverage was not. Of those 40: 9 basic dash patterns, 9
+  // symbol-in-line patterns, 12 fences, 5 "utility" entries of which FOUR were shot-marker helpers
+  // rather than utility runs, and 5 specialty.
+  //
+  // Which is to say: **a boundary-survey product had no boundary line types.** No section line, no
+  // right-of-way, no easement, no setback, no lot line, no tie line. And no topo line types — no
+  // contour, no edge of pavement, no top of bank, no tree line. A surveyor drawing an easement had
+  // to pick "Dashed" and remember what they meant by it, which is exactly the un-named-style
+  // problem C18 fixed for fonts, one axis over.
+  //
+  // The underground runs below use BOTH an APWA colour and an inline letter. Colour alone fails
+  // the moment the plat is printed in black and white — which is how a plat is filed.
+  // ══════════════════════════════════════════════════════════════════════════════════════════════
+
+  // ── BOUNDARY ──
+  // Weights are the convention: the subject tract is the heaviest line on the sheet, adjoiners are
+  // lighter, and anything not a property line is lighter still.
+  { id: 'BOUNDARY_SUBJECT',  name: 'Subject Tract Boundary',   category: 'BOUNDARY', dashPattern: [],                      lineWeight: 1.4, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL01'] },
+  { id: 'BOUNDARY_ADJOINER', name: 'Adjoiner / Deed Line',     category: 'BOUNDARY', dashPattern: [26, 8],                 lineWeight: 0.6, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL02'] },
+  { id: 'SECTION_LINE',      name: 'Section Line',             category: 'BOUNDARY', dashPattern: [40, 8, 4, 8, 4, 8],     lineWeight: 1.2, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL03'] },
+  { id: 'QUARTER_SECTION',   name: 'Quarter Section Line',     category: 'BOUNDARY', dashPattern: [30, 8, 4, 8],           lineWeight: 0.9, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL04'] },
+  { id: 'RIGHT_OF_WAY',      name: 'Right-of-Way Line',        category: 'BOUNDARY', dashPattern: [24, 7, 2, 7],           lineWeight: 0.8, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL05', '760'] },
+  { id: 'LOT_LINE',          name: 'Platted Lot Line',         category: 'BOUNDARY', dashPattern: [],                      lineWeight: 0.5, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL06'] },
+  { id: 'EASEMENT',          name: 'Easement',                 category: 'BOUNDARY', dashPattern: [14, 6],                 lineWeight: 0.5, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL07', '761'] },
+  { id: 'EASEMENT_UTILITY',  name: 'Utility Easement',         category: 'BOUNDARY', dashPattern: [14, 6],                 lineWeight: 0.5, color: '#FF8C00', inlineSymbols: [{ symbolId: 'UTIL_LETTER_E', interval: 60, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 60, scaleReferenceScale: 50, symbolSize: 2.2, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL08', '762'] },
+  { id: 'EASEMENT_DRAINAGE', name: 'Drainage Easement',        category: 'BOUNDARY', dashPattern: [14, 6],                 lineWeight: 0.5, color: '#00A550', inlineSymbols: [{ symbolId: 'UTIL_LETTER_SD', interval: 60, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 60, scaleReferenceScale: 50, symbolSize: 2.2, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL09', '763'] },
+  { id: 'BUILDING_SETBACK',  name: 'Building Setback Line',    category: 'BOUNDARY', dashPattern: [8, 5],                  lineWeight: 0.4, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL10', '764'] },
+  // Dotted and light on purpose: a tie is a measurement, not a boundary, and it must never read as
+  // one on a plat somebody may rely on.
+  { id: 'TIE_LINE',          name: 'Tie Line',                 category: 'BOUNDARY', dashPattern: [1.5, 6],                lineWeight: 0.35, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL11'] },
+  { id: 'CENTERLINE_ROAD',   name: 'Road Centerline',          category: 'BOUNDARY', dashPattern: [26, 7, 8, 7],           lineWeight: 0.5, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['BL12', '765'] },
+
+  // ── TOPO ──
+  { id: 'CONTOUR_INDEX',        name: 'Contour — Index',        category: 'TOPO', dashPattern: [],        lineWeight: 0.7,  color: '#8B4513', inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP10'] },
+  { id: 'CONTOUR_INTERMEDIATE', name: 'Contour — Intermediate', category: 'TOPO', dashPattern: [],        lineWeight: 0.25, color: '#B8860B', inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP11'] },
+  { id: 'CONTOUR_DEPRESSION',   name: 'Contour — Depression',   category: 'TOPO', dashPattern: [6, 4],    lineWeight: 0.35, color: '#8B4513', inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP12'] },
+  { id: 'EDGE_PAVEMENT',        name: 'Edge of Pavement',       category: 'TOPO', dashPattern: [],        lineWeight: 0.45, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP13', '620'] },
+  { id: 'EDGE_GRAVEL',          name: 'Edge of Gravel / Dirt',  category: 'TOPO', dashPattern: [4, 3],    lineWeight: 0.4,  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP14', '621'] },
+  { id: 'CURB_LINE',            name: 'Curb / Curb & Gutter',   category: 'TOPO', dashPattern: [],        lineWeight: 0.6,  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP15', '622'] },
+  { id: 'SIDEWALK',             name: 'Sidewalk',               category: 'TOPO', dashPattern: [],        lineWeight: 0.3,  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP16', '623'] },
+  { id: 'BUILDING_OUTLINE',     name: 'Building Outline',       category: 'TOPO', dashPattern: [],        lineWeight: 0.7,  inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP17', '700'] },
+  { id: 'DITCH_SWALE',          name: 'Ditch / Swale',          category: 'TOPO', dashPattern: [18, 6, 2, 6], lineWeight: 0.35, color: '#00A550', inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP18', '624'] },
+  { id: 'TOP_OF_BANK',          name: 'Top of Bank',            category: 'TOPO', dashPattern: [12, 4, 4, 4], lineWeight: 0.4, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP19', '625'] },
+  { id: 'TOE_OF_SLOPE',         name: 'Toe of Slope',           category: 'TOPO', dashPattern: [12, 4, 4, 4, 4, 4], lineWeight: 0.4, inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP20', '626'] },
+  { id: 'WATER_EDGE',           name: "Water's Edge",           category: 'TOPO', dashPattern: [],        lineWeight: 0.4,  color: '#0000FF', inlineSymbols: [], specialRenderer: 'WAVY', isBuiltIn: true, isEditable: false, assignedCodes: ['TP21', '627'] },
+  { id: 'TREE_LINE',            name: 'Tree Line',              category: 'TOPO', dashPattern: [],        lineWeight: 0.3,  color: '#008000',
+    inlineSymbols: [{ symbolId: 'VEG_SHRUB', interval: 10, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 10, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['TP22', '806'] },
+
+  // ── UTILITY: the actual runs ──
+  // Each is a dashed line interrupted by its letter, in the APWA colour a locator paints. The
+  // letter is what survives a black-and-white print.
+  { id: 'UG_ELECTRIC',   name: 'Underground Electric',  category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#FF0000',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_E',   interval: 32, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 32, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL01', '640'] },
+  { id: 'OH_ELECTRIC',   name: 'Overhead Electric',     category: 'UTILITY', dashPattern: [26, 14], lineWeight: 0.4, color: '#FF0000',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_OHE', interval: 40, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 40, scaleReferenceScale: 50, symbolSize: 2.6, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL02', '641'] },
+  { id: 'UG_TELEPHONE',  name: 'Underground Telephone', category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#FF8C00',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_T',   interval: 32, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 32, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL03', '642'] },
+  { id: 'UG_FIBER',      name: 'Fiber Optic',           category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#FF8C00',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_FO',  interval: 34, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 34, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL04', '643'] },
+  { id: 'UG_CABLE_TV',   name: 'Cable TV',              category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#FF8C00',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_CTV', interval: 36, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 36, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL05', '654'] },
+  { id: 'UG_GAS',        name: 'Gas Line',              category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#FFD700',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_G',   interval: 32, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 32, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL06', '645'] },
+  { id: 'UG_WATER',      name: 'Water Line',            category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#0000FF',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_W',   interval: 32, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 32, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL07', '646'] },
+  { id: 'SANITARY_SEWER', name: 'Sanitary Sewer',       category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#00A550',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_SS',  interval: 34, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 34, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL08', '647'] },
+  { id: 'STORM_SEWER',   name: 'Storm Sewer',           category: 'UTILITY', dashPattern: [20, 12], lineWeight: 0.4, color: '#00A550',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_SD',  interval: 34, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 34, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL09', '648'] },
+  // Force main is drawn distinct from gravity sewer because it fails differently and a contractor
+  // digging near one needs to know which it is.
+  { id: 'FORCE_MAIN',    name: 'Force Main',            category: 'UTILITY', dashPattern: [24, 8, 2, 8], lineWeight: 0.45, color: '#00A550',
+    inlineSymbols: [{ symbolId: 'UTIL_LETTER_SS',  interval: 40, intervalMode: 'SCALE_DEPENDENT', scaleReferenceInterval: 40, scaleReferenceScale: 50, symbolSize: 2.4, symbolRotation: 'FIXED', offset: 0, side: 'CENTER' }],
+    specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL10', '649'] },
+  { id: 'IRRIGATION',    name: 'Irrigation Line',       category: 'UTILITY', dashPattern: [10, 8], lineWeight: 0.3, color: '#800080',
+    inlineSymbols: [], specialRenderer: 'NONE', isBuiltIn: true, isEditable: false, assignedCodes: ['UL11', '650'] },
 ];
 
 /** Look up a line type by ID */
