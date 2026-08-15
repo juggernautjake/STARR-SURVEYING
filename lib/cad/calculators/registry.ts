@@ -101,6 +101,18 @@ export const CALCULATOR_REGISTRY: ReadonlyArray<CalculatorEntry> = [
     group: 'CURVES',
   },
   {
+    id: 'stakeout',
+    label: 'Station / offset & stakeout',
+    // C29 — two of the four capabilities C27 found genuinely absent, and the first surface built to
+    // C28's second clause: it reads the live selection instead of asking for coordinates that are
+    // already on screen.
+    summary: 'Station and offset along an alignment, and angle-right stakeout from a setup.',
+    mode: 'INLINE',
+    usesSelection: true,
+    writesGeometry: false,
+    group: 'POINTS',
+  },
+  {
     id: 'calc-point',
     label: 'Calc Point',
     summary: 'Distance–distance, bearing–distance, bearing–bearing, fourth corner, parallel offset.',

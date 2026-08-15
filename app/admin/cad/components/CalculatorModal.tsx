@@ -17,6 +17,8 @@ import GenericCalculator from './GenericCalculator';
 import CurveCalculatorBody from './CurveCalculatorBody';
 // C29 — compound / reverse / spiral, the three solvers C27 found unreachable.
 import AdvancedCurveCalculator from './AdvancedCurveCalculator';
+// C29 — station-offset + radial stakeout, and the first surface built to read the live selection.
+import StakeoutCalculator from './StakeoutCalculator';
 import { useCalculatorStore } from '@/lib/cad/store';
 
 interface CalculatorModalProps {
@@ -47,6 +49,7 @@ export default function CalculatorModal({ open, onClose }: CalculatorModalProps)
       {activeId === 'generic' && <GenericCalculator />}
       {activeId === 'curve' && <CurveCalculatorBody />}
       {activeId === 'advanced-curve' && <AdvancedCurveCalculator />}
+      {activeId === 'stakeout' && <StakeoutCalculator />}
     </ResizableModal>
   );
 }

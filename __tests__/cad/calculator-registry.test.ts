@@ -102,11 +102,18 @@ describe('the two curve entries are a decision, not a duplicate', () => {
 });
 
 describe('the honest flags', () => {
-  it('records that only one surface reads the selection', () => {
-    // C27 measured 1 of 13. The flag exists so the gap is visible as the rest catch up, rather
+  it('records which surfaces read the selection, and never loses one', () => {
+    // C27 measured 1 of 13. The flag exists so the gap stays visible as the rest catch up, rather
     // than being assumed closed because C28 shipped.
-    const withSelection = CALCULATOR_REGISTRY.filter((c) => c.usesSelection);
-    expect(withSelection.map((c) => c.id)).toEqual(['calc-point']);
+    //
+    // A ratchet rather than a fixed list: C29 added `stakeout` — the case where selection-as-input
+    // matters most, since typing twenty northings to stake twenty points is a worse workflow than
+    // the paper one it replaces — and pinning the exact set would make every future surface that
+    // does the right thing look like a regression.
+    const withSelection = CALCULATOR_REGISTRY.filter((c) => c.usesSelection).map((c) => c.id);
+    expect(withSelection).toContain('calc-point');
+    expect(withSelection).toContain('stakeout');
+    expect(withSelection.length).toBeGreaterThanOrEqual(2);
   });
 
   it('records which answers become geometry', () => {
