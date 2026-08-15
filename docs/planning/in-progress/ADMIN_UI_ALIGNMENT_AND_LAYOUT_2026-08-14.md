@@ -377,6 +377,33 @@ the line of the field beside it is exactly the janky thing being hunted; its hei
 Third instrument correction in three slices, and they have all had the same shape: the rule was
 right about *controls* and was being handed something that is not a control.
 
+## D6h — There are two utility-class islands, not one, and the inline-checkbox label is a pattern
+
+**The island is not only CAD.** D6 called `/admin/cad` "a second design system living inside the
+first" and gave it its own slice. `/admin/research/library` is a third: same dark chrome, same
+`px-3 py-1 / bg-gray-800` utility classes, and the same failure — filter tabs at 24px beside selects
+and a search field that `forms.css` raises to 40px, with the tabs under the 28px floor as well.
+
+It is fixed here rather than deferred to A10, because it is one toolbar rather than an editor, and
+because the fix stays inside the island's own idiom: Tailwind's arbitrary-property syntax carries
+the token redefinition (`[--input-height:var(--button-height-sm)]`) in the class list where the rest
+of that page's styling lives. **Opening a second styling system on an element to fix the first one
+is how the islands got here.** Tailwind is configured for real in this repo — it is not a
+lookalike — so `h-[var(--button-height-sm)]` is the native way to say it.
+
+**And the inline-checkbox label is now a recognised pattern, seen three times.** `globals.css` gives
+every label 10px of bottom margin. The admin reset clears it for labels wrapping a control, and
+deliberately spares checkbox labels, because a *column* of options needs that margin. But an inline
+checkbox in a *toolbar row* is the other shape, and there the margin lifts the control:
+
+- `/admin/org-settings` — MFA checkbox, 10px (7.2px after a hand-guessed padding partly cancelled it)
+- `/admin/equipment/templates` — "Include archived" column, 10px
+- `/admin/research/testing` — "Auto" toggle, 5px (a centred row halves the offset)
+
+Each is one `margin-bottom: 0` at the point of use. A blanket rule cannot tell the two shapes apart,
+because CSS cannot ask what its parent's `display` is — so the exclusion stays, and the row-shaped
+usages opt out one at a time. **Expect this one in A9 too.**
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -536,15 +563,15 @@ workspace starts at zero.
 
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Research & CAD | `/admin/research-cad` | | ⬜ |
-| Property Research | `/admin/research` | | ⬜ |
-| Testing Lab | `/admin/research/testing` | | ⬜ |
-| Site Health | `/admin/research/self-heal` | | ⬜ |
-| Data Sources | `/admin/research/sites` | | ⬜ |
-| Research Billing | `/admin/research/billing` | | ⬜ |
-| Coverage | `/admin/research/coverage` | | ⬜ |
-| Library | `/admin/research/library` | | ⬜ |
-| Pipeline | `/admin/research/pipeline` | | ⬜ |
+| Research & CAD | `/admin/research-cad` | 0 → 0 | ✅ |
+| Property Research | `/admin/research` | 0 → 0 | ✅ |
+| Testing Lab | `/admin/research/testing` | 1 → 0 | ✅ a checkbox label's 10px margin, halved into a 5px centre shift |
+| Site Health | `/admin/research/self-heal` | 0 → 0 | ✅ |
+| Data Sources | `/admin/research/sites` | 0 → 0 | ✅ |
+| Research Billing | `/admin/research/billing` | 0 → 0 | ✅ |
+| Coverage | `/admin/research/coverage` | 0 → 0 | ✅ |
+| Library | `/admin/research/library` | 2 → 0 | ✅ **the second utility-class island** — see A10's note |
+| Pipeline | `/admin/research/pipeline` | 0 → 0 | ✅ |
 | **CAD Editor** | `/admin/cad` | | ⬜ **slice A10** |
 
 ### Knowledge (19)
@@ -627,7 +654,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A5 Money | ✅ 30 pages measured, **3 findings → 0**, plus one the Hub had hidden behind a slow-loading widget (D6e). `/admin/payroll` was using `tl-btn` and `tl-pay-error` from a stylesheet it never imports, so two buttons and a failure message rendered as bare text (D6d); `/admin/invoices/new` had a 32px remove button in a row of 40px fields; `.payroll-btn` and the payroll tab strip took the token. Two instrument corrections: clipped screen-reader inputs, and card-shaped buttons over 64px. |
 | A6 Office | ✅ 27 pages measured (2 deferred — `/admin/phone*` is unmerged work, see the table), **6 findings → 0**. `/admin/messages/contacts` was Slice 102's literal 36px outranked by `forms.css`, the third page in this pass with that exact history; `/admin/files` had 27px icon buttons under the floor and a 1.6px drift from one-sided scrollbar padding; `/admin/users` ran four button heights; `/admin/org-settings` had a hand-guessed `paddingBottom` that missed by 7.2px. |
 | A7 Equipment | ✅ 14 pages measured, **5 findings → 0**. `/admin/equipment/overrides` is the first page in this pass to take the contract's *second* move — it is genuinely dense (12px labels), so the row redefines `--input-height` and both the date field and the type toggles follow. `/admin/equipment/templates` had a checkbox column floating 10px above its neighbours (a label wrapping its input one level deeper than the reset's `:has(> …)` reaches) and three more literal 36s. One instrument correction: a boxless button is text, so its height no longer compares (D6g). |
-| A8 Research | ⬜ |
+| A8 Research | ✅ 9 pages measured, **3 findings → 0**. `/admin/research/library` turned out to be a *second* utility-class island (D6h) — its filter tabs were `py-1`, 24px, beside 40px selects, and under the floor; fixed in Tailwind's own idiom rather than by opening a second styling system on the same element. `/admin/research/testing` was the checkbox-label margin again, the third instance this pass. |
 | A9 Knowledge | ⬜ |
 | A10 CAD island | ⬜ |
 | A11 Narrow widths | ⬜ |

@@ -1,0 +1,46 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 9,
+  "byRule": {
+    "row-centre": 1,
+    "row-height": 1,
+    "small-target": 1
+  },
+  "byRoute": {
+    "/admin/research/testing": 1,
+    "/admin/research/library": 2
+  },
+  "findings": [
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 5,
+      "detail": "input and button.deploy-status__check-btn \"...\" sit side by side but their centres differ by 5.0px",
+      "container": "label.deploy-status__auto-label \"Auto\"",
+      "sig": "input|button.deploy-status__check-btn|label.deploy-status__auto-label",
+      "count": 2
+    },
+    {
+      "route": "/admin/research/library",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 16,
+      "detail": "button.px-3.py-1.rounded \"Survey\" is 24px tall, select.bg-gray-800.border.border-gray-700 \"All Counties\" is 40px — beside each other",
+      "container": "div.flex.gap-1 \"AllPlatDeedEasementSurveyPur\"",
+      "sig": "button.px-3.py-1.rounded:24|select.bg-gray-800.border.border-gray-700:40",
+      "count": 4
+    },
+    {
+      "route": "/admin/research/library",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 24,
+      "detail": "button.px-3.py-1.rounded \"All\" is only 24px tall",
+      "container": "div.flex.gap-1 \"AllPlatDeedEasementSurveyPur\"",
+      "sig": "button.px-3.py-1.rounded:24",
+      "count": 6
+    }
+  ]
+}

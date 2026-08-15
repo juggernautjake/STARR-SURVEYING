@@ -2220,6 +2220,11 @@
   font-size: 0.72rem;
   color: var(--theme-fg-muted, #6B7280);
   cursor: pointer;
+  /* admin-ui-alignment-2026-08-15 — globals.css gives every label 10px of bottom margin, and the
+   * admin reset in AdminLayout.css deliberately EXCLUDES labels wrapping a checkbox, because a
+   * column of options needs that margin to breathe. This one is a single inline checkbox in a
+   * toolbar row, where the margin instead lifted its centre 5px above the button beside it. */
+  margin-bottom: 0;
 }
 
 .deploy-status__check-btn {

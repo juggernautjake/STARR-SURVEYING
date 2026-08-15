@@ -202,15 +202,25 @@ export default function GlobalLibraryPage() {
         </div>
       )}
 
-      {/* ── Toolbar ── */}
-      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3">
+      {/* ── Toolbar ──
+          admin-ui-alignment-2026-08-15 — this page is one of the two utility-class islands in the
+          admin (the other is the CAD editor). Its filter tabs were `py-1`, so 24px, beside selects
+          and a search field that forms.css raises to 40px: a 16px disagreement across one strip,
+          with the tabs under the 28px floor as well.
+
+          It is a dense dark toolbar, so it takes the contract's second move rather than growing to
+          40px — the row redefines --input-height, both selects and the search follow through
+          forms.css, and the tabs are pinned to the same small token. Tailwind's arbitrary-property
+          syntax keeps that declaration in the class list where the rest of this page's styling
+          lives, instead of opening a second styling system on the same element. */}
+      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3 [--input-height:var(--button-height-sm)]">
         {/* Filter tabs */}
         <div className="flex gap-1">
           {(['all', 'plat', 'deed', 'easement', 'survey', 'purchased'] as DocFilter[]).map(f => (
             <button
               key={f}
               onClick={() => { setFilter(f); resetPage(); }}
-              className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+              className={`inline-flex items-center h-[var(--button-height-sm)] px-3 rounded text-xs font-medium transition-colors ${
                 filter === f
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
