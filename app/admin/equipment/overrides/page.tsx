@@ -357,6 +357,12 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     marginBottom: 12,
+    /* admin-ui-alignment-2026-08-15 — a genuinely dense filter bar: 12px labels, 12px controls. The
+     * date input was taking the full 40px from forms.css while the type toggles sized themselves
+     * from padding to 29px. This is the second move in docs/admin-styling-contract.md — redefine
+     * the token on the row rather than fight the specificity — so the input follows through
+     * forms.css and the toggles follow through their own rule below. No new number. */
+    ['--input-height' as string]: 'var(--button-height-sm)',
   },
   filterGroup: { display: 'flex', alignItems: 'center', gap: 6 },
   filterLabel: { fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 },
@@ -376,8 +382,11 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     textDecoration: 'underline',
   },
+  /* Both toggle states take the row's small height, so they sit level with the date input. */
   toggleActive: {
-    padding: '4px 10px',
+    height: 'var(--button-height-sm)',
+    boxSizing: 'border-box' as const,
+    padding: '0 10px',
     border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
@@ -387,7 +396,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   toggleIdle: {
-    padding: '4px 10px',
+    height: 'var(--button-height-sm)',
+    boxSizing: 'border-box' as const,
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     background: 'var(--color-bg-card)',
     color: '#374151',

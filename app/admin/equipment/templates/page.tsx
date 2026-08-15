@@ -394,7 +394,13 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
     marginBottom: 16,
   },
-  field: { display: 'flex', flexDirection: 'column', gap: 4 },
+  /* admin-ui-alignment-2026-08-15 — `marginBottom: 0` because these columns are `<label>`s, and
+   * globals.css gives every label 10px of it. The admin reset in AdminLayout.css clears that for a
+   * label wrapping a control DIRECTLY; this row's checkbox column wraps its input one level deeper,
+   * inside a `checkboxField` span, so it kept the 10px and floated 10px above the Search field
+   * beside it. Stating it on the shared column style fixes every column in the row at once and
+   * cannot drift between them. */
+  field: { display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 0 },
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
@@ -402,14 +408,16 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  // equipment-templates-toolbar-alignment-2026-06-22 — every control
-  // in the row shares an explicit 36px height + border-box so a 1px
-  // border difference between an <input> and a borderless <button>
-  // can't knock them out of line. The label-spacer wrapper takes care
-  // of vertical column matching; this enforces matching control
-  // height within each column.
+  // equipment-templates-toolbar-alignment-2026-06-22 — every control in the row shares one height
+  // + border-box so a 1px border difference between an <input> and a borderless <button> can't
+  // knock them out of line. The label-spacer wrapper takes care of vertical column matching; this
+  // enforces matching control height within each column.
+  //
+  // admin-ui-alignment-2026-08-15 — that height was written as a literal 36 in three places. The
+  // row is on --input-height now: 36 is not a size in the system, and a row pinned to a literal is
+  // a row that drifts the next time the shared layer moves. See docs/admin-styling-contract.md.
   input: {
-    height: 36,
+    height: 'var(--input-height)',
     boxSizing: 'border-box',
     padding: '0 10px',
     border: '1px solid #E2E5EB',
@@ -418,7 +426,8 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 160,
   },
   checkboxField: {
-    height: 36,
+    /* Was a literal 36 beside 40px fields — the token, so the column's centre line matches. */
+    height: 'var(--input-height)',
     boxSizing: 'border-box',
     display: 'inline-flex',
     alignItems: 'center',
@@ -427,7 +436,7 @@ const styles: Record<string, React.CSSProperties> = {
     whiteSpace: 'nowrap',
   },
   refreshBtn: {
-    height: 36,
+    height: 'var(--input-height)',
     boxSizing: 'border-box',
     background: 'transparent',
     border: '1px solid #E2E5EB',
@@ -439,7 +448,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
   },
   addBtn: {
-    height: 36,
+    height: 'var(--input-height)',
     boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',

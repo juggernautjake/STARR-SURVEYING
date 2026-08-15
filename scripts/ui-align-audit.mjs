@@ -132,6 +132,23 @@ const PROBE = () => {
     return false;
   };
 
+  /**
+   * Does this read as a target — something with a box you aim at — or as text you click?
+   *
+   * A `<button>` with no border and no background is a text link wearing a button tag: "choose one"
+   * inside a sentence, "← Back to Research" above a heading, "last 30d" beside a date field. It is
+   * sized by the line it belongs to, and comparing its HEIGHT to the field next to it says nothing
+   * — `/admin/equipment/overrides` reported an 18px underlined "last 30d" as 22.4px out of line
+   * with a 40px date input, which no sane change could fix. Its CENTRE still matters, so it stays
+   * in `row-centre`; only the height comparison and the small-target floor stand down.
+   */
+  const hasBox = (el) => {
+    const cs = getComputedStyle(el);
+    const bg = cs.backgroundColor;
+    const opaque = bg && bg !== 'transparent' && !/^rgba\(.*,\s*0\)$/.test(bg);
+    return parseFloat(cs.borderTopWidth) > 0 || opaque || cs.backgroundImage !== 'none';
+  };
+
   const CONTROL = 'input:not([type=hidden]), select, textarea, button, a.btn, [role=button]';
   const controls = [...document.querySelectorAll(CONTROL)]
     .filter(isVisible)
@@ -190,7 +207,8 @@ const PROBE = () => {
         // Different heights on neighbouring controls is the "awkward sizes relative to each other"
         // complaint. 2px allows for a border difference; 4px+ is visible.
         const dh = Math.abs(a.r.height - b.r.height);
-        if (dh >= 4 && a.el.tagName !== 'A' && b.el.tagName !== 'A' && !isTickbox(a.el) && !isTickbox(b.el)) {
+        const compares = (el) => el.tagName !== 'A' && !isTickbox(el) && hasBox(el);
+        if (dh >= 4 && compares(a.el) && compares(b.el)) {
           findings.push({
             rule: 'row-height', severity: dh >= 8 ? 'high' : 'medium',
             px: +dh.toFixed(1),
@@ -260,6 +278,9 @@ const PROBE = () => {
     // to 40. Counting them asks the page to make a card the same height as a filter pill, which is
     // not the defect this rule is looking for.
     if (t === 'button' && r.height > 64) continue;
+    // Same reasoning as `hasBox` above: a boxless button is text, and its height is the line's, not
+    // a size anybody picked for a control.
+    if (t === 'button' && !hasBox(el)) continue;
     const h = Math.round(r.height);
     if (t === 'input' || t === 'select' || t === 'textarea') heights.input.add(h);
     else heights.button.add(h);
@@ -282,12 +303,6 @@ const PROBE = () => {
   // heading — and it is sized by the text it sits in. Demanding 32px of it would break the line it
   // belongs to, so the rule would be asking for a worse screen. If it has a box, it reads as a
   // target and the floor applies.
-  const hasBox = (el) => {
-    const cs = getComputedStyle(el);
-    const bg = cs.backgroundColor;
-    const opaque = bg && bg !== 'transparent' && !/^rgba\(.*,\s*0\)$/.test(bg);
-    return parseFloat(cs.borderTopWidth) > 0 || opaque || cs.backgroundImage !== 'none';
-  };
   for (const el of controls) {
     const r = el.getBoundingClientRect();
     if (r.height > 0 && r.height < 28 && r.width > 24 && hasBox(el)) {

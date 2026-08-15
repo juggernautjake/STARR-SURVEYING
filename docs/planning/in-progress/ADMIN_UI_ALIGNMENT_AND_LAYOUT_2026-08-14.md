@@ -361,6 +361,22 @@ early and produced `Syntax Error` on every route that imports it. Comments insid
 contain backticks. The sweep caught it immediately (every route answered 500), which is the second
 time in this pass that measuring right after editing has paid for itself.
 
+## D6g — A boxless button is text, and text has no control height
+
+`/admin/equipment/overrides` has an underlined `last 30d` beside its date field — a `<button>` with
+no border and no background, sized by the line it sits in. The sweep reported it as **22.4px out of
+line with a 40px date input**, high severity. There is no change that fixes that: making the link
+40px tall would wreck the sentence it belongs to.
+
+`small-target` already had this reasoning — it only fires on controls that *have a box*, because
+"demanding 32px of a text link would be asking for a worse screen". `row-height` did not, and
+neither did `height-spread`. Both now share the same `hasBox` predicate that `small-target` used,
+hoisted to the top of the probe. **Its CENTRE is still compared** — a text link that does not sit on
+the line of the field beside it is exactly the janky thing being hunted; its height is not.
+
+Third instrument correction in three slices, and they have all had the same shape: the rule was
+right about *controls* and was being handed something that is not a control.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -501,20 +517,20 @@ workspace starts at zero.
 
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Catalogue | `/admin/equipment` | | ⬜ |
-| Equipment Today | `/admin/equipment/today` | | ⬜ |
-| Check In / Out | `/admin/equipment/checked-out` | | ⬜ |
-| Equipment Timeline | `/admin/equipment/timeline` | | ⬜ |
-| Maintenance | `/admin/equipment/maintenance` | | ⬜ |
-| Consumables | `/admin/equipment/consumables` | | ⬜ |
-| Templates | `/admin/equipment/templates` | | ⬜ |
-| Cleanup Queue | `/admin/equipment/templates/cleanup-queue` | | ⬜ |
-| New Equipment Template | `/admin/equipment/templates/new` | | ⬜ |
-| Overrides Audit | `/admin/equipment/overrides` | | ⬜ |
-| Fleet Valuation | `/admin/equipment/fleet-valuation` | | ⬜ |
-| Inventory Edit | `/admin/equipment/inventory` | | ⬜ |
-| Import Equipment | `/admin/equipment/import` | | ⬜ |
-| Crew Calendar | `/admin/personnel/crew-calendar` | | ⬜ |
+| Catalogue | `/admin/equipment` | 0 → 0 | ✅ |
+| Equipment Today | `/admin/equipment/today` | 0 → 0 | ✅ |
+| Check In / Out | `/admin/equipment/checked-out` | 0 → 0 | ✅ |
+| Equipment Timeline | `/admin/equipment/timeline` | 0 → 0 | ✅ |
+| Maintenance | `/admin/equipment/maintenance` | 0 → 0 | ✅ |
+| Consumables | `/admin/equipment/consumables` | 0 → 0 | ✅ |
+| Templates | `/admin/equipment/templates` | 1 → 0 | ✅ a checkbox column 10px high, then 2px, then level |
+| Cleanup Queue | `/admin/equipment/templates/cleanup-queue` | 0 → 0 | ✅ |
+| New Equipment Template | `/admin/equipment/templates/new` | 0 → 0 | ✅ |
+| Overrides Audit | `/admin/equipment/overrides` | 4 → 0 | ✅ the dense-row move, done properly |
+| Fleet Valuation | `/admin/equipment/fleet-valuation` | 0 → 0 | ✅ |
+| Inventory Edit | `/admin/equipment/inventory` | 0 → 0 | ✅ |
+| Import Equipment | `/admin/equipment/import` | 0 → 0 | ✅ |
+| Crew Calendar | `/admin/personnel/crew-calendar` | 0 → 0 | ✅ |
 
 ### Research & CAD (10)
 
@@ -610,7 +626,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A4 Work | ✅ 25 pages measured, **3 findings → 0**. One was the A3 label-margin reset applied to only half a row (D4e): the Refresh *button* column on `/admin/field-data` and `/admin/timeline` kept the 10px bottom margin its neighbouring field columns had just lost, so the two ends of the row disagreed by 10px and 9.4px. Page-local: the calendar toolbar's four button heights (36/38/39.8/40) went to one, and the timeline's two padding-sized buttons took the token. |
 | A5 Money | ✅ 30 pages measured, **3 findings → 0**, plus one the Hub had hidden behind a slow-loading widget (D6e). `/admin/payroll` was using `tl-btn` and `tl-pay-error` from a stylesheet it never imports, so two buttons and a failure message rendered as bare text (D6d); `/admin/invoices/new` had a 32px remove button in a row of 40px fields; `.payroll-btn` and the payroll tab strip took the token. Two instrument corrections: clipped screen-reader inputs, and card-shaped buttons over 64px. |
 | A6 Office | ✅ 27 pages measured (2 deferred — `/admin/phone*` is unmerged work, see the table), **6 findings → 0**. `/admin/messages/contacts` was Slice 102's literal 36px outranked by `forms.css`, the third page in this pass with that exact history; `/admin/files` had 27px icon buttons under the floor and a 1.6px drift from one-sided scrollbar padding; `/admin/users` ran four button heights; `/admin/org-settings` had a hand-guessed `paddingBottom` that missed by 7.2px. |
-| A7 Equipment | ⬜ |
+| A7 Equipment | ✅ 14 pages measured, **5 findings → 0**. `/admin/equipment/overrides` is the first page in this pass to take the contract's *second* move — it is genuinely dense (12px labels), so the row redefines `--input-height` and both the date field and the type toggles follow. `/admin/equipment/templates` had a checkbox column floating 10px above its neighbours (a label wrapping its input one level deeper than the reset's `:has(> …)` reaches) and three more literal 36s. One instrument correction: a boxless button is text, so its height no longer compares (D6g). |
 | A8 Research | ⬜ |
 | A9 Knowledge | ⬜ |
 | A10 CAD island | ⬜ |

@@ -1,0 +1,66 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 14,
+  "byRule": {
+    "row-centre": 1,
+    "row-height": 3,
+    "height-spread": 1
+  },
+  "byRoute": {
+    "/admin/equipment/templates": 1,
+    "/admin/equipment/overrides": 4
+  },
+  "findings": [
+    {
+      "route": "/admin/equipment/templates",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10,
+      "detail": "input and input sit side by side but their centres differ by 10.0px",
+      "container": "label \"Search\"",
+      "sig": "input|input|label",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/overrides",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 22.4,
+      "detail": "input is 40px tall, button \"last 30d\" is 18px — beside each other",
+      "container": "div \"Sincelast 30d\"",
+      "sig": "input:40|button:18",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/overrides",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 10.8,
+      "detail": "input is 40px tall, button \"Both\" is 29px — beside each other",
+      "container": "div \"Sincelast 30d\"",
+      "sig": "input:40|button:29",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/overrides",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 11.6,
+      "detail": "button \"last 30d\" is 18px tall, button \"Both\" is 29px — beside each other",
+      "container": "div \"Sincelast 30d\"",
+      "sig": "button:18|button:29",
+      "count": 4
+    },
+    {
+      "route": "/admin/equipment/overrides",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 29, 37, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    }
+  ]
+}
