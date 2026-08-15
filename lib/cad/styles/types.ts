@@ -72,6 +72,47 @@ export interface LineTypeDefinition {
   assignedCodes: string[];
 }
 
+// ─── TEXT STYLE TYPES ────────────────────────────────────────────────────────
+
+/**
+ * C18 — a NAMED text style, the third style axis beside line types and symbols.
+ *
+ * Before this the entire font model was `TextLabelStyle.fontFamily: string`, set per label (and
+ * per layer, per label kind, in `LayerDisplayPreferences`). Nothing was named, so "the bearing
+ * font" existed only as an identical set of values repeated at every place that made a label, and
+ * changing it meant finding every one of them.
+ *
+ * Deliberately shaped like `LineTypeDefinition` and `SymbolDefinition` — same `id`/`name`/
+ * `category`/`isBuiltIn`/`isEditable`/`assignedCodes` spine — because C20 gives all three one
+ * editor per axis and C22 drives all three from field codes. A fourth shape here would be a fourth
+ * thing for those slices to special-case.
+ *
+ * **What is deliberately NOT here: colour.** A text style in AutoCAD carries the typography and
+ * nothing else; colour comes from the entity or the layer. Putting colour in the style would give
+ * every label two places that set its colour and no rule for which wins.
+ */
+export interface TextStyleDefinition {
+  id: string;
+  name: string;
+  category: 'ANNOTATION' | 'TITLE' | 'SURVEY' | 'TABLE' | 'CUSTOM';
+  fontFamily: string;
+  /** Height in POINTS ON PAPER, matching `TextLabelStyle.fontSize` — the render path divides by 72
+   *  and multiplies by the drawing scale, so a style is the same physical size on any plot. */
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  /** Horizontal stretch; 1 = the font's natural width. AutoCAD's width factor. Condensing to ~0.8
+   *  is how a long call fits inside a narrow lot line without dropping the point size. */
+  widthFactor: number;
+  /** Slant in DEGREES, positive leaning right. AutoCAD's oblique angle, and **not** the same thing
+   *  as `fontStyle: 'italic'`: italic swaps in a separately drawn typeface, oblique shears the
+   *  upright one. Surveying convention leans hydrography with oblique, so both axes are needed. */
+  obliqueAngle: number;
+  isBuiltIn: boolean;
+  isEditable: boolean;
+  assignedCodes: string[];
+}
+
 // ─── LAYER GROUP ─────────────────────────────────────────────────────────────
 
 export interface LayerGroup {

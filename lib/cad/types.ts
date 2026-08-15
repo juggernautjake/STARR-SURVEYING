@@ -145,6 +145,14 @@ export interface DrawingDocument {
   layerGroupOrder: string[];
   customSymbols: import('./styles/types').SymbolDefinition[];
   customLineTypes: import('./styles/types').LineTypeDefinition[];
+  /** C18 — this drawing's own text styles, alongside `customSymbols` and
+   *  `customLineTypes`. **Optional**, for the same reason `layerStates` is
+   *  (C8): every drawing saved before C18 has no such key, and a required
+   *  field would make each of them fail to load — a schema change that
+   *  breaks reading old files is a far worse bug than the feature is a
+   *  good one. Readers treat `undefined` as "none", which `?? []` does at
+   *  every call site. */
+  customTextStyles?: import('./styles/types').TextStyleDefinition[];
   codeStyleOverrides: Record<string, Partial<import('./styles/types').CodeStyleMapping>>;
   globalStyleConfig: import('./styles/types').GlobalStyleConfig;
 
@@ -1256,6 +1264,22 @@ export interface TextLabelStyle {
   borderColor: string | null;
   borderWidth: number | null;     // null = no stroke
   padding: number;                // px around text (default 2)
+
+  /** C18 — the named text style this label follows, from
+   *  `BUILTIN_TEXT_STYLES` + `document.customTextStyles`. When set it is
+   *  the authority for family/size/weight/slant/width (see
+   *  `resolveTextLabelStyle`); colour and background stay here.
+   *
+   *  Optional, and null/undefined means "no named style, use the fields
+   *  below as-is" — every label saved before C18 lacks the key, and a
+   *  required field would make each of those drawings fail to load. */
+  textStyleId?: string | null;
+  /** Horizontal stretch; 1 = natural. Written by the resolver from the
+   *  named style, or set directly for a one-off label. Undefined = 1. */
+  widthFactor?: number;
+  /** Slant in degrees, positive leaning right — a shear of the upright
+   *  face, NOT the same as `fontStyle: 'italic'`. Undefined = 0. */
+  obliqueAngle?: number;
 }
 
 /** A moveable text annotation tied to a specific feature element. */

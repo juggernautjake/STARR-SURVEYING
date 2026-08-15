@@ -51,9 +51,10 @@ import type {
   TextLabel,
 } from '../types';
 import type { AnnotationBase } from '../labels/annotation-types';
-import type { LineTypeDefinition, SymbolDefinition } from '../styles/types';
+import type { LineTypeDefinition, SymbolDefinition, TextStyleDefinition } from '../styles/types';
 import { findSymbol } from '../styles/symbol-library';
 import { findLineType } from '../styles/linetype-library';
+import { resolveTextLabelStyle, effectiveWidthFactor } from '../styles/text-style-library';
 import { collectDerivedPoints } from '../points/derived-points';
 
 // ────────────────────────────────────────────────────────────
@@ -93,7 +94,7 @@ export function exportToDxf(
   const layers = Object.values(doc.layers);
   const usedSymbols = collectUsedSymbols(features, doc);
   const usedLineTypes = collectUsedLineTypes(features, layers, doc);
-  const usedStyles = collectUsedTextStyles(features, annotations);
+  const usedStyles = collectUsedTextStyles(features, annotations, doc.customTextStyles ?? []);
   const extents = computeExtents(features);
 
   const blockNames = Array.from(usedSymbols.values()).map((b) => b.blockName);
@@ -748,7 +749,11 @@ function fontFileFor(font: string | null | undefined): string {
 /** Collect the text styles used by annotations + feature labels. */
 function collectUsedTextStyles(
   features: Feature[],
-  annotations: AnnotationBase[]
+  annotations: AnnotationBase[],
+  // C18 — a label's font may come from a NAMED style, so the STYLE table has to be built from the
+  // RESOLVED font. Collecting the raw field would omit a table entry for every label that names a
+  // style, and the reading CAD package would silently substitute a font.
+  customTextStyles: TextStyleDefinition[] = [],
 ): Map<string, string> {
   const out = new Map<string, string>();
   out.set('STANDARD', 'Arial.ttf');
@@ -760,7 +765,9 @@ function collectUsedTextStyles(
     consider((a as { font?: string }).font);
   }
   for (const f of features) {
-    for (const l of f.textLabels ?? []) consider(l.style?.fontFamily);
+    for (const l of f.textLabels ?? []) {
+      consider(resolveTextLabelStyle(l.style, customTextStyles).fontFamily);
+    }
   }
   return out;
 }
@@ -1135,10 +1142,19 @@ function emitFeatureLabels(
     }
 
     const pos = { x: anchor.x + worldDx, y: anchor.y + worldDy };
-    const height = (label.style.fontSize / 72) * drawingScale * scale;
+    // C18 — resolve the named text style before reading any font field, so a label carrying a
+    // style exports in that style's font rather than in whatever values happened to be sitting on
+    // the label. An exporter that skipped this would ship a DXF that does not match the screen.
+    const ls = resolveTextLabelStyle(label.style, doc.customTextStyles ?? []);
+    const height = (ls.fontSize / 72) * drawingScale * scale;
     const rotDeg = label.rotation !== null ? (label.rotation * 180) / Math.PI : 0;
-    const styleName = fontStyleName(label.style.fontFamily);
-    emitText(lines, layerName, pos, label.text, height, rotDeg, 1, 2, styleName);
+    const styleName = fontStyleName(ls.fontFamily);
+    // DXF TEXT carries width factor (group 41) and oblique angle (group 51) natively, so both
+    // axes survive the round-trip instead of being flattened into an ordinary upright TEXT.
+    emitText(
+      lines, layerName, pos, label.text, height, rotDeg, 1, 2, styleName,
+      effectiveWidthFactor(ls), ls.obliqueAngle ?? 0,
+    );
   }
 }
 
@@ -1193,7 +1209,14 @@ function emitText(
   rotationDeg: number,
   halign: number,
   valign: number,
-  styleName?: string
+  styleName?: string,
+  /** C18 — DXF group 41. 1 = natural width; omitted from the output when it is 1 so existing
+   *  exports are byte-for-byte unchanged. */
+  widthFactor = 1,
+  /** C18 — DXF group 51, degrees. The shear of the upright face, which DXF carries natively; a
+   *  writer that dropped it would flatten the style into an ordinary upright TEXT with no sign
+   *  anything was lost. */
+  obliqueDeg = 0,
 ): void {
   push(lines, 0, 'TEXT');
   push(lines, 8, layer);
@@ -1203,6 +1226,8 @@ function emitText(
   push(lines, 40, Math.max(0.01, height));
   push(lines, 1, text);
   push(lines, 50, normalizeDeg(rotationDeg));
+  if (widthFactor !== 1) push(lines, 41, widthFactor);
+  if (obliqueDeg !== 0) push(lines, 51, obliqueDeg);
   if (styleName && styleName !== 'STANDARD') push(lines, 7, styleName);
   push(lines, 72, halign);
   push(lines, 73, valign);

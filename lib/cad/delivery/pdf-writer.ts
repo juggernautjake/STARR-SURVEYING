@@ -48,6 +48,7 @@ import { findSymbol } from '../styles/symbol-library';
 import { parseSVGPathData } from '../styles/symbol-renderer';
 import type { SymbolDefinition, LineTypeDefinition } from '../styles/types';
 import { resolveVisibleFillLayers } from '../styles/fill-stack';
+import { resolveTextLabelStyle } from '../styles/text-style-library';
 import {
   generateFillPattern,
   patternLineWeight,
@@ -1102,8 +1103,12 @@ function drawFeatureLabels(
       dy = -label.offset.y * labelScale * xform.scale;
     }
 
-    applyFont(pdf, label.style.fontFamily, label.style.fontWeight, label.style.fontStyle);
-    pdf.setFontSize(plotPointSize(label.style.fontSize, labelScale, drawingScale, xform));
+    // C18 — resolve the named text style first, for the same reason the DXF writer does: a plot
+    // that does not match the screen is the worst kind of export bug, because it looks fine until
+    // it is on paper in front of a client.
+    const ls = resolveTextLabelStyle(label.style, doc.customTextStyles ?? []);
+    applyFont(pdf, ls.fontFamily, ls.fontWeight, ls.fontStyle);
+    pdf.setFontSize(plotPointSize(ls.fontSize, labelScale, drawingScale, xform));
     const [r, gc, b] = resolveInk(label.style.color ?? layer?.color ?? '#000000', plotStyle);
     pdf.setTextColor(r, gc, b);
     pdf.text(label.text, a.x + dx, a.y + dy, {

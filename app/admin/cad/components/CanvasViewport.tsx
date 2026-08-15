@@ -180,6 +180,11 @@ import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { findSymbol } from '@/lib/cad/styles/symbol-library';
 import { renderSymbol } from '@/lib/cad/styles/symbol-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
+import {
+  resolveTextLabelStyle,
+  effectiveWidthFactor,
+  effectiveObliqueRadians,
+} from '@/lib/cad/styles/text-style-library';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
 import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
 // cad-fill-stacking Slice 6b — multi-layer infill stack resolver.
@@ -4347,13 +4352,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // the one under the cursor) so a point's name + description light
         // up as a unit with the marker.
         const isHovered = hoveredIdRef.current === feature.id;
+        // C18 — a label naming a text style takes its typography from that style. Resolved HERE,
+        // once, before anything reads a font field, so there is exactly one place where "which
+        // font is this label" is answered. Colour is deliberately not part of a text style, so it
+        // still comes from the label / layer below.
+        const labelStyle = resolveTextLabelStyle(label.style, doc.customTextStyles ?? []);
         const textColor = isHovered ? HOVER_LABEL_TEXT_COLOR : (label.style.color ?? layer.color ?? '#000000');
         // Bold the hovered feature's labels for an unmistakable cue.
-        const labelFontWeight = isHovered ? 'bold' : label.style.fontWeight;
-        // Scale font size: label.style.fontSize is in "points on paper"
+        const labelFontWeight = isHovered ? 'bold' : labelStyle.fontWeight;
+        // Scale font size: labelStyle.fontSize is in "points on paper"
         // 1 pt = 1/72 inch; 1 inch = drawingScale world units → world units → screen pixels
         const drawingScale = doc.settings.drawingScale ?? 50;
-        const fontSizeWorld = (label.style.fontSize / 72) * drawingScale * scale;
+        const fontSizeWorld = (labelStyle.fontSize / 72) * drawingScale * scale;
         const fontSize = Math.min(
           MAX_LABEL_FONT_SIZE_PX,
           Math.max(MIN_LABEL_FONT_SIZE_PX, fontSizeWorld * zoom),
@@ -4361,10 +4371,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
         if (!textObj) {
           const style = new pixi.TextStyleClass({
-            fontFamily: label.style.fontFamily,
+            fontFamily: labelStyle.fontFamily,
             fontSize,
             fontWeight: labelFontWeight,
-            fontStyle: label.style.fontStyle,
+            fontStyle: labelStyle.fontStyle,
             fill: textColor,
             align: 'center',
           });
@@ -4379,12 +4389,26 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           // Update existing text
           if (textObj.text !== label.text) textObj.text = label.text;
           const s = textObj.style as import('pixi.js').TextStyle;
-          s.fontFamily = label.style.fontFamily;
+          s.fontFamily = labelStyle.fontFamily;
           s.fontSize = fontSize;
           s.fontWeight = labelFontWeight;
-          s.fontStyle = label.style.fontStyle;
+          s.fontStyle = labelStyle.fontStyle;
           s.fill = textColor;
         }
+
+        // C18 — the two axes Pixi's TextStyle has no field for. Width factor is a horizontal
+        // scale of the rendered glyphs; oblique is a shear of the upright face, which is why it
+        // is separate from `fontStyle: 'italic'` (that swaps in a differently drawn typeface).
+        // Applied to the display object rather than the style so neither one re-rasterises the
+        // text texture — this runs for every label on every frame.
+        const wf = effectiveWidthFactor(labelStyle);
+        if (textObj.scale.x !== wf) textObj.scale.set(wf, 1);
+        //
+        // Negated: Pixi's `skew.x` tilts the y basis, and the canvas y-axis points DOWN, so a
+        // positive skew leans the top of the glyph LEFT. A positive oblique angle has to lean
+        // right — that is what "oblique" means everywhere a surveyor has seen it.
+        const shear = -effectiveObliqueRadians(labelStyle);
+        if (textObj.skew.x !== shear) textObj.skew.x = shear;
 
         textObj.position.set(finalX, finalY);
 

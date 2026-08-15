@@ -2,6 +2,7 @@
 export * from './types';
 export * from './symbol-library';
 export * from './linetype-library';
+export * from './text-style-library';
 export * from './default-layers';
 export * from './style-cascade';
 export * from './symbol-renderer';
