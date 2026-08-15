@@ -171,6 +171,19 @@ export interface DrawingDocument {
    */
   layerStates?: import('./styles/layer-states').LayerState[];
 
+  /**
+   * C26 — the active isolate session, or absent when not isolated.
+   *
+   * On the DOCUMENT rather than in memory, because layer visibility is itself saved with the
+   * drawing: an isolate survives a reload whether or not we record it, and a snapshot that did not
+   * would leave the surveyor isolated with no way back — the exact failure this slice fixes, made
+   * worse by looking fixed until they close the tab.
+   *
+   * Optional, for the reason `layerStates` is (C8): a required field would make every drawing saved
+   * before C26 fail to load.
+   */
+  isolate?: import('./isolate').IsolateSession | null;
+
   // Configuration
   settings: DrawingSettings;
 }

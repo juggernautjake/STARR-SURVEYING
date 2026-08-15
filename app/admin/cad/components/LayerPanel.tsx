@@ -996,10 +996,9 @@ export default function LayerPanel() {
                     if (e.shiftKey) {
                       // Shift+click = isolate this layer (AutoCAD/Civil 3D convention).
                       // Matches the "Isolate Layer" context-menu action below — surveyors
-                      // expect both gestures.
-                      for (const id of doc.layerOrder) {
-                        useDrawingStore.getState().updateLayer(id, { visible: id === layer.id });
-                      }
+                      // expect both gestures. C26 routes both through `enterIsolate` so the
+                      // gesture you used cannot change whether you can get back.
+                      useDrawingStore.getState().enterIsolate([layer.id], 'LAYER');
                     } else {
                       handleToggleVisibility(layer);
                     }
@@ -1519,10 +1518,11 @@ export default function LayerPanel() {
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => {
-              const target = contextMenu.layerId;
-              for (const id of doc.layerOrder) {
-                useDrawingStore.getState().updateLayer(id, { visible: id === target });
-              }
+              // C26 — isolate is now a MODE. This used to write `visible: id === target` across
+              // every layer and remember nothing, so the only way out was "Show All Layers" — which
+              // turned on layers the surveyor had deliberately switched off before isolating. Un-
+              // isolating restored something else, silently. `enterIsolate` snapshots first.
+              useDrawingStore.getState().enterIsolate([contextMenu.layerId], 'LAYER');
               setContextMenu(null);
             }}
           >

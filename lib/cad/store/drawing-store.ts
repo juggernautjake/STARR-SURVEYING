@@ -25,6 +25,8 @@ import { captureLayerState, planLayerStateRestore } from '../styles/layer-states
 // C23 — the unified visibility model (decision D3). One place knows every way a feature can be
 // invisible, and it can name which one applied.
 import { isRenderable } from '../visibility';
+// C26 — isolate as a mode: entering snapshots the visibility it overwrites, leaving puts it back.
+import { planIsolate, planExitIsolate } from '../isolate';
 
 // ── CAD_AUDIT Slice S2b — the visible/selectable set is derived ONCE per document version ──
 //
@@ -291,6 +293,11 @@ interface DrawingStore {
   addCustomTextStyle: (style: import('../styles/types').TextStyleDefinition) => void;
   updateCustomTextStyle: (id: string, updates: Partial<import('../styles/types').TextStyleDefinition>) => void;
   removeCustomTextStyle: (id: string) => void;
+  /** C26 — enter isolate, remembering the visibility it overwrites. Re-entering while already
+   *  isolated keeps the ORIGINAL snapshot, so exit always means "back to before any of this". */
+  enterIsolate: (keep: string[], origin: 'LAYER' | 'SELECTION') => void;
+  /** C26 — leave isolate, restoring exactly what was there. No-op when not isolated. */
+  exitIsolate: () => void;
 
   // Layer display preferences
   updateLayerDisplayPreferences: (layerId: string, prefs: Partial<LayerDisplayPreferences>) => void;
@@ -905,6 +912,54 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       },
       isDirty: true,
     })),
+
+  // C26 — isolate as a mode. Both write layer visibility AND the session in ONE `set`, because a
+  // two-step version can be interrupted between them and leave a snapshot describing a state the
+  // document is no longer in — which is worse than no snapshot, since exit would then "restore"
+  // something that never existed.
+  enterIsolate: (keep, origin) =>
+    set((state) => {
+      const plan = planIsolate(
+        state.document.layers,
+        keep,
+        origin,
+        state.document.isolate,
+        new Date().toISOString(),
+      );
+      const layers = { ...state.document.layers };
+      for (const [id, visible] of Object.entries(plan.updates)) {
+        layers[id] = { ...layers[id], visible };
+      }
+      return {
+        document: {
+          ...state.document,
+          layers,
+          isolate: plan.session,
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
+
+  exitIsolate: () =>
+    set((state) => {
+      const session = state.document.isolate;
+      if (!session) return {};
+      const updates = planExitIsolate(session, state.document.layers);
+      const layers = { ...state.document.layers };
+      for (const [id, visible] of Object.entries(updates)) {
+        layers[id] = { ...layers[id], visible };
+      }
+      return {
+        document: {
+          ...state.document,
+          layers,
+          isolate: null,
+          modified: new Date().toISOString(),
+        },
+        isDirty: true,
+      };
+    }),
 
   updateSettings: (settings) =>
     set((state) => ({

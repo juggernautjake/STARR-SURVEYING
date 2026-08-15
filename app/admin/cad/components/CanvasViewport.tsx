@@ -10,6 +10,7 @@ import SelectionDragChip from './SelectionDragChip';
 // tracker. Keeps cursor moves from reconciling the 14k-line parent.
 import CanvasCoordsPill from './CanvasCoordsPill';
 import BlankCanvasNotice from './BlankCanvasNotice';
+import IsolateBadge from './IsolateBadge';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -15313,6 +15314,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           Renders nothing unless the drawing has features and none of them are visible; see the
           component for why it is not shown for a partially hidden drawing. */}
       <BlankCanvasNotice />
+
+      {/* C26 — isolate is a mode, so it is visible while it is on, with its own way out. */}
+      <IsolateBadge />
 
       {/* Drawing rotation indicator — shown when rotation is non-zero */}
       {(() => {

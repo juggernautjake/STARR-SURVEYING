@@ -444,15 +444,12 @@ export function dispatchDefaultAction(action: BindableAction): void {
         const f = drawingStore.getFeature(id);
         if (f) keepLayers.add(f.layerId);
       }
-      let hiddenCount = 0;
-      for (const layerId of drawingStore.document.layerOrder) {
-        const wasVisible = drawingStore.document.layers[layerId]?.visible !== false;
-        const shouldBeVisible = keepLayers.has(layerId);
-        if (wasVisible !== shouldBeVisible) {
-          drawingStore.updateLayer(layerId, { visible: shouldBeVisible });
-        }
-        if (!shouldBeVisible) hiddenCount += 1;
-      }
+      // C26 — one call that snapshots the visibility it overwrites, instead of a loop that
+      // remembers nothing. Same reason as the layer-panel entry points: without the snapshot the
+      // only exit was "Show All Layers", which also turned on layers the surveyor had deliberately
+      // switched off before isolating.
+      const hiddenCount = drawingStore.document.layerOrder.filter((id) => !keepLayers.has(id)).length;
+      drawingStore.enterIsolate([...keepLayers], 'SELECTION');
       window.dispatchEvent(new CustomEvent('cad:commandOutput', {
         detail: {
           text: `Isolated ${keepLayers.size} layer${keepLayers.size === 1 ? '' : 's'}; hid ${hiddenCount}.`,
