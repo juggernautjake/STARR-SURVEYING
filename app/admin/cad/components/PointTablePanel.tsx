@@ -40,6 +40,80 @@ function SortIcon({ field, sort }: { field: PointSortField; sort: SortState }) {
     : <ChevronDown size={12} className="text-blue-400 ml-1" />;
 }
 
+/**
+ * C9 — an in-place editor for one cell.
+ *
+ * ── WHY ONLY THREE FIELDS ARE EDITABLE HERE ─────────────────────────────────────────────────────
+ *
+ * `updatePoint` is a blind shallow merge: it does not re-derive anything and does not touch the
+ * linked CAD feature. Most of `SurveyPoint` therefore CANNOT be edited in place without silently
+ * desynchronising something:
+ *
+ *   northing / easting — the linked feature (`featureId`) carries its own geometry. Editing the
+ *                        number here would move the point in the table and leave it on the canvas.
+ *   pointName          — `parsedName` is derived from it, and `point-rename.ts` exists precisely
+ *                        because a rename has to find and update every reference.
+ *   rawCode            — `parsedCode`, `resolvedAlphaCode`, `resolvedNumericCode` and
+ *                        `codeDefinition` are all derived from it.
+ *
+ * Those belong to C11's point OPERATIONS, which can re-derive and sync. What is left is the set
+ * that derives nothing and drives nothing: `description`, `elevation` (the feature is 2D, so Z is
+ * independent of its geometry) and `monumentAction` (a plain enum a surveyor genuinely re-classifies
+ * — a found monument turning out to be a set one).
+ *
+ * Shipping an editable northing that only half-worked would be worse than shipping none.
+ */
+function EditableCell({
+  value,
+  placeholder,
+  numeric,
+  onCommit,
+  className,
+}: {
+  value: string;
+  placeholder?: string;
+  numeric?: boolean;
+  onCommit: (next: string) => void;
+  className: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  if (!editing) {
+    return (
+      <td
+        className={`${className} cursor-text hover:bg-gray-700/60`}
+        // The row itself selects the point on click; an edit must not also jump the canvas.
+        onClick={(e) => { e.stopPropagation(); setDraft(value); setEditing(true); }}
+        title="Click to edit"
+      >
+        {value || <span className="text-gray-600">{placeholder ?? '—'}</span>}
+      </td>
+    );
+  }
+
+  const commit = () => { setEditing(false); if (draft !== value) onCommit(draft); };
+
+  return (
+    <td className={className} onClick={(e) => e.stopPropagation()}>
+      <input
+        autoFocus
+        value={draft}
+        inputMode={numeric ? 'decimal' : undefined}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') commit();
+          // Escape abandons the edit rather than committing it — the one key everyone expects to
+          // be an undo, and the only way out of a cell you opened by mistake.
+          if (e.key === 'Escape') { setEditing(false); setDraft(value); }
+        }}
+        className="w-full bg-gray-900 border border-blue-500 rounded px-1 text-xs text-gray-100 font-mono"
+      />
+    </td>
+  );
+}
+
 function ActionBadge({ action }: { action: SurveyPoint['monumentAction'] }) {
   if (!action) return <span className="text-gray-500">—</span>;
   const styles: Record<string, string> = {
@@ -194,6 +268,11 @@ export default function PointTablePanel({
               <th className={thClass} onClick={() => handleHeaderClick('monumentAction')}>
                 <span className="flex items-center">Action<SortIcon field="monumentAction" sort={sort} /></span>
               </th>
+              {/* C9 — description was filterable but had no column, so a surveyor could search for a
+                  note they could not read. */}
+              <th className={thClass} onClick={() => handleHeaderClick('description')}>
+                <span className="flex items-center">Description<SortIcon field="description" sort={sort} /></span>
+              </th>
               <th className={thClass} style={{ width: 40 }}>Issues</th>
             </tr>
           </thead>
@@ -221,9 +300,47 @@ export default function PointTablePanel({
                   </td>
                   <td className={tdClass}>{pt.northing.toFixed(3)}</td>
                   <td className={tdClass}>{pt.easting.toFixed(3)}</td>
-                  <td className={tdClass}>{pt.elevation !== null ? pt.elevation.toFixed(2) : '—'}</td>
+                  {/* C9 — editable. Elevation derives nothing and the linked feature is 2D, so Z
+                      is independent of its geometry. */}
+                  <EditableCell
+                    className={tdClass}
+                    numeric
+                    value={pt.elevation !== null ? pt.elevation.toFixed(2) : ''}
+                    onCommit={(next) => {
+                      const trimmed = next.trim();
+                      // Blank clears it back to null — "no elevation" is a real state for a 2D
+                      // point, and is not the same as zero.
+                      if (!trimmed) { usePointStore.getState().updatePoint(pt.id, { elevation: null }); return; }
+                      const n = Number(trimmed);
+                      if (Number.isFinite(n)) usePointStore.getState().updatePoint(pt.id, { elevation: n });
+                    }}
+                  />
                   <td className={tdClass}>{displayCode}{codeSuffix}</td>
-                  <td className={tdClass}><ActionBadge action={pt.monumentAction} /></td>
+                  {/* C9 — a surveyor genuinely re-classifies these: a monument recorded FOUND turns
+                      out to have been SET. A plain enum with nothing derived from it. */}
+                  <td className={tdClass} onClick={(e) => e.stopPropagation()}>
+                    <select
+                      value={pt.monumentAction ?? ''}
+                      onChange={(e) => usePointStore.getState().updatePoint(pt.id, {
+                        monumentAction: (e.target.value || null) as SurveyPoint['monumentAction'],
+                      })}
+                      className="bg-transparent text-[10px] text-gray-300 hover:bg-gray-700 rounded cursor-pointer"
+                      aria-label={`Monument action for ${pt.pointName}`}
+                    >
+                      <option value="">—</option>
+                      <option value="FOUND">FOUND</option>
+                      <option value="SET">SET</option>
+                      <option value="CALCULATED">CALC</option>
+                      <option value="UNKNOWN">?</option>
+                    </select>
+                  </td>
+                  {/* C9 — description had no column at all. Free text, nothing derived from it. */}
+                  <EditableCell
+                    className={`${tdClass} max-w-[180px] truncate`}
+                    value={pt.description}
+                    placeholder="add note"
+                    onCommit={(next) => usePointStore.getState().updatePoint(pt.id, { description: next.trim() })}
+                  />
                   <td className={tdClass}><IssuesBadge issues={pt.validationIssues} /></td>
                 </tr>
               );

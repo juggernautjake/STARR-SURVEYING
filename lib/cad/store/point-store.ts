@@ -34,7 +34,9 @@ interface PointStore {
   setShowAllGroupPositions: (show: boolean) => void;
 }
 
-export type PointSortField = 'pointNumber' | 'pointName' | 'northing' | 'easting' | 'elevation' | 'resolvedAlphaCode' | 'resolvedNumericCode' | 'monumentAction';
+// C9 added 'description'. It was already searchable by `getSortedPoints`'s filter but had no column
+// and no sort — a surveyor could search for a note they could not read or order by.
+export type PointSortField = 'pointNumber' | 'pointName' | 'northing' | 'easting' | 'elevation' | 'resolvedAlphaCode' | 'resolvedNumericCode' | 'monumentAction' | 'description';
 
 export const usePointStore = create<PointStore>((set, get) => ({
   points: {},
