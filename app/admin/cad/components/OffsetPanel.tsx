@@ -13,7 +13,7 @@
 //
 // Slice 1 of cad-offset-tool-2026-05-29.md.
 
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowRightLeft, X } from 'lucide-react';
 
 import { useToolStore, useDrawingStore } from '@/lib/cad/store';
@@ -48,6 +48,9 @@ const CORNER_OPTIONS: ReadonlyArray<{ value: 'MITER' | 'ROUND' | 'CHAMFER'; labe
 
 export default function OffsetPanel({ onCommit, onCancel }: Props) {
   const ts = useToolStore((s) => s.state);
+  /** C16 — why Apply did nothing, shown only after the surveyor tries. Empty until then: a panel
+   *  that opens already complaining about a field nobody has filled in yet is nagging. */
+  const [reason, setReason] = useState('');
   const setOffsetDistance = useToolStore((s) => s.setOffsetDistance);
   const setOffsetSide = useToolStore((s) => s.setOffsetSide);
   const setOffsetCornerHandling = useToolStore((s) => s.setOffsetCornerHandling);
@@ -102,6 +105,19 @@ export default function OffsetPanel({ onCommit, onCancel }: Props) {
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter') {
       e.preventDefault();
+      // C16 — Enter used to call handleApply() unconditionally.
+      //
+      // With a blank or zero distance `applyOffsetFromPanel` returns false, `onCommit()` never
+      // fires, and NOTHING happened — no message, no reason. The button beside it was already
+      // `disabled` for the same state, so the mouse path gave a (silent but visible) signal and the
+      // keyboard path gave none at all, on a panel whose button reads "Apply (Enter)".
+      //
+      // That is the failure S7b named in this same codebase: *"a silent no-op is the worst version
+      // of this — the input was accepted, so there is nothing to retry."*
+      if (!canApply) {
+        setReason(applyBlockedReason());
+        return;
+      }
       handleApply();
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -112,6 +128,15 @@ export default function OffsetPanel({ onCommit, onCancel }: Props) {
   const canApply =
     !!ts.offsetSourceId &&
     distanceToFeet(localValueRef.current.value, localValueRef.current.unit) !== null;
+
+  /** C16 — WHY Apply is unavailable, in words a surveyor can act on. A dimmed button that gives no
+   *  reason is only marginally better than one that does nothing. */
+  function applyBlockedReason(): string {
+    if (!ts.offsetSourceId) return 'Pick the feature to offset first.';
+    const v = localValueRef.current.value;
+    if (!Number.isFinite(v) || v <= 0) return 'Enter an offset distance greater than zero.';
+    return 'That distance cannot be used.';
+  }
 
   return (
     <div
@@ -150,6 +175,9 @@ export default function OffsetPanel({ onCommit, onCancel }: Props) {
               defaultValue={localValueRef.current.value || ''}
               placeholder="e.g. 12.5"
               onChange={(e) => {
+                // C16 — typing clears the complaint. Leaving it up while the surveyor fixes the
+                // thing it complained about is how a message becomes noise.
+                if (reason) setReason('');
                 const n = parseFloat(e.target.value);
                 if (Number.isFinite(n)) {
                   syncToolStore({ ...localValueRef.current, value: n });
@@ -213,10 +241,21 @@ export default function OffsetPanel({ onCommit, onCancel }: Props) {
           </select>
         </label>
 
+        {reason && (
+          <p
+            role="alert"
+            data-testid="offset-panel-reason"
+            className="text-[10px] text-amber-300 leading-snug"
+          >
+            {reason}
+          </p>
+        )}
+
         <div className="flex items-center gap-2 pt-0.5">
           <button
             onClick={handleApply}
             disabled={!canApply}
+            title={canApply ? 'Apply the offset' : applyBlockedReason()}
             className="flex-1 h-7 rounded bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:text-gray-500 text-white text-xs font-medium transition-colors"
           >
             Apply (Enter)

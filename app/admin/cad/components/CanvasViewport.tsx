@@ -9565,10 +9565,27 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   /** Commit the offset line from the floating panel (uses the last cursor). */
   function commitPerp() {
     const st = useToolStore.getState().state;
-    if (!st.perpStartPoint) return;
+    // C16 — the two silent returns below used to be bare `return`s. "Place (Enter)" on a panel with
+    // a blank length and the cursor still sitting on the start point produced a zero-length
+    // endpoint, `computePerpEndpoint` returned null, and the panel just sat there. Same failure the
+    // OFFSET panel had on Enter: the input was accepted, so there is nothing to retry.
+    const refuse = (text: string) => {
+      window.dispatchEvent(new CustomEvent('cad:commandOutput', { detail: { text } }));
+    };
+    if (!st.perpStartPoint) {
+      refuse('PERPENDICULAR — click a point on the base line first.');
+      return;
+    }
     const cursor = st.previewPoint ?? st.perpStartPoint;
     const end = computePerpEndpoint(cursor);
-    if (!end) return;
+    if (!end) {
+      refuse(
+        st.perpLengthFeet != null && Number.isFinite(st.perpLengthFeet)
+          ? 'PERPENDICULAR — length must be greater than zero.'
+          : 'PERPENDICULAR — type a length, or move the cursor off the start point to set one.',
+      );
+      return;
+    }
     finishFeature('LINE', [st.perpStartPoint, end]);
     useToolStore.getState().clearPerp();
     window.dispatchEvent(new CustomEvent('cad:commandOutput', {
