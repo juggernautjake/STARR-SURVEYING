@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import LogTripForm from './LogTripForm';
 
 interface VehicleSubtotal {
   vehicle_id: string | null;
@@ -172,6 +173,12 @@ export default function MileagePage() {
           </p>
         </div>
       </header>
+
+      {/* C0b3b — manual capture. The hub widget's "Log a trip →" has pointed at this page since it
+          shipped, and until now the page was a read-only report, so the link led nowhere you could
+          log anything. `refetch` after a save so the report below reflects the new trip without a
+          reload. */}
+      <LogTripForm onLogged={fetchMileage} />
 
       <div style={styles.controls}>
         <label style={styles.field}>
