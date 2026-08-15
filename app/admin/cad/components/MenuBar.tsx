@@ -1775,7 +1775,16 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
 
   return (
     <>
-    <div className="flex items-center bg-gray-900 border-b border-gray-700 text-xs text-gray-200 select-none">
+    {/* admin-ui-alignment-2026-08-14 A14 — the bar WRAPS rather than scrolls.
+     *
+     * At 390px this row ran its right end 156px off-screen: Save, the document name and Exit were
+     * all unreachable, and `Exit` in particular is the only way out of the editor. The obvious fix
+     * — `overflow-x: auto` — is wrong here and quietly breaks the product: every menu below is an
+     * `absolute` dropdown anchored to its `relative` button, and a scroll container on this row
+     * becomes their clipping ancestor, so File/Edit/View would open into a 24px-tall sliver. Wrap
+     * has no such side effect, and it is the same call four other pages took in A11 (D6k). On a
+     * desktop the row still fits on one line, so nothing moves. */}
+    <div className="flex flex-wrap items-center bg-gray-900 border-b border-gray-700 text-xs text-gray-200 select-none">
       {/* Logo */}
       <span className="px-3 py-1.5 font-bold text-white text-sm">Starr CAD</span>
 
@@ -1783,9 +1792,9 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
       {menus.map((menu) => (
         // z-50 keeps the buttons above the click-away overlay (z-40) so
         // hovering across menus and clicking items always registers.
-        <div key={menu.label} className="relative z-50">
+        <div key={menu.label} className="relative z-50 shrink-0">
           <button
-            className={`px-3 py-1.5 hover:bg-gray-700 transition-colors ${openMenu === menu.label ? 'bg-gray-700' : ''}`}
+            className={`px-3 py-1.5 whitespace-nowrap hover:bg-gray-700 transition-colors ${openMenu === menu.label ? 'bg-gray-700' : ''}`}
             onClick={() => { setOpenMenu(openMenu === menu.label ? null : menu.label); setOpenSubmenu(null); }}
             onMouseEnter={() => { if (openMenu !== null) { setOpenMenu(menu.label); setOpenSubmenu(null); } }}
           >

@@ -74,6 +74,7 @@ import DisplayPreferencesPanel, { DisplayPrefsToggleButton } from './components/
 import FullscreenToggle from './components/FullscreenToggle';
 import ResizeHandle from './components/ResizeHandle';
 import { usePanelSize } from './hooks/usePanelSize';
+import { useIsNarrow } from './hooks/useIsNarrow';
 import PointDataViewer from './components/PointDataViewer';
 import RenameConfirmDialog, { type RenameDialogData } from './components/RenameConfirmDialog';
 import TraverseViewer from './components/TraverseViewer';
@@ -197,6 +198,9 @@ export default function CADLayout() {
   const { showLayerPanel, showPropertyPanel } = useUIStore();
   const [layerPanelWidth, setLayerPanelWidth] = usePanelSize('layer', 192, 160, 480);
   const [rightDockWidth, setRightDockWidth] = usePanelSize('right', 192, 160, 520);
+  // A14 — below this width the side docks float over the canvas instead of taking width from it.
+  // See the arithmetic in useIsNarrow.ts: docked, they leave the drawing 0px on a phone.
+  const isNarrow = useIsNarrow();
   const [pointViewerHeight, setPointViewerHeight] = usePanelSize('pointViewer', 240, 140, 600);
   // The Point Data viewer is the single point manager — always docked at the
   // bottom, collapsible to a slim bar. Persist the expanded/collapsed choice.
@@ -1330,8 +1334,9 @@ export default function CADLayout() {
         </div>
       </div>
 
-      {/* Main content area */}
-      <div className="flex flex-1 min-h-0">
+      {/* Main content area. `relative` is what the narrow-width overlays anchor to — see A14 in
+          useIsNarrow.ts. It is inert at desktop widths. */}
+      <div className="flex flex-1 min-h-0 relative">
         {/* Left sidebar: tools. overflow-y-auto + min-h-0 so the button
             column scrolls within the available height instead of
             spilling over the command bar / point table on short
@@ -1344,20 +1349,26 @@ export default function CADLayout() {
         {showLayerPanel && (
           <>
             <div
-              className="flex flex-col bg-gray-800 border-r border-gray-700 cad-slide-left shrink-0"
-              style={{ width: layerPanelWidth }}
+              className={`flex flex-col bg-gray-800 border-r border-gray-700 cad-slide-left shrink-0${
+                isNarrow ? ' absolute inset-y-0 left-[52px] z-30 shadow-2xl' : ''
+              }`}
+              style={{ width: isNarrow ? `min(${layerPanelWidth}px, calc(100% - 52px - 40px))` : layerPanelWidth }}
             >
               <LayerPanel />
             </div>
-            <ResizeHandle
-              axis="x"
-              sign={1}
-              size={layerPanelWidth}
-              min={160}
-              max={480}
-              onResize={setLayerPanelWidth}
-              ariaLabel="Resize layer panel"
-            />
+            {/* A14 — no drag handle when the panel is floating: there is no neighbouring column for
+                it to trade width with, and a 390px screen has nothing to spare either way. */}
+            {!isNarrow && (
+              <ResizeHandle
+                axis="x"
+                sign={1}
+                size={layerPanelWidth}
+                min={160}
+                max={480}
+                onResize={setLayerPanelWidth}
+                ariaLabel="Resize layer panel"
+              />
+            )}
           </>
         )}
 
@@ -1403,18 +1414,22 @@ export default function CADLayout() {
         {/* Right sidebar: property panel + traverse panel + image panel (toggleable, resizable) */}
         {(showPropertyPanel || showTraversePanel || showImagePanel) && (
           <>
-          <ResizeHandle
-            axis="x"
-            sign={-1}
-            size={rightDockWidth}
-            min={160}
-            max={520}
-            onResize={setRightDockWidth}
-            ariaLabel="Resize properties panel"
-          />
+          {!isNarrow && (
+            <ResizeHandle
+              axis="x"
+              sign={-1}
+              size={rightDockWidth}
+              min={160}
+              max={520}
+              onResize={setRightDockWidth}
+              ariaLabel="Resize properties panel"
+            />
+          )}
           <div
-            className="flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right"
-            style={{ width: rightDockWidth }}
+            className={`flex bg-gray-800 border-l border-gray-700 flex-shrink-0 cad-slide-right${
+              isNarrow ? ' absolute inset-y-0 right-0 z-30 shadow-2xl' : ''
+            }`}
+            style={{ width: isNarrow ? `min(${rightDockWidth}px, calc(100% - 52px - 40px))` : rightDockWidth }}
           >
             <div className="flex flex-col flex-1 min-w-0">
               {showPropertyPanel && <PropertyPanel />}

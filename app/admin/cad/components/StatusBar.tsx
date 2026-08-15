@@ -235,8 +235,20 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
     updateSettings({ gridVisible: !gridVisible });
   }
 
+  // admin-ui-alignment-2026-08-14 A14 — `overflow-hidden` came off, and it was doing two kinds of
+  // damage.
+  //
+  // The one the audit could see: at 390px this strip runs 463px past the right edge, so Snap, Layer
+  // and the drawing scale were clipped away with no way to reach them — the crew-calendar shape
+  // from D6k, where a wrapper meant to tidy an edge was hiding the content instead.
+  //
+  // The one no width could see: the snap-type popover below is `absolute bottom-full`, i.e. it
+  // renders ABOVE this bar, outside its box, and its containing block is the `relative` group
+  // INSIDE this element. An `overflow-hidden` ancestor clips exactly that, so the popover was being
+  // cut off at EVERY width, desktop included. Wrapping (not scrolling) is again the fix that does
+  // not re-create the clip — see the note on the menu bar.
   return (
-    <div className="flex items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-4 overflow-hidden">
+    <div className="flex flex-wrap items-center bg-gray-900 border-t border-gray-700 px-3 py-0.5 text-xs text-gray-400 gap-x-4 gap-y-0.5">
       {/* cad-desktop-tauri-and-perf Slice P6 — memoized sub-component
           owns the live coordinate + distance display so mousemove
           ticks don't reconcile the rest of the status bar. */}

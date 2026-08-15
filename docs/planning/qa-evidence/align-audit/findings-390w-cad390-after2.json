@@ -1,0 +1,84 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 1,
+  "byRule": {
+    "height-spread": 2,
+    "overflow": 5
+  },
+  "byRoute": {
+    "/admin/cad": 7
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.bg-gray-800.border-l \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.flex-1.min-h-0 \"Layersactive: —2Survey Info4\"",
+      "sig": "div.flex.bg-gray-800.border-l|div.flex.flex-1.min-h-0",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.flex-col.flex-1 \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.bg-gray-800.border-l \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex.flex-col.flex-1|div.flex.bg-gray-800.border-l",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.flex-1 \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex.flex-col.h-full|div.flex.flex-col.flex-1",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.px-2.py-1.text-gray-400 \"Properties\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\"",
+      "sig": "div.px-2.py-1.text-gray-400|div.flex.flex-col.h-full",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex-1.flex.items-center \"No selection.Select features\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex-1.flex.items-center|div.flex.flex-col.h-full",
+      "count": 1
+    }
+  ]
+}

@@ -1,0 +1,294 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 1,
+  "byRule": {
+    "height-spread": 2,
+    "overflow": 26
+  },
+  "byRoute": {
+    "/admin/cad": 28
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 12,
+      "detail": "div.relative.z-50 \"Help\" extends 12px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"Starr CADFileEditViewSurveyD\"",
+      "sig": "div.relative.z-50|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 12,
+      "detail": "button.px-3.py-1.5.hover:bg-gray-700 \"Help\" extends 12px past the right edge",
+      "container": "div.relative.z-50 \"Help\"",
+      "sig": "button.px-3.py-1.5.hover:bg-gray-700|div.relative.z-50",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 62,
+      "detail": "button.ml-2.px-2.py-0.5 \"Save\" extends 62px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"Starr CADFileEditViewSurveyD\"",
+      "sig": "button.ml-2.px-2.py-0.5|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 156,
+      "detail": "div.mr-3.flex.items-center \"Exit\" extends 156px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"Starr CADFileEditViewSurveyD\"",
+      "sig": "div.mr-3.flex.items-center|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 100,
+      "detail": "button.flex.items-center.gap-1.5 \"Exit\" extends 100px past the right edge",
+      "container": "div.mr-3.flex.items-center \"Exit\"",
+      "sig": "button.flex.items-center.gap-1.5|div.mr-3.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 92,
+      "detail": "svg extends 92px past the right edge",
+      "container": "button.flex.items-center.gap-1.5 \"Exit\"",
+      "sig": "svg|button.flex.items-center.gap-1.5",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 90,
+      "detail": "path extends 90px past the right edge",
+      "container": "svg",
+      "sig": "path|svg",
+      "count": 3
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 130,
+      "detail": "button.text-gray-400.hover:text-white.p-1 extends 130px past the right edge",
+      "container": "div.mr-3.flex.items-center \"Exit\"",
+      "sig": "button.text-gray-400.hover:text-white.p-1|div.mr-3.flex.items-center",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 126,
+      "detail": "svg extends 126px past the right edge",
+      "container": "button.text-gray-400.hover:text-white.p-1",
+      "sig": "svg|button.text-gray-400.hover:text-white.p-1",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 125,
+      "detail": "rect extends 125px past the right edge",
+      "container": "svg",
+      "sig": "rect|svg",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 147,
+      "detail": "circle extends 147px past the right edge",
+      "container": "svg",
+      "sig": "circle|svg",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.bg-gray-800.border-l \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.flex-1.min-h-0 \"Layersactive: —2Survey Info4\"",
+      "sig": "div.flex.bg-gray-800.border-l|div.flex.flex-1.min-h-0",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.flex-col.flex-1 \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.bg-gray-800.border-l \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex.flex-col.flex-1|div.flex.bg-gray-800.border-l",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.flex-1 \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex.flex-col.h-full|div.flex.flex-col.flex-1",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.px-2.py-1.text-gray-400 \"Properties\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\"",
+      "sig": "div.px-2.py-1.text-gray-400|div.flex.flex-col.h-full",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex-1.flex.items-center \"No selection.Select features\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex-1.flex.items-center|div.flex.flex-col.h-full",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 36,
+      "detail": "button.shrink-0.flex.items-center \"AI: COPILOT\" extends 36px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "button.shrink-0.flex.items-center|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 29,
+      "detail": "span.inline-block.w-1.5.h-1.5 extends 29px past the right edge",
+      "container": "button.shrink-0.flex.items-center \"AI: COPILOT\"",
+      "sig": "span.inline-block.w-1.5.h-1.5|button.shrink-0.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 56,
+      "detail": "span.text-gray-600 \"|\" extends 56px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "span.text-gray-600|div.flex.items-center.bg-gray-900",
+      "count": 5
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 108,
+      "detail": "span.shrink-0.text-gray-500.transition-colors \"Select\" extends 108px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "span.shrink-0.text-gray-500.transition-colors|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 194,
+      "detail": "button.hover:text-white.transition-colors.shrink-0 \"Layer: —\" extends 194px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "button.hover:text-white.transition-colors.shrink-0|div.flex.items-center.bg-gray-900",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 194,
+      "detail": "span.text-white \"—\" extends 194px past the right edge",
+      "container": "button.hover:text-white.transition-colors.shrink-0 \"Layer: —\"",
+      "sig": "span.text-white|button.hover:text-white.transition-colors.shrink-0",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 300,
+      "detail": "div.relative.flex.items-center \"Snap: ON▾\" extends 300px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "div.relative.flex.items-center|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 284,
+      "detail": "button.hover:text-white.transition-colors.text-green-400 \"Snap: ON\" extends 284px past the right edge",
+      "container": "div.relative.flex.items-center \"Snap: ON▾\"",
+      "sig": "button.hover:text-white.transition-colors.text-green-400|div.relative.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 300,
+      "detail": "button.hover:text-white.transition-colors.px-0.5 \"▾\" extends 300px past the right edge",
+      "container": "div.relative.flex.items-center \"Snap: ON▾\"",
+      "sig": "button.hover:text-white.transition-colors.px-0.5|div.relative.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 463,
+      "detail": "span.text-gray-500.shrink-0 \"1″=50′\" extends 463px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "span.text-gray-500.shrink-0|div.flex.items-center.bg-gray-900",
+      "count": 1
+    }
+  ]
+}
