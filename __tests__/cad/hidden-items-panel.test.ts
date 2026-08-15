@@ -184,7 +184,13 @@ describe('the status bar agrees with the panel', () => {
 
   it('counts every mechanism', () => {
     // A bar reading "0 hidden" beside a panel listing 4,012 would be worse than either alone.
-    expect(bar).toMatch(/countAllHidden\(Object\.values\(doc\.features\), doc\.layers\)\.total/);
+    //
+    // C25 swapped `countAllHidden` for `hiddenSummary` — the same total in one pass, plus the
+    // per-reason breakdown the tooltip needs. The invariant this test exists for is that the count
+    // comes from the shared model over the whole document, not from the `hidden` flag; the
+    // assertion follows the call rather than pinning a function name that was always going to move.
+    expect(bar).toMatch(/hiddenSummary\(Object\.values\(doc\.features\), doc\.layers\)/);
+    expect(bar).toMatch(/const hiddenCount = hidden\.total/);
     expect(bar).not.toMatch(/filter\(\(f\) => f\.hidden\)\.length/);
   });
 });

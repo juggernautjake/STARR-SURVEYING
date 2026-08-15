@@ -10,7 +10,7 @@ import ErrorReportStatusButton from './ErrorReportStatusButton';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { listAutosaves } from '@/lib/cad/persistence/autosave';
 import type { SnapType } from '@/lib/cad/types';
-import { countAllHidden } from '@/lib/cad/visibility';
+import { hiddenSummary, describeHidden } from '@/lib/cad/visibility';
 
 const SNAP_TYPE_INFO: Array<{ type: SnapType; label: string; hint: string }> = [
   { type: 'ENDPOINT',      label: 'Endpoint',      hint: 'Snap to the start / end of any line, polyline, or arc.' },
@@ -105,7 +105,10 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
   // "feature.hidden" alone, so a frozen layer swallowing 4,000 features showed no pill at all — the
   // status bar quietly agreeing that nothing was hidden while the drawing was half gone. The panel
   // now reports all five reasons; a bar disagreeing with it would be worse than either alone.
-  const hiddenCount = countAllHidden(Object.values(doc.features), doc.layers).total;
+  // C25 — one pass, and it answers more than the count: the per-reason breakdown for the tooltip,
+  // and whether the canvas is blank while the drawing has content.
+  const hidden = hiddenSummary(Object.values(doc.features), doc.layers);
+  const hiddenCount = hidden.total;
 
   // §UX U16 (UX_POLISH §2.4) — "Recover unsaved drawings…" is the
   // 4th File-menu entry, easy to miss. Count IndexedDB autosaves
@@ -375,8 +378,17 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
           <button
             type="button"
             onClick={() => window.dispatchEvent(new CustomEvent('cad:toggleHiddenItems'))}
-            className="shrink-0 text-amber-300 hover:text-amber-100 transition-colors animate-[fadeIn_150ms_ease-out]"
-            title={`${hiddenCount} hidden feature${hiddenCount === 1 ? '' : 's'} — click to manage`}
+            className={`shrink-0 transition-colors animate-[fadeIn_150ms_ease-out] ${
+              // C25 — when NOTHING is on screen this stops being a note and becomes the answer to
+              // the question the surveyor is asking, so it reads as a warning rather than a stat.
+              hidden.blankButNotEmpty
+                ? 'text-red-300 hover:text-red-100 font-semibold'
+                : 'text-amber-300 hover:text-amber-100'
+            }`}
+            data-testid="status-hidden-pill"
+            // C25 — the breakdown, not a bare number. "4,012 hidden" and "4,012 hidden, all of it
+            // one frozen layer" send the surveyor to completely different places.
+            title={`${hiddenCount} hidden — ${describeHidden(hidden)} — click to manage`}
           >
             {hiddenCount} hidden
           </button>

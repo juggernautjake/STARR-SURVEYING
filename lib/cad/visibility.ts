@@ -227,6 +227,81 @@ export function countAllHidden(
   return { features: f, labels: l, total: f + l };
 }
 
+export interface HiddenSummary {
+  /** Features + labels. */
+  total: number;
+  hiddenFeatures: number;
+  hiddenLabelCount: number;
+  /** How many features are on screen, and how many exist at all. */
+  visibleFeatures: number;
+  totalFeatures: number;
+  byReason: Record<HiddenReason, number>;
+  /**
+   * The drawing has content and none of it is on screen.
+   *
+   * This is the actual "where did my linework go" moment — not a count in the corner, but a blank
+   * canvas. A number in the status bar only removes that failure for a surveyor who thinks to look
+   * at the status bar, and the person most likely to miss it is the one staring at nothing.
+   */
+  blankButNotEmpty: boolean;
+}
+
+/**
+ * C25 — one pass over the drawing answering everything an indicator needs.
+ *
+ * One walk rather than four: `countHidden`, `hiddenLabels` and `groupHidden` each iterate the whole
+ * feature map, and a status bar that recomputes on every store change should not pay for three of
+ * them. Same reasoning as C22's per-frame read — cheap in a fixture, not on 200k features.
+ */
+export function hiddenSummary(
+  features: Iterable<Feature>,
+  layers: Record<string, Layer>,
+): HiddenSummary {
+  const byReason: Record<HiddenReason, number> = {
+    'layer-frozen': 0, 'layer-hidden': 0, 'layer-transparent': 0, 'feature-hidden': 0,
+  };
+  let hidden = 0;
+  let visible = 0;
+  let total = 0;
+  let labels = 0;
+
+  for (const f of features) {
+    total += 1;
+    const v = visibility(f, layers[f.layerId]);
+    if (v.visible) {
+      visible += 1;
+      for (const l of f.textLabels ?? []) {
+        if (l.visible === false) labels += 1;
+      }
+    } else if (v.reason) {
+      hidden += 1;
+      byReason[v.reason] += 1;
+    }
+  }
+
+  return {
+    total: hidden + labels,
+    hiddenFeatures: hidden,
+    hiddenLabelCount: labels,
+    visibleFeatures: visible,
+    totalFeatures: total,
+    byReason,
+    blankButNotEmpty: total > 0 && visible === 0,
+  };
+}
+
+/** One line naming what is hiding things, for a tooltip or a notice. Empty when nothing is. */
+export function describeHidden(summary: HiddenSummary): string {
+  const parts: HiddenReason[] = ['layer-frozen', 'layer-hidden', 'layer-transparent', 'feature-hidden'];
+  const bits = parts
+    .filter((r) => summary.byReason[r] > 0)
+    .map((r) => `${summary.byReason[r]} ${HIDDEN_REASON_LABEL[r].toLowerCase()}`);
+  if (summary.hiddenLabelCount > 0) {
+    bits.push(`${summary.hiddenLabelCount} hidden label${summary.hiddenLabelCount === 1 ? '' : 's'}`);
+  }
+  return bits.join(' · ');
+}
+
 /**
  * Features that would become visible if this one reason were reversed.
  *

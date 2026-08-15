@@ -9,6 +9,7 @@ import SelectionDragChip from './SelectionDragChip';
 // cad-desktop-tauri-and-perf Slice P6f — extracted N/E coordinate
 // tracker. Keeps cursor moves from reconciling the 14k-line parent.
 import CanvasCoordsPill from './CanvasCoordsPill';
+import BlankCanvasNotice from './BlankCanvasNotice';
 import {
   useDrawingStore,
   useSelectionStore,
@@ -15307,6 +15308,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
          (`CanvasCoordsPill`) so cursor moves don't reconcile the
          14k-line CanvasViewport. */}
       <CanvasCoordsPill />
+
+      {/* C25 — the answer to "where did my linework go", put where the person asking is looking.
+          Renders nothing unless the drawing has features and none of them are visible; see the
+          component for why it is not shown for a partially hidden drawing. */}
+      <BlankCanvasNotice />
 
       {/* Drawing rotation indicator — shown when rotation is non-zero */}
       {(() => {
