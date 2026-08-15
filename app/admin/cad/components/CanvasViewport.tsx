@@ -1681,7 +1681,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const doc = useDrawingStore.getState().document;
     const visibleFeatures = useDrawingStore.getState().getVisibleFeatures();
-    const visibleIds = new Set(visibleFeatures.map((f) => f.id));
+    // C2 (2026-08-15) — instrumented, because C1 pointed here and a guess is not a profile.
+    //
+    // `getVisibleFeatures()` is cached by reference (the S2 fix), so it is cheap. This line is not:
+    // it walks the WHOLE visible set to build a throwaway array of ids and then a Set from it, on
+    // every frame, no matter what the camera did. At 200k features that is a 200k-element string
+    // array plus a 200k-entry hash set allocated and discarded per frame.
+    //
+    // The consumer below only asks `has(id)` for ids already in `pixi.featureGraphics` — which
+    // holds only what has actually been drawn, i.e. roughly what fits on screen. So the set is
+    // built at the scale of the DOCUMENT to answer questions at the scale of the VIEWPORT.
+    //
+    // It is the same shape as the bug S2 fixed (a large per-frame allocation before any pixel is
+    // drawn) and it fits both of C1's findings at once: steady allocation + hashing explains the
+    // 19ms median, and churning ~400k objects per frame explains the 127.8ms p99 as a GC pause.
+    const visibleIds = measureRender('cullIdSets', () => new Set(visibleFeatures.map((f) => f.id)));
 
     // Phase 7 §19 — frustum culling. Compute the world-space
     // viewport bbox (with a 20% padding so features just

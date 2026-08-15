@@ -72,3 +72,54 @@ Phase breakdown at Large, during pan (the worst state):
 
 The fixture buttons are destructive (they replace the current document) and confirm first, so an
 automated run must accept the dialog.
+
+---
+
+# C2 — profiling the render path (2026-08-15)
+
+C1 named `renderFeatures` and left two findings: a ~19ms median and a 127.8ms p99 that behaves like
+a different phenomenon. C2 instrumented the suspect rather than reasoning about it.
+
+## The finding
+
+`renderFeatures` opens with:
+
+```js
+const visibleFeatures = useDrawingStore.getState().getVisibleFeatures();
+const visibleIds = new Set(visibleFeatures.map((f) => f.id));
+```
+
+`getVisibleFeatures()` is cached by reference — that was the S2 fix and it works. The **second**
+line is not cached: it walks the whole visible set to build a throwaway string array, then a Set
+from it, **every frame, regardless of what the camera did**.
+
+Measured with a new `cullIdSets` marker (nested inside `renderFeatures`, so its time is a subset):
+
+| Fixture | state | `cullIdSets` p50 | `renderFeatures` p50 | share |
+|---|---|---|---|---|
+| Medium — 50,000 | pan | 3.3 | 4.6 | **72%** |
+| Large — 200,000 | pan | **16.2** | 20.9 | **78%** |
+
+`cullIdSets` p99 at Large is **39.7ms** against a 16.2ms median — the spike lives here too.
+
+## Why it is the wrong size of work
+
+The only consumer asks `visibleIds.has(id)` for ids already present in `pixi.featureGraphics`, and
+that map holds only what has actually been drawn — roughly what fits on screen. **The set is built
+at the scale of the DOCUMENT to answer questions at the scale of the VIEWPORT.**
+
+It is the same shape as the bug S2 fixed: a large allocation completed before a single pixel is
+drawn. It also explains both C1 findings with one cause — steady allocation and hashing gives the
+median, and churning ~400,000 objects per frame gives the GC pause that shows up as the p99.
+
+It scales with the document, not the view: 3.3ms at 50k → 16.2ms at 200k, almost exactly 4× for 4×
+the features. That is the curve C1 measured.
+
+## What C3 should do
+
+The visible set is already cached in the store against `document.features` / `document.layers`
+references. The id Set is derivable from exactly the same inputs and invalidates on exactly the same
+conditions, so it belongs beside it — built once per document change instead of once per frame.
+
+`culledIds` (built from the culled list, so viewport-sized) is a much smaller cost and is **not**
+the target; measuring stopped it being assumed.
