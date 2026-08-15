@@ -15,6 +15,7 @@
 import './pinned-pages';
 import './quick-actions';
 import './field-assistant';
+import './surveying-calculator';
 import './my-pay';
 import './my-jobs';
 import './messages';

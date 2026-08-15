@@ -151,7 +151,7 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   // consolidation Slice 4 (2026-05-30) — unified Drawings widget.
   'drawings':                 { source: 'settings-form' },
   'equipment-out-today':      { source: 'settings-form' },
-  // C0e — the surveying field assistant, rehomed from the Work Mode shell.
+  // C0e/C0f — rehomed from the Work Mode shell.
   'field-assistant':          { source: 'settings-form' },
   'field-data-pending':       { source: 'settings-form' },
   'hours-this-week':          { source: 'settings-form' },
@@ -173,6 +173,8 @@ export const WIDGET_OPTIONS_REGISTRY: Readonly<Record<string, WidgetOptionsEntry
   'pto-balance':              { source: 'settings-form' },
   'quick-actions':            { source: 'settings-form' },
   'recent-activity':          { source: 'settings-form' },
+  // C0f — the 16 surveying operations + the arithmetic pad, rehomed from the Work Mode shell.
+  'surveying-calculator':     { source: 'settings-form' },
   'recent-announcements':     { source: 'settings-form' },
   'recent-drawings':          { source: 'settings-form' },
   'team-status':              { source: 'settings-form' },
