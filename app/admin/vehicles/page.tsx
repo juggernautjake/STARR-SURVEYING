@@ -35,6 +35,8 @@ interface VehicleRow {
   make: string | null;
   model: string | null;
   model_year: number | null;
+  /** C0b2 — NULL means "unknown", not zero. Seed 592. */
+  mpg: number | null;
   license_plate: string | null;
   vin: string | null;
   status: VehicleStatus;
@@ -81,6 +83,7 @@ interface FormState {
   make: string;
   model: string;
   model_year: string;
+  mpg: string;
   license_plate: string;
   vin: string;
   status: VehicleStatus;
@@ -93,6 +96,7 @@ const EMPTY_FORM: FormState = {
   make: '',
   model: '',
   model_year: '',
+  mpg: '',
   license_plate: '',
   vin: '',
   status: 'ok',
@@ -171,6 +175,8 @@ export default function VehiclesPage() {
           make: form.make.trim() || null,
           model: form.model.trim() || null,
           model_year: form.model_year ? Number(form.model_year) : null,
+          // Blank stays null — the API reads that as "clear it back to unknown".
+          mpg: form.mpg ? Number(form.mpg) : null,
           license_plate: form.license_plate.trim() || null,
           vin: form.vin.trim() || null,
           status: form.status,
@@ -345,6 +351,9 @@ export default function VehiclesPage() {
       make: v.make ?? '',
       model: v.model ?? '',
       model_year: v.model_year ? String(v.model_year) : '',
+      // `!= null` not truthiness: an mpg is never legitimately 0, but reading it that way is the
+      // habit that turns a real value into a blank field elsewhere.
+      mpg: v.mpg != null ? String(v.mpg) : '',
       license_plate: v.license_plate ?? '',
       vin: v.vin ?? '',
       status: v.status,
@@ -445,6 +454,26 @@ export default function VehiclesPage() {
                 min={1900}
                 max={2100}
               />
+            </label>
+            {/* C0b2 — mpg drives the fuel-cost estimate on a mileage trip. Left blank it stays
+                "unknown", and the trip form shows the reimbursement alone rather than a $0.00 cost
+                that would read as "this trip was free". */}
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>Miles per gallon</span>
+              <input
+                type="number"
+                value={form.mpg}
+                onChange={(e) => setForm((f) => ({ ...f, mpg: e.target.value }))}
+                style={styles.input}
+                placeholder="18.5"
+                min={0}
+                max={200}
+                step="0.1"
+                aria-describedby="vehicle-mpg-hint"
+              />
+              <span id="vehicle-mpg-hint" style={styles.fieldHint}>
+                Used to estimate fuel cost on mileage entries. Leave blank if unknown.
+              </span>
             </label>
             <label style={styles.field}>
               <span style={styles.fieldLabel}>License plate</span>
@@ -943,6 +972,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#6B7280',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  // C0b2 — sub-label for a field whose blank state means something specific ("unknown", not zero).
+  fieldHint: {
+    fontSize: 11,
+    color: '#8A93A2',
+    marginTop: 2,
+    lineHeight: 1.4,
   },
   input: {
     padding: '8px 10px',

@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { validateMpg } from '@/lib/mileage/fuel';
 
 const MAX_NAME_LEN  = 80;
 const MAX_PLATE_LEN = 20;
@@ -41,6 +42,9 @@ interface VehicleRow {
   make: string | null;
   model: string | null;
   model_year: number | null;
+  /** C0b2 — miles per gallon, used to estimate a trip's fuel cost. NULL = unknown, and the trip
+   *  form then shows the reimbursement alone rather than inventing a $0.00 cost. Seed 592. */
+  mpg: number | null;
   license_plate: string | null;
   vin: string | null;
   status: VehicleStatus;
@@ -227,6 +231,15 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (issue_notes && issue_notes.length > MAX_NOTES_LEN) {
     return NextResponse.json({ error: `issue_notes exceeds ${MAX_NOTES_LEN} chars` }, { status: 400 });
   }
+  // C0b2 — mpg is optional and stays NULL when omitted. Validated by the same pure helper the form
+  // uses, so the inline message and the API's rejection cannot disagree.
+  let mpg: number | null = null;
+  if (body.mpg !== undefined && body.mpg !== null && body.mpg !== '') {
+    const n = Number(body.mpg);
+    const err = validateMpg(n);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
+    mpg = n;
+  }
 
   const { data, error } = await supabaseAdmin
     .from('vehicles')
@@ -235,6 +248,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       make: make || null,
       model: model || null,
       model_year,
+      mpg,
       license_plate: plate || null,
       vin: vin || null,
       status,
@@ -321,6 +335,19 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
       update.vin = vin || null;
     } else {
       update.vin = null;
+    }
+  }
+  // C0b2 — an explicit null or '' clears the figure back to "unknown", which must stay reachable:
+  // a wrong mpg produces a confidently wrong expense number, so removing it has to be as easy as
+  // setting it.
+  if ('mpg' in body) {
+    if (body.mpg === null || body.mpg === '') {
+      update.mpg = null;
+    } else {
+      const n = Number(body.mpg);
+      const err = validateMpg(n);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.mpg = n;
     }
   }
   if ('make' in body) {

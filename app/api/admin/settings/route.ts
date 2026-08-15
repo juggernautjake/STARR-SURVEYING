@@ -12,7 +12,12 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 // Sections the UI is allowed to write. Keeps arbitrary keys out of the store.
-const ALLOWED_KEYS = new Set(['general', 'company']);
+//
+// C0b2 (2026-08-15) added 'mileage' — { fuelPriceCents } — for the org-wide fuel price the trip
+// form estimates against. Worth noting the shape of this list: it is a WHITELIST, so a new section
+// that is written to the table by a seed but not named here reads back fine and silently 400s on
+// save. That is the "authored but not wired" failure this codebase hits most often.
+const ALLOWED_KEYS = new Set(['general', 'company', 'mileage']);
 
 export const GET = withErrorHandler(async () => {
   const session = await auth();
