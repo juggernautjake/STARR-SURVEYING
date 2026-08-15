@@ -155,3 +155,40 @@ it is close rather than clear; that is C4's remaining ground.
 `renderLabels` is now the largest phase at Large — 7.0ms of a 14.8ms frame, and 7.1ms of 11.4ms
 when idle. It did not get slower; everything around it got faster. C1 flagged it as "a real but
 secondary cost", and it is now the primary one.
+
+---
+
+# C4 — guard rails, and where the cliff moved to (2026-08-15)
+
+`renderLabels` built its keep-set by walking every layer-visible feature per frame. It uses the
+UN-culled set on purpose (culling it would destroy and recreate every label on each pan), which is
+correct and is exactly why it was O(document). Now cached beside the others on the same key.
+
+## Large (200k), pan
+
+| Phase | C1 (before any fix) | After C3 | After C4 |
+|---|---|---|---|
+| `renderAll` p50 | 28.7 | 14.8 | **14.9** |
+| `renderAll` p95 | 66.9 | 18.8 | **17.5** |
+| `renderAll` max | 136.7 | 19.7 | **22.3** |
+| `renderLabels` p50 | 6.2 | 7.0 | **5.9** |
+| `renderFeatures` p50 | 19.1 | 5.8 | **6.0** |
+| `cullIdSets` p50 | — | 0 | **0** |
+
+C4 is a real but much smaller win than C3: labels fell 7.0 → 5.9ms, and `renderAll` barely moved
+because the remaining label cost is the actual Pixi.Text work for the labels ON SCREEN, which is
+viewport-sized and legitimate. p50/p95/max differences under ~2ms here are run-to-run noise.
+
+## Where it falls over
+
+| Features | Before C3 | Now |
+|---|---|---|
+| 50,000 | 11.1 p95 — inside budget | **6.9 p95** |
+| 200,000 | **66.9 p95 — 4× over** | **17.5 p95 — at the line** |
+
+**The cliff used to sit between 50,000 and 200,000 features.** It does not any more: 200k pans at
+14.9ms p50, inside the 16.7ms budget, with p95 a whisker over at 17.5ms. The editor now degrades
+gradually across the whole tested range instead of falling off between the two.
+
+No fixture exists above 200,000, so the new cliff is unmeasured — it is somewhere past 200k rather
+than between 50k and 200k. Recorded as unknown rather than guessed at.

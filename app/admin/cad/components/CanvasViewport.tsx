@@ -4209,12 +4209,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           viewportBBox
         )
       : layerVisibleFeatures;
-    const keepLabelIds = new Set<string>();
-    for (const f of layerVisibleFeatures) {
-      const labels = f.textLabels;
-      if (!labels) continue;
-      for (const l of labels) keepLabelIds.add(`${f.id}:${l.id}`);
-    }
+    // C4 (2026-08-15) — was an inline walk of every layer-visible feature, per frame.
+    //
+    // Deliberately built from the UN-culled set (see the note above: culling it would destroy and
+    // recreate labels on every pan), which is correct and also why it cost O(document) per frame —
+    // 200k iterations plus a Set of every label key, before drawing the handful on screen.
+    //
+    // Same shape as C3's `visibleIds`, one level down, and the same fix: it derives from exactly
+    // the references the store's visible cache is keyed on, so it is built once per document
+    // version instead of once per frame.
+    const keepLabelIds = useDrawingStore.getState().getVisibleLabelKeys();
     const activeLabelIds = new Set<string>();
     const { zoom } = useViewportStore.getState();
     const doc = useDrawingStore.getState().document;

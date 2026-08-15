@@ -61,6 +61,13 @@ type VisibleCache = {
    *  invalidates on exactly the same conditions and adds no new staleness assumption. Lazy, like
    *  the buckets below: a caller that never asks never pays. */
   visibleIds: Set<string> | null;
+  /** C4 — `"<featureId>:<labelId>"` for every text label on every visible feature.
+   *
+   *  `renderLabels` builds this to decide which Pixi.Text objects to KEEP, and it deliberately uses
+   *  the un-culled set so labels are not destroyed and recreated on every pan. Correct, but it
+   *  walked all 200k features per frame to do it — the same document-scale-for-a-viewport-question
+   *  shape as `visibleIds` (C3), one level down. */
+  visibleLabelKeys: Set<string> | null;
   selectable: Feature[] | null;
   /** Lazily built, and only for the geometry types anyone actually asks for. The IMAGE and TEXT
    *  passes each used to filter the full 200k list every frame to find their handful; now they cost
@@ -84,6 +91,7 @@ function cacheFor(document: DrawingDocument): VisibleCache {
     layersRef: document.layers,
     visible: null,
     visibleIds: null,
+    visibleLabelKeys: null,
     selectable: null,
     byGeometryType: null,
     byFeatureType: null,
@@ -335,6 +343,10 @@ interface DrawingStore {
    *  For a caller that needs membership rather than the list. `renderFeatures` was building this
    *  per frame and it measured 78% of the whole render pass on a 200k drawing (C2). */
   getVisibleFeatureIds: () => Set<string>;
+  /** C4 — `"<featureId>:<labelId>"` for every text label on every visible feature, cached on the
+   *  same document references. `renderLabels` uses it to decide which Pixi.Text objects survive the
+   *  frame, and was walking the whole drawing to rebuild it each time. */
+  getVisibleLabelKeys: () => Set<string>;
   /** CAD_AUDIT S2b — visible features bucketed by `geometry.type` (e.g. 'IMAGE'), so a pass that
    *  handles one geometry kind does not walk the whole drawing to find it. */
   getVisibleFeaturesByGeometryType: (type: string) => Feature[];
@@ -1170,6 +1182,26 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
     for (const f of visible) ids.add(f.id);
     cache.visibleIds = ids;
     return ids;
+  },
+
+  /** C4 — label-key membership, built once per document version rather than per frame.
+   *
+   *  Same derivation as `getVisibleFeatureIds`: from `getVisibleFeatures()`, not from an
+   *  independent walk of `document.features`. `renderLabels` uses this to decide which labels to
+   *  KEEP, so a key missing here destroys a Pixi.Text that should have survived — a divergence
+   *  between two predicates would show up as labels flickering on pan. */
+  getVisibleLabelKeys: () => {
+    const { document } = get();
+    const cache = cacheFor(document);
+    if (cache.visibleLabelKeys) return cache.visibleLabelKeys;
+    const keys = new Set<string>();
+    for (const f of get().getVisibleFeatures()) {
+      const labels = f.textLabels;
+      if (!labels) continue;
+      for (const l of labels) keys.add(`${f.id}:${l.id}`);
+    }
+    cache.visibleLabelKeys = keys;
+    return keys;
   },
 
   /** S2b — the visible features whose GEOMETRY is of one type, without walking the rest.
