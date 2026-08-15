@@ -22,14 +22,35 @@ import { useEffect, useState } from 'react';
 import { Sparkles, X, Check, MessageSquare, Loader2 } from 'lucide-react';
 import { useAIStore, useDrawingStore } from '@/lib/cad/store';
 import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
+import { buildPreviewShapes } from '@/lib/cad/ai/preview';
 import type {
   AddPointArgs,
   DrawLineBetweenArgs,
   DrawPolylineThroughArgs,
+  DrawRectangleArgs,
+  DrawCircleArgs,
+  DrawArcArgs,
+  DrawTextArgs,
+  MoveFeaturesArgs,
+  RotateFeaturesArgs,
+  ScaleFeaturesArgs,
+  DeleteFeaturesArgs,
 } from '@/lib/cad/ai/tool-registry';
 
-/** Geometry proposals that land on a layer (get the layer picker). */
-const LAYER_TOOLS = new Set(['addPoint', 'drawLineBetween', 'drawPolylineThrough']);
+/** Geometry proposals that land on a layer (get the layer picker).
+ *
+ *  C38 — the four C34 drawing tools join the original three. The modify family does NOT: those act
+ *  on features that already have a home, and offering "add to layer" there would read as an offer
+ *  to move them between layers, which is not what accepting the card would do. */
+const LAYER_TOOLS = new Set([
+  'addPoint', 'drawLineBetween', 'drawPolylineThrough',
+  'drawRectangle', 'drawCircle', 'drawArc', 'drawText',
+]);
+
+/** Proposals that act on features already on the drawing (summarised by count, not coordinates). */
+const MODIFY_TOOLS = new Set([
+  'moveFeatures', 'rotateFeatures', 'scaleFeatures', 'mirrorFeatures', 'deleteFeatures',
+]);
 
 /** Human, specific "here's exactly what I did" line for the chat log. */
 function describeApplied(toolName: string, args: unknown, layerName: string): string {
@@ -45,6 +66,46 @@ function describeApplied(toolName: string, args: unknown, layerName: string): st
   if (toolName === 'drawPolylineThrough') {
     const a = args as DrawPolylineThroughArgs;
     return `✓ Drew a ${a.closed ? 'polygon' : 'polyline'} through ${a.points.length} vertices on layer “${layerName}”.`;
+  }
+  if (toolName === 'drawRectangle') {
+    const a = args as DrawRectangleArgs;
+    const w = Math.abs(a.opposite.x - a.corner.x);
+    const h = Math.abs(a.opposite.y - a.corner.y);
+    return `✓ Drew a ${w.toFixed(2)} × ${h.toFixed(2)} ft rectangle on layer “${layerName}”.`;
+  }
+  if (toolName === 'drawCircle') {
+    const a = args as DrawCircleArgs;
+    return `✓ Drew a circle of radius ${a.radius.toFixed(2)} ft at (${a.center.x.toFixed(2)}, ${a.center.y.toFixed(2)}) on layer “${layerName}”.`;
+  }
+  if (toolName === 'drawArc') {
+    const a = args as DrawArcArgs;
+    return `✓ Drew an arc from (${a.start.x.toFixed(2)}, ${a.start.y.toFixed(2)}) to (${a.end.x.toFixed(2)}, ${a.end.y.toFixed(2)}) on layer “${layerName}”.`;
+  }
+  if (toolName === 'drawText') {
+    const a = args as DrawTextArgs;
+    return `✓ Placed the note “${a.text}” at (${a.at.x.toFixed(2)}, ${a.at.y.toFixed(2)}) on layer “${layerName}”.`;
+  }
+  if (toolName === 'moveFeatures') {
+    const a = args as MoveFeaturesArgs;
+    return `✓ Moved ${a.ids.length} feature(s) by ${a.dx.toFixed(2)} ft east and ${a.dy.toFixed(2)} ft north.`;
+  }
+  if (toolName === 'rotateFeatures') {
+    const a = args as RotateFeaturesArgs;
+    return `✓ Rotated ${a.ids.length} feature(s) ${a.angleDeg.toFixed(4)}°.`;
+  }
+  if (toolName === 'scaleFeatures') {
+    const a = args as ScaleFeaturesArgs;
+    return `✓ Scaled ${a.ids.length} feature(s) by ×${a.factor}.`;
+  }
+  if (toolName === 'mirrorFeatures') {
+    const a = args as { ids: string[] };
+    return `✓ Mirrored ${a.ids.length} feature(s).`;
+  }
+  if (toolName === 'deleteFeatures') {
+    const a = args as DeleteFeaturesArgs;
+    // Named as reversible on the spot: a delete the surveyor approved is still a delete they may
+    // have approved too fast, and the recovery is one keystroke away.
+    return `✓ Deleted ${a.ids.length} feature(s). Ctrl+Z puts them back.`;
   }
   return `✓ Applied ${toolName}.`;
 }
@@ -81,7 +142,15 @@ export default function CopilotCard() {
       window.dispatchEvent(new CustomEvent('cad:copilotPreview', { detail: null }));
       return;
     }
-    const detail = buildPreviewDetail(head.toolName, head.args);
+    // C38 — the builder moved to lib/cad/ai/preview.ts and returns a LIST, because a modify
+    // proposal ghosts every feature it touches, not one shape.
+    const drawing = useDrawingStore.getState();
+    const detail = buildPreviewShapes(
+      head.toolName,
+      head.args,
+      drawing.document,
+      drawing.activeLayerId,
+    );
     window.dispatchEvent(new CustomEvent('cad:copilotPreview', { detail }));
     return () => {
       window.dispatchEvent(new CustomEvent('cad:copilotPreview', { detail: null }));
@@ -293,6 +362,66 @@ function ArgsSummary(props: { toolName: string; args: unknown }) {
       </div>
     );
   }
+  // C38 — the C34 drawing tools and the C35 modify family. Before this they all fell through to the
+  // JSON dump below, which is exactly as readable as it sounds when the question is "should I let
+  // the AI delete these forty things".
+  if (props.toolName === 'drawRectangle') {
+    const a = props.args as DrawRectangleArgs;
+    return (
+      <div className="text-[11px] font-mono text-gray-400 bg-gray-900 border border-gray-700 rounded px-2 py-1">
+        {Math.abs(a.opposite.x - a.corner.x).toFixed(2)} × {Math.abs(a.opposite.y - a.corner.y).toFixed(2)} ft
+      </div>
+    );
+  }
+  if (props.toolName === 'drawCircle') {
+    const a = props.args as DrawCircleArgs;
+    return (
+      <div className="text-[11px] font-mono text-gray-400 bg-gray-900 border border-gray-700 rounded px-2 py-1">
+        ⌀ {(a.radius * 2).toFixed(2)} ft • centre ({a.center.x.toFixed(2)}, {a.center.y.toFixed(2)})
+      </div>
+    );
+  }
+  if (props.toolName === 'drawArc') {
+    const a = props.args as DrawArcArgs;
+    return (
+      <div className="text-[11px] font-mono text-gray-400 bg-gray-900 border border-gray-700 rounded px-2 py-1">
+        ({a.start.x.toFixed(2)}, {a.start.y.toFixed(2)}) ⌒ ({a.end.x.toFixed(2)}, {a.end.y.toFixed(2)})
+      </div>
+    );
+  }
+  if (props.toolName === 'drawText') {
+    const a = props.args as DrawTextArgs;
+    return (
+      <div className="text-[11px] font-mono text-gray-400 bg-gray-900 border border-gray-700 rounded px-2 py-1 truncate">
+        “{a.text}” @ ({a.at.x.toFixed(2)}, {a.at.y.toFixed(2)})
+      </div>
+    );
+  }
+  if (MODIFY_TOOLS.has(props.toolName)) {
+    const a = props.args as { ids?: string[]; dx?: number; dy?: number; angleDeg?: number; factor?: number };
+    const what =
+      props.toolName === 'moveFeatures'
+        ? `by ${(a.dx ?? 0).toFixed(2)} E, ${(a.dy ?? 0).toFixed(2)} N`
+        : props.toolName === 'rotateFeatures'
+          ? `by ${(a.angleDeg ?? 0).toFixed(4)}°`
+          : props.toolName === 'scaleFeatures'
+            ? `by ×${a.factor}`
+            : props.toolName === 'mirrorFeatures'
+              ? 'across the given axis'
+              : 'permanently';
+    const destructive = props.toolName === 'deleteFeatures';
+    return (
+      <div
+        className={`text-[11px] font-mono rounded px-2 py-1 border ${
+          destructive
+            ? 'text-red-200 bg-red-950/40 border-red-800'
+            : 'text-gray-400 bg-gray-900 border-gray-700'
+        }`}
+      >
+        {a.ids?.length ?? 0} feature(s) • {what}
+      </div>
+    );
+  }
   return (
     <pre className="text-[10px] font-mono text-gray-400 bg-gray-900 border border-gray-700 rounded p-2 max-h-32 overflow-y-auto">
       {JSON.stringify(props.args, null, 2)}
@@ -300,34 +429,3 @@ function ArgsSummary(props: { toolName: string; args: unknown }) {
   );
 }
 
-function buildPreviewDetail(toolName: string, args: unknown):
-  | { kind: 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON'; point?: { x: number; y: number }; from?: { x: number; y: number }; to?: { x: number; y: number }; vertices?: { x: number; y: number }[]; color?: string }
-  | null {
-  // Colour the ghost like its TARGET layer (the one chosen in the
-  // picker, stored on args.layerId) so it reads visually where it'll
-  // land. Falls back to the active layer, then amber.
-  const drawing = useDrawingStore.getState();
-  const targetLayerId = (args as { layerId?: string } | undefined)?.layerId ?? drawing.activeLayerId;
-  const targetLayer = drawing.document.layers[targetLayerId];
-  const color = targetLayer?.color ?? '#fbbf24';
-
-  if (toolName === 'addPoint') {
-    const a = args as AddPointArgs;
-    return { kind: 'POINT', point: { x: a.x, y: a.y }, color };
-  }
-  if (toolName === 'drawLineBetween') {
-    const a = args as DrawLineBetweenArgs;
-    return { kind: 'LINE', from: a.from, to: a.to, color };
-  }
-  if (toolName === 'drawPolylineThrough') {
-    const a = args as DrawPolylineThroughArgs;
-    return {
-      kind: a.closed ? 'POLYGON' : 'POLYLINE',
-      vertices: a.points,
-      color,
-    };
-  }
-  // Layer-op proposals don't paint a ghost — surveyor sees the
-  // result in the layer panel after Accept.
-  return null;
-}

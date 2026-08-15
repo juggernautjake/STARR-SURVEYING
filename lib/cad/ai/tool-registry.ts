@@ -1552,23 +1552,45 @@ export const toolRegistry = {
 export type ToolName = keyof typeof toolRegistry;
 
 /**
- * Names of tools that materialise a feature in the drawing — the
- * original five. These are the only tool names that may appear in
- * an AIProposal: accepting a proposal mutates the document, so
- * solver tools (which only compute coordinates) flow through the
- * dialogue UI directly rather than through the proposal queue.
+ * C38 — names of tools that only READ. Solvers compute coordinates from numbers they are handed;
+ * C36's measurement tools report on geometry already on the drawing. Neither changes the document,
+ * so neither belongs in the review queue: there is nothing to approve.
+ *
+ * This is the list that is enumerated, and `ProposalToolName` is derived by subtraction — the
+ * direction matters. It used to run the other way, with the five original writing tools named
+ * explicitly, which meant every tool added afterwards fell OUT of the proposal type by default.
+ * C34–C36 added nine more writers and none of them could be proposed; worse, `blockToProposal`
+ * admitted them anyway (they are not solvers) and `executeProposal`'s switch had no case for them,
+ * so accepting the card returned `undefined`, the card reported success, and nothing was drawn.
+ * Derived this way, a tool added tomorrow is reviewable by default and the failure mode of
+ * forgetting the list is a needless card rather than an unreviewed write.
+ */
+export type ReadOnlyToolName = (typeof READ_ONLY_TOOL_NAMES)[number];
+
+export const READ_ONLY_TOOL_NAMES = [
+  'calcFourthCorner',
+  'calcPointFromBearingDistance',
+  'calcPointFromTwoBearings',
+  'calcPointFromBearingAndLine',
+  'calcPointParallelToLine',
+  'inverseTwoPoints',
+  'closureReport',
+  'bowditchAdjust',
+  'measureFeature',
+  'measureTotalArea',
+  'describeFeature',
+] as const satisfies readonly ToolName[];
+
+/**
+ * Names of tools that change the drawing. These are the only tool names that may appear in an
+ * `AIProposal`: accepting a proposal mutates the document.
  *
  * See docs/planning/in-progress/CAD_POINTS_AND_AI.md slice B.
  */
-export type ProposalToolName =
-  | 'addPoint'
-  | 'drawLineBetween'
-  | 'drawPolylineThrough'
-  | 'createLayer'
-  | 'applyLayerStyle';
+export type ProposalToolName = Exclude<ToolName, ReadOnlyToolName>;
 
 /** Names of pure-calculation tools (no mutation; for solver UIs). */
-export type SolverToolName = Exclude<ToolName, ProposalToolName>;
+export type SolverToolName = Exclude<ReadOnlyToolName, 'measureFeature' | 'measureTotalArea' | 'describeFeature'>;
 
 export const SOLVER_TOOL_NAMES = [
   'calcFourthCorner',
@@ -1583,6 +1605,16 @@ export const SOLVER_TOOL_NAMES = [
 
 export function isSolverTool(name: string): name is SolverToolName {
   return (SOLVER_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+/** True for any tool that cannot change the drawing — solvers and C36's measurements alike. */
+export function isReadOnlyTool(name: string): name is ReadOnlyToolName {
+  return (READ_ONLY_TOOL_NAMES as readonly string[]).includes(name);
+}
+
+/** True for any registry tool that WRITES, and therefore must go through review before applying. */
+export function isProposalTool(name: string): name is ProposalToolName {
+  return name in toolRegistry && !isReadOnlyTool(name);
 }
 
 // ────────────────────────────────────────────────────────────

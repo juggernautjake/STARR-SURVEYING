@@ -15,16 +15,20 @@ import Anthropic from '@anthropic-ai/sdk';
 import { MissingApiKeyError } from '../ai-engine/claude-deed-parser';
 import {
   toolRegistry,
-  isSolverTool,
+  isReadOnlyTool,
   type ToolName,
   type ProposalToolName,
   type AddPointArgs,
   type DrawLineBetweenArgs,
   type DrawPolylineThroughArgs,
+  type DrawRectangleArgs,
+  type DrawCircleArgs,
+  type DrawArcArgs,
+  type DrawTextArgs,
   type CreateLayerArgs,
   type ApplyLayerStyleArgs,
 } from './tool-registry';
-import type { AIProposal } from './proposals';
+import type { AIProposal, ProposalArgs } from './proposals';
 import type { AIProvenance } from './provenance';
 import {
   buildSystemPrompt,
@@ -172,8 +176,12 @@ export async function proposeFromPrompt(
         if (block.type === 'text') {
           if (block.text.trim()) narrativeParts.push(block.text);
         } else if (block.type === 'tool_use') {
-          if (isSolverTool(block.name)) {
-            // Deterministic calculator — run it and return the value.
+          if (isReadOnlyTool(block.name)) {
+            // Deterministic calculator or measurement — run it and return the value to the model.
+            // C38 widened this from solvers alone: a `measureFeature` call is a question the model
+            // asked mid-reasoning, and answering it is what lets the next tool_use be right. Before
+            // this it fell to the proposal branch and came back as a card offering to "apply" a
+            // measurement, which applies nothing.
             let payload: string;
             try {
               const def = toolRegistry[block.name as ToolName];
@@ -229,12 +237,15 @@ function blockToProposal(
 ): AIProposal | null {
   const name = block.name as ToolName;
   if (!(name in toolRegistry)) return null;
-  // Solver tools never become proposals — they only compute and
-  // are surfaced through the dialogue UI / ghost preview. The
-  // model should call them mid-conversation, not as accept-this
-  // actions; if it does emit one in a single-turn response we
-  // silently drop the block here. See CAD_POINTS_AND_AI slice B.
-  if (isSolverTool(name)) return null;
+  // Read-only tools never become proposals — solvers only compute, and C36's measurements only
+  // report. Both are surfaced through the dialogue UI / ghost preview; the model should call them
+  // mid-conversation, not as accept-this actions, and a block emitted in a single-turn response is
+  // silently dropped here. See CAD_POINTS_AND_AI slice B.
+  //
+  // C38 — this used to test `isSolverTool`, which named eight tools while the type it guarded meant
+  // "everything but the original five". C36's three measurement tools were in neither list, so a
+  // `measureFeature` block became a proposal card offering to apply a measurement.
+  if (isReadOnlyTool(name)) return null;
   const proposalName = name as ProposalToolName;
 
   const provenance: AIProvenance = {
@@ -248,12 +259,7 @@ function blockToProposal(
     aiBatchId: batchId,
   };
 
-  const args = (block.input ?? {}) as
-    | AddPointArgs
-    | DrawLineBetweenArgs
-    | DrawPolylineThroughArgs
-    | CreateLayerArgs
-    | ApplyLayerStyleArgs;
+  const args = (block.input ?? {}) as ProposalArgs;
 
   return {
     id: generateId(),
@@ -288,6 +294,43 @@ function describeArgs(name: ProposalToolName, args: unknown): string {
     const a = args as ApplyLayerStyleArgs;
     const keys = Object.keys(a.style ?? {});
     return `Apply style (${keys.join(', ')}) to layer ${a.layerId.slice(0, 6)}.`;
+  }
+  // C38 — the nine writing tools C34/C35 added. Without these the card's one-sentence summary read
+  // "Invoke deleteFeatures.", which is a description of the call and not of what it does.
+  if (name === 'drawRectangle') {
+    const a = args as DrawRectangleArgs;
+    const w = Math.abs(a.opposite.x - a.corner.x);
+    const h = Math.abs(a.opposite.y - a.corner.y);
+    return `Draw a ${w.toFixed(2)} × ${h.toFixed(2)} ft rectangle.`;
+  }
+  if (name === 'drawCircle') {
+    const a = args as DrawCircleArgs;
+    return `Draw a circle of radius ${a.radius.toFixed(2)} ft at (${a.center.x.toFixed(2)}, ${a.center.y.toFixed(2)}).`;
+  }
+  if (name === 'drawArc') {
+    const a = args as DrawArcArgs;
+    return `Draw an arc from (${a.start.x.toFixed(2)}, ${a.start.y.toFixed(2)}) to (${a.end.x.toFixed(2)}, ${a.end.y.toFixed(2)}).`;
+  }
+  if (name === 'drawText') {
+    const a = args as DrawTextArgs;
+    return `Place the note “${a.text}” at (${a.at.x.toFixed(2)}, ${a.at.y.toFixed(2)}).`;
+  }
+  const ids = (args as { ids?: string[] }).ids;
+  if (name === 'moveFeatures') {
+    const a = args as { dx: number; dy: number };
+    return `Move ${ids?.length ?? 0} feature(s) ${a.dx.toFixed(2)} ft east and ${a.dy.toFixed(2)} ft north.`;
+  }
+  if (name === 'rotateFeatures') {
+    return `Rotate ${ids?.length ?? 0} feature(s) ${(args as { angleDeg: number }).angleDeg.toFixed(4)}°.`;
+  }
+  if (name === 'scaleFeatures') {
+    return `Scale ${ids?.length ?? 0} feature(s) by ×${(args as { factor: number }).factor}.`;
+  }
+  if (name === 'mirrorFeatures') {
+    return `Mirror ${ids?.length ?? 0} feature(s) across the given axis.`;
+  }
+  if (name === 'deleteFeatures') {
+    return `Delete ${ids?.length ?? 0} feature(s).`;
   }
   return `Invoke ${name}.`;
 }

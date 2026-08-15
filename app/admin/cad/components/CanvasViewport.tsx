@@ -388,6 +388,8 @@ function pickAxisFromFeature(
 // module graph to check rectangle maths. The re-export keeps that importer working while it moves.
 import { hitTestTBElementPure } from '@/lib/cad/sheet/title-block-hit-test';
 import type { TBElementBounds, TBHitTarget } from '@/lib/cad/sheet/title-block-hit-test';
+// C38 — the AI proposal ghost's shape vocabulary, shared with the builder in lib/cad/ai/preview.ts.
+import type { PreviewShape } from '@/lib/cad/ai/preview';
 export { hitTestTBElementPure, TB_HIT_PRIORITY } from '@/lib/cad/sheet/title-block-hit-test';
 export type { TBElementBounds, TBHitTarget, TBRect } from '@/lib/cad/sheet/title-block-hit-test';
 
@@ -594,14 +596,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
    *  the active proposal. CopilotCard publishes via the
    *  `cad:copilotPreview` event; the canvas paints a dashed
    *  outline keyed off `kind`. Cleared when the card closes. */
-  const copilotPreviewRef = useRef<{
-    kind: 'POINT' | 'LINE' | 'POLYLINE' | 'POLYGON';
-    point?: Point2D;
-    from?: Point2D;
-    to?: Point2D;
-    vertices?: Point2D[];
-    color?: string;
-  } | null>(null);
+  /** C38 — a LIST, because a modify proposal ghosts every feature it touches. Single-shape
+   *  senders still work: the listener normalises one object into a one-element list. */
+  const copilotPreviewRef = useRef<PreviewShape[]>([]);
   const rafRef = useRef<number>(0);
   /** §19.1 — memoized spatial index for the active document.
    *  Stamped with the `features` object reference so a single
@@ -978,13 +975,13 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // and the next render frame paints a dashed outline.
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      copilotPreviewRef.current = detail ?? null;
+      const detail = (e as CustomEvent).detail as PreviewShape | PreviewShape[] | null;
+      copilotPreviewRef.current = Array.isArray(detail) ? detail : detail ? [detail] : [];
     };
     window.addEventListener('cad:copilotPreview', handler);
     return () => {
       window.removeEventListener('cad:copilotPreview', handler);
-      copilotPreviewRef.current = null;
+      copilotPreviewRef.current = [];
     };
   }, []);
 
@@ -8655,11 +8652,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // intersect preview. Layer-op proposals (createLayer /
   // applyLayerStyle) clear the ref to null, so nothing renders.
   function renderCopilotPreview() {
-    const preview = copilotPreviewRef.current;
-    if (!preview) return;
     const pixi = pixiRef.current;
     if (!pixi) return;
-    const g = pixi.previewGraphics;
+    for (const preview of copilotPreviewRef.current) {
+      paintCopilotShape(pixi.previewGraphics, preview);
+    }
+  }
+
+  function paintCopilotShape(g: import('pixi.js').Graphics, preview: PreviewShape) {
     const color = preview.color
       ? parseInt(preview.color.replace('#', ''), 16)
       : 0xfacc15; // amber-300 — keeps proposal ghosts distinct from selection
