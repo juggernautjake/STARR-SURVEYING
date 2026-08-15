@@ -896,7 +896,17 @@ function CustomLinksEditor({
             </p>
           )}
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          {/* C0o — the commit row sticks to the bottom of whatever is scrolling it.
+           *
+           * Driving this form on a 390px phone put "Add link" 1,314px down the sheet. It IS
+           * reachable — `.hub-msheet__body` scrolls and the button is clickable once you get there,
+           * so this was not the unreachable-Save defect A13 found. But the C0k icon picker added
+           * ~44 glyphs to a form that already had six fields, and a commit button you have to
+           * scroll past sixty icons to reach is a form people abandon halfway.
+           *
+           * `sticky` rather than `fixed`: it only pins while its own container scrolls, so on a
+           * desktop panel that fits, the row sits in normal flow exactly as before. */}
+          <div style={stickyActionsStyle}>
             <button type="button" onClick={commit} style={primaryBtnStyle}>
               {draft.id === null ? 'Add link' : 'Save link'}
             </button>
@@ -1262,6 +1272,20 @@ const textBtnStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-xs, 0.75rem)',
   lineHeight: 1,
   flexShrink: 0,
+};
+
+/** C0o — the draft form's commit row, pinned to the bottom of its scroll container. The background
+ *  is opaque so form fields scrolling underneath do not show through the buttons. */
+const stickyActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: 8,
+  position: 'sticky',
+  bottom: 0,
+  zIndex: 1,
+  paddingTop: 8,
+  marginTop: 4,
+  background: 'var(--theme-bg-surface)',
+  borderTop: '1px solid var(--theme-border)',
 };
 
 const addChipStyle: React.CSSProperties = {
