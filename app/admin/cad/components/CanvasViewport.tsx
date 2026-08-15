@@ -13050,6 +13050,42 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         useSelectionStore.getState().deselectAll();
         e.stopPropagation();
       }
+
+      // ── C14 — the GENERAL Escape, which did not exist ────────────────────────────────────────
+      //
+      // Every Escape above is a special case guarded on one ref: a snap pick, paper-move mode, an
+      // interactive rotate/scale, a grab-node drag, an offset source. There was no case for the
+      // commonest state in the editor — a half-drawn feature.
+      //
+      // So: pick the polyline tool, click five vertices, realise you started in the wrong place,
+      // press Escape. **Nothing happened.** The five points stayed pending, the rubber-band kept
+      // following the cursor, and the only ways out were to finish a feature you did not want or
+      // to switch tools. `clearDrawingPoints` exists and is called from a dozen places — on commit,
+      // on geometry too small to be real — but never from a cancel.
+      //
+      // C13 measured that 56 of 58 tool descriptions never mention Escape and predicted the
+      // convention was missing from the code rather than merely from the docs. It was.
+      //
+      // Ordered last on purpose: the specific cases above claim their own states first, so this
+      // only fires when nothing more precise wanted the key. Two steps, in the order a surveyor
+      // expects — abandon the geometry first, and only a SECOND Escape leaves the tool. Dropping
+      // straight back to SELECT would make one keypress do two things and lose the tool the
+      // surveyor is still using.
+      if (e.key === 'Escape') {
+        const ts = useToolStore.getState();
+        if (ts.state.drawingPoints.length > 0) {
+          ts.clearDrawingPoints();
+          e.stopPropagation();
+        } else if (ts.state.activeTool !== 'SELECT' && ts.state.activeTool !== 'PAN') {
+          ts.setTool('SELECT');
+          setCursorStyle(TOOL_CURSORS.SELECT ?? 'default');
+          e.stopPropagation();
+        } else {
+          // Idle in SELECT: Escape clears the selection, which is the AutoCAD behaviour and the
+          // only remaining thing it could sensibly mean.
+          useSelectionStore.getState().deselectAll();
+        }
+      }
     };
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === 'Space') {
