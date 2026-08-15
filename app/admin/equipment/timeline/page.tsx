@@ -719,8 +719,13 @@ const BAR_STATE_STYLES: Record<string, React.CSSProperties> = {
 
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1300, margin: '0 auto' },
+  /* admin-ui-alignment-2026-08-15 (A11) — a space-between header with no wrap: on a 390px
+   * phone the title takes the width it needs and the action cluster runs off the right edge, so
+   * Refresh and the period buttons were unreachable. Four equipment/personnel pages shared this
+   * exact shape. */
   header: {
     display: 'flex',
+    flexWrap: 'wrap' as const,
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 16,
@@ -737,7 +742,9 @@ const styles: Record<string, React.CSSProperties> = {
     marginLeft: 4,
     marginRight: 4,
   },
-  headerControls: { display: 'flex', gap: 8, alignItems: 'center' },
+  /* admin-ui-alignment-2026-08-15 (A11) — two date fields and a reset button do not fit 390px in
+   * one line, and without wrapping the reset sat 59px off the right edge. */
+  headerControls: { display: 'flex', flexWrap: 'wrap' as const, gap: 8, alignItems: 'center' },
   dateInput: {
     padding: '6px 10px',
     border: '1px solid #E2E5EB',

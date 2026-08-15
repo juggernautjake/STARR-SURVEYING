@@ -128,7 +128,10 @@ export default function CoveragePage() {
           style={{
             border: '1px solid #E2E8F0',
             borderRadius: '8px',
-            overflow: 'hidden',
+            /* admin-ui-alignment-2026-08-15 (A11) — was `overflow: hidden`, which clipped this
+               six-column registry 259px short on a phone. Scrolls sideways now. */
+            overflowX: 'auto',
+            overflowY: 'hidden',
           }}
         >
           <table

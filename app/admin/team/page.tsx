@@ -560,7 +560,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   grid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))',
+    /* admin-ui-alignment-2026-08-15 (A11) — a hard 360px floor plus the shell's 32px left padding
+     * is 392px, so on a 390px phone every crew card hung 2px off the right edge. `min()` keeps the
+     * 360px preference wherever there is room and gives way where there is not. */
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))',
     gap: 16,
   },
   card: {

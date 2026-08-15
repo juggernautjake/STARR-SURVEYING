@@ -291,9 +291,18 @@
 
 .branch-selector__row {
   display: flex;
+  /* admin-ui-alignment-2026-08-15 (A11) — a branch select, four action buttons, a spacer and a
+   * "Side-by-side comparison" toggle in one unwrapped row: on a 390px phone the toggle started at
+   * x=400, entirely off-screen. (The `__compare-row` rule below is a different, unused row — this
+   * is the one the toggle actually lives in.) */
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
 }
+
+/* Fourth sighting of the inline-checkbox label: globals gives it 10px of bottom margin, which the
+ * admin reset spares for columns of options. This one is in a row. See D6h in the plan doc. */
+.branch-selector__compare-toggle { margin-bottom: 0; }
 
 .branch-selector__actions {
   display: flex;
@@ -388,6 +397,9 @@
 
 .branch-selector__compare-row {
   display: flex;
+  /* admin-ui-alignment-2026-08-15 (A11) — a select and a nowrap toggle label in one unwrapped row
+   * put "Side-by-side comparison" 191px off the right edge of a phone. */
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: flex-end;
   margin-top: 0.6rem;

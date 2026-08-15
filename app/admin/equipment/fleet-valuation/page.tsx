@@ -499,6 +499,9 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: { fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, maxWidth: 720 },
   controls: {
     display: 'flex',
+    /* admin-ui-alignment-2026-08-15 (A11) — four controls in one unwrapped row put "Lock 2026" and
+     * the CSV download 169px off the right edge of a phone. */
+    flexWrap: 'wrap' as const,
     gap: 8,
     alignItems: 'flex-end',
   },

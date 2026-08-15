@@ -469,8 +469,13 @@ function BannerStack({
 
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1100, margin: '0 auto' },
+  /* admin-ui-alignment-2026-08-15 (A11) — a space-between header with no wrap: on a 390px
+   * phone the title takes the width it needs and the action cluster runs off the right edge, so
+   * Refresh and the period buttons were unreachable. Four equipment/personnel pages shared this
+   * exact shape. */
   header: {
     display: 'flex',
+    flexWrap: 'wrap' as const,
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 16,

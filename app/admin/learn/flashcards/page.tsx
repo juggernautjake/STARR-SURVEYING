@@ -472,7 +472,11 @@ export default function FlashcardsPage() {
           </button>
         )}
         <button className="admin-btn admin-btn--ghost" onClick={() => setMode('create')}>+ Create Card</button>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', fontSize: '0.82rem', color: 'var(--color-text-tertiary)', cursor: 'pointer' }}>
+        {/* admin-ui-alignment-2026-08-15 — `marginBottom: 0`: the admin label-margin reset spares
+            labels wrapping a checkbox, because a COLUMN of options needs globals' 10px. This is one
+            inline checkbox in a button row, where that margin instead lifted it 5px above the
+            buttons beside it. Fourth instance of the pattern in this pass — see D6h. */}
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: 'auto', marginBottom: 0, fontSize: '0.82rem', color: 'var(--color-text-tertiary)', cursor: 'pointer' }}>
           <input type="checkbox" checked={shuffled} onChange={e => setShuffled(e.target.checked)} />
           Shuffle
         </label>

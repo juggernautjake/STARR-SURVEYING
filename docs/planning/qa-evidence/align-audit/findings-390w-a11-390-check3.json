@@ -1,0 +1,156 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 8,
+  "byRule": {
+    "row-height": 5,
+    "overflow": 9
+  },
+  "byRoute": {
+    "/admin/equipment/maintenance": 6,
+    "/admin/equipment/timeline": 2,
+    "/admin/personnel/crew-calendar": 6
+  },
+  "findings": [
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 22.8,
+      "detail": "button \"This month\" is 56px tall, button \"Refresh\" is 33px — beside each other",
+      "container": "div \"← PrevThis monthNext →Refres\"",
+      "sig": "button:56|button:33",
+      "count": 4
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "div \"Equipment\" extends 6px past the right edge",
+      "container": "div \"EquipmentKindallcalibrationr\"",
+      "sig": "div|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "input extends 6px past the right edge",
+      "container": "div \"Equipment\"",
+      "sig": "input|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 182,
+      "detail": "aside \"Upcoming (30d)No open work i\" extends 182px past the right edge",
+      "container": "div \"SunMonTueWedThuFriSat1234567\"",
+      "sig": "aside|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 169,
+      "detail": "h2 \"Upcoming (30d)\" extends 169px past the right edge",
+      "container": "aside \"Upcoming (30d)No open work i\"",
+      "sig": "h2|aside",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 169,
+      "detail": "div \"No open work in the next 30 \" extends 169px past the right edge",
+      "container": "aside \"Upcoming (30d)No open work i\"",
+      "sig": "div|aside",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 59,
+      "detail": "div \"→Reset to 14d\" extends 59px past the right edge",
+      "container": "header \"Reservations timelineA Gantt\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 59,
+      "detail": "button \"Reset to 14d\" extends 59px past the right edge",
+      "container": "div \"→Reset to 14d\"",
+      "sig": "button|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 20.8,
+      "detail": "button \"← Prev week\" is 76px tall, button \"This week\" is 56px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:76|button:56",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 20.8,
+      "detail": "button \"This week\" is 56px tall, button \"Next week →\" is 76px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:56|button:76",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 22.8,
+      "detail": "button \"This week\" is 56px tall, button \"Refresh\" is 33px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:56|button:33",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 43.6,
+      "detail": "button \"Next week →\" is 76px tall, button \"Refresh\" is 33px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:76|button:33",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 25,
+      "detail": "div \"← Prev weekThis weekNext wee\" extends 25px past the right edge",
+      "container": "header \"Crew calendar§5.12.7.6 — cap\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 25,
+      "detail": "button \"Refresh\" extends 25px past the right edge",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button|div",
+      "count": 1
+    }
+  ]
+}

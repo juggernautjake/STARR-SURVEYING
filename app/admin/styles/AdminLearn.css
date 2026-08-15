@@ -2115,8 +2115,12 @@
 .modules__filters { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.25rem; align-items: center; }
 .modules__filter-group { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .modules__filter-label { font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 600; color: var(--color-text-tertiary); margin-right: 0.15rem; }
+/* admin-ui-alignment-2026-08-15 (A11) — 27px, under the 28px floor. It is an in-row filter chip,
+ * which the contract sizes with --button-height-sm. Found at 390px, where the desktop sweep had
+ * missed it because these buttons only render once the module list has loaded. */
 .modules__filter-btn {
-  padding: 0.3rem 0.65rem; border: var(--border-light); border-radius: 6px; background: var(--theme-bg-surface, #FFF);
+  min-height: var(--button-height-sm); box-sizing: border-box;
+  padding: 0 0.65rem; border: var(--border-light); border-radius: 6px; background: var(--theme-bg-surface, #FFF);
   font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 500; color: var(--color-text-tertiary);
   cursor: pointer; transition: all 0.15s; white-space: nowrap;
 }

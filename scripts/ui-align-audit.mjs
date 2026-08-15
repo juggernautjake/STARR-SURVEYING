@@ -270,6 +270,14 @@ const PROBE = () => {
   }
   for (const [parent, kids] of stacks) {
     if (kids.length < 3) continue;
+    // A stack can be aligned to its RIGHT edge, and then its left edges are ragged by arithmetic —
+    // the items are simply different widths. `/admin/finances/overview` at 390px stacks From / To /
+    // Group by / Recalculate / Audit against a shared right edge at x=341, and the rule read the
+    // resulting 2.5px difference in left edges as a defect. Asking a right-aligned stack to also
+    // share a left edge is asking for both, which is only possible if every item is the same width.
+    const rights = kids.map((el) => +el.getBoundingClientRect().right.toFixed(1));
+    const rightAligned = rights.length > 2 && Math.max(...rights) - Math.min(...rights) <= 1;
+    if (rightAligned) continue;
     const lefts = kids.map((el) => +el.getBoundingClientRect().left.toFixed(1));
     const counts = new Map();
     for (const l of lefts) counts.set(l, (counts.get(l) ?? 0) + 1);
@@ -303,7 +311,11 @@ const PROBE = () => {
     // and kept the page at four "button heights" after every actual control on it had been brought
     // to 40. Counting them asks the page to make a card the same height as a filter pill, which is
     // not the defect this rule is looking for.
-    if (t === 'button' && r.height > 64) continue;
+    // Keyed on ROLE, not tag name: `/admin/employees` and `/admin/my-notes` paint their cards as
+    // `[role=button]` and `a.btn` rather than `<button>`, and at 143–194px tall they were counting
+    // as "button heights" on a rule that is about controls.
+    const isField = t === 'input' || t === 'select' || t === 'textarea';
+    if (!isField && r.height > 64) continue;
     // Same reasoning as `hasBox` above: a boxless button is text, and its height is the line's, not
     // a size anybody picked for a control.
     if (t === 'button' && !hasBox(el)) continue;

@@ -367,7 +367,9 @@ const styles = `
     font-family: 'Sora', sans-serif; font-size: 1.5rem; font-weight: 700; margin: 0;
   }
   .payouts-page__lede { margin: 0.25rem 0 0; color: #4a5470; }
-  .payouts-page__cta-group { display: flex; gap: 0.5rem; }
+  /* admin-ui-alignment-2026-08-15 (A11) — three CTAs in one unwrapped row put "+ New batch" 23px
+     off the right edge of a phone. Same shape as the four equipment headers in this slice. */
+  .payouts-page__cta-group { display: flex; flex-wrap: wrap; gap: 0.5rem; }
   .payouts-page__new {
     background: #BD1218; color: #fff; padding: 0.6rem 1.1rem;
     border: none; border-radius: 10px; font: inherit; font-weight: 700; cursor: pointer;

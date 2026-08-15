@@ -708,8 +708,13 @@ const drawerStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
   },
+  /* admin-ui-alignment-2026-08-15 (A11) — a space-between header with no wrap: on a 390px
+   * phone the title takes the width it needs and the action cluster runs off the right edge, so
+   * Refresh and the period buttons were unreachable. Four equipment/personnel pages shared this
+   * exact shape. */
   header: {
     display: 'flex',
+    flexWrap: 'wrap' as const,
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
@@ -1191,8 +1196,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
   subtitle: { fontSize: 13, color: '#6B7280', margin: 0 },
-  headerControls: { display: 'flex', gap: 8, alignItems: 'center' },
+  headerControls: { display: 'flex', flexWrap: 'wrap' as const, gap: 8, alignItems: 'center' },
+  /* admin-ui-alignment-2026-08-15 (A11) — nowrap. Squeezed into a phone-width row these
+   * buttons wrapped their own labels instead, growing to 56 and 76px beside a 33px Refresh:
+   * three heights in one nav cluster, all of them accidental. A button that will not fit
+   * should move to the next line, not fold in half. */
   navBtn: {
+    whiteSpace: 'nowrap' as const,
     padding: '6px 12px',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
@@ -1232,7 +1242,12 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#FFFFFF',
     border: '1px solid #E2E5EB',
     borderRadius: 12,
-    overflow: 'hidden',
+    /* admin-ui-alignment-2026-08-15 (A11) — a seven-day crew grid cannot fit 390px, and
+     * `overflow: hidden` meant the week ended on Tuesday: the table ran **403px** past the right
+     * edge with nothing to scroll. Of every narrow-width finding in this pass this was the one that
+     * hid the most from the person looking at it. */
+    overflowX: 'auto',
+    overflowY: 'hidden',
   },
   table: {
     width: '100%',

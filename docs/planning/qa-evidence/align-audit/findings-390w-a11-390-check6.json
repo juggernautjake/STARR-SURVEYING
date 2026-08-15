@@ -1,0 +1,88 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 9,
+  "byRule": {
+    "overflow": 6,
+    "left-ragged": 1
+  },
+  "byRoute": {
+    "/admin/equipment/maintenance": 2,
+    "/admin/research/testing": 2,
+    "/admin/finances/overview": 1,
+    "/admin/team": 1,
+    "/admin/research/billing": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "div \"Equipment\" extends 6px past the right edge",
+      "container": "div \"EquipmentKindallcalibrationr\"",
+      "sig": "div|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "input extends 6px past the right edge",
+      "container": "div \"Equipment\"",
+      "sig": "input|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 191,
+      "detail": "label.branch-selector__compare-toggle \"Side-by-side comparison\" extends 191px past the right edge",
+      "container": "div.branch-selector__row \"Branch ?mainPull+ Branch↻Sid\"",
+      "sig": "label.branch-selector__compare-toggle|div.branch-selector__row",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 24,
+      "detail": "input extends 24px past the right edge",
+      "container": "label.branch-selector__compare-toggle \"Side-by-side comparison\"",
+      "sig": "input|label.branch-selector__compare-toggle",
+      "count": 1
+    },
+    {
+      "route": "/admin/finances/overview",
+      "rule": "left-ragged",
+      "severity": "low",
+      "px": 2.5,
+      "detail": "button.fin-btn.fin-btn--audit \"Audit this period\" starts 2.5px off the 176px left edge its 2 siblings share",
+      "container": "div.fin-page__range \"FromToGroup byDayWeekMonthYe\"",
+      "sig": "button.fin-btn.fin-btn--audit|div.fin-page__range",
+      "count": 1
+    },
+    {
+      "route": "/admin/team",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 2,
+      "detail": "article \"Henry Madduxhankmaddux@starr\" extends 2px past the right edge",
+      "container": "div \"Henry Madduxhankmaddux@starr\"",
+      "sig": "article|div",
+      "count": 7
+    },
+    {
+      "route": "/admin/research/billing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 16,
+      "detail": "button.px-4.py-2.rounded \"usage\" extends 16px past the right edge",
+      "container": "div.flex.gap-1.mb-4 \"overviewinvoicespurchasesusa\"",
+      "sig": "button.px-4.py-2.rounded|div.flex.gap-1.mb-4",
+      "count": 1
+    }
+  ]
+}

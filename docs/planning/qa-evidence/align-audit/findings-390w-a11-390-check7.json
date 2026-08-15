@@ -1,0 +1,35 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 6,
+  "byRule": {
+    "left-ragged": 1,
+    "overflow": 1
+  },
+  "byRoute": {
+    "/admin/finances/overview": 1,
+    "/admin/research/billing": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/finances/overview",
+      "rule": "left-ragged",
+      "severity": "low",
+      "px": 2.5,
+      "detail": "button.fin-btn.fin-btn--audit \"Audit this period\" starts 2.5px off the 176px left edge its 2 siblings share",
+      "container": "div.fin-page__range \"FromToGroup byDayWeekMonthYe\"",
+      "sig": "button.fin-btn.fin-btn--audit|div.fin-page__range",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/billing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 16,
+      "detail": "button.px-4.py-2.rounded \"usage\" extends 16px past the right edge",
+      "container": "div.flex.gap-1.mb-4 \"overviewinvoicespurchasesusa\"",
+      "sig": "button.px-4.py-2.rounded|div.flex.gap-1.mb-4",
+      "count": 1
+    }
+  ]
+}

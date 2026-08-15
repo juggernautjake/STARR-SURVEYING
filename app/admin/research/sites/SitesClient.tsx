@@ -367,7 +367,9 @@ export default function SitesClient() {
           <p>Register the appraisal district for the county you work in most and the rest can follow.</p>
         </div>
       ) : (
-        <table className="sites__table">
+        // admin-ui-alignment-2026-08-15 (A11) — "Last checked" was 60px off the right edge of a
+        // phone with no way to scroll to it. Shared wrapper, same as every other admin table.
+        <div className="admin-table-wrap"><table className="sites__table">
           <thead>
             <tr>
               <th>County</th><th>Records</th><th>Vendor</th><th>Status</th><th>Last checked</th>
@@ -384,7 +386,7 @@ export default function SitesClient() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
     </div>
   );

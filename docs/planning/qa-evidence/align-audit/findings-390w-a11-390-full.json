@@ -1,0 +1,1084 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 139,
+  "byRule": {
+    "height-spread": 4,
+    "overflow": 90,
+    "row-height": 5,
+    "left-ragged": 1,
+    "row-centre": 1,
+    "small-target": 4
+  },
+  "byRoute": {
+    "/admin/cad": 28,
+    "/admin/employees": 1,
+    "/admin/equipment/fleet-valuation": 5,
+    "/admin/equipment/maintenance": 8,
+    "/admin/equipment/timeline": 3,
+    "/admin/equipment/today": 2,
+    "/admin/finances/overview": 1,
+    "/admin/invoicing/categories": 10,
+    "/admin/learn/flashcards": 1,
+    "/admin/learn/modules": 4,
+    "/admin/my-notes": 1,
+    "/admin/personnel/crew-calendar": 15,
+    "/admin/research/billing": 1,
+    "/admin/research/coverage": 15,
+    "/admin/research/sites": 7,
+    "/admin/research/testing": 2,
+    "/admin/team": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 12,
+      "detail": "div.relative.z-50 \"Help\" extends 12px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"Starr CADFileEditViewSurveyD\"",
+      "sig": "div.relative.z-50|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 12,
+      "detail": "button.px-3.py-1.5.hover:bg-gray-700 \"Help\" extends 12px past the right edge",
+      "container": "div.relative.z-50 \"Help\"",
+      "sig": "button.px-3.py-1.5.hover:bg-gray-700|div.relative.z-50",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 62,
+      "detail": "button.ml-2.px-2.py-0.5 \"Save\" extends 62px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"Starr CADFileEditViewSurveyD\"",
+      "sig": "button.ml-2.px-2.py-0.5|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 156,
+      "detail": "div.mr-3.flex.items-center \"Exit\" extends 156px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"Starr CADFileEditViewSurveyD\"",
+      "sig": "div.mr-3.flex.items-center|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 100,
+      "detail": "button.flex.items-center.gap-1.5 \"Exit\" extends 100px past the right edge",
+      "container": "div.mr-3.flex.items-center \"Exit\"",
+      "sig": "button.flex.items-center.gap-1.5|div.mr-3.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 92,
+      "detail": "svg extends 92px past the right edge",
+      "container": "button.flex.items-center.gap-1.5 \"Exit\"",
+      "sig": "svg|button.flex.items-center.gap-1.5",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 90,
+      "detail": "path extends 90px past the right edge",
+      "container": "svg",
+      "sig": "path|svg",
+      "count": 3
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 130,
+      "detail": "button.text-gray-400.hover:text-white.p-1 extends 130px past the right edge",
+      "container": "div.mr-3.flex.items-center \"Exit\"",
+      "sig": "button.text-gray-400.hover:text-white.p-1|div.mr-3.flex.items-center",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 126,
+      "detail": "svg extends 126px past the right edge",
+      "container": "button.text-gray-400.hover:text-white.p-1",
+      "sig": "svg|button.text-gray-400.hover:text-white.p-1",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 125,
+      "detail": "rect extends 125px past the right edge",
+      "container": "svg",
+      "sig": "rect|svg",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 147,
+      "detail": "circle extends 147px past the right edge",
+      "container": "svg",
+      "sig": "circle|svg",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.bg-gray-800.border-l \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.flex-1.min-h-0 \"Layersactive: —2Survey Info4\"",
+      "sig": "div.flex.bg-gray-800.border-l|div.flex.flex-1.min-h-0",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.flex-col.flex-1 \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.bg-gray-800.border-l \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex.flex-col.flex-1|div.flex.bg-gray-800.border-l",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.flex-1 \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex.flex-col.h-full|div.flex.flex-col.flex-1",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.px-2.py-1.text-gray-400 \"Properties\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\"",
+      "sig": "div.px-2.py-1.text-gray-400|div.flex.flex-col.h-full",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "div.flex-1.flex.items-center \"No selection.Select features\" extends 3px past the right edge",
+      "container": "div.flex.flex-col.h-full \"PropertiesNo selection.Selec\"",
+      "sig": "div.flex-1.flex.items-center|div.flex.flex-col.h-full",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 36,
+      "detail": "button.shrink-0.flex.items-center \"AI: COPILOT\" extends 36px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "button.shrink-0.flex.items-center|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 29,
+      "detail": "span.inline-block.w-1.5.h-1.5 extends 29px past the right edge",
+      "container": "button.shrink-0.flex.items-center \"AI: COPILOT\"",
+      "sig": "span.inline-block.w-1.5.h-1.5|button.shrink-0.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 56,
+      "detail": "span.text-gray-600 \"|\" extends 56px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "span.text-gray-600|div.flex.items-center.bg-gray-900",
+      "count": 5
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 108,
+      "detail": "span.shrink-0.text-gray-500.transition-colors \"Select\" extends 108px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "span.shrink-0.text-gray-500.transition-colors|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 194,
+      "detail": "button.hover:text-white.transition-colors.shrink-0 \"Layer: —\" extends 194px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "button.hover:text-white.transition-colors.shrink-0|div.flex.items-center.bg-gray-900",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 194,
+      "detail": "span.text-white \"—\" extends 194px past the right edge",
+      "container": "button.hover:text-white.transition-colors.shrink-0 \"Layer: —\"",
+      "sig": "span.text-white|button.hover:text-white.transition-colors.shrink-0",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 300,
+      "detail": "div.relative.flex.items-center \"Snap: ON▾\" extends 300px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "div.relative.flex.items-center|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 284,
+      "detail": "button.hover:text-white.transition-colors.text-green-400 \"Snap: ON\" extends 284px past the right edge",
+      "container": "div.relative.flex.items-center \"Snap: ON▾\"",
+      "sig": "button.hover:text-white.transition-colors.text-green-400|div.relative.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 300,
+      "detail": "button.hover:text-white.transition-colors.px-0.5 \"▾\" extends 300px past the right edge",
+      "container": "div.relative.flex.items-center \"Snap: ON▾\"",
+      "sig": "button.hover:text-white.transition-colors.px-0.5|div.relative.flex.items-center",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 463,
+      "detail": "span.text-gray-500.shrink-0 \"1″=50′\" extends 463px past the right edge",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "span.text-gray-500.shrink-0|div.flex.items-center.bg-gray-900",
+      "count": 1
+    },
+    {
+      "route": "/admin/employees",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 40, 143, 168, 194px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/fleet-valuation",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 169,
+      "detail": "div \"Tax year Refresh ⤓ CSV ⎙ Pri\" extends 169px past the right edge",
+      "container": "header \"Fleet valuationA per-asset s\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/fleet-valuation",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 21,
+      "detail": "label \"⤓ CSV\" extends 21px past the right edge",
+      "container": "div \"Tax year Refresh ⤓ CSV ⎙ Pri\"",
+      "sig": "label|div",
+      "count": 3
+    },
+    {
+      "route": "/admin/equipment/fleet-valuation",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 21,
+      "detail": "span extends 21px past the right edge",
+      "container": "label \"⤓ CSV\"",
+      "sig": "span|label",
+      "count": 3
+    },
+    {
+      "route": "/admin/equipment/fleet-valuation",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 21,
+      "detail": "a \"⤓ CSV\" extends 21px past the right edge",
+      "container": "label \"⤓ CSV\"",
+      "sig": "a|label",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/fleet-valuation",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 169,
+      "detail": "button \"Lock 2026\" extends 169px past the right edge",
+      "container": "label \"Lock 2026\"",
+      "sig": "button|label",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 22.8,
+      "detail": "button \"This month\" is 56px tall, button \"Refresh\" is 33px — beside each other",
+      "container": "div \"← PrevThis monthNext →Refres\"",
+      "sig": "button:56|button:33",
+      "count": 4
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 69,
+      "detail": "div \"← PrevThis monthNext →Refres\" extends 69px past the right edge",
+      "container": "header \"Maintenance · July 2026A mon\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 69,
+      "detail": "button \"Refresh\" extends 69px past the right edge",
+      "container": "div \"← PrevThis monthNext →Refres\"",
+      "sig": "button|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "div \"Equipment\" extends 6px past the right edge",
+      "container": "div \"EquipmentKindallcalibrationr\"",
+      "sig": "div|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "input extends 6px past the right edge",
+      "container": "div \"Equipment\"",
+      "sig": "input|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 182,
+      "detail": "aside \"Upcoming (30d)No open work i\" extends 182px past the right edge",
+      "container": "div \"SunMonTueWedThuFriSat1234567\"",
+      "sig": "aside|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 169,
+      "detail": "h2 \"Upcoming (30d)\" extends 169px past the right edge",
+      "container": "aside \"Upcoming (30d)No open work i\"",
+      "sig": "h2|aside",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 169,
+      "detail": "div \"No open work in the next 30 \" extends 169px past the right edge",
+      "container": "aside \"Upcoming (30d)No open work i\"",
+      "sig": "div|aside",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 217,
+      "detail": "div \"→Reset to 14d\" extends 217px past the right edge",
+      "container": "header \"Reservations timelineA Gantt\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 108,
+      "detail": "input extends 108px past the right edge",
+      "container": "div \"→Reset to 14d\"",
+      "sig": "input|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 217,
+      "detail": "button \"Reset to 14d\" extends 217px past the right edge",
+      "container": "div \"→Reset to 14d\"",
+      "sig": "button|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/today",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 69,
+      "detail": "div \"TodayRefresh\" extends 69px past the right edge",
+      "container": "header \"Equipment — TodayThe dispatc\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/today",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 69,
+      "detail": "button \"Refresh\" extends 69px past the right edge",
+      "container": "div \"TodayRefresh\"",
+      "sig": "button|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/finances/overview",
+      "rule": "left-ragged",
+      "severity": "low",
+      "px": 2.5,
+      "detail": "button.fin-btn.fin-btn--audit \"Audit this period\" starts 2.5px off the 176px left edge its 2 siblings share",
+      "container": "div.fin-page__range \"FromToGroup byDayWeekMonthYe\"",
+      "sig": "button.fin-btn.fin-btn--audit|div.fin-page__range",
+      "count": 1
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "table \"BucketTarget %Actual % (afte\" extends 81px past the right edge",
+      "container": "div \"BucketTarget %Actual % (afte\"",
+      "sig": "table|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "thead \"BucketTarget %Actual % (afte\" extends 81px past the right edge",
+      "container": "table \"BucketTarget %Actual % (afte\"",
+      "sig": "thead|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "tr \"BucketTarget %Actual % (afte\" extends 81px past the right edge",
+      "container": "thead \"BucketTarget %Actual % (afte\"",
+      "sig": "tr|thead",
+      "count": 1
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 7,
+      "detail": "th \"Actual % (after edit)\" extends 7px past the right edge",
+      "container": "tr \"BucketTarget %Actual % (afte\"",
+      "sig": "th|tr",
+      "count": 2
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "tbody \"Equipment & Suppliesequipmen\" extends 81px past the right edge",
+      "container": "table \"BucketTarget %Actual % (afte\"",
+      "sig": "tbody|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "tr \"Equipment & Suppliesequipmen\" extends 81px past the right edge",
+      "container": "tbody \"Equipment & Suppliesequipmen\"",
+      "sig": "tr|tbody",
+      "count": 18
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 7,
+      "detail": "td \"0%\" extends 7px past the right edge",
+      "container": "tr \"Equipment & Suppliesequipmen\"",
+      "sig": "td|tr",
+      "count": 38
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 34,
+      "detail": "span \"—\" extends 34px past the right edge",
+      "container": "td \"—\"",
+      "sig": "span|td",
+      "count": 18
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "tfoot \"Total of active buckets0%\" extends 81px past the right edge",
+      "container": "table \"BucketTarget %Actual % (afte\"",
+      "sig": "tfoot|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 81,
+      "detail": "tr \"Total of active buckets0%\" extends 81px past the right edge",
+      "container": "tfoot \"Total of active buckets0%\"",
+      "sig": "tr|tfoot",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/flashcards",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 5,
+      "detail": "button.admin-btn.admin-btn--ghost \"+ Create Card\" and input sit side by side but their centres differ by 5.0px",
+      "container": "div \"Study All (0)+ Create CardSh\"",
+      "sig": "button.admin-btn.admin-btn--ghost|input|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/modules",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 27,
+      "detail": "button.modules__filter-btn.modules__filter-btn--active \"All\" is only 27px tall",
+      "container": "div.modules__filter-group \"Status:AllNot StartedIn Prog\"",
+      "sig": "button.modules__filter-btn.modules__filter-btn--active:27",
+      "count": 2
+    },
+    {
+      "route": "/admin/learn/modules",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 27,
+      "detail": "button.modules__filter-btn \"Not Started\" is only 27px tall",
+      "container": "div.modules__filter-group \"Status:AllNot StartedIn Prog\"",
+      "sig": "button.modules__filter-btn:27",
+      "count": 9
+    },
+    {
+      "route": "/admin/learn/modules",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 27,
+      "detail": "button.modules__filter-btn.modules__filter-btn--diff.modules__filter-btn--active \"All\" is only 27px tall",
+      "container": "div.modules__filter-group \"Difficulty:AllBeginnerInterm\"",
+      "sig": "button.modules__filter-btn.modules__filter-btn--diff.modules__filter-btn--active:27",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/modules",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 27,
+      "detail": "button.modules__filter-btn.modules__filter-btn--diff \"Beginner\" is only 27px tall",
+      "container": "div.modules__filter-group \"Difficulty:AllBeginnerInterm\"",
+      "sig": "button.modules__filter-btn.modules__filter-btn--diff:27",
+      "count": 3
+    },
+    {
+      "route": "/admin/my-notes",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 32, 39, 40, 153px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 20.8,
+      "detail": "button \"← Prev week\" is 76px tall, button \"This week\" is 56px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:76|button:56",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 20.8,
+      "detail": "button \"This week\" is 56px tall, button \"Next week →\" is 76px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:56|button:76",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 22.8,
+      "detail": "button \"This week\" is 56px tall, button \"Refresh\" is 33px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:56|button:33",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 43.6,
+      "detail": "button \"Next week →\" is 76px tall, button \"Refresh\" is 33px — beside each other",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button:76|button:33",
+      "count": 2
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 25,
+      "detail": "div \"← Prev weekThis weekNext wee\" extends 25px past the right edge",
+      "container": "header \"Crew calendar§5.12.7.6 — cap\"",
+      "sig": "div|header",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 25,
+      "detail": "button \"Refresh\" extends 25px past the right edge",
+      "container": "div \"← Prev weekThis weekNext wee\"",
+      "sig": "button|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 403,
+      "detail": "table \"UserMon8/10Tue8/11Wed8/12Thu\" extends 403px past the right edge",
+      "container": "div \"UserMon8/10Tue8/11Wed8/12Thu\"",
+      "sig": "table|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 403,
+      "detail": "thead \"UserMon8/10Tue8/11Wed8/12Thu\" extends 403px past the right edge",
+      "container": "table \"UserMon8/10Tue8/11Wed8/12Thu\"",
+      "sig": "thead|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 403,
+      "detail": "tr \"UserMon8/10Tue8/11Wed8/12Thu\" extends 403px past the right edge",
+      "container": "thead \"UserMon8/10Tue8/11Wed8/12Thu\"",
+      "sig": "tr|thead",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "th \"Tue8/11\" extends 3px past the right edge",
+      "container": "tr \"UserMon8/10Tue8/11Wed8/12Thu\"",
+      "sig": "th|tr",
+      "count": 6
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 75,
+      "detail": "div \"Wed8/12\" extends 75px past the right edge",
+      "container": "th \"Wed8/12\"",
+      "sig": "div|th",
+      "count": 5
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 75,
+      "detail": "span \"Wed\" extends 75px past the right edge",
+      "container": "div \"Wed8/12\"",
+      "sig": "span|div",
+      "count": 10
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 403,
+      "detail": "tbody \"Henry Madduxhankmaddux@starr\" extends 403px past the right edge",
+      "container": "table \"UserMon8/10Tue8/11Wed8/12Thu\"",
+      "sig": "tbody|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 403,
+      "detail": "tr \"Henry Madduxhankmaddux@starr\" extends 403px past the right edge",
+      "container": "tbody \"Henry Madduxhankmaddux@starr\"",
+      "sig": "tr|tbody",
+      "count": 7
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 3,
+      "detail": "td extends 3px past the right edge",
+      "container": "tr \"Henry Madduxhankmaddux@starr\"",
+      "sig": "td|tr",
+      "count": 42
+    },
+    {
+      "route": "/admin/research/billing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 16,
+      "detail": "button.px-4.py-2.rounded \"usage\" extends 16px past the right edge",
+      "container": "div.flex.gap-1.mb-4 \"overviewinvoicespurchasesusa\"",
+      "sig": "button.px-4.py-2.rounded|div.flex.gap-1.mb-4",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 110,
+      "detail": "table.measured__table \"CountyDeedsAppraisalCoverage\" extends 110px past the right edge",
+      "container": "section.measured \"What we have actually proven\"",
+      "sig": "table.measured__table|section.measured",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 110,
+      "detail": "thead \"CountyDeedsAppraisalCoverage\" extends 110px past the right edge",
+      "container": "table.measured__table \"CountyDeedsAppraisalCoverage\"",
+      "sig": "thead|table.measured__table",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 110,
+      "detail": "tr \"CountyDeedsAppraisalCoverage\" extends 110px past the right edge",
+      "container": "thead \"CountyDeedsAppraisalCoverage\"",
+      "sig": "tr|thead",
+      "count": 2
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 50,
+      "detail": "th \"Coverage\" extends 50px past the right edge",
+      "container": "tr \"CountyDeedsAppraisalCoverage\"",
+      "sig": "th|tr",
+      "count": 4
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 110,
+      "detail": "tbody \"Bastrop untestedharris_aumen\" extends 110px past the right edge",
+      "container": "table.measured__table \"CountyDeedsAppraisalCoverage\"",
+      "sig": "tbody|table.measured__table",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 110,
+      "detail": "tr.measured__row.measured__row--requested \"Bastrop untestedharris_aumen\" extends 110px past the right edge",
+      "container": "tbody \"Bastrop untestedharris_aumen\"",
+      "sig": "tr.measured__row.measured__row--requested|tbody",
+      "count": 44
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 50,
+      "detail": "td.measured__level.measured__level--requested \"requested\" extends 50px past the right edge",
+      "container": "tr.measured__row.measured__row--requested \"Bastrop untestedharris_aumen\"",
+      "sig": "td.measured__level.measured__level--requested|tr.measured__row.measured__row--requested",
+      "count": 44
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 110,
+      "detail": "td.measured__when \"never\" extends 110px past the right edge",
+      "container": "tr.measured__row.measured__row--requested \"Bastrop untestedharris_aumen\"",
+      "sig": "td.measured__when|tr.measured__row.measured__row--requested",
+      "count": 44
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 259,
+      "detail": "table \"FIPSCountySystemStatusNotes0\" extends 259px past the right edge",
+      "container": "div \"FIPSCountySystemStatusNotes0\"",
+      "sig": "table|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 259,
+      "detail": "thead \"FIPSCountySystemStatusNotes\" extends 259px past the right edge",
+      "container": "table \"FIPSCountySystemStatusNotes0\"",
+      "sig": "thead|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 259,
+      "detail": "tbody \"027BellKofile / PublicSearch\" extends 259px past the right edge",
+      "container": "table \"FIPSCountySystemStatusNotes0\"",
+      "sig": "tbody|table",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 259,
+      "detail": "tr \"027BellKofile / PublicSearch\" extends 259px past the right edge",
+      "container": "tbody \"027BellKofile / PublicSearch\"",
+      "sig": "tr|tbody",
+      "count": 21
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 10,
+      "detail": "td \"implemented\" extends 10px past the right edge",
+      "container": "tr \"027BellKofile / PublicSearch\"",
+      "sig": "td|tr",
+      "count": 42
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 69,
+      "detail": "a \"portal ↗\" extends 69px past the right edge",
+      "container": "td \"portal ↗Primary test county.\"",
+      "sig": "a|td",
+      "count": 11
+    },
+    {
+      "route": "/admin/research/coverage",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 225,
+      "detail": "span \"Primary test county. Kofile \" extends 225px past the right edge",
+      "container": "td \"portal ↗Primary test county.\"",
+      "sig": "span|td",
+      "count": 21
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "table.sites__table \"CountyRecordsVendorStatusLas\" extends 60px past the right edge",
+      "container": "div.sites \"Data sourcesThe county porta\"",
+      "sig": "table.sites__table|div.sites",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "thead \"CountyRecordsVendorStatusLas\" extends 60px past the right edge",
+      "container": "table.sites__table \"CountyRecordsVendorStatusLas\"",
+      "sig": "thead|table.sites__table",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "tr \"CountyRecordsVendorStatusLas\" extends 60px past the right edge",
+      "container": "thead \"CountyRecordsVendorStatusLas\"",
+      "sig": "tr|thead",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "th \"Last checked\" extends 60px past the right edge",
+      "container": "tr \"CountyRecordsVendorStatusLas\"",
+      "sig": "th|tr",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "tbody \"BlancoCounty clerk — deedsbe\" extends 60px past the right edge",
+      "container": "table.sites__table \"CountyRecordsVendorStatusLas\"",
+      "sig": "tbody|table.sites__table",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "tr \"BlancoCounty clerk — deedsbe\" extends 60px past the right edge",
+      "container": "tbody \"BlancoCounty clerk — deedsbe\"",
+      "sig": "tr|tbody",
+      "count": 57
+    },
+    {
+      "route": "/admin/research/sites",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 60,
+      "detail": "td \"never\" extends 60px past the right edge",
+      "container": "tr \"BlancoCounty clerk — deedsbe\"",
+      "sig": "td|tr",
+      "count": 57
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 191,
+      "detail": "label.branch-selector__compare-toggle \"Side-by-side comparison\" extends 191px past the right edge",
+      "container": "div.branch-selector__row \"Branch ?mainPull+ Branch↻Sid\"",
+      "sig": "label.branch-selector__compare-toggle|div.branch-selector__row",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 24,
+      "detail": "input extends 24px past the right edge",
+      "container": "label.branch-selector__compare-toggle \"Side-by-side comparison\"",
+      "sig": "input|label.branch-selector__compare-toggle",
+      "count": 1
+    },
+    {
+      "route": "/admin/team",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 2,
+      "detail": "article \"Henry Madduxhankmaddux@starr\" extends 2px past the right edge",
+      "container": "div \"Henry Madduxhankmaddux@starr\"",
+      "sig": "article|div",
+      "count": 7
+    }
+  ]
+}

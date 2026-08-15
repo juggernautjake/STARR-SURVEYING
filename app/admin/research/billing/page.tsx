@@ -363,8 +363,11 @@ export default function ResearchBillingPage() {
           </div>
         )}
 
-        {/* ── Tabs ── */}
-        <div className="flex gap-1 mb-4">
+        {/* ── Tabs ──
+            admin-ui-alignment-2026-08-15 (A11) — four tabs do not fit 390px, and the row neither
+            wrapped nor scrolled, so "usage" sat 16px off the right edge. Scrolls sideways, the same
+            call the research library's filter chips and the file explorer's type chips make. */}
+        <div className="flex gap-1 mb-4 overflow-x-auto max-w-full [&>button]:shrink-0">
           {(['overview', 'invoices', 'purchases', 'usage'] as const).map(tab => (
             <button
               key={tab}

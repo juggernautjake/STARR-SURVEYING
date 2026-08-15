@@ -485,6 +485,38 @@ The 3 that survived were real, and two of them are one bug:
 **1280px found nothing** beyond CAD's two accepted findings — which is the useful negative result:
 the breakpoint that hurts is the phone, not the small laptop.
 
+### The full 390px sweep: 105 findings, and what they were
+
+The sample was not representative enough. The full 139-route sweep opened at **105**, and the
+categories are worth listing because they are the shapes to look for anywhere else:
+
+| Shape | Where | Fix |
+|---|---|---|
+| **`overflow: hidden` on a table wrapper** | invoicing/categories (81px), crew-calendar (**403px**), research/coverage (110 + 259px) | The wrapper was there to clip the rounded corners; it clipped the *columns*. `overflow-x: auto` reaches them, `overflow-y: hidden` keeps the radius. |
+| **A table with no wrapper at all** | research/sites, research/coverage's measured table | `.admin-table-wrap`, the shared wrapper 26 other admin tables already use. |
+| **A `space-between` header that never wraps** | equipment/timeline, /today, /maintenance, personnel/crew-calendar — the same shape in four files | `flex-wrap: wrap`. The title takes the width it needs and the actions ran off the edge. |
+| **Buttons folding their own labels** | the same four pages: "← Prev week" grew to 76px beside a 33px "Refresh" | `white-space: nowrap`. A button that will not fit should move to the next line, not fold in half. |
+| **A two-column grid that never collapses** | equipment/maintenance — `1fr 280px` put the "Upcoming (30d)" sidebar 182px off-screen | `repeat(auto-fit, minmax(280px, 1fr))`, so it needs no media query to stay in sync. |
+| **A tab/chip row that neither wraps nor scrolls** | research/billing ("usage" 16px off) | Scroll sideways, as the file explorer and the research library now do. |
+| **A hard `minmax()` floor** | team — a 360px card floor plus 32px of shell padding is 392 | `minmax(min(360px, 100%), 1fr)`. |
+| **A flex item that cannot shrink** | equipment/maintenance — a 280px input 6px over | `min-width: 0` on the *group*: a flex item defaults to `min-width: auto`, so capping the input alone left nothing asking it to shrink. |
+
+Two more instrument corrections came out of it, both the same family as before — the rule was right
+about one shape and was being shown another:
+
+- **A right-aligned stack has ragged left edges by arithmetic.** `/admin/finances/overview` stacks
+  From / To / Group by / Recalculate / Audit against a shared right edge; asking it to also share a
+  left edge is asking for both, which is only possible if every item is the same width.
+- **`[role=button]` and `a.btn` cards were counted as control heights.** The >64px card exclusion
+  from D6d keyed on the tag name, so `/admin/employees` and `/admin/my-notes` still reported their
+  143–194px cards. It keys on *field vs not-a-field* now.
+
+**`/admin/cad` at 390px is out of scope, with reasons.** It reports 28 findings on a phone and it is
+not a phone surface: a drawing editor with a tool rail, two docked panels, a command line and a
+status bar, on a 390px screen, is not a layout anyone should ship or fix — the field flows live in
+the mobile app. Recorded rather than silenced, because a future decision to make CAD usable on a
+tablet starts from this number.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -681,19 +713,44 @@ workspace starts at zero.
 
 ---
 
-## Measured baseline
+## Measured baseline, and where it ended
 
-*(Filled in from the full 1440px sweep — see `docs/planning/qa-evidence/align-audit/`.)*
+Evidence in `docs/planning/qa-evidence/align-audit/`, one JSON per measurement. The **Before**
+column is each workspace's opening measurement at the head of its own slice (A3–A10), *after* A0's
+false-positive removals and A1's contract fix; the **After** column is that workspace's confirming
+re-measure at the end of the slice.
 
-| Rule | Count |
-|---|---|
-| `row-centre` | |
-| `row-height` | |
-| `left-ragged` | |
-| `height-spread` | |
-| `small-target` | |
-| `overflow` | |
-| **Total** | |
+| Rule | Before | After |
+|---|---|---|
+| `row-centre` | 15 | 0 |
+| `row-height` | 12 | 0 |
+| `height-spread` | 11 | 2 |
+| `small-target` | 8 | 0 |
+| `left-ragged` | 1 | 0 |
+| `overflow` | 0 | 0 |
+| **Total (1440px)** | **47** | **2** |
+
+The 2 are CAD's coherent 18/22/24/28 scale, accepted with reasons in D6j — not outstanding work.
+
+Two earlier numbers appear in this document's history and are **not** comparable to the table above,
+which is why they are not in it:
+
+- **233**, the first full sweep (2026-08-14). Roughly half was the instrument: checkboxes measured
+  as short controls, SVG chart interiors measured as ragged layout, and a collapse key that included
+  rendered text so one defect down sixteen rows counted sixteen times. D6b.
+- **74** on `/admin/cad` in that same sweep, against **21** when A10 opened. Same causes, plus the
+  boxless-button and card-button corrections from D6g and D6d.
+
+**A count nobody has read the contents of is not a baseline** — recorded here as the reason the
+comparison is drawn from the per-slice measurements rather than from the first big number.
+
+### Narrow widths (A11)
+
+| Width | Sample | Result |
+|---|---|---|
+| 1280px | 15 routes, every workspace | 0, beyond CAD's 2 accepted |
+| 390px | 15-route sample | 36 → 3 (33 were the instrument, D6k) → 0 |
+| 390px | **all 139 routes** | **105 → 28**, and all 28 are `/admin/cad` on a phone (out of scope, see D6k). Every other route re-measures at 0. |
 
 ---
 
@@ -738,6 +795,6 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A8 Research | ✅ 9 pages measured, **3 findings → 0**. `/admin/research/library` turned out to be a *second* utility-class island (D6h) — its filter tabs were `py-1`, 24px, beside 40px selects, and under the floor; fixed in Tailwind's own idiom rather than by opening a second styling system on the same element. `/admin/research/testing` was the checkbox-label margin again, the third instance this pass. |
 | A9 Knowledge | ✅ 19 pages measured, **3 findings → 0**. Two were A3's own `.admin-btn--sm` fix landing in rows that should never have used the small size (D6i); the third was `.manage__item-btn` at 31px — a class that paints a thousand buttons on the question-builder alone — plus a 39px add-button on a form of 40s. |
 | A10 CAD island | ✅ **21 → 2** (D6j). Eleven were the instrument pairing a tool rail against a panel; the biggest real one was the editor inheriting `globals.css`'s marketing-form padding, because it renders outside `.admin-layout` — which is why fields asking for `h-6` measured 30px and the command line 52px. The remaining 2 are `height-spread` on a coherent 18/22/24/28 scale, accepted by design rather than by moving the threshold. |
-| A11 Narrow widths | 🟡 measured at **390** and **1280** over a 15-route sample spanning every workspace. 390 opened at 36 findings, all `overflow`; 33 were the instrument counting content inside deliberate horizontal scrollers (D6k). The 3 real ones are fixed: a `<select>` sized to its widest option 358px past the edge (now capped in `forms.css` for every admin control), and a six-chip filter row with its last chip unreachable. **1280 found nothing** beyond CAD's two accepted findings. The full 139-route 390 sweep is running as the slice's final check — its number lands with A12. |
+| A11 Narrow widths | ✅ **1280: nothing** beyond CAD's two accepted findings. **390 across all 139 routes: 105 → 28, and all 28 are `/admin/cad` on a phone** — out of scope with reasons, not outstanding work. Every other route measures 0. Eight repeated shapes, listed in D6k: `overflow: hidden` clipping table columns (crew-calendar hid **403px** of the week), tables with no wrapper, four identical `space-between` headers that never wrapped, buttons folding their own labels, a two-column grid that never collapsed, tab rows that neither wrapped nor scrolled, a hard `minmax()` floor 2px too big, and a flex item that could not shrink. Two more instrument corrections (right-aligned stacks, `[role=button]` cards). 1440 re-measured at 0 on all 18 touched routes. |
 | A12 Functional sweep | ⬜ |
 | A13 Quick Actions the user can author | ✅ `lib/hub/custom-quick-actions.ts` (model + href allow-list + resolver, 30 tests), the editor in the widget's settings panel, and the tinted glyph disc that makes the colour choice visible. Browser-verified end to end: added a link, watched it reject `javascript:alert(1)`, saved, saw the tile on the hub, clicked it, landed on the page. |

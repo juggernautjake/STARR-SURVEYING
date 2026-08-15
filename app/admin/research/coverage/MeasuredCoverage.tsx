@@ -81,7 +81,10 @@ export default function MeasuredCoverage() {
           this is empty, the worker has not connected to this database.
         </p>
       ) : (
-        <table className="measured__table">
+        // admin-ui-alignment-2026-08-15 (A11) — wrapped so it scrolls inside its card on a phone
+        // instead of running 110px past the right edge. `.admin-table-wrap` is the shared wrapper
+        // in AdminResponsive.css that 26 other admin tables already use.
+        <div className="admin-table-wrap"><table className="measured__table">
           <thead>
             <tr>
               <th>County</th>
@@ -116,7 +119,7 @@ export default function MeasuredCoverage() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       <p className="measured__foot">

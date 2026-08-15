@@ -273,7 +273,11 @@
   }
 
   .fin-page__quick { width: 100%; }
-  .fin-btn { flex: 1 1 auto; }
+  /* admin-ui-alignment-2026-08-15 (A11) — `flex: 1 1 auto` let each wrapped row distribute its own
+   * leftover space, so the buttons ended up with left edges 2.5px apart: a stack that looks
+   * almost-aligned, which reads worse than either aligned or clearly staggered. One per line on a
+   * phone, so they share an edge by construction. */
+  .fin-btn { flex: 1 1 100%; }
 
   .fin-cards { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem; }
   .fin-card { padding: 0.9rem 1rem; }

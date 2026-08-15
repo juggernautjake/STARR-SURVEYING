@@ -328,7 +328,11 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#ECFDF5', border: '1px solid #6EE7B7', color: '#065F46',
     padding: '0.75rem 1rem', borderRadius: 8, margin: '0 0 1rem', fontSize: '0.88rem',
   },
-  tableWrap: { background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' },
+  /* admin-ui-alignment-2026-08-15 (A11) — `overflow: hidden` was here to clip the rounded corners,
+   * and on a 390px phone it clipped the last two COLUMNS: the table ran 81px past the right edge
+   * with no way to scroll to it. `overflow-x: auto` reaches them; y stays hidden so the radius
+   * still does its job. */
+  tableWrap: { background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, overflowX: 'auto', overflowY: 'hidden' },
   table: { width: '100%', borderCollapse: 'separate', borderSpacing: 0 },
   th: {
     textAlign: 'left', padding: '0.55rem 0.85rem', background: '#F9FAFB',

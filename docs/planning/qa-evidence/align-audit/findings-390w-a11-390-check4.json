@@ -1,0 +1,33 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 3,
+  "byRule": {
+    "overflow": 2
+  },
+  "byRoute": {
+    "/admin/equipment/maintenance": 2
+  },
+  "findings": [
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "div \"Equipment\" extends 6px past the right edge",
+      "container": "div \"EquipmentKindallcalibrationr\"",
+      "sig": "div|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "rule": "overflow",
+      "severity": "high",
+      "px": 6,
+      "detail": "input extends 6px past the right edge",
+      "container": "div \"Equipment\"",
+      "sig": "input|div",
+      "count": 1
+    }
+  ]
+}

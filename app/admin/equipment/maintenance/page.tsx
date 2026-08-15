@@ -612,8 +612,13 @@ function dueRowStyle(daysUntilDue: number, inLeadWindow: boolean): React.CSSProp
 
 const styles: Record<string, React.CSSProperties> = {
   wrap: { padding: '24px', maxWidth: 1300, margin: '0 auto' },
+  /* admin-ui-alignment-2026-08-15 (A11) — a space-between header with no wrap: on a 390px
+   * phone the title takes the width it needs and the action cluster runs off the right edge, so
+   * Refresh and the period buttons were unreachable. Four equipment/personnel pages shared this
+   * exact shape. */
   header: {
     display: 'flex',
+    flexWrap: 'wrap' as const,
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 16,
@@ -630,8 +635,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   h2Hint: { fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 400 },
   subtitle: { fontSize: 13, color: 'var(--color-text-tertiary)', margin: 0, maxWidth: 720 },
-  headerControls: { display: 'flex', gap: 8, alignItems: 'center' },
+  headerControls: { display: 'flex', flexWrap: 'wrap' as const, gap: 8, alignItems: 'center' },
+  /* admin-ui-alignment-2026-08-15 (A11) — nowrap. Squeezed into a phone-width row these
+   * buttons wrapped their own labels instead, growing to 56 and 76px beside a 33px Refresh:
+   * three heights in one nav cluster, all of them accidental. A button that will not fit
+   * should move to the next line, not fold in half. */
   navBtn: {
+    whiteSpace: 'nowrap' as const,
     padding: '6px 12px',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
@@ -660,7 +670,11 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 8,
     marginBottom: 12,
   },
-  filterGroup: { display: 'flex', alignItems: 'center', gap: 6 },
+  /* admin-ui-alignment-2026-08-15 (A11) — `minWidth: 0` so the group can actually shrink. A flex
+   * item defaults to `min-width: auto`, which is its content's intrinsic width, so the 280px input
+   * inside could never give ground and the group sat 6px past the right edge of a phone. The cap on
+   * the input alone was not enough: nothing was asking it to shrink. */
+  filterGroup: { display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, maxWidth: '100%' },
   filterLabel: { fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 },
   textInput: {
     padding: '4px 8px',
@@ -668,7 +682,14 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     fontSize: 12,
     fontFamily: 'inherit',
+    /* admin-ui-alignment-2026-08-15 (A11) — a flat `width: 280` plus its label put this 6px past
+     * the right edge of a 390px phone. The `max-width: 100%` guard in forms.css cannot help an
+     * inline style, so the cap is stated where the width is. */
     width: 280,
+    maxWidth: '100%',
+    /* A flex item will not shrink below its intrinsic min-width without this, so `max-width` alone
+     * left it 6px over. */
+    minWidth: 0,
   },
   select: {
     padding: '4px 8px',
@@ -696,7 +717,11 @@ const styles: Record<string, React.CSSProperties> = {
   muted: { color: 'var(--color-text-muted)' },
   layout: {
     display: 'grid',
-    gridTemplateColumns: '1fr 280px',
+    /* admin-ui-alignment-2026-08-15 (A11) — `1fr 280px` never collapses, so on a 390px phone the
+     * "Upcoming (30d)" sidebar sat 182px off the right edge, entirely unreadable. `auto-fit` with a
+     * 280px floor gives the same two columns wherever they fit and one column where they do not,
+     * without a media query to keep in sync with the rest of the file. */
+    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
     gap: 16,
     marginBottom: 16,
   },
