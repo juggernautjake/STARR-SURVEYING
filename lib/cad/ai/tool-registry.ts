@@ -36,6 +36,10 @@ import {
 // C35 — the MODIFY family transforms points with the same helpers the manual tools use, so an AI
 // move and a dragged move produce identical geometry.
 import { transformFeature, translate, rotate, scale, mirror } from '../geometry/transform';
+// C36 — measurement over geometry already on the drawing, and the LIST equivalent.
+import { computeFeatureArea } from '../geometry/area';
+import { pointNumberOf, pointCodeOf, pointDescriptionOf } from '../feature-fields';
+import { readDerivation } from '../derivation';
 import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
@@ -1308,6 +1312,188 @@ export const deleteFeatures: ToolDefinition<DeleteFeaturesArgs, { deleted: numbe
   },
 };
 
+// ────────────────────────────────────────────────────────────
+// C36 — measurement, and the LIST command
+//
+// "AI fully integrated with all tools and measurements" was the
+// ask. The registry could already inverse between two points,
+// and that was the whole of it: the AI could not answer "how
+// big is this parcel" or "how long is that fence" about
+// geometry already on the drawing. It could only compute from
+// numbers it was handed.
+//
+// These are READ-ONLY, which is a category the registry has not
+// had. Nothing here writes, pushes undo, or needs a sandbox —
+// and that is worth stating rather than leaving implied,
+// because a measurement tool that quietly modified something
+// would be the least expected failure in the whole registry.
+// ────────────────────────────────────────────────────────────
+
+export interface MeasureFeatureArgs {
+  id: string;
+}
+
+export interface FeatureMeasurement {
+  id: string;
+  type: string;
+  layer: string;
+  /** Enclosed area, when the geometry is closed. Null for an open one — NOT zero, because zero is
+   *  a legitimate measurement and "this has no area" is a different statement. */
+  areaSquareFeet: number | null;
+  areaAcres: number | null;
+  /** Total length: a line's length, a polyline's run, a polygon's perimeter. */
+  lengthFeet: number;
+  vertexCount: number;
+}
+
+/** Total length of a feature's linework — the run of an open shape, the perimeter of a closed one. */
+function featureLength(f: Feature): number {
+  const g = f.geometry;
+  if (g.type === 'LINE' && g.start && g.end) {
+    return Math.hypot(g.end.x - g.start.x, g.end.y - g.start.y);
+  }
+  if (g.circle) return 2 * Math.PI * g.circle.radius;
+  if (g.arc) {
+    const TAU = Math.PI * 2;
+    const norm = (a: number) => ((a % TAU) + TAU) % TAU;
+    const swept = g.arc.anticlockwise
+      ? norm(g.arc.endAngle - g.arc.startAngle)
+      : norm(g.arc.startAngle - g.arc.endAngle);
+    return swept * g.arc.radius;
+  }
+  const verts = g.vertices ?? [];
+  if (verts.length < 2) return 0;
+  let total = 0;
+  // A POLYGON's last edge closes the ring; a POLYLINE's does not. Measuring both the same way is
+  // the difference between a perimeter and a perimeter minus one side, which on a five-sided tract
+  // is a number that still looks plausible.
+  const segs = g.type === 'POLYGON' ? verts.length : verts.length - 1;
+  for (let i = 0; i < segs; i += 1) {
+    const a = verts[i];
+    const b = verts[(i + 1) % verts.length];
+    total += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  return total;
+}
+
+export const measureFeature: ToolDefinition<MeasureFeatureArgs, FeatureMeasurement> = {
+  name: 'measureFeature',
+  description:
+    'Measure one feature already on the drawing: enclosed area in square feet and acres when it ' +
+    'is closed, total length or perimeter, and vertex count. Read-only.',
+  inputSchema: {
+    type: 'object',
+    required: ['id'],
+    properties: { id: { type: 'string', description: 'The feature to measure.' } },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const store = useDrawingStore.getState();
+    const f = typeof args.id === 'string' ? store.document.features[args.id] : undefined;
+    if (!f) return { ok: false, reason: `Feature '${args.id}' does not exist.` };
+    const area = computeFeatureArea(f);
+    const closed = area.geometryKind !== 'NONE' && area.squareFeet > 0;
+    return {
+      ok: true,
+      result: {
+        id: f.id,
+        type: f.type,
+        layer: store.document.layers[f.layerId]?.name ?? f.layerId,
+        areaSquareFeet: closed ? area.squareFeet : null,
+        areaAcres: closed ? area.acres : null,
+        lengthFeet: featureLength(f),
+        vertexCount: f.geometry.vertices?.length ?? (f.geometry.start ? 2 : f.geometry.point ? 1 : 0),
+      },
+    };
+  },
+};
+
+export interface MeasureTotalAreaArgs {
+  ids: string[];
+}
+
+export const measureTotalArea: ToolDefinition<
+  MeasureTotalAreaArgs,
+  { squareFeet: number; acres: number; counted: number; skipped: string[] }
+> = {
+  name: 'measureTotalArea',
+  description:
+    'Total enclosed area of several closed features, in square feet and acres. Open features are ' +
+    'reported as skipped rather than counted as zero. Read-only.',
+  inputSchema: {
+    type: 'object',
+    required: ['ids'],
+    properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 1 } },
+    additionalProperties: false,
+  },
+  execute(args) {
+    if (!Array.isArray(args.ids) || args.ids.length === 0) {
+      return { ok: false, reason: 'ids must be a non-empty array of feature ids.' };
+    }
+    const store = useDrawingStore.getState();
+    let squareFeet = 0;
+    let counted = 0;
+    const skipped: string[] = [];
+    for (const id of args.ids) {
+      const f = typeof id === 'string' ? store.document.features[id] : undefined;
+      if (!f) return { ok: false, reason: `Feature '${String(id)}' does not exist.` };
+      const area = computeFeatureArea(f);
+      // Skipped, not counted as zero. A total that silently absorbs three open polylines is a
+      // number the surveyor cannot reconcile against the drawing, and it is off in the safe-looking
+      // direction — smaller, and still plausible.
+      if (area.geometryKind === 'NONE' || area.squareFeet <= 0) { skipped.push(f.id); continue; }
+      squareFeet += area.squareFeet;
+      counted += 1;
+    }
+    return {
+      ok: true,
+      result: { squareFeet, acres: squareFeet / 43560, counted, skipped },
+    };
+  },
+};
+
+export interface DescribeFeatureArgs {
+  id: string;
+}
+
+export const describeFeature: ToolDefinition<DescribeFeatureArgs, Record<string, unknown>> = {
+  name: 'describeFeature',
+  description:
+    'Everything known about one feature: type, layer, style, survey attributes, measurements, and ' +
+    'how it was derived if it was calculated. The AI equivalent of the LIST command. Read-only.',
+  inputSchema: {
+    type: 'object',
+    required: ['id'],
+    properties: { id: { type: 'string' } },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const store = useDrawingStore.getState();
+    const f = typeof args.id === 'string' ? store.document.features[args.id] : undefined;
+    if (!f) return { ok: false, reason: `Feature '${args.id}' does not exist.` };
+    const measured = measureFeature.execute({ id: f.id });
+    return {
+      ok: true,
+      result: {
+        id: f.id,
+        type: f.type,
+        geometryType: f.geometry.type,
+        layer: store.document.layers[f.layerId]?.name ?? f.layerId,
+        hidden: f.hidden === true,
+        pointNumber: pointNumberOf(f),
+        code: pointCodeOf(f),
+        description: pointDescriptionOf(f),
+        measurement: measured.ok ? measured.result : null,
+        // C30's derivation, surfaced to the AI. A calculated point that cannot say what it was
+        // derived from is indistinguishable from one somebody typed — and that distinction is
+        // exactly what a surveyor asks the AI about when checking a plat.
+        derivation: readDerivation(f.properties),
+        properties: f.properties,
+      },
+    };
+  },
+};
+
 export const toolRegistry = {
   addPoint,
   drawLineBetween,
@@ -1325,6 +1511,10 @@ export const toolRegistry = {
   scaleFeatures,
   mirrorFeatures,
   deleteFeatures,
+  // C36 — read-only measurement over geometry already on the drawing, plus the LIST equivalent.
+  measureFeature,
+  measureTotalArea,
+  describeFeature,
   // Geometry-solver tools (slice B):
   calcFourthCorner: calcFourthCornerTool,
   calcPointFromBearingDistance: calcPointFromBearingDistanceTool,

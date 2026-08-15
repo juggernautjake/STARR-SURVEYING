@@ -178,6 +178,8 @@ describe('proposeFromPrompt — tool_use translation', () => {
         // C35 — the MODIFY family, likewise arriving here without this file being touched for any
         // reason other than the assertion.
         'moveFeatures', 'rotateFeatures', 'scaleFeatures', 'mirrorFeatures', 'deleteFeatures',
+        // C36 — read-only measurement, and the LIST equivalent. Nothing here writes.
+        'measureFeature', 'measureTotalArea', 'describeFeature',
         // Solver tools are advertised to the model so it can use
         // them mid-conversation; they just never become proposals.
         'bowditchAdjust', 'calcFourthCorner',

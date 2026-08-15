@@ -77,6 +77,25 @@ export function computeFeatureArea(feature: Feature): FeatureAreaResult {
 
   switch (g.type) {
     case 'POLYGON': {
+      // C36 — a "circular polygon" is a POLYGON carrying parametric `circle` (or `ellipse`) data
+      // and NO vertices. That is this codebase's established representation — the renderer draws it
+      // as a circle, and the DXF writer emits a CIRCLE entity for it, both saying so in comments —
+      // and this function measured it as **zero square feet**, because it went straight to the
+      // shoelace over an empty vertex list.
+      //
+      // Found by C36's measurement tool, on geometry C34's `drawCircle` had just taught the AI to
+      // create. A circle reporting no area is the kind of wrong that reaches an acreage: it is not
+      // an error, it is a number.
+      if (g.circle && Number.isFinite(g.circle.radius) && g.circle.radius > 0) {
+        const sqft = Math.PI * g.circle.radius * g.circle.radius;
+        return { squareFeet: sqft, acres: sqft / 43560, method: 'COORDINATE', geometryKind: 'CIRCLE' };
+      }
+      if (g.ellipse
+        && Number.isFinite(g.ellipse.radiusX) && g.ellipse.radiusX > 0
+        && Number.isFinite(g.ellipse.radiusY) && g.ellipse.radiusY > 0) {
+        const sqft = Math.PI * g.ellipse.radiusX * g.ellipse.radiusY;
+        return { squareFeet: sqft, acres: sqft / 43560, method: 'COORDINATE', geometryKind: 'ELLIPSE' };
+      }
       const verts = g.vertices ?? [];
       const r = computeAreaFromPoints2D(verts);
       return { ...r, geometryKind: 'POLYGON' };

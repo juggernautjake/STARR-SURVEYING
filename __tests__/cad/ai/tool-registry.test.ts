@@ -61,6 +61,8 @@ describe('tool-registry — shape', () => {
         'drawRectangle', 'drawCircle', 'drawArc', 'drawText',
         // C35 — the MODIFY family. Id-based rather than selection-based, one undo entry each.
         'moveFeatures', 'rotateFeatures', 'scaleFeatures', 'mirrorFeatures', 'deleteFeatures',
+        // C36 — read-only measurement, and the LIST equivalent. Nothing here writes.
+        'measureFeature', 'measureTotalArea', 'describeFeature',
         // Geometry-solver tools — pure compute, dispatched via the
         // dialogue UI rather than the proposal queue.
         'bowditchAdjust', 'calcFourthCorner',
