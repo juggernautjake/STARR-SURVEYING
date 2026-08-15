@@ -79,7 +79,9 @@ import PointDataViewer from './components/PointDataViewer';
 import RenameConfirmDialog, { type RenameDialogData } from './components/RenameConfirmDialog';
 import TraverseViewer from './components/TraverseViewer';
 import { findNameReferences, planRename, planDuplicate, nameIsTaken } from '@/lib/cad/points/point-rename';
-import { makeBatchEntry } from '@/lib/cad/store';
+import { makeBatchEntry, makeAddFeatureEntry } from '@/lib/cad/store';
+// C29 — a solved curve becomes an ARC feature; the conversion is pure and tested.
+import { curveToFeature } from '@/lib/cad/calculators/place-curve';
 import OrientationDialog from './components/OrientationDialog';
 import DrawingRotationDialog from './components/DrawingRotationDialog';
 import TitleBlockPanel from './components/TitleBlockPanel';
@@ -1606,7 +1608,22 @@ export default function CADLayout() {
 
 
       {/* Curve Calculator dialog */}
-      {showCurveCalculator && <CurveCalculator onClose={() => setShowCurveCalculator(false)} />}
+      {showCurveCalculator && (
+        <CurveCalculator
+          onClose={() => setShowCurveCalculator(false)}
+          // C29 — `onPlace` is optional and `CurveCalculator` renders its "Place on drawing"
+          // button ONLY when it is present. Nothing ever passed it, so the button has never
+          // rendered and the one curve path that creates geometry did not. Undoable, on the
+          // active layer, with the solved numbers stamped on the feature so a curve table can be
+          // checked against the geometry instead of against a memory of what was typed.
+          onPlace={(curve) => {
+            const layerId = useDrawingStore.getState().activeLayerId;
+            const feature = curveToFeature(curve, layerId);
+            useDrawingStore.getState().addFeature(feature);
+            useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));
+          }}
+        />
+      )}
 
       {/* cad-calculator-suite Slice 4 — new calculator suite modal.
           Picker switches between registered calculators; each one's
