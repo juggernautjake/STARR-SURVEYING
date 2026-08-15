@@ -36,6 +36,7 @@ import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
 import FieldWorkView from '../../components/jobs/FieldWorkView';
 import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
+import JobInstructionsPanel from '../../components/jobs/JobInstructionsPanel';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import Tooltip from '../../research/components/Tooltip';
 import { withAlpha } from '@/lib/admin/color-alpha';
@@ -842,6 +843,11 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'fieldwork' && (
+          <>
+          {/* C0c — RPLS-authored instructions, rehomed from the Work Mode field-crew shell (D8).
+              They belong to the job, not to a shell, and they sit on Field Work because that is who
+              they are addressed to. */}
+          <JobInstructionsPanel jobId={jobId} />
           <FieldWorkView
             jobId={jobId}
             points={fieldData}
@@ -863,6 +869,7 @@ export default function JobDetailPage() {
               totalHours: job.total_hours,
             } as JobContext}
           />
+          </>
         )}
 
         {activeTab === 'files' && (
