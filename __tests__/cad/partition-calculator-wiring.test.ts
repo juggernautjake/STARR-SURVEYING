@@ -84,8 +84,10 @@ describe('it reports the miss', () => {
   it('stamps the ACHIEVED area on the placed line, not the requested one', () => {
     // A cut line labelled with the number that was asked for is precisely the failure this
     // calculation exists to avoid.
-    expect(src).toMatch(/calcAreaSqft: Math\.round\(result\.achievedArea \* 1000\)/);
-    expect(src).not.toMatch(/calcAreaSqft:[^\n]*target/);
+    // C30 — the shared derivation model puts requested and achieved on opposite sides, which is
+    // exactly the split this calculation turns on, so the assertion follows it there.
+    expect(src).toMatch(/achievedSqft: Math\.round\(result\.achievedArea \* 1000\)/);
+    expect(src).toMatch(/inputs: \{[\s\S]{0,200}requestedSqft/);
   });
 });
 

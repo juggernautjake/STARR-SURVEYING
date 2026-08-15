@@ -20,6 +20,7 @@
 import type { CurveParameters, Feature, ArcGeometry } from '../types';
 import { generateId } from '../types';
 import { DEFAULT_FEATURE_STYLE } from '../constants';
+import { stampDerivation } from '../derivation';
 
 /**
  * Arc geometry for a solved curve.
@@ -74,15 +75,25 @@ export function curveToFeature(
     geometry: { type: 'ARC', arc: curveToArcGeometry(curve) },
     layerId,
     style: { ...DEFAULT_FEATURE_STYLE },
-    properties: {
-      calcRadius: round(curve.R),
-      calcArcLength: round(curve.L),
-      calcChord: round(curve.C),
-      calcDeltaDeg: round((curve.delta * 180) / Math.PI),
-      calcTangent: round(curve.T),
-      calcDirection: curve.direction,
-      calcSource: 'CURVE_CALCULATOR',
-    },
+    // C30 — one derivation vocabulary. This shipped in C29 with its own ad-hoc `calc*` keys, and
+    // by the end of that slice run four surfaces had each invented a different set. The drift was
+    // introduced by the slices fixing the gap, which is the argument for the shared model.
+    properties: stampDerivation({}, {
+      method: 'CURVE_CALCULATOR',
+      inputs: {
+        radius: round(curve.R),
+        deltaDeg: round((curve.delta * 180) / Math.PI),
+        direction: curve.direction,
+      },
+      // Solved, not given — and labelled as such, because "R 200, L 209.44" tells a reader nothing
+      // about which was which, and on a plat under examination that is the only question.
+      outputs: {
+        arcLength: round(curve.L),
+        chord: round(curve.C),
+        tangent: round(curve.T),
+      },
+      at: new Date().toISOString(),
+    }),
   };
 }
 

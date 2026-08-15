@@ -29,6 +29,7 @@ import {
   computeClothoidSpiral,
 } from '@/lib/cad/geometry/compound-curve';
 import { curveToArcGeometry, curveToFeature } from '@/lib/cad/calculators/place-curve';
+import { readDerivation } from '@/lib/cad/derivation';
 import type { CurveParameters } from '@/lib/cad/types';
 
 /** A curve solved the way the calculator solves one: 200 ft radius, 60° delta, deflecting right,
@@ -118,19 +119,23 @@ describe('curve → feature', () => {
     // A curve table can then be checked against the geometry rather than against a memory of what
     // was typed. Not provenance — C30 is where a derivation becomes a field a viewer reads back —
     // but the closest thing the product has today.
-    const c = sample();
-    const p = curveToFeature(c, 'L1').properties;
-    expect(p.calcRadius).toBe(200);
-    expect(p.calcDeltaDeg).toBe(60);
-    expect(p.calcArcLength).toBeCloseTo(209.44, 1);
-    expect(p.calcDirection).toBe('RIGHT');
-    expect(p.calcSource).toBe('CURVE_CALCULATOR');
+    // C30 moved these onto the shared derivation model, and the move sharpened the assertion: the
+    // radius and delta were GIVEN, the arc length was SOLVED, and the two now live on opposite
+    // sides where a reader can tell which is which.
+    const d = readDerivation(curveToFeature(sample(), 'L1').properties)!;
+    expect(d.method).toBe('CURVE_CALCULATOR');
+    expect(d.inputs.radius).toBe(200);
+    expect(d.inputs.deltaDeg).toBe(60);
+    expect(d.inputs.direction).toBe('RIGHT');
+    expect(d.outputs!.arcLength).toBeCloseTo(209.44, 1);
+    expect(d.inputs.arcLength).toBeUndefined();
   });
 
   it('rounds to survey feet', () => {
     // Raw floats put `132.48000000000002` in a curve table, which reads as a precision claim
     // nobody made.
-    for (const [k, v] of Object.entries(curveToFeature(sample(), 'L1').properties)) {
+    const d = readDerivation(curveToFeature(sample(), 'L1').properties)!;
+    for (const [k, v] of [...Object.entries(d.inputs), ...Object.entries(d.outputs ?? {})]) {
       if (typeof v !== 'number') continue;
       expect(String(v).split('.')[1]?.length ?? 0, k).toBeLessThanOrEqual(3);
     }

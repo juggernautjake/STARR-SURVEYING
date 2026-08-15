@@ -19,6 +19,7 @@ import {
 import { partitionByDirection, partitionFromHinge, polygonArea } from '@/lib/cad/geometry/partition';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { generateId } from '@/lib/cad/types';
+import { stampDerivation } from '@/lib/cad/derivation';
 import type { Feature, Point2D } from '@/lib/cad/types';
 
 type Mode = 'DIRECTION' | 'HINGE';
@@ -89,14 +90,25 @@ export default function PartitionCalculator() {
       geometry: { type: 'LINE', start: result.cutLine[0], end: result.cutLine[1] },
       layerId,
       style: { ...DEFAULT_FEATURE_STYLE },
-      properties: {
-        calcSource: 'PARTITION',
-        // The ACHIEVED area, not the requested one. A cut line labelled with the number that was
-        // asked for is the failure mode this whole calculation exists to avoid.
-        calcAreaSqft: Math.round(result.achievedArea * 1000) / 1000,
-        calcAreaAcres: Math.round((result.achievedArea / SQFT_PER_ACRE) * 100000) / 100000,
-        calcMode: mode,
-      },
+      // C30 — the shared derivation vocabulary, and the split it enforces is exactly the one this
+      // calculation turns on: what was ASKED for is an input, what was ACHIEVED is an output. A cut
+      // line labelled with the requested area is the failure the whole calculation exists to avoid,
+      // and keeping both on the feature is what lets a reader check the miss years later.
+      properties: stampDerivation({}, {
+        method: 'PARTITION',
+        inputs: {
+          mode,
+          requestedSqft: Math.round((unit === 'ACRES' ? Number(target) * SQFT_PER_ACRE : Number(target)) * 1000) / 1000,
+          ...(mode === 'DIRECTION' ? { cutBearingDeg: Number(bearing) } : {}),
+        },
+        outputs: {
+          achievedSqft: Math.round(result.achievedArea * 1000) / 1000,
+          achievedAcres: Math.round((result.achievedArea / SQFT_PER_ACRE) * 100000) / 100000,
+          remainderSqft: Math.round((totalSqft - result.achievedArea) * 1000) / 1000,
+        },
+        at: new Date().toISOString(),
+        sourceIds: parcel ? [parcel.f.id] : undefined,
+      }),
     };
     useDrawingStore.getState().addFeature(feature);
     useUndoStore.getState().pushUndo(makeAddFeatureEntry(feature));

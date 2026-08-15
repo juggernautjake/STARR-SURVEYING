@@ -143,8 +143,10 @@ describe('placement', () => {
   });
 
   it('stamps the solved numbers on what it draws', () => {
-    expect(src).toMatch(/calcSource: 'SPIRAL_CALCULATOR'/);
-    expect(src).toMatch(/calcSpiralA/);
+    expect(src).toMatch(/method: 'SPIRAL'/);
+    // C30 — the spiral parameter A is SOLVED from R and L, so it belongs with the outputs. A
+    // reader asking what was given must not be handed a derived quantity in the same list.
+    expect(src).toMatch(/outputs: { spiralParameterA/);
   });
 
   it('refuses impossible input instead of drawing NaN', () => {

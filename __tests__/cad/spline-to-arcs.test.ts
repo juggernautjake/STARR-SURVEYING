@@ -196,7 +196,7 @@ describe('it is reachable', () => {
   });
 
   it('records the deviation, because the fit is an approximation', () => {
-    expect(src).toMatch(/calcMaxDeviation/);
+    expect(src).toMatch(/outputs: { maxDeviation/);
     expect(src).toMatch(/max deviation/);
   });
 

@@ -43,6 +43,7 @@ import {
 import { hasProvenance } from '@/lib/cad/ai/provenance';
 // C29 — the conversion C27 found exported and called by nothing.
 import { convertSplineGeometryToArcs } from '@/lib/cad/geometry/spline-to-arc';
+import { stampDerivation, readDerivation, describeDerivation } from '@/lib/cad/derivation';
 import { useAIConversationsStore } from '@/lib/cad/store/ai-conversations-store';
 import {
   copyToClipboard,
@@ -460,12 +461,17 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
         : { type: 'LINE', start: seg.start, end: seg.end },
       layerId: f.layerId,
       style: { ...f.style },
-      properties: {
-        ...f.properties,
-        calcSource: 'SPLINE_TO_ARCS',
+      // C30 — the shared derivation vocabulary, and `sourceIds` earns its keep here: these arcs
+      // came FROM a specific spline that no longer exists, and that lineage is the only way to
+      // answer "where did this curve come from" once the original is gone.
+      properties: stampDerivation(f.properties, {
+        method: 'SPLINE_TO_ARCS',
+        inputs: { tolerance: 0.01, segments: result.segments.length },
         // The fit is an approximation and says so, in the units of the drawing.
-        calcMaxDeviation: Math.round(result.maxDeviation * 100000) / 100000,
-      },
+        outputs: { maxDeviation: Math.round(result.maxDeviation * 100000) / 100000 },
+        at: new Date().toISOString(),
+        sourceIds: [f.id],
+      }),
     }));
 
     const ops: UndoOperation[] = [
@@ -1393,6 +1399,43 @@ export default function FeatureContextMenu({ x, y, worldX, worldY, featureId, on
       },
     });
     items.splice(1, 0, { separator: true, id: 'whyAi_sep' });
+  }
+
+  // C30 — "How was this made?" for CALCULATED geometry.
+  //
+  // The AI half above has had this since Phase 6. The calculated half had nothing, and a calculated
+  // point that cannot say what it was calculated FROM is indistinguishable from a point somebody
+  // typed — which on a survey deliverable is the whole question. It is the difference between a
+  // corner solved from two record calls and a corner that was moved because it looked wrong.
+  //
+  // Deliberately a separate row from the AI one rather than a merged "explain this": they answer
+  // different questions with different evidence, and folding them together would mean neither
+  // answer could be as specific as it should be.
+  if (feature) {
+    const derivation = readDerivation(feature.properties);
+    if (derivation) {
+      const d = describeDerivation(derivation);
+      const lines = [
+        d.title,
+        ...(d.inputs.length ? ['', 'Given:', ...d.inputs.map(([k, v]) => `  ${k}: ${v}`)] : []),
+        ...(d.outputs.length ? ['', 'Solved:', ...d.outputs.map(([k, v]) => `  ${k}: ${v}`)] : []),
+        ...(derivation.at ? ['', `Computed ${derivation.at}`] : []),
+      ];
+      items.unshift({
+        id: 'howMade',
+        label: `How was this made? (${d.title})`,
+        icon: <Slash size={12} />,
+        action: () => {
+          // The command bar, because that is where every other CAD answer in this product is
+          // already read, and a new modal for six lines of text would be a place to look that
+          // nobody has learned yet.
+          window.dispatchEvent(new CustomEvent('cad:commandOutput', {
+            detail: { text: lines.join('\n') },
+          }));
+        },
+      });
+      items.splice(1, 0, { separator: true, id: 'howMade_sep' });
+    }
   }
 
   // §32.9 — "Ask AI about this…" row. Available on every

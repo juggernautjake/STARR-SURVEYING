@@ -25,6 +25,7 @@ import {
 import { curveToFeature } from '@/lib/cad/calculators/place-curve';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
 import { generateId } from '@/lib/cad/types';
+import { stampDerivation } from '@/lib/cad/derivation';
 import type { Feature, UndoOperation } from '@/lib/cad/types';
 
 type Mode = 'COMPOUND' | 'REVERSE' | 'SPIRAL';
@@ -98,13 +99,21 @@ export default function AdvancedCurveCalculator() {
         geometry: { type: 'POLYLINE', vertices: pts },
         layerId,
         style: { ...DEFAULT_FEATURE_STYLE },
-        properties: {
-          calcSource: 'SPIRAL_CALCULATOR',
-          calcRadius: solved.spiral.radiusEnd,
-          calcLength: solved.spiral.length,
-          calcSpiralA: Math.round(solved.spiral.A * 1000) / 1000,
-          calcDirection: dir,
-        },
+        // C30 — the shared derivation vocabulary. This shipped with its own `calc*` keys one slice
+        // ago; four surfaces had each invented a different set by the end of C29.
+        properties: stampDerivation({}, {
+          method: 'SPIRAL',
+          inputs: {
+            radius: solved.spiral.radiusEnd,
+            length: solved.spiral.length,
+            direction: dir,
+            tangentBearingDeg: num(brg)!,
+          },
+          // A is solved from R and L, so it belongs with the outputs — a reader asking "what was
+          // given?" must not be handed a derived quantity in the same list.
+          outputs: { spiralParameterA: Math.round(solved.spiral.A * 1000) / 1000 },
+          at: new Date().toISOString(),
+        }),
       });
     } else {
       const pair = solved.kind === 'COMPOUND'
