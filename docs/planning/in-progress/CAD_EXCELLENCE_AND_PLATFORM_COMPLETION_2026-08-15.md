@@ -181,18 +181,44 @@ product and break the greeting banner the owner asked in the same breath to keep
 So: **retire the Work Mode destination; relocate clock + activity tags to `lib/time-tracking/`** so
 the folder name stops implying a dependency that was never real.
 
+#### D8 — The shell is disposable; the ten things inside it are not. Rehome, then delete.
+
+**Owner decision, 2026-08-15: rehome first, then delete.** Nothing is lost.
+
+The premise for retiring Work Mode — Quick Actions makes navigation fast — is exactly right about
+the *shell*. It does not cover what the Field Crew workspace actually contains. Traced on
+2026-08-15, `FieldCrewWorkspace.tsx` is **14 tabs**, and most have **no other entry point in the
+product**:
+
+| Capability | Alternative entry today |
+|---|---|
+| **Mileage capture** | ❌ None. The `mileage-tracker` hub widget reads `/api/admin/mileage?summary=1` — it *displays* a total and cannot record a trip. Mileage feeds financials. |
+| **Job Instructions** (RPLS-authored, read + save) | ❌ None |
+| **Field Notes**, **Job Media**, **Job Files** | ❌ None in this shell |
+| **Field AI Assistant** | ❌ `/api/admin/work-mode/assistant` has exactly one caller |
+| **Surveying Tools** (traverse / angle math), **Field Calculator** | ❌ None |
+| Job picker, job summary, tap-to-call contacts | ✅ Reachable from the normal job pages |
+
+So the deletion is **last**, not first. Each capability gets a home on a normal admin page or a hub
+widget, and only then does the shell go.
+
 | # | Slice | What it does |
 |---|---|---|
-| **C0a** | Move clock + activity tags out of `lib/work-mode/` | `clock-session`, `clock-modals`, `activity-tags`, `use-activity-tags` → `lib/time-tracking/`. Pure move plus import updates across `ClockInPill`, `HubGreeting`, the Quick Actions widget and `/api/admin/activity-tags`. **Nothing behavioural changes.** Done first so the retirement that follows cannot take time tracking with it. |
-| **C0b** | Retire the Work Mode destination | Delete `app/admin/work-mode/**`, `work-mode-store.ts`, `WorkModePrompt.tsx`. Remove the route-registry entries (7 routes) so the nav, ⌘K palette and the alignment audit all stop listing them. Remove every entry-point button, **for all roles**. |
-| **C0c** | Catch what pointed at it | Redirect or remove any remaining link, badge, notification target, or saved Quick Action whose href was a `/admin/work-mode/*` route. A saved custom Quick Action pointing at a deleted page is a dead tile — `resolveActions` drops unknown *ids*, but a custom link stores a raw href and will happily 404. |
-| **C0d** | Verify time tracking survived | Clock in and out from the top-bar pill **and** from the Quick Actions tile; confirm a `time_logs` row lands with the right hours, job and activity tags. This is the slice that proves D7 was applied and not merely written down. |
-| **C0e** | Greeting banner — restyle | `app/admin/me/components/HubGreeting.tsx`. Keep what it says (hello, the date, and the rest); make it friendlier and more appealing while staying professional. Desktop **and** mobile layouts, both designed rather than one reflowed. |
-| **C0f** | Quick Actions — finish the editing UI | The model and editor shipped in A13 (`lib/hub/custom-quick-actions.ts` + the settings panel: label, destination from the route registry or any address, icon, colour, tooltip, add/edit/delete, href allow-list). What it still lacks: **reordering custom links against catalog ones is the only ordering control**, there is no duplicate, and the icon set is 16 fixed glyphs. Fill those in. |
-| **C0g** | Widget editing — audit every widget's settings form | One pass over every registered widget: does its settings form expose everything its content model holds? The Quick Actions form is the reference for completeness. Produce the gap list before fixing. |
-| **C0h** | Widget editing — close the gaps from C0g | |
-| **C0i** | Widget editing on mobile | `lib/hub/components/MobileWidgetSettings.tsx` and `GridEditor.tsx` are separate surfaces from the desktop editor. Every capability available on desktop — add, remove, reorder, resize, configure — must be reachable on a phone. Drag-reorder and resize are the ones that typically have no touch equivalent. |
-| **C0j** | Drive the hub end to end at both widths | Add a widget, configure it, reorder, resize, delete, add a custom Quick Action, click through to its page — at 1440 and at 390. The A13 pass found the Save button unclickable under the FAB dock and Escape not closing the options panel; neither was visible to any measurement. |
+| **C0a** | ✅ **DONE** — move clock + activity tags out of `lib/work-mode/` | `clock-session`, `clock-modals`, `activity-tags`, `use-activity-tags` → `lib/time-tracking/`, with their tests. Imports updated across `ClockInPill`, `HubGreeting`, the Quick Actions widget and `/api/admin/activity-tags`. It left `lib/work-mode/` holding exactly one file, which confirmed D7's split was the real boundary. |
+| **C0b** | Rehome **mileage capture** | The highest-stakes one: it feeds financials and the hub widget only displays a summary. Give it a real capture surface (extend the `mileage-tracker` widget, or a page under Work) and verify a trip saves through `/api/admin/mileage`. |
+| **C0c** | Rehome **job instructions** | Read + save, onto the job page where the rest of a job's detail already lives. |
+| **C0d** | Rehome **field notes, job media, job files** | Same destination logic — these are per-job records and the job page is their home. Check for overlap with the existing files/media surfaces before building a second one. |
+| **C0e** | Rehome the **field AI assistant** | Decide whether it survives as its own surface or folds into the existing admin AI entry point. `/api/admin/work-mode/assistant` gets renamed out of the work-mode namespace either way. |
+| **C0f** | Rehome **surveying tools + field calculator** | Traverse/angle math already exists in `lib/cad` and the worker survey stack; check whether this is a third copy before moving it. |
+| **C0g** | Retire the Work Mode destination | *Only now.* Delete `app/admin/work-mode/**`, `work-mode-store.ts`, `WorkModePrompt.tsx`, the `e2e/work-mode.spec.ts` and `__tests__/work-mode/**` suites, and the `WorkModeHarnessMount`. Remove the **7 route-registry entries** so the nav, ⌘K palette and the audit stop listing them, drop `/admin/work-mode` from `CHROME_BYPASS_PREFIXES` and the bundle-gate case, and remove every entry-point button **for all roles**. |
+| **C0h** | Catch what pointed at it | Any remaining link, badge, notification target, or **saved custom Quick Action** whose href was `/admin/work-mode/*`. `resolveActions` drops unknown *ids*, but a custom link stores a raw href — it will 404 rather than disappear. |
+| **C0i** | Verify time tracking survived | Clock in and out from the top-bar pill **and** the Quick Actions tile; confirm a `time_logs` row lands with the right hours, job and activity tags. Proves D7 was applied, not merely written down. |
+| **C0j** | Greeting banner — restyle | `app/admin/me/components/HubGreeting.tsx`. Keep what it says (hello, the date, and the rest); make it friendlier and more appealing while staying professional. Desktop **and** mobile layouts, both designed rather than one reflowed. |
+| **C0k** | Quick Actions — finish the editing UI | The model and editor shipped in A13 (`lib/hub/custom-quick-actions.ts` + the settings panel: label, destination from the route registry or any address, icon, colour, tooltip, add/edit/delete, href allow-list). What it still lacks: **reordering custom links against catalog ones is the only ordering control**, there is no duplicate, and the icon set is 16 fixed glyphs. Fill those in. |
+| **C0l** | Widget editing — audit every widget's settings form | One pass over every registered widget: does its settings form expose everything its content model holds? The Quick Actions form is the reference for completeness. Produce the gap list before fixing. |
+| **C0m** | Widget editing — close the gaps from C0l | |
+| **C0n** | Widget editing on mobile | `lib/hub/components/MobileWidgetSettings.tsx` and `GridEditor.tsx` are separate surfaces from the desktop editor. Every capability available on desktop — add, remove, reorder, resize, configure — must be reachable on a phone. Drag-reorder and resize are the ones that typically have no touch equivalent. |
+| **C0o** | Drive the hub end to end at both widths | Add a widget, configure it, reorder, resize, delete, add a custom Quick Action, click through to its page — at 1440 and at 390. The A13 pass found the Save button unclickable under the FAB dock and Escape not closing the options panel; neither was visible to any measurement. |
 
 ### P1 — Foundations: measure, then make it fast
 
@@ -349,16 +375,21 @@ half-built schema and a merge of half-finished work are both hard to walk back.
 | Slice | State |
 |---|---|
 | **A14** CAD narrow-width (prerequisite, done) | ✅ Committed `140e37463`. 390px **28 → 2**; 1440px unchanged at 2. Three defects, not 28: both bars were non-wrapping flex rows (Save/Exit up to 156px off-screen, status strip 463px off); `overflow-hidden` on the status bar was clipping the snap popover **at every width, desktop included**; and docked panels claimed 436px of a 390px screen, leaving the canvas **zero width**. Fixed by wrapping (not `overflow-x: auto`, which would have clipped the same popovers) and by floating the docks over the canvas below 900px. |
-| C0a Move clock + tags to `lib/time-tracking/` | ⬜ |
-| C0b Retire the Work Mode destination | ⬜ |
-| C0c Catch what pointed at it | ⬜ |
-| C0d Verify time tracking survived | ⬜ |
-| C0e Greeting banner restyle (desktop + mobile) | ⬜ |
-| C0f Quick Actions — finish the editing UI | ⬜ |
-| C0g Widget settings completeness audit | ⬜ |
-| C0h Close the widget settings gaps | ⬜ |
-| C0i Widget editing on mobile | ⬜ |
-| C0j Drive the hub at 1440 + 390 | ⬜ |
+| C0a Move clock + tags to `lib/time-tracking/` | ✅ `642349b39`. Pure move + import rewrites; tsc clean, 52 tests pass. Left `lib/work-mode/` holding one file, confirming D7's boundary. |
+| C0b Rehome mileage capture | ⬜ |
+| C0c Rehome job instructions | ⬜ |
+| C0d Rehome field notes / media / files | ⬜ |
+| C0e Rehome the field AI assistant | ⬜ |
+| C0f Rehome surveying tools + calculator | ⬜ |
+| C0g Retire the Work Mode destination | ⬜ |
+| C0h Catch what pointed at it | ⬜ |
+| C0i Verify time tracking survived | ⬜ |
+| C0j Greeting banner restyle (desktop + mobile) | ⬜ |
+| C0k Quick Actions — finish the editing UI | ⬜ |
+| C0l Widget settings completeness audit | ⬜ |
+| C0m Close the widget settings gaps | ⬜ |
+| C0n Widget editing on mobile | ⬜ |
+| C0o Drive the hub at 1440 + 390 | ⬜ |
 | C1 Re-measure frame budget | ⬜ |
 | C2 Profile the render path | ⬜ |
 | C3 Fix top cost, repeat | ⬜ |
