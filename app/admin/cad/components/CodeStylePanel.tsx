@@ -25,6 +25,7 @@ import SymbolPicker from './SymbolPicker';
 import LineTypePicker, { LineTypePreview } from './LineTypePicker';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import ColorSwatchInput from './ColorSwatchInput';
+import { listTextStyles } from '@/lib/cad/styles/text-style-library';
 import type { CodeStyleOverride } from '@/lib/cad/store';
 
 interface CodeStylePanelProps {
@@ -40,6 +41,8 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
   const layers = useDrawingStore((s) => s.document.layerOrder);
   const layerById = useDrawingStore((s) => s.document.layers);
   const customLineTypes = useDrawingStore((s) => s.document.customLineTypes);
+  const customTextStyles = useDrawingStore((s) => s.document.customTextStyles);
+  const textStyles = useMemo(() => listTextStyles(customTextStyles ?? []), [customTextStyles]);
 
   const [query, setQuery] = useState('');
   const [symbolPickerFor, setSymbolPickerFor] = useState<string | null>(null);
@@ -108,6 +111,10 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
                 <th className="px-3 py-2 font-semibold w-32">Line Type</th>
                 <th className="px-3 py-2 font-semibold w-16">Color</th>
                 <th className="px-3 py-2 font-semibold w-32">Layer</th>
+                {/* C22 — the third style axis. C18–C21 gave text a model, a picker and an editor;
+                    without a column here a code could drive the symbol and the line type but not
+                    the typography of the labels it produces. */}
+                <th className="px-3 py-2 font-semibold w-36">Text Style</th>
                 <th className="px-3 py-2 font-semibold w-10"></th>
               </tr>
             </thead>
@@ -197,6 +204,30 @@ export default function CodeStylePanel({ open, onClose }: CodeStylePanelProps) {
                           ))}
                         </select>
                         {fieldsModified('layerId') && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                        )}
+                      </div>
+                    </td>
+                    {/* Text style (C22) */}
+                    <td className="px-3 py-1.5">
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="bg-gray-700 text-white rounded px-1 py-0.5 text-[10px] outline-none border border-gray-600 focus:border-blue-500 max-w-full"
+                          value={m.textStyleId ?? ''}
+                          aria-label={`Text style for ${m.codeAlpha}`}
+                          onChange={(e) =>
+                            // Empty string clears the override rather than storing '', which would
+                            // resolve as a dangling style id — the same rule PropertyPanel applies
+                            // when detaching a TEXT feature (C20).
+                            setOverride(m.codeAlpha, 'textStyleId', e.target.value || null)
+                          }
+                        >
+                          <option value="">— label default —</option>
+                          {textStyles.map((ts) => (
+                            <option key={ts.id} value={ts.id}>{ts.name}</option>
+                          ))}
+                        </select>
+                        {fieldsModified('textStyleId') && (
                           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
                         )}
                       </div>

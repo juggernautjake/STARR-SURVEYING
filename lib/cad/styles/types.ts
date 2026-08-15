@@ -156,6 +156,13 @@ export interface CodeStyleMapping {
   labelFormat: string;
   labelVisible: boolean;
   layerId: string;
+  /** C22 — the third style axis, now that C18–C21 gave text one. A code that drives the symbol and
+   *  the line type should drive the label's typography too; without this, "a field code list drives
+   *  the drawing's appearance" would be true of two axes out of three.
+   *
+   *  Optional: every mapping built before C22 lacks it, and a required field would make
+   *  `buildDefaultCodeStyleMap` produce a shape that old persisted overrides no longer match. */
+  textStyleId?: string | null;
   isUserModified: boolean;
 }
 

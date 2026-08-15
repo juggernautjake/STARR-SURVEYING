@@ -30,6 +30,8 @@ export type CodeStyleOverride = Partial<
     | 'layerId'
     | 'labelFormat'
     | 'labelVisible'
+    // C22 — a code can name the text style its labels follow, the same way it names their symbol.
+    | 'textStyleId'
   >
 >;
 

@@ -221,7 +221,12 @@ describe('the model has consumers', () => {
 
   it('the canvas resolves before it reads any font field', () => {
     const v = read('app/admin/cad/components/CanvasViewport.tsx');
-    expect(v).toMatch(/const labelStyle = resolveTextLabelStyle\(label\.style, doc\.customTextStyles \?\? \[\]\)/);
+    // C22 inserted a code tier between the label's own choice and the raw fields, so the call now
+    // takes a possibly-substituted style rather than `label.style` verbatim. The invariant this
+    // test exists for is unchanged and still asserted below: nothing in renderLabels reads a raw
+    // font field. (`code-style-connected.test.ts` pins the tier order.)
+    expect(v).toMatch(/const labelStyle = resolveTextLabelStyle\(/);
+    expect(v).toMatch(/doc\.customTextStyles \?\? \[\]/);
     // Scoped to renderLabels, NOT the whole file. The per-label editor further down reads and
     // WRITES `label.style.fontFamily` directly, and must keep doing so — it edits the label's own
     // override, which is a different thing from what gets drawn. A file-wide assertion here would

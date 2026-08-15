@@ -21,6 +21,7 @@ import {
   usePointStore,
   useAnnotationStore,
   useInverseStore,
+  useCodeStyleStore,
   makeAddFeatureEntry,
   makeRemoveFeatureEntry,
   makeBatchEntry,
@@ -180,6 +181,8 @@ import { renderLineWithType } from '@/lib/cad/styles/linetype-renderer';
 import { findSymbol } from '@/lib/cad/styles/symbol-library';
 import { renderSymbol } from '@/lib/cad/styles/symbol-renderer';
 import { resolveLineTypeWithFallback } from '@/lib/cad/styles/linetype-library';
+import { resolveFeatureCodeStyle } from '@/lib/cad/styles/code-style-resolve';
+import type { CodeStyleOverrides } from '@/lib/cad/styles/code-style-resolve';
 import {
   resolveTextLabelStyle,
   effectiveWidthFactor,
@@ -540,6 +543,8 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   const imageCacheDocIdRef = useRef<string | null>(null);
   const lastMouseRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const snapResultRef = useRef<ReturnType<typeof findSnapPoint>>(null);
+  /** C22 — the surveyor's code-to-style overrides, refreshed once per frame in `renderAll`. */
+  const codeStyleOverridesRef = useRef<CodeStyleOverrides>({});
   // INVERSE tool — the base point (and its snapped name, if any) captured on
   // the first click, held until the second click completes the two-point shot.
   const inverseFromRef = useRef<{ point: { x: number; y: number }; pointName: string | null } | null>(null);
@@ -2015,6 +2020,9 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     simplifyEpsilon: number = 0
   ) {
     g.clear();
+    // C22 — the code tier of the cascade, resolved once for this feature. See the note at the
+    // line-type resolution below for what it fixes.
+    const codeStyle = resolveFeatureCodeStyle(feature, codeStyleOverridesRef.current);
     // Phase 6 §11 — AI-confidence visual treatment. Features
     // applied from the AI review queue carry a numeric
     // `aiConfidenceTier` property (1-5) that we use here to
@@ -2029,7 +2037,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         ? (feature.properties.aiConfidenceTier as number)
         : null;
     const baseColor = parseInt(
-      (feature.style.color ?? '#000000').replace('#', ''),
+      // C22 — feature override → point code → black. The layer tier is deliberately NOT inserted
+      // here: `feature.style.color` is written at creation from the layer, so adding a layer
+      // fallback would change the colour of features whose creation-time layer has since been
+      // recoloured — a behaviour change well outside this slice.
+      (feature.style.color ?? codeStyle?.lineColor ?? '#000000').replace('#', ''),
       16
     );
     const color =
@@ -2047,17 +2059,21 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     // hairline). Never caps bold weights.
     const weight = Math.max(
       MIN_FEATURE_LINE_PX,
-      (feature.style.lineWeight ?? 0.75) * aiWeightMultiplier,
+      (feature.style.lineWeight ?? codeStyle?.lineWeight ?? 0.75) * aiWeightMultiplier,
     );
     const alpha = feature.style.opacity;
     const geom = feature.geometry;
     const { zoom } = useViewportStore.getState();
 
-    // Resolve the effective line type (feature override → layer → SOLID)
+    // Resolve the effective line type (feature override → POINT CODE → layer → SOLID)
     // so dashed/dotted/symbol patterns actually render on the canvas.
     const doc = useDrawingStore.getState().document;
+    // C22 — the code tier. This is the missing middle of the cascade `style-cascade.ts` has
+    // documented since Phase 3: the Code-to-Style panel was fully built, reachable and persisted,
+    // and NOTHING read it. A surveyor could set FN01 to Barbed Wire in red and watch the drawing
+    // not change, forever, with nothing logged.
     const resolvedLineTypeId =
-      feature.style.lineTypeId ?? doc.layers[feature.layerId]?.lineTypeId ?? 'SOLID';
+      feature.style.lineTypeId ?? codeStyle?.lineTypeId ?? doc.layers[feature.layerId]?.lineTypeId ?? 'SOLID';
     const lineType = resolveLineTypeWithFallback(resolvedLineTypeId, doc.customLineTypes);
     const drawingScale = doc.settings.drawingScale ?? 50;
     // A line type may carry its own thickness/color; honor it when the
@@ -2092,14 +2108,17 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // (e.g. an iron-rod monument assigned by point code), render
         // that glyph from the symbol library; otherwise fall back to
         // the simple crosshair.
-        const symbolId = feature.style.symbolId;
+        // C22 — feature override → point code. A shot coded FN01 now draws the symbol the
+        // Code-to-Style panel assigns to FN01, which is the entire premise of a code list.
+        const symbolId = feature.style.symbolId ?? codeStyle?.symbolId ?? null;
         const symbol = symbolId
           ? findSymbol(symbolId, useDrawingStore.getState().document.customSymbols ?? [])
           : undefined;
         if (symbol) {
+          const codeSize = codeStyle?.symbolSize;
           const symPx = feature.style.symbolSize && feature.style.symbolSize > 0
             ? feature.style.symbolSize
-            : 14;
+            : (codeSize && codeSize > 0 ? codeSize : 14);
           renderSymbol(g, symbol, sx, sy, symPx, feature.style.symbolRotation ?? 0, color, alpha);
         } else {
           // Plain "file point" crosshair. Size is user-tunable via the
@@ -4359,7 +4378,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         // once, before anything reads a font field, so there is exactly one place where "which
         // font is this label" is answered. Colour is deliberately not part of a text style, so it
         // still comes from the label / layer below.
-        const labelStyle = resolveTextLabelStyle(label.style, doc.customTextStyles ?? []);
+        // C22 — a label with no style of its own falls through to whatever style this feature's
+        // POINT CODE names, before falling through to the raw fields. Same tier order as the
+        // geometry above: explicit choice beats the code, the code beats the default.
+        const labelCodeStyleId = label.style.textStyleId
+          ? null
+          : resolveFeatureCodeStyle(feature, codeStyleOverridesRef.current)?.textStyleId ?? null;
+        const labelStyle = resolveTextLabelStyle(
+          labelCodeStyleId ? { ...label.style, textStyleId: labelCodeStyleId } : label.style,
+          doc.customTextStyles ?? [],
+        );
         const textColor = isHovered ? HOVER_LABEL_TEXT_COLOR : (label.style.color ?? layer.color ?? '#000000');
         // Bold the hovered feature's labels for an unmistakable cue.
         const labelFontWeight = isHovered ? 'bold' : labelStyle.fontWeight;
@@ -8664,6 +8692,11 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
   // Master render function
   // ─────────────────────────────────────────────
   function renderAll() {
+    // C22 — refresh the code-style overrides ONCE per frame rather than per feature. `drawFeature`
+    // runs for every visible feature; a `getState()` in there would be a store read per feature per
+    // frame. Reading here also means no subscription is needed at all: the rAF loop already runs
+    // every frame, so an edit in the Code-to-Style panel is picked up on the next one.
+    codeStyleOverridesRef.current = useCodeStyleStore.getState().overrides;
     // The background is now a grey surround with a white paper rectangle (renderPaper).
     // Keep the PixiJS canvas background as the grey tone so it blends seamlessly.
     const pixi = pixiRef.current;
