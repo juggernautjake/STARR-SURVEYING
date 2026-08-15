@@ -1559,6 +1559,13 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         },
         { separator: true },
         {
+          // C24 — one place that answers "where did my linework go", instead of five flags on four
+          // objects. Sits with the other visibility controls rather than under Survey, because that
+          // is where a surveyor goes when something is missing.
+          label: 'Hidden Items…',
+          action: () => { window.dispatchEvent(new CustomEvent('cad:toggleHiddenItems')); setOpenMenu(null); },
+        },
+        {
           label: showLayerPanel ? 'Hide Layer Panel' : 'Show Layer Panel',
           action: () => useUIStore.getState().toggleLayerPanel(),
         },

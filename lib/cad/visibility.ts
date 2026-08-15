@@ -177,7 +177,7 @@ export function groupHidden(
   });
 }
 
-/** How many features are invisible. The number C25 keeps on screen. */
+/** How many features are invisible. */
 export function countHidden(
   features: Iterable<Feature>,
   layers: Record<string, Layer>,
@@ -187,6 +187,44 @@ export function countHidden(
     if (!visibility(f, layers[f.layerId]).visible) n += 1;
   }
   return n;
+}
+
+/**
+ * C24 — the sixth mechanism, found by building the panel.
+ *
+ * `TextLabel.visible === false` hides a label without touching its feature, so a bearing call can
+ * vanish while the line it annotates stays put. C23 enumerated five ways for a FEATURE to be
+ * invisible and missed this one because it is not on a feature at all; the existing hidden-items
+ * panel already had a whole tab for it.
+ *
+ * Kept separate from `visibility()` rather than folded in, because a hidden label is not a hidden
+ * feature and merging them would make `countHidden` mean two different things at once. A label on
+ * an invisible feature is excluded: it is not independently hidden, and listing it would send the
+ * surveyor to un-hide a label that would still not appear.
+ */
+export function hiddenLabels(
+  features: Iterable<Feature>,
+  layers: Record<string, Layer>,
+): Array<{ featureId: string; labelId: string }> {
+  const out: Array<{ featureId: string; labelId: string }> = [];
+  for (const f of features) {
+    if (!visibility(f, layers[f.layerId]).visible) continue;
+    for (const l of f.textLabels ?? []) {
+      if (l.visible === false) out.push({ featureId: f.id, labelId: l.id });
+    }
+  }
+  return out;
+}
+
+/** Everything invisible, features and labels. The number C25 keeps on screen. */
+export function countAllHidden(
+  features: Iterable<Feature>,
+  layers: Record<string, Layer>,
+): { features: number; labels: number; total: number } {
+  const list = [...features];
+  const f = countHidden(list, layers);
+  const l = hiddenLabels(list, layers).length;
+  return { features: f, labels: l, total: f + l };
 }
 
 /**

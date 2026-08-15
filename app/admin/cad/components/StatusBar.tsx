@@ -10,6 +10,7 @@ import ErrorReportStatusButton from './ErrorReportStatusButton';
 import { DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { listAutosaves } from '@/lib/cad/persistence/autosave';
 import type { SnapType } from '@/lib/cad/types';
+import { countAllHidden } from '@/lib/cad/visibility';
 
 const SNAP_TYPE_INFO: Array<{ type: SnapType; label: string; hint: string }> = [
   { type: 'ENDPOINT',      label: 'Endpoint',      hint: 'Snap to the start / end of any line, polyline, or arc.' },
@@ -100,7 +101,11 @@ export default function StatusBar({ onOpenRecentRecoveries }: StatusBarProps = {
   // state. The Layer panel's "Hidden Items" button is easy to
   // miss; this pill in the status bar makes the count visible
   // and one-click recoverable.
-  const hiddenCount = Object.values(doc.features).filter((f) => f.hidden).length;
+  // C24 — count EVERY way something is invisible, not just the per-feature flag. This counted
+  // "feature.hidden" alone, so a frozen layer swallowing 4,000 features showed no pill at all — the
+  // status bar quietly agreeing that nothing was hidden while the drawing was half gone. The panel
+  // now reports all five reasons; a bar disagreeing with it would be worse than either alone.
+  const hiddenCount = countAllHidden(Object.values(doc.features), doc.layers).total;
 
   // §UX U16 (UX_POLISH §2.4) — "Recover unsaved drawings…" is the
   // 4th File-menu entry, easy to miss. Count IndexedDB autosaves

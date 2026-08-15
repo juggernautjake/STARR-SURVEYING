@@ -8,7 +8,14 @@ import {
   Spline, Circle, Type, Search,
 } from 'lucide-react';
 import { useDrawingStore } from '@/lib/cad/store';
-import type { Feature, TextLabel } from '@/lib/cad/types';
+import type { Feature, Layer, TextLabel } from '@/lib/cad/types';
+import {
+  groupHidden,
+  wouldRevealCount,
+  HIDDEN_REASON_LABEL,
+  HIDDEN_REASON_FIX,
+  type HiddenGroup,
+} from '@/lib/cad/visibility';
 import { inverseBearingDistance, formatBearing } from '@/lib/cad/geometry/bearing';
 import { computeAreaFromPoints2D } from '@/lib/cad/geometry/area';
 
@@ -165,11 +172,92 @@ function HiddenLabelRow({ feature, label }: { feature: Feature; label: TextLabel
   );
 }
 
+/**
+ * C24 — one card per reason, with the control that reverses it.
+ *
+ * The count on the card is what the reversal will ACTUALLY reveal, which is not the size of the
+ * group: a feature hidden individually on a frozen layer is in the frozen group and will not come
+ * back when the layer thaws. Saying "brings back 4,000" and bringing back 3,996 is a small lie that
+ * costs exactly the trust this panel exists to build.
+ */
+function ReasonGroupCard({ group }: { group: HiddenGroup }) {
+  const store = useDrawingStore();
+  const { features, layers } = store.document;
+  const reveals = wouldRevealCount(group, features, layers);
+  const stuck = group.featureIds.length - reveals;
+  const layerName = group.layerId ? (layers[group.layerId]?.name ?? group.layerId) : null;
+
+  function reveal() {
+    if (group.reason === 'feature-hidden') {
+      for (const id of group.featureIds) store.unhideFeature(id);
+      return;
+    }
+    if (!group.layerId) return;
+    if (group.reason === 'layer-frozen') store.updateLayer(group.layerId, { frozen: false });
+    else if (group.reason === 'layer-hidden') store.updateLayer(group.layerId, { visible: true });
+    // A layer at 0 opacity has no previous value to restore — it was saved that way. 1 is the only
+    // honest choice, and the layer panel can dial it back down.
+    else if (group.reason === 'layer-transparent') store.updateLayer(group.layerId, { opacity: 1 });
+  }
+
+  // C24 — a Tailwind border class, rather than the inline hex border this file uses elsewhere. The
+  // inline-hex ratchet caught the copy-paste twice: first the real ones, then this comment, which
+  // had quoted the offending literal and so counted itself. An inline hex cannot be reached by a
+  // token, a media query, the print stylesheet or a contrast audit, and new code should not add to
+  // a count that exists to come down.
+  return (
+    <div
+      className="px-2 py-1.5 border-b border-gray-700 last:border-b-0"
+      data-testid="hidden-reason-group"
+    >
+      <div className="flex items-center gap-1.5">
+        <div className="flex-1 min-w-0">
+          <div className="text-[10px] text-gray-300 truncate">
+            {HIDDEN_REASON_LABEL[group.reason]}
+            {layerName && <span className="text-gray-500"> — {layerName}</span>}
+          </div>
+          <div className="text-[9px] text-gray-500">
+            {group.featureIds.length} feature{group.featureIds.length === 1 ? '' : 's'}
+            {' · brings back '}{reveals}
+            {stuck > 0 && (
+              <span className="text-amber-300/80">
+                {' '}({stuck} also hidden another way)
+              </span>
+            )}
+          </div>
+        </div>
+        <button
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] bg-gray-700 hover:bg-blue-600 text-gray-400 hover:text-white border border-gray-600 hover:border-blue-500 transition-colors shrink-0"
+          onClick={reveal}
+          title={`${HIDDEN_REASON_FIX[group.reason]} — reveals ${reveals} of ${group.featureIds.length}`}
+        >
+          <Eye size={10} />
+          {HIDDEN_REASON_FIX[group.reason]}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function HiddenItemsPanel({ open, onClose }: Props) {
   const store = useDrawingStore();
   const [filter, setFilter] = useState('');
   const [tab, setTab] = useState<'features' | 'labels'>('features');
 
+  // C24 — every reason a feature is invisible, not just `hidden`.
+  //
+  // This panel used to filter `f.hidden === true` and nothing else, so a frozen layer holding 4,000
+  // features made it report **"0 hidden"**. That is the "where did my linework go" failure in its
+  // purest form: the one screen built to answer the question gave the wrong answer, confidently.
+  // D3 predicted exactly this — a panel over one of five flags cannot say what to undo.
+  const reasonGroups = useMemo(
+    () => groupHidden(Object.values(store.document.features), store.document.layers),
+    [store.document.features, store.document.layers],
+  );
+
+  // The `feature-hidden` group keeps the per-item list below (attributes, individual Show), because
+  // those are individually chosen and worth inspecting one at a time. Layer-level groups do not:
+  // listing a frozen layer's 4,000 features individually is what makes a panel unreadable.
   const hiddenFeatures = useMemo(() => {
     return Object.values(store.document.features).filter((f) => f.hidden === true);
   }, [store.document.features]);
@@ -208,7 +296,11 @@ export default function HiddenItemsPanel({ open, onClose }: Props) {
 
   if (!open) return null;
 
-  const totalHidden = hiddenFeatures.length + hiddenLabels.length;
+  // C24 — every mechanism, not just the per-feature flag. The old count was
+  // `hiddenFeatures + hiddenLabels`, which read "0 hidden" while a frozen layer swallowed the
+  // drawing. This is the number C25 will keep on screen, so it has to be the honest one.
+  const totalFeaturesHidden = reasonGroups.reduce((n, g) => n + g.featureIds.length, 0);
+  const totalHidden = totalFeaturesHidden + hiddenLabels.length;
 
   return (
     <div
@@ -274,9 +366,23 @@ export default function HiddenItemsPanel({ open, onClose }: Props) {
       <div className="flex-1 overflow-y-auto">
         {tab === 'features' && (
           <>
+            {/* C24 — reasons first. A surveyor opening this panel is asking "why", and the answer
+                for most missing linework is a layer, not a per-feature flag. */}
+            {reasonGroups.length > 0 && (
+              <div className="border-b border-gray-700">
+                <div className="px-2 py-1 text-[9px] uppercase tracking-wider text-gray-500 bg-gray-800/60">
+                  Why things are hidden
+                </div>
+                {reasonGroups.map((g) => (
+                  <ReasonGroupCard key={`${g.reason}:${g.layerId ?? ''}`} group={g} />
+                ))}
+              </div>
+            )}
             {filteredFeatures.length === 0 ? (
               <div className="px-4 py-8 text-center text-[10px] text-gray-500">
-                No hidden features.
+                {reasonGroups.length === 0
+                  ? 'No hidden features.'
+                  : 'No individually hidden features — everything above is hidden by its layer.'}
               </div>
             ) : (
               filteredFeatures.map((f) => <HiddenFeatureRow key={f.id} feature={f} />)
@@ -304,7 +410,23 @@ export default function HiddenItemsPanel({ open, onClose }: Props) {
           <button
             className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-blue-600 text-gray-300 hover:text-white text-[10px] font-medium rounded border border-gray-600 hover:border-blue-500 transition-colors"
             onClick={() => {
-              hiddenFeatures.forEach((f) => store.unhideFeature(f.id));
+              // C24 — reverse every mechanism, not just the per-feature flag. This button read
+              // "Unhide All" and left a frozen layer frozen, which is the worst kind of control:
+              // it appears to have worked and the drawing is still missing.
+              //
+              // Deliberately not `reasonGroups.forEach(reveal)` — the groups were computed against
+              // the current document and each reversal changes it. Flipping the underlying fields
+              // outright is the only version that finishes in one press.
+              for (const l of Object.values(store.document.layers)) {
+                const patch: Partial<Layer> = {};
+                if (l.frozen) patch.frozen = false;
+                if (!l.visible) patch.visible = true;
+                if (l.opacity <= 0) patch.opacity = 1;
+                if (Object.keys(patch).length > 0) store.updateLayer(l.id, patch);
+              }
+              for (const f of Object.values(store.document.features)) {
+                if (f.hidden) store.unhideFeature(f.id);
+              }
               hiddenLabels.forEach(({ feature, label }) =>
                 store.updateTextLabel(feature.id, label.id, { visible: true }),
               );
