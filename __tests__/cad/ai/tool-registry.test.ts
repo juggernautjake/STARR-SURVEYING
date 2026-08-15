@@ -59,6 +59,8 @@ describe('tool-registry — shape', () => {
         // circle emitted as 64 vertices exports as a polyline and measures as the inscribed
         // polygon, which is why these exist rather than more vertex lists.
         'drawRectangle', 'drawCircle', 'drawArc', 'drawText',
+        // C35 — the MODIFY family. Id-based rather than selection-based, one undo entry each.
+        'moveFeatures', 'rotateFeatures', 'scaleFeatures', 'mirrorFeatures', 'deleteFeatures',
         // Geometry-solver tools — pure compute, dispatched via the
         // dialogue UI rather than the proposal queue.
         'bowditchAdjust', 'calcFourthCorner',

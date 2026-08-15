@@ -175,6 +175,9 @@ describe('proposeFromPrompt — tool_use translation', () => {
         // touched for any reason other than the assertion is the point: `claude-proposer` derives
         // its tool list from the registry, so the reach came for free.
         'drawRectangle', 'drawCircle', 'drawArc', 'drawText',
+        // C35 — the MODIFY family, likewise arriving here without this file being touched for any
+        // reason other than the assertion.
+        'moveFeatures', 'rotateFeatures', 'scaleFeatures', 'mirrorFeatures', 'deleteFeatures',
         // Solver tools are advertised to the model so it can use
         // them mid-conversation; they just never become proposals.
         'bowditchAdjust', 'calcFourthCorner',

@@ -31,7 +31,11 @@ import {
   useDrawingStore,
   useUndoStore,
   makeAddFeatureEntry,
+  makeBatchEntry,
 } from '../store';
+// C35 — the MODIFY family transforms points with the same helpers the manual tools use, so an AI
+// move and a dragged move produce identical geometry.
+import { transformFeature, translate, rotate, scale, mirror } from '../geometry/transform';
 import { generateId } from '../types';
 import type { Feature, Layer, Point2D, FeatureStyle } from '../types';
 import { stampProvenance, type AIProvenance } from './provenance';
@@ -1035,6 +1039,275 @@ export const drawText: ToolDefinition<DrawTextArgs, Feature> = {
   },
 };
 
+// ────────────────────────────────────────────────────────────
+// C35 — the MODIFY family
+//
+// Until now every AI tool CREATED something. The AI could draw
+// a fence and could not move it. "Do this to these" — the whole
+// point of C32/C33's scope — had nothing on the other side of
+// the sentence: the scope named features and the vocabulary
+// could only add more.
+//
+// Two decisions run through all of these.
+//
+// **They take ids.** The store's existing operations act on the
+// live selection, which is the wrong coupling for a tool: the
+// AI would be acting on whatever the surveyor happened to have
+// highlighted at execution time rather than on the scope the
+// request named — the exact drift C32 spent a slice removing,
+// reintroduced one layer down.
+//
+// **One undo entry per call.** An AI request that moves forty
+// features must reverse in one press (C37). A per-feature entry
+// would leave the surveyor pressing undo forty times and
+// wondering when to stop.
+// ────────────────────────────────────────────────────────────
+
+/** Load the named features, refusing the whole call if any is missing or on a locked layer.
+ *
+ *  All-or-nothing on purpose: a partial modify is the worst outcome available here. Moving 38 of 40
+ *  features leaves the drawing in a state nobody asked for, and the two that stayed behind are
+ *  invisible against a background of 38 that moved. */
+function loadModifiable(ids: unknown): ToolResult<Feature[]> {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { ok: false, reason: 'ids must be a non-empty array of feature ids.' };
+  }
+  const store = useDrawingStore.getState();
+  const out: Feature[] = [];
+  for (const id of ids) {
+    if (typeof id !== 'string') return { ok: false, reason: 'Every id must be a string.' };
+    const f = store.document.features[id];
+    if (!f) return { ok: false, reason: `Feature '${id}' does not exist.` };
+    const layer = store.document.layers[f.layerId];
+    if (layer?.locked) {
+      return { ok: false, reason: `Feature '${id}' is on locked layer '${layer.name}'.` };
+    }
+    out.push(f);
+  }
+  return { ok: true, result: out };
+}
+
+/** Centroid of a feature set's transformable points — the default pivot for rotate and scale. */
+function centroidOf(features: Feature[]): Point2D {
+  let sx = 0, sy = 0, n = 0;
+  const add = (p?: Point2D) => { if (p) { sx += p.x; sy += p.y; n += 1; } };
+  for (const f of features) {
+    const g = f.geometry;
+    add(g.point);
+    add(g.start);
+    add(g.end);
+    for (const v of g.vertices ?? []) add(v);
+    add(g.circle?.center);
+    add(g.ellipse?.center);
+    add(g.arc?.center);
+  }
+  return n === 0 ? { x: 0, y: 0 } : { x: sx / n, y: sy / n };
+}
+
+/** Apply a point transform to every named feature, as ONE undo entry. */
+function commitTransform(
+  features: Feature[],
+  fn: (p: Point2D) => Point2D,
+  description: string,
+): ToolResult<{ changed: number }> {
+  const store = useDrawingStore.getState();
+  const ops: Array<{ type: 'MODIFY_FEATURE'; data: { id: string; before: Feature; after: Feature } }> = [];
+  for (const before of features) {
+    const after = transformFeature(before, fn);
+    store.updateFeature(before.id, { geometry: after.geometry });
+    ops.push({ type: 'MODIFY_FEATURE', data: { id: before.id, before, after } });
+  }
+  useUndoStore.getState().pushUndo(makeBatchEntry(description, ops));
+  return { ok: true, result: { changed: features.length } };
+}
+
+export interface MoveFeaturesArgs {
+  ids: string[];
+  dx: number;
+  dy: number;
+}
+
+export const moveFeatures: ToolDefinition<MoveFeaturesArgs, { changed: number }> = {
+  name: 'moveFeatures',
+  description:
+    'Move the named features by a delta in world units (dx east, dy north). One undoable step.',
+  inputSchema: {
+    type: 'object',
+    required: ['ids', 'dx', 'dy'],
+    properties: {
+      ids: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      dx: { type: 'number', description: 'Easting delta, feet.' },
+      dy: { type: 'number', description: 'Northing delta, feet.' },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const loaded = loadModifiable(args.ids);
+    if (!loaded.ok) return loaded;
+    if (!Number.isFinite(args.dx) || !Number.isFinite(args.dy)) {
+      return { ok: false, reason: 'dx and dy must be finite numbers.' };
+    }
+    return commitTransform(
+      loaded.result,
+      (p) => translate(p, args.dx, args.dy),
+      `AI move ${loaded.result.length} feature(s)`,
+    );
+  },
+};
+
+export interface RotateFeaturesArgs {
+  ids: string[];
+  angleDeg: number;
+  about?: Point2D;
+}
+
+export const rotateFeatures: ToolDefinition<RotateFeaturesArgs, { changed: number }> = {
+  name: 'rotateFeatures',
+  description:
+    'Rotate the named features by an angle in degrees counter-clockwise, about a given point or ' +
+    'about their combined centroid when none is given. One undoable step.',
+  inputSchema: {
+    type: 'object',
+    required: ['ids', 'angleDeg'],
+    properties: {
+      ids: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      angleDeg: { type: 'number', description: 'Degrees counter-clockwise.' },
+      about: pointSchema('Pivot. Defaults to the centroid of the features.'),
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const loaded = loadModifiable(args.ids);
+    if (!loaded.ok) return loaded;
+    if (!Number.isFinite(args.angleDeg)) {
+      return { ok: false, reason: 'angleDeg must be a finite number.' };
+    }
+    if (args.about) {
+      const v = validatePoint(args.about, 'about');
+      if (!v.ok) return v;
+    }
+    const pivot = args.about ?? centroidOf(loaded.result);
+    const rad = (args.angleDeg * Math.PI) / 180;
+    return commitTransform(
+      loaded.result,
+      (p) => rotate(p, pivot, rad),
+      `AI rotate ${loaded.result.length} feature(s)`,
+    );
+  },
+};
+
+export interface ScaleFeaturesArgs {
+  ids: string[];
+  factor: number;
+  about?: Point2D;
+}
+
+export const scaleFeatures: ToolDefinition<ScaleFeaturesArgs, { changed: number }> = {
+  name: 'scaleFeatures',
+  description:
+    'Scale the named features uniformly by a factor, about a given point or their combined ' +
+    'centroid. One undoable step.',
+  inputSchema: {
+    type: 'object',
+    required: ['ids', 'factor'],
+    properties: {
+      ids: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      factor: { type: 'number', description: 'Uniform scale factor. Must be greater than 0.' },
+      about: pointSchema('Pivot. Defaults to the centroid of the features.'),
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const loaded = loadModifiable(args.ids);
+    if (!loaded.ok) return loaded;
+    // Zero collapses the geometry to a point and a negative mirrors it while claiming to scale.
+    // Both are recoverable only by undo, and neither is what "scale by" was asked to mean.
+    if (!Number.isFinite(args.factor) || args.factor <= 0) {
+      return { ok: false, reason: 'factor must be a number greater than 0.' };
+    }
+    if (args.about) {
+      const v = validatePoint(args.about, 'about');
+      if (!v.ok) return v;
+    }
+    const pivot = args.about ?? centroidOf(loaded.result);
+    return commitTransform(
+      loaded.result,
+      (p) => scale(p, pivot, args.factor),
+      `AI scale ${loaded.result.length} feature(s)`,
+    );
+  },
+};
+
+export interface MirrorFeaturesArgs {
+  ids: string[];
+  axisStart: Point2D;
+  axisEnd: Point2D;
+}
+
+export const mirrorFeatures: ToolDefinition<MirrorFeaturesArgs, { changed: number }> = {
+  name: 'mirrorFeatures',
+  description:
+    'Mirror the named features across the line through two points. One undoable step.',
+  inputSchema: {
+    type: 'object',
+    required: ['ids', 'axisStart', 'axisEnd'],
+    properties: {
+      ids: { type: 'array', items: { type: 'string' }, minItems: 1 },
+      axisStart: pointSchema('One point on the mirror line.'),
+      axisEnd: pointSchema('Another point on the mirror line.'),
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const loaded = loadModifiable(args.ids);
+    if (!loaded.ok) return loaded;
+    const a = validatePoint(args.axisStart, 'axisStart');
+    if (!a.ok) return a;
+    const b = validatePoint(args.axisEnd, 'axisEnd');
+    if (!b.ok) return b;
+    // Two identical points define no line. Mirroring across them divides by zero and scatters the
+    // geometry to NaN — placed nowhere, and far harder to notice than a refusal.
+    if (Math.hypot(args.axisEnd.x - args.axisStart.x, args.axisEnd.y - args.axisStart.y) < 1e-9) {
+      return { ok: false, reason: 'axisStart and axisEnd are the same point — that is not a line.' };
+    }
+    return commitTransform(
+      loaded.result,
+      (p) => mirror(p, args.axisStart, args.axisEnd),
+      `AI mirror ${loaded.result.length} feature(s)`,
+    );
+  },
+};
+
+export interface DeleteFeaturesArgs {
+  ids: string[];
+}
+
+export const deleteFeatures: ToolDefinition<DeleteFeaturesArgs, { deleted: number }> = {
+  name: 'deleteFeatures',
+  description:
+    'Delete the named features. One undoable step. Prefer hiding when the surveyor may want them ' +
+    'back.',
+  inputSchema: {
+    type: 'object',
+    required: ['ids'],
+    properties: { ids: { type: 'array', items: { type: 'string' }, minItems: 1 } },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const loaded = loadModifiable(args.ids);
+    if (!loaded.ok) return loaded;
+    const store = useDrawingStore.getState();
+    for (const f of loaded.result) store.removeFeature(f.id);
+    useUndoStore.getState().pushUndo(
+      makeBatchEntry(
+        `AI delete ${loaded.result.length} feature(s)`,
+        loaded.result.map((f) => ({ type: 'REMOVE_FEATURE' as const, data: f })),
+      ),
+    );
+    return { ok: true, result: { deleted: loaded.result.length } };
+  },
+};
+
 export const toolRegistry = {
   addPoint,
   drawLineBetween,
@@ -1046,6 +1319,12 @@ export const toolRegistry = {
   drawText,
   createLayer,
   applyLayerStyle,
+  // C35 — the MODIFY family. Id-based, one undo entry each.
+  moveFeatures,
+  rotateFeatures,
+  scaleFeatures,
+  mirrorFeatures,
+  deleteFeatures,
   // Geometry-solver tools (slice B):
   calcFourthCorner: calcFourthCornerTool,
   calcPointFromBearingDistance: calcPointFromBearingDistanceTool,
