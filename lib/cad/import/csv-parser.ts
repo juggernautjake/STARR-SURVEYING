@@ -57,7 +57,18 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
     const northing = config.coordinateOrder === 'NE' ? rawN : rawE;
     const easting = config.coordinateOrder === 'NE' ? rawE : rawN;
 
-    const { code, remainder } = extractCode(desc, config);
+    // C12 — an explicit code column wins over deriving one from the description.
+    //
+    // When the file HAS a code column, splitting the description to find a code would be guessing
+    // at information the file already states. When it does not (the raw collector formats, where
+    // code and description share one field), `extractCode` is still the only way and stays the
+    // default. The description is left whole in the explicit case — there is nothing to carve out
+    // of it.
+    const codeIdx = config.columns.code;
+    const hasCodeColumn = typeof codeIdx === 'number' && codeIdx >= 0 && codeIdx < cols.length;
+    const { code, remainder } = hasCodeColumn
+      ? { code: cols[codeIdx]?.trim() ?? '', remainder: desc }
+      : extractCode(desc, config);
     const pointName = rawName;
 
     rows.push({
@@ -81,13 +92,34 @@ export function parseCSV(text: string, config: CSVImportConfig): ParsedImportRow
 
 function splitLine(line: string, delimiter: string): string[] {
   if (delimiter === ',') {
+    // C12 — a doubled quote inside a quoted field is ONE literal quote (RFC 4180).
+    //
+    // This previously read `if (char === '"') inQuotes = !inQuotes;` — a quote was always a toggle
+    // and never emitted. So `""` toggled off then on and produced NOTHING: a description exported
+    // as `the "old" fence` (which this product's own CSV export correctly writes as
+    // `"the ""old"" fence"`) came back as `the old fence`. Silent data loss on a round trip through
+    // two pieces of code that were each individually right.
+    //
+    // Found by a round-trip test rather than by reading either side, which is the point of C12:
+    // an exporter and an importer can both be correct and still not agree.
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
-    for (const char of line) {
-      if (char === '"') { inQuotes = !inQuotes; }
-      else if (char === ',' && !inQuotes) { result.push(current.trim()); current = ''; }
-      else { current += char; }
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i++; // consume the second quote of the pair
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
     }
     result.push(current.trim());
     return result;

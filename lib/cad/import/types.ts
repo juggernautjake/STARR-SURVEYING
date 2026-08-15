@@ -28,6 +28,19 @@ export interface CSVImportConfig {
     easting: number;
     elevation: number;
     description: number;
+    /**
+     * C12 — an explicit code column, when the file has one.
+     *
+     * Omitted (or negative) keeps the original behaviour: the code is DERIVED from the description
+     * via `codePosition`, which is right for the raw collector formats where code and description
+     * share one field.
+     *
+     * It exists because this product's own CSV export writes six columns — PointNumber, Northing,
+     * Easting, Elevation, **Code**, Description — and there was no index that could read the fifth.
+     * Re-importing an exported file dropped the code and rebuilt it out of the description. Neither
+     * side was wrong on its own; they simply did not agree, and nothing said so.
+     */
+    code?: number;
   };
   coordinateOrder: 'NE' | 'EN';
   codePosition: 'FIRST_WORD' | 'ENTIRE_FIELD' | 'CUSTOM_REGEX';
