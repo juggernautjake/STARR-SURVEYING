@@ -1,16 +1,40 @@
-// app/api/admin/mileage/manual/route.ts — persist a MANUAL odometer mileage entry (Area D6, owner 2026-07-18:
-// "put in our miles at the start of the day and at the end, and we record the vehicle used"). Distinct from the
-// GPS-ping report at /api/admin/mileage (read-only): this writes a surveyor-entered start/end odometer reading
-// as one `mileage_entries` row (source 'odometer') so it flows into the operations/job financial reports that
-// already read that table. Any authenticated member logs their OWN mileage (user_email = the caller); the math
-// is the shared `resolveOdometerEntry` so the Work Mode form preview and the saved financial line always agree.
+// app/api/admin/mileage/manual/route.ts — persist a MANUAL mileage entry.
+//
+// C0b3 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+//
+// Owner, 2026-08-15: *"put in the starting address and the job address and the distance will be
+// calculated and then that will use the miles per gallon to calculate the cost as well. So all
+// mileage tracking will just be manually entered for each job/trip."*
+//
+// Distinct from the GPS-ping report at `/api/admin/mileage` (read-only): this WRITES one
+// `mileage_entries` row per trip.
+//
+// ── THE BUG THIS ROUTE SHIPPED WITH, AND WHY THE TABLE IS EMPTY ─────────────────────────────────
+//
+// Until 2026-08-15 the insert below listed `total_cents`. That column is
+// `GENERATED ALWAYS AS ((miles * rate_cents_per_mile)::INTEGER) STORED` (seed 282), and Postgres
+// refuses any non-DEFAULT write to a generated column. So EVERY manual mileage save returned 500,
+// and `mileage_entries` held 0 rows in production — verified against the live database on
+// 2026-08-15, not inferred. The column is computed by the database; it is not ours to send.
+//
+// ── TWO WAYS TO GET `miles`, ONE WAY TO VALUE IT ────────────────────────────────────────────────
+//
+// `distance` (the address-based path, C0b1/C0b3) or `startReading`/`endReading` (the odometer path
+// this route was built for). Both land on the same miles → reimbursement math, so a trip is valued
+// identically however it was entered, and `distance_source` records which was used.
+//
+// The fuel cost is ADDITIVE and never replaces the reimbursement — see D9. `rate_cents_per_mile`
+// stays the IRS figure that `/admin/payouts/tax-report` reads.
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { resolveOdometerEntry } from '@/lib/mileage/odometer';
+import { resolveOdometerEntry, mileageReimbursement, MAX_REASONABLE_DAILY_MILES } from '@/lib/mileage/odometer';
+import { IRS_BUSINESS_RATE_2025 } from '@/lib/mileage/summary';
+import { estimateTripFuel } from '@/lib/mileage/fuel';
 
 const MAX_NOTES_LEN = 500;
+const MAX_ADDRESS_LEN = 300;
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -26,30 +50,84 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const orgId = user.default_org_id as string;
 
   const body = await req.json().catch(() => ({}));
-  const startReading = Number(body?.startReading);
-  const endReading = Number(body?.endReading);
 
-  // The single source of truth for miles + reimbursement (validates reversed/negative/absurd entries).
-  const resolved = resolveOdometerEntry(startReading, endReading);
-  if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
+  // ── Miles: distance-first, odometer as the legacy path ────────────────────────────────────────
+  let miles: number;
+  let reimbursement: number;
+  let rate: number;
+  let distanceSource: 'typed' | 'lookup' | 'odometer';
+  let readingNote: string | null = null;
 
-  // Optional attribution: a job, an entry date (defaults to today, UTC), and a vehicle. mileage_entries has no
-  // vehicle column, so the vehicle + the raw readings ride along in notes for the audit trail.
+  if (body?.distance !== undefined && body?.distance !== null && body.distance !== '') {
+    const d = Number(body.distance);
+    if (!Number.isFinite(d) || d < 0) {
+      return NextResponse.json({ error: 'Distance must be a positive number of miles.' }, { status: 400 });
+    }
+    if (d > MAX_REASONABLE_DAILY_MILES) {
+      return NextResponse.json({ error: `That’s ${Math.round(d)} miles for one trip — check the distance.` }, { status: 400 });
+    }
+    miles = Math.round(d * 100) / 100;
+    rate = IRS_BUSINESS_RATE_2025;
+    const r = mileageReimbursement(miles, rate);
+    if (r === null) return NextResponse.json({ error: 'Could not value that distance.' }, { status: 400 });
+    reimbursement = r;
+    // 'lookup' is claimed only when the client says the figure came from the distance provider;
+    // anything else is a typed number, and the two must not be conflated in the audit trail.
+    distanceSource = body?.distanceSource === 'lookup' ? 'lookup' : 'typed';
+  } else {
+    const resolved = resolveOdometerEntry(Number(body?.startReading), Number(body?.endReading));
+    if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
+    miles = resolved.miles;
+    reimbursement = resolved.reimbursement;
+    rate = resolved.rate;
+    distanceSource = 'odometer';
+    readingNote = `Odometer ${Number(body?.startReading)}→${Number(body?.endReading)}`;
+  }
+
   const jobId = typeof body?.jobId === 'string' && body.jobId.trim() ? body.jobId.trim() : null;
   const entryDate = typeof body?.entryDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.entryDate)
     ? body.entryDate
     : new Date().toISOString().slice(0, 10);
 
+  const startAddress = typeof body?.startAddress === 'string'
+    ? body.startAddress.trim().slice(0, MAX_ADDRESS_LEN) || null : null;
+  const endAddress = typeof body?.endAddress === 'string'
+    ? body.endAddress.trim().slice(0, MAX_ADDRESS_LEN) || null : null;
+
+  // ── Vehicle + fuel ────────────────────────────────────────────────────────────────────────────
+  let vehicleId: string | null = null;
   let vehicleName: string | null = null;
+  let vehicleMpg: number | null = null;
   if (typeof body?.vehicleId === 'string' && body.vehicleId.trim()) {
     const { data: veh } = await supabaseAdmin
       .from('vehicles')
-      .select('name')
+      .select('id, name, mpg')
       .eq('id', body.vehicleId.trim())
       .maybeSingle();
-    vehicleName = (veh as { name?: string | null } | null)?.name ?? null;
+    const row = veh as { id?: string; name?: string | null; mpg?: number | null } | null;
+    if (row?.id) {
+      vehicleId = row.id;
+      vehicleName = row.name ?? null;
+      vehicleMpg = row.mpg == null ? null : Number(row.mpg);
+    }
   }
-  const readingNote = `Odometer ${startReading}→${endReading}`;
+
+  // Org fuel price. A missing settings row is not an error — it means "no price configured", and
+  // the trip saves with its reimbursement and no fuel estimate rather than failing.
+  let fuelPriceCents: number | null = null;
+  const { data: setting } = await supabaseAdmin
+    .from('app_settings')
+    .select('value')
+    .eq('key', 'mileage')
+    .maybeSingle();
+  const raw = (setting as { value?: { fuelPriceCents?: unknown } } | null)?.value?.fuelPriceCents;
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 0) fuelPriceCents = raw;
+  if (typeof body?.fuelPriceCents === 'number' && Number.isFinite(body.fuelPriceCents) && body.fuelPriceCents >= 0) {
+    fuelPriceCents = body.fuelPriceCents; // per-trip override
+  }
+
+  const fuel = estimateTripFuel(miles, vehicleMpg, fuelPriceCents);
+
   const userNote = typeof body?.notes === 'string' ? body.notes.trim().slice(0, MAX_NOTES_LEN) : '';
   const notes = [vehicleName, readingNote, userNote].filter(Boolean).join(' · ') || null;
 
@@ -60,21 +138,31 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       user_email: email,
       job_id: jobId,
       entry_date: entryDate,
-      miles: resolved.miles,
-      rate_cents_per_mile: Math.round(resolved.rate * 100),
-      total_cents: Math.round(resolved.reimbursement * 100),
+      miles,
+      rate_cents_per_mile: Math.round(rate * 100),
+      // `total_cents` is intentionally absent — it is GENERATED ALWAYS. See the header.
+      start_address: startAddress,
+      end_address: endAddress,
+      vehicle_id: vehicleId,
+      mpg_snapshot: fuel?.mpg ?? null,
+      fuel_price_cents: fuel?.fuelPriceCents ?? null,
+      fuel_cost_cents: fuel?.fuelCostCents ?? null,
+      distance_source: distanceSource,
       notes,
-      source: 'odometer',
+      source: 'manual',
       created_by: email,
     })
-    .select('id, entry_date, miles, rate_cents_per_mile, total_cents')
+    .select('id, entry_date, miles, rate_cents_per_mile, total_cents, fuel_cost_cents, distance_source')
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({
     entry: data,
-    miles: resolved.miles,
-    reimbursement: resolved.reimbursement,
-    rate: resolved.rate,
+    miles,
+    reimbursement,
+    rate,
+    fuel: fuel
+      ? { gallons: fuel.gallons, costCents: fuel.fuelCostCents, mpg: fuel.mpg, priceCents: fuel.fuelPriceCents }
+      : null,
   }, { status: 201 });
 }, { routeName: 'admin/mileage.manual.post' });

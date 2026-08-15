@@ -16,12 +16,28 @@ describe('manual-mileage POST route', () => {
     expect(route).toContain('resolveOdometerEntry');
     expect(route).toContain("if ('error' in resolved)"); // a bad entry is a 400, never a saved line
   });
-  it('writes a source="odometer" mileage_entries row scoped to the caller', () => {
+  // ── CORRECTED 2026-08-15 (C0b3) ───────────────────────────────────────────────────────────────
+  //
+  // The two assertions removed here were asserting the BUG. This test demanded
+  // `source: 'odometer'` and `total_cents: Math.round(…)`, and the live database rejects both:
+  // `source` has CHECK (source IN ('manual','derived_pings','api_import')), and `total_cents` is
+  // GENERATED ALWAYS. Every manual mileage save 500'd, and `mileage_entries` held 0 rows in
+  // production — while this file stayed green, because a source scan only ever proves the source
+  // says what the test says it says.
+  //
+  // Kept as a source scan rather than deleted (mocking Supabase would re-create the same blind
+  // spot), but now pointed at the shape Postgres actually accepts. The odometer/typed/lookup
+  // distinction moved to `distance_source`, which has a constraint that permits it.
+  it('writes a mileage_entries row scoped to the caller, in a shape Postgres accepts', () => {
     expect(route).toContain("from('mileage_entries')");
-    expect(route).toContain("source: 'odometer'");
+    expect(route).toContain("source: 'manual'");
     expect(route).toContain('user_email: email');
-    expect(route).toContain('rate_cents_per_mile: Math.round(resolved.rate * 100)');
-    expect(route).toContain('total_cents: Math.round(resolved.reimbursement * 100)');
+    expect(route).toContain('rate_cents_per_mile:');
+    expect(route).toContain('distance_source:');
+  });
+
+  it('never writes the generated total_cents column', () => {
+    expect(route).not.toMatch(/total_cents\s*:\s*Math\.round/);
   });
 });
 
