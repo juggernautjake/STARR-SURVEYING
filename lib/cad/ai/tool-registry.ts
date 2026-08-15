@@ -46,6 +46,8 @@ import {
   calcPointParallelToLine,
 } from '../geometry/solver';
 import { vertexClosure, vertexBowditchAdjust, type VertexClosureResult } from '../geometry/closure';
+// C34 — three-point arc fitting, for drawArc.
+import { circleThrough3Points } from '../geometry/curve';
 import { inverseBearingDistance, formatBearing, formatAzimuth } from '../geometry/bearing';
 
 // ────────────────────────────────────────────────────────────
@@ -764,10 +766,284 @@ const bowditchAdjustTool: ToolDefinition<{ vertices: Point2D[] }, Point2D[]> = {
  *  walk this map to build the model's tool list; the COMMAND-
  *  mode palette will look up tools by name when the surveyor
  *  selects one. */
+// ────────────────────────────────────────────────────────────
+// C34 — the rest of the DRAW_* family
+//
+// The registry had three ways to create geometry: a point, a
+// line, and a polyline/polygon through vertices. Everything
+// else a surveyor draws — a rectangle, a circle, an arc, a
+// text note — could only be reached by handing the AI a list of
+// vertices and asking it to approximate.
+//
+// That is worse than it sounds. A circle emitted as 64 vertices
+// is not a circle: it exports as a polyline, it cannot be
+// snapped to a centre, and `computeFeatureArea` measures the
+// inscribed polygon rather than the circle. The parametric
+// geometry this codebase already stores (`geometry.circle`,
+// `.ellipse`, `.arc`) exists precisely so that does not happen,
+// and the AI had no way to produce it.
+//
+// C31 is what makes this cheap: adding a tool here reaches BOTH
+// AI paths, because the chat prompt is generated from this
+// object and `claude-proposer` derives its tool list from it.
+// ────────────────────────────────────────────────────────────
+
+export interface DrawRectangleArgs {
+  corner: Point2D;
+  opposite: Point2D;
+  layerId?: string | null;
+  properties?: Record<string, string | number | boolean>;
+  provenance?: AIProvenance;
+  sandbox?: boolean;
+}
+
+export const drawRectangle: ToolDefinition<DrawRectangleArgs, Feature> = {
+  name: 'drawRectangle',
+  description:
+    'Draw an axis-aligned rectangle as a closed POLYGON from two opposite corners. ' +
+    'Use this rather than four points through drawPolylineThrough — it guarantees square corners.',
+  inputSchema: {
+    type: 'object',
+    required: ['corner', 'opposite'],
+    properties: {
+      corner: pointSchema('One corner.'),
+      opposite: pointSchema('The diagonally opposite corner.'),
+      layerId: { type: ['string', 'null'] },
+      properties: { type: 'object', additionalProperties: true },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const a = validatePoint(args.corner, 'corner');
+    if (!a.ok) return a;
+    const b = validatePoint(args.opposite, 'opposite');
+    if (!b.ok) return b;
+    // A rectangle with no width or no height is a line the caller did not ask for. Refusing is
+    // better than silently drawing a degenerate polygon that measures zero area.
+    if (Math.abs(args.corner.x - args.opposite.x) < 1e-9) {
+      return { ok: false, reason: 'The two corners share an easting — the rectangle has no width.' };
+    }
+    if (Math.abs(args.corner.y - args.opposite.y) < 1e-9) {
+      return { ok: false, reason: 'The two corners share a northing — the rectangle has no height.' };
+    }
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
+    if (!layerResult.ok) return layerResult;
+    const { x: x1, y: y1 } = args.corner;
+    const { x: x2, y: y2 } = args.opposite;
+    return commitFeature(
+      {
+        id: generateId(),
+        type: 'POLYGON',
+        geometry: {
+          type: 'POLYGON',
+          vertices: [
+            { x: x1, y: y1 }, { x: x2, y: y1 }, { x: x2, y: y2 }, { x: x1, y: y2 },
+          ],
+        },
+        layerId: layerResult.result,
+        style: defaultStyle(),
+        properties: { ...(args.properties ?? {}) },
+      },
+      args.provenance,
+    );
+  },
+};
+
+export interface DrawCircleArgs {
+  center: Point2D;
+  radius: number;
+  layerId?: string | null;
+  properties?: Record<string, string | number | boolean>;
+  provenance?: AIProvenance;
+  sandbox?: boolean;
+}
+
+export const drawCircle: ToolDefinition<DrawCircleArgs, Feature> = {
+  name: 'drawCircle',
+  description:
+    'Draw a true circle from a centre and radius (feet). Produces parametric circle geometry, ' +
+    'not an approximating polyline, so it exports and measures as a circle.',
+  inputSchema: {
+    type: 'object',
+    required: ['center', 'radius'],
+    properties: {
+      center: pointSchema('Centre of the circle.'),
+      radius: { type: 'number', description: 'Radius in US Survey Feet. Must be greater than 0.' },
+      layerId: { type: ['string', 'null'] },
+      properties: { type: 'object', additionalProperties: true },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const c = validatePoint(args.center, 'center');
+    if (!c.ok) return c;
+    if (!Number.isFinite(args.radius) || args.radius <= 0) {
+      return { ok: false, reason: 'radius must be a number greater than 0.' };
+    }
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
+    if (!layerResult.ok) return layerResult;
+    return commitFeature(
+      {
+        id: generateId(),
+        type: 'POLYGON',
+        // POLYGON carrying parametric `circle` data — the shape the renderer, the DXF writer and
+        // `computeFeatureArea` all already understand. See `FeatureGeometry.circle`.
+        geometry: {
+          type: 'POLYGON',
+          circle: { center: { x: args.center.x, y: args.center.y }, radius: args.radius },
+        },
+        layerId: layerResult.result,
+        style: defaultStyle(),
+        properties: { ...(args.properties ?? {}) },
+      },
+      args.provenance,
+    );
+  },
+};
+
+export interface DrawArcArgs {
+  start: Point2D;
+  through: Point2D;
+  end: Point2D;
+  layerId?: string | null;
+  properties?: Record<string, string | number | boolean>;
+  provenance?: AIProvenance;
+  sandbox?: boolean;
+}
+
+export const drawArc: ToolDefinition<DrawArcArgs, Feature> = {
+  name: 'drawArc',
+  description:
+    'Draw a circular arc through three points: start, a point ALONG the arc, and end. ' +
+    'The middle point is on the curve, not the centre.',
+  inputSchema: {
+    type: 'object',
+    required: ['start', 'through', 'end'],
+    properties: {
+      start: pointSchema('Where the arc begins.'),
+      through: pointSchema('A point ON the arc between the ends — NOT the centre.'),
+      end: pointSchema('Where the arc ends.'),
+      layerId: { type: ['string', 'null'] },
+      properties: { type: 'object', additionalProperties: true },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    for (const [k, p] of [['start', args.start], ['through', args.through], ['end', args.end]] as const) {
+      const v = validatePoint(p, k);
+      if (!v.ok) return v;
+    }
+    const circle = circleThrough3Points(args.start, args.through, args.end);
+    // Three collinear points have no circle. Saying so beats emitting an arc of infinite radius,
+    // which renders as nothing and reads as the tool having silently failed.
+    if (!circle) {
+      return { ok: false, reason: 'Those three points are collinear — no arc passes through them.' };
+    }
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
+    if (!layerResult.ok) return layerResult;
+    const ang = (p: Point2D) => Math.atan2(p.y - circle.center.y, p.x - circle.center.x);
+    const startAngle = ang(args.start);
+    const endAngle = ang(args.end);
+    const midAngle = ang(args.through);
+    // Sweep direction is decided by which way round the circle the middle point actually lies —
+    // measured, not assumed. Guessing it draws the major arc, which is the 300-foot error C29 hit
+    // by reasoning about a convention instead of reading it.
+    const TAU = Math.PI * 2;
+    const norm = (a: number) => ((a % TAU) + TAU) % TAU;
+    const ccwSweep = norm(midAngle - startAngle) <= norm(endAngle - startAngle);
+    return commitFeature(
+      {
+        id: generateId(),
+        type: 'ARC',
+        geometry: {
+          type: 'ARC',
+          arc: {
+            center: circle.center,
+            radius: circle.radius,
+            startAngle,
+            endAngle,
+            anticlockwise: ccwSweep,
+          },
+        },
+        layerId: layerResult.result,
+        style: defaultStyle(),
+        properties: { ...(args.properties ?? {}) },
+      },
+      args.provenance,
+    );
+  },
+};
+
+export interface DrawTextArgs {
+  at: Point2D;
+  text: string;
+  fontSize?: number;
+  rotationDeg?: number;
+  layerId?: string | null;
+  properties?: Record<string, string | number | boolean>;
+  provenance?: AIProvenance;
+  sandbox?: boolean;
+}
+
+export const drawText: ToolDefinition<DrawTextArgs, Feature> = {
+  name: 'drawText',
+  description:
+    'Place a text note on the drawing at a world-space point. Font size is points on paper.',
+  inputSchema: {
+    type: 'object',
+    required: ['at', 'text'],
+    properties: {
+      at: pointSchema('Where the text is anchored.'),
+      text: { type: 'string', description: 'The text to place.' },
+      fontSize: { type: 'number', description: 'Points on paper. Defaults to 12.' },
+      rotationDeg: { type: 'number', description: 'Rotation in degrees CCW. Defaults to 0.' },
+      layerId: { type: ['string', 'null'] },
+      properties: { type: 'object', additionalProperties: true },
+    },
+    additionalProperties: false,
+  },
+  execute(args) {
+    const p = validatePoint(args.at, 'at');
+    if (!p.ok) return p;
+    // Empty text places an invisible feature the surveyor cannot see, cannot select by looking,
+    // and will not know to delete.
+    if (typeof args.text !== 'string' || args.text.trim().length === 0) {
+      return { ok: false, reason: 'text must be a non-empty string.' };
+    }
+    const size = Number.isFinite(args.fontSize) ? Number(args.fontSize) : 12;
+    if (size <= 0) return { ok: false, reason: 'fontSize must be greater than 0.' };
+    const layerResult = resolveLayerId(args.layerId, !!args.sandbox);
+    if (!layerResult.ok) return layerResult;
+    return commitFeature(
+      {
+        id: generateId(),
+        type: 'TEXT',
+        geometry: {
+          type: 'TEXT',
+          point: { x: args.at.x, y: args.at.y },
+          textContent: args.text,
+          textRotation: ((Number(args.rotationDeg) || 0) * Math.PI) / 180,
+        },
+        layerId: layerResult.result,
+        style: defaultStyle(),
+        // The renderer and the PDF writer read the font off `properties` (C20), so that is where
+        // it goes — not onto a style field they would ignore.
+        properties: { fontSize: size, ...(args.properties ?? {}) },
+      },
+      args.provenance,
+    );
+  },
+};
+
 export const toolRegistry = {
   addPoint,
   drawLineBetween,
   drawPolylineThrough,
+  // C34 — the rest of the DRAW_* family. Parametric where the geometry is parametric.
+  drawRectangle,
+  drawCircle,
+  drawArc,
+  drawText,
   createLayer,
   applyLayerStyle,
   // Geometry-solver tools (slice B):

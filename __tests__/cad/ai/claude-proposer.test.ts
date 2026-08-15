@@ -171,6 +171,10 @@ describe('proposeFromPrompt — tool_use translation', () => {
       [
         'addPoint', 'applyLayerStyle', 'createLayer',
         'drawLineBetween', 'drawPolylineThrough',
+        // C34 — the rest of the DRAW_* family. That they appear HERE without this file being
+        // touched for any reason other than the assertion is the point: `claude-proposer` derives
+        // its tool list from the registry, so the reach came for free.
+        'drawRectangle', 'drawCircle', 'drawArc', 'drawText',
         // Solver tools are advertised to the model so it can use
         // them mid-conversation; they just never become proposals.
         'bowditchAdjust', 'calcFourthCorner',
