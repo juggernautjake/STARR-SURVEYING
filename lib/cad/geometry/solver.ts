@@ -64,9 +64,25 @@ export function calcPointFromBearingDistance(
 }
 
 /**
- * Intersection of two rays defined by an origin + an azimuth.
- * Returns the point where the two lines meet; null if the rays
- * are parallel or the origins coincide along the same azimuth.
+ * Forward intersection of two bearing RAYS.
+ *
+ * ── C29, resolving C27's finding F3 ─────────────────────────────────────────────────────────────
+ *
+ * This function and `cogo.brgBrgPoint` answer the same surveyor question — "where do these two
+ * bearings cross?" — and until now they gave **different answers**. This one intersected the
+ * infinite lines and returned a hit *behind* either station; `brgBrgPoint` rejected exactly that,
+ * with a comment saying why: "a bearing entered backwards would otherwise plant the point on the
+ * wrong side of a station."
+ *
+ * The safer of the two was the one nothing called. `CalcPointDialog`'s bearing–bearing method and
+ * the AI tool registry both used this one, so a mistyped bearing — a back bearing, a transposed
+ * quadrant — placed a point 400 feet the wrong way and reported success.
+ *
+ * Fixed here rather than by deleting a module: `cogo.ts` is still the right home for the
+ * multi-solution intersections (distance–distance and bearing–distance each yield up to two points,
+ * which the `SolverResult` envelope has no shape for), and this file is still the right home for
+ * the single-answer constraint solvers. **The boundary is the number of answers, not the subject** —
+ * and now the one operation they share agrees.
  */
 export function calcPointFromTwoBearings(
   originA: Point2D,
@@ -79,6 +95,18 @@ export function calcPointFromTwoBearings(
   const hit = lineLineIntersection(originA, a2, originB, b2);
   if (!hit) {
     return { ok: false, reason: 'Bearings are parallel (or anti-parallel); no unique intersection.' };
+  }
+  // Both rays must reach the point going FORWARD. The dot product of (hit − origin) with the unit
+  // direction is negative when the crossing is behind that station.
+  const tA = (hit.x - originA.x) * (a2.x - originA.x) + (hit.y - originA.y) * (a2.y - originA.y);
+  const tB = (hit.x - originB.x) * (b2.x - originB.x) + (hit.y - originB.y) * (b2.y - originB.y);
+  if (tA < -EPS || tB < -EPS) {
+    return {
+      ok: false,
+      // Names the likely cause, because "no intersection" for two bearings that plainly cross is
+      // the kind of refusal a surveyor argues with instead of re-reading their field notes.
+      reason: 'The bearings only cross behind one of the points — check for a back bearing.',
+    };
   }
   return { ok: true, point: hit };
 }
