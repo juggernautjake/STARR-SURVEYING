@@ -16,7 +16,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
+import { isClockEligible } from '@/lib/time-tracking/clock-eligibility';
 import { formatElapsed } from '@/app/admin/me/components/greeting-helpers';
 import { ClockInModal, ClockOutModal } from '@/lib/time-tracking/clock-modals';
 import {
@@ -145,7 +145,7 @@ export default function ClockInPill() {
     return () => clearTimeout(t);
   }, [confirmation]);
 
-  if (!isWorkModeEligible(roles)) return null;
+  if (!isClockEligible(roles)) return null;
 
   const baseStyle: React.CSSProperties = {
     display: 'inline-flex',

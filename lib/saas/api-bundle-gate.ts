@@ -131,6 +131,11 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // alerts span every workspace, so gating them to one bundle would make the help drawer stop
   // working on exactly the pages a firm did not buy — which is where somebody most needs help.
   'assistant': { bundle: null, reason: 'The assistant spans every workspace; it gates its own tools by role.' },
+  // C0g (2026-08-15) — the surveying field assistant, previously reached at
+  // `/api/admin/work-mode/assistant` and classified under the retired shell's segment. Open for the
+  // same reason as `assistant`: it answers bearings and angle questions for whoever is holding the
+  // phone, and gating trigonometry to a bundle sells nothing.
+  'field-assistant': { bundle: null, reason: 'Answers surveying maths for anyone on the job; gating trigonometry to a tier sells nothing.' },
   'help': { bundle: null, reason: 'A help drawer that stops working on unbought pages is where help is most needed.' },
   'alerts': { bundle: null, reason: 'Alerts span every bundle a firm holds, like notifications.' },
   // Ephemeral almanac/utility lookups. Gating a sunrise time sells nothing and breaks scheduling for

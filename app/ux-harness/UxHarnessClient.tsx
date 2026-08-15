@@ -112,7 +112,6 @@ const PAGES: Record<string, ComponentType> = {
   hub: nextDynamic(() => import('@/app/ux-harness/HubHarnessMount'), { ssr: false }),
   // Work Mode shell (top bar + a role workspace) — the real route is a
   // server component behind auth; mount the client pieces for 390px audit.
-  'work-mode': nextDynamic(() => import('@/app/ux-harness/WorkModeHarnessMount'), { ssr: false }),
 };
 
 const AdminLayoutClient = nextDynamic(

@@ -153,7 +153,7 @@ export default function JobInstructionsPanel({ jobId }: { jobId: string }) {
       )}
 
       {status && (
-        <p role="status" style={{ ...s.status, color: status.ok ? '#0F7B4F' : '#B42318' }}>
+        <p role="status" style={{ ...s.status, color: status.ok ? 'var(--theme-success)' : 'var(--theme-danger)' }}>
           {status.message}
         </p>
       )}

@@ -245,7 +245,7 @@ export default function LogTripForm({ onLogged }: { onLogged?: () => void }) {
           {saving ? 'Saving…' : 'Log this trip'}
         </button>
         {result && (
-          <span role="status" style={{ ...s.result, color: result.ok ? '#0F7B4F' : '#B42318' }}>
+          <span role="status" style={{ ...s.result, color: result.ok ? 'var(--theme-success)' : 'var(--theme-danger)' }}>
             {result.message}
           </span>
         )}

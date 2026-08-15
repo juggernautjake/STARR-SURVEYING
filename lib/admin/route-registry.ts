@@ -409,15 +409,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Work Mode. The DOOR is on the rail; the per-role shells are entered through it, never chosen from
   // a menu — which is also the honest answer to the audit’s "is it a mode or a view?" until the
   // owner decides (Q44): it is a mode, and a mode has one entrance.
-  { href: '/admin/work-mode/start',       label: 'Work Mode',        workspace: 'work', iconName: 'HardHat',       description: 'Enter the focused field shell for your role.', roles: [...WORK_ROLES, 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, keywords: ['field', 'crew', 'mobile', 'focus'] },
-  { href: '/admin/work-mode',             label: 'Work Mode Home',   workspace: 'work', iconName: 'HardHat',       description: 'Work Mode landing.', roles: [...WORK_ROLES, 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/field_crew',  label: 'Work Mode — Field Crew',   workspace: 'work', iconName: 'HardHat', description: 'Field crew shell.', roles: ['admin', 'developer', 'field_crew'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/drawer',      label: 'Work Mode — Drafting',     workspace: 'work', iconName: 'PenTool', description: 'Drafting shell.', roles: ['admin', 'developer', 'drawer'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/researcher',  label: 'Work Mode — Research',     workspace: 'work', iconName: 'Search',  description: 'Research shell.', roles: ['admin', 'developer', 'researcher'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/equipment_manager', label: 'Work Mode — Equipment', workspace: 'work', iconName: 'Truck', description: 'Equipment manager shell.', roles: ['admin', 'developer', 'equipment_manager'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/tech_support', label: 'Work Mode — Support',     workspace: 'work', iconName: 'LifeBuoy', description: 'Tech support shell.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/admin',       label: 'Work Mode — Admin',       workspace: 'work', iconName: 'ShieldCheck', description: 'Admin shell.', roles: ['admin'], internalOnly: true, showInRail: false },
-  { href: '/admin/work-mode/developer',   label: 'Work Mode — Developer',   workspace: 'work', iconName: 'Code',    description: 'Developer shell.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false },
 
   // Equipment.
   { href: '/admin/equipment/templates/new', label: 'New Equipment Template', workspace: 'equipment', iconName: 'FilePlus', description: 'Define a new equipment template.', roles: EQUIPMENT_ROLES, internalOnly: true, showInRail: false, keywords: ['create', 'template'] },

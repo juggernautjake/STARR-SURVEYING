@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const route = readFileSync(join(process.cwd(), 'app/api/admin/mileage/manual/route.ts'), 'utf8');
-const workspace = readFileSync(join(process.cwd(), 'app/admin/work-mode/field_crew/_components/FieldCrewWorkspace.tsx'), 'utf8');
+// C0g (2026-08-15) — was the Work Mode field-crew workspace. Capture now lives on /admin/mileage.
+const form = readFileSync(join(process.cwd(), 'app/admin/mileage/LogTripForm.tsx'), 'utf8');
 
 describe('manual-mileage POST route', () => {
   it('requires auth and resolves the caller’s org', () => {
@@ -41,10 +42,18 @@ describe('manual-mileage POST route', () => {
   });
 });
 
-describe('Work Mode mileage Save wiring', () => {
-  it('the tracker POSTs the odometer readings and confirms the logged trip', () => {
-    expect(workspace).toContain("fetch('/api/admin/mileage/manual'");
-    expect(workspace).toContain('Log this trip');
-    expect(workspace).toMatch(/to the mileage report/);
+describe('mileage Save wiring', () => {
+  it('the trip form POSTs to the manual route and confirms the logged trip', () => {
+    expect(form).toContain("fetch('/api/admin/mileage/manual'");
+    expect(form).toContain('Log this trip');
+    expect(form).toMatch(/reimbursement/);
+  });
+
+  it('sends the address pair and marks the distance as typed, not a lookup', () => {
+    // C0b1's provider is owner-gated. Until it lands the form must not claim a looked-up distance —
+    // distance_source is an audit trail, and "typed" and "lookup" are different assurances.
+    expect(form).toContain('startAddress');
+    expect(form).toContain('endAddress');
+    expect(form).toContain("distanceSource: 'typed'");
   });
 });

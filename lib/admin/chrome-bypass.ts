@@ -17,7 +17,6 @@
 
 const BYPASS_PREFIXES: ReadonlyArray<string> = [
   '/admin/cad',
-  '/admin/work-mode',
 ];
 
 /** True when the chrome should NOT render around the route. */

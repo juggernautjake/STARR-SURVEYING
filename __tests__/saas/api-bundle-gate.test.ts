@@ -193,11 +193,15 @@ describe('overrides apply to the subtree, not just the literal path', () => {
     expect(bundleForRoute('/admin/research/testing/runs')).toBeNull();
   });
 
-  it('does not let /admin/work swallow /admin/work-mode', () => {
-    // Segment-aware matching. A naive startsWith would make the always-available workspace landing
-    // silently ungate a different feature whose name merely begins the same way.
-    expect(bundleForRoute('/admin/work')).toBeNull();
-    expect(bundleForRoute('/admin/work-mode/start')).toBe('office');
+  it('does not let a route swallow a longer sibling that merely starts the same way', () => {
+    // Segment-aware matching. A naive startsWith would let one route silently (un)gate a different
+    // feature whose path merely begins with the same characters.
+    //
+    // C0g (2026-08-15) — this used to be anchored on /admin/work vs /admin/work-mode/start, and
+    // Work Mode is retired. Re-anchored on a pair that still exists rather than deleted: the
+    // PROPERTY is what matters here, not the particular routes that once demonstrated it.
+    expect(bundleForRoute('/admin/research-cad')).toBeNull();
+    expect(bundleForRoute('/admin/research')).toBe('recon');
   });
 
   it('keeps billing reachable throughout its subtree for a lapsed firm', () => {

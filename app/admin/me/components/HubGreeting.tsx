@@ -15,11 +15,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
 import { CLOCK_SESSION_KEY, readClockSession } from '@/lib/time-tracking/clock-session';
 import type { UserRole } from '@/lib/auth-roles';
 import RolePills from './RolePills';
-import WorkModePrompt from './WorkModePrompt';
 // hub-widget-excellence-01 Slice 5 — the pure greeting helpers moved to
 // greeting-helpers.ts (so importing them doesn't drag in this client
 // graph + next-auth). Re-exported here for back-compat with callers.
@@ -122,13 +120,10 @@ export default function HubGreeting({ greetingPrefix }: HubGreetingProps) {
         </p>
       </div>
 
-      <div className="hub-greeting__actions">
-        {/* hub-widget-excellence-01 Slice 3 — the CTA now opens a prompt
-            (pick which role you're working under) instead of routing
-            straight to /admin/work-mode/start. Entering work mode is
-            independent of clocking in; Slice 4 adds the clock-in step. */}
-        {isWorkModeEligible(roles) && <WorkModePrompt roles={roles} />}
-      </div>
+      {/* C0g (2026-08-15) — the "Enter work mode" CTA and its role prompt are gone with the shell
+          they opened. The greeting itself stays: the owner asked to keep the banner and lose the
+          Work Mode buttons, and the clocked-in line above is time tracking, not Work Mode. What the
+          CTA used to reach now lives on the hub and the job page — see D8. */}
 
       {/* hub-widget-excellence-01 Slice 2 — all of the user's roles as
           read-only colored pills (replaces the persona-preview chips). */}

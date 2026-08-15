@@ -164,7 +164,7 @@ function SurveyingCalculatorWidget({ size, content }: WidgetProps<SurveyingCalcu
               <button type="button" style={st.key} onClick={() => setExpr((e) => e.slice(0, -1))}>⌫</button>
               <button
                 type="button"
-                style={{ ...st.key, background: 'var(--theme-accent)', color: 'var(--theme-accent-fg, #fff)' }}
+                style={{ ...st.key, background: 'var(--theme-accent)', color: 'var(--theme-accent-fg)' }}
                 onClick={() => { if (basicPreview) setExpr(basicPreview); }}
               >
                 =

@@ -148,7 +148,6 @@
   "app/admin/users/page.tsx": 16,
   "app/admin/vehicles/page.tsx": 5,
   "app/admin/weather/page.tsx": 4,
-  "app/admin/work-mode/field_crew/_components/FieldCrewWorkspace.tsx": 6,
   "app/components/ServiceAreaMap.tsx": 3,
   "app/components/SurveyCalculator.tsx": 18,
   "app/dnd/_sheet/App.tsx": 2,

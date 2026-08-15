@@ -16,19 +16,9 @@ describe('shouldBypassAdminChrome', () => {
     expect(shouldBypassAdminChrome('/admin/cad/job-123/drawing-1')).toBe(true);
   });
 
-  it('Work Mode start picker', () => {
-    expect(shouldBypassAdminChrome('/admin/work-mode/start')).toBe(true);
-  });
-
-  it('Work Mode role pages all bypass', () => {
-    for (const role of ['field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support', 'admin', 'developer']) {
-      expect(shouldBypassAdminChrome(`/admin/work-mode/${role}`)).toBe(true);
-    }
-  });
-
-  it('Work Mode index path bypasses', () => {
-    expect(shouldBypassAdminChrome('/admin/work-mode')).toBe(true);
-  });
+  // C0g (2026-08-15) — the three Work Mode bypass cases went with the shell. `/admin/cad` is now
+  // the only surface that renders its own chrome, which is why the catalog assertion below is a
+  // one-element array rather than two.
 
   it('regular admin pages do NOT bypass', () => {
     expect(shouldBypassAdminChrome('/admin/me')).toBe(false);
@@ -39,7 +29,7 @@ describe('shouldBypassAdminChrome', () => {
 
   it('paths that merely contain the bypass string but are not prefixed do NOT bypass', () => {
     expect(shouldBypassAdminChrome('/admin/some-cad-helper')).toBe(false);
-    expect(shouldBypassAdminChrome('/admin/work-mode-settings')).toBe(false);
+    expect(shouldBypassAdminChrome('/admin/cadence')).toBe(false);
   });
 
   it('null/empty pathname is safe', () => {
@@ -49,6 +39,6 @@ describe('shouldBypassAdminChrome', () => {
   });
 
   it('CHROME_BYPASS_PREFIXES exposes the catalog', () => {
-    expect(CHROME_BYPASS_PREFIXES).toEqual(['/admin/cad', '/admin/work-mode']);
+    expect(CHROME_BYPASS_PREFIXES).toEqual(['/admin/cad']);
   });
 });

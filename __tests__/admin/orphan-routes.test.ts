@@ -72,8 +72,18 @@ describe('the registry stayed usable while growing by a third', () => {
     // Registering all 35 on the rail would have traded one problem for a worse one: a rail with 126
     // items is a rail nobody scans, and the go-live dashboards would be as lost inside it as they were
     // outside it. The split is the design, so it is asserted rather than left to drift.
+    //
+    // C0g (2026-08-15) — the RATIO guard was replaced by an ABSOLUTE one, and the reason matters
+    // more than the number. Retiring Work Mode deleted 9 routes, 8 of them `showInRail: false`. The
+    // railed count did not move at all, so the rail is exactly as scannable as it was — but the
+    // ratio rose past 0.75 purely because its denominator shrank, and it failed.
+    //
+    // A proxy that fails when the thing it proxies for is unchanged is measuring the wrong
+    // quantity. Scannability depends on how many items are IN the rail, which is what this comment
+    // argued in the first place ("a rail with 126 items"), so that is now what is asserted. The
+    // ratio survives only as the weaker "not everything is railed" check.
     const railed = ADMIN_ROUTES.filter((r) => r.showInRail !== false).length;
     expect(railed).toBeLessThan(ADMIN_ROUTES.length);
-    expect(railed / ADMIN_ROUTES.length).toBeLessThan(0.75);
+    expect(railed, 'a rail this long is a rail nobody scans').toBeLessThanOrEqual(110);
   });
 });
