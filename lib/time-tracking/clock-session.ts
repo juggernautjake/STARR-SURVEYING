@@ -1,4 +1,4 @@
-// lib/work-mode/clock-session.ts
+// lib/time-tracking/clock-session.ts
 //
 // Lightweight client-side clock session. Persists the in-progress
 // "you're clocked in" state in localStorage so the user keeps their

@@ -10,7 +10,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { dedupeTagsByLabel, type ActivityTag } from '@/lib/work-mode/activity-tags';
+import { dedupeTagsByLabel, type ActivityTag } from '@/lib/time-tracking/activity-tags';
 
 const SELECT_COLS = 'id, label, color, system, work_type_key';
 

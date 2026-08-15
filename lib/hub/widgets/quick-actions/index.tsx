@@ -20,7 +20,7 @@ import { sizeBucket } from '@/lib/hub/size-bucket';
 import { useElementSize } from '@/lib/hub/use-element-size';
 import { useQuickActionBadges } from '@/lib/hub/use-hub-badges';
 import WidgetEmpty from '@/lib/hub/components/WidgetEmpty';
-import { ClockInModal, ClockOutModal } from '@/lib/work-mode/clock-modals';
+import { ClockInModal, ClockOutModal } from '@/lib/time-tracking/clock-modals';
 import {
   CLOCK_SESSION_KEY,
   clearClockSession,
@@ -28,8 +28,8 @@ import {
   readClockSession,
   writeClockSession,
   type ClockSession,
-} from '@/lib/work-mode/clock-session';
-import { useActivityTags, type ActivityTag } from '@/lib/work-mode/use-activity-tags';
+} from '@/lib/time-tracking/clock-session';
+import { useActivityTags, type ActivityTag } from '@/lib/time-tracking/use-activity-tags';
 import { gridCapacity, listCapacity, splitForCapacity } from './capacity';
 import {
   moveUp,

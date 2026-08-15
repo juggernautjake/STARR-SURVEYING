@@ -4,7 +4,7 @@
 // Top-bar clock-in/out pill. Opens the Slice 178/179 ClockIn /
 // ClockOut modals on click instead of routing away to /admin/my-hours.
 //
-// State source: `lib/work-mode/clock-session` (localStorage). When
+// State source: `lib/time-tracking/clock-session` (localStorage). When
 // the user clocks in, the session persists across reloads; when they
 // clock out, the modal's `onSubmit` POSTs a finalized
 // `daily_time_logs` row for the elapsed window + clears the session.
@@ -18,7 +18,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { isWorkModeEligible } from '@/lib/hub/work-mode-eligibility';
 import { formatElapsed } from '@/app/admin/me/components/greeting-helpers';
-import { ClockInModal, ClockOutModal } from '@/lib/work-mode/clock-modals';
+import { ClockInModal, ClockOutModal } from '@/lib/time-tracking/clock-modals';
 import {
   CLOCK_SESSION_KEY,
   clearClockSession,
@@ -27,8 +27,8 @@ import {
   readClockSession,
   writeClockSession,
   type ClockSession,
-} from '@/lib/work-mode/clock-session';
-import { useActivityTags } from '@/lib/work-mode/use-activity-tags';
+} from '@/lib/time-tracking/clock-session';
+import { useActivityTags } from '@/lib/time-tracking/use-activity-tags';
 import type { UserRole } from '@/lib/auth-roles';
 
 /** "4h 30m" / "45m" from a number of hours. */

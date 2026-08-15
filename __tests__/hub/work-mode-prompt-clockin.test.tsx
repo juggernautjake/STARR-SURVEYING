@@ -27,7 +27,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import { WorkModeClockStep } from '@/app/admin/me/components/WorkModePrompt';
-import type { ClockSession } from '@/lib/work-mode/clock-session';
+import type { ClockSession } from '@/lib/time-tracking/clock-session';
 
 function render(clock: ClockSession | null, nowMs?: number): string {
   return ReactDOMServer.renderToStaticMarkup(

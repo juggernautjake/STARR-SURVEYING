@@ -20,13 +20,13 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation';
 import { ROLE_LABELS, type UserRole } from '@/lib/auth-roles';
 import { eligibleWorkModeRoles } from '@/lib/hub/work-mode-eligibility';
-import { ClockInModal } from '@/lib/work-mode/clock-modals';
+import { ClockInModal } from '@/lib/time-tracking/clock-modals';
 import {
   readClockSession,
   writeClockSession,
   type ClockSession,
-} from '@/lib/work-mode/clock-session';
-import { useActivityTags } from '@/lib/work-mode/use-activity-tags';
+} from '@/lib/time-tracking/clock-session';
+import { useActivityTags } from '@/lib/time-tracking/use-activity-tags';
 import { formatElapsed } from './greeting-helpers';
 
 /** Destination workspace for a given work-mode role. Pure + exported

@@ -1,5 +1,5 @@
 'use client';
-// lib/work-mode/use-activity-tags.ts
+// lib/time-tracking/use-activity-tags.ts
 //
 // Shared, module-cached activity-tag catalog for the clock-in/out modals.
 //

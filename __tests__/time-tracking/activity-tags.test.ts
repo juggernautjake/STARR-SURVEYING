@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dedupeTagsByLabel, resolvePayMultiplier, type ActivityTag } from '@/lib/work-mode/activity-tags';
+import { dedupeTagsByLabel, resolvePayMultiplier, type ActivityTag } from '@/lib/time-tracking/activity-tags';
 
 const CATALOG: ActivityTag[] = [
   { id: 'field',  label: 'Field',  color: '#10B981', system: true, work_type_key: 'field' },

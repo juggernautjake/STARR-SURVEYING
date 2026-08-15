@@ -1,5 +1,5 @@
 'use client';
-// lib/work-mode/clock-modals.tsx
+// lib/time-tracking/clock-modals.tsx
 //
 // Clock-in + clock-out modal dialogs. Triggered from the top-bar
 // `ClockInPill` (Slice 89) and Work Mode Exit "Clock out too?" path.

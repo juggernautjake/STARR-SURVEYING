@@ -10,7 +10,7 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useWorkModeStore, timeInModeMs } from '@/lib/work-mode/work-mode-store';
-import { clearClockSession, elapsedHours, readClockSession } from '@/lib/work-mode/clock-session';
+import { clearClockSession, elapsedHours, readClockSession } from '@/lib/time-tracking/clock-session';
 import { ROLE_LABELS } from '@/lib/auth-roles';
 
 interface WorkModeTopBarProps {

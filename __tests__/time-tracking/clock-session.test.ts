@@ -1,4 +1,4 @@
-// __tests__/work-mode/clock-session.test.ts
+// __tests__/time-tracking/clock-session.test.ts
 //
 // Slice 188 — clock-session localStorage helpers. The ClockInPill
 // rendering wiring is exercised by the Slice 192 Playwright spec.
@@ -10,7 +10,7 @@ import {
   elapsedHours,
   readClockSession,
   writeClockSession,
-} from '@/lib/work-mode/clock-session';
+} from '@/lib/time-tracking/clock-session';
 
 // Minimal in-memory localStorage so the helpers under test see a
 // `window.localStorage` even though vitest runs in `environment: 'node'`.

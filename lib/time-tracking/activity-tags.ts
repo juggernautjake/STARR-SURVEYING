@@ -1,4 +1,4 @@
-// lib/work-mode/activity-tags.ts
+// lib/time-tracking/activity-tags.ts
 //
 // Helpers for the activity-tag system. Mirrors the seed in
 // seeds/302_activity_tags.sql.
