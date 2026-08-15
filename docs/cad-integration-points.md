@@ -1,10 +1,14 @@
 # CAD integration points — the enumeration
 
-> **C44a** of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+> **C44a / C44b** of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 > Regenerate with `node scripts/cad-integration-audit.mjs --markdown`.
 > `--orphans-only` for the short version; `--json` for a machine-readable one.
+> Guarded by `__tests__/cad/cad-integrations-reach-a-surface.test.ts`, which runs this same audit.
 
-**62 integration modules across 6 areas. 60 reach a surface; 2 do not.**
+**61 integration modules across 5 areas. 60 reach a surface; 1 does not, by design.**
+
+C44a found 62 across 6 and two orphans. C44b resolved one of them — see below — which took
+`lib/cad/export/` with it.
 
 ## What "reachable" means here, and why it is not what the orphan ratchet asks
 
@@ -40,27 +44,40 @@ instrument was the finding** — and the reason the audit reports what it sees r
 **Known blind spots**, stated rather than hidden: dynamic `import(variable)` is invisible, and a
 re-export chain that renames a symbol is followed by path, not by name.
 
-## The two orphans
+## The orphans, and what happened to them
 
-### `lib/cad/export/landxml-writer.ts` — a second LandXML writer, unreached
+### `lib/cad/export/landxml-writer.ts` — deleted (C44b)
 
-Its own header calls it *"the other half of the interchange spine"* — written against
-`lib/cad/import/landxml-parser.ts` so a firm's data can come back out in the format it came in.
-It exports `buildLandXml`, mandates an explicit `<Units>` (with a stated reason: Civil 3D and
-Trimble Business Center mis-scale a document without one), escapes text, and writes full precision.
+A second LandXML writer, with no path to any surface. Its own header called it *"the other half of
+the interchange spine"* — written against `lib/cad/import/landxml-parser.ts` so a firm's data could
+come back out in the format it came in, mandating an explicit `<Units>` (Civil 3D and Trimble
+Business Center mis-scale a document without one), escaping text, writing full precision. What
+ships instead is `lib/cad/delivery/landxml-writer.ts`, 391 lines, reachable from the CAD page in
+three hops, which additionally emits true `<Curve>` elements so arcs survive as arcs.
 
-Nothing calls it. What ships instead is `lib/cad/delivery/landxml-writer.ts` —
-`exportToLandXML` + `downloadLandXML`, 391 lines, reachable from the CAD page in 3 hops.
+**The deletion was not the first move, and that is the point.** The dead writer had a good test
+suite — five cases encoding real interchange rules — and *"every dead module found today had passing
+tests"* is `cad-modules-are-reachable`'s own opening line. Deleting a module is also deleting the
+only place a requirement was written down, so the rules were re-asserted against the writer that
+runs first, in `__tests__/cad/landxml-round-trip.test.ts`:
 
-**Two writers for one format is this codebase's recorded "two vocabularies for one job" pattern.**
-Which survives is a decision, not a fix, and it belongs to C44b: the delivery one is wired and the
-export one round-trips with the import parser, so the question is whether import→export fidelity is
-a requirement the shipped writer meets.
+| Rule the dead writer encoded | The shipped writer |
+|---|---|
+| Output parses back through the reader with coordinates intact | ✅ — and checked against the ORIGINALS, so a both-sides northing/easting flip still fails |
+| `<Units>` declared | ✅ `USSurveyFoot` / `Imperial` |
+| Text escaped so `TREE 12<AT FENCE` does not break the receiving package | ✅ |
+| Coordinates not rounded away | ✅ at 4 dp — 0.03 mm, below what a total station resolves. The dead writer promised *full* precision; the promise was stronger than the requirement |
+| No exponential notation | ✅ |
 
-### `lib/cad/ai/mock-proposer.ts` — expected
+All five passed against the shipped writer, so the supersession is traced rather than assumed and
+the module went. Recoverable from git — the same disposition `spatial/feature-index.ts` and
+`io/trv-bearings.ts` got, for the same reason.
 
-Already recorded in `cad-modules-are-reachable` as *"test/dev double for the AI proposer"*. It is
-an orphan by design and both instruments agree.
+### `lib/cad/ai/mock-proposer.ts` — kept, by design
+
+Already recorded in `cad-modules-are-reachable` as *"test/dev double for the AI proposer"*. Giving
+it a surface would mean shipping a fake AI to production, which is the opposite of what this check
+is for. Both instruments agree, and the ratchet holds the reason.
 
 ## The enumeration
 
@@ -100,12 +117,6 @@ an orphan by design and both instruments agree.
 | `unknown-refs.ts` | `app/admin/cad/page.tsx` | 5 |
 | `validation.ts` | `app/admin/cad/page.tsx` | 4 |
 | `xml-lite.ts` | `app/api/admin/field-ingest/route.ts` | 3 |
-
-### `lib/cad/export` — Export writers
-
-| Module | Reachable from | Hops |
-|---|---|---|
-| `landxml-writer.ts` | **ORPHAN — no path to a surface** | — |
 
 ### `lib/cad/delivery` — Deliverable production (DXF / GeoJSON / LandXML / PDF / seals)
 

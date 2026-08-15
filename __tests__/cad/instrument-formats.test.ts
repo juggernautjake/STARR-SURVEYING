@@ -7,7 +7,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseXml, XmlParseError, attr, firstChild, descendantsNamed } from '@/lib/cad/import/xml-lite';
 import { parseLandXml, parseLandXmlAsRows, looksLikeLandXml, METERS_PER_UNIT } from '@/lib/cad/import/landxml-parser';
-import { buildLandXml, xmlEscape } from '@/lib/cad/export/landxml-writer';
 import { parseGsi, parseGsiAsRows, detectGsiVariant, parseGsiLine, looksLikeGsi } from '@/lib/cad/import/gsi-parser';
 import { parseRW5Document, parseRW5, looksLikeRw5 } from '@/lib/cad/import/rw5-parser';
 import { parseJobXMLDocument, parseJobXML, looksLikeJobXml } from '@/lib/cad/import/jobxml-parser';
@@ -213,69 +212,11 @@ describe('LandXML import', () => {
   });
 });
 
-describe('LandXML export', () => {
-  const xml = buildLandXml({
-    linearUnit: 'USSurveyFoot',
-    projectName: 'Job 26-001 & Co',
-    application: { name: 'Starr CAD', version: '1.0' },
-    coordinateSystem: { name: 'NAD83 Texas Central', epsgCode: '32139' },
-    points: [
-      { name: '101', code: 'IPF', description: '1/2" pipe <found>', northing: 3162345.12, easting: 942111.87, elevation: 812.4 },
-      { name: '102', code: '', description: '', northing: 3162400.55, easting: 942150, elevation: null },
-      { name: '103', code: '', description: '', northing: 3162450, easting: 942200, elevation: null },
-    ],
-    parcels: [{ name: 'LOT 1', area: 12000, pointNames: ['101', '102', '103'] }],
-    timestamp: new Date('2026-08-01T12:00:00Z'),
-  });
-
-  it('round-trips through its own reader with the coordinates intact', () => {
-    // The strongest single assertion available: if either side flipped northing and easting, this
-    // still passes — so the values are checked against the ORIGINALS, not against each other.
-    const back = parseLandXml(xml);
-    const p = back.points.find((x) => x.name === '101')!;
-    expect(p.northing).toBe(3162345.12);
-    expect(p.easting).toBe(942111.87);
-    expect(p.elevation).toBe(812.4);
-    expect(back.units.linear).toBe('USSurveyFoot');
-    expect(back.coordinateSystem?.epsgCode).toBe('32139');
-  });
-
-  it('omits elevation rather than writing zero for a point that has none', () => {
-    // A written 0 comes back as a real sea-level elevation on the next import.
-    expect(parseLandXml(xml).points.find((x) => x.name === '102')!.elevation).toBeNull();
-  });
-
-  it('escapes text that would otherwise break the receiving software', () => {
-    expect(xml).not.toMatch(/desc="1\/2" pipe/);
-    expect(xml).toContain('&quot;');
-    expect(xml).toContain('&lt;found&gt;');
-    expect(xml).toContain('Job 26-001 &amp; Co');
-    expect(xmlEscape(`a&b<c>"d"'e'`)).toBe('a&amp;b&lt;c&gt;&quot;d&quot;&apos;e&apos;');
-  });
-
-  it('writes coordinates at full precision, not rounded', () => {
-    expect(xml).toContain('3162345.12 942111.87 812.4');
-    expect(xml).not.toMatch(/3162345\.1\b/);
-  });
-
-  it('never emits exponential notation, which no consumer reliably reads', () => {
-    const tiny = buildLandXml({
-      linearUnit: 'meter', projectName: 'T',
-      points: [{ name: '1', code: '', description: '', northing: 0.0000001, easting: 1e21, elevation: null }],
-    });
-    expect(tiny).not.toMatch(/e[+-]\d/i);
-  });
-
-  it('skips a parcel whose points are not in the export instead of writing an empty one', () => {
-    // An empty <CoordGeom> reads downstream as a parcel of zero area rather than a missing one.
-    const orphan = buildLandXml({
-      linearUnit: 'meter', projectName: 'T',
-      points: [{ name: '1', code: '', description: '', northing: 1, easting: 2, elevation: null }],
-      parcels: [{ name: 'GHOST', pointNames: ['99', '98', '97'] }],
-    });
-    expect(orphan).not.toContain('GHOST');
-  });
-});
+// The `LandXML export` block lived here and tested `lib/cad/export/landxml-writer.ts`, which C44a
+// found had no path to any surface. Its rules were re-asserted against the writer that actually
+// runs — see `__tests__/cad/landxml-round-trip.test.ts` — and then the dead module was deleted.
+// Recoverable from git. A deletion that discards the only place a requirement was written down is
+// not a cleanup, which is why the rules moved before the file went.
 
 // ── Leica GSI ────────────────────────────────────────────────────────────────────────────────────
 

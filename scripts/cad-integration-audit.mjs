@@ -39,11 +39,16 @@ const ROOT = process.cwd();
 const JSON_OUT = process.argv.includes('--json');
 const ORPHANS_ONLY = process.argv.includes('--orphans-only');
 
-/** The integration surface C44a names: CAD file formats in and out, delivery, and the outside world. */
-const INTEGRATION_DIRS = [
+/** The integration surface C44a names: CAD file formats in and out, delivery, and the outside world.
+ *
+ *  C44b — `lib/cad/export` was here and held one module, a second LandXML writer with no path to any
+ *  surface. Its rules were re-asserted against the writer that ships
+ *  (`__tests__/cad/landxml-round-trip.test.ts`) and then it was deleted, taking the directory with
+ *  it. The area is not listed as empty, because an empty area reads as "nothing to audit here"
+ *  rather than "there is no such thing". */
+export const INTEGRATION_DIRS = [
   ['lib/cad/io', 'TRV round-trip (the native format)'],
   ['lib/cad/import', 'Field-data import (RW5 / GSI / JobXML / LandXML / CSV)'],
-  ['lib/cad/export', 'Export writers'],
   ['lib/cad/delivery', 'Deliverable production (DXF / GeoJSON / LandXML / PDF / seals)'],
   ['lib/cad/integrations', 'Third-party sync (Compass / Forge / Orbit)'],
   ['lib/cad/ai', 'AI providers and the tool registry'],
@@ -170,30 +175,42 @@ function findEntry(startPath) {
   return { kind: 'ORPHAN', via: null, depth };
 }
 
-const results = [];
-for (const [dir, purpose] of INTEGRATION_DIRS) {
-  const files = walk(join(ROOT, dir)).map(rel).sort();
-  for (const path of files) {
-    if (/\/index\.ts$/.test(path)) continue; // barrels are plumbing, not integration points
-    const entry = findEntry(path);
-    results.push({
-      module: path,
-      area: dir,
-      purpose,
-      entry: entry.kind,
-      via: entry.via,
-      hops: entry.depth,
-      directImporters: importersOf(path).length,
-    });
+/**
+ * The audit itself. Exported so `__tests__/cad/cad-integrations-reach-a-surface.test.ts` runs the
+ * SAME walk rather than a second copy of it — C44b's ratchet and C44a's report have to agree by
+ * construction, and two implementations of one measurement is the drift this doc keeps recording
+ * under other names.
+ */
+export function auditIntegrationPoints() {
+  const out = [];
+  for (const [dir, purpose] of INTEGRATION_DIRS) {
+    const files = walk(join(ROOT, dir)).map(rel).sort();
+    for (const path of files) {
+      if (/\/index\.ts$/.test(path)) continue; // barrels are plumbing, not integration points
+      const entry = findEntry(path);
+      out.push({
+        module: path,
+        area: dir,
+        purpose,
+        entry: entry.kind,
+        via: entry.via,
+        hops: entry.depth,
+        directImporters: importersOf(path).length,
+      });
+    }
   }
+  return out;
 }
 
-if (JSON_OUT) {
+const results = auditIntegrationPoints();
+
+// Everything below is the CLI. Importing this module runs the walk (it is cheap and pure) but
+// prints nothing, so the test can call `auditIntegrationPoints()` without a console full of tables.
+const IS_CLI = !!process.argv[1] && process.argv[1].replace(/\\/g, '/').endsWith('cad-integration-audit.mjs');
+
+if (IS_CLI && JSON_OUT) {
   console.log(JSON.stringify({ results }, null, 2));
-  process.exit(0);
-}
-
-if (process.argv.includes('--markdown')) {
+} else if (IS_CLI && process.argv.includes('--markdown')) {
   for (const [dir, purpose] of INTEGRATION_DIRS) {
     const rows = results.filter((r) => r.area === dir);
     if (rows.length === 0) continue;
@@ -206,28 +223,27 @@ if (process.argv.includes('--markdown')) {
     }
     console.log('');
   }
-  process.exit(0);
-}
-
-const shown = ORPHANS_ONLY ? results.filter((r) => r.entry === 'ORPHAN') : results;
-const byArea = new Map();
-for (const r of shown) {
-  if (!byArea.has(r.area)) byArea.set(r.area, []);
-  byArea.get(r.area).push(r);
-}
-
-console.log('CAD integration points — reachability to a page, an API route, or the worker\n');
-for (const [area, rows] of byArea) {
-  const purpose = rows[0]?.purpose ?? '';
-  console.log(`── ${area} — ${purpose}`);
-  for (const r of rows) {
-    const tag = r.entry.padEnd(6);
-    const where = r.via ? `${r.via} (${r.hops} hop${r.hops === 1 ? '' : 's'})` : '— no path to a surface';
-    console.log(`   ${tag} ${basename(r.module).padEnd(30)} ${where}`);
+} else if (IS_CLI) {
+  const shown = ORPHANS_ONLY ? results.filter((r) => r.entry === 'ORPHAN') : results;
+  const byArea = new Map();
+  for (const r of shown) {
+    if (!byArea.has(r.area)) byArea.set(r.area, []);
+    byArea.get(r.area).push(r);
   }
-  console.log('');
-}
 
-const counts = results.reduce((acc, r) => ({ ...acc, [r.entry]: (acc[r.entry] ?? 0) + 1 }), {});
-console.log('Totals:', Object.entries(counts).map(([k, v]) => `${k} ${v}`).join('  ·  '));
-console.log(`${results.length} integration modules across ${INTEGRATION_DIRS.length} areas.`);
+  console.log('CAD integration points — reachability to a page, an API route, or the worker\n');
+  for (const [area, rows] of byArea) {
+    const purpose = rows[0]?.purpose ?? '';
+    console.log(`── ${area} — ${purpose}`);
+    for (const r of rows) {
+      const tag = r.entry.padEnd(6);
+      const where = r.via ? `${r.via} (${r.hops} hop${r.hops === 1 ? '' : 's'})` : '— no path to a surface';
+      console.log(`   ${tag} ${basename(r.module).padEnd(30)} ${where}`);
+    }
+    console.log('');
+  }
+
+  const counts = results.reduce((acc, r) => ({ ...acc, [r.entry]: (acc[r.entry] ?? 0) + 1 }), {});
+  console.log('Totals:', Object.entries(counts).map(([k, v]) => `${k} ${v}`).join('  ·  '));
+  console.log(`${results.length} integration modules across ${INTEGRATION_DIRS.length} areas.`);
+}
