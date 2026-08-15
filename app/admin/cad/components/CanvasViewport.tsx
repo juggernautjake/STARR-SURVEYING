@@ -1681,21 +1681,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
 
     const doc = useDrawingStore.getState().document;
     const visibleFeatures = useDrawingStore.getState().getVisibleFeatures();
-    // C2 (2026-08-15) — instrumented, because C1 pointed here and a guess is not a profile.
+    // C3 (2026-08-15) — was `new Set(visibleFeatures.map((f) => f.id))`, built fresh every frame.
     //
-    // `getVisibleFeatures()` is cached by reference (the S2 fix), so it is cheap. This line is not:
-    // it walks the WHOLE visible set to build a throwaway array of ids and then a Set from it, on
-    // every frame, no matter what the camera did. At 200k features that is a 200k-element string
-    // array plus a 200k-entry hash set allocated and discarded per frame.
+    // C2 measured that line at **16.2ms p50 on a 200k drawing — 78% of the entire render pass** —
+    // because it allocated a 200k string array plus a 200k hash set per frame regardless of what
+    // the camera did. Same shape as the bug S2 fixed: a large allocation completed before a single
+    // pixel is drawn.
     //
-    // The consumer below only asks `has(id)` for ids already in `pixi.featureGraphics` — which
-    // holds only what has actually been drawn, i.e. roughly what fits on screen. So the set is
-    // built at the scale of the DOCUMENT to answer questions at the scale of the VIEWPORT.
+    // The defect was scale, not algorithm. The consumer below only asks `has(id)` for ids already
+    // in `pixi.featureGraphics`, which holds what has actually been drawn — roughly a screenful. So
+    // the set was built at the scale of the DOCUMENT to answer questions at the scale of the
+    // VIEWPORT. It now lives in the store's visible-set cache, keyed on the same
+    // `document.features` / `document.layers` references, so it is rebuilt when the drawing
+    // changes rather than when the camera moves.
     //
-    // It is the same shape as the bug S2 fixed (a large per-frame allocation before any pixel is
-    // drawn) and it fits both of C1's findings at once: steady allocation + hashing explains the
-    // 19ms median, and churning ~400k objects per frame explains the 127.8ms p99 as a GC pause.
-    const visibleIds = measureRender('cullIdSets', () => new Set(visibleFeatures.map((f) => f.id)));
+    // The marker stays: a cost this large should be visible in the overlay, and it is how the
+    // before/after was taken.
+    const visibleIds = measureRender('cullIdSets', () => useDrawingStore.getState().getVisibleFeatureIds());
 
     // Phase 7 §19 — frustum culling. Compute the world-space
     // viewport bbox (with a 20% padding so features just

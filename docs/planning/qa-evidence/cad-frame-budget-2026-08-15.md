@@ -123,3 +123,35 @@ conditions, so it belongs beside it — built once per document change instead o
 
 `culledIds` (built from the culled list, so viewport-sized) is a much smaller cost and is **not**
 the target; measuring stopped it being assumed.
+
+---
+
+# C3 — the fix, with the number (2026-08-15)
+
+`renderFeatures` now calls `getVisibleFeatureIds()`, a Set cached in the store beside the visible
+list on the same `document.features` / `document.layers` key. Built once per document version
+instead of once per frame.
+
+## Before / after, same fixtures, same instrument
+
+| Fixture | State | Phase | Before | After |
+|---|---|---|---|---|
+| Large 200k | pan | `cullIdSets` p50 | 16.2 | **0** |
+| Large 200k | pan | `renderFeatures` p50 | 20.9 | **5.8** |
+| Large 200k | pan | `renderAll` p50 | 32.5 | **14.8** |
+| Large 200k | pan | `renderAll` p95 | 39.8 | **18.8** |
+| Large 200k | pan | `renderAll` **max** | 49.5 | **19.7** |
+| Large 200k | idle | `renderAll` p50 | 24.8 | **11.4** |
+| Medium 50k | pan | `renderAll` p50 | 9.3 | **5.5** |
+
+Against C1's original numbers the max is the headline: **136.7ms → 19.7ms**. The GC pause is gone,
+which is what the allocation theory predicted — remove the churn and the spike goes with it.
+
+**A 200,000-feature drawing now pans at 14.8ms p50, inside the 16.7ms budget.** p95 is 18.8ms, so
+it is close rather than clear; that is C4's remaining ground.
+
+## The new top cost
+
+`renderLabels` is now the largest phase at Large — 7.0ms of a 14.8ms frame, and 7.1ms of 11.4ms
+when idle. It did not get slower; everything around it got faster. C1 flagged it as "a real but
+secondary cost", and it is now the primary one.

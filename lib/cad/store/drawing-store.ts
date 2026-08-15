@@ -50,6 +50,17 @@ type VisibleCache = {
   featuresRef: DrawingDocument['features'];
   layersRef: DrawingDocument['layers'];
   visible: Feature[] | null;
+  /** C3 — the ids of `visible`, as a Set.
+   *
+   *  `renderFeatures` needs `has(id)` and was building this from scratch every frame:
+   *  `new Set(visibleFeatures.map(f => f.id))`. C2 measured it at **16.2ms p50 on a 200k drawing —
+   *  78% of the whole render pass** — because it allocates a 200k string array and a 200k hash set
+   *  per frame, no matter what the camera did.
+   *
+   *  It derives from exactly the same two references the rest of this cache is keyed on, so it
+   *  invalidates on exactly the same conditions and adds no new staleness assumption. Lazy, like
+   *  the buckets below: a caller that never asks never pays. */
+  visibleIds: Set<string> | null;
   selectable: Feature[] | null;
   /** Lazily built, and only for the geometry types anyone actually asks for. The IMAGE and TEXT
    *  passes each used to filter the full 200k list every frame to find their handful; now they cost
@@ -72,6 +83,7 @@ function cacheFor(document: DrawingDocument): VisibleCache {
     featuresRef: document.features,
     layersRef: document.layers,
     visible: null,
+    visibleIds: null,
     selectable: null,
     byGeometryType: null,
     byFeatureType: null,
@@ -318,6 +330,11 @@ interface DrawingStore {
   getLayer: (id: string) => Layer | undefined;
   getFeaturesOnLayer: (layerId: string) => Feature[];
   getVisibleFeatures: () => Feature[];
+  /** C3 — the ids of `getVisibleFeatures()`, cached on the same document references.
+   *
+   *  For a caller that needs membership rather than the list. `renderFeatures` was building this
+   *  per frame and it measured 78% of the whole render pass on a 200k drawing (C2). */
+  getVisibleFeatureIds: () => Set<string>;
   /** CAD_AUDIT S2b — visible features bucketed by `geometry.type` (e.g. 'IMAGE'), so a pass that
    *  handles one geometry kind does not walk the whole drawing to find it. */
   getVisibleFeaturesByGeometryType: (type: string) => Feature[];
@@ -1136,6 +1153,23 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       return canFeatureBeRendered(layer);
     });
     return cache.visible;
+  },
+
+  /** C3 — membership of the visible set, built once per document version rather than per frame.
+   *
+   *  Deliberately derived from `getVisibleFeatures()` rather than re-filtering `document.features`
+   *  independently: two predicates that must agree are two predicates that can disagree, and this
+   *  one decides whether a Graphics object is destroyed. Reusing the list makes divergence
+   *  impossible rather than merely unlikely. */
+  getVisibleFeatureIds: () => {
+    const { document } = get();
+    const cache = cacheFor(document);
+    if (cache.visibleIds) return cache.visibleIds;
+    const visible = get().getVisibleFeatures();
+    const ids = new Set<string>();
+    for (const f of visible) ids.add(f.id);
+    cache.visibleIds = ids;
+    return ids;
   },
 
   /** S2b — the visible features whose GEOMETRY is of one type, without walking the rest.
