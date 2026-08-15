@@ -175,6 +175,47 @@
   flex-shrink: 0;
 }
 
+/* C0n — the height stepper. Desktop resizes by dragging in the grid painter; a phone row cannot
+ * host a resize grip that is distinguishable from the reorder grip beside it, so this is a pair of
+ * buttons and a readout. 32px keeps both above the 28px interactive floor in
+ * docs/admin-styling-contract.md while still fitting a 40px row. */
+.hub-msheet__height {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.hub-msheet__height-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #111827);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.hub-msheet__height-btn:disabled {
+  /* At the widget's own min or max. Dimmed rather than hidden — a control that disappears at the
+   * limit reads as a bug, and its absence gives no clue that a limit is why. */
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.hub-msheet__height-value {
+  min-width: 1.25rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-secondary, #6b7280);
+}
+
 /* The per-widget settings sub-sheet, layered over the reorder list. Same full-screen fixed frame as
  * the main sheet so it fully covers the list behind it, one z-index above. */
 .hub-msheet__wsheet {

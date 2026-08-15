@@ -104,6 +104,28 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
     setDraftWidgets(arrayMove(widgets, oldIndex, newIndex));
   }
 
+  /**
+   * C0n — change one widget's height, clamped to what its definition permits.
+   *
+   * Goes through `setDraftWidgets`, which is how the desktop grid painter resizes too, so a height
+   * set on a phone and one dragged at a desk are the same edit to the same draft and Save writes
+   * them identically.
+   *
+   * Only `h` moves. `x`, `y` and `w` are the desktop arrangement, and this sheet exists precisely
+   * because that arrangement is not editable on a phone — changing them here would rearrange a
+   * layout the user cannot see.
+   */
+  function resizeWidget(id: string, requestedH: number) {
+    const target = widgets.find((w) => w.id === id);
+    if (!target) return;
+    const def = getWidget(target.type);
+    const min = def?.minSize.h ?? 1;
+    const max = def?.maxSize.h ?? 8;
+    const h = Math.max(min, Math.min(max, requestedH));
+    if (h === target.h) return;
+    setDraftWidgets(widgets.map((w) => (w.id === id ? { ...w, h } : w)));
+  }
+
   function handleAdd(def: WidgetDefinition<Record<string, unknown>>) {
     // Place at the bottom of the desktop grid (x:0, y:maxBottom) so the
     // new widget doesn't overlap on desktop; appending to the array
@@ -162,6 +184,7 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
                   instance={instance}
                   onRemove={() => removeWidget(instance.id)}
                   onEdit={() => setEditingId(instance.id)}
+                  onResize={(nextH) => resizeWidget(instance.id, nextH)}
                 />
               ))}
             </ul>
@@ -226,9 +249,11 @@ interface SortableRowProps {
   instance: WidgetInstance;
   onRemove: () => void;
   onEdit: () => void;
+  /** C0n — set this widget's height. The caller clamps to the widget definition's bounds. */
+  onResize: (nextH: number) => void;
 }
 
-function SortableRow({ instance, onRemove, onEdit }: SortableRowProps) {
+function SortableRow({ instance, onRemove, onEdit, onResize }: SortableRowProps) {
   const def = getWidget(instance.type);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: instance.id,
@@ -256,6 +281,39 @@ function SortableRow({ instance, onRemove, onEdit }: SortableRowProps) {
         <GripVertical size={18} aria-hidden />
       </button>
       <span className="hub-msheet__row-label">{label}</span>
+      {/* C0n — HEIGHT, the one capability the desktop editor had and this sheet did not.
+       *
+       * Desktop resizes by dragging in the 8-column grid painter, which is why this sheet replaces
+       * it wholesale on a phone. But the phone stack is one column, so WIDTH genuinely has no
+       * meaning here — `mobileSizeOverride` forces it to 2 for the bucket maths regardless — while
+       * HEIGHT still decides how much of a widget you actually see. A phone-only user could
+       * previously reorder, add, remove and configure, and was stuck with whatever height had been
+       * set at a desk.
+       *
+       * Buttons rather than a drag handle: a 40px-tall row on a touch screen cannot host a resize
+       * grip that is distinguishable from the reorder grip beside it. Clamped to the widget's own
+       * declared bounds, so this cannot produce a size the desktop grid would reject. */}
+      <span className="hub-msheet__height" role="group" aria-label={`Height of ${label}`}>
+        <button
+          type="button"
+          className="hub-msheet__height-btn"
+          onClick={() => onResize(instance.h - 1)}
+          disabled={instance.h <= (def?.minSize.h ?? 1)}
+          aria-label={`Make ${label} shorter`}
+        >
+          −
+        </button>
+        <span className="hub-msheet__height-value" aria-live="polite">{instance.h}</span>
+        <button
+          type="button"
+          className="hub-msheet__height-btn"
+          onClick={() => onResize(instance.h + 1)}
+          disabled={instance.h >= (def?.maxSize.h ?? 8)}
+          aria-label={`Make ${label} taller`}
+        >
+          +
+        </button>
+      </span>
       {editable && (
         <button
           type="button"
