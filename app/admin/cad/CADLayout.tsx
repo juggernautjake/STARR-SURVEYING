@@ -1069,6 +1069,21 @@ export default function CADLayout() {
     <TooltipProvider>
     <div
       className="cad-root flex flex-col h-screen w-full overflow-hidden bg-white select-none"
+      /* admin-ui-alignment-2026-08-15 — this editor DECLARES that it is compact, and the alignment
+       * sweep (scripts/ui-align-audit.mjs) reads the attribute and drops its 28px minimum-target
+       * floor inside this subtree.
+       *
+       * The floor exists for the rest of the admin, which is used one-handed in a truck. This is a
+       * drawing editor with a tool rail, two docked panels, a command line and a status bar, driven
+       * with a mouse at a desk — the same shape as AutoCAD or QGIS, where an 18px status-bar toggle
+       * and a 22px panel field are correct rather than sloppy. Raising them to 32px would rewrite
+       * the editor's density, which is the thing the audit's own D6 warned against.
+       *
+       * Declared here rather than special-cased by route inside the audit, so the exception is
+       * visible to whoever reads this component and travels with it if the editor is ever reused.
+       * Everything else the sweep measures — rows that do not share a centre line, neighbours of
+       * visibly different height, how many distinct heights one screen uses — still applies. */
+      data-ui-density="compact"
       onContextMenu={(e) => {
         // The CAD app owns right-click (feature/layer/canvas menus). Suppress
         // the browser's native context menu everywhere EXCEPT real text fields,

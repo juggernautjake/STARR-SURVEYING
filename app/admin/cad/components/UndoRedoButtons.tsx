@@ -10,6 +10,8 @@
 import { useUndoStore } from '@/lib/cad/store';
 import Tooltip from './Tooltip';
 
+// admin-ui-alignment-2026-08-15 — these were w-7 h-7 (28px) sitting in the tool options bar, whose
+// every other control is h-6 (24px). Four pixels, on the two buttons at the left end of the bar.
 export default function UndoRedoButtons() {
   const undoStore = useUndoStore();
   const canUndo = undoStore.canUndo();
@@ -33,7 +35,7 @@ export default function UndoRedoButtons() {
         <button
           type="button"
           aria-label={undoDesc ? `Undo ${undoDesc}` : 'Undo'}
-          className={`flex items-center justify-center w-7 h-7 rounded border transition-colors
+          className={`flex items-center justify-center w-6 h-6 rounded border transition-colors
             ${canUndo
               ? 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:text-white'
               : 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed opacity-50'}`}
@@ -54,7 +56,7 @@ export default function UndoRedoButtons() {
         <button
           type="button"
           aria-label={redoDesc ? `Redo ${redoDesc}` : 'Redo'}
-          className={`flex items-center justify-center w-7 h-7 rounded border transition-colors
+          className={`flex items-center justify-center w-6 h-6 rounded border transition-colors
             ${canRedo
               ? 'bg-gray-700 border-gray-600 text-gray-200 hover:bg-gray-600 hover:text-white'
               : 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed opacity-50'}`}

@@ -1,0 +1,115 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 5,
+  "byRule": {
+    "row-height": 1,
+    "height-spread": 2,
+    "small-target": 7
+  },
+  "byRoute": {
+    "/admin/cad": 10
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4,
+      "detail": "button.flex.items-center.justify-center is 28px tall, button.px-2.5.h-6.rounded \"Select All\" is 24px — beside each other",
+      "container": "div",
+      "sig": "button.flex.items-center.justify-center:28|button.px-2.5.h-6.rounded:24",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 5,
+      "detail": "5 different input heights on one page: 18, 22, 28, 30, 52px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 24,
+      "detail": "button.px-2.5.h-6.rounded \"Select All\" is only 24px tall",
+      "container": "div \"Select All\"",
+      "sig": "button.px-2.5.h-6.rounded:24",
+      "count": 3
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 24,
+      "detail": "button.flex.items-center.gap-1 \"Prefs\" is only 24px tall",
+      "container": "div \"Prefs\"",
+      "sig": "button.flex.items-center.gap-1:24",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 22,
+      "detail": "input.w-full.bg-gray-800.border is only 22px tall",
+      "container": "div.px-2.py-1.border-b",
+      "sig": "input.w-full.bg-gray-800.border:22",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 22,
+      "detail": "button.px-2.py-0.5.rounded \"ft\" is only 22px tall",
+      "container": "div.flex.gap-0.5.flex-wrap \"ftinmimcmmm\"",
+      "sig": "button.px-2.py-0.5.rounded:22",
+      "count": 23
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 28,
+      "detail": "select.w-full.bg-gray-800.border \"Texas North — EPSG:2275 (zon\" is only 28px tall",
+      "container": "div.pt-2.space-y-0.5 \"State Plane Zone(stamped int\"",
+      "sig": "select.w-full.bg-gray-800.border:28",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 18,
+      "detail": "input.w-10.text-center.bg-gray-800 is only 18px tall",
+      "container": "div.relative.flex.items-center \"%\"",
+      "sig": "input.w-10.text-center.bg-gray-800:18",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 18,
+      "detail": "button.shrink-0.flex.items-center \"AI: COPILOT\" is only 18px tall",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "button.shrink-0.flex.items-center:18",
+      "count": 1
+    }
+  ]
+}

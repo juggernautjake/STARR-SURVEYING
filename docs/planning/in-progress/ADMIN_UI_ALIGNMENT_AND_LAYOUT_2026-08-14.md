@@ -420,6 +420,47 @@ Dropping `--sm` from those two buttons is the whole fix. **A number that is near
 directions hides which of the two the author meant** — which is the argument for the token system
 stated from the other end.
 
+## D6j — CAD: the island was paying for being outside the shell, and two findings are accepted
+
+**21 → 2.** Three things, in the order they mattered.
+
+**1. Eleven of the 21 were the instrument pairing across regions.** CAD's vertical tool rail sits
+immediately left of the layers panel, so a 36px rail button and a 22px panel field land in the same
+24px band 40px apart, and got reported as *"side by side, centres differ by 14px"*. They are not
+side by side: one is in a column of tools, the other in a list of layers, and no change satisfies
+both. Pairs are now rejected when their nearest common ancestor is more than 4 hops from either —
+a real row is shallow (a field in its wrapper beside a button in its wrapper is 2 or 3), a
+cross-region pair is 5 and up. Checked against four already-green pages, which stayed green.
+
+**2. The editor was inheriting the marketing site's form styling.** `/admin/cad` renders full-screen
+from its own root, *outside* `.admin-layout`, so neither the admin reset nor `forms.css` reached it
+— but `globals.css`'s `input, textarea, select { padding: .875rem 1rem; margin-bottom: 1.5rem; … }`
+did. That is 14px of vertical padding on every control in an editor built on 24px rows, and it is
+why `PropertyPanel` asks for `h-6` and measured **30px**, and why the command line measured **52px**.
+Five input heights, of which two were nobody's decision. `:where(.cad-root)` now neutralizes the
+four declarations that fight it.
+
+> The first draft of that reset was `.cad-root input`, which scores (0,1,1) and beat every Tailwind
+> utility in the editor: `width: auto` collapsed the command line to a stub and stretched the zoom
+> field across the status bar. `:where()` drops it to (0,0,1) — above `globals.css` on source order,
+> below any class. **A reset that wins too much is as wrong as one that never fires**, and this pass
+> has now produced one of each.
+
+**3. The floor is declared, not special-cased.** The 28px minimum-target rule is written for a
+product used one-handed in a truck. This is a drawing editor driven with a mouse at a desk — tool
+rail, docked panels, command line, status bar — where an 18px status toggle is the same choice
+AutoCAD and QGIS make. The root carries `data-ui-density="compact"` and the audit reads it, so the
+exception is visible to whoever opens the component rather than buried in a route list in the
+script. Only that rule stands down; centres, neighbours and spread still apply inside.
+
+**The two that remain are accepted.** `height-spread` reports 4 distinct heights among inputs and 4
+among buttons — and they are now the *same* four, 18 / 22 / 24 / 28: status bar, chips, panel
+fields, panel selects. Before this slice they were 18 / 22 / 28 / 30 / 52, two of which no author
+chose. The rule's ≥4 threshold is calibrated for an ordinary admin page, not for a multi-region
+editor, and **the honest response to a rule that is right in general and wrong here is to record the
+exception, not to move its threshold** — a rule bent to make a screen pass stops working on the next
+one.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -588,7 +629,7 @@ workspace starts at zero.
 | Coverage | `/admin/research/coverage` | 0 → 0 | ✅ |
 | Library | `/admin/research/library` | 2 → 0 | ✅ **the second utility-class island** — see A10's note |
 | Pipeline | `/admin/research/pipeline` | 0 → 0 | ✅ |
-| **CAD Editor** | `/admin/cad` | | ⬜ **slice A10** |
+| **CAD Editor** | `/admin/cad` | 21 → 2 | ✅ **slice A10** — the 2 are `height-spread`, accepted by design (D6j) |
 
 ### Knowledge (19)
 
@@ -672,7 +713,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A7 Equipment | ✅ 14 pages measured, **5 findings → 0**. `/admin/equipment/overrides` is the first page in this pass to take the contract's *second* move — it is genuinely dense (12px labels), so the row redefines `--input-height` and both the date field and the type toggles follow. `/admin/equipment/templates` had a checkbox column floating 10px above its neighbours (a label wrapping its input one level deeper than the reset's `:has(> …)` reaches) and three more literal 36s. One instrument correction: a boxless button is text, so its height no longer compares (D6g). |
 | A8 Research | ✅ 9 pages measured, **3 findings → 0**. `/admin/research/library` turned out to be a *second* utility-class island (D6h) — its filter tabs were `py-1`, 24px, beside 40px selects, and under the floor; fixed in Tailwind's own idiom rather than by opening a second styling system on the same element. `/admin/research/testing` was the checkbox-label margin again, the third instance this pass. |
 | A9 Knowledge | ✅ 19 pages measured, **3 findings → 0**. Two were A3's own `.admin-btn--sm` fix landing in rows that should never have used the small size (D6i); the third was `.manage__item-btn` at 31px — a class that paints a thousand buttons on the question-builder alone — plus a 39px add-button on a form of 40s. |
-| A10 CAD island | ⬜ |
+| A10 CAD island | ✅ **21 → 2** (D6j). Eleven were the instrument pairing a tool rail against a panel; the biggest real one was the editor inheriting `globals.css`'s marketing-form padding, because it renders outside `.admin-layout` — which is why fields asking for `h-6` measured 30px and the command line 52px. The remaining 2 are `height-spread` on a coherent 18/22/24/28 scale, accepted by design rather than by moving the threshold. |
 | A11 Narrow widths | ⬜ |
 | A12 Functional sweep | ⬜ |
 | A13 Quick Actions the user can author | ✅ `lib/hub/custom-quick-actions.ts` (model + href allow-list + resolver, 30 tests), the editor in the widget's settings panel, and the tinted glyph disc that makes the colour choice visible. Browser-verified end to end: added a link, watched it reject `javascript:alert(1)`, saved, saw the tile on the hub, clicked it, landed on the page. |

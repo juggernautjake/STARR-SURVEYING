@@ -154,6 +154,30 @@ const PROBE = () => {
     .filter(isVisible)
     .filter((el) => !inFixedChrome(el));
 
+  /**
+   * How far apart are two elements in the tree — the larger of the two hops up to their nearest
+   * common ancestor?
+   *
+   * Used to reject pairs that share a horizontal band without sharing a ROW. `/admin/cad` is where
+   * this became unavoidable: its vertical tool rail sits immediately left of the layers panel, so a
+   * 36px rail button and a 22px panel input land in the same 24px band, 40px apart horizontally,
+   * and got reported as "side by side, centres differ by 14px". They are not side by side — one is
+   * in a column of tools and the other is in a list of layers, and no change could satisfy both.
+   *
+   * A real row is shallow: a field in its own wrapper beside a button in its own wrapper is 2 or 3
+   * hops to the common ancestor. Cross-region pairs are 5 and up. The cap is 4.
+   */
+  const treeDistance = (a, b) => {
+    const chain = [];
+    for (let n = a; n && n !== document.body; n = n.parentElement) chain.push(n);
+    let up = 0;
+    for (let n = b; n && n !== document.body; n = n.parentElement, up++) {
+      const i = chain.indexOf(n);
+      if (i !== -1) return Math.max(i, up);
+    }
+    return 99;
+  };
+
   // ── RULE 1 — controls side by side that do not share a centre line ────────────────────────────
   //
   // The owner's headline complaint. Two controls are "in a row" when their vertical spans overlap
@@ -190,6 +214,8 @@ const PROBE = () => {
         if (Math.abs(a.r.left - b.r.left) < 2) continue; // same column, stacked
         const gap = Math.max(a.r.left, b.r.left) - Math.min(a.r.right, b.r.right);
         if (gap > 120) continue; // far apart across the page; the eye does not line these up
+        // Same band, different region: a tool rail beside a panel is not a row. See `treeDistance`.
+        if (treeDistance(a.el, b.el) > 4) continue;
         const ca = a.r.top + a.r.height / 2;
         const cb = b.r.top + b.r.height / 2;
         const drift = Math.abs(ca - cb);
@@ -303,9 +329,26 @@ const PROBE = () => {
   // heading — and it is sized by the text it sits in. Demanding 32px of it would break the line it
   // belongs to, so the rule would be asking for a worse screen. If it has a box, it reads as a
   // target and the floor applies.
+  /**
+   * A surface may DECLARE that it is compact, with `data-ui-density="compact"` on its root, and the
+   * floor stands down inside it.
+   *
+   * The 28px floor is written for the rest of the admin, which is used one-handed in a truck.
+   * `/admin/cad` is a drawing editor driven with a mouse at a desk — tool rail, docked panels,
+   * command line, status bar — where an 18px status toggle and a 22px panel field are the same
+   * choice AutoCAD and QGIS make, not sloppiness. Raising them would rewrite the editor's density,
+   * which D6 of the plan already argued against.
+   *
+   * It is an attribute rather than a route check inside this script for two reasons: the exception
+   * is then visible to whoever reads the component, and a route list here would silently stop
+   * matching the day the page moves. Only THIS rule stands down — misaligned centres, mismatched
+   * neighbours and height spread are still reported inside a compact subtree.
+   */
+  const inDeclaredCompact = (el) => !!el.closest('[data-ui-density="compact"]');
+
   for (const el of controls) {
     const r = el.getBoundingClientRect();
-    if (r.height > 0 && r.height < 28 && r.width > 24 && hasBox(el)) {
+    if (r.height > 0 && r.height < 28 && r.width > 24 && hasBox(el) && !inDeclaredCompact(el)) {
       findings.push({
         rule: 'small-target', severity: 'low', px: +r.height.toFixed(0),
         detail: `${describe(el)} is only ${r.height.toFixed(0)}px tall`,

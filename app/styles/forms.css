@@ -222,3 +222,38 @@
   font-size: var(--text-xs);
   color: var(--color-error);
 }
+
+/* ── The CAD editor is outside `.admin-layout`, and was paying for it ─────────────────────────
+ *
+ * admin-ui-alignment-2026-08-15 (slice A10). `/admin/cad` renders full-screen from its own root,
+ * not inside the admin shell, so neither the `.admin-layout` reset above it nor the
+ * `.admin-layout__content` normalization reached it. What DID reach it is `globals.css`:
+ *
+ *     input, textarea, select { width: 100%; padding: 0.875rem 1rem; margin-bottom: 1.5rem; … }
+ *
+ * — the marketing-site form style, 14px of vertical padding on every control in a drawing editor
+ * whose panels are built on 24px rows. That is why `PropertyPanel`'s fields ask for `h-6` (24px)
+ * and measure 30: the specified height loses to the min-content height the inherited padding
+ * forces. Five different input heights on one screen, and the author of each had asked for
+ * something else.
+ *
+ * Only the four declarations that fight the editor are neutralized, and the selector is wrapped in
+ * `:where()` ON PURPOSE — this rule has to sit in a specificity gap:
+ *
+ *     globals.css `input`          (0,0,1)  ← must lose to this rule
+ *     :where(.cad-root) input      (0,0,1)  ← wins on source order; forms.css loads after globals
+ *     Tailwind `.w-full`, `.px-1`  (0,1,0)  ← must beat this rule
+ *
+ * Written first as `.cad-root input`, which scores (0,1,1) and duly beat every Tailwind utility in
+ * the editor: `width: auto` collapsed the command line to a stub and stretched the zoom field
+ * across the status bar. That is the same silent-override trap this whole pass is about (D4c),
+ * arrived at from the other side — a reset that wins too much is as wrong as one that never fires.
+ */
+:where(.cad-root) input,
+:where(.cad-root) textarea,
+:where(.cad-root) select {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  font-size: inherit;
+}

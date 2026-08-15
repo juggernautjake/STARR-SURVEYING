@@ -1,0 +1,226 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 1,
+  "byRule": {
+    "row-height": 3,
+    "row-centre": 9,
+    "height-spread": 2,
+    "small-target": 7
+  },
+  "byRoute": {
+    "/admin/cad": 21
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4,
+      "detail": "button.flex.items-center.justify-center is 28px tall, button.px-2.5.h-6.rounded \"Select All\" is 24px — beside each other",
+      "container": "div",
+      "sig": "button.flex.items-center.justify-center:28|button.px-2.5.h-6.rounded:24",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 14,
+      "detail": "button.w-9.h-9.flex and input.w-full.bg-gray-800.border sit side by side but their centres differ by 14.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|input.w-full.bg-gray-800.border|div",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 15.8,
+      "detail": "button.w-9.h-9.flex is 38px tall, input.w-full.bg-gray-800.border is 22px — beside each other",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex:38|input.w-full.bg-gray-800.border:22",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 14,
+      "detail": "button.w-9.h-9.flex and button.flex-shrink-0.text-gray-500.hover:text-gray-300 sit side by side but their centres differ by 14.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|button.flex-shrink-0.text-gray-500.hover:text-gray-300|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 14,
+      "detail": "button.w-9.h-9.flex and button.flex-shrink-0.text-gray-400.hover:text-white sit side by side but their centres differ by 14.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|button.flex-shrink-0.text-gray-400.hover:text-white|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 14,
+      "detail": "button.w-9.h-9.flex and button.flex-shrink-0.p-0.5.transition-colors sit side by side but their centres differ by 14.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|button.flex-shrink-0.p-0.5.transition-colors|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 14,
+      "detail": "button.w-9.h-9.flex and button.flex-shrink-0.text-gray-600.hover:text-blue-400 sit side by side but their centres differ by 14.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|button.flex-shrink-0.text-gray-600.hover:text-blue-400|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 14,
+      "detail": "button.w-9.h-9.flex and button.flex-shrink-0.text-gray-600.hover:text-green-400 sit side by side but their centres differ by 14.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|button.flex-shrink-0.text-gray-600.hover:text-green-400|div",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 12,
+      "detail": "button.w-9.h-9.flex and button.w-full.flex.items-center \"New Layer\" sit side by side but their centres differ by 12.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|button.w-full.flex.items-center|div",
+      "count": 5
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 9,
+      "detail": "button.w-9.h-9.flex and input.w-full.bg-transparent.text-white sit side by side but their centres differ by 9.0px",
+      "container": "div",
+      "sig": "button.w-9.h-9.flex|input.w-full.bg-transparent.text-white|div",
+      "count": 2
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 12.7,
+      "detail": "button.px-2.py-0.5.rounded \"Crossing + Groups\" and button.shrink-0.flex.items-center \"▴Point Data0 pts\" sit side by side but their centres differ by 12.7px",
+      "container": "div.flex.gap-0.5.flex-wrap \"Crossing + GroupsCrossing On\"",
+      "sig": "button.px-2.py-0.5.rounded|button.shrink-0.flex.items-center|div.flex.gap-0.5.flex-wrap",
+      "count": 3
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 6,
+      "detail": "button.px-2.py-0.5.rounded \"Crossing + Groups\" is 22px tall, button.shrink-0.flex.items-center \"▴Point Data0 pts\" is 28px — beside each other",
+      "container": "div.flex.gap-0.5.flex-wrap \"Crossing + GroupsCrossing On\"",
+      "sig": "button.px-2.py-0.5.rounded:22|button.shrink-0.flex.items-center:28",
+      "count": 3
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 5,
+      "detail": "5 different input heights on one page: 18, 22, 28, 30, 52px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 24,
+      "detail": "button.px-2.5.h-6.rounded \"Select All\" is only 24px tall",
+      "container": "div \"Select All\"",
+      "sig": "button.px-2.5.h-6.rounded:24",
+      "count": 3
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 24,
+      "detail": "button.flex.items-center.gap-1 \"Prefs\" is only 24px tall",
+      "container": "div \"Prefs\"",
+      "sig": "button.flex.items-center.gap-1:24",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 22,
+      "detail": "input.w-full.bg-gray-800.border is only 22px tall",
+      "container": "div.px-2.py-1.border-b",
+      "sig": "input.w-full.bg-gray-800.border:22",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 22,
+      "detail": "button.px-2.py-0.5.rounded \"ft\" is only 22px tall",
+      "container": "div.flex.gap-0.5.flex-wrap \"ftinmimcmmm\"",
+      "sig": "button.px-2.py-0.5.rounded:22",
+      "count": 23
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 28,
+      "detail": "select.w-full.bg-gray-800.border \"Texas North — EPSG:2275 (zon\" is only 28px tall",
+      "container": "div.pt-2.space-y-0.5 \"State Plane Zone(stamped int\"",
+      "sig": "select.w-full.bg-gray-800.border:28",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 18,
+      "detail": "input.w-10.text-center.bg-gray-800 is only 18px tall",
+      "container": "div.relative.flex.items-center \"%\"",
+      "sig": "input.w-10.text-center.bg-gray-800:18",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 18,
+      "detail": "button.shrink-0.flex.items-center \"AI: COPILOT\" is only 18px tall",
+      "container": "div.flex.items-center.bg-gray-900 \"N: 0.000 ft E: 0.000 ft|−%+|\"",
+      "sig": "button.shrink-0.flex.items-center:18",
+      "count": 1
+    }
+  ]
+}

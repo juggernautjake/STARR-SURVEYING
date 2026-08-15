@@ -593,7 +593,13 @@ export default function CommandBar() {
           <input
             ref={inputRef}
             data-testid="command-bar-input"
-            className="w-full bg-transparent text-white outline-none placeholder-gray-600 transition-colors duration-150"
+            /* admin-ui-alignment-2026-08-15 — `h-7` stated rather than left to the line box. This
+               field used to measure 52px, which nobody chose: it was inheriting `padding: .875rem`
+               from the marketing-site form rule in globals.css, which reached the editor because
+               it renders outside `.admin-layout`. With that leak closed the height would otherwise
+               fall to whatever the text happens to occupy. This is the editor's primary text
+               entry; it gets a height on purpose. */
+            className="w-full h-7 bg-transparent text-white outline-none placeholder-gray-600 transition-colors duration-150"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onFocus={() => uiStore.setCommandBarFocused(true)}
