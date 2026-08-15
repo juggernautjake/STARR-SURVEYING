@@ -91,8 +91,11 @@ export function bundleForRoute(pathname: string): BundleId | null {
   // deliberately `null` because that workspace splits across Recon and Draft. Net effect: the
   // research INDEX was gated and every individual research project was not. Same for `/admin/cad/*`.
   //
-  // Matching is segment-aware, so `/admin/work` (the always-available landing) cannot swallow
-  // `/admin/work-mode/*`, which is a different feature with a different gate.
+  // Matching is segment-aware, so a route cannot swallow a longer sibling whose path merely begins
+  // the same way — `/admin/research-cad` (always available) against `/admin/research` (recon), for
+  // instance. The example this comment used to give was `/admin/work` against `/admin/work-mode/*`;
+  // Work Mode was retired in C0g, but the property it illustrated is unchanged and still load-
+  // bearing.
   const override = longestOverride(pathname);
   if (override !== undefined) return override;
 

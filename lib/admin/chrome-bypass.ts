@@ -8,7 +8,9 @@
 // Today:
 //   - `/admin/cad/*`       → the CAD editor draws its own UI (Slice
 //                            pre-78, predates this planning doc).
-//   - `/admin/work-mode/*` → the Work Mode shell renders WorkModeTopBar
+//   - (C0g, 2026-08-15) `/admin/work-mode/*` used to be the second entry here — the shell rendered
+//     its own WorkModeTopBar. Work Mode is retired, so `/admin/cad` is now the only surface that
+//     brings its own chrome.
 //                            (Slice 156) and nothing else; admins
 //                            shouldn't see the regular sidebar fighting
 //                            for visual space.

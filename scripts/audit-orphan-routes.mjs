@@ -85,9 +85,10 @@ const pages = walk(ADMIN)
 // The redirect exclusion belongs HERE and only here.
 //
 // The first version filtered redirect-only pages out of `pages` entirely, which broke the other
-// direction: `/admin/schedule`, `/admin/work-mode` and `/admin/work-mode/developer` are REGISTERED
-// redirects, so removing their files from the list made their registry entries look dangling — a
-// menu item with no page behind it, which is the worse of the two faults this script checks for.
+// direction: `/admin/schedule` is a REGISTERED redirect, so removing its file from the list made
+// its registry entry look dangling — a menu item with no page behind it, which is the worse of the
+// two faults this script checks for. (`/admin/work-mode` and `/admin/work-mode/developer` were the
+// other two examples until C0g retired them; the rule is unchanged.)
 //
 // Stated as two separate rules, because they are two separate questions:
 //   · an UNREGISTERED redirect is not an orphan — it is a forwarding address, and registering it

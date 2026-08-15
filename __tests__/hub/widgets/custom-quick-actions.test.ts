@@ -15,6 +15,7 @@ import {
   CUSTOM_ACTION_PREFIX,
   isCustomActionId,
   isExternalHref,
+  isKnownInternalHref,
   nextCustomActionId,
   normalizeCustomActions,
   safeHref,
@@ -77,6 +78,42 @@ describe('isExternalHref', () => {
     expect(isExternalHref('/admin/jobs')).toBe(false);
     expect(isExternalHref('https://example.com')).toBe(true);
     expect(isExternalHref('mailto:a@b.com')).toBe(true);
+  });
+});
+
+describe('isKnownInternalHref — C0h, the dead-link flag', () => {
+  const known = ['/admin/jobs', '/admin/mileage', '/admin/work'];
+
+  it('accepts an exact registered route', () => {
+    expect(isKnownInternalHref('/admin/jobs', known)).toBe(true);
+  });
+
+  it('ignores query and fragment, which are the user’s business', () => {
+    expect(isKnownInternalHref('/admin/jobs?status=open', known)).toBe(true);
+    expect(isKnownInternalHref('/admin/jobs#top', known)).toBe(true);
+    expect(isKnownInternalHref('/admin/jobs/', known)).toBe(true);
+  });
+
+  it('accepts a dynamic child of a real page', () => {
+    // `/admin/jobs/<id>` is a perfectly good shortcut and will never be in the registry.
+    expect(isKnownInternalHref('/admin/jobs/abc-123', known)).toBe(true);
+  });
+
+  it('flags a path whose page no longer exists', () => {
+    expect(isKnownInternalHref('/admin/work-mode/start', known)).toBe(false);
+    expect(isKnownInternalHref('/admin/nonsense', known)).toBe(false);
+  });
+
+  it('does not let a shorter route swallow a longer sibling', () => {
+    // The exact prefix bug the bundle gate documents: `/admin/work` must NOT vouch for
+    // `/admin/work-mode`, or retiring one feature would silently bless links into the other.
+    expect(isKnownInternalHref('/admin/work-mode', known)).toBe(false);
+    expect(isKnownInternalHref('/admin/work', known)).toBe(true);
+  });
+
+  it('always passes an external href, because it cannot know', () => {
+    expect(isKnownInternalHref('https://example.com/anything', known)).toBe(true);
+    expect(isKnownInternalHref('mailto:a@b.com', known)).toBe(true);
   });
 });
 

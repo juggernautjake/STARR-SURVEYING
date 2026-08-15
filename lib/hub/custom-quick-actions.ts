@@ -81,6 +81,40 @@ export function isExternalHref(href: string): boolean {
   return !href.startsWith('/');
 }
 
+/**
+ * Does this in-app destination still correspond to a real page?
+ *
+ * ── WHY THIS EXISTS (C0h, 2026-08-15) ─────────────────────────────────────────────────────────
+ *
+ * `resolveActions` drops a catalog action whose id has been retired, so a removed built-in tile
+ * simply disappears. A CUSTOM link cannot work that way: it stores a raw href, not an id, so when
+ * the page behind it stops existing the tile keeps rendering and quietly 404s on click. Retiring
+ * Work Mode deleted nine routes and made that a live possibility for the first time.
+ *
+ * ── WHY IT WARNS RATHER THAN DELETES ────────────────────────────────────────────────────────────
+ *
+ * The check cannot be certain. A perfectly good link may carry a query string, point at a dynamic
+ * route (`/admin/jobs/<some-id>`), or reach a page that is not in the registry at all. Removing
+ * somebody's shortcut on that evidence would be worse than the dead link. So the rule is: match on
+ * the first path segment beneath `/admin`, treat anything matching as fine, and merely FLAG the
+ * rest for a human to look at.
+ *
+ * External hrefs always pass — we have no way to know, and probing them is not this function's job.
+ */
+export function isKnownInternalHref(href: string, knownHrefs: ReadonlyArray<string>): boolean {
+  if (isExternalHref(href)) return true;
+  // Query and fragment are the user's business, not evidence the page is gone.
+  const path = href.split(/[?#]/)[0].replace(/\/+$/, '') || '/';
+  for (const known of knownHrefs) {
+    if (path === known) return true;
+    // A dynamic child of a real page — `/admin/jobs/abc123` under `/admin/jobs`. The trailing
+    // slash matters: without it `/admin/work` would match `/admin/work-mode`, which is the exact
+    // prefix bug the bundle gate documents.
+    if (path.startsWith(`${known}/`)) return true;
+  }
+  return false;
+}
+
 function slugify(label: string): string {
   return label
     .toLowerCase()

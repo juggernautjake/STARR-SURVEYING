@@ -50,6 +50,7 @@ import {
   CUSTOM_ACTION_TINTS,
   isCustomActionId,
   isExternalHref,
+  isKnownInternalHref,
   nextCustomActionId,
   normalizeCustomActions,
   safeHref,
@@ -57,6 +58,9 @@ import {
   type CustomQuickAction,
 } from '@/lib/hub/custom-quick-actions';
 import { ADMIN_ROUTES, WORKSPACES, WORKSPACE_ORDER } from '@/lib/admin/route-registry';
+
+/** Every href the app actually registers. C0h uses it to flag a custom link whose page is gone. */
+const KNOWN_ADMIN_HREFS: ReadonlyArray<string> = ADMIN_ROUTES.map((r) => r.href);
 
 
 export interface QuickActionsContent extends Record<string, unknown> {
@@ -703,6 +707,15 @@ function CustomLinksEditor({
                 <span style={{ display: 'block', fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-fg-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {action.href}
                 </span>
+                {/* C0h — a custom link stores a raw href, so it survives the page it points at.
+                    Flagged, never auto-removed: the check cannot tell a genuinely dead link from a
+                    page that simply is not in the registry, and deleting somebody's shortcut on
+                    that evidence would be worse than the dead link itself. */}
+                {!isKnownInternalHref(action.href, KNOWN_ADMIN_HREFS) && (
+                  <span style={{ display: 'block', fontSize: 'var(--hub-font-xs, 0.75rem)', color: 'var(--theme-warning)' }}>
+                    ⚠ That page isn’t one we recognise — it may have moved or been removed.
+                  </span>
+                )}
               </span>
               <button type="button" onClick={() => beginEdit(action)} style={textBtnStyle}>Edit</button>
               <button type="button" onClick={() => onDelete(action.id)} style={textBtnStyle} aria-label={`Delete ${action.label}`}>Delete</button>
