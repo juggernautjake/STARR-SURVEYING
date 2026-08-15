@@ -185,6 +185,7 @@ import {
   effectiveWidthFactor,
   effectiveObliqueRadians,
   getTextStyle,
+  resolveTextFeatureStyle,
 } from '@/lib/cad/styles/text-style-library';
 import TextStylePicker from './TextStylePicker';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
@@ -4536,10 +4537,14 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       const color = isHovered ? '#3b82f6' : (feature.style.color ?? layer.color ?? '#000000');
       const alpha = feature.style.opacity;
       const rotation = geom.textRotation ?? 0;
-      const fontPt = Number(feature.properties.fontSize ?? 12);
-      const fontFamily = String(feature.properties.fontFamily ?? 'Arial');
-      const fontWeight = (feature.properties.fontWeight ?? 'normal') as 'normal' | 'bold';
-      const fontStyle = (feature.properties.fontStyle ?? 'normal') as 'normal' | 'italic';
+      // C20 — a TEXT feature can follow a named style too, resolved through the same helper the
+      // labels use. Without this, "give this the Plat Title style" would work on a bearing label
+      // and not on the plat's actual title.
+      const tf = resolveTextFeatureStyle(feature.properties, doc.customTextStyles ?? []);
+      const fontPt = tf.fontSize;
+      const fontFamily = tf.fontFamily;
+      const fontWeight = tf.fontWeight;
+      const fontStyle = tf.fontStyle;
       const align = (feature.properties.textAlign ?? 'left') as 'left' | 'center' | 'right';
       const fontSize = Math.max(MIN_LABEL_FONT_SIZE_PX, (fontPt / 72) * drawingScale * zoom);
 
@@ -4563,6 +4568,12 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         s.fill = color;
         s.align = align;
       }
+
+      // C20 — width factor / oblique, on the display object for the same reason the label path
+      // does it there: neither re-rasterises the texture, and this runs every frame.
+      if (textObj.scale.x !== tf.widthFactor) textObj.scale.set(tf.widthFactor, 1);
+      const textShear = -((Math.min(60, Math.max(-60, tf.obliqueAngle)) * Math.PI) / 180);
+      if (textObj.skew.x !== textShear) textObj.skew.x = textShear;
 
       // cad-trv-fidelity Slice 4 — anchor the text block by its
       // alignment so CENTER-aligned (imported TRV) text is centered on

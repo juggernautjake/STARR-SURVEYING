@@ -282,6 +282,12 @@ interface DrawingStore {
   addCustomLineType: (lineType: import('../styles/types').LineTypeDefinition) => void;
   updateCustomLineType: (id: string, updates: Partial<import('../styles/types').LineTypeDefinition>) => void;
   removeCustomLineType: (id: string) => void;
+  /** C20 — the same trio for text styles, the third style axis. Without these
+   *  `document.customTextStyles` is a field nothing can write, so C19's picker
+   *  could only ever offer the built-ins. */
+  addCustomTextStyle: (style: import('../styles/types').TextStyleDefinition) => void;
+  updateCustomTextStyle: (id: string, updates: Partial<import('../styles/types').TextStyleDefinition>) => void;
+  removeCustomTextStyle: (id: string) => void;
 
   // Layer display preferences
   updateLayerDisplayPreferences: (layerId: string, prefs: Partial<LayerDisplayPreferences>) => void;
@@ -851,6 +857,47 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
       document: {
         ...state.document,
         customLineTypes: state.document.customLineTypes.filter((lt) => lt.id !== id),
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  // C20 — mirrors the line-type trio exactly, including the normalisation on add: a style saved
+  // from the editor is always CUSTOM / not-built-in / editable regardless of what it was
+  // duplicated from, so a copy of a built-in can never come back claiming to BE the built-in.
+  //
+  // `?? []` on every read: C18 left `customTextStyles` optional so drawings saved before it still
+  // load, and the first write is exactly where a missing key would throw.
+  addCustomTextStyle: (style) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        customTextStyles: [
+          ...(state.document.customTextStyles ?? []).filter((s) => s.id !== style.id),
+          { ...style, category: 'CUSTOM', isBuiltIn: false, isEditable: true },
+        ],
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  updateCustomTextStyle: (id, updates) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        customTextStyles: (state.document.customTextStyles ?? []).map((s) =>
+          s.id === id ? { ...s, ...updates, id, isBuiltIn: false } : s
+        ),
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
+
+  removeCustomTextStyle: (id) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        customTextStyles: (state.document.customTextStyles ?? []).filter((s) => s.id !== id),
         modified: new Date().toISOString(),
       },
       isDirty: true,

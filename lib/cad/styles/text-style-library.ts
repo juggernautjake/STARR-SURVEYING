@@ -136,10 +136,13 @@ export function resolveTextLabelStyle(
 
 /** Width factor to actually render with. Clamped, because a 0 would collapse the text to an
  *  invisible sliver and a negative would mirror it — both look like the text vanished. */
-export function effectiveWidthFactor(style: TextLabelStyle): number {
-  const w = style.widthFactor;
+export function clampWidthFactor(w: number | undefined): number {
   if (typeof w !== 'number' || !Number.isFinite(w)) return 1;
   return Math.min(4, Math.max(0.1, w));
+}
+
+export function effectiveWidthFactor(style: TextLabelStyle): number {
+  return clampWidthFactor(style.widthFactor);
 }
 
 /** Oblique shear in RADIANS for the renderer. Clamped to ±60°: past that the glyphs lie down and
@@ -148,6 +151,80 @@ export function effectiveObliqueRadians(style: TextLabelStyle): number {
   const a = style.obliqueAngle;
   if (typeof a !== 'number' || !Number.isFinite(a) || a === 0) return 0;
   return (Math.min(60, Math.max(-60, a)) * Math.PI) / 180;
+}
+
+/**
+ * C20 — the same resolution for a standalone TEXT feature.
+ *
+ * A TEXT feature keeps its font in the untyped `properties` bag (`fontSize`, `fontFamily`,
+ * `fontWeight`, `fontStyle`) — a THIRD place fonts live, beside `TextLabelStyle` and the per-layer
+ * label preferences. C18 named the first two; leaving this one out would mean "select the drawing's
+ * text and give it the Plat Title style" worked for a bearing label and not for the title itself.
+ *
+ * Reads the same `textStyleId` key, so one style governs both kinds of text.
+ */
+export interface ResolvedTextFeatureStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: 'normal' | 'bold';
+  fontStyle: 'normal' | 'italic';
+  widthFactor: number;
+  obliqueAngle: number;
+}
+
+export function resolveTextFeatureStyle(
+  properties: Record<string, unknown>,
+  custom: TextStyleDefinition[] = [],
+): ResolvedTextFeatureStyle {
+  const def = getTextStyle(
+    typeof properties.textStyleId === 'string' ? properties.textStyleId : null,
+    custom,
+  );
+  if (def) {
+    return {
+      fontFamily: def.fontFamily,
+      fontSize: def.fontSize,
+      fontWeight: def.fontWeight,
+      fontStyle: def.fontStyle,
+      widthFactor: clampWidthFactor(def.widthFactor),
+      obliqueAngle: def.obliqueAngle,
+    };
+  }
+  // No style, or a dangling one: the raw bag, with the defaults these three call sites already
+  // used. Changing any of them here would re-font every existing TEXT feature in every drawing.
+  return {
+    fontFamily: String(properties.fontFamily ?? 'Arial'),
+    fontSize: Number(properties.fontSize ?? 12),
+    fontWeight: (properties.fontWeight ?? 'normal') as 'normal' | 'bold',
+    fontStyle: (properties.fontStyle ?? 'normal') as 'normal' | 'italic',
+    widthFactor: clampWidthFactor(
+      typeof properties.widthFactor === 'number' ? properties.widthFactor : undefined,
+    ),
+    obliqueAngle: typeof properties.obliqueAngle === 'number' ? properties.obliqueAngle : 0,
+  };
+}
+
+/**
+ * C20 — how many labels in this drawing follow `styleId`.
+ *
+ * Deleting a style is not destructive (a dangling reference renders as "(missing)" rather than
+ * silently re-fonting the page), but "delete Bearing & Distance?" and "delete Bearing & Distance,
+ * used by 412 labels?" are different questions, and only one of them can be answered.
+ *
+ * Counts labels, not features: one feature commonly carries a bearing label and a distance label
+ * following two different styles, so a feature count would understate it.
+ */
+export function countLabelsUsingTextStyle(
+  features: Iterable<{ textLabels?: Array<{ style: TextLabelStyle }> }>,
+  styleId: string,
+): number {
+  let n = 0;
+  for (const f of features) {
+    for (const l of f.textLabels ?? []) {
+      if (l.style.textStyleId === styleId) n += 1;
+    }
+  }
+  return n;
 }
 
 /** Validate a style name before saving. Mirrors `validateLayerStateName` (C8) so the two naming

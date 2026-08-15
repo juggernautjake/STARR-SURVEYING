@@ -193,7 +193,12 @@ describe('Slice 6 — TEXT features + bearing/distance/area labels (source-locke
     expect(SRC).toMatch(/dy = -label\.offset\.y \* labelScale \* xform\.scale/);
   });
   it('reads TEXT feature font/alignment from feature.properties', () => {
-    expect(SRC).toMatch(/f\.properties\.fontSize \?\? 12/);
+    // C20 — the font half of this moved into `resolveTextFeatureStyle`, which reads the same
+    // `properties` bag with the same `?? 12` fallback and additionally honours a named text style.
+    // The BEHAVIOUR this locked is unchanged; only the line it lives on moved, so the assertion
+    // follows it rather than being dropped. (`__tests__/cad/text-style-editor-and-routing.test.ts`
+    // pins the 12pt default behaviourally, by calling the resolver.)
+    expect(SRC).toMatch(/resolveTextFeatureStyle\(f\.properties, doc\.customTextStyles \?\? \[\]\)/);
     expect(SRC).toMatch(/f\.properties\.textAlign \?\? 'left'/);
     expect(SRC).toMatch(/baseline: 'middle'/);
   });

@@ -48,7 +48,7 @@ import { findSymbol } from '../styles/symbol-library';
 import { parseSVGPathData } from '../styles/symbol-renderer';
 import type { SymbolDefinition, LineTypeDefinition } from '../styles/types';
 import { resolveVisibleFillLayers } from '../styles/fill-stack';
-import { resolveTextLabelStyle } from '../styles/text-style-library';
+import { resolveTextLabelStyle, resolveTextFeatureStyle } from '../styles/text-style-library';
 import {
   generateFillPattern,
   patternLineWeight,
@@ -1013,10 +1013,14 @@ function drawTextFeature(
   if (!anchor || !g.textContent) return;
   const layer = doc.layers[f.layerId];
   const drawingScale = doc.settings.drawingScale ?? 50;
-  const fontPt = Number(f.properties.fontSize ?? 12);
-  const fontFamily = String(f.properties.fontFamily ?? 'Arial');
-  const fontWeight = (f.properties.fontWeight ?? 'normal') as 'normal' | 'bold';
-  const fontStyle = (f.properties.fontStyle ?? 'normal') as 'normal' | 'italic';
+  // C20 — same resolution as the canvas, so a TEXT feature following a named style plots in that
+  // style. A plot that does not match the screen is the export bug that looks fine until it is on
+  // paper in front of a client.
+  const tf = resolveTextFeatureStyle(f.properties, doc.customTextStyles ?? []);
+  const fontPt = tf.fontSize;
+  const fontFamily = tf.fontFamily;
+  const fontWeight = tf.fontWeight;
+  const fontStyle = tf.fontStyle;
   const align = (f.properties.textAlign ?? 'left') as 'left' | 'center' | 'right';
 
   const p = project(anchor, xform);

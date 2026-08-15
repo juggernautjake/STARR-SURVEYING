@@ -10,17 +10,21 @@
 // One component, mounted at each place a `TextLabelStyle` is edited, so "which font is this" is
 // asked and answered the same way everywhere — which is the whole point of naming styles.
 
-import { useMemo } from 'react';
-import { Type } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Type, Plus, Pencil, Trash2 } from 'lucide-react';
 
 import {
   listTextStyles,
   getTextStyle,
   resolveTextLabelStyle,
   effectiveWidthFactor,
+  countLabelsUsingTextStyle,
 } from '@/lib/cad/styles/text-style-library';
 import type { TextStyleDefinition } from '@/lib/cad/styles/types';
 import type { TextLabelStyle } from '@/lib/cad/types';
+import { useDrawingStore } from '@/lib/cad/store';
+import { confirmAction } from './ConfirmDialog';
+import TextStyleEditorModal from './TextStyleEditorModal';
 
 /** Value of the "no named style" option. Not an empty string: an empty `<option value="">` is
  *  indistinguishable from "nothing selected" when reading the DOM in a test or a screenshot. */
@@ -89,6 +93,39 @@ export default function TextStylePicker({
   const active = getTextStyle(value.textStyleId, customStyles);
   const resolved = resolveTextLabelStyle(value, customStyles);
 
+  // C20 — create / edit / delete, in the picker, mirroring how `LineTypePicker` reaches
+  // `LineTypeEditor`. That symmetry IS the slice: "one editor per axis, reachable from one place"
+  // fails if text styles are the axis you have to go somewhere else for.
+  const [editing, setEditing] = useState<{ initial: TextStyleDefinition | null } | null>(null);
+  const removeCustom = useDrawingStore((s) => s.removeCustomTextStyle);
+
+  // Only a drawing's OWN styles can be edited or deleted. Built-ins are `isEditable: false` so a
+  // drawing you send out looks the same on the machine that opens it; "Edit" on a built-in clones
+  // it instead, which is the behaviour LineTypeEditor already has.
+  const canDelete = !!active && !active.isBuiltIn;
+
+  async function handleDelete() {
+    if (!active || active.isBuiltIn) return;
+    // Deleting is not destructive — a dangling reference renders as "(missing)" rather than
+    // silently re-fonting the page — but "delete this?" and "delete this, used by 412 labels?"
+    // are different questions and only one of them can be answered.
+    const inUse = countLabelsUsingTextStyle(
+      Object.values(useDrawingStore.getState().document.features),
+      active.id,
+    );
+    const ok = await confirmAction({
+      title: `Delete "${active.name}"?`,
+      message: inUse > 0
+        ? `${inUse} label${inUse === 1 ? '' : 's'} follow this style. They keep their current look and will show the style as missing until you pick another.`
+        : 'No labels are using this style.',
+      confirmLabel: 'Delete',
+      danger: true,
+    });
+    if (!ok) return;
+    removeCustom(active.id);
+    onChange({ ...resolved, textStyleId: null });
+  }
+
   function pick(id: string) {
     if (id === NO_TEXT_STYLE) {
       // Detaching BAKES the resolved values into the label before dropping the id.
@@ -132,7 +169,52 @@ export default function TextStylePicker({
             <option value={value.textStyleId}>{value.textStyleId} (missing)</option>
           )}
         </select>
+        <button
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 shrink-0"
+          onClick={() => setEditing({ initial: null })}
+          title="New text style"
+          aria-label="New text style"
+        >
+          <Plus size={dense ? 11 : 12} />
+        </button>
+        <button
+          className="p-1 rounded text-gray-400 hover:text-white hover:bg-gray-700 disabled:opacity-30 shrink-0"
+          onClick={() => active && setEditing({ initial: active })}
+          disabled={!active}
+          title={
+            !active ? 'Pick a style to edit it'
+              : active.isBuiltIn ? `Built-in — opens a copy of "${active.name}" to edit`
+              : `Edit "${active.name}"`
+          }
+          aria-label="Edit text style"
+        >
+          <Pencil size={dense ? 11 : 12} />
+        </button>
+        <button
+          className="p-1 rounded text-gray-400 hover:text-red-300 hover:bg-gray-700 disabled:opacity-30 shrink-0"
+          onClick={handleDelete}
+          disabled={!canDelete}
+          title={
+            !active ? 'Pick a style to delete it'
+              : active.isBuiltIn ? 'Built-in styles cannot be deleted'
+              : `Delete "${active.name}"`
+          }
+          aria-label="Delete text style"
+        >
+          <Trash2 size={dense ? 11 : 12} />
+        </button>
       </div>
+
+      {editing && (
+        <TextStyleEditorModal
+          open
+          initial={editing.initial}
+          onClose={() => setEditing(null)}
+          // Selecting the saved style immediately is the point of creating it here: otherwise the
+          // surveyor makes a style and then has to go find it in the list they just came from.
+          onSaved={(id) => onChange({ ...value, textStyleId: id })}
+        />
+      )}
 
       {/* Live sample — the actual resolved typography, not a description of it. */}
       <div

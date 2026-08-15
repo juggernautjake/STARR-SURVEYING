@@ -7,14 +7,14 @@ import { useDrawingStore, useSelectionStore, useUndoStore, useInverseStore } fro
 import { drawableLayerIds } from '@/lib/cad/styles/default-layers';
 import { useMediaStore } from '@/lib/cad/media/media-store';
 import { generateId } from '@/lib/cad/types';
-import type { Feature, FillLayer, FillPattern } from '@/lib/cad/types';
+import type { Feature, FillLayer, FillPattern, TextLabelStyle } from '@/lib/cad/types';
 // cad-fill-stacking Slice 6c — stack helpers for the layer-list UI.
 import {
   resolveFillStack,
   legacyStyleToFillLayer,
   normalizeFillLayer,
 } from '@/lib/cad/styles/fill-stack';
-import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { DEFAULT_FEATURE_STYLE, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_TEXT_LABEL_STYLE } from '@/lib/cad/constants';
 import { formatBearing, formatAzimuth, inverseBearingDistance, parseBearing, forwardPoint } from '@/lib/cad/geometry/bearing';
 import { formatDistance, feetToLinearUnit, linearUnitToFeet, linearUnitLabel } from '@/lib/cad/geometry/units';
 import { setImageRotationAroundCenter, normalizeDeg } from '@/lib/cad/geometry/image';
@@ -35,6 +35,8 @@ import { stampOffsetMetadata } from '@/lib/cad/operations/offset-metadata';
 import type { LinearUnit } from '@/lib/cad/types';
 import SymbolPicker, { SymbolThumbnail } from './SymbolPicker';
 import LineTypePicker, { LineTypePreview } from './LineTypePicker';
+import TextStylePicker from './TextStylePicker';
+import { getTextStyle, resolveTextFeatureStyle } from '@/lib/cad/styles/text-style-library';
 import { getSymbolById } from '@/lib/cad/styles/symbol-library';
 import { getLineTypeById } from '@/lib/cad/styles/linetype-library';
 
@@ -895,6 +897,29 @@ export default function PropertyPanel() {
   const feature = single!;
   const layer = doc.layers[feature.layerId];
   const geom = feature.geometry;
+
+  // C20 — text-style routing for a selected TEXT feature. Computed once so the picker, the
+  // disabled states and the displayed values all agree; a control showing the raw property while
+  // the canvas draws the resolved one is the two-truths bug C9 refused to ship.
+  const customTextStyles = doc.customTextStyles ?? [];
+  const namedTextStyle = getTextStyle(
+    typeof feature.properties.textStyleId === 'string' ? feature.properties.textStyleId : null,
+    customTextStyles,
+  );
+  const resolvedTextFeature = resolveTextFeatureStyle(feature.properties, customTextStyles);
+  const textFeatureStyleGoverned = !!namedTextStyle;
+  const textFeatureGovernedHint = namedTextStyle
+    ? `Set by the "${namedTextStyle.name}" text style. Choose Custom above to edit this directly.`
+    : undefined;
+  // The picker speaks `TextLabelStyle`; a TEXT feature keeps its font in the untyped properties
+  // bag. This adapts one to the other so both kinds of text use the SAME control — which is the
+  // point of C20, rather than a second picker that drifts from the first.
+  const textFeatureLabelStyle: TextLabelStyle = {
+    ...DEFAULT_TEXT_LABEL_STYLE,
+    ...resolvedTextFeature,
+    color: feature.style.color,
+    textStyleId: namedTextStyle ? namedTextStyle.id : null,
+  };
 
   return (
     <div className="flex flex-col h-full text-gray-200 text-xs overflow-y-auto">
@@ -2433,6 +2458,35 @@ export default function PropertyPanel() {
                 }}
               />
             </div>
+            {/* C20 — selected geometry routes to the right style editor. Line type and symbol
+                already did (the two pickers below); TEXT is the third axis, and its font lived in
+                the untyped properties bag with no way to name it. Same picker as the labels use,
+                reading and writing `properties.textStyleId`. */}
+            <TextStylePicker
+              value={textFeatureLabelStyle}
+              onChange={(s) => {
+                // Detaching REMOVES the key rather than writing an empty one. The properties bag
+                // is `Record<string, string | number | boolean>` — it has no slot for "explicitly
+                // no style", and a leftover '' would resolve to a dangling reference that the
+                // picker would then report as missing.
+                const next = { ...feature.properties };
+                if (s.textStyleId) next.textStyleId = s.textStyleId;
+                else delete next.textStyleId;
+                // Detaching also bakes the typography in, the same rule the picker applies to a
+                // label: choosing Custom must not snap the text back to whatever was underneath.
+                if (!s.textStyleId) {
+                  next.fontFamily = s.fontFamily;
+                  next.fontSize = s.fontSize;
+                  next.fontWeight = s.fontWeight;
+                  next.fontStyle = s.fontStyle;
+                }
+                useDrawingStore.getState().updateFeature(feature.id, { properties: next });
+              }}
+              customStyles={customTextStyles}
+              inkColor={feature.style.color ?? '#e5e7eb'}
+              sampleText={String(feature.geometry.textContent || 'Sample text')}
+              dense
+            />
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-400 shrink-0 text-[10px]">Font Size (pt)</span>
               <input
@@ -2440,8 +2494,10 @@ export default function PropertyPanel() {
                 min={4}
                 max={144}
                 step={1}
-                className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs"
-                value={Number(feature.properties.fontSize ?? 12)}
+                disabled={textFeatureStyleGoverned}
+                title={textFeatureGovernedHint}
+                className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right outline-none border border-gray-600 focus:border-blue-500 text-xs disabled:opacity-40"
+                value={resolvedTextFeature.fontSize}
                 onChange={(e) => {
                   const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 12));
                   useDrawingStore.getState().updateFeature(feature.id, {
@@ -2470,8 +2526,10 @@ export default function PropertyPanel() {
             <div className="flex items-center justify-between gap-2">
               <span className="text-gray-400 shrink-0 text-[10px]">Font</span>
               <select
-                className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
-                value={String(feature.properties.fontFamily ?? 'Arial')}
+                className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500 disabled:opacity-40"
+                value={resolvedTextFeature.fontFamily}
+                disabled={textFeatureStyleGoverned}
+                title={textFeatureGovernedHint}
                 onChange={(e) => {
                   useDrawingStore.getState().updateFeature(feature.id, {
                     properties: { ...feature.properties, fontFamily: e.target.value },
@@ -2487,13 +2545,17 @@ export default function PropertyPanel() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                className={`px-2 py-0.5 text-[10px] rounded border ${feature.properties.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                className={`px-2 py-0.5 text-[10px] rounded border disabled:opacity-40 ${resolvedTextFeature.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                disabled={textFeatureStyleGoverned}
+                title={textFeatureGovernedHint}
                 onClick={() => useDrawingStore.getState().updateFeature(feature.id, {
                   properties: { ...feature.properties, fontWeight: feature.properties.fontWeight === 'bold' ? 'normal' : 'bold' },
                 })}
               >B</button>
               <button
-                className={`px-2 py-0.5 text-[10px] rounded border italic ${feature.properties.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                className={`px-2 py-0.5 text-[10px] rounded border italic disabled:opacity-40 ${resolvedTextFeature.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                disabled={textFeatureStyleGoverned}
+                title={textFeatureGovernedHint}
                 onClick={() => useDrawingStore.getState().updateFeature(feature.id, {
                   properties: { ...feature.properties, fontStyle: feature.properties.fontStyle === 'italic' ? 'normal' : 'italic' },
                 })}
