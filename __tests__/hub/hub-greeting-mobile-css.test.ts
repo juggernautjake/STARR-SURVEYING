@@ -57,7 +57,15 @@ describe('hub-greeting phone (<640 px) polish', () => {
   });
 
   it('tightens the greeting heading typography on phones', () => {
-    expect(phoneBlock()).toMatch(/\.hub-greeting__heading\s*\{[\s\S]*?font-size:\s*1\.35rem/);
+    // C0j (2026-08-15) — this asserted a hard `font-size: 1.35rem` in the phone block. The base
+    // rule now uses `clamp(1.4rem, 1.05rem + 1.6vw, 2rem)`, which is already BELOW 1.4rem by the
+    // time this breakpoint is reached and keeps shrinking smoothly below it. A fixed override on
+    // top of a clamp re-introduces exactly the step at 640px that the clamp exists to remove — so
+    // what is asserted now is that the phone block tightens the heading's SPACING and leaves its
+    // size to the fluid rule.
+    expect(phoneBlock()).toMatch(/\.hub-greeting__heading\s*\{[\s\S]*?margin-bottom:\s*0\.2rem/);
+    expect(phoneBlock(), 'a fixed size here would defeat the base clamp()')
+      .not.toMatch(/\.hub-greeting__heading\s*\{[^}]*font-size/);
   });
 
   it('WRAPS the role pills instead of running them off the side', () => {

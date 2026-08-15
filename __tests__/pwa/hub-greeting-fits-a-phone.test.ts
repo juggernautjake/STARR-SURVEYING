@@ -72,39 +72,25 @@ function rule(block: string, selector: string): string {
 }
 
 describe('the hub greeting fits on a phone', () => {
-  it('takes the actions column out of absolute positioning on mobile', () => {
-    // The fix. Without it, every rule below is decoration.
-    const decls = rule(mediaBlock(768), '.hub-greeting__actions');
-    expect(decls, '.hub-greeting__actions has no mobile rule at all').not.toBe('');
-    expect(
-      decls.replace(/\s/g, ''),
-      'the desktop rule pins this with position:absolute; right:2.5rem. Left in place with ' +
-        'width:100%, the button starts 2.5rem past the LEFT edge of the screen.',
-    ).toContain('position:static');
+  // ── C0j (2026-08-15): the four CTA tests that stood here are gone with the button. ──────────
+  //
+  // They locked the mobile fix for the Enter Work Mode CTA: position:static, transform:none, a
+  // padding override and a max-width cap. C0g deleted that button and C0j deleted its CSS, so all
+  // four asserted the absence of nothing.
+  //
+  // The header of this file argues the bug was never one selector but a CLASS — a mobile override
+  // inheriting a `position` it was not written for. That class is still worth guarding, so the
+  // four are replaced by one test of the condition that made it possible: the greeting card no
+  // longer positions any child absolutely, at any width. Nothing can inherit what is not there.
+  it('positions no child of the greeting card absolutely', () => {
+    const cardRules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const offenders = [...cardRules.matchAll(/(\.hub-greeting[\w-]*)[^{}]*\{([^}]*)\}/g)]
+      .filter(([, , decls]) => /position:\s*absolute/.test(decls))
+      .map(([, sel]) => sel);
+    expect(offenders, 'an absolutely-positioned child is what let a mobile override inherit a ' +
+      'position it was not written for — see this file’s header').toEqual([]);
   });
 
-  it('clears the transform that came with the absolute positioning', () => {
-    // `translateY(-50%)` centres the column against the card. On a static element it just lifts the
-    // button half its own height into the text above it — a quieter wrong, and easy to leave behind.
-    expect(rule(mediaBlock(768), '.hub-greeting__actions').replace(/\s/g, '')).toContain('transform:none');
-  });
-
-  it('does not let the CTA be wider than the screen', () => {
-    // 2.6rem of horizontal padding and a 1.22rem label are a desktop design. On a 360px viewport
-    // that alone exceeds the card's inner width once its own padding is taken off.
-    const block = mediaBlock(768);
-    expect(rule(block, '.hub-greeting__work-mode-btn.hub-btn')).toMatch(/padding\s*:/);
-    expect(rule(block, '.hub-greeting__actions .hub-btn')).toContain('max-width');
-  });
-
-  it('the desktop rule that caused it is still absolute — so this guard has something to defend', () => {
-    // If someone "fixes" this by making the desktop rule static too, these assertions would pass
-    // while defending nothing. The premise is checked, the same way the shell-scope guard checks
-    // that the 5e root still carries both classes.
-    const desktop = /\.hub-greeting__actions\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-    expect(desktop.replace(/\s/g, ''), 'the desktop rule no longer positions absolutely — re-read this test')
-      .toContain('position:absolute');
-  });
 
   it('the role pills WRAP rather than running off the side', () => {
     // ── Inverted within the hour, on a second report, and the correction is the useful part. ─────

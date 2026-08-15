@@ -58,51 +58,111 @@
 
 /* ── Panel 1: Greeting ───────────────────────────────────────────── */
 
+/* C0j (2026-08-15) — restyled. Owner: *"reformat the greeting banner on the hub page for the
+ * desktop and mobile to be more friendly and appealing, but still professional."*
+ *
+ * Three things changed, and two of them were repairs rather than taste:
+ *
+ *  1. The card used to be a two-column layout with an absolutely-positioned "Enter Work Mode"
+ *     button pinned to the right. C0g deleted that button. What it left behind was a 14rem
+ *     padding reservation on the heading column guarding against nothing — the exact defect the
+ *     M5 note further down this file describes, arriving for the third time. A reservation has to
+ *     be undone wherever the thing it reserved for has gone.
+ *  2. `.hub-greeting__clock-dot` was rendered by the component and styled NOWHERE. Only
+ *     `.work-mode-prompt__clock-dot` had rules, and that component is deleted. The status dot has
+ *     been an invisible empty span; it is a real dot now.
+ *  3. The friendliness. Left-aligned single column now the right-hand column is gone, a warmer
+ *     three-stop gradient with a soft highlight, `clamp()` type so the heading scales instead of
+ *     stepping at a breakpoint, and the clock line promoted from grey text into a status chip —
+ *     which is what it always was.
+ */
 .hub-greeting {
   display: flex;
-  /* Slice 80 — left column (heading) stretches, right column (actions) wraps.
-   * The previous align-items: center placed a single-row actions strip across
-   * from a 2-line heading, which lined up oddly when the actions wrapped and
-   * crushed everything together. flex-start + align-items: center keeps the
-   * heading text aligned to its baseline and lets actions grow downward. */
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem 1.5rem;
-  background: linear-gradient(135deg, var(--color-brand-navy) 0%, #2949C7 100%);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  /* A third stop and a highlight: the old two-stop navy read flat and a little severe. The overlay
+   * is a radial white wash at low alpha, so it warms the card without lifting the text contrast
+   * off the AA floor the heading needs. */
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(135deg, var(--color-brand-navy) 0%, #2949C7 62%, #3358E0 100%);
   color: var(--color-text-on-brand);
   border-color: transparent;
-  /* cad-hub-greeting Slice 1 — anchor for absolute-positioned
-   * actions column so the Enter Work Mode button vertical-centers
-   * against the FULL card height (heading + role pills) instead of
-   * just the first flex line (which sits at the top). */
   position: relative;
+  overflow: hidden;
 }
 
-.hub-greeting > div:first-child {
-  /* Heading column — grows but doesn't crush the actions */
-  flex: 1 1 18rem;
+.hub-greeting__primary {
+  /* Single column now — nothing sits beside it, so nothing needs reserving against. */
   min-width: 0;
-  /* cad-hub-greeting Slice 1 — keep the heading text from running
-   * under the absolutely-positioned actions block. */
-  padding-right: 14rem;
+  width: 100%;
+  /* The heading takes its own line; the date and the status chip share the next one when there is
+   * room and wrap when there is not. Stacked, they left the card ~200px tall with most of its
+   * width empty — a lot of gradient doing nothing. No media query needed: `flex-wrap` already
+   * makes the phone case a stack. */
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15rem 0.75rem;
 }
 
 .hub-greeting__heading {
   font-family: var(--font-heading);
-  font-size: var(--text-2xl);
+  /* Scales continuously instead of stepping at 640px, so there is no width where it is briefly
+   * too big for the card it is in. */
+  font-size: clamp(1.4rem, 1.05rem + 1.6vw, 2rem);
   font-weight: 700;
   letter-spacing: -0.02em;
-  margin: 0 0 0.35rem;
+  line-height: 1.15;
+  margin: 0 0 0.3rem;
   /* Slice 218 — explicit white + tiny shadow so the heading punches
    * through the navy gradient at any color-mode the user picks. */
   color: #FFFFFF;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
 }
 
-.hub-greeting__date,
+/* The heading owns its own line; the date and chip share the next. Declared AFTER the base heading
+ * rule on purpose — a `.hub-greeting__primary > .hub-greeting__heading` block placed before it is
+ * the first `.hub-greeting__heading` match in the file, and the style tests read rules by selector
+ * substring. Source order is part of this file's contract with its tests. */
+.hub-greeting__primary > .hub-greeting__heading {
+  flex: 1 1 100%;
+}
+
+.hub-greeting__date {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* The clock line is a STATUS, so it looks like one. A translucent chip reads at a glance against
+ * the gradient in a way a line of white text does not. */
 .hub-greeting__clock-status {
-  color: rgba(255, 255, 255, 0.92);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+/* Rendered by HubGreeting since it shipped and never styled — see note 2 above. Green because it
+ * means "on the clock"; the halo keeps it visible on the lighter end of the gradient. */
+.hub-greeting__clock-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background: #34D399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.28);
 }
 
 .hub-greeting__subtitle {
@@ -116,23 +176,10 @@
   font-size: 0.78rem;
 }
 
-.hub-greeting__actions {
-  display: flex;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-  /* cad-hub-greeting Slice 1 — absolute positioning pins the
-   * actions column to the vertical center of the FULL card
-   * (not just the first flex line as a stretched flex child).
-   * `right` offset moves the button in from the edge per the
-   * user's "move it in to the left a bit more" ask. The card
-   * has `position: relative` to anchor this. */
-  position: absolute;
-  top: 50%;
-  right: 2.5rem;
-  transform: translateY(-50%);
-  align-items: center;
-  justify-content: center;
-}
+/* C0j — `.hub-greeting__actions` is gone. It existed to pin one absolutely-positioned CTA to the
+ * vertical centre of the card, and the card has no actions column at all now. Its mobile override
+ * (which had its own two-paragraph history about the button hanging off the left edge of a phone)
+ * went with it. */
 
 /* hub-widget-excellence-01 Slice 2 — the user's roles as colored pills
  * below the greeting (replaces the old persona-selector chips). The
@@ -201,162 +248,10 @@
     0 0 0 1.5px currentColor,
     0 0 0 3px rgba(255, 255, 255, 0.35);
 }
-
-/* Slice 218 / 221 — Enter Work Mode CTA. Slice 221 swaps the flat
- * --color-success for the same `--gradient-green` the landing-page
- * estimate-banner CTA lives on (#10B981 → #059669) so the admin
- * button reads as a sibling of the marketing green system. Hover
- * + active feedback mirror that banner's lift + brightness.
- *
- * Two-layer shadow + a tint-matched glow so the button feels
- * planted on the navy gradient instead of flat. Hover lifts the
- * card 2px + boosts brightness 5%; active resets to a pressed
- * state with a quick 80ms transition so the click registers. */
-.hub-greeting__work-mode-btn.hub-btn,
-.hub-greeting__work-mode-btn.hub-btn--primary,
-.hub-greeting__work-mode-btn.hub-btn:link,
-.hub-greeting__work-mode-btn.hub-btn:visited {
-  background: var(--gradient-green);
-  /* White text + a solid white border at rest. The button is an <a>,
-   * so the global `a { color: var(--brand-red) }` rule in globals.css
-   * fights the white text — the :link/:visited selectors above + the
-   * !important here pin the label white in every link state. */
-  border: 2px solid #FFFFFF;
-  color: #FFFFFF !important;
-  /* hub-greeting-button-polish 2026-05-30 — bumped padding + font so
-   * the CTA reads as a stronger landing affordance. */
-  padding: 1.2rem 2.6rem;
-  border-radius: 9999px;
-  font-size: 1.22rem;
-  font-weight: 700;
-  letter-spacing: 0.015em;
-  min-width: 15rem;
-  justify-content: center;
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.38),
-              0 2px 4px rgba(0, 0, 0, 0.22);
-  transition: transform 180ms ease,
-              box-shadow 180ms ease,
-              filter 180ms ease;
-  /* Prevent text-shadow from previous heading rules cascading. */
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
-  /* Slice 221 — sit above the cell stacking context so the
-   * shadow can render outside the greeting card. */
-  position: relative;
-  z-index: 1;
-  /* hub-widget-excellence-01 Slice 3 — the CTA is now a <button>
-   * (opens the WorkModePrompt) rather than an <a>, so reset the native
-   * button chrome + inherit the page font and show a pointer. */
-  cursor: pointer;
-  font-family: inherit;
-  appearance: none;
-  -webkit-appearance: none;
-  /* hub-greeting-button-polish 2026-05-30 — overflow:hidden would clip
-   * the spinning-border pseudo-element, so leave it visible + clip the
-   * conic gradient via mask instead. The `isolate` keeps the spinning
-   * border's positive z-index from leaking above siblings. */
-  isolation: isolate;
-}
-
-/* hub-greeting-button-polish 2026-05-30 — red/white/blue conic
- * spinning border that lights up on hover. Painted on a ::before
- * pseudo-element sized 4px outside the button on all sides, filled
- * with a conic gradient, then masked into a ring so only the border
- * shows. Hidden by default (opacity 0) so the rest state stays calm;
- * fades in on hover. The COLORS cycle around a STATIONARY ring by
- * animating the gradient's `from` angle (a registered @property so
- * the browser interpolates it) — NOT by rotating the element, which
- * would spin the whole stadium-shaped ring geometry. Disabled when
- * the user prefers reduced motion. */
-@property --wm-border-angle {
-  syntax: '<angle>';
-  initial-value: 0deg;
-  inherits: false;
-}
-
-.hub-greeting__work-mode-btn.hub-btn::before {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 9999px;
-  padding: 4px;
-  background: conic-gradient(
-    from var(--wm-border-angle, 0deg),
-    var(--brand-red, #B42318),
-    #ffffff,
-    var(--brand-blue, #1d4ed8),
-    var(--brand-red, #B42318)
-  );
-  /* Mask: subtract the inner disk so only the ring is painted. */
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-          mask-composite: exclude;
-  opacity: 0;
-  transition: opacity 220ms ease;
-  pointer-events: none;
-  z-index: -1;
-}
-
-/* Spin the COLORS around the fixed ring by advancing the gradient
- * angle. The ring shape never moves. */
-@keyframes hub-greeting-work-mode-spin {
-  to { --wm-border-angle: 360deg; }
-}
-
-.hub-greeting__work-mode-btn.hub-btn:hover::before,
-.hub-greeting__work-mode-btn.hub-btn:focus-visible::before {
-  opacity: 1;
-  animation: hub-greeting-work-mode-spin 2.5s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hub-greeting__work-mode-btn.hub-btn:hover::before,
-  .hub-greeting__work-mode-btn.hub-btn:focus-visible::before {
-    animation: none;
-  }
-}
-
-.hub-greeting__work-mode-label {
-  display: inline-block;
-  color: inherit;
-}
-
-.hub-greeting__work-mode-btn.hub-btn:hover,
-.hub-greeting__work-mode-btn.hub-btn--primary:hover {
-  background: var(--gradient-green);
-  /* Keep the white border + white label on hover (override the global
-   * `a:hover { color: var(--brand-blue) }`). */
-  border-color: #FFFFFF;
-  color: #FFFFFF !important;
-  /* Lift + ENLARGE on hover. The border ring (::before, inset -4px)
-   * scales with the button so the spinning-color frame grows too. */
-  transform: translateY(-2px) scale(1.05);
-  filter: brightness(1.05);
-  box-shadow: 0 10px 28px rgba(16, 185, 129, 0.5),
-              0 4px 8px rgba(0, 0, 0, 0.25);
-}
-
-.hub-greeting__work-mode-btn.hub-btn:active,
-.hub-greeting__work-mode-btn.hub-btn--primary:active {
-  transform: translateY(0);
-  filter: brightness(0.97);
-  box-shadow: 0 3px 8px rgba(16, 185, 129, 0.32),
-              0 1px 2px rgba(0, 0, 0, 0.22);
-  transition: transform 80ms ease,
-              box-shadow 80ms ease,
-              filter 80ms ease;
-}
-
-.hub-greeting__work-mode-btn.hub-btn:focus-visible,
-.hub-greeting__work-mode-btn.hub-btn--primary:focus-visible {
-  outline: 2px solid #ffffff;
-  outline-offset: 3px;
-}
-
+/* C0j (2026-08-15) — the ~155 lines of Enter Work Mode CTA styling that stood here are gone with
+ * the button (C0g). Kept nothing: the gradient-green treatment, the spinning ::before ring, the
+ * hover lift, the reduced-motion guard and the focus ring all existed for one element that no
+ * longer renders. */
 /* ── Buttons (shared across hub panels) ──────────────────────────── */
 
 .hub-btn {
@@ -526,57 +421,19 @@
  * Audit U-7.
  */
 @media (max-width: 768px) {
+  /* C0j (2026-08-15) — this block used to be 50 lines, and every one of them existed to manage a
+   * button that no longer exists. It stacked the card away from a two-column layout, undid a 14rem
+   * padding reservation, returned an absolutely-positioned CTA to normal flow, and capped that
+   * CTA's width so it could not run off a 360px screen.
+   *
+   * The base rule is a single left-aligned column at every width now, so there is nothing left to
+   * undo here. The two notes those rules carried are worth keeping even though the rules are not:
+   * U-7 (the actions row forced the heading to wrap to four lines at 390px) and M5 (a padding
+   * reservation outlived the thing it reserved for and read as a mysterious 224px margin). Both
+   * are the same failure — a rule that survives its reason — which is exactly why the CTA styling
+   * was deleted outright in this slice rather than left 'just in case'. */
   .hub-greeting {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 1rem;
-  }
-  .hub-greeting > div:first-child {
-    /* M5, 2026-08-12 — U-7 above, reintroduced by a later change, which is why it is worth spelling
-     * out rather than just deleting a number.
-     *
-     * The base rule reserves `padding-right: 14rem` on the heading column so the text cannot run
-     * under the `position: absolute` Enter Work Mode button. Sound on desktop. But the block just
-     * below returns that button to normal flow for exactly these widths — so on a phone the
-     * reservation guards against nothing and simply removes 224px from a card whose inner width is
-     * about 318px. The heading was left ~94px and rendered "Good night, Audit." down three lines,
-     * with the hero eating the top ~300px of the owner's landing page.
-     *
-     * That is the same symptom U-7 fixed by stacking the card, arriving by a different route: U-7
-     * removed the competing flex child, and the absolute-positioning change then reserved space for
-     * it anyway. A reservation has to be undone in every state where the thing it reserves for has
-     * moved — otherwise it outlives its reason and reads as a mysterious margin. */
-    padding-right: 0;
-  }
-  .hub-greeting__actions {
-    /* 2026-08-04, owner screenshot: the Enter Work Mode button hung off the LEFT edge of the phone.
-     *
-     * This block set `width: 100%` and never undid the desktop rule's `position: absolute; right:
-     * 2.5rem`. A full-card-width box anchored 2.5 rem from the right starts 2.5 rem PAST the left
-     * edge — so the button was pushed off-screen, and the card's own overflow could not clip it.
-     * The width was the giveaway: it only makes sense on a static element, which says the mobile
-     * rule was written expecting normal flow and the absolute positioning arrived later.
-     *
-     * Back into the flow, where `flex-direction: column` on the card already stacks it correctly. */
-    position: static;
-    transform: none;
-    width: 100%;
-    flex-wrap: wrap;
-  }
-  .hub-greeting__actions .hub-btn,
-  .hub-greeting__actions .hub-greeting__nav-toggle {
-    flex: 1 1 auto;
-    justify-content: center;
-    /* A button may not be wider than the screen it is on. The CTA carries 2.6 rem of horizontal
-     * padding and a 1.22 rem label from the desktop design, which alone exceeds a 360 px viewport
-     * once the card's padding is taken off. */
-    max-width: 100%;
-  }
-  .hub-greeting__work-mode-btn.hub-btn {
-    padding: 1rem 1.25rem;
-    font-size: 1.05rem;
-    /* The pill's own shadow/glow spread was part of what crossed the edge. */
-    width: 100%;
+    gap: 0.75rem;
   }
 }
 
@@ -600,7 +457,10 @@
     border-radius: var(--radius-lg);
   }
   .hub-greeting__heading {
-    font-size: 1.35rem;
+    /* C0j — the `font-size: 1.35rem` that stood here is gone. The base rule now uses `clamp()`,
+     * which already reaches 1.4rem at this width and keeps going down smoothly; a hard override
+     * would re-introduce the step at 640px that clamp exists to remove. Only the margin is still
+     * worth tightening on a phone. */
     margin-bottom: 0.2rem;
   }
   .hub-greeting__role-pills {
