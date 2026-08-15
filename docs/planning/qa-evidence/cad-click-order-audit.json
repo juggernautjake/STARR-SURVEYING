@@ -1,0 +1,640 @@
+[
+  {
+    "tool": "SELECT",
+    "label": "Select (click / drag)",
+    "description": "Click a feature to select it, drag to move it. Drag empty space for a box select: left-to-right = window (fully enclosed), right-to-left = crossing (any overlap). Shift+click to toggle.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "PAN",
+    "label": "Pan",
+    "description": "Click and drag to pan the canvas.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_POINT",
+    "label": "Point",
+    "description": "Click to place a point feature.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_LINE",
+    "label": "Line — Solid",
+    "description": "Click start point, then end point to draw a solid line segment.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_LINE",
+    "label": "Line — Dashed",
+    "description": "Draw a dashed line segment.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_LINE",
+    "label": "Line — Dotted",
+    "description": "Draw a dotted line segment.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_LINE",
+    "label": "Line — Dash-Dot",
+    "description": "Draw a dash-dot line segment (centerline style).",
+    "answers": {
+      "firstAction": false,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_LINE",
+    "label": "Line — Center",
+    "description": "Draw a centerline (long dash – short dash pattern).",
+    "answers": {
+      "firstAction": false,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_LINE",
+    "label": "Construction Line",
+    "description": "Same as Line but intended for reference geometry.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_POLYLINE",
+    "label": "Polyline (multiple lines)",
+    "description": "Draw multiple connected line segments in succession. Each click drops a vertex and starts the next segment; right-click or double-click to finish. Use this instead of the single Line tool when you want a continuous run of lines.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_CURVED_LINE",
+    "label": "Curved Line",
+    "description": "Click to place fit points with tangent handles. Right-click or double-click to finish. Creates smooth bezier curves.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_SPLINE_FIT",
+    "label": "Spline (fit-point)",
+    "description": "Click fit-points for a smooth Fusion 360-style spline. Double-click to finish.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_SPLINE_CONTROL",
+    "label": "Spline (NURBS control-point)",
+    "description": "Click control points for a NURBS spline. Double-click to finish.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_FREEHAND",
+    "label": "Freehand — Solid",
+    "description": "Drag for a solid free-hand stroke.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_FREEHAND",
+    "label": "Freehand — Dashed",
+    "description": "Drag for a dashed free-hand stroke.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_FREEHAND",
+    "label": "Freehand — Dotted",
+    "description": "Drag for a dotted free-hand stroke.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_POLYGON",
+    "label": "Freeform Polygon",
+    "description": "Click vertices to define a freeform closed polygon. Double-click or Enter to close.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_RECTANGLE",
+    "label": "Rectangle",
+    "description": "Click two opposite corners to draw an axis-aligned rectangle.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_CIRCLE",
+    "label": "Circle (Center)",
+    "description": "Click the center point, then drag or click to set the radius. Draws a circle expanding from its center.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_CIRCLE_EDGE",
+    "label": "Circle (Edge)",
+    "description": "Click a point on the circle edge, then drag or click the diametrically opposite point. The circle expands from the side rather than the center.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_ELLIPSE",
+    "label": "Ellipse (Center)",
+    "description": "Click the center, then drag to a bounding-box corner to set both semi-axes.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_ELLIPSE_EDGE",
+    "label": "Ellipse (Edge)",
+    "description": "Click one corner of the bounding box, then drag or click the opposite corner. The ellipse expands from its edge.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_REGULAR_POLYGON",
+    "label": "Regular Polygon",
+    "description": "Click the center, then drag to set the radius and orientation. Use the Sides picker to control vertex count.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "MOVE",
+    "label": "Move",
+    "description": "Click a base point, then click where to move the selection.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "COPY",
+    "label": "Copy (interactive)",
+    "description": "Pick a base point, then place copies at each clicked location.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "ARRAY",
+    "label": "Array (rectangular)",
+    "description": "Replicate the selection in a rows × cols grid with adjustable spacing. Set the parameters in the options bar then click the canvas (or press Apply) to commit.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "ROTATE",
+    "label": "Rotate (interactive)",
+    "description": "Pick the rotation center, then type the angle in degrees.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "MIRROR",
+    "label": "Mirror (custom axis)",
+    "description": "Reflect the selection across an axis. The axis can be defined by two clicks, by picking an existing line, or by typing an angle and clicking an anchor point. Honours Copy Mode.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "FLIP",
+    "label": "Flip",
+    "description": "One-click reflection through the selection centroid. Pick H / V / D1 / D2 in the options bar then click the canvas (or press Apply). Honours Copy Mode.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "INVERT",
+    "label": "Invert",
+    "description": "Point inversion — equivalent to a 180° rotation around a clicked center. Click anywhere on the canvas to use that point as the inversion center. Honours Copy Mode.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "SCALE",
+    "label": "Scale (interactive)",
+    "description": "Pick a base point, then type the scale factor (e.g. 2 for double size).",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "ERASE",
+    "label": "Erase (click)",
+    "description": "Click any feature to immediately delete it.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "SPLIT",
+    "label": "Split (click)",
+    "description": "Click anywhere on a line/polyline/polygon to break it into two pieces at that point. POLYGON splits open into a single POLYLINE walking the perimeter.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "TRIM",
+    "label": "Trim",
+    "description": "Click a portion of a line or polyline that lies between two crossings with other features — the clicked section is removed. When only one side has a crossing, the remainder on that side stays. When the source has no crossings, the click deletes it.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "EXTEND",
+    "label": "Extend",
+    "description": "Click on the end of a line or polyline (cursor closer to one endpoint than the other) to lengthen that end along its tangent until it hits another feature. No-op if no target lies in the extension direction.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "JOIN",
+    "label": "Join",
+    "description": "Merge two or more selected lines/polylines that form a single chain into one POLYLINE. Click features to build up the selection then click empty space (or press Apply) to commit. Endpoints must coincide within 0.01 ft.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "FILLET",
+    "label": "Fillet",
+    "description": "Round the corner between two LINE features with a circular arc of the radius set in the options bar. Click each line on the side you want to keep — the lines trim back to the arc tangent points and a new ARC feature is inserted between.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "CHAMFER",
+    "label": "Chamfer",
+    "description": "Bevel the corner between two LINE features with a straight LINE. Click each line on the side you want to keep — the lines trim back by Distance 1 / Distance 2 from the corner, and a new straight bevel connects the trim points. Equal distances = symmetric chamfer; unequal = asymmetric.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DIVIDE",
+    "label": "Divide",
+    "description": "Drop station markers (POINT features) at equal arc-length intervals along a LINE / POLYLINE / POLYGON. Set the count in the options bar — the source stays untouched, only point markers are added. Useful for fence-post layouts, station marks, lot-frontage segmentation.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "EXPLODE",
+    "label": "Explode",
+    "description": "Burst a POLYLINE or POLYGON into individual LINE features — one per segment. POLYGON includes the closing leg. Useful after CSV imports when you need to edit individual boundary segments. Style and properties carry over to every new line.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "REVERSE",
+    "label": "Reverse",
+    "description": "Flip the direction of a LINE / POLYLINE / POLYGON. Useful when offset side, division order, or label rotation depends on direction and the import got it backwards. Cyan square marks the current start; arrowhead marks the current end.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "MATCH_PROPERTIES",
+    "label": "Match Properties",
+    "description": "Copy style + layer assignment from one feature to another. Click a \"model\" feature to lock it in (cyan outline), then click each target (lime outline) to paint the source style onto it. Stays in apply mode until Esc — paint as many targets as needed.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": true,
+      "preview": false
+    }
+  },
+  {
+    "tool": "POINT_AT_DISTANCE",
+    "label": "Point at Distance",
+    "description": "Drop a single POINT at exact arc-length distance from the START or END of any LINE / POLYLINE / POLYGON. Type the distance + pick the origin direction in the options bar. Single-shot version of DIVIDE — perfect for \"set MAG nail at 47.5 ft from the NE corner\".",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "PERPENDICULAR",
+    "label": "Perpendicular",
+    "description": "Draw a line off an existing line. Hover a LINE / POLYLINE / POLYGON to lock the start point onto it (slides along the segment, snaps to vertices), click to anchor, then drag away — perpendicular (90°) by default — and click to set the length. A floating panel sets an exact length and an angle off the line or an absolute azimuth; the far end snaps onto another line it meets. Useful for setbacks, offsets, and ties between lines.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "SMOOTH_POLYLINE",
+    "label": "Smooth (Polyline → Spline)",
+    "description": "Convert a POLYLINE / POLYGON with ≥ 3 vertices into a smooth SPLINE that interpolates the same vertex set. Useful for imported topo / contour traces and road centerlines that came in as linear segments. Replaces the source feature; style + properties carry over.",
+    "answers": {
+      "firstAction": false,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "SIMPLIFY_POLYLINE",
+    "label": "Simplify (RDP)",
+    "description": "Drop redundant vertices from a POLYLINE / POLYGON via Ramer-Douglas-Peucker. Surveyors use it to clean up noisy GPS traces, scanned-PDF traces, polygons-from-pixel-trace, etc. Tolerance in feet — vertices closer than this to the line through their kept neighbours get pruned.",
+    "answers": {
+      "firstAction": false,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "INSERT_VERTEX",
+    "label": "Insert Node",
+    "description": "Add a node to a POLYLINE / POLYGON edge or a SPLINE curve at the click point. On a spline the curve shape is preserved exactly (de Casteljau split) — you just gain an editable node. Useful when an imported line is missing a corner, or you want another handle to reshape a curve. Cyan ring marks where the node will land. Survey points under the line are never affected.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "REMOVE_VERTEX",
+    "label": "Remove Node",
+    "description": "Click within 14 px of a node on a POLYLINE / POLYGON / SPLINE to delete just that node (the feature stays). Won’t drop below 2 (line / spline) / 3 (polygon) nodes. Red X marks the node to remove; grey ring marks ones at the minimum. Does NOT delete any survey/file POINT feature that happens to sit under the node.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "LIST",
+    "label": "List (probe feature)",
+    "description": "Click any feature to print a comprehensive description to the command bar — type, layer, vertex count, length / area, key style + properties. Useful for verifying imported geometry without diving through the property panel.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_ARC",
+    "label": "Arc (3-point)",
+    "description": "Click PC, mid-point, PT to define an arc.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "CURB_RETURN",
+    "label": "Curb Return / Fillet",
+    "description": "Click first line, click second line, type radius. Arc is computed at intersection.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "OFFSET",
+    "label": "Offset",
+    "description": "Offset a polyline/line by a parallel distance. Right-click on a feature to offset it.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "INVERSE",
+    "label": "Inverse (bearing & distance)",
+    "description": "Two-point measurement. Click a base point, then a second point — the distance, bearing and azimuth (and the points + layer) appear in the Properties panel and the leg is highlighted on the canvas. The tool then returns to Select; the readout stays until you start a new inverse or pick another tool.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": true
+    }
+  },
+  {
+    "tool": "FORWARD_POINT",
+    "label": "Forward Point",
+    "description": "Click a base point, type bearing and distance in the command bar to place a new point.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "MEASURE_AREA",
+    "label": "Measure Area",
+    "description": "Click polygon vertices to compute live perimeter + area (sq ft + acres) in the command bar. Translucent magenta fill previews the polygon as you click; press Esc to finish.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": true,
+      "preview": true
+    }
+  },
+  {
+    "tool": "DIM",
+    "label": "Dimension",
+    "description": "Click two points to place a permanent bearing + distance annotation on the drawing. The TEXT label is positioned at the midpoint, rotated parallel to the dimension line, and offset 6 ft perpendicular so it reads clear of the geometry.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_TEXT",
+    "label": "Text Annotation",
+    "description": "Click where you want the text. Type your text and press Enter to place it.",
+    "answers": {
+      "firstAction": true,
+      "terminates": true,
+      "escape": false,
+      "preview": false
+    }
+  },
+  {
+    "tool": "DRAW_IMAGE",
+    "label": "Insert Image",
+    "description": "Click where you want the image. A dialog will open to select or paste an image file.",
+    "answers": {
+      "firstAction": true,
+      "terminates": false,
+      "escape": false,
+      "preview": false
+    }
+  }
+]
