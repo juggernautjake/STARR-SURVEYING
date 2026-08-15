@@ -143,6 +143,18 @@ export const CALCULATOR_REGISTRY: ReadonlyArray<CalculatorEntry> = [
     group: 'TRAVERSE',
   },
   {
+    id: 'partition',
+    label: 'Partition to an area',
+    // C29 — C27 called this "the classic reason a surveyor opens a calculator at all", and found
+    // nothing in the product that could do it. It fills the AREA group, which the registry declared
+    // and had nothing in — the empty-category shape C21 fixed for symbols.
+    summary: 'Cut a parcel so one side has an exact area, by bearing or hinged at a point.',
+    mode: 'INLINE',
+    usesSelection: true,
+    writesGeometry: true,
+    group: 'AREA',
+  },
+  {
     id: 'traverse-viewer',
     label: 'Line & curve data',
     summary: 'Every line and curve in the drawing as a table, editable in place.',

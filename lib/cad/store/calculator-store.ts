@@ -28,7 +28,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 // C29 — 'advanced-curve' reaches the compound / reverse / spiral solvers, which C27 found had no
 // UI at all. The registry in lib/cad/calculators/registry.ts is the list a surveyor sees; this
 // union is what the modal can render inline.
-export type CalculatorId = 'generic' | 'curve' | 'advanced-curve' | 'stakeout';
+export type CalculatorId = 'generic' | 'curve' | 'advanced-curve' | 'stakeout' | 'partition';
 
 export const DEFAULT_CALCULATOR_ID: CalculatorId = 'generic';
 

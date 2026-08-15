@@ -19,6 +19,8 @@ import CurveCalculatorBody from './CurveCalculatorBody';
 import AdvancedCurveCalculator from './AdvancedCurveCalculator';
 // C29 — station-offset + radial stakeout, and the first surface built to read the live selection.
 import StakeoutCalculator from './StakeoutCalculator';
+// C29 — cut a parcel to a target area, which C27 called the classic reason to open a calculator.
+import PartitionCalculator from './PartitionCalculator';
 import { useCalculatorStore } from '@/lib/cad/store';
 
 interface CalculatorModalProps {
@@ -50,6 +52,7 @@ export default function CalculatorModal({ open, onClose }: CalculatorModalProps)
       {activeId === 'curve' && <CurveCalculatorBody />}
       {activeId === 'advanced-curve' && <AdvancedCurveCalculator />}
       {activeId === 'stakeout' && <StakeoutCalculator />}
+      {activeId === 'partition' && <PartitionCalculator />}
     </ResizableModal>
   );
 }
