@@ -249,9 +249,14 @@
 .qb__editing-badge { font-size:.68rem; font-weight:700; background:#FEF3C7; color:#92400E; padding:.15rem .5rem; border-radius:4px; }
 .qb__textarea { width:100%; padding:.6rem .75rem; border:2px solid var(--theme-border, #E5E7EB); border-radius:6px; font-family:'Inter',sans-serif; font-size:.9rem; color:var(--color-text-primary); resize:vertical; transition:border-color .15s; margin-bottom:.65rem; }
 .qb__textarea:focus { outline:none; border-color:var(--color-brand-navy); }
-.qb__input { width:100%; padding:.5rem .7rem; border:1.5px solid var(--theme-border, #E5E7EB); border-radius:6px; font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-text-primary); transition:border-color .15s; }
+/* admin-ui-alignment-2026-08-14 — these two were sized by padding (.5rem + 1.5px borders + a .85rem
+   font ≈ 35px and 37px) beside 40px neighbours, so the page ran four different field heights. The
+   fix is the contract's: take the token and let padding do horizontal only. `.qb__add-option` a few
+   rules below had already been converted this way — these were simply missed. See
+   docs/admin-styling-contract.md. */
+.qb__input { width:100%; height:var(--input-height); box-sizing:border-box; padding:0 .7rem; border:1.5px solid var(--theme-border, #E5E7EB); border-radius:6px; font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-text-primary); transition:border-color .15s; }
 .qb__input:focus { outline:none; border-color:var(--color-brand-navy); }
-.qb__select { padding:.5rem .7rem; border:1.5px solid var(--theme-border, #E5E7EB); border-radius:6px; font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-text-primary); background:var(--theme-bg-surface, #FFF); flex:1; min-width:0; }
+.qb__select { height:var(--input-height); box-sizing:border-box; padding:0 .7rem; border:1.5px solid var(--theme-border, #E5E7EB); border-radius:6px; font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-text-primary); background:var(--theme-bg-surface, #FFF); flex:1; min-width:0; }
 .qb__select:focus { outline:none; border-color:var(--color-brand-navy); }
 .qb__label { display:block; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:var(--theme-fg-secondary, #374151); margin-bottom:.35rem; }
 .qb__hint { font-family:'Inter',sans-serif; font-size:.78rem; color:var(--color-text-muted); margin-top:.25rem; }

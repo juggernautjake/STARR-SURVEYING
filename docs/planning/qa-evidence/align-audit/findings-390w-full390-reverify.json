@@ -1,0 +1,44 @@
+{
+  "stamp": "2026-08-15",
+  "width": 390,
+  "routes": 139,
+  "byRule": {
+    "height-spread": 3
+  },
+  "byRoute": {
+    "/admin/cad": 2,
+    "/admin/learn/manage/question-builder": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 35, 37, 40, 80px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    }
+  ]
+}
