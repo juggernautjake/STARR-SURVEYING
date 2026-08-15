@@ -32,6 +32,9 @@ import { useAIStore } from './ai-store';
 // on both AI surfaces by existing.
 import { toolRegistry } from '../ai/tool-registry';
 import { isAICapability } from '../ai/capabilities';
+// C32 — the AI scope is explicit and visible, not inferred from whatever happens to be selected
+// at the moment send is pressed.
+import { resolveScopeIds } from '../ai/scope';
 import { useDrawingStore } from './drawing-store';
 import { useSelectionStore } from './selection-store';
 import { useUndoStore, makeBatchEntry } from './undo-store';
@@ -111,6 +114,17 @@ interface AIConversationsStore {
   dockedWidth: number;
   panelRect: PanelRect | null;
   loading: boolean;
+  /** C32 — ids the surveyor has explicitly pinned as the AI scope, or null to follow the live
+   *  canvas selection. **Not persisted**: a pin is a statement about this conversation right now,
+   *  and restoring one from last week would silently scope a fresh request to features the
+   *  surveyor has long forgotten choosing — which is the failure this whole slice is about, put
+   *  back in a worse form. */
+  pinnedScope: string[] | null;
+
+  /** Freeze the current canvas selection as the scope. */
+  pinScope: (ids: string[]) => void;
+  /** Go back to following the live selection. */
+  clearScope: () => void;
 
   open: () => void;
   close: () => void;
@@ -165,6 +179,12 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
       dockedWidth: 380,
       panelRect: null,
       loading: false,
+      pinnedScope: null,
+
+      // An empty pin is a no-pin. Freezing "nothing" and then following the live selection is
+      // confusing in both directions; refusing it means the chip has two honest states.
+      pinScope: (ids) => set({ pinnedScope: ids.length > 0 ? [...ids] : null }),
+      clearScope: () => set({ pinnedScope: null }),
 
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
@@ -242,9 +262,16 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
 
         const doc = useDrawingStore.getState().document;
         const history = get().conversations.find((c) => c.id === activeId)?.messages ?? [];
-        // Send the live canvas selection so the model can answer about
-        // exactly what the user has highlighted ("these points", etc.).
-        const selectedIds = Array.from(useSelectionStore.getState().selectedIds);
+        // C32 — a PINNED scope wins over the live selection.
+        //
+        // The live selection is read when the message is SENT, not when it was composed. Clicking
+        // the canvas mid-sentence — to look at the thing being described — silently changed what
+        // "these" meant, and that is the worst shape of bug: the request was right, the answer was
+        // right for a different question, and nothing looked wrong afterwards. Pinning freezes it.
+        const selectedIds = resolveScopeIds(
+          get().pinnedScope,
+          Array.from(useSelectionStore.getState().selectedIds),
+        );
         const drawState = useDrawingStore.getState();
         const activeLayerName = drawState.document.layers[drawState.activeLayerId]?.name;
         try {

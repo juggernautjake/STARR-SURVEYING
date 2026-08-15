@@ -14,6 +14,8 @@ import { Plus, X, PanelRight, Maximize2, Paperclip, Send } from 'lucide-react';
 import { useAIConversationsStore, type ChatAttachment } from '@/lib/cad/store/ai-conversations-store';
 import type { DrawingChatAction, DrawingChatMessage } from '@/lib/cad/ai-engine/drawing-chat';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
+// C32 — the AI scope, visible while the surveyor is still typing.
+import AIScopeChip from './AIScopeChip';
 
 const MAX_ATTACH_BYTES = 5 * 1024 * 1024; // 5 MB per file
 
@@ -231,6 +233,11 @@ function ChatInner() {
         )}
         {loading ? <div className="text-[11px] text-gray-500 italic pl-1">AI is thinking…</div> : null}
       </div>
+
+      {/* C32 — the scope, above the composer and above the send button, because it is the answer
+          to "what does 'these' mean" and the surveyor needs it while they are still typing rather
+          than after the request has gone. */}
+      <AIScopeChip />
 
       {/* Composer */}
       <div className="border-t border-gray-700 p-2 space-y-2 shrink-0">
