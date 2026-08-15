@@ -24,6 +24,8 @@ import {
 } from '@/lib/cad/points/point-rows';
 import { findNameReferences } from '@/lib/cad/points/point-rename';
 import { parsePointRangeString, buildPointNoIndex } from '@/lib/cad/operations/parse-point-range';
+import { planRenumber, planRecode } from '@/lib/cad/points/renumber';
+import { confirmAction, alertAction } from './ConfirmDialog';
 import { matchesQueryTokens, tokenizeSearch, type SearchField } from '@/lib/cad/points/move-points-filters';
 import ColorSwatchInput from './ColorSwatchInput';
 import { DEFAULT_FEATURE_STYLE } from '@/lib/cad/constants';
@@ -340,6 +342,72 @@ export default function PointDataViewer({
     if (ops.length) pushUndo(makeBatchEntry(`Send ${ops.length} point(s) to ${document.layers[layerId]?.name ?? layerId}`, ops));
   }
 
+  /**
+   * C11 — renumber every picked point sequentially from a starting number (single undo batch).
+   *
+   * Collisions are surfaced and confirmed rather than silently allowed: two points sharing a number
+   * make every number-keyed lookup ambiguous — range selection, `buildPointNoIndex`, the AI's
+   * "point 8" — and the failure shows up later, somewhere else, as the wrong point.
+   */
+  async function bulkRenumber() {
+    if (picked.size === 0) return;
+    const raw = window.prompt(`Renumber ${picked.size} point(s) sequentially, starting at:`, '1');
+    if (raw == null) return;
+    const start = Number(raw.trim());
+    if (!Number.isFinite(start) || !Number.isInteger(start)) {
+      void alertAction({ title: 'Starr CAD', message: 'Enter a whole number to start from.' });
+      return;
+    }
+    const { ops, collisions } = planRenumber([...picked], document.features, start);
+    if (ops.length === 0) return;
+    if (collisions.length) {
+      const ok = await confirmAction({
+        title: 'Numbers already in use',
+        message: `${collisions.slice(0, 8).join(', ')}${collisions.length > 8 ? '…' : ''} `
+          + `${collisions.length === 1 ? 'is' : 'are'} already used by other points. `
+          + 'Continuing leaves duplicate point numbers, which makes "point 8" ambiguous everywhere. Continue?',
+        confirmLabel: 'Renumber anyway',
+        danger: true,
+      });
+      if (!ok) return;
+    }
+    const undoOps = ops.map((o) => {
+      const f = getFeature(o.featureId);
+      updateFeature(o.featureId, { properties: { ...(f?.properties ?? {}), ...o.after } } as never);
+      return {
+        type: 'MODIFY_FEATURE' as const,
+        data: {
+          id: o.featureId,
+          before: { properties: { ...(f?.properties ?? {}) } },
+          after: { properties: { ...(f?.properties ?? {}), ...o.after } },
+        },
+      };
+    });
+    pushUndo(makeBatchEntry(`Renumber ${ops.length} point(s) from ${start}`, undoOps));
+  }
+
+  /** C11 — set the survey code on every picked point (single undo batch). */
+  function bulkRecode() {
+    if (picked.size === 0) return;
+    const raw = window.prompt(`Set the code on ${picked.size} point(s) to:`, '');
+    if (raw == null) return;
+    const ops = planRecode([...picked], document.features, raw);
+    if (ops.length === 0) return;
+    const undoOps = ops.map((o) => {
+      const f = getFeature(o.featureId);
+      updateFeature(o.featureId, { properties: { ...(f?.properties ?? {}), ...o.after } } as never);
+      return {
+        type: 'MODIFY_FEATURE' as const,
+        data: {
+          id: o.featureId,
+          before: { properties: { ...(f?.properties ?? {}) } },
+          after: { properties: { ...(f?.properties ?? {}), ...o.after } },
+        },
+      };
+    });
+    pushUndo(makeBatchEntry(`Re-code ${ops.length} point(s)`, undoOps));
+  }
+
   /** Recolor every picked point (single undo batch). Works with the search +
    *  layer filter + select-all to recolor all points in a layer, or with a
    *  manual checkbox selection of individual points. */
@@ -605,6 +673,24 @@ export default function PointDataViewer({
               aria-label="Set the color of the selected points"
             />
           </label>
+          {/* C11 — the two bulk edits the table could not do. Both go through the same planners the
+              tests cover, so a bulk change and a typed one write the same fields. */}
+          <button
+            type="button"
+            onClick={() => void bulkRenumber()}
+            className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700"
+            title="Renumber these points sequentially from a starting number"
+          >
+            Renumber
+          </button>
+          <button
+            type="button"
+            onClick={bulkRecode}
+            className="px-2 py-0.5 rounded bg-gray-800 border border-gray-600 hover:bg-gray-700"
+            title="Set the survey code on these points"
+          >
+            Re-code
+          </button>
           {/* C10 — the plain version of what "Ask AI" already did as a side effect. Every other
               bulk action here (send to layer, recolour, DELETE) acts on picks the canvas never
               showed, so "let me look at these first" had no button. */}
