@@ -1634,7 +1634,12 @@ export default function MenuBar({ onOpenImport, onOpenAIDrawing, onToggleTravers
         // modal (Generic + Curve in Slice 6). Opens at the
         // last-used calculator + restores per-calculator state.
         {
-          label: 'Calculator…',
+          // C28 — this is the one predictable place. Its picker now lists every calculation the
+          // product can do (C27 measured 13 behind seven different doors), launching the ones that
+          // have their own dialog. Named for what it holds rather than for the two calculators it
+          // used to render, because "Calculator…" reads like a pocket calculator and that is
+          // exactly why nobody looked here for Calc Point.
+          label: 'Calculations…  (all calculators)',
           shortcut: 'C',
           action: () => { onOpenCalculator?.(); setOpenMenu(null); },
         },

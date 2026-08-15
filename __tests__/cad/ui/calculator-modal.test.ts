@@ -28,20 +28,25 @@ const MENUBAR_SRC = fs.readFileSync(
 );
 
 describe('CalculatorPicker', () => {
-  it('exports REGISTERED_CALCULATORS with generic + curve entries', () => {
+  // C28 moved the list out of this file and into `lib/cad/calculators/registry.ts`, because the
+  // picker offered 2 of the 13 calculation surfaces C27 measured. `REGISTERED_CALCULATORS` is still
+  // exported (derived from the registry's INLINE entries) so existing callers keep working; these
+  // three assertions follow the list to its new home rather than pinning it to the old shape.
+  // `calculator-registry.test.ts` covers the registry itself.
+  it('still exports REGISTERED_CALCULATORS, derived from the registry', () => {
     expect(PICKER_SRC).toMatch(/export const REGISTERED_CALCULATORS/);
-    expect(PICKER_SRC).toMatch(/id: 'generic'/);
-    expect(PICKER_SRC).toMatch(/id: 'curve'/);
+    expect(PICKER_SRC).toMatch(/CALCULATOR_REGISTRY\.filter\(\(c\) => c\.mode === 'INLINE'\)/);
   });
 
   it('reads activeCalculatorId from the store + writes via setActiveCalculator', () => {
     expect(PICKER_SRC).toMatch(/useCalculatorStore\(\(s\) => s\.activeCalculatorId\)/);
-    expect(PICKER_SRC).toMatch(/setActiveCalculator\(e\.target\.value as CalculatorId\)/);
+    expect(PICKER_SRC).toMatch(/setActiveCalculator\(id as CalculatorId\)/);
   });
 
-  it('renders a select with the per-calculator <option> entries', () => {
+  it('renders a select whose options come from the registry', () => {
     expect(PICKER_SRC).toContain('data-testid="calculator-picker"');
-    expect(PICKER_SRC).toMatch(/REGISTERED_CALCULATORS\.map\(\(c\) => \(\s*<option/);
+    expect(PICKER_SRC).toMatch(/groupedCalculators\(\)\.map/);
+    expect(PICKER_SRC).toMatch(/<option/);
   });
 });
 
@@ -50,7 +55,9 @@ describe('CalculatorModal', () => {
     expect(MODAL_SRC).toMatch(/import ResizableModal from '\.\/ResizableModal';/);
     expect(MODAL_SRC).toMatch(/import CalculatorPicker from '\.\/CalculatorPicker';/);
     expect(MODAL_SRC).toMatch(/import GenericCalculator from '\.\/GenericCalculator';/);
-    expect(MODAL_SRC).toMatch(/headerActions=\{<CalculatorPicker \/>\}/);
+    // C28 — the picker now takes `onLaunchDialog` so the hub closes when it launches a dialog
+    // entry, instead of sitting on top of the thing it just opened.
+    expect(MODAL_SRC).toMatch(/headerActions=\{<CalculatorPicker onLaunchDialog=\{onClose\} \/>\}/);
   });
 
   it('reads activeCalculatorId from the store to decide which body to render', () => {
@@ -94,8 +101,10 @@ describe('MenuBar — Calculator… entry', () => {
     expect(MENUBAR_SRC).toMatch(/onOpenCalculator\?: \(\) => void/);
   });
 
-  it('adds a "Calculator…" menu entry that fires onOpenCalculator', () => {
-    expect(MENUBAR_SRC).toMatch(/label: 'Calculator…',[\s\S]*?action: \(\) => \{ onOpenCalculator\?\.\(\); setOpenMenu\(null\); \}/);
+  it('adds a menu entry that fires onOpenCalculator', () => {
+    // C28 renamed it: "Calculator…" reads like a pocket calculator, which is exactly why nobody
+    // looked there for Calc Point. Same action, same shortcut, a name that says what it holds.
+    expect(MENUBAR_SRC).toMatch(/label: 'Calculations…  \(all calculators\)',[\s\S]{0,200}?action: \(\) => \{ onOpenCalculator\?\.\(\); setOpenMenu\(null\); \}/);
   });
 
   it('keeps the legacy "Curve Calculator…" entry untouched (no breakage)', () => {

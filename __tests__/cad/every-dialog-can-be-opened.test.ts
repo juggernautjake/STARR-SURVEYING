@@ -57,10 +57,24 @@ const listened = [
   ),
 ];
 
-/** Files other than the layout itself, read whole. */
-const others = files
-  .filter((f) => !f.endsWith('CADLayout.tsx'))
-  .map((f) => [f, readFileSync(f, 'utf8')] as const);
+/**
+ * Files other than the layout itself, read whole.
+ *
+ * C28 — the calculator registry is included, and finding out why was this probe's THIRD false
+ * finding. `CalculatorPicker` dispatches `new CustomEvent(entry.openEvent)` — the name is a
+ * variable, and the literal lives in `lib/cad/calculators/registry.ts`, outside `app/admin/cad`. So
+ * a real, working dispatcher was invisible for the same reason the two-line dispatch was: the scan
+ * was looking in the wrong shape and the wrong place. Registering a calculator is the one step that
+ * makes it reachable, which puts that file squarely in scope for "can this panel be opened".
+ */
+const EXTRA_DISPATCH_SOURCES = [
+  join(__dirname, '..', '..', 'lib', 'cad', 'calculators', 'registry.ts'),
+];
+
+const others = [
+  ...files.filter((f) => !f.endsWith('CADLayout.tsx')),
+  ...EXTRA_DISPATCH_SOURCES,
+].map((f) => [f, readFileSync(f, 'utf8')] as const);
 
 describe('S1b — every listened-for panel has a way in', () => {
   it('found the listeners', () => {

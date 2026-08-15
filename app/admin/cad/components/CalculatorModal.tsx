@@ -36,7 +36,9 @@ export default function CalculatorModal({ open, onClose }: CalculatorModalProps)
       onClose={onClose}
       naturalSize={NATURAL_SIZE}
       title="Calculator"
-      headerActions={<CalculatorPicker />}
+      // C28 — picking a calculation that lives in its own dialog closes this one, so the hub is
+      // not sitting on top of the thing it just opened.
+      headerActions={<CalculatorPicker onLaunchDialog={onClose} />}
     >
       {/* Active-calculator switch. Adding a new calculator =
           new picker entry + new branch here. */}

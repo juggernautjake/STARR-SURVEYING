@@ -585,6 +585,20 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:openIntersect', handler);
   }, []);
 
+  // C28 — the calculator hub reaches every calculation by event, so the two that were only
+  // reachable through a MenuBar prop callback need one too. Both menu paths keep working; this
+  // adds a second door rather than moving the first.
+  useEffect(() => {
+    const curve = () => setShowCurveCalculator(true);
+    const traverse = () => setShowTraversePanel((v) => !v);
+    window.addEventListener('cad:openCurveCalculator', curve);
+    window.addEventListener('cad:toggleTraversePanel', traverse);
+    return () => {
+      window.removeEventListener('cad:openCurveCalculator', curve);
+      window.removeEventListener('cad:toggleTraversePanel', traverse);
+    };
+  }, []);
+
   // CAD_POINTS_AND_AI slice D — Calc Point dialogue. Opens on
   // `cad:openCalcPointDialog` (fired from the MenuBar AI submenu
   // or the AI Copilot quick-actions).
