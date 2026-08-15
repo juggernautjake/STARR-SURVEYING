@@ -77,11 +77,38 @@ export function importTrvFromText(text: string, opts: ImportTrvOptions = {}): Tr
     (f) => (f.type === 'POLYLINE' || f.type === 'POLYGON') && !f.properties.trvDerived,
   ).length;
   const byKind = (kind: string) => mapped.features.filter((f) => f.properties.trvElementKind === kind).length;
+
+  // C44d — a file that yielded nothing must SAY so.
+  //
+  // `notes` carried only per-line parse errors and mapping notes, and the parser skips a line it
+  // does not recognise rather than erroring on it — which is right for a format with vendor
+  // extensions, and wrong at this level. A text file that is not a TRV file at all produces no
+  // recognised records, therefore no errors, therefore no notes: the import dialog reported zero
+  // points, zero traverses and nothing wrong, which is exactly what a valid empty survey looks
+  // like. The surveyor sees a blank drawing and no reason for it.
+  //
+  // Checked on the PARSE, not on the mapping: a real TRV whose points all failed to map is a
+  // different problem with its own notes, and reporting both the same way would blur them.
+  const nothingRecognised =
+    trv.points.length === 0 &&
+    trv.traverses.length === 0 &&
+    trv.layers.length === 0 &&
+    trv.drawingElements.length === 0 &&
+    trv.lotSegments.length === 0 &&
+    trv.version === null;
+  const structuralNotes = nothingRecognised
+    ? ['No Traverse PC records were found in this file — it may not be a .TRV file, or it may be truncated.']
+    : [];
+
   return {
     layerCount: mapped.layers.length,
     pointCount: points,
     traverseCount: traverses,
-    notes: [...trv.errors.map((e) => `Line ${e.lineIndex}: ${e.message}`), ...mapped.notes],
+    notes: [
+      ...structuralNotes,
+      ...trv.errors.map((e) => `Line ${e.lineIndex}: ${e.message}`),
+      ...mapped.notes,
+    ],
     mapped,
     metadata: trv.metadata,
     titleBlockHints: extractTitleBlockHints(trv.drawingElements),
