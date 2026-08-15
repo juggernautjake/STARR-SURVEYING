@@ -20,7 +20,7 @@
 import { Crosshair, Pin, PinOff } from 'lucide-react';
 
 import { useAIConversationsStore, useDrawingStore, useSelectionStore } from '@/lib/cad/store';
-import { summariseScope, resolveScopeIds, scopeStaleCount } from '@/lib/cad/ai/scope';
+import { summariseScope, resolveScopeIds, scopeStaleCount, scopeLayerName } from '@/lib/cad/ai/scope';
 
 export default function AIScopeChip() {
   const doc = useDrawingStore((s) => s.document);
@@ -30,10 +30,15 @@ export default function AIScopeChip() {
   const clearScope = useAIConversationsStore((s) => s.clearScope);
 
   const live = Array.from(selectedIds);
-  const effective = resolveScopeIds(pinnedScope, live);
+  const effective = resolveScopeIds(pinnedScope, live, doc);
   const summary = summariseScope(doc, effective);
   const stale = scopeStaleCount(doc, pinnedScope);
   const pinned = pinnedScope !== null;
+  // C33 — a layer scope names the layer rather than repeating the feature breakdown. "Layer: FENCE"
+  // is what the surveyor chose; "9 features · 9 LINE · FENCE" is a description of the same thing
+  // that does not say the scope will keep up as they draw.
+  const isLayer = pinnedScope?.kind === 'LAYER';
+  const layerName = isLayer ? scopeLayerName(doc, pinnedScope.layerId) : null;
 
   return (
     <div
@@ -41,13 +46,17 @@ export default function AIScopeChip() {
       data-testid="ai-scope-chip"
     >
       <Crosshair size={11} className={`shrink-0 ${pinned ? 'text-blue-300' : 'text-gray-500'}`} />
-      <span className="text-[10px] text-gray-400 shrink-0">{pinned ? 'Pinned' : 'Scope'}</span>
+      <span className="text-[10px] text-gray-400 shrink-0">
+        {isLayer ? 'Layer' : pinned ? 'Pinned' : 'Scope'}
+      </span>
       <span
-        className={`flex-1 min-w-0 truncate text-[10px] ${summary.count === 0 ? 'text-gray-500' : 'text-gray-300'}`}
+        className={`flex-1 min-w-0 truncate text-[10px] ${summary.count === 0 && !isLayer ? 'text-gray-500' : 'text-gray-300'}`}
         title={summary.ids.join(', ')}
         data-testid="ai-scope-label"
       >
-        {summary.label}
+        {/* An empty LAYER scope still reads as a scope — "everything on DEMOLITION" is meaningful
+            for a layer about to be drawn on, and "Nothing selected" would be the wrong sentence. */}
+        {isLayer ? `${layerName} · ${summary.count} feature${summary.count === 1 ? '' : 's'}` : summary.label}
       </span>
 
       {/* Stale is REPORTED, never silently corrected. Shrinking the scope quietly would mean the

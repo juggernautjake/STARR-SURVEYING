@@ -35,6 +35,7 @@ import { isAICapability } from '../ai/capabilities';
 // C32 — the AI scope is explicit and visible, not inferred from whatever happens to be selected
 // at the moment send is pressed.
 import { resolveScopeIds } from '../ai/scope';
+import type { ScopeRef } from '../ai/scope';
 import { useDrawingStore } from './drawing-store';
 import { useSelectionStore } from './selection-store';
 import { useUndoStore, makeBatchEntry } from './undo-store';
@@ -119,10 +120,12 @@ interface AIConversationsStore {
    *  and restoring one from last week would silently scope a fresh request to features the
    *  surveyor has long forgotten choosing — which is the failure this whole slice is about, put
    *  back in a worse form. */
-  pinnedScope: string[] | null;
+  pinnedScope: ScopeRef | null;
 
   /** Freeze the current canvas selection as the scope. */
   pinScope: (ids: string[]) => void;
+  /** C33 — scope to a whole layer, resolved live every turn rather than snapshotted. */
+  pinLayerScope: (layerId: string) => void;
   /** Go back to following the live selection. */
   clearScope: () => void;
 
@@ -183,7 +186,12 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
 
       // An empty pin is a no-pin. Freezing "nothing" and then following the live selection is
       // confusing in both directions; refusing it means the chip has two honest states.
-      pinScope: (ids) => set({ pinnedScope: ids.length > 0 ? [...ids] : null }),
+      pinScope: (ids) =>
+        set({ pinnedScope: ids.length > 0 ? { kind: 'IDS', ids: [...ids] } : null }),
+      // C33 — an EMPTY layer is still a legitimate scope, unlike an empty selection. "Everything on
+      // DEMOLITION" is a meaningful thing to say about a layer that is currently empty and about to
+      // be drawn on; "these zero features" is not a meaningful thing to say about a selection.
+      pinLayerScope: (layerId) => set({ pinnedScope: { kind: 'LAYER', layerId } }),
       clearScope: () => set({ pinnedScope: null }),
 
       open: () => set({ isOpen: true }),
@@ -271,6 +279,9 @@ export const useAIConversationsStore = create<AIConversationsStore>()(
         const selectedIds = resolveScopeIds(
           get().pinnedScope,
           Array.from(useSelectionStore.getState().selectedIds),
+          // C33 — a LAYER scope needs the document to resolve against, every turn. Without it the
+          // scope would be empty and the request would silently act on nothing.
+          doc,
         );
         const drawState = useDrawingStore.getState();
         const activeLayerName = drawState.document.layers[drawState.activeLayerId]?.name;

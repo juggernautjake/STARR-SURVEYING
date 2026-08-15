@@ -74,6 +74,23 @@ function buildLabel(count: number, byType: Record<string, number>, layers: strin
 }
 
 /**
+ * C33 — what the scope is pinned TO.
+ *
+ * Two kinds, and the difference between them is the whole slice:
+ *
+ *   IDS     a frozen list. "These twelve." It does not grow, and that is the point — the surveyor
+ *           named a set and expects it to stay named.
+ *
+ *   LAYER   resolved live, every turn. "Everything on FENCE." If it were a frozen snapshot of the
+ *           layer's ids, a surveyor who pinned the layer, drew three more fence lines and then said
+ *           "shorten these" would have the three new ones silently excluded — while the chip said
+ *           "Layer: FENCE" the entire time. A layer scope has to mean the layer.
+ */
+export type ScopeRef =
+  | { kind: 'IDS'; ids: string[] }
+  | { kind: 'LAYER'; layerId: string };
+
+/**
  * Which ids a turn should act on.
  *
  * A pinned scope wins over the live selection, which is the whole point of pinning: the surveyor
@@ -81,10 +98,24 @@ function buildLabel(count: number, byType: Record<string, number>, layers: strin
  * make the pin decorative.
  */
 export function resolveScopeIds(
-  pinned: string[] | null,
+  pinned: ScopeRef | null,
   liveSelection: string[],
+  doc?: DrawingDocument,
 ): string[] {
-  return pinned ?? liveSelection;
+  if (!pinned) return liveSelection;
+  if (pinned.kind === 'IDS') return pinned.ids;
+  // A layer scope with no document to resolve against is not "everything on the layer" — it is
+  // nothing knowable. Returning the live selection here would silently act on the wrong set, so it
+  // returns empty and the chip says the scope is empty.
+  if (!doc) return [];
+  return Object.values(doc.features)
+    .filter((f) => f.layerId === pinned.layerId)
+    .map((f) => f.id);
+}
+
+/** Layer name for the chip, falling back to the id so a deleted layer still reads as something. */
+export function scopeLayerName(doc: DrawingDocument, layerId: string): string {
+  return doc.layers[layerId]?.name ?? layerId;
 }
 
 /**
@@ -94,9 +125,12 @@ export function resolveScopeIds(
  * "move these twelve" and eight move, with the chip having quietly agreed with itself. Saying
  * "4 of these are gone" lets them re-pin or proceed deliberately.
  */
-export function scopeStaleCount(doc: DrawingDocument, pinned: string[] | null): number {
-  if (!pinned) return 0;
+export function scopeStaleCount(doc: DrawingDocument, pinned: ScopeRef | null): number {
+  // C33 — only an IDS scope can go stale. A LAYER scope resolves live every turn, so it has
+  // nothing to have lost; reporting "3 gone" for a layer whose features were deleted would be
+  // describing an ordinary edit as a problem with the scope.
+  if (!pinned || pinned.kind !== 'IDS') return 0;
   let missing = 0;
-  for (const id of pinned) if (!doc.features[id]) missing += 1;
+  for (const id of pinned.ids) if (!doc.features[id]) missing += 1;
   return missing;
 }

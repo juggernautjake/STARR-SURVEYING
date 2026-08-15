@@ -1540,6 +1540,21 @@ export default function LayerPanel() {
             Show All Layers
           </button>
           <div className="border-t border-gray-700 my-0.5" />
+          {/* C33 — "everything on this layer" as an AI scope. Resolved live every turn rather than
+              snapshotted: a surveyor who scopes to FENCE, draws three more fence lines and then
+              says "shorten these" must get all of them, not the set that existed when they
+              chose. */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
+            onClick={() => {
+              useAIConversationsStore.getState().pinLayerScope(contextMenu.layerId);
+              useAIConversationsStore.getState().open();
+              setContextMenu(null);
+            }}
+          >
+            Use as AI scope
+          </button>
+          <div className="border-t border-gray-700 my-0.5" />
           {/* Per-layer rotation */}
           {rotatingLayerId === contextMenu.layerId ? (
             <div className="px-3 py-1.5 flex items-center gap-1.5">
