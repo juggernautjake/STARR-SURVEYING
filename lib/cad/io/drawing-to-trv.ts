@@ -126,27 +126,103 @@ function emitPoint(f: Feature, layerIdByOurId: Map<string, string>): string[] {
   return lines;
 }
 
+/** A point record this export has to invent, because the traverse that needs it never came from a
+ *  TRV file and so has no `trvPointRefs` to re-emit. See `synthesizeTraversePoints`. */
+interface SynthPoint {
+  id: string;
+  north: number;
+  east: number;
+  layerId: string;
+}
+
+/**
+ * C44c — give every hand-drawn traverse the points it references.
+ *
+ * **The bug this fixes lost every line, polyline and polygon on a TRV round trip, silently.** TRV
+ * expresses linework as a traverse of *references to numbered points* (`10,<id>` pairs), so a
+ * traverse whose vertices are not TRV points has nothing to reference. `emitTraverse` handled that
+ * by writing the `30,name` header with an empty `31,0,0,0,0` body — deliberately, and the code said
+ * so: "fully synthetic traverses come with the Slice-5 coord-handling work". Re-importing then
+ * dropped each one with a non-fatal note (*"fewer than 2 resolvable points; skipped"*), and the
+ * vertices came back as loose points.
+ *
+ * So the drawing exported, re-opened, and looked *almost* right: every corner present, every
+ * boundary gone. No error, no crash, plausible output — the failure shape this codebase keeps
+ * paying for. It only bites geometry the surveyor drew HERE, which is why an import-then-export
+ * round trip never caught it.
+ *
+ * The fix is to write the points the format requires. Each vertex becomes a point record with a
+ * `synth-` prefixed id, emitted in the POINTS section and counted in `95,N`; the traverse then
+ * references them normally. A POLYGON repeats its first ref last, which is how `mapTraverse`
+ * recognises closure on the way back in.
+ */
+function synthesizeTraversePoints(
+  traverses: Feature[],
+): { points: SynthPoint[]; refsByFeature: Map<string, string[]> } {
+  const points: SynthPoint[] = [];
+  const refsByFeature = new Map<string, string[]>();
+  let n = 0;
+  for (const f of traverses) {
+    const existing = typeof f.properties.trvPointRefs === 'string'
+      ? f.properties.trvPointRefs.split(',').filter((s) => s.length > 0)
+      : [];
+    if (existing.length > 0) continue; // came from a TRV file — re-emit its own refs, untouched
+    const verts = f.geometry.vertices ?? [];
+    if (verts.length < 2) continue;
+    const refs: string[] = [];
+    for (const v of verts) {
+      const id = `synth-${(n += 1)}`;
+      // North is +y and east is +x, the same convention `pointCoords` uses for a point drawn here
+      // rather than imported. Getting this backwards mirrors the whole drawing about the 45° line
+      // and never throws.
+      points.push({ id, north: v.y, east: v.x, layerId: f.layerId });
+      refs.push(id);
+    }
+    // A closed traverse repeats its first point id as its last — that repetition IS the closure
+    // signal `mapTraverse` reads, so a polygon written without it comes back as an open polyline
+    // with the right corners and no area.
+    if (f.type === 'POLYGON' && refs.length > 2) refs.push(refs[0]);
+    refsByFeature.set(f.id, refs);
+  }
+  return { points, refsByFeature };
+}
+
+/** Emit one synthesized point block. Deliberately minimal — no description, no method code — so it
+ *  reads downstream as what it is: a vertex, not a shot somebody occupied. */
+function emitSynthPoint(p: SynthPoint, layerIdByOurId: Map<string, string>): string[] {
+  const trvLid = p.layerId ? layerIdByOurId.get(p.layerId) ?? '0' : '0';
+  return [
+    `0,${p.id}`,
+    `3,${trvLid}`,
+    `4,5,0,0`,
+    `2,${num(p.north)},${num(p.east)},${num(0, 3)}`,
+  ];
+}
+
 /** Emit one traverse block (POLYLINE / POLYGON). The vertex order
  *  is taken from the feature's geometry; if the feature originated
  *  from a TRV import the original ref-id list is preserved in
  *  `properties.trvPointRefs`, which lets us re-emit the exact
  *  ref sequence (including the closing ref of a POLYGON).
- *  Otherwise we synthesize refs from feature ids derived in this
- *  export pass (callers that built a new traverse with a fresh
- *  vertex chain not tied to TRV points are out of scope for Slice
- *  3 — fully synthetic traverses come with the Slice-5 coord-
- *  handling work). */
-function emitTraverse(f: Feature, sourceLineCounter: { i: number }, layerIdByOurId: Map<string, string>): string[] {
+ *  Otherwise `synthesizeTraversePoints` has already written a point
+ *  per vertex and handed the refs in via `synthRefs` (C44c). */
+function emitTraverse(
+  f: Feature,
+  sourceLineCounter: { i: number },
+  layerIdByOurId: Map<string, string>,
+  synthRefs?: string[],
+): string[] {
   const lines: string[] = [];
   const name = typeof f.properties.name === 'string' ? f.properties.name : '';
   lines.push(`30,${name}`);
-  const refs = (typeof f.properties.trvPointRefs === 'string'
+  const ownRefs = (typeof f.properties.trvPointRefs === 'string'
     ? f.properties.trvPointRefs.split(',').filter((s) => s.length > 0)
     : []);
+  const refs = ownRefs.length > 0 ? ownRefs : (synthRefs ?? []);
   if (refs.length === 0) {
-    // No round-trip refs; skip the body so we don't emit a
-    // malformed traverse. The header alone is harmless (other
-    // tooling treats a body-less 30 as an empty traverse).
+    // Still nothing to reference — a traverse with fewer than two vertices, which is not a
+    // traverse. The header alone is harmless (other tooling treats a body-less 30 as an empty
+    // traverse).
     lines.push(`31,0,0,0,0`);
     return lines;
   }
@@ -251,21 +327,30 @@ export function drawingToTrv(doc: DrawingDocument, opts: DrawingToTrvOptions = {
   const points = allFeatures.filter(
     (f) => f.type === 'POINT' && !f.properties.trvPointMirror && !f.properties.trvDerived,
   );
-  out.push(`95,${points.length}`);
+  // C44c — linework drawn HERE (rather than imported) has no TRV points to reference, and a
+  // traverse that references nothing is dropped on the way back in. Its vertices are written as
+  // points so the traverse has something to point at. Computed before `95,N` because they count.
+  const traverseFeatures = allFeatures.filter(
+    (f) => (f.type === 'POLYLINE' || f.type === 'POLYGON') && !f.properties.trvDerived,
+  );
+  const synth = synthesizeTraversePoints(traverseFeatures);
+  out.push(`95,${points.length + synth.points.length}`);
   for (const p of points) {
     for (const line of emitPoint(p, layerIdByOurId)) out.push(line);
+  }
+  for (const p of synth.points) {
+    for (const line of emitSynthPoint(p, layerIdByOurId)) out.push(line);
   }
   // cad-trv-drawing-element-rendering Slice 1 — exclude `trvDerived`
   // polylines (rendered from `28,30`/`28,16` chains) so they don't
   // double-emit as `30/31` traverses alongside the verbatim `28` block.
-  const traverses = allFeatures.filter(
-    (f) => (f.type === 'POLYLINE' || f.type === 'POLYGON') && !f.properties.trvDerived,
-  );
-  if (traverses.length > 0) {
+  if (traverseFeatures.length > 0) {
     out.push('#,TRAVERSE');
     const counter = { i: 0 };
-    for (const t of traverses) {
-      for (const line of emitTraverse(t, counter, layerIdByOurId)) out.push(line);
+    for (const t of traverseFeatures) {
+      for (const line of emitTraverse(t, counter, layerIdByOurId, synth.refsByFeature.get(t.id))) {
+        out.push(line);
+      }
     }
   }
   // Pass 2 — drawing elements (28/29) + lot/parcel segments (13)
