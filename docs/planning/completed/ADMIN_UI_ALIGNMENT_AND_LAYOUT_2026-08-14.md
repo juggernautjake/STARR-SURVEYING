@@ -1,6 +1,6 @@
 # Every admin page, measured: padding, alignment, and layout
 
-**Started 2026-08-14. Active.**
+**Started 2026-08-14. Completed 2026-08-15** — see the closing note at the foot of this document.
 
 Owner, 2026-08-14:
 
@@ -517,6 +517,28 @@ status bar, on a 390px screen, is not a layout anyone should ship or fix — the
 the mobile app. Recorded rather than silenced, because a future decision to make CAD usable on a
 tablet starts from this number.
 
+## D6l — The functional sweep found nothing, and proving that took two runs
+
+A12 ran `scripts/qa-sweep.ts` over all 139 routes signed in as an admin. It asks five questions per
+page: did the component throw, did a same-origin request fail, did the console error, is the page
+showing the user failure prose, does it overflow sideways.
+
+**Four of those five came back empty on both runs.** No page threw. No same-origin request failed.
+No page displayed an error. Nothing overflowed. The fifth — console output — reported 35 findings
+on the first run and 26 on the second, and every single one of them, both times, was some flavour of
+`Failed to fetch`.
+
+The first run overlapped with a full `vitest` pass and a `tsc`, so the dev server was competing for
+the machine. The second ran with nothing else going. **The decisive evidence is not the count but
+the overlap: 27 routes flagged in run one, 17 in run two, and only 5 in common.** A defect that is
+on `/admin/audit` in one pass and on `/admin/assignments` in the next is not in either page — it is
+the Next dev server dropping requests under a 139-route Playwright crawl.
+
+Recorded because the temptation with 35 red lines is to start fixing pages. **Re-probe before you
+believe a finding** — and when the finding moves, the thing that moved is your instrument, not the
+product. The five routes flagged in both runs are simply the ones that issue the most fetches on
+mount (`/admin/learn/modules` alone makes four).
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -796,5 +818,51 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A9 Knowledge | ✅ 19 pages measured, **3 findings → 0**. Two were A3's own `.admin-btn--sm` fix landing in rows that should never have used the small size (D6i); the third was `.manage__item-btn` at 31px — a class that paints a thousand buttons on the question-builder alone — plus a 39px add-button on a form of 40s. |
 | A10 CAD island | ✅ **21 → 2** (D6j). Eleven were the instrument pairing a tool rail against a panel; the biggest real one was the editor inheriting `globals.css`'s marketing-form padding, because it renders outside `.admin-layout` — which is why fields asking for `h-6` measured 30px and the command line 52px. The remaining 2 are `height-spread` on a coherent 18/22/24/28 scale, accepted by design rather than by moving the threshold. |
 | A11 Narrow widths | ✅ **1280: nothing** beyond CAD's two accepted findings. **390 across all 139 routes: 105 → 28, and all 28 are `/admin/cad` on a phone** — out of scope with reasons, not outstanding work. Every other route measures 0. Eight repeated shapes, listed in D6k: `overflow: hidden` clipping table columns (crew-calendar hid **403px** of the week), tables with no wrapper, four identical `space-between` headers that never wrapped, buttons folding their own labels, a two-column grid that never collapsed, tab rows that neither wrapped nor scrolled, a hard `minmax()` floor 2px too big, and a flex item that could not shrink. Two more instrument corrections (right-aligned stacks, `[role=button]` cards). 1440 re-measured at 0 on all 18 touched routes. |
-| A12 Functional sweep | ⬜ |
+| A12 Functional sweep | ✅ `qa-sweep.ts` over all 139 routes, twice (D6l). **No page threw, no same-origin request failed, no page showed error prose, nothing overflowed.** The only output was console `Failed to fetch` noise from the dev server, and it did not repeat: 27 routes flagged in run one, 17 in run two, 5 in common. Plus `tsc` clean, `next lint` with no errors, and the full suite at **23,980 passing**. |
 | A13 Quick Actions the user can author | ✅ `lib/hub/custom-quick-actions.ts` (model + href allow-list + resolver, 30 tests), the editor in the widget's settings panel, and the tinted glyph disc that makes the colour choice visible. Browser-verified end to end: added a link, watched it reject `javascript:alert(1)`, saved, saw the tile on the hub, clicked it, landed on the page. |
+
+---
+
+## Closing note — 2026-08-15
+
+Every slice is shipped. Two items are deferred, both recorded above rather than quietly dropped:
+
+- **`/admin/phone` and `/admin/phone/settings`** — they 404 on this branch. The calls/voicemail
+  feature lives on `claude/job-lifecycle-2026-08-14`, unmerged, and the route registry on `main`
+  has no entry for either. Nothing to fix here; measure them when that branch lands.
+- **`/admin/cad` at 390px (28 findings), and its 2 `height-spread` findings at 1440px** — a drawing
+  editor with a tool rail, two docked panels, a command line and a status bar is not a phone
+  surface, and its 18/22/24/28 control scale is coherent for a multi-region editor even though the
+  rule's ≥4 threshold counts it. Both numbers are kept in the evidence because a future decision to
+  make CAD usable on a tablet starts from them.
+
+**Where it ended: 1440px went 47 → 2, and 390px went 105 → 28, with every non-CAD route at 0 on
+both.** The functional sweep found no page that threw, no failed request, no error prose and no
+overflow; `tsc`, `next lint` and `npm run build` are clean and the suite is 23,980 passing.
+
+### What this pass would tell the next one
+
+1. **A control height that is not a token is a fix with an expiry date.** Five separate slices (83,
+   86, 87, 90, 102) each found a row where the field and the button disagreed and each wrote
+   `height: 36px` on both. Every one had come apart by the time this pass measured it, because the
+   input in the row is a typeless `<input>` that `forms.css` raises to 40px at a specificity no page
+   rule can reach.
+2. **Read the findings before fixing any of them.** Of the numbers this pass started from, roughly
+   half were the instrument: checkboxes measured as short controls, SVG chart interiors as ragged
+   layout, screen-reader-only inputs as overflow, card-shaped buttons as control heights, text links
+   as controls, a tool rail paired against a panel, content inside deliberate scrollers, and
+   right-aligned stacks. Eight corrections, each argued in the script beside the rule it changes.
+3. **Drive the surface, don't only measure it.** A screen can pass all six rules and still have a
+   Save button nobody can click, an Escape key that does nothing, and a Backspace that deletes your
+   widget while you are typing its name. All three were found in twenty minutes of driving one
+   screen that had just measured clean.
+4. **Re-probe before you believe a finding, and re-measure a group in a later slice.** `/admin/me`
+   measured 0 at the end of A3 and 1 during A5, because a widget had not finished loading the first
+   time. The functional sweep's 35 red lines moved to a different 26 routes on a second run.
+5. **A reset that wins too much is as wrong as one that never fires.** This pass produced one of
+   each in the same slice: `forms.css` never reached 178 typeless inputs, and `.cad-root input` at
+   (0,1,1) beat every Tailwind utility in the editor and collapsed its command line.
+
+The audit script stays. `node --env-file=.env.local scripts/ui-align-audit.mjs [--routes a,b]
+[--width 390] [--tag name]` is how any future change to a control's size gets checked, and
+`docs/admin-styling-contract.md` is what it checks against.

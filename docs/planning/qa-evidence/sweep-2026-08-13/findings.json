@@ -1,28 +1,63 @@
 [
   {
-    "route": "/admin/equipment/checked-out",
+    "route": "/admin/assignments",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
-    "route": "/admin/files",
+    "route": "/admin/assignments",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
-    "route": "/admin/install",
+    "route": "/admin/billing/invoices",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/billing/plan-history",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/billing/invoices. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n "
+  },
+  {
+    "route": "/admin/billing/plan-history",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/compliance",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/equipment/overrides",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/equipment/maintenance. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/files. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fastR"
+  },
+  {
+    "route": "/admin/finances/overview",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/finances. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fa"
   },
   {
     "route": "/admin/invoicing/categories",
     "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/invoicing. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at f"
   },
   {
-    "route": "/admin/learn/exam-prep/rpls",
+    "route": "/admin/learn/modules",
     "kind": "console",
-    "detail": "ExamPrepPage: fetch failed TypeError: Failed to fetch\n    at fetchData (webpack-internal:///(app-pages-browser)/./app/admin/learn/exam-prep/page.tsx:37:33)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/exam-prep/page.tsx:32:9)\n    at commitHookEffectListMount (webpack-intern"
+    "detail": "QuestionBuilderPage: failed to load generators TypeError: Failed to fetch\n    at loadGenerators (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:296:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:"
+  },
+  {
+    "route": "/admin/learn/modules",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
     "route": "/admin/learn/modules",
@@ -40,49 +75,34 @@
     "detail": "QuestionBuilderPage: failed to load modules/lessons TypeError: Failed to fetch\n    at loadModulesAndLessons (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:247:17)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-build"
   },
   {
-    "route": "/admin/learn/roadmap",
+    "route": "/admin/me/privacy",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
-    "route": "/admin/learn/search",
+    "route": "/admin/me/privacy",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
-    "route": "/admin/learn/search",
+    "route": "/admin/mileage",
     "kind": "console",
-    "detail": "RoadmapPage: failed to fetch TypeError: Failed to fetch\n    at fetchData (webpack-internal:///(app-pages-browser)/./app/admin/learn/roadmap/page.tsx:147:17)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/roadmap/page.tsx:141:9)\n    at commitHookEffectListMount (webpack-intern"
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/messages/settings. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n"
   },
   {
-    "route": "/admin/my-files",
+    "route": "/admin/money",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/my-hours",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/my-notes",
-    "kind": "console",
-    "detail": "Warning: In HTML, %s cannot be a descendant of <%s>.\nThis will cause a hydration error.%s <button> button \n    at button\n    at div\n    at button\n    at div\n    at MyNotesPanel (webpack-internal:///(app-pages-browser)/./app/admin/my-notes/MyNotesPanel.tsx:40:90)\n    at MyNotesPage (Server)\n    at In"
   },
   {
     "route": "/admin/pay-rates",
     "kind": "console",
-    "detail": "PayProgressionPage: fetch failed TypeError: Failed to fetch\n    at fetchData (webpack-internal:///(app-pages-browser)/./app/admin/pay-progression/page.tsx:62:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/pay-progression/page.tsx:58:9)\n    at commitHookEffectListMount (webpack-"
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/pay-progression. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n  "
   },
   {
-    "route": "/admin/payouts/ad-hoc",
+    "route": "/admin/personnel/crew-calendar",
     "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/profile",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/people. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fast"
   },
   {
     "route": "/admin/receipts",
@@ -90,263 +110,23 @@
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
-    "route": "/admin/receipts",
+    "route": "/admin/research/coverage",
     "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/research/billing. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n "
   },
   {
-    "route": "/admin/receipts/new",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/research",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/research",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/research/library",
-    "kind": "request",
-    "detail": "HTTP 500 /api/admin/research/library"
-  },
-  {
-    "route": "/admin/research/library",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-  },
-  {
-    "route": "/admin/research/library",
-    "kind": "visible",
-    "detail": "erty Research Research & CAD › Property Research › Library Failed to load library Error: HTTP 500 Retry Messages Flag an Issue Fieldbook Calculator Assistant"
-  },
-  {
-    "route": "/admin/research/pipeline",
-    "kind": "request",
-    "detail": "HTTP 500 /api/admin/research/library"
-  },
-  {
-    "route": "/admin/research/pipeline",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "request",
-    "detail": "HTTP 404 /api/auth/session"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "console",
-    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "request",
-    "detail": "HTTP 500 /api/admin/research/batch"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3100/admin/research/pipeline. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/research/self-heal",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/research/sites",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/research/testing",
+    "route": "/admin/research/coverage",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
     "route": "/admin/rewards/admin",
-    "kind": "request",
-    "detail": "HTTP 500 /admin/rewards/admin"
+    "kind": "console",
+    "detail": "RewardsPage: fetch failed TypeError: Failed to fetch\n    at fetchData (webpack-internal:///(app-pages-browser)/./app/admin/rewards/page.tsx:60:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/rewards/page.tsx:56:9)\n    at commitHookEffectListMount (webpack-internal:///(app-pages-"
   },
   {
     "route": "/admin/rewards/admin",
     "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
-  },
-  {
-    "route": "/admin/rewards/admin",
-    "kind": "pageerror",
-    "detail": "TypeError: __webpack_require__.C is not a function"
-  },
-  {
-    "route": "/admin/rewards/how-it-works",
-    "kind": "request",
-    "detail": "HTTP 404 /_next/static/webpack/d9c3086939130abf.webpack.hot-update.json"
-  },
-  {
-    "route": "/admin/rewards/how-it-works",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/role-requests",
-    "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/search",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/search",
-    "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3100/admin/calendar. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at ev"
-  },
-  {
-    "route": "/admin/time-off",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/time-off",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "request",
-    "detail": "HTTP 404 /api/admin/messages/conversations?archived=false"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "request",
-    "detail": "HTTP 404 /api/admin/messages/read"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "request",
-    "detail": "HTTP 404 /api/admin/time-off"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "request",
-    "detail": "HTTP 404 /api/auth/session"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/timeline",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "request",
-    "detail": "HTTP 404 /api/auth/session"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "ClientFetchError: Unexpected token '<', ...\"          <pre>missi\"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-bro"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "request",
-    "detail": "HTTP 404 /api/auth/session"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "ClientFetchError: Unexpected token '<', ...\"          <pre>missi\"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-bro"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "request",
-    "detail": "HTTP 404 /api/auth/session"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "ClientFetchError: Unexpected token '<', ...\"          <pre>missi\"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-bro"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "request",
-    "detail": "HTTP 404 /api/auth/session"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
-  },
-  {
-    "route": "/admin/vehicles",
-    "kind": "console",
-    "detail": "ClientFetchError: Unexpected token '<', ...\"          <pre>missi\"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-bro"
-  },
-  {
-    "route": "/admin/work-mode/drawer",
-    "kind": "overflow",
-    "detail": "body scrolls to 695px in a 390px viewport"
   }
 ]
