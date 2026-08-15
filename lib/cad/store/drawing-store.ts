@@ -20,6 +20,8 @@ import { canFeatureBeRendered, canFeatureBeEdited } from '../styles/style-cascad
 // can rely on a single property instead of walking the multi-key
 // fallback chain.
 import { canonicalizePointName } from '../feature-fields';
+// C8 — named layer states. Pure capture/restore planning lives beside the other style helpers.
+import { captureLayerState, planLayerStateRestore } from '../styles/layer-states';
 
 // ── CAD_AUDIT Slice S2b — the visible/selectable set is derived ONCE per document version ──
 //
@@ -254,6 +256,12 @@ interface DrawingStore {
   addLayer: (layer: Layer) => void;
   removeLayer: (layerId: string) => void;
   updateLayer: (layerId: string, updates: Partial<Layer>) => void;
+  /** C8 — save the current layer visibility under a name (replaces one of the same name). */
+  saveLayerState: (name: string) => void;
+  /** C8 — apply a saved state. Layers the state never knew are left alone; see layer-states.ts. */
+  restoreLayerState: (stateId: string) => void;
+  /** C8 — forget a saved state. */
+  removeLayerState: (stateId: string) => void;
   setActiveLayer: (layerId: string) => void;
   reorderLayers: (layerOrder: string[]) => void;
 
@@ -627,6 +635,54 @@ export const useDrawingStore = create<DrawingStore>((set, get) => ({
         isDirty: true,
       };
     }),
+
+  // ── C8 — named layer states ──────────────────────────────────────────────────────────────────
+  saveLayerState: (name) =>
+    set((state) => {
+      const trimmed = name.trim();
+      if (!trimmed) return state;
+      const now = new Date().toISOString();
+      const captured = captureLayerState(trimmed, state.document.layers, now, generateId());
+      // Saving over an existing name REPLACES it rather than making a second entry with the same
+      // label — two "Field check" rows is a list nobody can use. The UI validates first, so this is
+      // the belt to that braces.
+      const rest = (state.document.layerStates ?? []).filter(
+        (s) => s.name.trim().toLowerCase() !== trimmed.toLowerCase(),
+      );
+      return {
+        document: { ...state.document, layerStates: [...rest, captured], modified: now },
+        isDirty: true,
+      };
+    }),
+
+  restoreLayerState: (stateId) =>
+    set((state) => {
+      const saved = (state.document.layerStates ?? []).find((s) => s.id === stateId);
+      if (!saved) return state;
+      const { patches } = planLayerStateRestore(saved, state.document.layers);
+      // One immutable rebuild for the whole restore. Looping `updateLayer` would produce N document
+      // objects, and the visible-set cache (S2b/C3/C4) is keyed on `layers` identity — so it would
+      // invalidate N times and re-derive the visible set on every layer.
+      const layers = { ...state.document.layers };
+      for (const [layerId, entry] of Object.entries(patches)) {
+        const existing = layers[layerId];
+        if (existing) layers[layerId] = { ...existing, ...entry };
+      }
+      return {
+        document: { ...state.document, layers, modified: new Date().toISOString() },
+        isDirty: true,
+      };
+    }),
+
+  removeLayerState: (stateId) =>
+    set((state) => ({
+      document: {
+        ...state.document,
+        layerStates: (state.document.layerStates ?? []).filter((s) => s.id !== stateId),
+        modified: new Date().toISOString(),
+      },
+      isDirty: true,
+    })),
 
   // cad-domain-audit Slice C — reject an id that isn't actually a
   // layer in the current document. Previously every caller was free

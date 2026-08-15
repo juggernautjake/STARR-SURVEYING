@@ -24,6 +24,7 @@ import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChi
 import NewLayerDialog from './NewLayerDialog';
 import LayerPropertiesDialog from './LayerPropertiesDialog';
 import { planLayerMerge, describeMergeRefusal } from '@/lib/cad/operations/merge-layers';
+import { isLayerStateCurrent, validateLayerStateName, LAYER_STATE_NAME_MAX } from '@/lib/cad/styles/layer-states';
 // cad-layer-grouping Slice 5 — unified context menu for layer-panel
 // group rows (and, in future slices, feature rows + layer rows).
 import TargetContextMenu, { type ContextMenuTarget } from './TargetContextMenu';
@@ -71,6 +72,30 @@ export default function LayerPanel() {
   const [propertiesLayerId, setPropertiesLayerId] = useState<string | null>(null);
   /** C7 — the layer being merged AWAY (its features move to the chosen target, then it is deleted). */
   const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
+  /** C8 — the layer-states section is collapsed by default; this panel is already dense. */
+  const [showLayerStates, setShowLayerStates] = useState(false);
+  const [newStateName, setNewStateName] = useState('');
+
+  /** C8 — save the current visibility under a name, refusing a blank or duplicate first. */
+  async function handleSaveLayerState() {
+    const err = validateLayerStateName(newStateName, doc.layerStates ?? []);
+    if (err) {
+      // A duplicate name would REPLACE the existing state silently, so it is worth a confirm rather
+      // than a refusal — overwriting "field check" on purpose is a normal thing to want.
+      if (!/already exists/i.test(err)) {
+        void alertAction({ title: 'Starr CAD', message: err });
+        return;
+      }
+      const ok = await confirmAction({
+        title: 'Replace layer state',
+        message: `“${newStateName.trim()}” already exists. Replace it with the current layer visibility?`,
+        confirmLabel: 'Replace',
+      });
+      if (!ok) return;
+    }
+    useDrawingStore.getState().saveLayerState(newStateName);
+    setNewStateName('');
+  }
 
   /**
    * C7 — apply a merge as ONE undo entry.
@@ -1296,6 +1321,20 @@ export default function LayerPanel() {
           <EyeOffIcon size={12} />
           Hidden Items
         </button>
+        {/* C8 — layer states. The count is in the label so a drawing that HAS saved views says so
+            without being expanded; a section you have to open to discover is a section nobody
+            finds. */}
+        <button
+          className="w-full flex items-center gap-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded px-1 py-1 text-xs transition-colors duration-100"
+          onClick={() => setShowLayerStates((v) => !v)}
+          title="Save which layers are on, and come back to it in one click"
+        >
+          {showLayerStates ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          Saved views
+          {(doc.layerStates ?? []).length > 0 && (
+            <span className="ml-auto text-[10px] text-gray-500">{(doc.layerStates ?? []).length}</span>
+          )}
+        </button>
         <button
           className="w-full flex items-center gap-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded px-1 py-1 text-xs transition-colors duration-100"
           onClick={() => setRestrictToActive(!restrictToActive)}
@@ -1598,6 +1637,58 @@ export default function LayerPanel() {
             onClick={() => { window.dispatchEvent(new CustomEvent('cad:openExportLayers')); setPanelMenu(null); }}>
             <Send size={12} /> Export layers…
           </button>
+        </div>
+      )}
+
+      {/* C8 — named layer states. Collapsed by default: it is a power feature on a panel that is
+          already dense, and a drawing with no saved states shows one line rather than a section. */}
+      {showLayerStates && (
+        <div className="border-t border-gray-700 px-2 py-1.5 text-[11px]">
+          <div className="flex items-center gap-1 mb-1">
+            <input
+              value={newStateName}
+              onChange={(e) => setNewStateName(e.target.value)}
+              placeholder="Name this view…"
+              maxLength={LAYER_STATE_NAME_MAX}
+              className="flex-1 min-w-0 bg-gray-800 border border-gray-600 rounded px-1.5 h-6 text-gray-100"
+              onKeyDown={(e) => { if (e.key === 'Enter') void handleSaveLayerState(); }}
+            />
+            <button
+              className="px-2 h-6 rounded border border-gray-600 text-gray-300 hover:bg-gray-700 shrink-0"
+              onClick={() => void handleSaveLayerState()}
+            >
+              Save
+            </button>
+          </div>
+          {(doc.layerStates ?? []).length === 0 ? (
+            <div className="text-gray-500 text-[10px] py-0.5">
+              Save which layers are on — “field check”, “client plat” — and come back to it in one click.
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-0.5">
+              {(doc.layerStates ?? []).map((s) => {
+                const current = isLayerStateCurrent(s, doc.layers);
+                return (
+                  <li key={s.id} className="flex items-center gap-1">
+                    <button
+                      className={`flex-1 min-w-0 text-left px-1.5 py-0.5 rounded truncate hover:bg-gray-700 ${current ? 'text-green-400' : 'text-gray-200'}`}
+                      title={current ? 'The drawing already matches this view' : `Restore “${s.name}”`}
+                      onClick={() => useDrawingStore.getState().restoreLayerState(s.id)}
+                    >
+                      {current ? '● ' : ''}{s.name}
+                    </button>
+                    <button
+                      className="text-gray-500 hover:text-red-400 px-1 shrink-0"
+                      aria-label={`Delete layer state ${s.name}`}
+                      onClick={() => useDrawingStore.getState().removeLayerState(s.id)}
+                    >
+                      <X size={10} />
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
       )}
 

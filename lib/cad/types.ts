@@ -151,6 +151,18 @@ export interface DrawingDocument {
   /** Project-level image library. IMAGE features reference images by id. */
   projectImages: Record<string, ProjectImage>;
 
+  /**
+   * C8 — named layer states ("field check", "client plat"). Saved with the drawing, because the
+   * combination of layers that makes a client plat is a property of THAT drawing, not of whoever
+   * has it open.
+   *
+   * **Optional on purpose.** Every drawing saved before this existed has no such key, and a
+   * required field would make each of them fail to load — a schema change that breaks reading old
+   * files is a much worse bug than the feature is a good one. Readers must treat `undefined` as
+   * "no states", which `?? []` does at every call site.
+   */
+  layerStates?: import('./styles/layer-states').LayerState[];
+
   // Configuration
   settings: DrawingSettings;
 }
