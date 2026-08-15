@@ -1,0 +1,23 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 1,
+  "byRule": {
+    "height-spread": 1
+  },
+  "byRoute": {
+    "/admin/payroll": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/payroll",
+      "rule": "height-spread",
+      "severity": "medium",
+      "px": 6,
+      "detail": "6 different button heights on one page: 26, 40, 49, 99, 123, 166px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    }
+  ]
+}

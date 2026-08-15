@@ -125,7 +125,13 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  padding: 1px 7px;
+  /* admin-ui-alignment-2026-08-15 — 1px of vertical padding rendered these at 23px, under the 28px
+   * floor in docs/admin-styling-contract.md. It is a real tap target, on a product used one-handed
+   * in a truck, and it carries a border and a fill so it reads as a button rather than as inline
+   * text. The small control token, which is the contract's answer for an in-row action. */
+  min-height: var(--button-height-sm, 32px);
+  box-sizing: border-box;
+  padding: 0 9px;
   border-radius: 999px;
   cursor: pointer;
   font: inherit;

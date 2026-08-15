@@ -191,17 +191,22 @@ export default function PayrollPage() {
           anything, and the money leaves when somebody dispatches it. */}
       <div className="payroll-payowed">
         <div className="payroll-payowed__row">
-          <button className="tl-btn" onClick={previewOwed} disabled={payingOwed}>
+          {/* admin-ui-alignment-2026-08-15 — these were `tl-btn`, and the error below was
+              `tl-pay-error`. Both classes live in AdminTimeLogs.css, which this route never
+              imports (payroll/layout.tsx loads AdminPayroll.css alone), so all three rendered
+              completely unstyled: no border, no background, 26px of bare text where a button
+              should be. Swapped to this page's own button system, which is loaded. */}
+          <button className="payroll-btn" onClick={previewOwed} disabled={payingOwed}>
             What is owed right now?
           </button>
           {owedPreview && owedPreview.lines.length > 0 && (
-            <button className="tl-btn tl-btn--primary" onClick={createOwedPayout} disabled={payingOwed}>
+            <button className="payroll-btn payroll-btn--primary" onClick={createOwedPayout} disabled={payingOwed}>
               {payingOwed ? 'Preparing…' : `Prepare payout — ${(owedPreview.totalCents / 100).toFixed(2)}`}
             </button>
           )}
         </div>
 
-        {payOwedError && <div className="tl-pay-error">{payOwedError}</div>}
+        {payOwedError && <div className="payroll-payowed__error">{payOwedError}</div>}
         {payOwedResult && <div className="payroll-payowed__done">{payOwedResult}</div>}
 
         {owedPreview && (

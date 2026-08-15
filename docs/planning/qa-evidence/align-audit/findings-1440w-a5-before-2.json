@@ -1,0 +1,23 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 15,
+  "byRule": {
+    "row-height": 1
+  },
+  "byRoute": {
+    "/admin/invoices/new": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/invoices/new",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 8,
+      "detail": "input is 40px tall, button.invoice-items__remove \"×\" is 32px — beside each other",
+      "container": "div.invoice-items__row \"$0.00×\"",
+      "sig": "input:40|button.invoice-items__remove:32",
+      "count": 2
+    }
+  ]
+}

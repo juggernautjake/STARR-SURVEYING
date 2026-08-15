@@ -1,0 +1,23 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 4,
+  "byRule": {
+    "small-target": 1
+  },
+  "byRoute": {
+    "/admin/me": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/me",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 23,
+      "detail": "button.wx-chip \"📍 Change\" is only 23px tall",
+      "container": "span \"Central Texas · H 98° / L 77\"",
+      "sig": "button.wx-chip:23",
+      "count": 1
+    }
+  ]
+}

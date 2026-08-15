@@ -87,8 +87,13 @@
   overflow-x: auto;
 }
 
+/* admin-ui-alignment-2026-08-15 — padding sized this strip to 49px, the tallest control on the
+ * page bar the cards. Every other admin tab strip is on the standard control height now
+ * (my-notes, my-hours); this one joins them. */
 .payroll-tabs__btn {
-  padding: 0.75rem 1.25rem;
+  height: var(--button-height);
+  box-sizing: border-box;
+  padding: 0 1.25rem;
   border: none;
   background: transparent;
   color: var(--color-text-tertiary);
@@ -115,7 +120,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.5rem 1rem;
+  /* Height from the token rather than from padding arithmetic, so it stays level with the fields
+   * it shares a row with. `min-height`, because a couple of usages wrap to two lines. */
+  min-height: var(--button-height);
+  box-sizing: border-box;
+  padding: 0 1rem;
   border: var(--border-normal);
   border-radius: 8px;
   background: white;
@@ -1705,6 +1714,19 @@
   background: var(--theme-bg-elevated, #F9FAFB);
 }
 .payroll-payowed__row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+/* admin-ui-alignment-2026-08-15 — the payout failure used `tl-pay-error`, which is declared in
+ * AdminTimeLogs.css and never loaded here, so a failed payout reported itself as unstyled body
+ * text. Same treatment, in the stylesheet this page actually imports. */
+.payroll-payowed__error {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 8px;
+  background: var(--color-error-bg);
+  border: 1px solid var(--theme-danger, #FECACA);
+  color: var(--theme-danger, #991B1B);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
 .payroll-payowed__preview { margin-top: 0.75rem; font-size: 0.85rem; }
 .payroll-payowed__preview ul { margin: 0.35rem 0 0; padding-left: 1.1rem; }
 .payroll-payowed__preview li { margin: 0.15rem 0; }

@@ -849,7 +849,10 @@ const styles = `
   .invoice-items__head { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: #6b7280; border-bottom: 1px solid #e4e7ee; }
   .invoice-items__row input { font: inherit; padding: 0.5rem 0.65rem; border: 1px solid #d6d9e3; border-radius: 8px; }
   .invoice-items__total { text-align: right; font-weight: 600; }
-  .invoice-items__remove { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #d6d9e3; background: #fafbfd; cursor: pointer; }
+  /* admin-ui-alignment-2026-08-15 — the remove button was a 32px square in a row of 40px inputs,
+   * so every line item had one control sitting 8px short of the rest. It is a square, so the width
+   * follows the height. */
+  .invoice-items__remove { width: var(--button-height); height: var(--button-height); border-radius: 8px; border: 1px solid #d6d9e3; background: #fafbfd; cursor: pointer; }
   .invoice-items__remove:disabled { opacity: 0.4; cursor: not-allowed; }
   .invoice-section--totals { display: grid; grid-template-columns: 8rem 1fr 1fr; gap: 0.75rem; }
   .invoice-section__notes { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 0.25rem; }

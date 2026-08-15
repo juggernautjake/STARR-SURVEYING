@@ -308,6 +308,41 @@ Three decisions worth keeping:
   colour that visibly does nothing is worse than offering none, so the glyph now sits in a tinted
   disc — which shows the tint whatever the glyph is, and lights up the eight built-in tiles too.
 
+## D6d — Two more instrument corrections, and one page that was never styled at all
+
+A5 (Money) produced three findings. One was a defect, one was the instrument, and one was neither —
+it was a page using a stylesheet it does not load.
+
+- **`/admin/payroll`'s two payout buttons had no styling whatsoever.** They are `className="tl-btn"`,
+  and `.tl-btn` is declared in `AdminTimeLogs.css`, which this route never imports — `payroll/layout.tsx`
+  loads `AdminPayroll.css` alone. So did the failure message below them (`tl-pay-error`). Three
+  elements rendering as bare text on a money screen, and the only reason the sweep noticed is that
+  an unstyled `<button>` is 26px tall. **A class name is not a contract; the stylesheet has to be
+  on the page.** Swapped to the page's own `payroll-btn`, and the error style added where this page
+  can see it.
+- **Screen-reader-only inputs measured as ragged layout.** `/admin/receipts/new` keeps three
+  `<input type=file>` behind its visible buttons, hidden with the standard 1×1 clipped pattern, and
+  the `-1px` margin that pattern requires duly reported as *"this input starts 1.0px off the left
+  edge its siblings share"*. A control nobody can see cannot be misaligned, and hiding those with
+  `display: none` — which would silence the rule — would take them out of the accessibility tree.
+  *Now excluded when clipped and ≤2px.*
+- **Card-shaped buttons counted as control heights.** `/admin/payroll` paints its fourteen position
+  cards and three action cards as `<button>`, at 99, 123 and 166px. Every actual control on the page
+  was at 40px and it still read as "4 different button heights". A button taller than 64px is a
+  surface with a click handler, not a control whose height anyone chose. *Now excluded from
+  `height-spread`.*
+
+## D6e — A page is not finished the first time it measures zero
+
+`/admin/me` measured 0 at the end of A3. It measured 1 during A5 — a 23px `wx-chip` in the weather
+widget — because **the weather widget had not finished loading the first time.** The sweep waits
+2.5s and then for network idle; a widget that fetches on mount and paints late can be absent at
+measurement and present in the product.
+
+The defence is cheap and is now habit: **re-measure a group at the end of a later slice, not only at
+the end of its own.** A5 re-ran the Hub and Work routes and found it. The alternative is a page that
+is green in the ledger and wrong on the screen, which is worse than never having measured it.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -379,36 +414,36 @@ workspace starts at zero.
 
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Money | `/admin/money` | | ⬜ |
-| Mileage | `/admin/mileage` | | ⬜ |
-| Payroll | `/admin/payroll` | | ⬜ |
-| Pay Progression | `/admin/pay-progression` | | ⬜ |
-| Pay Change History | `/admin/payout-log` | | ⬜ |
-| Payout Search | `/admin/payouts/search` | | ⬜ |
-| Receipts | `/admin/receipts` | | ⬜ |
-| Capture Receipt | `/admin/receipts/new` | | ⬜ |
-| Payment Cards | `/admin/cards` | | ⬜ |
-| Pass-Through Costs | `/admin/pass-through` | | ⬜ |
-| Rewards & Store | `/admin/rewards` | | ⬜ |
-| Manage Rewards | `/admin/rewards/admin` | | ⬜ |
-| How Rewards Work | `/admin/rewards/how-it-works` | | ⬜ |
-| Payouts | `/admin/payouts` | | ⬜ |
-| Withdrawal Requests | `/admin/payouts/withdrawals` | | ⬜ |
-| Payout Tax Report | `/admin/payouts/tax-report` | | ⬜ |
-| Payout Runs | `/admin/payouts/runs` | | ⬜ |
-| Ad-hoc Payout | `/admin/payouts/ad-hoc` | | ⬜ |
-| Job Profitability | `/admin/finances` | | ⬜ |
-| Money Overview | `/admin/finances/overview` | | ⬜ |
-| Bank Reconciliation | `/admin/finances/reconcile` | | ⬜ |
-| Receivables | `/admin/receivables` | | ⬜ |
-| Customer Invoices | `/admin/invoicing` | | ⬜ |
-| Payments Inbox | `/admin/payments/inbox` | | ⬜ |
-| New Customer Invoice | `/admin/invoices/new` | | ⬜ |
-| Invoice Line Categories | `/admin/invoicing/categories` | | ⬜ |
-| Software Subscription | `/admin/billing` | | ⬜ |
-| Subscription Invoices | `/admin/billing/invoices` | | ⬜ |
-| Plan History | `/admin/billing/plan-history` | | ⬜ |
-| Upgrade Plan | `/admin/billing/upgrade` | | ⬜ |
+| Money | `/admin/money` | 0 → 0 | ✅ |
+| Mileage | `/admin/mileage` | 0 → 0 | ✅ |
+| Payroll | `/admin/payroll` | 1 → 0 | ✅ two buttons + an error message were rendering unstyled (D6d) |
+| Pay Progression | `/admin/pay-progression` | 0 → 0 | ✅ |
+| Pay Change History | `/admin/payout-log` | 0 → 0 | ✅ |
+| Payout Search | `/admin/payouts/search` | 0 → 0 | ✅ |
+| Receipts | `/admin/receipts` | 0 → 0 | ✅ |
+| Capture Receipt | `/admin/receipts/new` | 1 → 0 | ✅ instrument (D6d) |
+| Payment Cards | `/admin/cards` | 0 → 0 | ✅ |
+| Pass-Through Costs | `/admin/pass-through` | 0 → 0 | ✅ |
+| Rewards & Store | `/admin/rewards` | 0 → 0 | ✅ |
+| Manage Rewards | `/admin/rewards/admin` | 0 → 0 | ✅ |
+| How Rewards Work | `/admin/rewards/how-it-works` | 0 → 0 | ✅ |
+| Payouts | `/admin/payouts` | 0 → 0 | ✅ |
+| Withdrawal Requests | `/admin/payouts/withdrawals` | 0 → 0 | ✅ |
+| Payout Tax Report | `/admin/payouts/tax-report` | 0 → 0 | ✅ |
+| Payout Runs | `/admin/payouts/runs` | 0 → 0 | ✅ |
+| Ad-hoc Payout | `/admin/payouts/ad-hoc` | 0 → 0 | ✅ |
+| Job Profitability | `/admin/finances` | 0 → 0 | ✅ |
+| Money Overview | `/admin/finances/overview` | 0 → 0 | ✅ |
+| Bank Reconciliation | `/admin/finances/reconcile` | 0 → 0 | ✅ |
+| Receivables | `/admin/receivables` | 0 → 0 | ✅ |
+| Customer Invoices | `/admin/invoicing` | 0 → 0 | ✅ |
+| Payments Inbox | `/admin/payments/inbox` | 0 → 0 | ✅ |
+| New Customer Invoice | `/admin/invoices/new` | 1 → 0 | ✅ 32px remove button in a row of 40px inputs |
+| Invoice Line Categories | `/admin/invoicing/categories` | 0 → 0 | ✅ |
+| Software Subscription | `/admin/billing` | 0 → 0 | ✅ |
+| Subscription Invoices | `/admin/billing/invoices` | 0 → 0 | ✅ |
+| Plan History | `/admin/billing/plan-history` | 0 → 0 | ✅ |
+| Upgrade Plan | `/admin/billing/upgrade` | 0 → 0 | ✅ |
 
 ### Office — people, comms, records, setup (29)
 
@@ -555,7 +590,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A2 Row/field primitives | ⬜ folded into A3–A9 — the contract is the primitive |
 | A3 Hub | ✅ 14 pages measured, **11 findings → 0**. Two of the three that survived A1 were shared-layer holes, not Hub bugs (D4d): `.admin-btn` (45 files) sized from padding to 43px, and `input:not([type])` missing from `forms.css` (178 inputs). Page-local: `.mynotes__tab` 42→40, `.mynotes__chip` pinned to the token, the my-notes search row moved to the dense-row move, `.tl-tabs__btn` 46→40. Plus two defects no rule can see (D5b): the Customize modal's Save was unclickable under the FAB dock, and Escape did not close the widget options panel. |
 | A4 Work | ✅ 25 pages measured, **3 findings → 0**. One was the A3 label-margin reset applied to only half a row (D4e): the Refresh *button* column on `/admin/field-data` and `/admin/timeline` kept the 10px bottom margin its neighbouring field columns had just lost, so the two ends of the row disagreed by 10px and 9.4px. Page-local: the calendar toolbar's four button heights (36/38/39.8/40) went to one, and the timeline's two padding-sized buttons took the token. |
-| A5 Money | ⬜ |
+| A5 Money | ✅ 30 pages measured, **3 findings → 0**, plus one the Hub had hidden behind a slow-loading widget (D6e). `/admin/payroll` was using `tl-btn` and `tl-pay-error` from a stylesheet it never imports, so two buttons and a failure message rendered as bare text (D6d); `/admin/invoices/new` had a 32px remove button in a row of 40px fields; `.payroll-btn` and the payroll tab strip took the token. Two instrument corrections: clipped screen-reader inputs, and card-shaped buttons over 64px. |
 | A6 Office | ⬜ |
 | A7 Equipment | ⬜ |
 | A8 Research | ⬜ |

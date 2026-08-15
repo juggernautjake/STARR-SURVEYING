@@ -63,6 +63,17 @@ const PROBE = () => {
     if (r.width < 1 || r.height < 1) return false;
     const cs = getComputedStyle(el);
     if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) return false;
+    // The screen-reader-only pattern: a 1×1 absolutely-positioned control, clipped away, with a
+    // -1px margin to keep it out of the flow. `/admin/receipts/new` keeps three of them — the
+    // camera, file and bulk `<input type=file>` behind its visible buttons — and the -1px margin
+    // duly reported as "this input starts 1.0px off the left edge its siblings share".
+    //
+    // A control nobody can see cannot be misaligned, and the pattern is CORRECT accessibility
+    // practice: hiding those inputs with `display: none` would take them out of the a11y tree.
+    // Flagging it would train a reader to distrust `left-ragged`, which is the one rule here with
+    // the tightest threshold and so the least slack for noise.
+    const clipped = cs.clip === 'rect(0px, 0px, 0px, 0px)' || cs.clipPath === 'inset(50%)';
+    if (clipped && r.width <= 2 && r.height <= 2) return false;
     return true;
   };
 
@@ -242,6 +253,13 @@ const PROBE = () => {
     const t = el.tagName.toLowerCase();
     const r = el.getBoundingClientRect();
     if (r.width < 40) continue;                                   // icon buttons are their own thing
+    // A `<button>` taller than 64px is not a control whose height was chosen — it is a CARD with a
+    // click handler, and its height comes from the content inside it. `/admin/payroll` paints its
+    // fourteen position cards and three action cards as buttons; they measured 99, 123 and 166px
+    // and kept the page at four "button heights" after every actual control on it had been brought
+    // to 40. Counting them asks the page to make a card the same height as a filter pill, which is
+    // not the defect this rule is looking for.
+    if (t === 'button' && r.height > 64) continue;
     const h = Math.round(r.height);
     if (t === 'input' || t === 'select' || t === 'textarea') heights.input.add(h);
     else heights.button.add(h);

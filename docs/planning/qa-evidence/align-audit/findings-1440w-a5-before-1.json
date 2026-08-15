@@ -1,0 +1,35 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 15,
+  "byRule": {
+    "height-spread": 1,
+    "left-ragged": 1
+  },
+  "byRoute": {
+    "/admin/payroll": 1,
+    "/admin/receipts/new": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/payroll",
+      "rule": "height-spread",
+      "severity": "medium",
+      "px": 6,
+      "detail": "6 different button heights on one page: 26, 40, 49, 99, 123, 166px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/receipts/new",
+      "rule": "left-ragged",
+      "severity": "low",
+      "px": 1,
+      "detail": "input starts 1.0px off the 437px left edge its 3 siblings share",
+      "container": "div \"Receipt photo📷Take a photo\ud83d\"",
+      "sig": "input|div",
+      "count": 3
+    }
+  ]
+}
