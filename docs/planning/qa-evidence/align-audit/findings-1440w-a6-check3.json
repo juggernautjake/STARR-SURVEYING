@@ -1,0 +1,23 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 4,
+  "byRule": {
+    "row-centre": 1
+  },
+  "byRoute": {
+    "/admin/org-settings": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/org-settings",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10,
+      "detail": "input and input sit side by side but their centres differ by 10.0px",
+      "container": "label \"Webhook URL (optional)\"",
+      "sig": "input|input|label",
+      "count": 1
+    }
+  ]
+}

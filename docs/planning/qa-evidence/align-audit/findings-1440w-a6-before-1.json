@@ -1,0 +1,67 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 15,
+  "byRule": {
+    "row-centre": 1,
+    "height-spread": 2,
+    "row-height": 2
+  },
+  "byRoute": {
+    "/admin/files": 2,
+    "/admin/users": 1,
+    "/admin/messages/contacts": 2
+  },
+  "findings": [
+    {
+      "route": "/admin/files",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 1.6,
+      "detail": "input and button.fx__kind \"Images\" sit side by side but their centres differ by 1.6px",
+      "container": "div.fx__search-box",
+      "sig": "input|button.fx__kind|div.fx__search-box",
+      "count": 4
+    },
+    {
+      "route": "/admin/files",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 29, 32, 40, 43px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/users",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 30, 34, 37, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/messages/contacts",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4,
+      "detail": "input.msg-contacts-page__search is 40px tall, button.msg-contacts-page__filter.msg-contacts-page__filter--active \"All\" is 36px — beside each other",
+      "container": "div.msg-contacts-page__controls \"AllAdminsEmployees\"",
+      "sig": "input.msg-contacts-page__search:40|button.msg-contacts-page__filter.msg-contacts-page__filter--active:36",
+      "count": 2
+    },
+    {
+      "route": "/admin/messages/contacts",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4,
+      "detail": "input.msg-contacts-page__search is 40px tall, button.msg-contacts-page__filter \"Admins\" is 36px — beside each other",
+      "container": "div.msg-contacts-page__controls \"AllAdminsEmployees\"",
+      "sig": "input.msg-contacts-page__search:40|button.msg-contacts-page__filter:36",
+      "count": 2
+    }
+  ]
+}

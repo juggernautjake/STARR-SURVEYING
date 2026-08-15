@@ -1378,16 +1378,18 @@
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
-/* Slice 102 — search input + filter-button row share an explicit 36 px
- * height on the /admin/messages/contacts controls bar. Before this the
- * search rendered ~36 px while the filter buttons (padding .35rem
- * .65rem + font .8rem) rendered ~28 px — an 8 px gap with the buttons
- * floating in the search's vertical band. Continues the alignment
- * sweep started in Slices 83-87/90. */
+/* Slice 102 — search input + filter-button row share one height on the
+ * /admin/messages/contacts controls bar, so the buttons stop floating in the search's vertical
+ * band.
+ *
+ * admin-ui-alignment-2026-08-15 — Slice 102 wrote that as a literal 36px, and the search has since
+ * stopped obeying it: it is a typeless <input>, so it now matches forms.css's `input:not([type])`
+ * rule at (0,1,1) and renders 40px, which this file's (0,1,0) cannot outrank. The buttons stayed at
+ * 36 and the 8px gap came back as a 4px one. The row is on the token now. */
 .msg-contacts-page__search,
 .msg-contacts-page__filter {
   box-sizing: border-box;
-  height: 36px;
+  height: var(--button-height);
 }
 .msg-contacts-page__search {
   flex: 1;

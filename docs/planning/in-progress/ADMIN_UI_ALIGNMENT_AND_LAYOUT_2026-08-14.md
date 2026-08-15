@@ -343,6 +343,24 @@ The defence is cheap and is now habit: **re-measure a group at the end of a late
 the end of its own.** A5 re-ran the Hub and Work routes and found it. The alternative is a page that
 is green in the ledger and wrong on the screen, which is worse than never having measured it.
 
+## D6f — The literal-36px slices, and one way to break the whole app with a comment
+
+By the end of A6 the same history had turned up four times: **Slices 83, 86, 87, 90 and 102 each
+found a row where the field and the button disagreed, and each fixed it by writing `height: 36px`
+on both.** Every one of those fixes has since come apart, because the input in the row is a typeless
+`<input>` that `forms.css` now raises to 40px at a specificity the page cannot reach. The literal
+was never the fix — it was a coincidence that held until the shared layer moved.
+
+That is the argument for the contract's two moves stated as a rule: **a control height that is not a
+token is a fix with an expiry date.**
+
+And one cheap mistake worth recording, because it cost a full app-wide 500 for a few minutes:
+`/admin/files` styles itself with **styled-jsx**, so its CSS lives inside a JS template literal. A
+comment written in the usual house style — naming a property in backticks — closed the template
+early and produced `Syntax Error` on every route that imports it. Comments inside styled-jsx may not
+contain backticks. The sweep caught it immediately (every route answered 500), which is the second
+time in this pass that measuring right after editing has paid for itself.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -449,35 +467,35 @@ workspace starts at zero.
 
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Office | `/admin/office` | | ⬜ |
-| Files | `/admin/files` | | ⬜ |
-| Company Notes | `/admin/notes` | | ⬜ |
-| Reports | `/admin/reports` | | ⬜ |
-| People | `/admin/people` | | ⬜ |
-| Employees | `/admin/employees` | | ⬜ |
-| Manage Employee | `/admin/employees/manage` | | ⬜ |
-| Manage Users | `/admin/users` | | ⬜ |
-| Role Builder | `/admin/roles/custom` | | ⬜ |
-| Contacts | `/admin/contacts` | | ⬜ |
-| Invites | `/admin/invites` | | ⬜ |
-| Messages | `/admin/messages` | | ⬜ |
-| Calls | `/admin/phone` | | ⬜ |
-| Phone Hours | `/admin/phone/settings` | | ⬜ |
-| Team Directory | `/admin/messages/contacts` | | ⬜ |
-| New Message | `/admin/messages/new` | | ⬜ |
-| Message Settings | `/admin/messages/settings` | | ⬜ |
-| Discussions | `/admin/discussions` | | ⬜ |
-| Announcements | `/admin/announcements` | | ⬜ |
-| Support | `/admin/support` | | ⬜ |
-| New Support Ticket | `/admin/support/new` | | ⬜ |
-| Notifications | `/admin/notifications` | | ⬜ |
-| Compose Email | `/admin/email/new` | | ⬜ |
-| Sent Email | `/admin/email/sent` | | ⬜ |
-| Settings | `/admin/settings` | | ⬜ |
-| Org Settings | `/admin/org-settings` | | ⬜ |
-| Organizations | `/admin/orgs` | | ⬜ |
-| Error Log | `/admin/error-log` | | ⬜ |
-| Audit Log | `/admin/audit` | | ⬜ |
+| Office | `/admin/office` | 0 → 0 | ✅ |
+| Files | `/admin/files` | 2 → 0 | ✅ 27px icon buttons, a 43px "New folder", and a 1.6px centre drift from one-sided scrollbar padding |
+| Company Notes | `/admin/notes` | 0 → 0 | ✅ |
+| Reports | `/admin/reports` | 0 → 0 | ✅ |
+| People | `/admin/people` | 0 → 0 | ✅ |
+| Employees | `/admin/employees` | 0 → 0 | ✅ |
+| Manage Employee | `/admin/employees/manage` | 0 → 0 | ✅ |
+| Manage Users | `/admin/users` | 1 → 0 | ✅ four button heights (30/34/37/40) to two tokens |
+| Role Builder | `/admin/roles/custom` | 0 → 0 | ✅ |
+| Contacts | `/admin/contacts` | 0 → 0 | ✅ |
+| Invites | `/admin/invites` | 0 → 0 | ✅ |
+| Messages | `/admin/messages` | 0 → 0 | ✅ |
+| Calls | `/admin/phone` | — | ⏸ **not on this branch** — 404s here. The calls/voicemail feature lives on `claude/job-lifecycle-2026-08-14`, unmerged, and `lib/admin/route-registry.ts` on main has no entry for it. Measure both rows when that branch lands; nothing to fix here. |
+| Phone Hours | `/admin/phone/settings` | — | ⏸ same |
+| Team Directory | `/admin/messages/contacts` | 2 → 0 | ✅ Slice 102's literal 36px, outranked by forms.css |
+| New Message | `/admin/messages/new` | 0 → 0 | ✅ |
+| Message Settings | `/admin/messages/settings` | 0 → 0 | ✅ |
+| Discussions | `/admin/discussions` | 0 → 0 | ✅ |
+| Announcements | `/admin/announcements` | 0 → 0 | ✅ |
+| Support | `/admin/support` | 0 → 0 | ✅ |
+| New Support Ticket | `/admin/support/new` | 0 → 0 | ✅ |
+| Notifications | `/admin/notifications` | 0 → 0 | ✅ |
+| Compose Email | `/admin/email/new` | 0 → 0 | ✅ |
+| Sent Email | `/admin/email/sent` | 0 → 0 | ✅ |
+| Settings | `/admin/settings` | 0 → 0 | ✅ |
+| Org Settings | `/admin/org-settings` | 1 → 0 | ✅ a hand-guessed `paddingBottom` that was 7.2px wrong |
+| Organizations | `/admin/orgs` | 0 → 0 | ✅ |
+| Error Log | `/admin/error-log` | 0 → 0 | ✅ |
+| Audit Log | `/admin/audit` | 0 → 0 | ✅ |
 
 ### Equipment (14)
 
@@ -591,7 +609,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A3 Hub | ✅ 14 pages measured, **11 findings → 0**. Two of the three that survived A1 were shared-layer holes, not Hub bugs (D4d): `.admin-btn` (45 files) sized from padding to 43px, and `input:not([type])` missing from `forms.css` (178 inputs). Page-local: `.mynotes__tab` 42→40, `.mynotes__chip` pinned to the token, the my-notes search row moved to the dense-row move, `.tl-tabs__btn` 46→40. Plus two defects no rule can see (D5b): the Customize modal's Save was unclickable under the FAB dock, and Escape did not close the widget options panel. |
 | A4 Work | ✅ 25 pages measured, **3 findings → 0**. One was the A3 label-margin reset applied to only half a row (D4e): the Refresh *button* column on `/admin/field-data` and `/admin/timeline` kept the 10px bottom margin its neighbouring field columns had just lost, so the two ends of the row disagreed by 10px and 9.4px. Page-local: the calendar toolbar's four button heights (36/38/39.8/40) went to one, and the timeline's two padding-sized buttons took the token. |
 | A5 Money | ✅ 30 pages measured, **3 findings → 0**, plus one the Hub had hidden behind a slow-loading widget (D6e). `/admin/payroll` was using `tl-btn` and `tl-pay-error` from a stylesheet it never imports, so two buttons and a failure message rendered as bare text (D6d); `/admin/invoices/new` had a 32px remove button in a row of 40px fields; `.payroll-btn` and the payroll tab strip took the token. Two instrument corrections: clipped screen-reader inputs, and card-shaped buttons over 64px. |
-| A6 Office | ⬜ |
+| A6 Office | ✅ 27 pages measured (2 deferred — `/admin/phone*` is unmerged work, see the table), **6 findings → 0**. `/admin/messages/contacts` was Slice 102's literal 36px outranked by `forms.css`, the third page in this pass with that exact history; `/admin/files` had 27px icon buttons under the floor and a 1.6px drift from one-sided scrollbar padding; `/admin/users` ran four button heights; `/admin/org-settings` had a hand-guessed `paddingBottom` that missed by 7.2px. |
 | A7 Equipment | ⬜ |
 | A8 Research | ⬜ |
 | A9 Knowledge | ⬜ |

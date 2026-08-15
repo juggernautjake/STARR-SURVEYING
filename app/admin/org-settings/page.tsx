@@ -182,7 +182,14 @@ export default function OrgSettingsPage() {
               placeholder="https://your-firm.com/starr-webhook"
             />
           </Field>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', alignSelf: 'end', paddingBottom: '0.5rem' }}>
+          {/* admin-ui-alignment-2026-08-15 — this used to bottom-align itself and then guess at
+              `paddingBottom: 0.5rem` to bring the checkbox up level with the field beside it. It
+              guessed 7.2px wrong. Giving the row the same height as an input and centring inside
+              it puts the two centre lines on the same line by construction, at any font size.
+              `marginBottom: 0` because the admin label-margin reset in AdminLayout.css deliberately
+              EXCLUDES labels wrapping a checkbox — a column of options needs that 10px to breathe.
+              This is a single inline checkbox in a form grid, not a column, so it opts out. */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', alignSelf: 'end', height: 'var(--input-height)', marginBottom: 0 }}>
             <input
               type="checkbox"
               checked={state.settings.mfaRequired}

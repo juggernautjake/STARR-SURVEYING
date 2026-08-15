@@ -1216,7 +1216,8 @@ const styles = `
   .fx__title { font-family: 'Sora', sans-serif; font-size: 1.5rem; font-weight: 700; margin: 0; }
   .fx__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
-  .fx-btn { display: inline-flex; align-items: center; gap: 0.4rem; font: inherit; font-weight: 700; font-size: 0.9rem; padding: 0.55rem 0.9rem; background: #1D3095; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
+  /* Height from the token: padding arithmetic put this at 43px beside the 40px toolbar it sits on. */
+  .fx-btn { display: inline-flex; align-items: center; gap: 0.4rem; font: inherit; font-weight: 700; font-size: 0.9rem; min-height: var(--button-height); box-sizing: border-box; padding: 0 0.9rem; background: #1D3095; color: #fff; border: none; border-radius: 10px; cursor: pointer; }
   .fx-btn:hover:not(:disabled):not(.fx-btn--disabled) { background: #16266f; }
   .fx-btn--ghost { background: #fff; color: #1D3095; border: 1px solid #d6d9e3; }
   .fx-btn--ghost:hover:not(:disabled) { background: rgba(29,48,149,0.05); }
@@ -1265,7 +1266,10 @@ const styles = `
   .fx__icon--folder { color: #1D3095; }
   .fx__meta { font-size: 0.82rem; color: #6b7280; font-variant-numeric: tabular-nums; }
   .fx__row-actions { display: inline-flex; gap: 0.15rem; justify-content: flex-end; }
-  .fx__icon-btn { background: none; border: none; cursor: pointer; color: #6b7280; padding: 0.35rem; border-radius: 8px; display: inline-flex; }
+  /* admin-ui-alignment-2026-08-15 — 27px was under the 28px floor in the styling contract: a row
+   * action nobody can reliably hit, six of them per file. The small control token is the
+   * contract's answer for an in-row action, and it is a square, so width follows height. */
+  .fx__icon-btn { background: none; border: none; cursor: pointer; color: #6b7280; width: var(--button-height-sm); height: var(--button-height-sm); box-sizing: border-box; padding: 0; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
   .fx__icon-btn:hover { background: #eef1fb; color: #1D3095; }
   .fx__icon-btn--danger:hover { background: #fdecec; color: #BD1218; }
 
@@ -1398,7 +1402,11 @@ const styles = `
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: thin;
-    padding-bottom: 0.2rem;
+    /* admin-ui-alignment-2026-08-15 — this room for the scrollbar was bottom padding alone, and as
+     * a centred flex item that pushed the chips' centre line 1.6px above the search box beside
+     * them. Symmetric padding keeps the gutter and the centre.
+     * (No backticks in this comment: it lives inside a styled-jsx template literal.) */
+    padding: 0.2rem 0;
     max-width: 100%;
     min-width: 0;
   }
