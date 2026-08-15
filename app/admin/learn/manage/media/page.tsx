@@ -168,9 +168,12 @@ export default function MediaLibraryPage() {
           <input
             type="text" placeholder="Search media..."
             value={search} onChange={e => setSearch(e.target.value)}
-            style={{ padding: '.4rem .7rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontSize: '.85rem', width: 180 }}
+            style={{ padding: '0 .7rem', border: '1.5px solid #E5E7EB', borderRadius: 6, fontSize: '.85rem', width: 180 }}
           />
-          <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { resetUploadForm(); setShowUpload(true); }}>
+          {/* admin-ui-alignment-2026-08-15 — `--sm` dropped: the contract reserves the small size
+              for rows with no field in them, and the search box beside this is 40px. The input's
+              vertical padding went with it, or it stacks on the height forms.css gives it. */}
+          <button className="admin-btn admin-btn--primary" onClick={() => { resetUploadForm(); setShowUpload(true); }}>
             + Upload Media
           </button>
         </div>

@@ -139,7 +139,9 @@ export default function QuizHistoryPage() {
             className="fc-form__input"
             style={{ maxWidth: '300px' }}
           />
-          <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={fetchHistory}>Load</button>
+          {/* admin-ui-alignment-2026-08-15 — `--sm` dropped: the styling contract reserves the
+              small size for rows with NO field in them, and this row has a 40px email input. */}
+          <button className="admin-btn admin-btn--ghost" onClick={fetchHistory}>Load</button>
         </div>
       )}
 

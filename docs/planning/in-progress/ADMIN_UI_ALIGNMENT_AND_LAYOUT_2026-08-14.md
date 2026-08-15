@@ -404,6 +404,22 @@ Each is one `margin-bottom: 0` at the point of use. A blanket rule cannot tell t
 because CSS cannot ask what its parent's `display` is — so the exclusion stays, and the row-shaped
 usages opt out one at a time. **Expect this one in A9 too.**
 
+## D6i — A3's own fix made two rows worse, and that is the contract working
+
+A3 moved `.admin-btn--sm` off its 36px literal onto `--button-height-sm`, which is 32. Two rows in
+Knowledge got *further* out of line as a result: a 32px button beside a 40px field is an 8px gap
+where 36px had been a 4px one.
+
+That is not a regression to undo. `--button-height-sm` is documented as *"a dense toolbar or an
+in-row action — only where the row has no input or select in it"*, and both of those rows have a
+field in them. The pages were reaching for the small size in a place the contract does not allow,
+and the old 36px literal had been quietly splitting the difference — close enough to 40 to look
+almost right, close enough to 32 to look almost deliberate, and correct at neither.
+
+Dropping `--sm` from those two buttons is the whole fix. **A number that is nearly right in two
+directions hides which of the two the author meant** — which is the argument for the token system
+stated from the other end.
+
 ## D7 — Verification is the number AND a look
 
 The count going down is necessary and not sufficient — a rule can be satisfied while the screen
@@ -578,25 +594,25 @@ workspace starts at zero.
 
 | Page | Route | Findings | Pass |
 |---|---|---|---|
-| Learning Hub | `/admin/learn` | | ⬜ |
-| My Roadmap | `/admin/learn/roadmap` | | ⬜ |
-| Modules | `/admin/learn/modules` | | ⬜ |
-| Knowledge Base | `/admin/learn/knowledge-base` | | ⬜ |
-| Flashcards | `/admin/learn/flashcards` | | ⬜ |
-| Create Flashcard | `/admin/learn/flashcards/create` | | ⬜ |
-| Flashcard Bank | `/admin/learn/flashcard-bank` | | ⬜ |
-| Exam Prep | `/admin/learn/exam-prep` | | ⬜ |
-| SIT Exam Prep | `/admin/learn/exam-prep/sit` | | ⬜ |
-| SIT Mock Exam | `/admin/learn/exam-prep/sit/mock-exam` | | ⬜ |
-| RPLS Exam Prep | `/admin/learn/exam-prep/rpls` | | ⬜ |
-| Practice | `/admin/learn/practice` | | ⬜ |
-| Quiz History | `/admin/learn/quiz-history` | | ⬜ |
-| Knowledge Search | `/admin/learn/search` | | ⬜ |
-| Student Progress | `/admin/learn/students` | | ⬜ |
-| Manage Content | `/admin/learn/manage` | | ⬜ |
-| Manage Media | `/admin/learn/manage/media` | | ⬜ |
-| Question Builder | `/admin/learn/manage/question-builder` | | ⬜ |
-| References | `/admin/learn/references` | | ⬜ |
+| Learning Hub | `/admin/learn` | 0 → 0 | ✅ |
+| My Roadmap | `/admin/learn/roadmap` | 0 → 0 | ✅ |
+| Modules | `/admin/learn/modules` | 0 → 0 | ✅ |
+| Knowledge Base | `/admin/learn/knowledge-base` | 0 → 0 | ✅ |
+| Flashcards | `/admin/learn/flashcards` | 0 → 0 | ✅ |
+| Create Flashcard | `/admin/learn/flashcards/create` | 0 → 0 | ✅ |
+| Flashcard Bank | `/admin/learn/flashcard-bank` | 0 → 0 | ✅ |
+| Exam Prep | `/admin/learn/exam-prep` | 0 → 0 | ✅ |
+| SIT Exam Prep | `/admin/learn/exam-prep/sit` | 0 → 0 | ✅ |
+| SIT Mock Exam | `/admin/learn/exam-prep/sit/mock-exam` | 0 → 0 | ✅ |
+| RPLS Exam Prep | `/admin/learn/exam-prep/rpls` | 0 → 0 | ✅ |
+| Practice | `/admin/learn/practice` | 0 → 0 | ✅ |
+| Quiz History | `/admin/learn/quiz-history` | 1 → 0 | ✅ `--sm` in a row with a field (D6i) |
+| Knowledge Search | `/admin/learn/search` | 0 → 0 | ✅ |
+| Student Progress | `/admin/learn/students` | 0 → 0 | ✅ |
+| Manage Content | `/admin/learn/manage` | 0 → 0 | ✅ |
+| Manage Media | `/admin/learn/manage/media` | 1 → 0 | ✅ same |
+| Question Builder | `/admin/learn/manage/question-builder` | 1 → 0 | ✅ a 31px row action painted a thousand times, and a 39px add-button |
+| References | `/admin/learn/references` | 0 → 0 | ✅ |
 
 ---
 
@@ -655,7 +671,7 @@ the page passes first would bake one-off values in and make the shared fix impos
 | A6 Office | ✅ 27 pages measured (2 deferred — `/admin/phone*` is unmerged work, see the table), **6 findings → 0**. `/admin/messages/contacts` was Slice 102's literal 36px outranked by `forms.css`, the third page in this pass with that exact history; `/admin/files` had 27px icon buttons under the floor and a 1.6px drift from one-sided scrollbar padding; `/admin/users` ran four button heights; `/admin/org-settings` had a hand-guessed `paddingBottom` that missed by 7.2px. |
 | A7 Equipment | ✅ 14 pages measured, **5 findings → 0**. `/admin/equipment/overrides` is the first page in this pass to take the contract's *second* move — it is genuinely dense (12px labels), so the row redefines `--input-height` and both the date field and the type toggles follow. `/admin/equipment/templates` had a checkbox column floating 10px above its neighbours (a label wrapping its input one level deeper than the reset's `:has(> …)` reaches) and three more literal 36s. One instrument correction: a boxless button is text, so its height no longer compares (D6g). |
 | A8 Research | ✅ 9 pages measured, **3 findings → 0**. `/admin/research/library` turned out to be a *second* utility-class island (D6h) — its filter tabs were `py-1`, 24px, beside 40px selects, and under the floor; fixed in Tailwind's own idiom rather than by opening a second styling system on the same element. `/admin/research/testing` was the checkbox-label margin again, the third instance this pass. |
-| A9 Knowledge | ⬜ |
+| A9 Knowledge | ✅ 19 pages measured, **3 findings → 0**. Two were A3's own `.admin-btn--sm` fix landing in rows that should never have used the small size (D6i); the third was `.manage__item-btn` at 31px — a class that paints a thousand buttons on the question-builder alone — plus a 39px add-button on a form of 40s. |
 | A10 CAD island | ⬜ |
 | A11 Narrow widths | ⬜ |
 | A12 Functional sweep | ⬜ |

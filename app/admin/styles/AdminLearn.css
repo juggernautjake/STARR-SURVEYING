@@ -263,7 +263,9 @@
 .qb__option-correct--check { border-radius:4px; }
 .qb__option-remove { background:none; border:none; font-size:1.1rem; color:var(--color-brand-red); cursor:pointer; padding:.2rem; line-height:1; opacity:.6; }
 .qb__option-remove:hover { opacity:1; }
-.qb__add-option { background:none; border:1px dashed #D1D5DB; border-radius:6px; padding:.5rem; width:100%; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:var(--color-text-tertiary); cursor:pointer; transition:all .15s; }
+/* 39px from padding, on a form whose every field is 40. One pixel is invisible on its own and is
+ * still a fourth number on the page's height list; the token costs nothing. */
+.qb__add-option { background:none; border:1px dashed #D1D5DB; border-radius:6px; min-height:var(--button-height); box-sizing:border-box; padding:0 .5rem; width:100%; font-family:'Inter',sans-serif; font-size:.82rem; font-weight:600; color:var(--color-text-tertiary); cursor:pointer; transition:all .15s; }
 .qb__add-option:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); background:#FAFBFF; }
 .qb__tf-options { display:flex; gap:.75rem; margin-bottom:.75rem; }
 .qb__tf-btn { flex:1; padding:.85rem; border:2px solid var(--theme-border, #E5E7EB); border-radius:8px; text-align:center; font-family:'Inter',sans-serif; font-size:.95rem; font-weight:600; color:var(--theme-fg-secondary, #374151); cursor:pointer; transition:all .15s; }
@@ -486,7 +488,10 @@
 .manage__item-title { font-family:'Inter',sans-serif; font-size:.9rem; font-weight:600; color:var(--color-text-primary); }
 .manage__item-meta { font-family:'Inter',sans-serif; font-size:.75rem; color:var(--color-text-muted); }
 .manage__item-actions { display:flex; gap:.5rem; }
-.manage__item-btn { padding:.3rem .6rem; font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; border-radius:4px; cursor:pointer; border: var(--border-light); background:var(--theme-bg-surface, #FFF); color:var(--color-text-tertiary); }
+/* admin-ui-alignment-2026-08-15 — padding put this at 31px. It IS a dense in-row action, which the
+ * contract sizes with --button-height-sm; 31 is simply not a number in the system, and this class
+ * paints a thousand buttons on the question-builder alone. */
+.manage__item-btn { min-height:var(--button-height-sm); box-sizing:border-box; padding:0 .6rem; font-family:'Inter',sans-serif; font-size:.75rem; font-weight:600; border-radius:4px; cursor:pointer; border: var(--border-light); background:var(--theme-bg-surface, #FFF); color:var(--color-text-tertiary); }
 .manage__item-btn:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
 
 /* === KB === */

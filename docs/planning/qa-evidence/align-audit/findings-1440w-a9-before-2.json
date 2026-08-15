@@ -1,0 +1,46 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 10,
+  "byRule": {
+    "row-height": 2,
+    "height-spread": 1
+  },
+  "byRoute": {
+    "/admin/learn/quiz-history": 1,
+    "/admin/learn/manage/media": 1,
+    "/admin/learn/manage/question-builder": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/learn/quiz-history",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 8,
+      "detail": "input.fc-form__input is 40px tall, button.admin-btn.admin-btn--ghost.admin-btn--sm \"Load\" is 32px — beside each other",
+      "container": "div \"View as:Load\"",
+      "sig": "input.fc-form__input:40|button.admin-btn.admin-btn--ghost.admin-btn--sm:32",
+      "count": 2
+    },
+    {
+      "route": "/admin/learn/manage/media",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 8,
+      "detail": "input is 40px tall, button.admin-btn.admin-btn--primary.admin-btn--sm \"+ Upload Media\" is 32px — beside each other",
+      "container": "div \"+ Upload Media\"",
+      "sig": "input:40|button.admin-btn.admin-btn--primary.admin-btn--sm:32",
+      "count": 2
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 31, 32, 39, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    }
+  ]
+}
