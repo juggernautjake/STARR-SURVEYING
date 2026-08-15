@@ -16,8 +16,11 @@ import { regenerateLayerLabels } from '@/lib/cad/labels';
 // feature count so small layers don't pay the per-chunk
 // scheduling cost.
 import { regenerateLayerLabelsAuto } from '@/lib/cad/labels/regenerate-layer-labels-chunked';
+import { getTextStyle, resolveTextLabelStyle } from '@/lib/cad/styles/text-style-library';
+import type { TextStyleDefinition } from '@/lib/cad/styles/types';
 import Tooltip from './Tooltip';
 import ColorSwatchInput from './ColorSwatchInput';
+import TextStylePicker from './TextStylePicker';
 
 interface Props {
   layerId: string;
@@ -78,13 +81,26 @@ function TextStyleEditor({
   style,
   onChange,
   layerColor,
+  customTextStyles,
 }: {
   label: string;
   style: TextLabelStyle;
   onChange: (s: TextLabelStyle) => void;
   layerColor: string;
+  customTextStyles: TextStyleDefinition[];
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  // C19 — when a named style is in force it OWNS the five typographic axes (C18's resolution
+  // rule), so the individual controls below are disabled rather than left live. Leaving them
+  // editable would let the surveyor change a value, watch nothing happen on the canvas, and
+  // reasonably conclude the panel is broken — the silent no-op C16 spent a slice removing.
+  const named = getTextStyle(style.textStyleId, customTextStyles);
+  const resolved = resolveTextLabelStyle(style, customTextStyles);
+  const styleGoverned = !!named;
+  const governedHint = named
+    ? `Set by the "${named.name}" text style. Choose Custom above to edit this directly.`
+    : undefined;
 
   return (
     <div className="bg-gray-750 rounded border border-gray-700 overflow-hidden" style={{ background: '#2a2f3e' }}>
@@ -98,18 +114,36 @@ function TextStyleEditor({
           className="w-3 h-3 rounded-sm border border-gray-500"
           style={{ backgroundColor: style.color ?? layerColor }}
         />
-        <span className="text-[9px] text-gray-500">{style.fontSize}pt {style.fontFamily}</span>
+        {/* C19 — the collapsed row shows the RESOLVED typography. Before this it read the raw
+            fields, so a row governed by a named style summarised itself with values nothing was
+            using. */}
+        <span className="text-[9px] text-gray-500">
+          {named ? named.name : `${resolved.fontSize}pt ${resolved.fontFamily}`}
+        </span>
         {expanded ? <ChevronDown size={9} /> : <ChevronRight size={9} />}
       </button>
 
       {expanded && (
         <div className="px-2 pb-2 pt-1 space-y-1.5 border-t border-gray-700">
+          {/* C19 — pick a named style. Above the individual controls, because it decides whether
+              they do anything. */}
+          <TextStylePicker
+            value={style}
+            onChange={onChange}
+            customStyles={customTextStyles}
+            inkColor={layerColor}
+            sampleText={`${label} sample`}
+            dense
+          />
+
           {/* Font family */}
           <div className="flex items-center gap-1.5">
             <span className="text-[9px] text-gray-500 w-14 shrink-0">Font</span>
             <select
-              className="flex-1 bg-gray-700 text-white text-[10px] rounded px-1 py-0.5 border border-gray-600 outline-none"
-              value={style.fontFamily}
+              className="flex-1 bg-gray-700 text-white text-[10px] rounded px-1 py-0.5 border border-gray-600 outline-none disabled:opacity-40"
+              value={resolved.fontFamily}
+              disabled={styleGoverned}
+              title={styleGoverned ? governedHint : undefined}
               onChange={(e) => onChange({ ...style, fontFamily: e.target.value })}
             >
               <option value="Arial">Arial</option>
@@ -132,8 +166,10 @@ function TextStyleEditor({
               min={4}
               max={72}
               step={1}
-              value={style.fontSize}
-              className="w-14 bg-gray-700 text-white text-[10px] rounded px-1 py-0.5 border border-gray-600 outline-none text-center"
+              value={resolved.fontSize}
+              disabled={styleGoverned}
+              title={governedHint}
+              className="w-14 bg-gray-700 text-white text-[10px] rounded px-1 py-0.5 border border-gray-600 outline-none text-center disabled:opacity-40"
               onChange={(e) => onChange({ ...style, fontSize: Math.max(4, Math.min(72, parseInt(e.target.value) || 10)) })}
             />
             <span className="text-[9px] text-gray-500">pt</span>
@@ -144,21 +180,25 @@ function TextStyleEditor({
             <span className="text-[9px] text-gray-500 w-14 shrink-0">Weight</span>
             <div className="flex gap-0.5">
               <button
-                className={`px-2 py-0.5 rounded text-[9px] border transition-colors ${
-                  style.fontWeight === 'bold'
+                className={`px-2 py-0.5 rounded text-[9px] border transition-colors disabled:opacity-40 ${
+                  resolved.fontWeight === 'bold'
                     ? 'bg-blue-600 border-blue-500 text-white'
                     : 'bg-gray-700 border-gray-600 text-gray-400 hover:text-white'
                 }`}
+                disabled={styleGoverned}
+                title={governedHint}
                 onClick={() => onChange({ ...style, fontWeight: style.fontWeight === 'bold' ? 'normal' : 'bold' })}
               >
                 <strong>B</strong>
               </button>
               <button
-                className={`px-2 py-0.5 rounded text-[9px] border transition-colors ${
-                  style.fontStyle === 'italic'
+                className={`px-2 py-0.5 rounded text-[9px] border transition-colors disabled:opacity-40 ${
+                  resolved.fontStyle === 'italic'
                     ? 'bg-blue-600 border-blue-500 text-white'
                     : 'bg-gray-700 border-gray-600 text-gray-400 hover:text-white'
                 }`}
+                disabled={styleGoverned}
+                title={governedHint}
                 onClick={() => onChange({ ...style, fontStyle: style.fontStyle === 'italic' ? 'normal' : 'italic' })}
               >
                 <em>I</em>
@@ -231,6 +271,8 @@ const LABEL_VISIBILITY_KEYS: ReadonlyArray<keyof LayerDisplayPreferences> = [
 export default function LayerPreferencesPanel({ layerId, open, onClose }: Props) {
   const store = useDrawingStore();
   const layer = store.document.layers[layerId];
+  // C18 left this optional on the document so drawings saved before it still load.
+  const customTextStyles = store.document.customTextStyles ?? [];
   const panelRef = useRef<HTMLDivElement>(null);
 
   if (!layer) return null;
@@ -415,6 +457,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.bearingTextStyle}
               onChange={(s) => update({ bearingTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
           {prefs.showDistances && (
@@ -423,6 +466,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.distanceTextStyle}
               onChange={(s) => update({ distanceTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
         </Section>
@@ -494,6 +538,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.pointNameTextStyle}
               onChange={(s) => update({ pointNameTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
           {prefs.showPointCodes && (
@@ -502,6 +547,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.pointCodeTextStyle ?? prefs.pointDescriptionTextStyle}
               onChange={(s) => update({ pointCodeTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
           {prefs.showPointDescriptions && (
@@ -510,6 +556,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.pointDescriptionTextStyle}
               onChange={(s) => update({ pointDescriptionTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
           {prefs.showPointElevations && (
@@ -518,6 +565,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.pointElevationTextStyle}
               onChange={(s) => update({ pointElevationTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
           {prefs.showPointCoordinates && (
@@ -526,6 +574,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.pointCoordinateTextStyle}
               onChange={(s) => update({ pointCoordinateTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
         </Section>
@@ -550,6 +599,7 @@ export default function LayerPreferencesPanel({ layerId, open, onClose }: Props)
               style={prefs.areaTextStyle}
               onChange={(s) => update({ areaTextStyle: s })}
               layerColor={layer.color}
+              customTextStyles={customTextStyles}
             />
           )}
         </Section>

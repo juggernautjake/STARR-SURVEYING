@@ -184,7 +184,9 @@ import {
   resolveTextLabelStyle,
   effectiveWidthFactor,
   effectiveObliqueRadians,
+  getTextStyle,
 } from '@/lib/cad/styles/text-style-library';
+import TextStylePicker from './TextStylePicker';
 // Slice 236 — fill-pattern generators for the textured-polygon render path.
 import { generateFillPattern, patternLineWeight, type FillPatternConfig } from '@/lib/cad/styles/fill-patterns';
 // cad-fill-stacking Slice 6b — multi-layer infill stack resolver.
@@ -14956,6 +14958,16 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const feature = useDrawingStore.getState().getFeature(featureId);
         const label = feature?.textLabels?.find((l) => l.id === labelId);
         if (!feature || !label) { setLabelEditState(null); return null; }
+        // C19 — computed once so the picker, the summary, the disabled states and the displayed
+        // values all agree. A control showing the RAW field while the canvas draws the RESOLVED
+        // one is the same two-truths bug C9 refused to ship for point coordinates.
+        const labelCustomStyles = useDrawingStore.getState().document.customTextStyles ?? [];
+        const labelNamedStyle = getTextStyle(label.style.textStyleId, labelCustomStyles);
+        const labelResolved = resolveTextLabelStyle(label.style, labelCustomStyles);
+        const labelStyleGoverned = !!labelNamedStyle;
+        const labelGovernedHint = labelNamedStyle
+          ? `Set by the "${labelNamedStyle.name}" text style. Choose Custom above to edit this directly.`
+          : undefined;
         return (
           <div
             className="fixed z-50 bg-gray-900 border border-blue-400 rounded-lg shadow-2xl p-3 w-64"
@@ -15009,12 +15021,25 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               <div className="text-[10px] text-gray-400 font-mono mb-2 truncate">{label.text}</div>
             )}
             <div className="space-y-2">
+              {/* C19 — the named-style picker, first, because it decides whether the controls
+                  under it do anything. `labelNamedStyle` / `labelResolved` are computed once
+                  above so the summary, the disabled states and the values all agree. */}
+              <TextStylePicker
+                value={label.style}
+                onChange={(s) => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: s })}
+                customStyles={labelCustomStyles}
+                inkColor={label.style.color ?? '#e5e7eb'}
+                sampleText={label.text || 'Sample text'}
+                dense
+              />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-gray-400 text-[10px] shrink-0">Font Size (pt)</span>
                 <input
                   type="number" min={4} max={144} step={1}
-                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500"
-                  value={label.style.fontSize}
+                  disabled={labelStyleGoverned}
+                  title={labelGovernedHint}
+                  className="w-14 bg-gray-700 text-white rounded px-1 py-0.5 text-right text-xs outline-none border border-gray-600 focus:border-blue-500 disabled:opacity-40"
+                  value={labelResolved.fontSize}
                   onChange={(e) => {
                     const v = Math.max(4, Math.min(144, parseInt(e.target.value) || 10));
                     useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontSize: v } });
@@ -15050,8 +15075,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               <div className="flex items-center justify-between gap-2">
                 <span className="text-gray-400 text-[10px] shrink-0">Font</span>
                 <select
-                  className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500"
-                  value={label.style.fontFamily}
+                  className="flex-1 bg-gray-700 text-white rounded px-1 py-0.5 text-xs outline-none border border-gray-600 focus:border-blue-500 disabled:opacity-40"
+                  value={labelResolved.fontFamily}
+                  disabled={labelStyleGoverned}
+                  title={labelGovernedHint}
                   onChange={(e) => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontFamily: e.target.value } })}
                 >
                   <option value="Arial">Arial</option>
@@ -15063,11 +15090,15 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  className={`px-2 py-0.5 text-[10px] rounded border ${label.style.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  className={`px-2 py-0.5 text-[10px] rounded border disabled:opacity-40 ${labelResolved.fontWeight === 'bold' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  disabled={labelStyleGoverned}
+                  title={labelGovernedHint}
                   onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontWeight: label.style.fontWeight === 'bold' ? 'normal' : 'bold' } })}
                 >B</button>
                 <button
-                  className={`px-2 py-0.5 text-[10px] rounded border italic ${label.style.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  className={`px-2 py-0.5 text-[10px] rounded border italic disabled:opacity-40 ${labelResolved.fontStyle === 'italic' ? 'bg-blue-600 border-blue-500 text-white' : 'bg-gray-700 border-gray-600 text-gray-300'}`}
+                  disabled={labelStyleGoverned}
+                  title={labelGovernedHint}
                   onClick={() => useDrawingStore.getState().updateTextLabel(featureId, labelId, { style: { ...label.style, fontStyle: label.style.fontStyle === 'italic' ? 'normal' : 'italic' } })}
                 >I</button>
               </div>
