@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { reconcileSketch, type SketchReconcileInput } from '@/lib/cad/ai/sketch-reconcile';
+import { MissingApiKeyError } from '@/lib/cad/ai-engine/claude-deed-parser';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60; // Vision calls can take up to ~30s
@@ -76,6 +77,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
     return NextResponse.json({ ok: true, result });
   } catch (e) {
+    // C44e — an unset key is not a bad gateway.
+    //
+    // `reconcileSketch` throws `MissingApiKeyError` exactly as the proposer does, but this route
+    // folded it in with every upstream failure and returned 502. The two lead somewhere different:
+    // a 502 says Anthropic failed, so retry, while an unset key says nobody has configured this
+    // yet, so go set it. The other two CAD AI routes already separate them; this one is the odd
+    // surface, and "configured" versus "working" is the distinction C44e exists to keep visible.
+    if (e instanceof MissingApiKeyError) {
+      return NextResponse.json(
+        { ok: false, error: 'Sketch reconciliation is offline — ANTHROPIC_API_KEY is not configured.' },
+        { status: 503 },
+      );
+    }
     const message = e instanceof Error ? e.message : 'Unknown sketch-reconcile error.';
     console.error('[sketch-reconcile] error:', message);
     return NextResponse.json({ ok: false, error: message }, { status: 502 });
