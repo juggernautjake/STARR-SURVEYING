@@ -85,16 +85,64 @@
  *   - .admin-form-row__field labeled column (label + control), grows
  *   - .admin-form-row__field--narrow  fixed 180px column
  *   - .admin-form-row__action bare action control (button / toggle),
- *                              36px tall, never shrinks, never wraps
+ *                              never shrinks, never wraps
  *   - .admin-form-row__input,
- *     .admin-form-row__select  36px tall input + select with proper
- *                              padding + box-sizing
+ *     .admin-form-row__select  input + select with proper padding +
+ *                              box-sizing
  *
  * Apply these from page-level <div className="admin-form-row"> and
  * every control inside lines up to the same baseline at any width.
  * Pages migrating off custom inline styles should swap to these
  * incrementally — the visual result is identical or better.
  * ====================================================================== */
+
+/* === A1 — THE CONTROL-SIZE CONTRACT, AND WHY IT IS ONLY HALF APPLIED ===
+ * admin-ui-alignment-2026-08-14, slice A1. Owner: *"fields and buttons…
+ * are awkward sizes relative to each other… a field does not sit in
+ * vertical alignment with a button sitting beside it."*
+ *
+ * NO NEW TOKENS ARE DECLARED HERE, and the first draft of this slice that
+ * declared `--control-h-sm/md/lg` was wrong. The contract already exists,
+ * in `app/styles/tokens.css`, and has since the U-11 overhaul:
+ *
+ *   --input-height      40px    every input / select / textarea
+ *   --button-height     40px    the default button
+ *   --button-height-sm  32px    dense toolbars and table rows
+ *   --button-height-lg  48px    one hero action per screen
+ *
+ * `app/styles/forms.css` applies them to everything inside
+ * `.admin-layout__content`. So why does the 1440px sweep still find 32,
+ * 34, 35, 36, 40, 41, 43, 46 and 48px controls beside one another?
+ *
+ * BECAUSE THE BLANKET RULE REACHES INPUTS BUT NOT BUTTONS. forms.css pins
+ * `input[type=…]`, `select` and `textarea` at `--input-height` with
+ * selector specificity (0,1,1) — which OUTRANKS a page's own
+ * single-class selector. But it only reaches a button through `.btn` or
+ * `.form-button`, and admin pages almost universally name their buttons
+ * BEM-style (`lead-card__btn`, `people__filter`, `tl-btn`, `fx__kind`),
+ * so buttons keep whatever height their page invented.
+ *
+ * The result is the owner's complaint, exactly:
+ *   - `.lead-card__status-select` ASKS for 34px in Leads.css, is silently
+ *     overridden to 40px by forms.css, and lands beside
+ *     `.lead-card__btn`, which asked for 34px and got it. 6px out.
+ *   - the same shape repeats on people, availability, files, testing,
+ *     learn/manage, quiz-history, finances/overview…
+ *
+ * So the per-page fix is nearly always ONE line: give the page's button
+ * class `height: var(--button-height)` (or `--button-height-sm` when the
+ * row is genuinely dense, in which case the select beside it needs the
+ * same). Never a new number.
+ *
+ * WHY THE BLANKET RULE IS NOT SIMPLY EXTENDED TO `[class*="__btn"]`:
+ * that selector family also catches every icon button, chip and inline
+ * "Copy" affordance — `fx__icon-btn` at 27px, `err-log__copy-btn` at
+ * 26px — which are deliberately small and live inside table rows. Forcing
+ * those to 40px would break the layouts it was meant to fix, in one
+ * unattributable commit. Adoption is per page, where each step is
+ * measurable in the sweep.
+ * ====================================================================== */
+
 .admin-form-row {
   display: flex;
   flex-wrap: wrap;
@@ -117,14 +165,14 @@
 }
 .admin-form-row__input,
 .admin-form-row__select {
-  height: 36px;
+  height: var(--input-height);
   box-sizing: border-box;
-  padding: 0 0.75rem;
+  padding: 0 var(--input-padding-x);
   background: var(--theme-bg-surface, #FFFFFF);
   border: 1px solid #D1D5DB;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: #0F1419;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-family: inherit;
   line-height: 1.2;
 }
@@ -136,14 +184,14 @@
   box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.15);
 }
 .admin-form-row__action {
-  height: 36px;
+  height: var(--button-height);
   box-sizing: border-box;
   padding: 0 1.1rem;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 0;
   cursor: pointer;
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   display: inline-flex;
   align-items: center;
@@ -169,7 +217,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  height: 36px;
+  height: var(--input-height);
   padding: 0 0.25rem;
   font-size: 0.85rem;
   color: var(--theme-fg-secondary, #374151);
@@ -215,6 +263,34 @@
 .admin-layout select {
   width: auto;
   margin: 0;
+}
+
+/* admin-ui-alignment-2026-08-14 — THE SAME BUG, ONE LEVEL UP, AND IT WAS
+ * MISSED THE FIRST TIME.
+ *
+ * The reset above neutralizes `margin-bottom: 1.5rem` on the CONTROL.
+ * `globals.css` also gives every `label` a `margin-bottom: 0.625rem`, and
+ * the dominant shape of an admin control row is not a bare input — it is
+ *
+ *     <label><span>From</span><input type="date" /></label>
+ *
+ * beside a bare <button>. In a row with `align-items: flex-end` the
+ * browser aligns the MARGIN box, so that label ends 10px above the line
+ * and the field inside it sits 10px above the button. Measured on
+ * /admin/finances/overview: label bottom 477.2, button bottom 487.2, with
+ * every control on the row already a matching 40px tall. That 10px is the
+ * owner's complaint — *"a field does not sit in vertical alignment with a
+ * button sitting beside it"* — and no amount of height-matching fixes it.
+ *
+ * Scoped with `:has()` to labels that WRAP a control, which is only ever
+ * the row-wrapper pattern. A `<label for=…>` sitting above its field in a
+ * stacked form keeps its 10px, because there the margin is the spacing.
+ * Checkbox and radio labels are excluded for the same reason: a column of
+ * them relies on that margin to keep the options apart. */
+.admin-layout label:has(> input:not([type="checkbox"]):not([type="radio"])),
+.admin-layout label:has(> select),
+.admin-layout label:has(> textarea) {
+  margin-bottom: 0;
 }
 
 /* checkbox-radio-reset-2026-06-21 — the marketing-form default in
@@ -267,12 +343,12 @@
 /* date-time-baseline-2026-06-21 (F3, pattern #3) — native date/time
  * pickers carry built-in calendar/clock chrome that makes their intrinsic
  * height ~36-40px. When one sits in an `.admin-form-row`, pin it to the
- * shared 36px baseline so it never overhangs sibling buttons. Pages that
+ * shared baseline so it never overhangs sibling buttons. Pages that
  * don't use the utility class should add `.admin-form-row__input`. */
 .admin-layout .admin-form-row__input[type="date"],
 .admin-layout .admin-form-row__input[type="time"],
 .admin-layout .admin-form-row__input[type="datetime-local"] {
-  height: 36px;
+  height: var(--input-height);
   line-height: 1.2;
 }
 

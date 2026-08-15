@@ -50,7 +50,9 @@
   font: inherit;
   font-size: 0.76rem;
   font-weight: 600;
-  padding: 0.2rem 0.5rem;
+  /* admin-ui-alignment-2026-08-14 — 27px, under the 28px floor. */
+  height: var(--button-height-sm);
+  padding: 0 0.7rem;
   border: 1px solid currentColor;
   border-radius: 999px;
   background: transparent;

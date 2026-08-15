@@ -745,8 +745,14 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     fontFamily: 'inherit',
   },
+  // admin-ui-alignment-2026-08-14 — this rendered 76px tall: it is the last
+  // item on the header row, the label wrapped onto two lines, and padding
+  // did the rest. Pinned to the shared control height and told not to wrap.
   todayBtn: {
-    padding: '6px 12px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 12px',
+    whiteSpace: 'nowrap',
     border: '1px solid #E2E5EB',
     borderRadius: 6,
     background: 'var(--color-bg-card)',
@@ -766,8 +772,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   filterGroup: { display: 'flex', alignItems: 'center', gap: 6 },
   filterLabel: { fontSize: 12, color: 'var(--color-text-tertiary)', fontWeight: 500 },
+  // admin-ui-alignment-2026-08-14 — 29px beside the 40px status select and
+  // search box on the same filter bar. Both toggles take the shared height.
   toggleActive: {
-    padding: '4px 10px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
     color: 'var(--color-text-on-brand)',
@@ -777,7 +787,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
   },
   toggleIdle: {
-    padding: '4px 10px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 10px',
     border: '1px solid #E2E5EB',
     background: 'var(--color-bg-card)',
     color: '#374151',
@@ -804,6 +816,12 @@ const styles: Record<string, React.CSSProperties> = {
   checkboxRow: {
     display: 'flex',
     alignItems: 'center',
+    // admin-ui-alignment-2026-08-14 — globals.css puts `margin-bottom: 10px`
+    // on every label. On a centre-aligned row the browser centres the MARGIN
+    // box, so this sat 5px above the field beside it. (The admin reset lifts
+    // this for labels that WRAP a field; a checkbox label keeps its margin by
+    // default, because stacked toggle lists rely on it for spacing.)
+    marginBottom: 0,
     gap: 6,
     fontSize: 12,
     color: '#374151',

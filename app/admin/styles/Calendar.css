@@ -70,7 +70,7 @@
   background: var(--color-bg-subtle);
   border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: var(--radius-md);
-  padding: 2px;
+  padding: 0;
   margin-right: var(--space-2);
 }
 .calendar-page__view-switcher button {
@@ -82,7 +82,13 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  min-height: 32px;
+  /* admin-ui-alignment-2026-08-14 — Day/Week/Month sat 8px shorter than
+   * the month and year <select>s immediately beside them, which forms.css
+   * pins to var(--input-height). Only the switcher's 1px border is
+   * subtracted (its inset padding went to 0 above), so each segment is
+   * within 2px of the selects AND the group's outer box is exactly the
+   * same 40px as the fields it sits beside. */
+  height: calc(var(--button-height) - 2px);
   transition: background-color 120ms ease, color 120ms ease;
 }
 .calendar-page__view-switcher button:hover {

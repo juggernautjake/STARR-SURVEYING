@@ -38,18 +38,28 @@ export const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     minWidth: 160,
   },
+  // admin-ui-alignment-2026-08-14 — a <label> carries globals.css's 10px
+  // bottom margin, and on a flex-end row the browser aligns the MARGIN box,
+  // so this sat 6.5px above the fields beside it. The 8px bottom padding was
+  // an earlier attempt at the same problem from the wrong end.
   checkboxField: {
     display: 'flex',
     alignItems: 'center',
+    height: 'var(--input-height)',
+    boxSizing: 'border-box',
+    marginBottom: 0,
     gap: 6,
     fontSize: 13,
-    paddingBottom: 8,
   },
+  // admin-ui-alignment-2026-08-14 — these took their height from padding
+  // (38.8px and 36.8px) beside the 40px filter fields on the same row.
   refreshBtn: {
     background: 'transparent',
     border: '1px solid #E2E5EB',
     borderRadius: 8,
-    padding: '8px 14px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
   },
@@ -58,7 +68,9 @@ export const styles: Record<string, React.CSSProperties> = {
     color: 'var(--color-text-on-brand)',
     border: 'none',
     borderRadius: 8,
-    padding: '8px 14px',
+    height: 'var(--button-height)',
+    boxSizing: 'border-box',
+    padding: '0 14px',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 500,

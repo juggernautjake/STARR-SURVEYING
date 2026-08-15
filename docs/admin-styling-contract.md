@@ -186,26 +186,88 @@ with the lucide line-icon nav (IconRail, sidebar, breadcrumbs, FABs).
 - Size nav/inline icons 16–18px, FAB/section icons 22–28px,
   `strokeWidth` 1.75–2.
 
-## Control rows — the 36px baseline + `.admin-form-row*` (F3)
+## Control heights — 40px is the baseline, and it is not negotiable per page
 
-Every filter / action row uses the `.admin-form-row*` utilities in
+> Rewritten 2026-08-14 by the admin alignment audit. **This section used to
+> say the baseline was 36px. It was wrong, and being wrong here is what the
+> owner was looking at.** `tokens.css` has said 40px since the U-11
+> overhaul, `forms.css` has enforced 40px on every admin input and select
+> since the same day, and pages that trusted the 36px number here (or
+> picked their own 28 / 32 / 34 / 35) ended up with a button that does not
+> match the field beside it.
+
+**The sizes.** All four already exist in `app/styles/tokens.css`. Never
+write a control height as a literal:
+
+| Token | Value | Where it goes |
+|---|---|---|
+| `--input-height` | 40px | every input, select and textarea. Enforced. |
+| `--button-height` | 40px | **the default button.** Anything on a row with a field. |
+| `--button-height-sm` | 32px | a dense toolbar or an in-row action — only where the row has no input or select in it. |
+| `--button-height-lg` | 48px | at most one hero action per screen. |
+
+**Inputs and selects are already handled — and they will ignore you.**
+`forms.css` sets `height: var(--input-height)` at
+`.admin-layout__content input[type=…] / select / textarea`, specificity
+(0,1,1). A page rule like `.my-page__select { height: 34px }` scores
+(0,1,0) and **loses silently**: the stylesheet says 34, the screen renders
+40, and the button next to it — which the blanket rule never reaches,
+because admin buttons are named BEM-style (`lead-card__btn`, not `.btn`) —
+renders at 34. That 6px is the defect, repeated across the product.
+`AdminAssignments.css` even carries a comment explaining that its pill and
+its select were deliberately matched at 28px "so they line up"; the select
+has been rendering at 40px ever since.
+
+**So there are exactly two moves.**
+
+1. *Standard row* — give the page's own button class the token and delete
+   the literal. One line, and the select beside it already matches:
+
+   ```css
+   .my-page__btn { height: var(--button-height); padding: 0 var(--button-padding-x); }
+   ```
+
+2. *Genuinely dense row* — do NOT fight the specificity. Redefine the
+   token on the row container; custom properties inherit, so the select
+   (through `forms.css`) and the button (through its own rule) both follow,
+   and no new number enters the codebase:
+
+   ```css
+   .my-page__filter-bar {
+     --input-height: var(--button-height-sm);   /* 32px, both controls */
+     --button-height: var(--button-height-sm);
+   }
+   ```
+
+   This is the supported way to make a row compact. Adding specificity
+   (`.admin-layout__content .my-page__select { … }`) works too and reads
+   worse; prefer the token.
+
+**Floors.** Nothing interactive renders under 28px — the alignment sweep
+fails it as `small-target`. In practice that means an inline row action is
+`--button-height-sm` (32px), not a hand-rolled 26px.
+
+**The row itself** uses the `.admin-form-row*` utilities in
 `AdminLayout.css`; do not hand-roll `style={{ display:'flex' }}` filter
 rows (they drift out of alignment when the row narrows).
 
 - Row: `.admin-form-row` (flex, `align-items:flex-end`, wraps).
 - Labeled column: `.admin-form-row__field` (+ `--narrow` / `--fill`).
-- Inputs/selects: `.admin-form-row__input` / `__select` — pinned to
-  **36px** + `box-sizing:border-box` + `line-height:1.2`.
-- Action button: `.admin-form-row__action` (`height:36px`,
-  `flex-shrink:0`, `white-space:nowrap`) so it never drops below the
-  inputs.
-- Pin every `<input type="date|time|datetime-local">` in a row to the
-  same 36px (the reset already does this for `.admin-form-row__input`)
-  so native calendar chrome doesn't overhang siblings.
+- Inputs/selects: `.admin-form-row__input` / `__select`.
+- Action button: `.admin-form-row__action` (`flex-shrink:0`,
+  `white-space:nowrap`) so it never drops below the inputs.
+- Every control in these utilities now reads its height from the tokens
+  above, including `<input type="date|time|datetime-local">`, whose native
+  calendar chrome otherwise overhangs its siblings.
 - The global reset (`.admin-layout input/textarea/select`,
   checkbox/radio 16×16, file-input) neutralizes the marketing-form
   globals — don't re-introduce `width:100%` / `2px` borders / bottom
   margins on admin controls via inline styles.
+
+**Proving it.** `node --env-file=.env.local scripts/ui-align-audit.mjs`
+measures every admin route and reports any two controls on the same visual
+row whose centres differ by ≥1.5px or whose heights differ by ≥4px. A
+change to a control's size is finished when that count has not gone up.
 
 ## Lint enforcement
 

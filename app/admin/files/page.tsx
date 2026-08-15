@@ -1403,9 +1403,12 @@ const styles = `
     min-width: 0;
   }
 
+  /* admin-ui-alignment-2026-08-14 — 34px chips beside the 40px search box on
+     the same toolbar row. */
   .fx__kind {
     flex-shrink: 0;
-    min-height: 34px;
+    height: var(--button-height);
+    box-sizing: border-box;
     padding: 0 0.65rem;
     border: 1px solid var(--theme-border, #E5E7EB);
     border-radius: 999px;

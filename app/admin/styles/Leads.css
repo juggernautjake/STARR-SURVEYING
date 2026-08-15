@@ -132,7 +132,12 @@
   justify-content: center;
   gap: 0.3rem;
   padding: 0 0.85rem;
-  height: 34px;
+  /* admin-ui-alignment-2026-08-14 — was a literal 34px, which put it 6px
+   * under the status <select> beside it. forms.css pins every admin
+   * select to var(--input-height) at a specificity this file cannot
+   * reach, so the select was rendering 40px no matter what the rule
+   * below asked for. Both now read the same contract. */
+  height: var(--button-height);
   border-radius: 0.45rem;
   border: 1px solid var(--theme-border, #E5E7EB);
   background: var(--color-bg-card);
@@ -179,7 +184,7 @@
   /* Match the buttons' explicit height so the toolbar row reads as
    * a single baseline regardless of which renderer is rendering
    * the control. */
-  height: 34px;
+  height: var(--input-height);
   box-sizing: border-box;
 }
 

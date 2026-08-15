@@ -633,6 +633,15 @@
   font-family: inherit;
   min-height: 38px;
 }
+/* admin-ui-alignment-2026-08-14 — Retire is `tl-btn--sm` (32px) sitting in a
+ * row of 40px fields, so it read as 8px short and 4px off their centre line.
+ * A rate row is a form row, not a dense toolbar, so its action takes the full
+ * control height; `tl-btn--sm` keeps its 32px everywhere else. */
+.tl-rate-row .tl-btn {
+  height: var(--button-height);
+  box-sizing: border-box;
+  padding: 0 1rem;
+}
 .tl-rate-row__rate input { width: 7rem; }
 .tl-rate-row__new-name { flex: 1 1 14rem; }
 /* "varies by person" occupies the same slot the rate box would, so the rows stay aligned whichever

@@ -1,0 +1,56 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 7,
+  "byRule": {
+    "row-centre": 2,
+    "height-spread": 2
+  },
+  "byRoute": {
+    "/admin/files": 2,
+    "/admin/research/testing": 1,
+    "/admin/calendar": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/files",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 1.6,
+      "detail": "input and button.fx__kind \"Images\" sit side by side but their centres differ by 1.6px",
+      "container": "div.fx__search-box",
+      "sig": "input|button.fx__kind|div.fx__search-box",
+      "count": 4
+    },
+    {
+      "route": "/admin/files",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 29, 32, 40, 43px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 5,
+      "detail": "input and button.deploy-status__check-btn \"...\" sit side by side but their centres differ by 5.0px",
+      "container": "label.deploy-status__auto-label \"Auto\"",
+      "sig": "input|button.deploy-status__check-btn|label.deploy-status__auto-label",
+      "count": 2
+    },
+    {
+      "route": "/admin/calendar",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 28, 36, 38, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    }
+  ]
+}

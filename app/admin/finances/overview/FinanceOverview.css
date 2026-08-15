@@ -110,8 +110,15 @@
 }
 
 .fin-btn {
-  min-height: 38px;
-  padding: 0.45rem 0.9rem;
+  /* admin-ui-alignment-2026-08-14 — `min-height:38px` plus vertical
+   * padding rendered 46px, 6px TALLER than the date field and period
+   * select beside it, so Recalculate hung off both ends of the row. An
+   * explicit height off the contract, and the padding goes horizontal. */
+  height: var(--button-height);
+  box-sizing: border-box;
+  padding: 0 0.9rem;
+  display: inline-flex;
+  align-items: center;
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;

@@ -1,0 +1,110 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 12,
+  "byRule": {
+    "load": 1,
+    "height-spread": 2,
+    "row-centre": 5,
+    "row-height": 1
+  },
+  "byRoute": {
+    "C:/Program Files/Git/admin/leads": 1,
+    "/admin/calendar": 1,
+    "/admin/schedule": 1,
+    "/admin/research/testing": 3,
+    "/admin/finances/overview": 2,
+    "/admin/payouts/tax-report": 1
+  },
+  "findings": [
+    {
+      "route": "C:/Program Files/Git/admin/leads",
+      "rule": "load",
+      "severity": "high",
+      "px": 0,
+      "detail": "page.goto: Protocol error (Page.navigate): Cannot navigate to invalid URL\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040C:/Program Files/Git/admin/leads",
+      "container": "",
+      "count": 1
+    },
+    {
+      "route": "/admin/calendar",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 28, 36, 38, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/schedule",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 28, 36, 38, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 5,
+      "detail": "input and button.deploy-status__check-btn \"...\" sit side by side but their centres differ by 5.0px",
+      "container": "label.deploy-status__auto-label \"Auto\"",
+      "sig": "input|button.deploy-status__check-btn|label.deploy-status__auto-label",
+      "count": 2
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 3,
+      "detail": "select \"Select a test fixture...Cust\" and input sit side by side but their centres differ by 3.0px",
+      "container": "div.property-context-bar__field.property-context-bar__field--wide \"Quick LoadSelect a test fixt\"",
+      "sig": "select|input|div.property-context-bar__field.property-context-bar__field--wide",
+      "count": 2
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 6,
+      "detail": "select \"Select a test fixture...Cust\" is 34px tall, input is 40px — beside each other",
+      "container": "div.property-context-bar__field.property-context-bar__field--wide \"Quick LoadSelect a test fixt\"",
+      "sig": "select:34|input:40",
+      "count": 2
+    },
+    {
+      "route": "/admin/finances/overview",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10,
+      "detail": "input and button.fin-btn \"Recalculate\" sit side by side but their centres differ by 10.0px",
+      "container": "label \"To\"",
+      "sig": "input|button.fin-btn|label",
+      "count": 2
+    },
+    {
+      "route": "/admin/finances/overview",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10,
+      "detail": "select \"DayWeekMonthYear\" and button.fin-btn \"Recalculate\" sit side by side but their centres differ by 10.0px",
+      "container": "label \"Group byDayWeekMonthYear\"",
+      "sig": "select|button.fin-btn|label",
+      "count": 2
+    },
+    {
+      "route": "/admin/payouts/tax-report",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10,
+      "detail": "input and button.tax-btn \"Recalculate\" sit side by side but their centres differ by 10.0px",
+      "container": "label \"To\"",
+      "sig": "input|button.tax-btn|label",
+      "count": 2
+    }
+  ]
+}

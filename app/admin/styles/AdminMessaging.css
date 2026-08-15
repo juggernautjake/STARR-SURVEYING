@@ -1530,7 +1530,12 @@
   border-radius: 6px;
   cursor: pointer;
   font-size: 1rem;
-  padding: 0.3rem 0.5rem;
+  /* admin-ui-alignment-2026-08-14 — sat exactly on the 28px floor. */
+  height: var(--button-height-sm);
+  padding: 0 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: border-color 0.15s, background 0.15s;
 }
 .msg-contacts-page__card-action:hover {

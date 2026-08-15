@@ -65,7 +65,11 @@
 .people__filter {
   font-size: 0.8rem;
   font-weight: 500;
-  padding: 0.4rem 0.8rem;
+  /* admin-ui-alignment-2026-08-14 — padding alone rendered these at 35px
+   * beside the 40px search box on the same row. An explicit height off
+   * the shared contract keeps the filter bar level. */
+  height: var(--button-height);
+  padding: 0 0.8rem;
   border-radius: 999px;
   border: 1px solid var(--color-border);
   background: var(--color-surface);

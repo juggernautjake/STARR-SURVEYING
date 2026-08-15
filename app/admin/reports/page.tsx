@@ -588,12 +588,20 @@ export default function ReportsPage() {
           flex-wrap: wrap;
           gap: 0.5rem;
         }
+        /* admin-ui-alignment-2026-08-14 — these pills sat 7.3px above the
+           employee <select> beside them. Two causes, both fixed here: the
+           pill took its height from padding (28px against the select's 40),
+           and being a <label> it carried globals.css's 10px bottom margin,
+           which a flex row counts as part of the box it aligns. */
         .reports-section-toggle {
           display: inline-flex;
           align-items: center;
           gap: 0.25rem;
           font-size: 0.85rem;
-          padding: 0.2rem 0.55rem;
+          height: var(--input-height);
+          box-sizing: border-box;
+          margin-bottom: 0;
+          padding: 0 0.75rem;
           border: 1px solid #D1D5DB;
           border-radius: 999px;
           cursor: pointer;

@@ -39,17 +39,29 @@
 .assign__btn--danger:hover { background:#FEF2F2; }
 
 /* Filters */
-.assign__filters { display:flex; align-items:center; gap:1rem; padding:.65rem 1rem; background:var(--theme-bg-elevated, #F9FAFB); border:1px solid var(--theme-border, #E5E7EB); border-radius:8px; margin-bottom:1rem; flex-wrap:wrap; }
+/* admin-ui-alignment-2026-08-14 — this is a genuinely dense filter bar, so
+ * it opts the whole row down to the small size by REDEFINING THE TOKEN
+ * rather than by setting heights. Custom properties inherit, so the
+ * <select> follows through forms.css (whose `.admin-layout__content select`
+ * rule this file could never out-specify) and the pills follow through
+ * their own rule below. See docs/admin-styling-contract.md. */
+.assign__filters { display:flex; align-items:center; gap:1rem; padding:.65rem 1rem; background:var(--theme-bg-elevated, #F9FAFB); border:1px solid var(--theme-border, #E5E7EB); border-radius:8px; margin-bottom:1rem; flex-wrap:wrap; --input-height: var(--button-height-sm); --button-height: var(--button-height-sm); }
 .assign__filter-group { display:flex; align-items:center; gap:.5rem; }
 .assign__filter-label { font-size:.75rem; font-weight:600; color:var(--theme-fg-muted, #6B7280); white-space:nowrap; }
 .assign__filter-pills { display:flex; gap:.3rem; flex-wrap:wrap; align-items:center; }
-/* Slice 83 — pill buttons + select share an explicit 28 px height,
- * matching font-size, and matching border-radius so they line up on the
- * filter row instead of the select sticking out as the tallest control. */
+/* Slice 83 — pill buttons + select share an explicit height, matching
+ * font-size, and matching border-radius so they line up on the filter row
+ * instead of the select sticking out as the tallest control.
+ *
+ * admin-ui-alignment-2026-08-14 — Slice 83's fix had silently stopped
+ * working: it hard-coded 28px, and forms.css was overriding the SELECT
+ * (and only the select) to 40px, which is precisely the "select sticking
+ * out as the tallest control" the comment above was written to prevent.
+ * The literal is gone; both controls now read the row's token. */
 .assign__filter-pill,
 .assign__filter-select {
   box-sizing:border-box;
-  height:28px;
+  height: var(--input-height);
   line-height:1;
   font-size:.75rem;
   font-weight:500;

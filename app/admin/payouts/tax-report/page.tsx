@@ -260,10 +260,15 @@ const styles = `
   .tax-page__title { font-family: 'Sora', sans-serif; font-size: 1.5rem; margin: 0.25rem 0 0.35rem; font-weight: 700; }
   .tax-page__lede { margin: 0; color: #4a5470; max-width: 740px; }
 
+  /* admin-ui-alignment-2026-08-14 — padding alone rendered this at 46px,
+     6px taller than the year select beside it, so Recalculate overhung the
+     row at both ends. Height comes off the shared contract now. */
   .tax-btn {
-    font: inherit; font-weight: 700; padding: 0.65rem 1.2rem;
+    font: inherit; font-weight: 700;
+    height: var(--button-height); box-sizing: border-box; padding: 0 1.2rem;
     background: #1D3095; color: #fff; border: none; border-radius: 10px;
-    text-decoration: none; cursor: pointer; display: inline-block;
+    text-decoration: none; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
   }
   .tax-btn:hover:not(:disabled) { background: #16266f; }
   .tax-btn:disabled { opacity: 0.6; cursor: not-allowed; }

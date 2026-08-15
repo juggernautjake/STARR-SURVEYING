@@ -1,0 +1,119 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 8,
+  "byRule": {
+    "row-centre": 6,
+    "row-height": 3,
+    "height-spread": 1
+  },
+  "byRoute": {
+    "/admin/research/testing": 3,
+    "/admin/calendar": 1,
+    "/admin/reports": 1,
+    "/admin/equipment/timeline": 3,
+    "/admin/equipment/inventory": 2
+  },
+  "findings": [
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 5,
+      "detail": "input and button.deploy-status__check-btn \"...\" sit side by side but their centres differ by 5.0px",
+      "container": "label.deploy-status__auto-label \"Auto\"",
+      "sig": "input|button.deploy-status__check-btn|label.deploy-status__auto-label",
+      "count": 2
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-centre",
+      "severity": "medium",
+      "px": 3,
+      "detail": "select \"Select a test fixture...Cust\" and input sit side by side but their centres differ by 3.0px",
+      "container": "div.property-context-bar__field.property-context-bar__field--wide \"Quick LoadSelect a test fixt\"",
+      "sig": "select|input|div.property-context-bar__field.property-context-bar__field--wide",
+      "count": 2
+    },
+    {
+      "route": "/admin/research/testing",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 6,
+      "detail": "select \"Select a test fixture...Cust\" is 34px tall, input is 40px — beside each other",
+      "container": "div.property-context-bar__field.property-context-bar__field--wide \"Quick LoadSelect a test fixt\"",
+      "sig": "select:34|input:40",
+      "count": 2
+    },
+    {
+      "route": "/admin/calendar",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 28, 36, 38, 40px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/reports",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 7.3,
+      "detail": "select \"All employeesJacob Maddux\" and input sit side by side but their centres differ by 7.3px",
+      "container": "label.reports-filter-block \"EmployeeAll employeesJacob M\"",
+      "sig": "select|input|label.reports-filter-block",
+      "count": 4
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 36.4,
+      "detail": "input is 40px tall, button \"Reset to 14d\" is 76px — beside each other",
+      "container": "div \"→Reset to 14d\"",
+      "sig": "input:40|button:76",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "row-height",
+      "severity": "high",
+      "px": 10.8,
+      "detail": "button \"Equipment\" is 29px tall, select \"allheldchecked_outreturnedca\" is 40px — beside each other",
+      "container": "div \"Group byEquipmentJob\"",
+      "sig": "button:29|select:40",
+      "count": 4
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 5,
+      "detail": "input and input sit side by side but their centres differ by 5.0px",
+      "container": "div \"Category\"",
+      "sig": "input|input|div",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/inventory",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 6.5,
+      "detail": "input and input sit side by side but their centres differ by 6.5px",
+      "container": "label \"Search\"",
+      "sig": "input|input|label",
+      "count": 2
+    },
+    {
+      "route": "/admin/equipment/inventory",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 7.1,
+      "detail": "input and button \"Loading…\" sit side by side but their centres differ by 7.1px",
+      "container": "label \"Include retired\"",
+      "sig": "input|button|label",
+      "count": 2
+    }
+  ]
+}

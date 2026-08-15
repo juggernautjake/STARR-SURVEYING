@@ -233,7 +233,7 @@
 
 .property-context-bar__field input,
 .property-context-bar__field select {
-  height: 34px;
+  height: var(--input-height);
   padding: 0 0.6rem;
   border: 1px solid #D1D5DB;
   border-radius: 6px;
@@ -251,7 +251,8 @@
 }
 
 .property-context-bar__load-btn {
-  height: 34px;
+  /* admin-ui-alignment-2026-08-14 — 34px beside the 40px address field. */
+  height: var(--button-height);
   padding: 0 0.75rem;
   background: #2563EB;
   color: #fff;
@@ -319,7 +320,7 @@
 }
 
 .branch-selector__select {
-  height: 34px;
+  height: var(--input-height);
   padding: 0 0.6rem;
   border: 1px solid #D1D5DB;
   border-radius: 6px;
@@ -330,7 +331,8 @@
 }
 
 .branch-selector__btn {
-  height: 34px;
+  /* admin-ui-alignment-2026-08-14 — 34px beside the 40px branch select. */
+  height: var(--button-height);
   padding: 0 0.7rem;
   background: var(--theme-bg-surface, #fff);
   border: 1px solid #D1D5DB;
@@ -363,7 +365,7 @@
 }
 
 .branch-selector__input {
-  height: 34px;
+  height: var(--input-height);
   padding: 0 0.6rem;
   border: 1px solid #D1D5DB;
   border-radius: 6px;
@@ -2221,7 +2223,9 @@
 }
 
 .deploy-status__check-btn {
-  padding: 0.2rem 0.5rem;
+  /* admin-ui-alignment-2026-08-14 — 27px, under the 28px floor. */
+  height: var(--button-height-sm);
+  padding: 0 0.5rem;
   background: none;
   border: 1px solid #D1D5DB;
   border-radius: 4px;

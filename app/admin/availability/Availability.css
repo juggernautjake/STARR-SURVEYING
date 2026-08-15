@@ -41,7 +41,11 @@
 .avail__datebar input {
   font: inherit;
   font-size: 0.86rem;
-  padding: 0.35rem 0.6rem;
+  /* admin-ui-alignment-2026-08-14 — the buttons took their height from
+   * padding (35px) while forms.css pinned the date input to 40px, so the
+   * ‹ › and Today controls sat low against the field between them. */
+  height: var(--button-height);
+  padding: 0 0.6rem;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-surface);

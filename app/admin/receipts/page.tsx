@@ -1411,9 +1411,14 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'flex-end',
     flexWrap: 'wrap',
   },
+  // admin-ui-alignment-2026-08-14 — every filter is wrapped in one of these
+  // labels, and globals.css gives a label `margin-bottom: 0.625rem`. On a
+  // `flex-end` row the browser aligns the MARGIN box, so the whole filter bar
+  // rendered 10px above the Refresh button sharing the row with it.
   filterLabel: {
     display: 'flex',
     flexDirection: 'column',
+    marginBottom: 0,
     fontSize: 12,
     color: '#666',
     gap: 4,
@@ -1486,6 +1491,7 @@ const styles: Record<string, React.CSSProperties> = {
   selectAllRow: {
     display: 'flex',
     alignItems: 'center',
+    marginBottom: 0,
     gap: 8,
     padding: '6px 16px',
     fontSize: 13,
@@ -1511,9 +1517,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'stretch',
   },
+  // admin-ui-alignment-2026-08-14 — same label margin, once per receipt row:
+  // the select-for-approval checkbox sat 5px above the middle of the card it
+  // selects, down the whole list.
   rowCheckbox: {
     display: 'flex',
     alignItems: 'center',
+    marginBottom: 0,
     paddingLeft: 12,
     paddingRight: 4,
     cursor: 'pointer',

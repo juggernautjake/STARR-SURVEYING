@@ -58,7 +58,14 @@
   gap: 0.35rem;
   font-size: 0.82rem;
   color: var(--color-text-secondary, #4B5563);
-  min-height: 40px;
+  min-height: var(--input-height);
+  /* admin-ui-alignment-2026-08-14 — the min-height was already right; what
+   * pushed this 5px above the three selects beside it was globals.css's
+   * `label { margin-bottom: 0.625rem }`, which a centre-aligned flex row
+   * counts as part of the box. The admin reset lifts that margin for labels
+   * that wrap a field, but a checkbox label keeps it (stacked toggle lists
+   * need it), so a checkbox on a control ROW clears it here. */
+  margin-bottom: 0;
 }
 .notif-inbox__select {
   border: 1px solid var(--theme-border, #E5E7EB);
