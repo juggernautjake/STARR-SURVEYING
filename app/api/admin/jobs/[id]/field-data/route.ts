@@ -185,27 +185,33 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .order('created_at', { ascending: false }),
   ]);
 
-  if (pointsRes.error) {
+  // C0d (2026-08-15) — the four collections above are INDEPENDENT, and they now fail
+  // independently.
+  //
+  // Until today any one of them erroring returned a 500 for the whole manifest, and one of them was
+  // erroring permanently: this route asks `fieldbook_notes` for `body, note_template,
+  // structured_data, data_point_id`, and the live table of that name is the LEARN notes table
+  // (`title`, `content`, `module_id`, `lesson_id`, …). No seed in this repo ever created the shape
+  // this query expects — a name collision, not a missing migration.
+  //
+  // The cost of coupling them was not theoretical. `job_media` is the only record of what the crew
+  // photographed, and the sole consumer read this route as `r.ok ? … : { job_media: [] }` — so a
+  // notes-table mismatch rendered as "No media captured for this job yet." A job with photographs
+  // looked like a job nobody had been to.
+  //
+  // So: return what could be read, and NAME what could not in `unavailable`. A caller can tell
+  // "there is none" from "we could not find out", which is the distinction that was lost.
+  const unavailable: string[] = [];
+  if (pointsRes.error) unavailable.push('points');
+  if (mediaRes.error) unavailable.push('media');
+  if (notesRes.error) unavailable.push('notes');
+  if (filesRes.error) unavailable.push('files');
+
+  // Everything failing is not degradation, it is an outage — say so rather than returning a
+  // convincingly empty job.
+  if (unavailable.length === 4) {
     return NextResponse.json(
-      { error: pointsRes.error.message },
-      { status: 500 }
-    );
-  }
-  if (mediaRes.error) {
-    return NextResponse.json(
-      { error: mediaRes.error.message },
-      { status: 500 }
-    );
-  }
-  if (notesRes.error) {
-    return NextResponse.json(
-      { error: notesRes.error.message },
-      { status: 500 }
-    );
-  }
-  if (filesRes.error) {
-    return NextResponse.json(
-      { error: filesRes.error.message },
+      { error: pointsRes.error?.message ?? 'Could not read any field data for this job.' },
       { status: 500 }
     );
   }
@@ -503,5 +509,8 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     job_notes: jobNotes,
     job_files: jobFiles,
     stats,
+    // Names any collection that could not be read, so an empty array is never mistaken for
+    // "there is none". Absent when everything was readable.
+    ...(unavailable.length ? { unavailable } : {}),
   });
 }, { routeName: 'admin/jobs/:id/field-data' });

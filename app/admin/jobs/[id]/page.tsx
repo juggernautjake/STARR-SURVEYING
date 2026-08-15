@@ -37,6 +37,7 @@ import JobTimeTracker from '../../components/jobs/JobTimeTracker';
 import FieldWorkView from '../../components/jobs/FieldWorkView';
 import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
 import JobInstructionsPanel from '../../components/jobs/JobInstructionsPanel';
+import JobFieldMediaPanel from '../../components/jobs/JobFieldMediaPanel';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import Tooltip from '../../research/components/Tooltip';
 import { withAlpha } from '@/lib/admin/color-alpha';
@@ -848,6 +849,10 @@ export default function JobDetailPage() {
               They belong to the job, not to a shell, and they sit on Field Work because that is who
               they are addressed to. */}
           <JobInstructionsPanel jobId={jobId} />
+          {/* C0d — mobile-captured field media. Nothing else on this page reads `job_media`: the
+              Photos tab shows job FILES tagged as photos, and this page's own field-data call is a
+              different route returning survey points. See the note in the panel. */}
+          <JobFieldMediaPanel jobId={jobId} />
           <FieldWorkView
             jobId={jobId}
             points={fieldData}
