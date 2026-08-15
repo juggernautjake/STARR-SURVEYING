@@ -22,6 +22,7 @@ import { useTransferStore } from '@/lib/cad/store';
 import { isDraftLayer, promoteDraftLayer, findPromotionTarget } from '@/lib/cad/ai/sandbox';
 import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChip';
 import NewLayerDialog from './NewLayerDialog';
+import LayerPropertiesDialog from './LayerPropertiesDialog';
 // cad-layer-grouping Slice 5 — unified context menu for layer-panel
 // group rows (and, in future slices, feature rows + layer rows).
 import TargetContextMenu, { type ContextMenuTarget } from './TargetContextMenu';
@@ -64,6 +65,9 @@ export default function LayerPanel() {
   const mediaHydrate = useMediaStore((s) => s.hydrate);
   useEffect(() => { void mediaHydrate(); }, [mediaHydrate]);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  /** C6 — the layer whose properties dialog is open. Line type, line weight, opacity, freeze and
+   *  description had no editor anywhere in the product before this (C5). */
+  const [propertiesLayerId, setPropertiesLayerId] = useState<string | null>(null);
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
   const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -1326,6 +1330,14 @@ export default function LayerPanel() {
           >
             <Plus size={11} /> Quick-add points…
           </button>
+          {/* C6 — line type, line weight, opacity, freeze and description. Every one of these was
+              in the model, honoured by the renderer, and reachable from nowhere (C5). */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5"
+            onClick={() => { setPropertiesLayerId(contextMenu.layerId); setContextMenu(null); }}
+          >
+            <Settings size={11} /> Layer properties…
+          </button>
           <button
             className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100"
             onClick={() => handleDuplicateLayer(contextMenu.layerId)}
@@ -1530,6 +1542,12 @@ export default function LayerPanel() {
           </button>
         </div>
       )}
+
+      {/* C6 — layer properties. Renders nothing until a layer is chosen. */}
+      <LayerPropertiesDialog
+        layerId={propertiesLayerId}
+        onClose={() => setPropertiesLayerId(null)}
+      />
 
       {/* New-layer creation modal (§11). */}
       {newLayerDefaults && (
