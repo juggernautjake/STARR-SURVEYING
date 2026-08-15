@@ -76,7 +76,8 @@ describe('the registry', () => {
     // C29 filled AREA, which the registry declared and had nothing in — the empty-category shape
     // C21 fixed for symbols, and the reason `groupedCalculators` drops empty groups rather than
     // rendering a heading with nothing under it.
-    expect(groups.map((g) => g.group)).toEqual(['GENERAL', 'POINTS', 'CURVES', 'TRAVERSE', 'AREA']);
+    expect(groups.map((g) => g.group))
+      .toEqual(['GENERAL', 'POINTS', 'CURVES', 'PROFILE', 'TRAVERSE', 'AREA']);
     for (const g of groups) expect(g.label).toBe(CALCULATOR_GROUP_LABEL[g.group]);
     // No empty groups rendered — a heading with nothing under it reads as "this drawing has none",
     // the C21 lesson.

@@ -21,6 +21,8 @@ import AdvancedCurveCalculator from './AdvancedCurveCalculator';
 import StakeoutCalculator from './StakeoutCalculator';
 // C29 — cut a parcel to a target area, which C27 called the classic reason to open a calculator.
 import PartitionCalculator from './PartitionCalculator';
+// C29 — slope, grade and vertical curves.
+import GradeCalculator from './GradeCalculator';
 import { useCalculatorStore } from '@/lib/cad/store';
 
 interface CalculatorModalProps {
@@ -53,6 +55,7 @@ export default function CalculatorModal({ open, onClose }: CalculatorModalProps)
       {activeId === 'advanced-curve' && <AdvancedCurveCalculator />}
       {activeId === 'stakeout' && <StakeoutCalculator />}
       {activeId === 'partition' && <PartitionCalculator />}
+      {activeId === 'grade' && <GradeCalculator />}
     </ResizableModal>
   );
 }

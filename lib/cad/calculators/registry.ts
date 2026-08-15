@@ -46,7 +46,9 @@ export interface CalculatorEntry {
    *  distinction a surveyor cares about most, and the one C27 found hardest to see from outside. */
   writesGeometry: boolean;
   /** Grouping in the hub. */
-  group: 'GENERAL' | 'POINTS' | 'CURVES' | 'TRAVERSE' | 'AREA';
+  // C29 added PROFILE. A vertical curve is not a horizontal one, and filing them together would
+  // put two different meanings of 'curve' under one heading.
+  group: 'GENERAL' | 'POINTS' | 'CURVES' | 'PROFILE' | 'TRAVERSE' | 'AREA';
 }
 
 /**
@@ -155,6 +157,15 @@ export const CALCULATOR_REGISTRY: ReadonlyArray<CalculatorEntry> = [
     group: 'AREA',
   },
   {
+    id: 'grade',
+    label: 'Grade & vertical curve',
+    summary: 'Grade between two shots, and equal-tangent vertical curves with a stake-out table.',
+    mode: 'INLINE',
+    usesSelection: true,
+    writesGeometry: false,
+    group: 'PROFILE',
+  },
+  {
     id: 'traverse-viewer',
     label: 'Line & curve data',
     summary: 'Every line and curve in the drawing as a table, editable in place.',
@@ -184,6 +195,7 @@ export const CALCULATOR_GROUP_LABEL: Record<CalculatorEntry['group'], string> = 
   GENERAL: 'General',
   POINTS: 'Points & intersections',
   CURVES: 'Curves',
+  PROFILE: 'Profile & grade',
   TRAVERSE: 'Traverse',
   AREA: 'Area',
 };
@@ -194,7 +206,7 @@ export function groupedCalculators(): Array<{
   label: string;
   entries: CalculatorEntry[];
 }> {
-  const order: CalculatorEntry['group'][] = ['GENERAL', 'POINTS', 'CURVES', 'TRAVERSE', 'AREA'];
+  const order: CalculatorEntry['group'][] = ['GENERAL', 'POINTS', 'CURVES', 'PROFILE', 'TRAVERSE', 'AREA'];
   return order
     .map((group) => ({
       group,
