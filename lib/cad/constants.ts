@@ -183,3 +183,19 @@ export const SNAP_INDICATOR_STYLES: Record<SnapType, { shape: string; color: str
   PERPENDICULAR: { shape: 'square', color: '#FF00FF' },
   GRID: { shape: 'cross', color: '#808080' },
 };
+
+/** C17 — the name shown beside the snap glyph at the moment it engages.
+ *
+ *  Needed because the glyphs above are not injective: seven types share five shapes, so ENDPOINT
+ *  and PERPENDICULAR are both squares and INTERSECTION and GRID are both crosses, told apart only
+ *  by colour. Wording matches the status-bar snap popover exactly — the same snap must not have two
+ *  names depending on where you read it.  */
+export const SNAP_TYPE_LABELS: Record<SnapType, string> = {
+  ENDPOINT: 'Endpoint',
+  MIDPOINT: 'Midpoint',
+  INTERSECTION: 'Intersection',
+  NEAREST: 'Nearest',
+  CENTER: 'Center',
+  PERPENDICULAR: 'Perpendicular',
+  GRID: 'Grid',
+};

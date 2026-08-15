@@ -54,9 +54,38 @@ function getEndpoints(feature: Feature): Array<{ point: Point2D; vertexIndex: nu
   return pts;
 }
 
+/** Centre of a feature that HAS one. Circles, ellipses and arcs carry it parametrically; every
+ *  other geometry returns null rather than a bounding-box middle, because "centre of a polyline"
+ *  is a different osnap (AutoCAD's Geometric Center) and this product's own UI promises only
+ *  "the center of a circle, arc, or ellipse". C17. */
+function getCenter(feature: Feature): Point2D | null {
+  const g = feature.geometry;
+  return g.circle?.center ?? g.ellipse?.center ?? g.arc?.center ?? null;
+}
+
+/** Is `theta` inside the arc's swept span? Angles are normalised to [0, 2π) before comparing, so a
+ *  span that crosses east (0 rad) still reads correctly. */
+function angleWithinArc(theta: number, arc: { startAngle: number; endAngle: number; anticlockwise: boolean }): boolean {
+  const TAU = Math.PI * 2;
+  const norm = (a: number) => ((a % TAU) + TAU) % TAU;
+  const t = norm(theta);
+  const from = norm(arc.anticlockwise ? arc.startAngle : arc.endAngle);
+  const to = norm(arc.anticlockwise ? arc.endAngle : arc.startAngle);
+  const span = norm(to - from);
+  return norm(t - from) <= span + 1e-9;
+}
+
 /**
  * Find the best snap point near the cursor.
- * Priority: ENDPOINT > MIDPOINT > INTERSECTION > NEAREST > GRID
+ *
+ * Priority: ENDPOINT > MIDPOINT > CENTER > INTERSECTION > PERPENDICULAR > NEAREST > GRID.
+ * That order is AutoCAD's: the snaps that name an exact, unambiguous feature of the geometry beat
+ * the ones that merely land somewhere on it, and NEAREST — which always succeeds if anything is in
+ * range — stays last so it can never mask a better answer.
+ *
+ * `fromPoint` is the point an in-progress command has already placed (the last drawing point).
+ * PERPENDICULAR is meaningless without it — perpendicular *to what?* — so with no `fromPoint` that
+ * branch yields nothing rather than guessing.
  */
 export function findSnapPoint(
   cursor: Point2D,
@@ -65,6 +94,7 @@ export function findSnapPoint(
   zoom: number,
   snapTypes: SnapType[],
   gridSpacing: number,
+  fromPoint?: Point2D | null,
 ): SnapResult | null {
   const worldRadius = snapRadius / zoom;
 
@@ -108,6 +138,21 @@ export function findSnapPoint(
     if (best) return best;
   }
 
+  // CENTER — C17. Offered by the status-bar popover and the settings dialog since forever; this
+  // engine had no branch for it, so ticking the box did nothing, for any drawing, ever.
+  if (snapTypes.includes('CENTER')) {
+    let best: SnapResult | null = null;
+    for (const feature of features) {
+      const c = getCenter(feature);
+      if (!c) continue;
+      const d = distance(cursor, c);
+      if (d <= worldRadius && (!best || d < best.distance)) {
+        best = { point: c, type: 'CENTER', featureId: feature.id, distance: d * zoom };
+      }
+    }
+    if (best) return best;
+  }
+
   // INTERSECTION
   if (snapTypes.includes('INTERSECTION')) {
     let best: SnapResult | null = null;
@@ -131,6 +176,55 @@ export function findSnapPoint(
               featureId: allSegments[i].featureId,
               distance: dist * zoom,
             };
+          }
+        }
+      }
+    }
+    if (best) return best;
+  }
+
+  // PERPENDICULAR — C17. The other box that did nothing. The settings dialog calls it "essential
+  // for creating right-angle connections"; nothing in the engine produced this type.
+  //
+  // The candidate is the FOOT of the perpendicular dropped from the point already placed — not
+  // from the cursor. That distinction is the whole snap: the surveyor is drawing a line from a
+  // known point and wants it to meet this feature square. The cursor only chooses WHICH foot, by
+  // being near it.
+  if (snapTypes.includes('PERPENDICULAR') && fromPoint) {
+    let best: SnapResult | null = null;
+    const consider = (point: Point2D, featureId: string) => {
+      const d = distance(cursor, point);
+      if (d <= worldRadius && (!best || d < best.distance)) {
+        best = { point, type: 'PERPENDICULAR', featureId, distance: d * zoom };
+      }
+    };
+    for (const feature of features) {
+      for (const [a, b] of getSegments(feature)) {
+        // Clamped to the segment: a foot out past the end would put the point on a line that does
+        // not exist there, which is a worse answer than no snap.
+        const { point } = closestPointOnSegment(fromPoint, a, b);
+        consider(point, feature.id);
+      }
+      // A radius always meets its circle at a right angle, so the foot is where the ray from the
+      // centre through `fromPoint` crosses the curve.
+      const g = feature.geometry;
+      const round = g.circle ?? g.arc;
+      if (round) {
+        const dx = fromPoint.x - round.center.x;
+        const dy = fromPoint.y - round.center.y;
+        const len = Math.hypot(dx, dy);
+        if (len > 1e-9) {
+          const theta = Math.atan2(dy, dx);
+          // Both crossings — the near side and the far side — are genuine perpendicular feet.
+          for (const t of [theta, theta + Math.PI]) {
+            if (g.arc && !angleWithinArc(t, g.arc)) continue;
+            consider(
+              {
+                x: round.center.x + Math.cos(t) * round.radius,
+                y: round.center.y + Math.sin(t) * round.radius,
+              },
+              feature.id,
+            );
           }
         }
       }

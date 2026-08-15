@@ -89,7 +89,7 @@ import {
 import { generateId } from '@/lib/cad/types';
 import type { ImageGeometry } from '@/lib/cad/types';
 import type { Feature, Point2D, BoundingBox, FeatureType, TextLabel, CircleGeometry, EllipseGeometry, ArcGeometry, SplineGeometry } from '@/lib/cad/types';
-import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
+import { DEFAULT_FEATURE_STYLE, SNAP_INDICATOR_STYLES, SNAP_TYPE_LABELS, MIN_ZOOM, MAX_ZOOM, DEFAULT_DISPLAY_PREFERENCES, DEFAULT_LAYER_DISPLAY_PREFERENCES } from '@/lib/cad/constants';
 import { PAPER_DIMENSIONS } from '@/lib/cad/templates/types';
 import { useTemplateStore } from '@/lib/cad/store/template-store';
 import { STANDARD_NOTES as STANDARD_NOTES_LIB } from '@/lib/cad/templates/standard-notes';
@@ -468,6 +468,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     gridGraphics: import('pixi.js').Graphics;
     selectionGraphics: import('pixi.js').Graphics;
     snapGraphics: import('pixi.js').Graphics;
+    /** C17 — names the engaged snap beside its glyph. ONE Text, created at init and re-used:
+     *  this updates on every mouse move, so building a Text per frame would allocate a texture
+     *  per frame — the exact shape of the GC pause C3 measured and removed. */
+    snapLabel: import('pixi.js').Text;
     previewGraphics: import('pixi.js').Graphics;
     GraphicsClass: new () => import('pixi.js').Graphics;
     TextClass: new (text: string, style?: import('pixi.js').TextStyle | Partial<import('pixi.js').ITextStyle>) => import('pixi.js').Text;
@@ -1212,6 +1216,23 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         const snapGraphics = new PIXI.Graphics();
         snapLayer.addChild(snapGraphics);
 
+        // C17 — the snap-type label. Added AFTER snapGraphics so it draws over the glyph, and
+        // starts hidden because nothing is snapped at init.
+        const snapLabel = new PIXI.Text('', new PIXI.TextStyle({
+          fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+          fontSize: 11,
+          fill: 0xffffff,
+          // A drop shadow rather than a filled plate: the label has to be readable over both the
+          // dark background and whatever geometry it is sitting on, without hiding that geometry.
+          dropShadow: true,
+          dropShadowColor: 0x000000,
+          dropShadowBlur: 4,
+          dropShadowDistance: 0,
+          dropShadowAlpha: 0.95,
+        }));
+        snapLabel.visible = false;
+        snapLayer.addChild(snapLabel);
+
         const previewGraphics = new PIXI.Graphics();
         toolPreviewLayer.addChild(previewGraphics);
 
@@ -1271,6 +1292,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
           gridGraphics,
           selectionGraphics,
           snapGraphics,
+          snapLabel,
           previewGraphics,
           GraphicsClass: PIXI.Graphics,
           TextClass: PIXI.Text,
@@ -5189,7 +5211,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     g.clear();
 
     const snap = snapResultRef.current;
-    if (!snap) return;
+    if (!snap) {
+      if (pixi.snapLabel.visible) pixi.snapLabel.visible = false;
+      return;
+    }
 
     const { sx, sy } = w2s(snap.point.x, snap.point.y);
     const style = SNAP_INDICATOR_STYLES[snap.type];
@@ -5225,6 +5250,22 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         g.drawCircle(sx, sy, size);
         break;
     }
+
+    // C17 — say WHICH snap engaged.
+    //
+    // The glyph alone cannot: seven snap types share five shapes, so ENDPOINT and PERPENDICULAR are
+    // both a square and INTERSECTION and GRID are both a cross, separable only by colour — and a
+    // surveyor who has to remember that green-square-not-magenta-square means endpoint is reading a
+    // legend, not a drawing. Naming it is what makes the snap trustworthy at the moment it engages,
+    // which is the whole of this slice.
+    const label = pixi.snapLabel;
+    const text = SNAP_TYPE_LABELS[snap.type];
+    // Both guarded: assigning either one re-rasterises the text, and this runs on every mouse move.
+    if (label.text !== text) label.text = text;
+    if (label.style.fill !== color) label.style.fill = color;
+    // Up and to the right of the glyph, the one quadrant the cursor itself never occupies.
+    label.position.set(sx + size + 5, sy - size - 12);
+    label.visible = true;
   }
 
   // ─────────────────────────────────────────────
@@ -9344,6 +9385,10 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         candidateIds.size > 0 && indexCache.index.count > 0
           ? layerVisible.filter((f) => candidateIds.has(f.id))
           : layerVisible;
+      // C17 — the point the in-progress command has already placed. PERPENDICULAR is a foot
+      // dropped FROM somewhere; with nothing placed yet there is nothing to be perpendicular to,
+      // and the engine skips that branch rather than guessing at the cursor.
+      const pending = useToolStore.getState().state.drawingPoints;
       const snap = findSnapPoint(
         cursor,
         candidates,
@@ -9351,6 +9396,7 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
         useViewportStore.getState().zoom,
         settings.snapTypes,
         settings.gridMajorSpacing / settings.gridMinorDivisions,
+        pending.length > 0 ? pending[pending.length - 1] : null,
       );
       snapResultRef.current = snap;
       const snapped = snap ? snap.point : cursor;
