@@ -1,0 +1,544 @@
+[
+  {
+    "widget": "active-research-projects",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "countyFilter"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "activity",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "defaultMode"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "approvals",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "defaultMode"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "assignments-due",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "assignedTo",
+      "dueWithin",
+      "includeCompleted",
+      "priority",
+      "sortBy",
+      "rowLimit"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "bookmarks",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "bookmarks",
+      "layoutStyle"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "class-assignments",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "dueWithin",
+      "includeCompleted",
+      "groupByClass",
+      "columns",
+      "sortBy",
+      "rowLimit"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "comms-inbox",
+    "state": "declared-none",
+    "keys": [
+      "showOpenLink"
+    ],
+    "missing": [
+      "showOpenLink"
+    ]
+  },
+  {
+    "widget": "contacts",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "labelFilter"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "crew-calendar",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "employeeFilter"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "daily-briefing",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "showWeather"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "drawings",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "scope"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "drawings-hub",
+    "state": "declared-none",
+    "keys": [
+      "scope"
+    ],
+    "missing": [
+      "scope"
+    ]
+  },
+  {
+    "widget": "drawings-in-progress",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "scope"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "equipment-out-today",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "scope"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "field-assistant",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "jobContext"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "field-data-pending",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "jobFilter",
+      "rowLimit"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "field-pulse",
+    "state": "declared-none",
+    "keys": [
+      "showOpenLink"
+    ],
+    "missing": [
+      "showOpenLink"
+    ]
+  },
+  {
+    "widget": "flashcards-due",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxCards"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "hours-this-week",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "weekStart",
+      "showBreakdownByJob",
+      "goalHours"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "job-activity-feed",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "jobFilter",
+      "activityTypes",
+      "rowLimit"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "learning-stack",
+    "state": "declared-none",
+    "keys": [
+      "showOpenLink"
+    ],
+    "missing": [
+      "showOpenLink"
+    ]
+  },
+  {
+    "widget": "low-consumables",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "threshold"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "maintenance-due",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "dueWithin"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "mentions-inbox",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "dateRange"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "messages",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "includeGroups",
+      "senderFilter",
+      "markAsReadOnView",
+      "showPreview",
+      "messageLimit"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "mileage-tracker",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "period"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "money",
+    "state": "declared-none",
+    "keys": [
+      "showOpenLink"
+    ],
+    "missing": [
+      "showOpenLink"
+    ]
+  },
+  {
+    "widget": "monthly-revenue",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "period"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "my-jobs",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "filter",
+      "stage",
+      "columns",
+      "sortBy",
+      "rowLimit",
+      "showStageColors"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "my-pay",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "stats",
+      "colorAmounts",
+      "showUpdated",
+      "privacy",
+      "amountStyle",
+      "showLastPayout"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "open-discussions",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "scope"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "outstanding-invoices",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxItems",
+      "sortBy",
+      "showAging"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "pending-bin",
+    "state": "declared-none",
+    "keys": [
+      "showOpenLink"
+    ],
+    "missing": [
+      "showOpenLink"
+    ]
+  },
+  {
+    "widget": "pending-hours",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxItems"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "pending-receipts",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxItems"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "pending-time-off",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxItems"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "pinned-pages",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "layoutStyle",
+      "iconStyle"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "pipeline-status",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "showFailedOnly"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "proactive-alerts",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "minSeverity"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "pto-balance",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "format",
+      "showHistory",
+      "hoursPerDay"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "quick-actions",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "actionIds",
+      "customActions",
+      "layoutStyle",
+      "displayStyle",
+      "enableShortcuts"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "quiz-history",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxItems"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "recent-activity",
+    "state": "gap",
+    "via": "form",
+    "keys": [
+      "itemLimit",
+      "includeTypes"
+    ],
+    "missing": [
+      "includeTypes"
+    ]
+  },
+  {
+    "widget": "recent-announcements",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "unreadOnly"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "recent-drawings",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "scope"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "recommended-lessons",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "maxItems"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "roadmap-progress",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "showName",
+      "showCurrent",
+      "showBar"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "streak-counter",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "kind"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "sun-calculator",
+    "state": "complete",
+    "via": "schema",
+    "keys": [
+      "latitude",
+      "longitude",
+      "units",
+      "showTwilight"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "surveying-calculator",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "defaultMode"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "team-status",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "groupBy"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "today-schedule",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "showAllDay",
+      "timeRange",
+      "defaultView",
+      "eventTypes"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "vehicles-status",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "filter"
+    ],
+    "missing": []
+  },
+  {
+    "widget": "weather",
+    "state": "complete",
+    "via": "form",
+    "keys": [
+      "location"
+    ],
+    "missing": []
+  }
+]
