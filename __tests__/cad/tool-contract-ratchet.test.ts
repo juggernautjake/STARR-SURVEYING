@@ -15,7 +15,7 @@
 import { describe, it, expect } from 'vitest';
 import { execFileSync } from 'node:child_process';
 
-function audit(): { wiring: { escapeUsesShared: boolean; promptUsesShared: boolean }; tools: Array<{ tool: string; staged: boolean; uncovered: string[]; hasPrompt: boolean; hasPreview: boolean }> } {
+function audit(): { wiring: { escapeUsesShared: boolean; promptUsesShared: boolean }; tools: Array<{ tool: string; staged: boolean; uncovered: string[]; writes: string[]; hasPrompt: boolean; hasPreview: boolean }> } {
   const out = execFileSync(
     process.execPath,
     ['scripts/cad-tool-contract-audit.mjs', '--json'],
@@ -54,6 +54,18 @@ describe('every tool obeys the click-order contract', () => {
     // has to justify in a diff rather than a number that quietly drops.
     const blind = result.tools.filter((t) => !t.hasPreview).map((t) => t.tool);
     expect(blind).toEqual([]);
+  });
+
+  it('no tool parks a pick in two places at once', () => {
+    // This is the property that makes ONE stage number safe. `pickStage` returns the drawing-point
+    // count when there is one and 1 otherwise, so a tool that accumulated clicks AND parked an id
+    // would have two counters and the prompt would follow only the first. Every staged tool today
+    // uses exactly one mechanism; a future tool using both is not necessarily wrong, but it should
+    // be a decision somebody makes rather than a behaviour they discover.
+    const twoWays = result.tools
+      .filter((t) => t.writes.length > 1)
+      .map((t) => `${t.tool} parks ${t.writes.join(' and ')}`);
+    expect(twoWays).toEqual([]);
   });
 
   it('the sweep still covers the whole toolbar', () => {
