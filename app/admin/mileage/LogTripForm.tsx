@@ -16,13 +16,19 @@
 // 2026-08 to point here, at a page that still had no form.) Putting capture here makes the CTA true
 // and gives mileage a home outside Work Mode, which is being retired.
 //
-// ── THE DISTANCE FIELD IS TYPED TODAY, ON PURPOSE ───────────────────────────────────────────────
+// ── THE DISTANCE IS TYPED, AND CAN NOW BE LOOKED UP ─────────────────────────────────────────────
 //
-// The address→address lookup (C0b1) needs a maps provider with an API key and billing attached, and
-// that is owner-gated. Blocking capture on it would leave the surveyor with no way to record a trip
-// at all — which is the state this feature has actually been in. So the addresses are recorded now
-// and the distance is typed; when the provider lands, it fills this field and the POST starts
-// sending `distanceSource: 'lookup'` instead of 'typed'. Nothing else about the form changes.
+// C0b1 shipped the address→address adapter (`lib/mileage/distance-provider.ts`), so "Look up" is
+// live. It is an ENHANCEMENT, never a gate: the typed field stays, and the slice's own condition is
+// that capture must not be blocked on a key. An install with no server key shows the typed field
+// and an explanation, not a dead button.
+//
+// `distanceSource` is the reason this is not just a convenience. It records in the audit trail
+// whether a figure came from the provider or from a person, and the two must not be conflated — so
+// the flag is set by the lookup and CLEARED the moment the surveyor edits the number afterwards.
+// A looked-up distance that was then hand-corrected is a typed distance; keeping the 'lookup' label
+// on it would claim a provenance the number no longer has, which is the same mistake C30 spent a
+// slice designing out of the calculators.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { IRS_BUSINESS_RATE_2025 } from '@/lib/mileage/summary';
@@ -38,6 +44,10 @@ export default function LogTripForm({ onLogged }: { onLogged?: () => void }) {
   const [startAddress, setStartAddress] = useState('');
   const [endAddress, setEndAddress] = useState('');
   const [distance, setDistance] = useState('');
+  /** True only while the number in `distance` is exactly what the provider returned. */
+  const [distanceFromLookup, setDistanceFromLookup] = useState(false);
+  const [lookingUp, setLookingUp] = useState(false);
+  const [lookupMsg, setLookupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [entryDate, setEntryDate] = useState(today);
   const [jobId, setJobId] = useState('');
   const [vehicleId, setVehicleId] = useState('');
@@ -115,6 +125,37 @@ export default function LogTripForm({ onLogged }: { onLogged?: () => void }) {
   }, [milesValid, miles, vehicle, fuelPriceCents]);
 
   const canSave = milesValid && !saving;
+  const canLookUp = startAddress.trim() !== '' && endAddress.trim() !== '' && !lookingUp;
+
+  /**
+   * Ask the provider for the driving distance.
+   *
+   * Every refusal is shown with the sentence the server sent, rather than a generic "lookup
+   * failed". The route distinguishes three of them for exactly this reason — a missing key is
+   * nothing the surveyor can act on, a bad address is something they should re-read, and a provider
+   * outage is worth retrying — and flattening them here would throw that away at the last step.
+   */
+  const lookUpDistance = useCallback(async () => {
+    if (!canLookUp) return;
+    setLookingUp(true);
+    setLookupMsg(null);
+    try {
+      const qs = new URLSearchParams({ from: startAddress.trim(), to: endAddress.trim() });
+      const res = await fetch(`/api/admin/mileage/distance?${qs}`);
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLookupMsg({ ok: false, text: j.error ?? 'Could not look up that distance.' });
+        return;
+      }
+      setDistance(String(j.miles));
+      setDistanceFromLookup(true);
+      setLookupMsg({ ok: true, text: `${j.miles} mi by road. Edit it if the trip was different.` });
+    } catch {
+      setLookupMsg({ ok: false, text: 'Could not reach the distance service.' });
+    } finally {
+      setLookingUp(false);
+    }
+  }, [canLookUp, startAddress, endAddress]);
 
   const save = useCallback(async () => {
     if (!canSave) return;
@@ -126,7 +167,10 @@ export default function LogTripForm({ onLogged }: { onLogged?: () => void }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           distance: miles,
-          distanceSource: 'typed',
+          // 'lookup' is claimed only while the number is still exactly what the provider returned.
+          // The route double-checks this on its side too, because a client is not the right place
+          // to be the sole authority on an audit-trail field.
+          distanceSource: distanceFromLookup ? 'lookup' : 'typed',
           startAddress: startAddress.trim() || undefined,
           endAddress: endAddress.trim() || undefined,
           entryDate,
@@ -156,8 +200,7 @@ export default function LogTripForm({ onLogged }: { onLogged?: () => void }) {
       <div style={s.cardHead}>
         <h2 id="log-trip-heading" style={s.h2}>Log a trip</h2>
         <p style={s.hint}>
-          Manually record one trip. Distance is entered by hand today; the addresses are stored so it
-          can be calculated automatically once the maps lookup is switched on.
+          Manually record one trip. Enter the distance, or look it up from the two addresses.
         </p>
       </div>
 
@@ -175,10 +218,29 @@ export default function LogTripForm({ onLogged }: { onLogged?: () => void }) {
 
         <label style={s.field}>
           <span style={s.label}>Distance (miles)</span>
-          <input type="number" value={distance} onChange={(e) => setDistance(e.target.value)}
+          <input type="number" value={distance}
+            onChange={(e) => {
+              setDistance(e.target.value);
+              // Editing the number retires the lookup's claim on it. A hand-corrected figure is a
+              // typed figure, and the audit trail has to say so.
+              setDistanceFromLookup(false);
+              setLookupMsg(null);
+            }}
             placeholder="42.5" min={0} max={MAX_REASONABLE_DAILY_MILES} step="0.1" style={s.input}
             aria-describedby="trip-distance-hint" />
           <span id="trip-distance-hint" style={s.hintSm}>Round trip? Enter the total driven.</span>
+          <button type="button" onClick={lookUpDistance} disabled={!canLookUp} style={s.hintSm}
+            // Disabled with a reason on the control itself — the C16 rule. A dimmed button that
+            // says nothing is a refusal the surveyor has to guess at.
+            title={canLookUp ? 'Look up the driving distance between the two addresses'
+              : 'Enter both addresses first'}>
+            {lookingUp ? 'Looking up…' : '↻ Look up from addresses'}
+          </button>
+          {lookupMsg && (
+            <span id="trip-lookup-msg" role="status" style={s.hintSm}>
+              {lookupMsg.ok ? '✓ ' : '⚠ '}{lookupMsg.text}
+            </span>
+          )}
         </label>
         <label style={s.field}>
           <span style={s.label}>Date</span>

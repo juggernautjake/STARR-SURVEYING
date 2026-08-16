@@ -67,11 +67,20 @@ describe('mileage Save wiring', () => {
     expect(form).toMatch(/reimbursement/);
   });
 
-  it('sends the address pair and marks the distance as typed, not a lookup', () => {
-    // C0b1's provider is owner-gated. Until it lands the form must not claim a looked-up distance —
-    // distance_source is an audit trail, and "typed" and "lookup" are different assurances.
+  it('sends the address pair, and claims a lookup only when there was one', () => {
+    // Was: "marks the distance as typed, not a lookup" — correct while C0b1's provider did not
+    // exist, and an assertion of the LIMITATION rather than of the rule. C0b1 shipped the adapter,
+    // so the rule is now the testable thing: `distance_source` is an audit trail, and "typed" and
+    // "lookup" are different assurances about where a number came from.
     expect(form).toContain('startAddress');
     expect(form).toContain('endAddress');
-    expect(form).toContain("distanceSource: 'typed'");
+    expect(form).toMatch(/distanceSource:\s*distanceFromLookup\s*\?\s*'lookup'\s*:\s*'typed'/);
+  });
+
+  it('a looked-up distance that is then edited by hand stops being a lookup', () => {
+    // The whole reason the flag is state rather than a constant. A hand-corrected figure is a typed
+    // figure; keeping the 'lookup' label on it would claim a provenance the number no longer has —
+    // the mistake C30 spent a slice designing out of the calculators.
+    expect(form).toMatch(/setDistance\(e\.target\.value\)[\s\S]{0,200}setDistanceFromLookup\(false\)/);
   });
 });
