@@ -755,6 +755,79 @@ export default function CADLayout() {
     return () => window.removeEventListener('cad:toggleTraverseViewer', handler);
   }, []);
 
+  // C45 — Escape closes whatever panel is open, from ONE place.
+  //
+  // C13's contract states the universal rule — *"Escape cancels from any state and is never a
+  // no-op"* — and measured that 56 of 58 toolbar entries never mention Escape, calling that a hint
+  // that it was inconsistently implemented rather than merely undocumented. Driving the panels at
+  // 390px settled it: of the five dialogs the phone pass reached, **none** closed on Escape, and
+  // the source agrees — `AIDrawingDialog`, `CalcPointDialog`, `CloseDrawingDialog`,
+  // `CodeStylePanel` and `CompletenessPanel` contain no reference to the key at all.
+  //
+  // On a desktop that is an annoyance. On a phone it is a trap: several of these panels cover the
+  // whole 390px viewport, and if the close control has scrolled out of reach there is no way back
+  // to the drawing.
+  //
+  // **One handler rather than thirty-one.** Adding `onKeyDown` to each dialog is the same fix
+  // written thirty-one times, and dialog thirty-two would forget it — which is exactly how this
+  // gap opened. The panels' open state already lives here, so the rule lives here too, and
+  // `__tests__/cad/escape-closes-every-panel.test.ts` fails if a new `show*` state is added
+  // without joining the list.
+  //
+  // Guards: never steal Escape from a text field mid-edit, and never fire when nothing is open —
+  // the canvas uses Escape to cancel the active tool, and swallowing it there would break drawing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t?.isContentEditable) return;
+      let closedAny = false;
+      const close = (open: boolean, set: (v: boolean) => void) => {
+        if (open) { set(false); closedAny = true; }
+      };
+      close(showTraverseViewer, setShowTraverseViewer);
+      close(showSettings, setShowSettings);
+      close(showImportDialog, setShowImportDialog);
+      close(showAIDrawingDialog, setShowAIDrawingDialog);
+      close(showTraversePanel, setShowTraversePanel);
+      close(showCurveCalculator, setShowCurveCalculator);
+      close(showCalculatorModal, setShowCalculatorModal);
+      close(showDrawingRotation, setShowDrawingRotation);
+      close(showTitleBlock, setShowTitleBlock);
+      close(showImagePanel, setShowImagePanel);
+      close(showNewDrawingDialog, setShowNewDrawingDialog);
+      close(showDisplayPrefs, setShowDisplayPrefs);
+      close(showOrientationDialog, setShowOrientationDialog);
+      close(showHiddenItems, setShowHiddenItems);
+      close(showCompletenessPanel, setShowCompletenessPanel);
+      close(showReviewModePanel, setShowReviewModePanel);
+      close(showDescriptionPanel, setShowDescriptionPanel);
+      close(showRecentRecoveries, setShowRecentRecoveries);
+      close(showFileManager, setShowFileManager);
+      close(showBranchDialog, setShowBranchDialog);
+      close(showPointLibrary, setShowPointLibrary);
+      close(showSealPicker, setShowSealPicker);
+      close(showCodeStylePanel, setShowCodeStylePanel);
+      close(showIntersect, setShowIntersect);
+      close(showCalcPoint, setShowCalcPoint);
+      close(showCloseDrawing, setShowCloseDrawing);
+      close(showSketchReconcile, setShowSketchReconcile);
+      close(showPrintDialog, setShowPrintDialog);
+      close(showNotesDialog, setShowNotesDialog);
+      if (renameDialog) { setRenameDialog(null); closedAny = true; }
+      if (featureDialog) { setFeatureDialog(null); closedAny = true; }
+      if (closedAny) e.stopPropagation();
+    };
+    // CAPTURE phase, and that is load-bearing. Registered on the bubble phase this handler never
+    // ran at all: `CanvasViewport` handles Escape to cancel the active tool and stops propagation,
+    // so the event died before it reached `window`. The browser pass reported "Escape did not
+    // close it" for seven panels with the fix already in place — the listener was correct and
+    // unreachable, which is this codebase's most common defect wearing a new hat.
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  });
+
   // Phase 8 §2.3 — bridge hotkey-only events into local UI
   // state. These dispatchers fire from `useHotkeys` so the
   // engine module stays free of CADLayout-specific imports.
