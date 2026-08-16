@@ -9,6 +9,7 @@ import { computeHoursFlags, effectiveHours } from '@/lib/hours/hours-flags';
 import { detectLateEntry, countLateEntries, type PeriodLock } from '@/lib/hours/late-entry';
 import { describeSnapshot } from '@/lib/hours/period-snapshot';
 import { decidedPay } from '@/lib/hours/summarise';
+import { countByStatus, filterLogs, statusOf } from '@/lib/hours/status-view';
 import { useFocusHighlight } from '@/lib/admin/use-focus-highlight';
 import PayDecisionModal from './PayDecisionModal';
 import { useSearchParams } from 'next/navigation';
@@ -132,6 +133,20 @@ function addDays(dateStr: string, n: number): string {
   return d.toISOString().split('T')[0];
 }
 
+/**
+ * `YYYY-MM-DD` from the date's LOCAL parts.
+ *
+ * Deliberately not `.toISOString().split('T')[0]`, which is the trap documented at length in
+ * `getMonday` above: a Date at local midnight is the PREVIOUS day in UTC anywhere west of
+ * Greenwich, so a month built as `new Date(y, m, 1)` would be sent to the API as the 31st of the
+ * month before and quietly drop a day off one end of the range.
+ */
+function toISODate(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
+}
+
 function formatDate(iso: string) {
   return new Date(iso + 'T00:00:00').toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
 }
@@ -154,10 +169,34 @@ export default function HoursApprovalPage() {
   const { data: session } = useSession();
   const { safeFetch, safeAction, reportPageError } = usePageError('HoursApprovalPage');
   const [tab, setTab] = useState<ApprovalTab>('pending');
-  const [logs, setLogs] = useState<TimeLog[]>([]);
+  // ── EVERY STATUS FOR THE WEEK, FILTERED ON THE CLIENT (owner, 2026-08-16) ────────────────────
+  //
+  // *"We need to see all of the submitted/pending hours, the rejected hours, the adjusted hours,
+  // the accepted hours and the hours that were added by the boss."*
+  //
+  // The page used to ask the server for ONE status set at a time, which made two things impossible:
+  // a count per status (you cannot count what you did not fetch), and noticing that a day exists in
+  // a status you are not currently looking at. A week of one firm's time logs is a handful of rows —
+  // fetching the week once and filtering in the browser costs nothing and makes the strip honest.
+  const [weekLogs, setWeekLogs] = useState<TimeLog[]>([]);
+  /** Who put the day on the record. `entered_by` is set only when the office entered it — see the
+   *  insert in `/api/admin/time-logs`, where NULL means the employee claimed it themselves. Those
+   *  are different assertions about the same eight hours, so they are filterable, not just
+   *  printable. */
+  const [filterSource, setFilterSource] = useState<'all' | 'office' | 'employee'>('all');
+  /**
+   * How much time the list covers.
+   *
+   * The page has always worked in weeks, and the tab called "All Entries" was all STATUSES for one
+   * week — so a day entered for last month was not on it, and the only way to find it was to guess
+   * the week and page back to it. Approving still happens a week at a time (that is what a pay
+   * period is, and the lock is week-shaped), so the week stays the default and this widens only the
+   * READING of the list.
+   */
+  const [range, setRange] = useState<'week' | 'month' | 'all'>('week');
   // N5 — when arriving from an alert link `?focus=<logId>`, scroll to + flash
   // that time-log entry once the list has loaded.
-  useFocusHighlight({ deps: [logs.length] });
+  useFocusHighlight({ deps: [weekLogs.length] });
   const [workTypes, setWorkTypes] = useState<WorkType[]>([]);
   const [advances, setAdvances] = useState<Advance[]>([]);
   const [bonuses, setBonuses] = useState<Bonus[]>([]);
@@ -267,6 +306,9 @@ export default function HoursApprovalPage() {
   });
   const [entrySaving, setEntrySaving] = useState(false);
   const [entryError, setEntryError] = useState<string | null>(null);
+  /** Confirmation of the last office-entered day, shown on the page rather than in the modal that
+   *  just closed — otherwise the only evidence the save worked disappears with the dialog. */
+  const [entryNotice, setEntryNotice] = useState<string | null>(null);
   /** Who the office can enter hours for. Loaded once with the page. */
   const [staff, setStaff] = useState<Array<{ email: string; name: string | null }>>([]);
 
@@ -282,8 +324,21 @@ export default function HoursApprovalPage() {
       setLoading(true);
       const params = new URLSearchParams();
       if (filterEmail) params.set('email', filterEmail);
-      if (filterStatus && filterStatus !== 'all') params.set('status', filterStatus);
-      params.set('week_start', weekStart);
+      // NO `status` param — the period comes back whole and the status filter is applied below, so
+      // the counts strip can say how many rejected/adjusted/approved days exist without the
+      // approver having to go looking for them one filter at a time.
+      if (range === 'week') {
+        params.set('week_start', weekStart);
+      } else if (range === 'month') {
+        // The calendar month CONTAINING the week on screen, so stepping the week and then widening
+        // lands somewhere predictable rather than jumping to today.
+        const anchor = new Date(`${weekStart}T00:00:00`);
+        const from = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+        const to = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+        params.set('date_from', toISODate(from));
+        params.set('date_to', toISODate(to));
+      }
+      // 'all' sends no date filter at all — every entry this firm has, newest first.
 
       const [logsRes, advRes, bonRes] = await Promise.all([
         fetch(`/api/admin/time-logs?${params.toString()}`),
@@ -293,7 +348,7 @@ export default function HoursApprovalPage() {
 
       if (logsRes.ok) {
         const data = await logsRes.json();
-        setLogs(data.logs || []);
+        setWeekLogs(data.logs || []);
         if (data.work_types?.length) setWorkTypes(data.work_types);
       }
       // Balances are loaded with everything else rather than per group, so opening the page is
@@ -359,7 +414,10 @@ export default function HoursApprovalPage() {
     } finally {
       setLoading(false);
     }
-  }, [filterEmail, filterStatus, weekStart, reportPageError]);
+    // `filterStatus` is NOT a dependency any more — it filters the fetched period on the client, so
+    // changing a status chip must not re-hit the network (and must not be able to change what the
+    // counts are computed from). `range` is, because it changes what is fetched.
+  }, [filterEmail, weekStart, range, reportPageError]);
 
   /**
    * Create a time entry on somebody else's behalf.
@@ -397,7 +455,27 @@ export default function HoursApprovalPage() {
       if (!res.ok) throw new Error(body?.error || `Could not save the entry (HTTP ${res.status}).`);
       setShowEntryForm(false);
       setEntryForm((f) => ({ ...f, hours: '', description: '', notes: '' }));
-      await loadData();
+
+      // ── LAND WHERE THE ENTRY ACTUALLY IS (owner, 2026-08-16: "actually see those hours entered") ──
+      //
+      // This used to close the modal and re-run `loadData()` against WHATEVER filter was active —
+      // and the active one is almost always the default, `pending,disputed`. An office-entered day
+      // is inserted `approved` (the admin entering it IS the approver), so the reload could not
+      // return the row that had just been created. The save worked, the employee was notified, and
+      // the screen showed nothing: indistinguishable from a silent failure, on the one action whose
+      // whole point is that somebody can see the result.
+      //
+      // The same trap a week wide: an entry dated outside the week on screen is invisible even on
+      // "All Entries", which is week-scoped. So move BOTH axes to the row that was just written.
+      const savedDate = entryForm.log_date;
+      setTab('history');
+      setFilterStatus('all');
+      setWeekStart(getMonday(new Date(`${savedDate}T00:00:00`)).toISOString().split('T')[0]);
+      setFilterEmail('');
+      setEntryNotice(
+        `Added ${hrs}h for ${entryForm.user_email} on ${formatDate(savedDate)} — approved, and they have been notified.`,
+      );
+      // `loadData` is driven by the filter state above; setting it is what triggers the reload.
     } catch (e) {
       setEntryError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -733,6 +811,15 @@ export default function HoursApprovalPage() {
     return d.toISOString().split('T')[0];
   })();
 
+  // ── THE WEEK, THEN THE FILTERS ────────────────────────────────────────────────────────────────
+  //
+  // `weekLogs` is every status for the week on screen; `logs` is what the current filters leave.
+  // Both exist because the counts have to describe the WEEK — a strip that counted only what passed
+  // the filter would always read "Rejected 0" while you were looking at pending, which is precisely
+  // the blindness this was asked to fix.
+  const statusCounts = countByStatus(weekLogs);
+  const logs = filterLogs(weekLogs, { status: filterStatus, source: filterSource });
+
   // Group logs by employee
   const byEmployee = new Map<string, TimeLog[]>();
   for (const log of logs) {
@@ -741,7 +828,9 @@ export default function HoursApprovalPage() {
     byEmployee.set(log.user_email, arr);
   }
 
-  const pendingCount = logs.filter((l) => l.status === 'pending' || l.status === 'disputed').length;
+  // Counted off the WEEK, not the filtered view: the tab badge answers "is there anything waiting",
+  // and it must not read zero merely because you are currently looking at approved days.
+  const pendingCount = weekLogs.filter((l) => statusOf(l) === 'pending' || statusOf(l) === 'disputed').length;
   const pendingAdvances = advances.filter((a) => a.status === 'pending').length;
 
   if (!session?.user?.email || !session.user.roles?.includes('admin')) {
@@ -750,11 +839,33 @@ export default function HoursApprovalPage() {
 
   return (
     <div className="tl-page">
-      {/* Week navigation */}
+      {/* Week navigation. The arrows step the week even when a wider range is showing, because the
+          week is still what gets locked and paid — widening changes what you can SEE, not the
+          period you are working. */}
       <div className="tl-week-nav">
-        <button className="tl-btn tl-btn--sm" onClick={prevWeek}>&#9664; Prev</button>
-        <span className="tl-week-nav__label">{formatDate(weekStart)} &mdash; {formatDate(weekEndStr)}</span>
-        <button className="tl-btn tl-btn--sm" onClick={nextWeek}>Next &#9654;</button>
+        <button className="tl-btn tl-btn--sm" onClick={prevWeek} disabled={range === 'all'}>&#9664; Prev</button>
+        <span className="tl-week-nav__label">
+          {range === 'week' && <>{formatDate(weekStart)} &mdash; {formatDate(weekEndStr)}</>}
+          {range === 'month' && new Date(`${weekStart}T00:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+          {range === 'all' && 'All time'}
+        </span>
+        <button className="tl-btn tl-btn--sm" onClick={nextWeek} disabled={range === 'all'}>Next &#9654;</button>
+
+        {/* How far the list reaches. "All Entries" used to mean every STATUS for one week, which is
+            why a day entered for last month looked like it had not saved. */}
+        <div className="tl-range" role="group" aria-label="How much time to show">
+          {(['week', 'month', 'all'] as const).map((r) => (
+            <button
+              key={r}
+              type="button"
+              className={`tl-range__btn ${range === r ? 'tl-range__btn--on' : ''}`}
+              aria-pressed={range === r}
+              onClick={() => setRange(r)}
+            >
+              {r === 'week' ? 'This week' : r === 'month' ? 'This month' : 'All time'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Summary */}
@@ -812,6 +923,67 @@ export default function HoursApprovalPage() {
         </button>
       </div>
 
+      {/* ── EVERY STATUS FOR THE WEEK, IN ONE ROW (owner, 2026-08-16) ──────────────────────────────
+          *"We need to see all of the submitted/pending hours, the rejected hours, the adjusted
+          hours, the accepted hours and the hours that were added by the boss."*
+
+          These five states existed and were reachable only by opening "All Entries" and choosing
+          from a dropdown — so a rejected day, or a day the office entered, was something you had to
+          already suspect in order to find. Each chip is a count for the WEEK on screen and a filter
+          for it, and a chip reading 0 is deliberately still rendered: "no rejected hours this week"
+          is an answer, and hiding the chip makes it look like the question cannot be asked. */}
+      {(tab === 'pending' || tab === 'history') && (
+        <div className="tl-status-strip" role="group" aria-label="Filter by status">
+          {([
+            { key: 'all', label: 'All', count: weekLogs.length, mod: 'all' },
+            { key: 'pending,disputed', label: 'Awaiting review', count: statusCounts.pending + statusCounts.disputed, mod: 'pending' },
+            { key: 'approved', label: 'Approved', count: statusCounts.approved, mod: 'approved' },
+            { key: 'adjusted', label: 'Adjusted', count: statusCounts.adjusted, mod: 'adjusted' },
+            { key: 'rejected', label: 'Rejected', count: statusCounts.rejected, mod: 'rejected' },
+            { key: 'disputed', label: 'Disputed', count: statusCounts.disputed, mod: 'disputed' },
+          ] as const).map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              className={`tl-status-chip tl-status-chip--${c.mod} ${filterStatus === c.key ? 'tl-status-chip--on' : ''}`}
+              aria-pressed={filterStatus === c.key}
+              onClick={() => { setTab('history'); setFilterStatus(c.key); }}
+            >
+              <span className="tl-status-chip__count">{c.count}</span>
+              <span className="tl-status-chip__label">{c.label}</span>
+            </button>
+          ))}
+
+          {/* Who put it on the record — a different question from what state it is in, so it is a
+              separate control rather than a sixth status. An office-entered day is `approved` the
+              moment it is written, so it would otherwise be invisible among every other approved day. */}
+          <span className="tl-status-strip__divider" aria-hidden />
+          <button
+            type="button"
+            className={`tl-status-chip tl-status-chip--office ${filterSource === 'office' ? 'tl-status-chip--on' : ''}`}
+            aria-pressed={filterSource === 'office'}
+            onClick={() => { setTab('history'); setFilterStatus('all'); setFilterSource(filterSource === 'office' ? 'all' : 'office'); }}
+            title="Days the office entered on an employee’s behalf, rather than the employee submitting them"
+          >
+            <span className="tl-status-chip__count">{statusCounts.office}</span>
+            <span className="tl-status-chip__label">Added by office</span>
+          </button>
+          {filterSource !== 'all' && (
+            <button type="button" className="tl-status-strip__clear" onClick={() => setFilterSource('all')}>
+              Clear source filter
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* The save confirmation lives here, not in the modal that closed on top of it. */}
+      {entryNotice && (
+        <div className="tl-entry-notice" role="status">
+          <span>{entryNotice}</span>
+          <button type="button" onClick={() => setEntryNotice(null)} aria-label="Dismiss">×</button>
+        </div>
+      )}
+
       {/* Filters */}
       {(tab === 'pending' || tab === 'history') && (
         <div className="tl-filters">
@@ -822,16 +994,10 @@ export default function HoursApprovalPage() {
             value={filterEmail}
             onChange={(e) => setFilterEmail(e.target.value)}
           />
-          {tab === 'history' && (
-            <select className="tl-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="approved">Approved</option>
-              <option value="rejected">Rejected</option>
-              <option value="disputed">Disputed</option>
-              <option value="adjusted">Adjusted</option>
-            </select>
-          )}
+          {/* The status <select> that used to sit here is gone: the chip strip above does the same
+              job and does it better — it shows the COUNT of each status without being opened, which
+              is the whole reason a rejected day used to go unnoticed. Leaving both would be two
+              controls for one filter, drifting apart the first time one of them gains a state. */}
           {/* Log a day the employee never submitted. Sits beside the lock rather than in a menu:
               the moment you need it is while you are looking at a week with a hole in it. */}
           <button
@@ -982,6 +1148,14 @@ export default function HoursApprovalPage() {
                           <span className="tl-badge" style={{ backgroundColor: `${STATUS_COLORS[log.status] || '#6B7280'}20`, color: STATUS_COLORS[log.status] || '#6B7280' }}>
                             {log.status}
                           </span>
+                          {/* Beside the status, not buried in the meta line below it. An office-entered
+                              day is `approved` from birth, so on a list of approved days the status
+                              badge alone cannot tell you which ones the employee never submitted. */}
+                          {log.entered_by && (
+                            <span className="tl-badge tl-badge--office" title={`Entered by ${log.entered_by} — not submitted by the employee`}>
+                              office
+                            </span>
+                          )}
                         </div>
                         <div className="tl-approval-entry__desc">{log.description}</div>
                         {/* "The employee claimed this" and "the office recorded this" are different

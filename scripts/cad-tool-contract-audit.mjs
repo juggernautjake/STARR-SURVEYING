@@ -168,7 +168,18 @@ function promptReads() {
  *  prompt reads them, and it was correct all along — a finding manufactured entirely by the
  *  measurement, which is exactly the shape this document keeps paying for. */
 function handlerWrites() {
-  const lines = viewportSrc.split('\n');
+  // `\r` is stripped, and that is load-bearing rather than tidiness.
+  //
+  // `switchEnd` below compares a line to the literal `'      }'`. On a CRLF checkout — which is what
+  // `git checkout` produces on Windows — the line is `'      }\r'`, the comparison never matches, the
+  // switch is never bounded, and the last case runs to end of file. That hands CURB_RETURN every
+  // `setOffsetSourceId` in the remaining 1,400 lines and reports it as parking a pick in two places.
+  //
+  // Which is EXACTLY the finding the comment above says was already fixed once. It was — for LF
+  // files. The fix was re-broken by nothing more than checking the branch out again, and the repo
+  // has now paid for this twice: a comment stripper was once inert across all 392 seed files because
+  // JavaScript's `.` does not match `\r`. Line-based scanners in this repo must normalise first.
+  const lines = viewportSrc.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
   const caseRe = /^\s{8}case '([A-Z_]+)':/;
   const marks = [];
   for (let i = 0; i < lines.length; i += 1) {
@@ -232,7 +243,11 @@ function wiring() {
 // ── 5. What the preview knows ───────────────────────────────────────────────────────────────────
 function previewTools() {
   const start = viewportSrc.indexOf('function renderToolPreview()');
-  const lines = viewportSrc.split('\n');
+  // Same `\r` normalisation as `handlerWrites`, and here it was failing the OTHER way, which is the
+  // more dangerous one: `lines[i] === '  }'` never matched on a CRLF checkout, so `endLine` stayed at
+  // end-of-file, the "preview" chunk became the whole component, and EVERY tool looked like it had a
+  // preview. A bounded scan that silently loses its bound does not go red — it goes vacuously green.
+  const lines = viewportSrc.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
   const startLine = viewportSrc.slice(0, start).split('\n').length - 1;
   let endLine = lines.length;
   for (let i = startLine + 1; i < lines.length; i += 1) {

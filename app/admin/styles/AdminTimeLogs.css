@@ -13,7 +13,38 @@
   justify-content: center;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  flex-wrap: wrap;
 }
+/* A segmented control, so "this week / this month / all time" reads as one choice rather than
+ * three buttons that might each do something. */
+.tl-range {
+  display: inline-flex;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tl-range__btn {
+  min-height: var(--button-height-sm);
+  box-sizing: border-box;
+  padding: 0 0.7rem;
+  border: none;
+  border-left: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-secondary, #374151);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tl-range__btn:first-child { border-left: none; }
+/* `:not(.tl-range__btn--on)` is load-bearing, not tidiness. A bare `.tl-range__btn:hover` is
+ * specificity 0,2,0 and beats `.tl-range__btn--on` at 0,1,0 — so hovering the SELECTED segment
+ * repainted its label navy on its navy fill and the text vanished. It reads as an empty blue box,
+ * and only while the pointer is on it, which is exactly when somebody is looking at it. */
+.tl-range__btn:not(.tl-range__btn--on):hover { color: var(--color-brand-navy); }
+.tl-range__btn--on,
+.tl-range__btn--on:hover { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); }
 .tl-week-nav__label {
   font-size: 1rem;
   font-weight: 600;
@@ -196,6 +227,105 @@
   flex-wrap: wrap;
 }
 
+/* ---- Status strip (owner 2026-08-16: see every state at a glance) ----
+ *
+ * One chip per state, each a count for the week on screen AND the filter for it. The colours are
+ * the SAME family as `.tl-badge--*` below on purpose: the chip you press and the badge on the
+ * resulting row have to be recognisably the same thing, or the filter reads as unrelated chrome.
+ *
+ * Only the accent is coloured, not the whole chip — six saturated pills in a row compete with the
+ * entries underneath, which are the thing being read. The active chip inverts. */
+.tl-status-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+}
+.tl-status-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-height: var(--button-height-sm);
+  box-sizing: border-box;
+  padding: 0 0.7rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-left: 3px solid var(--tl-chip-accent, var(--theme-border, #E5E7EB));
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #FFF);
+  color: var(--theme-fg-secondary, #374151);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+.tl-status-chip:hover { border-color: var(--tl-chip-accent, var(--color-brand-navy)); }
+.tl-status-chip__count { font-size: 0.95rem; font-weight: 700; color: var(--tl-chip-accent, inherit); }
+.tl-status-chip__label { font-weight: 600; }
+/* Pressed: the accent becomes the fill, so which filter is on is legible without reading. */
+.tl-status-chip--on {
+  background: var(--tl-chip-accent, var(--color-brand-navy));
+  border-color: var(--tl-chip-accent, var(--color-brand-navy));
+  color: var(--theme-accent-fg, #FFF);
+}
+.tl-status-chip--on .tl-status-chip__count { color: var(--theme-accent-fg, #FFF); }
+
+.tl-status-chip--all      { --tl-chip-accent: #6B7280; }
+.tl-status-chip--pending  { --tl-chip-accent: #D97706; }
+.tl-status-chip--approved { --tl-chip-accent: #059669; }
+.tl-status-chip--adjusted { --tl-chip-accent: #0891B2; }
+.tl-status-chip--rejected { --tl-chip-accent: #DC2626; }
+.tl-status-chip--disputed { --tl-chip-accent: #7C3AED; }
+.tl-status-chip--office   { --tl-chip-accent: var(--color-brand-navy); }
+
+.tl-status-strip__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0 0.25rem;
+  background: var(--theme-border, #E5E7EB);
+}
+.tl-status-strip__clear {
+  border: none;
+  background: none;
+  padding: 0 0.35rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-brand-navy);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* The confirmation for a day the office just entered. It sits on the page rather than in the modal
+ * because the modal closes — and without it the only evidence of a successful save was a row you
+ * had to already know how to find. */
+.tl-entry-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--theme-success, #10B981);
+  border-left: 3px solid var(--theme-success, #10B981);
+  border-radius: 6px;
+  background: var(--theme-bg-elevated, #ECFDF5);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  color: var(--theme-fg-primary, #065F46);
+}
+.tl-entry-notice button {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--theme-fg-muted, #6B7280);
+  padding: 0 0.25rem;
+}
+
 /* ---- Badge ---- */
 .tl-badge {
   display: inline-block;
@@ -210,6 +340,13 @@
 .tl-badge--rejected { background: #FEE2E2; color: #DC2626; }
 .tl-badge--disputed { background: #EDE9FE; color: #7C3AED; }
 .tl-badge--adjusted { background: #CFFAFE; color: #0891B2; }
+/* Not a status — a provenance. Outlined rather than filled so it reads as a qualifier ON the
+ * status badge beside it, not as a competing state. */
+.tl-badge--office {
+  background: transparent;
+  color: var(--color-brand-navy);
+  border: 1px solid var(--color-brand-navy);
+}
 
 /* ---- Empty State ---- */
 .tl-empty-day {
@@ -791,6 +928,31 @@
   .tl-pay-block__subtotal { margin-left: 0; }
   .tl-modal--pay { width: 96%; padding: 1rem; }
   .tl-summary-cards { grid-template-columns: repeat(2, 1fr); }
+  /* The strip scrolls sideways rather than wrapping into four ragged rows that push the entries
+     below the fold. The chips keep their touch height; only the row scrolls. */
+  .tl-status-strip {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 0.2rem;
+  }
+  .tl-status-strip::-webkit-scrollbar { display: none; }
+  .tl-status-chip { flex: 0 0 auto; min-height: var(--button-height); }
+  .tl-entry-notice { align-items: flex-start; }
+
+  /* The range control takes its own full-width row and splits it three ways.
+   *
+   * Inline, it was ~69px wide for a label that needs ~77px, and `.tl-range`'s `overflow: hidden`
+   * (there to clip the segment corners) silently ATE the text — the active segment rendered as a
+   * blank navy block. A control whose selected option has no label is worse than no control, and it
+   * was invisible to every width-based audit rule because nothing overflowed the PAGE. */
+  .tl-range {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: stretch;
+  }
+  .tl-range__btn { flex: 1 1 0; text-align: center; min-height: var(--button-height); }
   .tl-entry-card__row { flex-direction: column; }
   .tl-form-group--hours { max-width: none; }
   .tl-history-entry { flex-direction: column; }
