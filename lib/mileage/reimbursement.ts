@@ -1,6 +1,6 @@
 // lib/mileage/reimbursement.ts — how a mileage figure becomes money.
 //
-// C0b4 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0b4 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // ── WHAT THIS FILE USED TO BE ───────────────────────────────────────────────────────────────────
 //

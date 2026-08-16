@@ -1,7 +1,7 @@
 'use client';
 // app/admin/mileage/LogTripForm.tsx
 //
-// C0b3b of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0b3b of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Owner, 2026-08-15: *"I just want it so that there is a manual capture… put in the starting
 // address and the job address and the distance will be calculated and then that will use the miles

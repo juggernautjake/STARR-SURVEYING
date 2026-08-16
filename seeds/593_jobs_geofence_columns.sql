@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 593_jobs_geofence_columns.sql
 --
--- C0d of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+-- C0d of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 --
 -- The migration that was never written.
 --

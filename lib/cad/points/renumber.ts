@@ -1,6 +1,6 @@
 // lib/cad/points/renumber.ts
 //
-// C11 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C11 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Renumber and re-code a set of points, as one undoable batch.
 //

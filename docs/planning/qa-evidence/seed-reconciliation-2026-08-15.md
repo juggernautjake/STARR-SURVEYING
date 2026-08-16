@@ -1,6 +1,6 @@
 # Seed reconciliation against the live database
 
-C48–C50 of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+C48–C50 of `docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 
 > **Owner, 2026-08-15:** *"please make sure that all sql seed files have been applied to the
 > supabase database"*

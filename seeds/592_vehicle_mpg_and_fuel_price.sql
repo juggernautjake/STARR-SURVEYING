@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 592_vehicle_mpg_and_fuel_price.sql
 --
--- C0b2 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+-- C0b2 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 --
 -- Owner, 2026-08-15: mileage becomes manual per job/trip — start address, job
 -- address, distance calculated, "and then that will use the miles per gallon to

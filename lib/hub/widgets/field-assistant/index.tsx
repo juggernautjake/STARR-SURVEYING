@@ -1,7 +1,7 @@
 'use client';
 // lib/hub/widgets/field-assistant/index.tsx
 //
-// C0e of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0e of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // The surveying field assistant — bearings and back-azimuths, angle arithmetic, traverse setup and
 // closure, latitude/departure, field procedure, mileage. Ask it a question, get a short answer.

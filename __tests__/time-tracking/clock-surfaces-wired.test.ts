@@ -1,6 +1,6 @@
 // __tests__/time-tracking/clock-surfaces-wired.test.ts
 //
-// C0i of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0i of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // ── WHY THIS TEST EXISTS ────────────────────────────────────────────────────────────────────────
 //

@@ -1,6 +1,6 @@
 // lib/cad/styles/layer-states.ts
 //
-// C8 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C8 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Named layer states: "field check", "client plat", "for the RPLS". Save which layers are on, and
 // get back to it in one click.

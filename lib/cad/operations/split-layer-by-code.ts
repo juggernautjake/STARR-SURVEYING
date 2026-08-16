@@ -1,6 +1,6 @@
 // lib/cad/operations/split-layer-by-code.ts
 //
-// C7b of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C7b of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Split one layer into one layer per point code: every feature coded FN01 to a new layer, every
 // EP to another, and so on.

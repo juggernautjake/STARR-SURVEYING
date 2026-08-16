@@ -1,6 +1,6 @@
 // lib/field/structured-note.ts — reading a field note's structured payload.
 //
-// C44z of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C44z of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // ── WHY THIS IS ONE FUNCTION AND NOT TWO INLINE BLOCKS ──────────────────────────────────────────
 //

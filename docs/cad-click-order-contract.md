@@ -1,6 +1,6 @@
 # The click-order contract
 
-C13 of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+C13 of `docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 
 > **Owner:** *"Please make sure when we are drawing, that the order of clicks and placement of
 > points and lines works well and is intuitive."*

@@ -1,6 +1,6 @@
 // scripts/cad-tool-contract-audit.mjs — does each tool BEHAVE the way the contract says?
 //
-// C14b of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C14b of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // ── HOW THIS DIFFERS FROM cad-click-order-audit.mjs ─────────────────────────────────────────────
 //

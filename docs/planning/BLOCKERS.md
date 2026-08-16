@@ -404,3 +404,59 @@ No stub-generation code was written against either answer. Building the withhold
 in a tax policy nobody has chosen; building the gross-only path *first* would make step 1 look
 answered when it is not. The row's own phrasing is the right one: **the cost here is a conversation,
 not engineering.**
+
+---
+
+## Two decisions left by CAD_EXCELLENCE_AND_PLATFORM_COMPLETION (2026-08-16)
+
+That document is now in `completed/`. Every slice in it shipped or is listed here; these two are the
+only things in it that were deliberately **not** decided, because deciding either unilaterally would
+have picked an answer on the owner's behalf.
+
+### 1. One API key, and address→address mileage starts working
+
+- [ ] **Set `GOOGLE_MAPS_SERVER_KEY`.**
+
+The slice that needed it (C0b1) was parked for months as *"owner-gated: needs a maps API key and
+billing enabled"*, and the planning table recorded *"Nothing. No geocoding, no distance-matrix, no
+maps provider anywhere."* Probing the real project on 2026-08-16 says the gate is much smaller:
+
+- the legacy **Distance Matrix** API is off (Google's own error points at the Routes API instead);
+- the **Routes API is enabled and billed** — a `computeRoutes` call gets past every enablement and
+  billing check and fails only at `API_KEY_HTTP_REFERRER_BLOCKED`.
+
+That is not a spending decision. The only key in the environment,
+`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`, is a **browser** key restricted by HTTP referrer, and a
+server-side call has no referrer to send. It is also, being `NEXT_PUBLIC_`, readable by every
+visitor — using it for a billed API would put the firm's quota behind a public value.
+
+**What to do:** Google Cloud Console → Credentials → Create credentials → API key → Application
+restrictions **None** (or IP addresses) → API restrictions **Routes API**. Put it in
+`GOOGLE_MAPS_SERVER_KEY` (Vercel + `.env.local`).
+
+**Until then nothing is broken**: the trip form takes a typed distance, and the "Look up from
+addresses" button explains that the key is unset rather than failing silently. The adapter, the
+route, the UI and 15 tests are already shipped — the key is the entire remaining step.
+
+### 2. `fieldbook_notes.is_current` means two incompatible things
+
+- [ ] **Decide which meaning `is_current` has**, then make the other reader agree.
+
+Both meanings are live and both are load-bearing:
+
+| Meaning | Who believes it |
+|---|---|
+| **Soft-archive flag** (true = active) | `mobile/lib/fieldNotes.ts` says so outright and filters its lists on it; `/admin/jobs/[id]/field` and `/admin/field-data/[id]` both render `!is_current` as an **"archived"** badge |
+| **Per-user "the note I have open" pointer** (exactly one true per user) | `POST /api/admin/learn/fieldbook` ("unmark any current entry for this user"); seed 099's `(user_email, is_current) WHERE is_current = true` partial index is shaped for it |
+
+They coexisted only because nothing ever wrote a **job** note through that route. C0d2 added an
+office compose box, which would have made creating one clear the pointer on the author's *previous
+job note* — and the job page would have badged it "archived" in front of the whole crew, for no
+reason anybody could see.
+
+**Shipped as a containment, not a decision:** the pointer sweep is now skipped for job notes, so the
+bug cannot fire. The column still means two things.
+
+**Why this needs you:** picking the archive meaning changes what the personal notebook considers
+open; picking the pointer meaning changes what mobile lists and makes the "archived" badge wrong on
+two admin screens. Either is a small change; choosing is not a code question.

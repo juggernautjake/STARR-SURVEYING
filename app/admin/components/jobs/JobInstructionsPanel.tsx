@@ -1,7 +1,7 @@
 'use client';
 // app/admin/components/jobs/JobInstructionsPanel.tsx
 //
-// C0c of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0c of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // RPLS-authored instructions for a job: what the crew needs to know before they go out. Read by
 // anyone on the job, edited by the lead RPLS or an admin.

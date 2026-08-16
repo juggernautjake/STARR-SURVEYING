@@ -1,6 +1,6 @@
 # CAD integrations — what each one is, expects, and does when it fails
 
-> **C44e** of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+> **C44e** of `docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 > Companion to `docs/cad-integration-points.md`, which is the generated *reachability* list.
 > That one answers **where each module is reached from**. This one answers **what it does, what it
 > needs, and how it tells you when it cannot**.

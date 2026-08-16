@@ -514,3 +514,46 @@ half-built schema and a merge of half-finished work are both hard to walk back.
    opening number was the instrument. The 28 CAD findings fixed in A14 were 3 real defects.
 6. **Drive the surface, don't only measure it.** The snap-popover clip found in A14 was invisible to
    all six audit rules at every width — it was found by reading the CSS, and it had been shipping.
+
+---
+
+## Closeout — 2026-08-16
+
+**Every slice in this document is shipped.** Three rows remain unshipped and all three are 🚫
+owner-gated, all three were **carried in from other planning docs** by P9, and all three are tracked
+in the docs that actually own them — verified before this document was moved, so that closing it
+drops nothing:
+
+| Row | Real home |
+|---|---|
+| C40 Payroll S9c | `pending/PAYROLL_HOURS_AND_EMPLOYEE_MONEY_2026-08-12.md` (§S9b/S9c) + the ordered unblock path appended to `BLOCKERS.md` |
+| C41 Payroll S8 auto-transfer | same payroll doc, §S8 — "elapsed time" on a ledger that has been reconciling in production |
+| C43 Mobile background uploads | `BLOCKERS.md` §C — Expo runtime wiring, only exercisable on the owner's device |
+
+Two decisions this document deliberately did **not** make are recorded in `BLOCKERS.md`: the one API
+key that switches on address→address mileage (C0b1), and the `is_current` column that means two
+incompatible things (C0d2). Both were left open because deciding either unilaterally would pick an
+answer on the owner's behalf.
+
+### Final gate
+
+`tsc` clean · `next lint` 0 errors · `npm run build` on a clean `.next` · **24,978 tests / 1,665
+files** · qa-sweep **0 findings across 130 routes** · alignment audit **2 at 1440 and 2 at 390, both
+`/admin/cad`** — the accepted pair, unchanged from the day this document opened.
+
+### The one lesson worth carrying out of here
+
+**A parked slice's stated reason is a claim, not a fact.** Four of the four rows parked on a premise
+had a premise that was false or far narrower than written: C7b's dependency never existed, C0b4's
+constraint protected zero rows, C44z's "schema decision" had already been decided and written down,
+and C0b1's "billing" gate was a browser key. Checking each cost minutes.
+
+Its twin: **an instrument is wrong more often than the code is.** Seven measurement faults were
+caught before acting on them — including a comment stripper that was inert across all 392 seed files
+because JavaScript's `.` does not match `\r` — and one that was not caught until after it landed, a
+literal `` $` `` in a `String.replace` replacement that spliced a second copy of this ledger into
+itself.
+
+**Owner instruction, 2026-08-16:** open a PR rather than merge. That **reverses** the 2026-08-15
+instruction recorded in P11 and restores the standing PR-workflow preference. Branch
+`claude/admin-ui-alignment-2026-08-14` is pushed; the merge is the owner's.

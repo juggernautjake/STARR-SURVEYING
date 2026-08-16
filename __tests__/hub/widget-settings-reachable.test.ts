@@ -1,6 +1,6 @@
 // __tests__/hub/widget-settings-reachable.test.ts
 //
-// C0m of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0m of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Every setting a widget reads must be one the user can change.
 //

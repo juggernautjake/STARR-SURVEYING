@@ -1,6 +1,6 @@
 // app/api/admin/mileage/distance/route.ts — look up the driving distance between two addresses.
 //
-// C0b1 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0b1 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Read-only, and deliberately separate from `POST /api/admin/mileage/manual`, which SAVES a trip.
 // Folding the lookup into the save would mean a provider outage blocked capture entirely — and the

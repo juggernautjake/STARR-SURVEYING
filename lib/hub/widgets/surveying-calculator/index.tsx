@@ -1,7 +1,7 @@
 'use client';
 // lib/hub/widgets/surveying-calculator/index.tsx
 //
-// C0f of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0f of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // The surveying calculator: bearing ↔ azimuth, angle arithmetic, triangles and trig, latitude and
 // departure — plus a plain arithmetic pad.

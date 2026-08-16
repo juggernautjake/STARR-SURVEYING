@@ -1,6 +1,6 @@
 // app/api/admin/mileage/manual/route.ts — persist a MANUAL mileage entry.
 //
-// C0b3 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0b3 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Owner, 2026-08-15: *"put in the starting address and the job address and the distance will be
 // calculated and then that will use the miles per gallon to calculate the cost as well. So all

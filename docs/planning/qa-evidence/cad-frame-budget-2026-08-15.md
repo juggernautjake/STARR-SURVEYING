@@ -1,6 +1,6 @@
 # CAD frame budget — measured 2026-08-15
 
-C1 of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+C1 of `docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 
 **This slice deliberately changes no code.** D2: *"P1 opens by re-measuring, not by optimising"* —
 the failure mode being avoided is a slice that optimises something already fast while the real cost

@@ -1,6 +1,6 @@
 // lib/mileage/fuel.ts — the pure math for a trip's FUEL COST.
 //
-// C0b2 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0b2 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Owner, 2026-08-15: *"put in the starting address and the job address and the distance will be
 // calculated and then that will use the miles per gallon to calculate the cost as well."*

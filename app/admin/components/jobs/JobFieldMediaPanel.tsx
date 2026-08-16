@@ -1,7 +1,7 @@
 'use client';
 // app/admin/components/jobs/JobFieldMediaPanel.tsx
 //
-// C0d of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0d of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Field media captured on the mobile app — corner photos, monument shots, voice notes, video —
 // reviewed from the job page.

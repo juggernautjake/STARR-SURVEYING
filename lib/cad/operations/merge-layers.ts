@@ -1,6 +1,6 @@
 // lib/cad/operations/merge-layers.ts
 //
-// C7 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C7 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Merge one layer into another: move every feature across, then delete the emptied layer.
 //

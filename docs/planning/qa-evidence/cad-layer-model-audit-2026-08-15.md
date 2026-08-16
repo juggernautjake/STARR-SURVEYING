@@ -1,6 +1,6 @@
 # CAD layer model — what it carries, and what a surveyor can actually change
 
-C5 of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+C5 of `docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 **Audit only — no code changed.** C6–C8 build against this.
 
 ## The model is not the problem

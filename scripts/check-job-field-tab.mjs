@@ -1,6 +1,6 @@
 // scripts/check-job-field-tab.mjs — drive the job Field Work tab, which no sweep can reach.
 //
-// C0d2 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0d2 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
 //

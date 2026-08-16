@@ -1,6 +1,6 @@
 # CAD integration points — the enumeration
 
-> **C44a / C44b** of `docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
+> **C44a / C44b** of `docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`.
 > Regenerate with `node scripts/cad-integration-audit.mjs --markdown`.
 > `--orphans-only` for the short version; `--json` for a machine-readable one.
 > Guarded by `__tests__/cad/cad-integrations-reach-a-surface.test.ts`, which runs this same audit.

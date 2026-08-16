@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cad/components/LayerPropertiesDialog.tsx
 //
-// C6 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C6 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // The layer properties a surveyor could not reach.
 //

@@ -1,6 +1,6 @@
 // scripts/seed-reconcile.mjs — which seeds has the live database actually had applied?
 //
-// C48 of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C48 of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // ── WHY THIS IS NOT A LOOKUP ────────────────────────────────────────────────────────────────────
 //

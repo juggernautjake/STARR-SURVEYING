@@ -1,6 +1,6 @@
 // __tests__/hub/mobile-editor-parity.test.ts
 //
-// C0n of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+// C0n of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 //
 // Owner: *"Please make sure the widget editing and control is fully fleshed out and complete on
 // both pc and mobile."*

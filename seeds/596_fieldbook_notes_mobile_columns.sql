@@ -1,7 +1,7 @@
 -- ============================================================================
 -- 596_fieldbook_notes_mobile_columns.sql
 --
--- C44z of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
+-- C44z of docs/planning/completed/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 --
 -- The second migration in this document that was designed, written down, and
 -- never applied. Seed 593 was the first.
