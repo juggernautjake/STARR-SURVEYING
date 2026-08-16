@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { parseStructuredNote } from '@/lib/field/structured-note';
 
 const PHOTO_BUCKET = 'starr-field-photos';
 const FILES_BUCKET = 'starr-field-files';
@@ -172,8 +173,14 @@ export const GET = withErrorHandler(
         .order('captured_at', { ascending: true }),
       supabaseAdmin
         .from('fieldbook_notes')
+        // C44z — `content`, not `body`. `body` is the column name in the MOBILE app's local SQLite
+        // mirror (mobile/lib/fieldNotes.ts); the server table has always called it `content`, has
+        // live rows in it, and three shipped routes read it under that name. Asking for a column
+        // that does not exist made PostgREST fail the whole select, which is how a job with notes
+        // reported having none. The API's own response field stays `body` — that is this route's
+        // contract with its two UIs, and renaming it would move the breakage rather than fix it.
         .select(
-          'id, body, note_template, structured_data, is_current, user_email, created_at, updated_at, voice_transcript_media_id'
+          'id, content, note_template, structured_data, is_current, user_email, created_at, updated_at, voice_transcript_media_id'
         )
         .eq('data_point_id', id)
         .order('created_at', { ascending: false }),
@@ -319,9 +326,11 @@ export const GET = withErrorHandler(
 
     type RawNote = {
       id: string;
-      body: string | null;
+      /** The DB column. Surfaced to the UI as `body` below — see the select comment. */
+      content: string | null;
       note_template: string | null;
-      structured_data: string | null;
+      /** JSONB. PostgREST returns it already parsed; the string arm is for a legacy text row. */
+      structured_data: string | Record<string, unknown> | null;
       is_current: boolean | null;
       user_email: string | null;
       created_at: string;
@@ -330,20 +339,15 @@ export const GET = withErrorHandler(
     };
     const notes: AdminFieldNoteRow[] = ((notesRaw ?? []) as RawNote[]).map(
       (n) => {
-        let structuredPayload: Record<string, unknown> | null = null;
-        if (n.structured_data) {
-          try {
-            const parsed = JSON.parse(n.structured_data);
-            if (parsed && typeof parsed === 'object') {
-              structuredPayload = parsed as Record<string, unknown>;
-            }
-          } catch {
-            /* malformed JSON — render the body fallback */
-          }
-        }
+        // C44z — was `JSON.parse(n.structured_data)` in a silent catch. Seed 594 makes the column
+        // JSONB, so PostgREST returns an object, and `JSON.parse` stringifies its argument before
+        // parsing — `"[object Object]"` throws on every row. The catch would have hidden it, and
+        // every structured note would have rendered as plain text with no structured table, which
+        // is indistinguishable from nobody having filed one.
+        const structuredPayload = parseStructuredNote(n.structured_data);
         return {
           id: n.id,
-          body: n.body ?? '',
+          body: n.content ?? '',
           note_template: n.note_template,
           structured_payload: structuredPayload,
           is_current: !!n.is_current,

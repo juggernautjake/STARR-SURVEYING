@@ -30,6 +30,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { parseStructuredNote } from '@/lib/field/structured-note';
 
 // ── Bucket config (must mirror seeds/220-226 declarations) ──────────────────
 
@@ -38,6 +39,7 @@ const VOICE_BUCKET = 'starr-field-voice';
 const VIDEO_BUCKET = 'starr-field-videos';
 const FILES_BUCKET = 'starr-field-files';
 const SIGNED_URL_TTL_SEC = 60 * 60; // 1 hour
+
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,8 +173,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .order('captured_at', { ascending: false }),
     supabaseAdmin
       .from('fieldbook_notes')
+      // C44z — `content`, not `body`; see the seed 594 header. `body` is the MOBILE app's local
+      // SQLite column name, and asking PostgREST for a column that does not exist fails the whole
+      // select, which is how a job with notes reported having none.
       .select(
-        'id, body, note_template, structured_data, is_current, user_email, data_point_id, created_at'
+        'id, content, note_template, structured_data, is_current, user_email, data_point_id, created_at'
       )
       .eq('job_id', jobId)
       .order('created_at', { ascending: false }),
@@ -189,10 +194,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // independently.
   //
   // Until today any one of them erroring returned a 500 for the whole manifest, and one of them was
-  // erroring permanently: this route asks `fieldbook_notes` for `body, note_template,
-  // structured_data, data_point_id`, and the live table of that name is the LEARN notes table
-  // (`title`, `content`, `module_id`, `lesson_id`, …). No seed in this repo ever created the shape
-  // this query expects — a name collision, not a missing migration.
+  // erroring permanently: this route asked `fieldbook_notes` for `body, note_template,
+  // structured_data, data_point_id`, none of which existed on the live table.
+  //
+  // C0d read that as a NAME COLLISION — the job route pointed at the learn notes table by mistake.
+  // C44z checked, and it was the opposite. There is one fieldbook; it has always carried `job_id`,
+  // `job_name` and `job_number`, and `learn/fieldbook/route.ts` advertises "job-linked notes" in
+  // its own header. The job routes were pointed at exactly the right table, asking it for columns
+  // a migration was supposed to have added and never did (seed 594 now adds them), under the one
+  // column name that belongs to the mobile app's local database rather than this one.
   //
   // The cost of coupling them was not theoretical. `job_media` is the only record of what the crew
   // photographed, and the sole consumer read this route as `r.ok ? … : { job_media: [] }` — so a
@@ -251,9 +261,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   };
   type RawNote = {
     id: string;
-    body: string | null;
+    /** The DB column. Surfaced to the UI as `body` — that is this route's contract. */
+    content: string | null;
     note_template: string | null;
-    structured_data: string | null;
+    /** JSONB. PostgREST returns it already parsed; the string arm is for a legacy row that stored
+     *  the payload as text. See `parseStructured`. */
+    structured_data: string | Record<string, unknown> | null;
     is_current: boolean | null;
     user_email: string | null;
     data_point_id: string | null;
@@ -448,20 +461,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // 7. Job-level notes + files — same shape as the per-point versions
   //    on /api/admin/field-data/[id] for UI parity.
   const jobNotes: JobNoteRow[] = jobLevelNotes.map((n) => {
-    let payload: Record<string, unknown> | null = null;
-    if (n.structured_data) {
-      try {
-        const parsed = JSON.parse(n.structured_data);
-        if (parsed && typeof parsed === 'object') {
-          payload = parsed as Record<string, unknown>;
-        }
-      } catch {
-        /* malformed JSON — body still renders */
-      }
-    }
+    const payload = parseStructuredNote(n.structured_data);
     return {
       id: n.id,
-      body: n.body ?? '',
+      body: n.content ?? '',
       note_template: n.note_template,
       structured_payload: payload,
       is_current: !!n.is_current,
