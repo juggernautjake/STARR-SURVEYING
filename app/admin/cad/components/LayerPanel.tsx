@@ -24,6 +24,7 @@ import { TRANSFER_DRAG_MIME, type TransferDragPayload } from './SelectionDragChi
 import NewLayerDialog from './NewLayerDialog';
 import LayerPropertiesDialog from './LayerPropertiesDialog';
 import { planLayerMerge, describeMergeRefusal } from '@/lib/cad/operations/merge-layers';
+import { planLayerSplitByCode, describeSplitRefusal } from '@/lib/cad/operations/split-layer-by-code';
 import { isLayerStateCurrent, validateLayerStateName, LAYER_STATE_NAME_MAX } from '@/lib/cad/styles/layer-states';
 // cad-layer-grouping Slice 5 — unified context menu for layer-panel
 // group rows (and, in future slices, feature rows + layer rows).
@@ -140,6 +141,52 @@ export default function LayerPanel() {
       makeBatchEntry(`Merge "${plan.sourceName}" into "${plan.targetName}"`, plan.operations),
     );
     setMergeSourceId(null);
+  }
+
+  /**
+   * C7b — split a layer into one layer per point code, as ONE undo entry.
+   *
+   * Same batching rule as merge, and for the same reason from the other direction: a split undone
+   * halfway leaves features parented to layers that have been removed, and `getVisibleFeatures`
+   * drops those silently.
+   */
+  async function handleSplitByCode(sourceLayerId: string) {
+    const docNow = useDrawingStore.getState().document;
+    const plan = planLayerSplitByCode({
+      sourceLayerId,
+      layers: docNow.layers,
+      features: docNow.features,
+      makeLayerId: () => generateId(),
+    });
+    if (!plan.ok) {
+      void alertAction({ title: 'Starr CAD', message: describeSplitRefusal(plan.reason) });
+      return;
+    }
+    const moved = plan.groups.reduce((n, g) => n + g.featureIds.length, 0);
+    const ok = await confirmAction({
+      title: 'Split layer by point code',
+      // The uncoded count is named rather than omitted: a surveyor who splits a layer and sees
+      // features still on it needs to know that was the rule, not a failure.
+      message: `Split "${plan.sourceName}" into ${plan.groups.length} layers by point code, moving ${moved} feature(s)?`
+        + (plan.uncodedCount
+          ? `\n\n${plan.uncodedCount} feature(s) carry no code and stay on "${plan.sourceName}".`
+          : ''),
+      confirmLabel: 'Split',
+    });
+    if (!ok) return;
+
+    // P6d convention — every call resolves through getState() at the moment it runs.
+    for (const layer of plan.newLayers) {
+      useDrawingStore.getState().addLayer(layer);
+    }
+    for (const g of plan.groups) {
+      for (const id of g.featureIds) {
+        useDrawingStore.getState().updateFeature(id, { layerId: g.layerId });
+      }
+    }
+    useUndoStore.getState().pushUndo(
+      makeBatchEntry(`Split "${plan.sourceName}" by point code`, plan.operations),
+    );
   }
   const [panelMenu, setPanelMenu] = useState<{ x: number; y: number } | null>(null);
   const [newLayerDefaults, setNewLayerDefaults] = useState<{ name: string; color: string } | null>(null);
@@ -1425,6 +1472,16 @@ export default function LayerPanel() {
             onClick={() => { setMergeSourceId(contextMenu.layerId); setContextMenu(null); }}
           >
             <Layers size={11} /> Merge into…
+          </button>
+          {/* C7b — split, the inverse of merge and the other operation C7 measured as missing.
+              One layer of mixed field shots becomes one layer per point code. Acts immediately
+              rather than opening a picker, because unlike merge there is nothing to choose: the
+              codes on the layer decide the result. The confirm names the count. */}
+          <button
+            className="w-full text-left px-3 py-1 hover:bg-gray-700 transition-colors duration-100 flex items-center gap-1.5"
+            onClick={() => { const id = contextMenu.layerId; setContextMenu(null); void handleSplitByCode(id); }}
+          >
+            <Layers size={11} /> Split by point code…
           </button>
           {/* C6 — line type, line weight, opacity, freeze and description. Every one of these was
               in the model, honoured by the renderer, and reachable from nowhere (C5). */}
