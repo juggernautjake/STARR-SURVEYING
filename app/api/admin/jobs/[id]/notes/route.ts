@@ -30,7 +30,7 @@
 // four bulk fetches. A notes panel on the job page would pull all of it to render a list of
 // sentences, and every signed URL it minted would go unused.
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, isAdmin } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { jobNoteOrigin, describeJobNoteOrigin, officeJobNoteContext } from '@/lib/field/job-note-origin';
@@ -41,6 +41,41 @@ const MAX_NOTE_LEN = 4000;
 function jobIdFrom(req: NextRequest): string | null {
   const segments = new URL(req.url).pathname.split('/').filter(Boolean);
   return segments[segments.length - 2] ?? null;
+}
+
+// ── AUTHORISATION ───────────────────────────────────────────────────────────────────────────────
+//
+// This route shipped checking only that SOMEBODY was signed in. Both of its neighbours check more:
+// `field-data` requires admin-or-tech_support, and `instructions` requires org membership AND that
+// the job belongs to the caller's org. That gap mattered here more than on a read-only screen,
+// because every query below runs through `supabaseAdmin` — the service-role client, which bypasses
+// RLS — so the row-level protection people assume is there is not.
+//
+// The tell was an `isAdmin` imported and never called: the check was intended and never wired.
+//
+// The rule this settles on is the `instructions` one, not the `field-data` one. A job note is
+// written BY the crew ("anything the crew should know before or after a visit"), so gating writes on
+// admin would gate out the people the feature is for. Org membership, plus the job being in that
+// org, is the boundary — and the org check is what stops a job id from another tenant returning its
+// notes to a signed-in stranger.
+async function orgMember(email: string): Promise<{ orgId: string; role: string } | null> {
+  const { data: user } = await supabaseAdmin
+    .from('registered_users').select('default_org_id').eq('email', email).maybeSingle();
+  if (!user?.default_org_id) return null;
+  const { data: m } = await supabaseAdmin
+    .from('organization_members').select('role')
+    .eq('org_id', user.default_org_id).eq('user_email', email).maybeSingle();
+  if (!m) return null;
+  return { orgId: user.default_org_id as string, role: (m as { role: string }).role };
+}
+
+/** The job, only if it is in the caller's org. `null` is reported as 404 rather than 403 so the
+ *  route does not confirm that a job id exists in some other tenant. */
+async function jobInOrg(jobId: string, orgId: string) {
+  const { data } = await supabaseAdmin
+    .from('jobs').select('id, org_id, name, job_number').eq('id', jobId).maybeSingle();
+  if (!data || (data as { org_id: string | null }).org_id !== orgId) return null;
+  return data as { id: string; org_id: string; name: string | null; job_number: string | null };
 }
 
 export interface JobNoteEntry {
@@ -59,6 +94,12 @@ export interface JobNoteEntry {
   /** Present on notes the field app attached to a specific shot. */
   data_point_id: string | null;
   note_template: string | null;
+  /** `is_current === false` in its SOFT-ARCHIVE meaning. The surface this panel replaced badged
+   *  these "archived"; dropping the badge made an archived note indistinguishable from a live one.
+   *  Carried as a resolved boolean rather than the raw column because the column means two things —
+   *  see BLOCKERS.md, "Two decisions left". Naming it `archived` here commits to nothing: it is what
+   *  BOTH admin screens and mobile already render it as. */
+  archived: boolean;
 }
 
 /** Shared by GET and POST so a freshly-created note comes back in exactly the shape the list uses —
@@ -75,10 +116,11 @@ type NoteRow = {
   page_url: string | null;
   data_point_id: string | null;
   note_template: string | null;
+  is_current: boolean | null;
 };
 
 const SELECT =
-  'id, title, content, user_email, created_at, updated_at, context_type, context_label, page_url, data_point_id, note_template';
+  'id, title, content, user_email, created_at, updated_at, context_type, context_label, page_url, data_point_id, note_template, is_current';
 
 /** Resolve author display names in ONE query. Notes key their author by EMAIL, not by the
  *  `created_by` id that points, media and files use — which is why the manifest route's existing
@@ -111,6 +153,9 @@ function toEntry(row: NoteRow, names: Map<string, string>): JobNoteEntry {
     updated_at: row.updated_at,
     data_point_id: row.data_point_id,
     note_template: row.note_template,
+    // `null` is treated as live, not archived: the column is nullable and every reader that predates
+    // it renders a null row normally. Defaulting the other way would badge the back-catalogue.
+    archived: row.is_current === false,
   };
 }
 
@@ -118,8 +163,15 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  const member = await orgMember(session.user.email);
+  if (!member) return NextResponse.json({ error: 'No org' }, { status: 403 });
+
   const jobId = jobIdFrom(req);
   if (!jobId) return NextResponse.json({ error: 'Missing job id' }, { status: 400 });
+
+  if (!(await jobInOrg(jobId, member.orgId))) {
+    return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('fieldbook_notes')
@@ -141,6 +193,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const email = session.user.email;
 
+  const member = await orgMember(session.user.email);
+  if (!member) return NextResponse.json({ error: 'No org' }, { status: 403 });
+
   const jobId = jobIdFrom(req);
   if (!jobId) return NextResponse.json({ error: 'Missing job id' }, { status: 400 });
 
@@ -156,17 +211,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
-  // The job must exist, and its name/number are denormalised onto the note so the fieldbook list
-  // can label it without joining. Reading them here rather than trusting the body is the same rule
-  // as the origin: the client names the job by id in the path and nothing else.
-  const { data: job } = await supabaseAdmin
-    .from('jobs')
-    .select('id, name, job_number')
-    .eq('id', jobId)
-    .maybeSingle();
-  if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-
-  const jobRow = job as { id: string; name: string | null; job_number: string | null };
+  // The job must exist IN THE CALLER'S ORG, and its name/number are denormalised onto the note so
+  // the fieldbook list can label it without joining. Reading them here rather than trusting the body
+  // is the same rule as the origin: the client names the job by id in the path and nothing else.
+  const jobRow = await jobInOrg(jobId, member.orgId);
+  if (!jobRow) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
   const { data, error } = await supabaseAdmin
     .from('fieldbook_notes')

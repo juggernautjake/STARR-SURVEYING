@@ -47,12 +47,45 @@ function walk(dir: string, out: string[] = []): string[] {
  * hex after a nested value and report improvement that never happened.
  */
 export function countHexInInlineStyles(source: string): number {
+  return countHexInMatchedBlocks(source, /style=\{\{/g, 2);
+}
+
+/**
+ * Count hex colour literals inside a `React.CSSProperties` style object — the SAME defect wearing a
+ * different costume, and for two years the one the guard could not see.
+ *
+ * `JobNotesPanel.tsx` shipped 2026-08-16 as a brand-new file with 30 hard-coded colours and passed
+ * the "a new file must have ZERO" rule, because it wrote them as:
+ *
+ *     const s: Record<string, React.CSSProperties> = { card: { background: '#FFFFFF' } };
+ *     <section style={s.card}>
+ *
+ * There is no `style={{` anywhere in it. The colours are just as unreachable by a design token, a
+ * media query, the print stylesheet or a contrast audit — it rendered a white card with near-black
+ * text on all four dark skins — but the scanner matched on the SPELLING of the defect rather than on
+ * what makes it a defect. Measured when this was added: 1,855 hexes across 103 files hid here,
+ * MORE than the 1,624 the ratchet was counting. The hole was bigger than the guard.
+ */
+export function countHexInStyleObjects(source: string): number {
+  // `React.CSSProperties = {`, `Record<string, React.CSSProperties> = {`, `CSSProperties[] = {` …
+  // `[^=\n]*` stays on one line so it cannot run past a declaration into an unrelated `= {` below.
+  return countHexInMatchedBlocks(source, /CSSProperties[^=\n]*=\s*\{/g, 1);
+}
+
+/**
+ * Shared brace-matcher for both counters.
+ *
+ * Brace-matched rather than regex-bounded: a style object routinely contains nested objects and template
+ * literals, and a lazy `style=\{\{[^}]*\}\}` stops at the first inner `}` — which would silently miss every
+ * hex after a nested value and report improvement that never happened.
+ */
+function countHexInMatchedBlocks(source: string, re: RegExp, openDepth: number): number {
   let total = 0;
-  const re = /style=\{\{/g;
   let m: RegExpExecArray | null;
+  re.lastIndex = 0;
   while ((m = re.exec(source))) {
     let i = m.index + m[0].length;
-    let depth = 2; // the two braces just consumed
+    let depth = openDepth; // the brace(s) the pattern already consumed
     while (i < source.length && depth > 0) {
       const c = source[i];
       if (c === '{') depth += 1;
@@ -65,13 +98,18 @@ export function countHexInInlineStyles(source: string): number {
   return total;
 }
 
+/** Both spellings of the same defect: a colour a token cannot reach. */
+export function countHexInFile(source: string): number {
+  return countHexInInlineStyles(source) + countHexInStyleObjects(source);
+}
+
 /** `{ 'app/foo/Bar.tsx': 12 }` for every file with at least one, POSIX-separated so the baseline is
  *  identical on Windows and CI. */
 export function scanRepo(root = process.cwd(), dirs = ['app', 'lib']): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const d of dirs) {
     for (const file of walk(path.join(root, d))) {
-      const n = countHexInInlineStyles(fs.readFileSync(file, 'utf8'));
+      const n = countHexInFile(fs.readFileSync(file, 'utf8'));
       if (n > 0) counts[path.relative(root, file).split(path.sep).join('/')] = n;
     }
   }
@@ -126,16 +164,24 @@ if (require.main === module) {
     for (const r of bad) console.log(`  ${r.file}: ${r.was} → ${r.now}`);
   }
 
-  if (process.argv.includes('--write')) {
-    // Only ever ratchets DOWN. Writing a higher number would turn the guard into a rubber stamp — the
-    // one failure mode a baseline has, and the reason `--write` is not simply "record whatever is there".
+  if (process.argv.includes('--write') || process.argv.includes('--widen')) {
+    // `--write` only ever ratchets DOWN. Writing a higher number would turn the guard into a rubber
+    // stamp — the one failure mode a baseline has, and the reason `--write` is not simply "record
+    // whatever is there".
+    //
+    // `--widen` is the ONE legitimate exception and is deliberately a different flag: when the
+    // COUNTER learns to see a defect it was blind to, every affected file's number jumps through no
+    // change in the code, and `Math.min` would fail the whole repo at once. It records current as-is,
+    // grandfathering newly-visible debt — which is still strictly better than the nothing that was
+    // guarding it. Use it only in the commit that widens coverage, never to make a red build green.
+    const widen = process.argv.includes('--widen');
     const next: Record<string, number> = {};
     for (const [file, now] of Object.entries(current)) {
       const was = baseline[file];
-      next[file] = was == null ? now : Math.min(was, now);
+      next[file] = was == null || widen ? now : Math.min(was, now);
     }
     fs.writeFileSync(path.join(root, BASELINE_PATH), `${JSON.stringify(next, null, 2)}\n`, 'utf8');
-    console.log(`\nWrote ${BASELINE_PATH}.`);
+    console.log(`\nWrote ${BASELINE_PATH}${widen ? ' (WIDENED — coverage expansion)' : ''}.`);
   } else if (bad.length) {
     process.exitCode = 1;
   }

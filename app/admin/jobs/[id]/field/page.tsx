@@ -790,54 +790,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   // C0d2 — compose box. Sits above the list rather than below it, because the list grows without
   // bound and a control that walks down the page as notes accumulate stops being findable.
-  noteCompose: {
-    marginBottom: 12,
-  },
-  noteInput: {
-    width: '100%',
-    boxSizing: 'border-box',
-    padding: '8px 10px',
-    fontSize: 14,
-    lineHeight: 1.5,
-    color: '#0B0E14',
-    border: '1px solid #D1D5DB',
-    borderRadius: 6,
-    fontFamily: 'inherit',
-    resize: 'vertical',
-  },
-  noteComposeRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 6,
-    flexWrap: 'wrap',
-  },
-  noteButton: {
-    padding: '6px 14px',
-    fontSize: 13,
-    fontWeight: 600,
-    color: '#FFFFFF',
-    background: '#1D3095',
-    border: 'none',
-    borderRadius: 6,
-    cursor: 'pointer',
-  },
-  noteError: {
-    fontSize: 12,
-    color: '#B91C1C',
-  },
-  archivedBadge: {
-    display: 'inline-block',
-    marginTop: 8,
-    background: '#F3F4F6',
-    color: '#6B7280',
-    padding: '2px 8px',
-    borderRadius: 4,
-    fontSize: 11,
-    fontWeight: 600,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
+  // The compose box's five style keys (noteCompose/noteInput/noteComposeRow/noteButton/noteError)
+  // and archivedBadge were removed with the notes list that used them — `JobNotesPanel` owns both
+  // surfaces now. They are deleted rather than left "in case", because an orphaned style key is
+  // indistinguishable from a live one to the next reader and quietly re-teaches the hard-coded
+  // colours it was written with.
   fileDesc: {
     fontSize: 12,
     color: '#4B5563',

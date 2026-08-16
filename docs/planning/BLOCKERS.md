@@ -460,3 +460,42 @@ bug cannot fire. The column still means two things.
 **Why this needs you:** picking the archive meaning changes what the personal notebook considers
 open; picking the pointer meaning changes what mobile lists and makes the "archived" badge wrong on
 two admin screens. Either is a small change; choosing is not a code question.
+
+**Update 2026-08-16:** the containment now extends to the READER as well. `JobNotesPanel` replaced
+the field page's notes list, and that list rendered an "archived" badge which the new panel did not
+— so an archived note became indistinguishable from a live one on the surface that replaced it. The
+route now returns a resolved `archived` boolean and the panel badges it, restoring the old
+behaviour. This still decides nothing: `archived` is only what all three existing readers already
+render `is_current === false` as.
+
+---
+
+## `org_id` drift — 7 tables the tenant filter does not cover (found 2026-08-16)
+
+- [ ] **Apply `seeds/517_org_default.sql`, backfill, then add the 7 tables to `ORG_SCOPED_TABLES`.**
+
+`npm run verify:org-scope` fails, and it is **not** a regression from any recent branch —
+`lib/saas/org-scope.ts` and the verifier are byte-identical to `main`. The live database drifted
+past the list: tables added by later work carry `org_id` but were never enrolled in the filter.
+
+```
+7 table(s) carry org_id but are NOT in ORG_SCOPED_TABLES:
+  calls · hours_notification_preferences · job_briefings · pay_advance_repayments
+  research_runs · time_log_pay_decision_history · time_log_pay_decisions
+
+2 table(s) have no org_id DEFAULT (rows written by webhooks/cron land unowned):
+  calls · job_briefings
+```
+
+**Impact today is nil and that is the whole reason it is easy to miss.** One organisation exists, so
+"unfiltered" and "filtered to Starr" select the same rows. It becomes a cross-tenant read the day a
+second firm exists.
+
+**Why this was not just fixed in the merge that found it.** The order matters and getting it wrong
+hides data. `calls` and `job_briefings` have no `org_id` DEFAULT, so rows written by the Twilio
+webhook and by cron are already sitting with `org_id` NULL. Adding those tables to the filter
+*first* would make every one of those rows invisible to every screen — the exact failure
+`org-scope.ts` warns about ("a filter alone would make every row this app writes invisible … which
+is a worse failure than not enforcing it, because it looks like data loss"). Seed first, backfill
+the NULLs, verify 100% coverage, and only then enrol the tables. That is a slice with a live-database
+step, not a line in a merge.

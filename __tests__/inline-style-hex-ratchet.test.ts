@@ -6,13 +6,27 @@
 // fixes ink by overriding CSS VARIABLES, and an inline hex is invisible to it. Those colours print as
 // whatever they were on screen.
 //
-// THIS IS A RATCHET, NOT A RULE. There are 1,662 of them across 267 files. A guard that failed on all of
-// them would be switched off within a day and a rewrite of that surface is not a slice. So: a file not in
-// the baseline must have ZERO, and a file in it may not get worse. New code cannot add to the pile; old
+// THIS IS A RATCHET, NOT A RULE. There are ~3,450 of them across ~311 files. A guard that failed on all
+// of them would be switched off within a day and a rewrite of that surface is not a slice. So: a file not
+// in the baseline must have ZERO, and a file in it may not get worse. New code cannot add to the pile; old
 // code can only be paid down.
+//
+// 2026-08-16 — COVERAGE WIDENED, and the reason is worth keeping. The counter matched only a literal
+// `style={{`, so the identical defect written as a style OBJECT was invisible to it:
+//
+//     const s: Record<string, React.CSSProperties> = { card: { background: '#FFFFFF' } };
+//     <section style={s.card}>
+//
+// `JobNotesPanel.tsx` shipped that way — a brand-new file with 30 hard-coded colours passing the "a new
+// file must have ZERO" rule, rendering a white card with near-black text on all four dark skins. When the
+// blind spot was measured it held 1,855 hexes across 103 files: the hole was BIGGER than the guard.
+// The counter now reads both spellings, which is why the baseline jumped 1,624 → 3,449 in one commit
+// with no code getting worse. A guard that matches the SPELLING of a defect rather than the thing that
+// makes it a defect will be routed around, usually by accident.
 import { describe, it, expect } from 'vitest';
 import {
-  scanRepo, readBaseline, regressions, improvements, countHexInInlineStyles, BASELINE_PATH,
+  scanRepo, readBaseline, regressions, improvements, countHexInInlineStyles, countHexInStyleObjects,
+  countHexInFile, BASELINE_PATH,
 } from '@/scripts/scan-inline-style-hex';
 
 const current = scanRepo();
@@ -42,6 +56,59 @@ describe('the counter itself', () => {
 
   it('and finds nothing in a file with no inline styles', () => {
     expect(countHexInInlineStyles(`const c = '#ffffff'; export default c;`)).toBe(0);
+  });
+});
+
+describe('the blind spot that let JobNotesPanel through', () => {
+  it('counts hexes in a CSSProperties style object, which has no `style={{` at all', () => {
+    const src = `
+      const s: Record<string, React.CSSProperties> = {
+        card: { background: '#FFFFFF', border: '1px solid #E5E7EB' },
+        btn: { background: '#1D3095' },
+      };
+      export default () => <section style={s.card}><button style={s.btn} /></section>;
+    `;
+    // The old counter saw nothing here — that is the entire bug.
+    expect(countHexInInlineStyles(src)).toBe(0);
+    expect(countHexInStyleObjects(src)).toBe(3);
+    expect(countHexInFile(src)).toBe(3);
+  });
+
+  it('matches the single-const form as well as the Record form', () => {
+    expect(countHexInStyleObjects(`const a: React.CSSProperties = { color: '#abc' };`)).toBe(1);
+    expect(countHexInStyleObjects(`const a: CSSProperties = { color: '#aabbcc' };`)).toBe(1);
+  });
+
+  it('brace-matches to the END of the object rather than the first nested }', () => {
+    const src = `const s: Record<string, React.CSSProperties> = { a: { b: '#111111' }, c: { d: '#222222' } };`;
+    expect(countHexInStyleObjects(src)).toBe(2);
+  });
+
+  it('does not run past the declaration into an unrelated `= {` on a later line', () => {
+    // `[^=\\n]*` is line-bounded for this reason: without it, a `CSSProperties` mention followed by any
+    // later assignment would swallow the rest of the file and count colours that are not style at all.
+    const src = [
+      `type X = React.CSSProperties;`,
+      `const palette = { brand: '#123456' };`,
+    ].join('\n');
+    expect(countHexInStyleObjects(src)).toBe(0);
+  });
+
+  it('and the two counters do not double-count the same hex', () => {
+    const src = `
+      const s: Record<string, React.CSSProperties> = { card: { color: '#111111' } };
+      export default () => <div style={{ ...s.card, background: '#222222' }} />;
+    `;
+    expect(countHexInStyleObjects(src)).toBe(1);
+    expect(countHexInInlineStyles(src)).toBe(1);
+    expect(countHexInFile(src)).toBe(2);
+  });
+
+  it('the panel that caused this widening now reads ZERO', () => {
+    // Belt and braces: it is in neither the baseline nor the current scan, and a regression would be
+    // caught by THE RATCHET below anyway. This names the file so the reason survives.
+    const file = 'app/admin/components/jobs/JobNotesPanel.tsx';
+    expect(current[file] ?? 0, `${file} put hard-coded colours back`).toBe(0);
   });
 });
 

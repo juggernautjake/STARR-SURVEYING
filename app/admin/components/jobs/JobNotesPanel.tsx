@@ -47,6 +47,9 @@ export interface JobNoteEntry {
   updated_at: string | null;
   data_point_id: string | null;
   note_template: string | null;
+  /** Soft-archived. The notes list this panel replaced showed an "archived" badge; without it an
+   *  archived note is indistinguishable from a live one on the surface that took its place. */
+  archived: boolean;
 }
 
 /** Absolute, and in the reader's locale. See the header for why this is not "3 days ago". */
@@ -177,6 +180,12 @@ export default function JobNotesPanel({ jobId }: { jobId: string }) {
                 <span style={s.origin}>{n.origin_label}</span>
                 <span style={s.sep} aria-hidden>·</span>
                 <time dateTime={n.created_at} style={s.dim}>{formatWhen(n.created_at)}</time>
+                {n.archived ? (
+                  <>
+                    <span style={s.sep} aria-hidden>·</span>
+                    <span style={s.archived}>archived</span>
+                  </>
+                ) : null}
                 {n.note_template ? (
                   <>
                     <span style={s.sep} aria-hidden>·</span>
@@ -192,53 +201,83 @@ export default function JobNotesPanel({ jobId }: { jobId: string }) {
   );
 }
 
+// ── WHY THERE IS NOT ONE HEX IN THIS FILE ───────────────────────────────────────────────────────
+//
+// This shipped with 30 hard-coded colours (`background: '#FFFFFF'`, `background: '#1D3095'`) and it
+// was wrong on two counts. It renders under 12 skins — four of them dark, two high-contrast — so a
+// literal `#FFFFFF` card with `#0B0E14` text is a white card with near-black text on `starr-dark`,
+// on the same page as `JobInstructionsPanel`, which themes correctly. And a literal is unreachable
+// by the print stylesheet, which fixes ink by overriding VARIABLES.
+//
+// No `var(--token, #fallback)` either, deliberately: `app/styles/themes.css` and `tokens.css` are
+// imported by the ROOT layout, so every token here is always defined on `:root` and the fallback is
+// dead code that only serves to re-introduce the literal. It is also counted by
+// `scripts/scan-inline-style-hex.ts`, and this file must read zero there — see the note in that
+// scanner about how this file passed the ratchet while being the exact defect it guards.
+//
+// Control heights come from the tokens too, per docs/admin-styling-contract.md — a hand-rolled
+// `padding: 6px 14px` is how two buttons on one card end up different heights.
 const s: Record<string, React.CSSProperties> = {
   card: {
-    background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10,
-    padding: 16, marginBottom: 16,
+    background: 'var(--theme-bg-surface)',
+    border: '1px solid var(--theme-border)',
+    borderRadius: 10, padding: 16, marginBottom: 16,
   },
   head: { marginBottom: 12 },
   h3: {
     display: 'flex', alignItems: 'center', gap: 7,
-    fontSize: 15, fontWeight: 700, color: '#0B0E14', margin: '0 0 4px',
+    fontSize: 15, fontWeight: 700, color: 'var(--theme-fg-primary)', margin: '0 0 4px',
   },
-  count: { fontSize: 13, fontWeight: 600, color: '#6B7280' },
-  hint: { fontSize: 12, color: '#6B7280', margin: 0, lineHeight: 1.5 },
+  count: { fontSize: 13, fontWeight: 600, color: 'var(--theme-fg-muted)' },
+  hint: { fontSize: 12, color: 'var(--theme-fg-muted)', margin: 0, lineHeight: 1.5 },
   compose: { marginBottom: 14 },
   input: {
-    width: '100%', boxSizing: 'border-box', padding: '8px 10px',
-    fontSize: 14, lineHeight: 1.5, color: '#0B0E14',
-    border: '1px solid #D1D5DB', borderRadius: 6,
+    width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '8px 10px',
+    fontSize: 14, lineHeight: 1.5,
+    color: 'var(--theme-fg-primary)',
+    background: 'var(--theme-bg-surface)',
+    border: '1px solid var(--theme-border)', borderRadius: 6,
     fontFamily: 'inherit', resize: 'vertical',
   },
   composeRow: {
     display: 'flex', alignItems: 'center', gap: 10, marginTop: 6, flexWrap: 'wrap',
   },
   button: {
-    padding: '6px 14px', fontSize: 13, fontWeight: 600, color: '#FFFFFF',
-    background: '#1D3095', border: 'none', borderRadius: 6, cursor: 'pointer',
+    height: 'var(--button-height)', padding: '0 16px',
+    fontSize: 13, fontWeight: 600,
+    color: 'var(--theme-accent-fg)',
+    background: 'var(--theme-accent)',
+    border: 'none', borderRadius: 6, cursor: 'pointer', whiteSpace: 'nowrap',
   },
-  buttonOff: { background: '#9CA3AF', cursor: 'not-allowed' },
+  buttonOff: { background: 'var(--theme-border-strong)', cursor: 'not-allowed' },
   list: { listStyle: 'none', margin: 0, padding: 0, display: 'grid', gap: 10 },
   item: {
-    border: '1px solid #E5E7EB', borderRadius: 8, padding: '10px 12px', background: '#F9FAFB',
+    border: '1px solid var(--theme-border)', borderRadius: 8,
+    padding: '10px 12px', background: 'var(--theme-bg-elevated)',
   },
   body: {
-    fontSize: 14, lineHeight: 1.5, color: '#0B0E14', margin: '0 0 6px',
+    fontSize: 14, lineHeight: 1.5, color: 'var(--theme-fg-primary)', margin: '0 0 6px',
     whiteSpace: 'pre-wrap', wordBreak: 'break-word',
   },
   meta: {
     display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
-    fontSize: 12, color: '#6B7280',
+    fontSize: 12, color: 'var(--theme-fg-muted)',
   },
-  author: { fontWeight: 600, color: '#374151' },
-  origin: { color: '#4B5563' },
-  dim: { color: '#6B7280' },
-  sep: { color: '#D1D5DB' },
+  author: { fontWeight: 600, color: 'var(--theme-fg-secondary)' },
+  origin: { color: 'var(--theme-fg-secondary)' },
+  dim: { color: 'var(--theme-fg-muted)' },
+  sep: { color: 'var(--theme-border-strong)' },
   badge: {
-    background: '#EEF2FF', color: '#3730A3', padding: '1px 6px',
-    borderRadius: 4, fontSize: 11, fontWeight: 600,
+    background: 'var(--theme-bg-elevated)', color: 'var(--theme-accent)',
+    border: '1px solid var(--theme-border)',
+    padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
   },
-  muted: { fontSize: 13, color: '#6B7280', margin: 0 },
-  error: { fontSize: 12, color: '#B91C1C' },
+  archived: {
+    background: 'var(--theme-bg-elevated)', color: 'var(--theme-fg-muted)',
+    border: '1px solid var(--theme-border)',
+    padding: '1px 6px', borderRadius: 4, fontSize: 11, fontWeight: 600,
+    textTransform: 'uppercase', letterSpacing: '0.03em',
+  },
+  muted: { fontSize: 13, color: 'var(--theme-fg-muted)', margin: 0 },
+  error: { fontSize: 12, color: 'var(--theme-danger)' },
 };

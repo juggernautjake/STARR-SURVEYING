@@ -48,6 +48,47 @@ describe('the three audit fields are decided by the server', () => {
   });
 });
 
+describe('authorisation — signed in is not the same as allowed', () => {
+  // This route shipped checking only `session?.user?.email`, while BOTH its neighbours check more:
+  // `field-data` requires admin-or-tech_support and `instructions` requires org membership plus the
+  // job being in that org. The tell was an `isAdmin` imported and never called.
+  //
+  // Why it mattered: every query here runs through `supabaseAdmin`, the service-role client that
+  // bypasses RLS. `lib/saas/org-scope.ts` re-adds an org filter at that choke point, but only when a
+  // scope is ACTIVE — and it is resolved from the caller's org membership. So a signed-in account
+  // with NO org resolved no scope, got no filter, and read every tenant's notes. Requiring
+  // membership is what makes the scope exist.
+
+  it('both verbs require an org membership, not merely a session', () => {
+    const gets = route.match(/export const (GET|POST)[\s\S]*?routeName/g) ?? [];
+    expect(gets, 'expected both GET and POST handlers to be found').toHaveLength(2);
+    for (const handler of gets) {
+      expect(handler).toMatch(/orgMember\(session\.user\.email\)/);
+      expect(handler).toMatch(/status:\s*403/);
+    }
+  });
+
+  it('and the job must be in the CALLER’S org, on both verbs', () => {
+    expect(route).toMatch(/function jobInOrg/);
+    // Both handlers go through it — a note is neither read from nor written to another firm's job.
+    expect(route.match(/jobInOrg\(jobId, member\.orgId\)/g) ?? []).toHaveLength(2);
+  });
+
+  it('a job in another org reads as 404, not 403, so the id is not confirmed', () => {
+    // 403 on a foreign id tells the caller that id exists somewhere, which is a membership oracle.
+    // `jobInOrg` collapses "absent" and "another firm's" into one null, and both call sites answer 404.
+    expect(route).toMatch(/org_id !== orgId/);
+    expect(route).toMatch(/org_id !== orgId\) return null/);
+    expect(route.match(/'Job not found' \}, \{ status: 404 \}/g) ?? []).toHaveLength(2);
+  });
+
+  it('the dead `isAdmin` import is gone rather than left as decoration', () => {
+    // An imported-but-uncalled authorisation helper reads, at a glance, as an authorisation check.
+    // Checked against the STRIPPED source: the header explains the removal and names it in prose.
+    expect(route).not.toMatch(/\bisAdmin\b/);
+  });
+});
+
 describe('the route refuses badly rather than silently', () => {
   it('an empty note is refused with a sentence', () => {
     expect(routeRaw).toMatch(/A note needs some text/);
