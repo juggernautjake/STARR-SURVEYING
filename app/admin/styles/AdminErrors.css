@@ -213,6 +213,14 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  justify-content: center;
+  /* C44 — these measured 26px, under the 32px floor every other control on the admin surface
+   * meets. It is a real defect and a quiet one: the dialog only appears when something has already
+   * gone wrong, so nobody sees it during a normal pass, and the person who does see it is annoyed
+   * before they arrive. Four cards side by side in a 2×2 grid also want a common height — a grid
+   * row sizes to its tallest cell, so "Everything is broken" wrapping to two lines made its
+   * neighbours look deliberately shorter. */
+  min-height: 44px;
   padding: 0.55rem 0.75rem;
   border: 1.5px solid var(--theme-border, #E5E7EB);
   border-radius: 6px;

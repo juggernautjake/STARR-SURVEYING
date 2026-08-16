@@ -58,7 +58,40 @@ const PROBE = () => {
   const findings = [];
   const VIEW_W = document.documentElement.clientWidth;
 
+  // C44 — an open error-report dialog is a measurement hazard, and the sweep that found this had
+  // 28 non-CAD findings that all came from ONE of them.
+  //
+  // `ErrorProvider` lives in the admin layout, so the dialog it opens survives client-side
+  // navigation: one transient API error during a 130-route run left the modal up for the next 23
+  // routes. Every one of those routes then reported the modal's 26px severity button — directly as
+  // `small-target`, and indirectly by dragging a fourth value into three separate `height-spread`
+  // counts and shifting two row comparisons. Re-probing all four "worst" routes individually
+  // returned zero findings each. **Every non-CAD finding in that sweep was the overlay.**
+  //
+  // Two changes, and the order matters. The dialog's own elements are excluded from every rule
+  // below — a modal is not part of the page's layout and never was what this audit measures. And
+  // its presence is reported as its own finding, because suppressing it silently would trade a
+  // noisy sweep for a quiet one that hides a real client error. Noise into signal, not noise into
+  // nothing.
+  const errorDialog = document.querySelector('.err-dialog, [role="dialog"].err-dialog__backdrop');
+  const inErrorDialog = (el) => !!errorDialog && errorDialog.contains(el);
+  if (errorDialog) {
+    findings.push({
+      rule: 'error-dialog-open',
+      severity: 'high',
+      px: 0,
+      detail:
+        'An error-report dialog was open while this route was measured — a client error fired here ' +
+        'or on an earlier route (the dialog survives client-side navigation). Alignment findings ' +
+        'for this route are suppressed because they would describe the overlay, not the page.',
+      container: 'ErrorProvider',
+    });
+  }
+
   const isVisible = (el) => {
+    // C44 — the single choke point every rule already runs through, so excluding the dialog here
+    // covers all of them rather than each remembering to.
+    if (inErrorDialog(el)) return false;
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) return false;
     const cs = getComputedStyle(el);

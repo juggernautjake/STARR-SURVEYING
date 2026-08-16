@@ -1,0 +1,339 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 130,
+  "byRule": {
+    "height-spread": 5,
+    "row-centre": 1,
+    "small-target": 23,
+    "row-height": 1
+  },
+  "byRoute": {
+    "/admin/cad": 2,
+    "/admin/jobs": 2,
+    "/admin/jobs/import": 1,
+    "/admin/jobs/new": 1,
+    "/admin/learn": 1,
+    "/admin/learn/exam-prep": 1,
+    "/admin/learn/exam-prep/rpls": 1,
+    "/admin/learn/exam-prep/sit": 1,
+    "/admin/learn/exam-prep/sit/mock-exam": 1,
+    "/admin/learn/fieldbook": 1,
+    "/admin/learn/flashcard-bank": 1,
+    "/admin/learn/flashcards": 1,
+    "/admin/learn/flashcards/create": 1,
+    "/admin/learn/knowledge-base": 1,
+    "/admin/learn/manage": 1,
+    "/admin/learn/manage/media": 1,
+    "/admin/learn/manage/question-builder": 3,
+    "/admin/learn/modules": 1,
+    "/admin/learn/practice": 2,
+    "/admin/learn/quiz-history": 1,
+    "/admin/learn/references": 2,
+    "/admin/learn/roadmap": 1,
+    "/admin/learn/search": 1,
+    "/admin/learn/students": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 7.7,
+      "detail": "input.jobs-page__search and button.jobs-page__search-btn \"Search\" sit side by side but their centres differ by 7.7px",
+      "container": "form.jobs-page__search-form \"Search\"",
+      "sig": "input.jobs-page__search|button.jobs-page__search-btn|form.jobs-page__search-form",
+      "count": 2
+    },
+    {
+      "route": "/admin/jobs",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/jobs/import",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/jobs/new",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/exam-prep",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/exam-prep/rpls",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/exam-prep/sit",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/exam-prep/sit/mock-exam",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/fieldbook",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/flashcard-bank",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/flashcards",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/flashcards/create",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/knowledge-base",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/media",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "row-height",
+      "severity": "medium",
+      "px": 4.8,
+      "detail": "input.qb__input.qb__input--sm is 40px tall, button.admin-btn.admin-btn--ghost.admin-btn--sm \"Add\" is 35px — beside each other",
+      "container": "div.qb__tag-add \"Add\"",
+      "sig": "input.qb__input.qb__input--sm:40|button.admin-btn.admin-btn--ghost.admin-btn--sm:35",
+      "count": 2
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 26, 35, 40, 43px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/modules",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/practice",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 26, 40, 50, 54px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/practice",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/quiz-history",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/references",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 26, 34, 40, 42px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/references",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/roadmap",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/search",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    },
+    {
+      "route": "/admin/learn/students",
+      "rule": "small-target",
+      "severity": "low",
+      "px": 26,
+      "detail": "button.err-dialog__severity-btn.err-dialog__severity-btn--active \"MediumNoticeable issue, slow\" is only 26px tall",
+      "container": "div.err-dialog__severity \"LowMinor issue, can work aro\"",
+      "sig": "button.err-dialog__severity-btn.err-dialog__severity-btn--active:26",
+      "count": 1
+    }
+  ]
+}

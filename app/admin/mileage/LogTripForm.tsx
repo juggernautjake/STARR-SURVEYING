@@ -271,7 +271,14 @@ const s: Record<string, React.CSSProperties> = {
   hint: { margin: 0, fontSize: 12, color: 'var(--theme-fg-secondary, #6B7280)', lineHeight: 1.5 },
   hintSm: { fontSize: 11, color: 'var(--theme-fg-secondary, #8A93A2)', marginTop: 2, lineHeight: 1.4 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12 },
-  field: { display: 'grid', gap: 4, minWidth: 0 },
+  // C44 — `alignContent: 'start'` is the whole fix for a 10.7px offset between the inputs in one
+  // row. Each field is a grid of label + input, and two of them (Distance, Vehicle) carry a third
+  // row for a hint. The outer grid stretches every field in a row to the tallest, and a grid's
+  // default `align-content: stretch` then hands that extra height to the auto-sized rows — so the
+  // field WITHOUT a hint grew its label row and pushed its input down, while its neighbour's input
+  // stayed put. Two identical-looking fields side by side, inputs 10.7px out of line, and nothing
+  // in either field's own styling to explain it: the cause was the sibling's hint text.
+  field: { display: 'grid', gap: 4, minWidth: 0, alignContent: 'start' },
   label: { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
     height: 'var(--input-height, 40px)',
