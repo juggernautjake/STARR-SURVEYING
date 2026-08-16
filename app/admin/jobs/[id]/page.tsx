@@ -38,6 +38,7 @@ import FieldWorkView from '../../components/jobs/FieldWorkView';
 import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
 import JobInstructionsPanel from '../../components/jobs/JobInstructionsPanel';
 import JobFieldMediaPanel from '../../components/jobs/JobFieldMediaPanel';
+import JobNotesPanel from '../../components/jobs/JobNotesPanel';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import Tooltip from '../../research/components/Tooltip';
 import { withAlpha } from '@/lib/admin/color-alpha';
@@ -849,6 +850,10 @@ export default function JobDetailPage() {
               They belong to the job, not to a shell, and they sit on Field Work because that is who
               they are addressed to. */}
           <JobInstructionsPanel jobId={jobId} />
+          {/* Owner 2026-08-16 — "the user can open up the job and add a note to it". Above the
+              media and the map because a note is the thing somebody arrives to write or to read
+              before driving out; the shot log is review, and review can sit below capture. */}
+          <JobNotesPanel jobId={jobId} />
           {/* C0d — mobile-captured field media. Nothing else on this page reads `job_media`: the
               Photos tab shows job FILES tagged as photos, and this page's own field-data call is a
               different route returning survey points. See the note in the panel. */}

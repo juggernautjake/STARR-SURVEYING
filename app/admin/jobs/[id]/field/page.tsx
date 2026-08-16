@@ -37,6 +37,7 @@ import { useParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 // The approved research packet, read in the truck without opening the research UI (plan R26).
 import JobResearchPacket from '../JobResearchPacket';
+import JobNotesPanel from '../../../components/jobs/JobNotesPanel';
 
 interface PointSummary {
   id: string;
@@ -206,10 +207,6 @@ export default function JobFieldDataPage() {
   const [error, setError] = useState('');
   const [downloading, setDownloading] = useState(false);
   const [zipping, setZipping] = useState(false);
-  // C0d2 — composing a job note from the office.
-  const [noteDraft, setNoteDraft] = useState('');
-  const [savingNote, setSavingNote] = useState(false);
-  const [noteError, setNoteError] = useState('');
 
   const fetchData = useCallback(async () => {
     if (!session?.user?.email || !jobId) return;
@@ -233,66 +230,6 @@ export default function JobFieldDataPage() {
     void fetchData();
   }, [fetchData]);
 
-  /**
-   * C0d2 — write a job note from the office.
-   *
-   * ── WHY THIS IS FOUR LINES AND NOT A FEATURE ──────────────────────────────────────────────────
-   *
-   * C0d2 was deferred with a real reason: Work Mode's field-notes tab wrote to `localStorage` keyed
-   * by job and never synced, so nothing durable existed to migrate and no second person could ever
-   * see a note. The open question it left was whether to build a durable per-job scratchpad.
-   *
-   * The answer is no, because one already exists and was simply unreachable from here. Checked
-   * before building anything: `fieldbook_notes` carries `job_id`/`job_name`/`job_number` (and, since
-   * seed 596, `data_point_id`, `note_template` and `structured_data`); `POST
-   * /api/admin/learn/fieldbook` already accepts all three job fields; the mobile app already writes
-   * job notes through it; and TWO admin surfaces already read them — this page and
-   * `/admin/field-data/[id]`.
-   *
-   * What was missing was any way for a person at a desk to CREATE one. `MyNotesPanel` displays job
-   * notes in their own tab and can edit them, and never sets `job_id` on a new one. So a note taken
-   * in the field was durable and a note taken in the office had nowhere to go — which is the
-   * localStorage scratchpad's actual replacement, arrived at from the other end.
-   *
-   * Building a second table or a second compose surface would have split a job's notes by which
-   * screen wrote them, which is the mistake C44z declined to make one slice earlier.
-   */
-  const onAddNote = useCallback(async () => {
-    const body = noteDraft.trim();
-    if (!body || !jobId || savingNote) return;
-    setSavingNote(true);
-    setNoteError('');
-    try {
-      const res = await fetch('/api/admin/learn/fieldbook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: body,
-          // The first line becomes the title, because the fieldbook list renders titles and an
-          // untitled row there reads as an empty note. Truncated rather than wrapped: a title is a
-          // handle, not a summary.
-          title: body.split('\n')[0].slice(0, 80),
-          job_id: jobId,
-          job_name: data?.job?.name ?? null,
-          job_number: data?.job?.job_number ?? null,
-        }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setNoteError(j?.error ?? `Could not save the note (HTTP ${res.status}).`);
-        return;
-      }
-      setNoteDraft('');
-      // Re-read rather than splice the new note in locally. The server decides `is_current`,
-      // `created_at` and the author, and a locally-invented row would differ from what everyone
-      // else sees until the next reload.
-      await fetchData();
-    } catch (err) {
-      setNoteError(err instanceof Error ? err.message : 'Could not save the note.');
-    } finally {
-      setSavingNote(false);
-    }
-  }, [noteDraft, jobId, savingNote, data, fetchData]);
 
   const onDownloadManifest = useCallback(async () => {
     if (!jobId) return;
@@ -377,7 +314,7 @@ export default function JobFieldDataPage() {
   }
   if (!data) return null;
 
-  const { job, points, stats, job_media, job_notes, job_files } = data;
+  const { job, points, stats, job_media, job_files } = data;
   const headerSubtitle = [
     job.client_name,
     [job.address, job.city, job.state, job.zip].filter(Boolean).join(', '),
@@ -544,67 +481,14 @@ export default function JobFieldDataPage() {
         )}
       </section>
 
-      <section style={styles.section}>
-        <h2 style={styles.h2}>
-          Job-level notes{' '}
-          {job_notes.length > 0 ? `(${job_notes.length})` : ''}
-        </h2>
-        {/* C0d2 — compose. Writes to `fieldbook_notes` with this job's id, the same table and the
-            same route the mobile app writes through, so an office note and a field note land in one
-            place and both readers already show them. */}
-        <div style={styles.noteCompose}>
-          <textarea
-            value={noteDraft}
-            onChange={(e) => { setNoteDraft(e.target.value); setNoteError(''); }}
-            placeholder="Add a note for this job — gate codes, access, who to call on site…"
-            rows={3}
-            maxLength={4000}
-            style={styles.noteInput}
-            aria-label="New job note"
-          />
-          <div style={styles.noteComposeRow}>
-            <button
-              type="button"
-              onClick={onAddNote}
-              disabled={!noteDraft.trim() || savingNote}
-              style={styles.noteButton}
-              // The C16 rule: a disabled control says why, rather than leaving the reason to be
-              // guessed at.
-              title={noteDraft.trim() ? 'Save this note to the job' : 'Type a note first'}
-            >
-              {savingNote ? 'Saving…' : 'Add note'}
-            </button>
-            {noteError ? (
-              <span role="alert" style={styles.noteError}>{noteError}</span>
-            ) : null}
-          </div>
-        </div>
-        {job_notes.length === 0 ? (
-          <div style={styles.empty}>
-            No notes attached at the job level.
-          </div>
-        ) : (
-          <div style={styles.noteList}>
-            {job_notes.map((n) => (
-              <article key={n.id} style={styles.noteCard}>
-                <header style={styles.noteHeader}>
-                  <span style={styles.noteTemplate}>
-                    {n.note_template ?? 'Free-text'}
-                  </span>
-                  <span style={styles.noteMeta}>
-                    {n.user_email ? `${n.user_email} · ` : ''}
-                    {formatTimestamp(n.created_at)}
-                  </span>
-                </header>
-                <p style={styles.noteBody}>{n.body || '(no body)'}</p>
-                {!n.is_current ? (
-                  <span style={styles.archivedBadge}>archived</span>
-                ) : null}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* Owner 2026-08-16 — one notes surface, not two. This page had the compose box C0d2
+          shipped; the job detail page's Field Work tab is where somebody who "opens up the job"
+          actually lands, so the panel moved there and this page mounts the SAME component. Two
+          copies would drift, and the metadata line (who / from where / when) is exactly the kind
+          of detail that drifts first. */}
+      {/* `job.id` rather than the route param: the param is `string | null` from `useParams`, and
+          this is the id the page actually loaded its data for. */}
+      <JobNotesPanel jobId={job.id} />
 
       <section style={styles.section}>
         <h2 style={styles.h2}>

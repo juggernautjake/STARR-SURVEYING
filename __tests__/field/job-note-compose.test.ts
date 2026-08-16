@@ -63,32 +63,24 @@ describe('creating a job note does not archive the author’s last one', () => {
   });
 });
 
-describe('the compose box writes to the shared table', () => {
-  it('posts to the fieldbook route, not to a new per-job endpoint', () => {
-    // Building a second table or a second compose surface would split a job's notes by which screen
-    // wrote them — the mistake C44z declined to make one slice earlier.
-    expect(page).toContain("fetch('/api/admin/learn/fieldbook'");
-    expect(page).toMatch(/job_id:\s*jobId/);
-  });
+// ── THE COMPOSE ASSERTIONS MOVED, 2026-08-16 ────────────────────────────────────────────────────
+//
+// C0d2 put the compose box inline on /admin/jobs/[id]/field and this file asserted against it. That
+// page is the field-data manifest reviewer; somebody who "opens up the job" lands on
+// /admin/jobs/[id] instead, so the box became `JobNotesPanel` and both pages mount the same one.
+//
+// Those assertions now live in `job-notes-surface.test.ts` against the panel and its route, where
+// they also cover the three things this version could not check: the author, the origin and the
+// timestamp. What is kept HERE is the half that is still about this route — the `is_current`
+// collision, which is a property of the learn fieldbook writer and nothing to do with the UI.
 
-  it('sends the job name and number so the fieldbook list is readable', () => {
-    expect(page).toMatch(/job_name:/);
-    expect(page).toMatch(/job_number:/);
-  });
-
-  it('re-reads from the server instead of splicing the new note in locally', () => {
-    // The server decides is_current, created_at and the author. A locally-invented row would
-    // differ from what everyone else sees until the next reload.
-    expect(page).toMatch(/await fetchData\(\)/);
-  });
-
-  it('refuses an empty note without calling the server', () => {
-    expect(page).toMatch(/if \(!body \|\| !jobId \|\| savingNote\) return/);
-  });
-
-  it('shows the failure instead of swallowing it', () => {
-    // "queued ≠ failed" — a note that silently did not save is worse than one that refused.
-    expect(page).toMatch(/setNoteError\(/);
-    expect(pageRaw).toMatch(/role="alert"/);
+describe('the job page still has a way to post a note at all', () => {
+  it('mounts the shared panel rather than nothing', async () => {
+    // A guard against the compose path being removed and nobody noticing, which is how C0b3b's
+    // "Log a trip →" ended up pointing at a page with no form.
+    const { readFileSync: rf } = await import('node:fs');
+    const { join: j } = await import('node:path');
+    const jobPage = rf(j(process.cwd(), 'app/admin/jobs/[id]/page.tsx'), 'utf8');
+    expect(jobPage).toContain('<JobNotesPanel');
   });
 });

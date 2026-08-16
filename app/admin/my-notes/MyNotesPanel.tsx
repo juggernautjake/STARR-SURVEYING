@@ -84,6 +84,10 @@ export default function MyNotesPanel() {
   const [entryCatIds, setEntryCatIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
+  // Owner 2026-08-16 — a personal note that silently fails to save is the worst version of this
+  // feature: the editor keeps showing "Saved 14:02" from the LAST success while every keystroke
+  // since has gone nowhere. Auto-save runs every two seconds, so this is not a rare path.
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -104,7 +108,9 @@ export default function MyNotesPanel() {
         if (activeTab === 'personal') setEntries(data.entries || []);
         else setJobNotes(data.entries || []);
       }
-    } catch { /* silent */ }
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Not saved — could not reach the server.');
+    }
     setLoading(false);
   }, [searchQuery, selectedCategory, activeTab]);
 
@@ -149,6 +155,10 @@ export default function MyNotesPanel() {
           const data = await res.json();
           setEditEntry(data.entry);
           setLastSaved(new Date().toLocaleTimeString());
+          setSaveError(null);
+        } else {
+          const j = await res.json().catch(() => ({}));
+          setSaveError(j?.error ?? `Not saved (HTTP ${res.status}).`);
         }
       } else {
         const res = await fetch('/api/admin/learn/fieldbook', {
@@ -163,6 +173,10 @@ export default function MyNotesPanel() {
           const data = await res.json();
           setEditEntry(data.entry);
           setLastSaved(new Date().toLocaleTimeString());
+          setSaveError(null);
+        } else {
+          const j = await res.json().catch(() => ({}));
+          setSaveError(j?.error ?? `Not saved (HTTP ${res.status}).`);
         }
       }
     } catch { /* silent */ }
@@ -177,6 +191,7 @@ export default function MyNotesPanel() {
     setEditMedia(entry.media || []);
     setEditPublic(entry.is_public ?? false);
     setLastSaved(null);
+    setSaveError(null);
     setEditorOpen(true);
     try {
       const res = await fetch(`/api/admin/learn/fieldbook?action=entry&id=${entry.id}`);
@@ -195,6 +210,7 @@ export default function MyNotesPanel() {
     setEditPublic(false);
     setEntryCatIds([]);
     setLastSaved(null);
+    setSaveError(null);
     setEditorOpen(true);
     setTimeout(() => textareaRef.current?.focus(), 100);
   }
@@ -280,7 +296,9 @@ export default function MyNotesPanel() {
         <div className="mynotes-editor__topbar">
           <button className="mynotes-editor__back" onClick={closeEditor}>&larr; Back to My Notes</button>
           <div className="mynotes-editor__actions">
-            {lastSaved && <span className="mynotes-editor__saved">Saved {lastSaved}</span>}
+            {saveError
+              ? <span role="alert" className="mynotes-editor__saved" style={{ color: '#B91C1C' }}>{saveError}</span>
+              : lastSaved && <span className="mynotes-editor__saved">Saved {lastSaved}</span>}
             {saving && <span className="mynotes-editor__saving">Saving...</span>}
             <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveNote(true)} disabled={saving}>Save</button>
             {editEntry && (
