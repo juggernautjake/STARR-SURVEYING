@@ -88,12 +88,49 @@ memory and a tool that surprises a trained user is the definition of unintuitive
 
 ---
 
-## What this document does NOT claim
+## Checked against the handlers — C14b, 2026-08-15
 
-It has **not** been checked against the handlers. It states what the tools should do and measures
-what they currently *say*; whether each one behaves this way is C14's job, and the expectation is
-that C14 finds real deviations — the audit above is a strong hint that Escape and preview are
-inconsistently implemented, not merely inconsistently described.
+The section below this one used to say the contract had *not* been checked against the handlers and
+that C14 was expected to find real deviations. It did, and so did C14b. `node
+scripts/cad-tool-contract-audit.mjs` is the behaviour sweep, run over all 51 tools and ratcheted by
+`__tests__/cad/tool-contract-ratchet.test.ts`.
+
+**29 of the 51 tools are staged** — they park a pending pick between clicks. Nine of them parked it
+somewhere neither the prompt nor Escape could see:
+
+| Tool(s) | Pending field |
+|---|---|
+| MOVE, COPY, SCALE | `basePoint` |
+| ROTATE | `rotateCenter` |
+| FILLET / CHAMFER | `filletPickedLineId` / `chamferPickedLineId` |
+| MATCH_PROPERTIES | `matchPropertiesSourceId` |
+| PERPENDICULAR | `perpStartPoint` |
+| ARRAY (polar) | `arrayPolarCenter` |
+
+Both the command prompt and the universal Escape asked `drawingPoints.length`, which is the right
+question for the other 22 and the wrong one for these. The prompt froze on stage 1 — pick a line
+with FILLET and the command line still says *"Click the FIRST line"* — and Escape skipped step 1
+entirely, taking the tool away instead of the pick. `MATCH_PROPERTIES`' own code comment promises
+it *"stays in apply mode until the surveyor hits Esc"*, and Esc did something else.
+
+One definition now serves both, in `lib/cad/store/tool-store.ts`: `hasPendingPick`, `pickStage` and
+`clearPendingPick`, built from one list of fields. Two symptoms that looked unrelated were one
+missing definition, which is the same shape C14 found and the reason it was worth looking twice.
+
+Two corrections to the table above, found by reading the handlers:
+
+- **TRIM and EXTEND are not pick-two.** Both act on a single click — TRIM removes the section
+  between two crossings, EXTEND lengthens the end nearest the cursor. They are pick-then-act, and
+  their prompts say so.
+- **DRAW_TEXT and DRAW_IMAGE cannot preview.** Both open an editor at the click and their content
+  does not exist until afterwards, so the crosshair and snap marker are the whole of the available
+  answer. **DRAW_POINT is different and did have a real gap** — what it places is fully determined
+  before the click, and it now draws a cursor ghost using the same style `createFeature` will
+  build, at the *snapped* position rather than the raw cursor.
+
+---
+
+## What this document does NOT claim
 
 Two things are deliberately left open for C14 to decide with the tools in front of it:
 

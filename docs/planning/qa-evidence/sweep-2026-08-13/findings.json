@@ -2,12 +2,22 @@
   {
     "route": "/admin/assignments",
     "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/announcements. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    "
   },
   {
     "route": "/admin/assignments",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/audit",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/assignments. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at"
+  },
+  {
+    "route": "/admin/availability",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/audit. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fastR"
   },
   {
     "route": "/admin/billing/invoices",
@@ -17,7 +27,7 @@
   {
     "route": "/admin/billing/plan-history",
     "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/billing/invoices. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n "
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
     "route": "/admin/billing/plan-history",
@@ -25,7 +35,52 @@
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
-    "route": "/admin/compliance",
+    "route": "/admin/billing/upgrade",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/calendar",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/cad. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fastRef"
+  },
+  {
+    "route": "/admin/cards",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/cards",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/email/new",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/discussions. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at"
+  },
+  {
+    "route": "/admin/employees",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/email/sent. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at "
+  },
+  {
+    "route": "/admin/equipment/checked-out",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/equipment/checked-out",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/equipment/checked-out",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/equipment. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at f"
+  },
+  {
+    "route": "/admin/equipment/overrides",
     "kind": "console",
     "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
@@ -35,9 +90,364 @@
     "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/equipment/maintenance. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:"
   },
   {
+    "route": "/admin/equipment/overrides",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/equipment/overrides. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates/cleanup-queue",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates/new",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates/new",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates/new",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/templates/new",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/templates/new",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/templates/new",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/timeline",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/equipment/timeline",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/equipment/timeline",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/equipment/timeline",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/equipment/timeline\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/equipment/today",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/equipment/today\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/error-log",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/equipment/templates/new. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:5"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/field-data",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/error-log. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at f"
+  },
+  {
+    "route": "/admin/files",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/files",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/files",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/files",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
     "route": "/admin/finances",
     "kind": "console",
     "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/files. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fastR"
+  },
+  {
+    "route": "/admin/finances",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/finances/overview",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/finances/overview",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/finances/overview",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/finances/overview",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
   },
   {
     "route": "/admin/finances/overview",
@@ -45,88 +455,628 @@
     "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/finances. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fa"
   },
   {
+    "route": "/admin/finances/overview",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/finances/reconcile",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/finances/reconcile",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/finances/reconcile",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/finances/reconcile",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/finances/reconcile",
+    "kind": "console",
+    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+  },
+  {
+    "route": "/admin/hours-approval",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/hours-approval\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/install",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/install\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/invites",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/invites\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/invoices/new",
+    "kind": "console",
+    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/finances/reconcile. Falling back to browser navigation. TypeError: network error"
+  },
+  {
+    "route": "/admin/invoices/new",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/invoices/new\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/invoicing",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/invoicing\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
     "route": "/admin/invoicing/categories",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/invoicing/categories\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/jobs",
     "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/invoicing. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at f"
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/jobs",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/jobs\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/jobs/import",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/jobs/import\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/jobs/new",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/jobs/new\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/leads",
+    "kind": "request",
+    "detail": "HTTP 500 /api/auth/session"
+  },
+  {
+    "route": "/admin/leads",
+    "kind": "console",
+    "detail": "Failed to load resource: the server responded with a status of 500 (Internal Server Error)"
+  },
+  {
+    "route": "/admin/leads",
+    "kind": "console",
+    "detail": "ClientFetchError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_"
+  },
+  {
+    "route": "/admin/leads",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/leads\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/exam-prep",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/exam-prep\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/exam-prep/rpls",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/exam-prep/rpls\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/exam-prep/sit",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/exam-prep/sit\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/exam-prep/sit/mock-exam",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/exam-prep/sit/mock-exam\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/fieldbook",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/fieldbook\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/flashcard-bank",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/flashcard-bank\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/flashcards",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/flashcards\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/flashcards/create",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/flashcards/create\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/knowledge-base",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/knowledge-base\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/manage",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/manage\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/manage/media",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/manage/media\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/manage/question-builder",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/manage/question-builder\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/learn/modules",
-    "kind": "console",
-    "detail": "QuestionBuilderPage: failed to load generators TypeError: Failed to fetch\n    at loadGenerators (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:296:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/modules\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/learn/modules",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "route": "/admin/learn/practice",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/practice\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/learn/modules",
-    "kind": "console",
-    "detail": "QuestionBuilderPage: failed to load questions TypeError: Failed to fetch\n    at loadQuestions (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:274:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:22"
+    "route": "/admin/learn/quiz-history",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/quiz-history\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/learn/modules",
-    "kind": "console",
-    "detail": "QuestionBuilderPage: failed to load templates TypeError: Failed to fetch\n    at loadTemplates (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:285:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:22"
+    "route": "/admin/learn/references",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/references\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/learn/modules",
-    "kind": "console",
-    "detail": "QuestionBuilderPage: failed to load modules/lessons TypeError: Failed to fetch\n    at loadModulesAndLessons (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-builder/page.tsx:247:17)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/learn/manage/question-build"
+    "route": "/admin/learn/roadmap",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/roadmap\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/search",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/search\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/learn/students",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/learn/students\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/marketing",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/marketing\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/me",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/me\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/me/privacy",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/me/privacy\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/me/privacy",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "route": "/admin/messages",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/messages\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/messages/contacts",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/messages/contacts\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/messages/new",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/messages/new\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/messages/settings",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/messages/settings\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/mileage",
-    "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/messages/settings. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/mileage\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/money",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/money\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/my-files",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/my-files\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/my-hours",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/my-hours\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/my-notes",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/my-notes\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/my-pay",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/my-pay\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/notes",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/notes\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/notifications",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/notifications\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/office",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/office\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/org-settings",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/org-settings\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/orgs",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/orgs\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/pass-through",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/pass-through\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/pay-progression",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/pay-progression\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/pay-rates",
-    "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/pay-progression. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n  "
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/pay-rates\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payments/inbox",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payments/inbox\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payout-log",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payout-log\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payouts",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payouts\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payouts/ad-hoc",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payouts/ad-hoc\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payouts/runs",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payouts/runs\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payouts/search",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payouts/search\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payouts/tax-report",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payouts/tax-report\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payouts/withdrawals",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payouts/withdrawals\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/payroll",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/payroll\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/people",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/people\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/personnel/crew-calendar",
-    "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/people. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n    at fast"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/personnel/crew-calendar\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/profile",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/profile\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/receipts",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/receipts\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/receipts/new",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/receipts/new\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/receivables",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/receivables\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/reports",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/reports\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research-cad",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research-cad\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research/billing",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/billing\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/research/coverage",
-    "kind": "console",
-    "detail": "Failed to fetch RSC payload for http://127.0.0.1:3040/admin/research/billing. Falling back to browser navigation. TypeError: Failed to fetch\n    at fetchServerResponse (webpack-internal:///(app-pages-browser)/./node_modules/next/dist/client/components/router-reducer/fetch-server-response.js:59:27)\n "
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/coverage\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/research/coverage",
-    "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "route": "/admin/research/library",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/library\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research/pipeline",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/pipeline\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research/self-heal",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/self-heal\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research/sites",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/sites\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/research/testing",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/research/testing\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/rewards",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/rewards\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
     "route": "/admin/rewards/admin",
-    "kind": "console",
-    "detail": "RewardsPage: fetch failed TypeError: Failed to fetch\n    at fetchData (webpack-internal:///(app-pages-browser)/./app/admin/rewards/page.tsx:60:31)\n    at eval (webpack-internal:///(app-pages-browser)/./app/admin/rewards/page.tsx:56:9)\n    at commitHookEffectListMount (webpack-internal:///(app-pages-"
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/rewards/admin\", waiting until \"domcontentloaded\"\u001b[22m\n"
   },
   {
-    "route": "/admin/rewards/admin",
+    "route": "/admin/rewards/how-it-works",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/rewards/how-it-works\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/role-requests",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/role-requests\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/roles/custom",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/roles/custom\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/schedule",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/schedule\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/search",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/search\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/settings",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/settings\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/support",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/support\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/support/new",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/support/new\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/team",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/team\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/time-off",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/time-off\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/timeline",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/timeline\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/users",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/users\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/vehicles",
     "kind": "console",
-    "detail": "ClientFetchError: Failed to fetch. Read more at https://errors.authjs.dev#autherror\n    at fetchData (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/lib/client.js:49:22)\n    at async getSession (webpack-internal:///(app-pages-browser)/./node_modules/next-auth/react.js:121:21)\n    a"
+    "detail": "Failed to load resource: net::ERR_FAILED"
+  },
+  {
+    "route": "/admin/vehicles",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/vehicles\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/weather",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/weather\", waiting until \"domcontentloaded\"\u001b[22m\n"
+  },
+  {
+    "route": "/admin/work",
+    "kind": "pageerror",
+    "detail": "navigation failed: TimeoutError: page.goto: Timeout 45000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"http://127.0.0.1:3040/admin/work\", waiting until \"domcontentloaded\"\u001b[22m\n"
   }
 ]

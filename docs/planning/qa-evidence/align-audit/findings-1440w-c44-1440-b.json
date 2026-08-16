@@ -1,0 +1,45 @@
+{
+  "stamp": "2026-08-15",
+  "width": 1440,
+  "routes": 130,
+  "byRule": {
+    "height-spread": 2,
+    "row-centre": 1
+  },
+  "byRoute": {
+    "/admin/cad": 2,
+    "/admin/mileage": 1
+  },
+  "findings": [
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different input heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|input",
+      "count": 1
+    },
+    {
+      "route": "/admin/cad",
+      "rule": "height-spread",
+      "severity": "low",
+      "px": 4,
+      "detail": "4 different button heights on one page: 18, 22, 24, 28px",
+      "container": "page",
+      "sig": "height-spread|button",
+      "count": 1
+    },
+    {
+      "route": "/admin/mileage",
+      "rule": "row-centre",
+      "severity": "high",
+      "px": 10.7,
+      "detail": "input and input sit side by side but their centres differ by 10.7px",
+      "container": "label \"Job address\"",
+      "sig": "input|input|label",
+      "count": 4
+    }
+  ]
+}

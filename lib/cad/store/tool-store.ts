@@ -2,6 +2,68 @@
 import { create } from 'zustand';
 import type { ToolType, ToolState, Point2D } from '../types';
 
+// ── C14b — "is this tool mid-pick?", answered in ONE place ──────────────────────────────────────
+//
+// C14 shipped the universal Escape by reading `drawingPoints.length > 0` to tell "abandon the
+// half-drawn geometry" from "leave the tool". That is correct for every tool that accumulates
+// clicks into `drawingPoints` — and it is the wrong question for the nine tools that park their
+// first pick in a field of their own. Pick one line with FILLET and press Escape and you do not
+// abandon the pick, you lose the tool; the same for MOVE after a base point, ROTATE after a
+// centre, MATCH_PROPERTIES after a source — whose own code comment promises "stays in apply mode
+// until the surveyor hits Esc", which is precisely what it did not do.
+//
+// `getPromptHint` in CommandBar.tsx had the identical blind spot from the other side: written as
+// `drawingPointsCount === 0 ? askForFirst : askForSecond`, it sat on stage 1 forever for those
+// tools, so the command line kept asking for the pick the surveyor had already made.
+//
+// Two symptoms, one missing definition. It lives here rather than in either caller because a
+// definition kept in two places is how the two drifted apart to begin with — and because a tool
+// added later gets both behaviours by adding one line to this list.
+//
+// Only PENDING state belongs here: a field that means "this tool is part-way through". Option-bar
+// settings (fillet radius, divide count, offset distance) deliberately survive — they are the
+// surveyor's configuration, not an in-progress operation.
+
+/** The tool-state fields that mean "a pick is pending", with the extra fields each one owns. */
+const PENDING_PICK_FIELDS: ReadonlyArray<{
+  readonly field: keyof ToolState;
+  /** Set back to their defaults alongside `field` when the pick is abandoned. */
+  readonly alsoClears?: ReadonlyArray<keyof ToolState>;
+}> = [
+  { field: 'basePoint', alsoClears: ['displacement'] },
+  { field: 'rotateCenter' },
+  { field: 'offsetSourceId', alsoClears: ['offsetSourceSegmentIndex'] },
+  { field: 'filletPickedLineId', alsoClears: ['filletPickedClickPoint'] },
+  { field: 'chamferPickedLineId', alsoClears: ['chamferPickedClickPoint'] },
+  { field: 'matchPropertiesSourceId' },
+  { field: 'perpStartPoint', alsoClears: ['perpBaseLineId', 'perpBaseDir', 'perpLengthFeet'] },
+  { field: 'arrayPolarCenter' },
+];
+
+/**
+ * True when the active tool is part-way through a multi-click operation.
+ *
+ * Deliberately includes `drawingPoints`, so this is the whole question rather than "the half C14
+ * missed" — a caller that has to remember to ask two questions is a caller that will one day ask
+ * only one.
+ */
+export function hasPendingPick(state: ToolState): boolean {
+  if (state.drawingPoints.length > 0) return true;
+  return PENDING_PICK_FIELDS.some(({ field }) => state[field] != null);
+}
+
+/**
+ * The prompt stage the tool is on: 0 before the first pick, 1 after it.
+ *
+ * `drawingPoints.length` is returned as-is because the variable-length tools count their own
+ * vertices in the prompt text ("3 pts — Enter to finish"), and a staged tool that parks one id
+ * reads as exactly one pick made.
+ */
+export function pickStage(state: ToolState): number {
+  if (state.drawingPoints.length > 0) return state.drawingPoints.length;
+  return PENDING_PICK_FIELDS.some(({ field }) => state[field] != null) ? 1 : 0;
+}
+
 interface ToolStore {
   state: ToolState;
 
@@ -58,6 +120,8 @@ interface ToolStore {
   setPerpAzimuthDeg: (deg: number) => void;
   setPerpLengthFeet: (feet: number | null) => void;
   clearPerp: () => void;
+  /** C14b — abandon whatever pick is pending, staying in the current tool. */
+  clearPendingPick: () => void;
   setSimplifyTolerance: (v: number) => void;
   // Slice W11 — DRAW_FREEHAND settings.
   setFreehandSmooth: (v: boolean) => void;
@@ -447,6 +511,22 @@ export const useToolStore = create<ToolStore>((set) => ({
     set((s) => ({
       state: { ...s.state, perpBaseLineId: null, perpStartPoint: null, perpBaseDir: null, perpLengthFeet: null },
     })),
+
+  // C14b — the counterpart to `hasPendingPick`. Clears every pending field and the drawing points
+  // together, and touches nothing else: the surveyor keeps the tool, the option-bar settings and
+  // the ortho/polar modes they were working with. Built from PENDING_PICK_FIELDS rather than a
+  // hand-written object literal so a field added to that list cannot be forgotten here — the drift
+  // between the prompt and the Escape handler is the exact failure this slice is repairing.
+  clearPendingPick: () =>
+    set((s) => {
+      const next: ToolState = { ...s.state, drawingPoints: [], previewPoint: null };
+      const writable = next as unknown as Record<string, unknown>;
+      for (const { field, alsoClears } of PENDING_PICK_FIELDS) {
+        writable[field] = null;
+        for (const extra of alsoClears ?? []) writable[extra] = null;
+      }
+      return { state: next };
+    }),
 
   setSimplifyTolerance: (v) =>
     set((s) => ({

@@ -11,6 +11,7 @@ import {
   useUIStore,
   makeRemoveFeatureEntry,
   makeBatchEntry,
+  pickStage,
 } from '@/lib/cad/store';
 import type { ParsedCommand, Feature } from '@/lib/cad/types';
 import { useHotkeyContext } from '../hooks/useHotkeyContext';
@@ -97,7 +98,16 @@ function parseCommand(raw: string): ParsedCommand {
 // ─────────────────────────────────────────────
 // Tool prompt hints
 // ─────────────────────────────────────────────
-function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown, regularPolygonSides?: number): string {
+// C14b — `drawingPointsCount` is now the tool's PICK STAGE, not literally `drawingPoints.length`.
+//
+// Every staged prompt below is written as `drawingPointsCount === 0 ? askForFirst : askForSecond`,
+// which was silently wrong for the tools that keep their first pick in a field of their own:
+// OFFSET (`offsetSourceId`), FILLET / CHAMFER (`…PickedLineId`), PERPENDICULAR (`perpStartPoint`).
+// Those never push a drawing point, so the count stayed 0 and the command line went on asking for
+// the pick the surveyor had just made — the worst version of a prompt, because it reads as though
+// the click did not register. `pickStage` answers the same question for both kinds of tool, and it
+// is the same function the Escape handler asks, so the two cannot drift apart again.
+function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCenter?: unknown, basePoint?: unknown, regularPolygonSides?: number, arrayMode?: 'RECT' | 'POLAR'): string {
   switch (activeTool) {
     case 'SELECT':
       return 'Click to select · Shift+click to add/remove · drag to box-select · Space+drag or middle-drag to pan · or type a command';
@@ -225,7 +235,13 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
     case 'JOIN':
       return 'Click each line or polyline to add it to the chain — Enter to merge them into one polyline';
     case 'MATCH_PROPERTIES':
-      return 'Click the feature to copy style FROM, then click each feature to apply it to';
+      // C14b — this named both picks in one sentence, which reads fine before the first click and
+      // is ambiguous after it: the surveyor cannot tell from the prompt whether the source took.
+      // The tool stays in apply mode indefinitely, so stage 2 is where it spends nearly all of its
+      // time and is the stage that needed its own sentence.
+      return drawingPointsCount === 0
+        ? 'Click the feature to copy the style FROM'
+        : 'Source locked — click each feature to apply the style to. Esc releases the source.';
 
     // Vertex editing.
     case 'INSERT_VERTEX':
@@ -235,7 +251,16 @@ function getPromptHint(activeTool: string, drawingPointsCount: number, rotateCen
 
     // Selection-then-act.
     case 'ARRAY':
-      return 'Select the objects to replicate — set rows, columns and spacing in the options bar, then confirm';
+      // C14b — the prompt described the RECT flow only, and the two modes take a different number
+      // of clicks. Polar asks for a centre first and commits on the second click; the old sentence
+      // ("set rows, columns and spacing") names controls that polar mode does not even use, so a
+      // surveyor in polar mode was reading instructions for a different tool.
+      if (arrayMode === 'POLAR') {
+        return drawingPointsCount === 0
+          ? 'Select the objects, then click the centre to rotate them around — count and angle are in the options bar'
+          : 'Centre set — click again to place the polar array. Esc clears the centre.';
+      }
+      return 'Select the objects to replicate — set rows, columns and spacing in the options bar, then click to place';
     case 'FLIP':
       return 'Select objects, choose H / V / D1 / D2 in the options bar, then click the canvas to reflect them';
     case 'INVERT':
@@ -342,10 +367,11 @@ export default function CommandBar() {
   const toolState = toolStore.state;
   const hint = getPromptHint(
     toolState.activeTool,
-    toolState.drawingPoints.length,
+    pickStage(toolState),
     toolState.rotateCenter,
     toolState.basePoint,
     toolState.regularPolygonSides,
+    toolState.arrayMode,
   );
 
   const handleSubmit = useCallback(

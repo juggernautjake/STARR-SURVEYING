@@ -34,7 +34,11 @@ const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 describe('the general Escape exists', () => {
   it('abandons a half-drawn feature', () => {
-    expect(code).toMatch(/drawingPoints\.length > 0[\s\S]{0,120}clearDrawingPoints\(\)/);
+    // C14b widened the condition. C14 asked `drawingPoints.length > 0`, which is the right
+    // question for the tools that accumulate clicks and the wrong one for the nine that park a
+    // first pick in a field of their own — see pending-pick-is-one-definition.test.ts. The step is
+    // unchanged; only what counts as "half-drawn" grew.
+    expect(code).toMatch(/hasPendingPick\(ts\.state\)[\s\S]{0,120}clearPendingPick\(\)/);
   });
 
   it('returns to SELECT when there is nothing half-drawn', () => {
@@ -51,8 +55,8 @@ describe('the order is the part that matters', () => {
   it('cancels the geometry BEFORE giving up the tool', () => {
     // Two steps, not one. Dropping straight to SELECT would make a single keypress do two things
     // and take away the tool the surveyor is still using.
-    const block = code.slice(code.indexOf('drawingPoints.length > 0'));
-    const clearAt = block.indexOf('clearDrawingPoints()');
+    const block = code.slice(code.indexOf('hasPendingPick(ts.state)'));
+    const clearAt = block.indexOf('clearPendingPick()');
     const selectAt = block.indexOf("setTool('SELECT')");
     expect(clearAt).toBeGreaterThan(-1);
     expect(selectAt).toBeGreaterThan(-1);
@@ -62,7 +66,7 @@ describe('the order is the part that matters', () => {
   it('runs AFTER the specific Escape cases, so it never steals their key', () => {
     // Each specific case guards on its own ref and stops propagation. A general handler placed
     // first would swallow the key before the offset re-pick or the rotate cancel ever saw it.
-    const general = code.indexOf('drawingPoints.length > 0');
+    const general = code.indexOf('hasPendingPick(ts.state)');
     for (const specific of ['snapPickRef.current', 'paperMoveModeRef.current', 'interactiveOpRef.current', 'offsetSourceId']) {
       const at = code.indexOf(specific);
       expect(at, `${specific} should still be handled`).toBeGreaterThan(-1);

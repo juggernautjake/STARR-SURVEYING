@@ -1,0 +1,226 @@
+[
+  {
+    "event": "cad:openAIDrawingDialog",
+    "opened": true,
+    "panel": "div.fixed",
+    "rect": {
+      "x": 8,
+      "y": 94.7,
+      "w": 374,
+      "h": 560
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 3,
+    "primaryText": "Run pipeline",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openBranchDialog",
+    "status": "SKIPPED",
+    "reason": "needs a drawing to branch from; the blank drawing has none"
+  },
+  {
+    "event": "cad:openCalcPointDialog",
+    "opened": true,
+    "panel": "div.fixed",
+    "rect": {
+      "x": 8,
+      "y": 108,
+      "w": 374,
+      "h": 520
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 4,
+    "primaryText": "Suggest as ghost",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openCloseDrawingDialog",
+    "opened": true,
+    "panel": "div.fixed",
+    "rect": {
+      "x": 8,
+      "y": 128,
+      "w": 374,
+      "h": 460
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 3,
+    "primaryText": "Suggest as ghost",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openCodeStylePanel",
+    "opened": true,
+    "panel": "div.fixed",
+    "rect": {
+      "x": 8,
+      "y": 68,
+      "w": 374,
+      "h": 640
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 307,
+    "primaryText": "Reset all overrides",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openCompletenessPanel",
+    "opened": true,
+    "panel": "aside",
+    "rect": {
+      "x": 10,
+      "y": 60,
+      "w": 380,
+      "h": 784
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 8,
+    "primaryText": "Mark Ready for RPLS Review",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openCurveCalculator",
+    "opened": true,
+    "panel": "div.fixed",
+    "rect": {
+      "x": 8,
+      "y": 74.7,
+      "w": 374,
+      "h": 620
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 3,
+    "primaryText": "Calculate",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openDrawingNotes",
+    "opened": true,
+    "panel": "div.fixed",
+    "rect": {
+      "x": 8,
+      "y": 154.7,
+      "w": 374,
+      "h": 380
+    },
+    "overflowRight": 0,
+    "overflowLeft": 0,
+    "docScrollW": 390,
+    "buttons": 3,
+    "primaryText": "Send note",
+    "primaryReachable": true,
+    "problems": [
+      "Escape did not close it"
+    ],
+    "status": "REVIEW",
+    "escapes": false
+  },
+  {
+    "event": "cad:openFeatureDialog",
+    "status": "SKIPPED",
+    "reason": "needs a feature id; the blank drawing has none"
+  },
+  {
+    "event": "cad:openFeatureLabelPrefs",
+    "status": "SKIPPED",
+    "reason": "needs a feature id; the blank drawing has none"
+  },
+  {
+    "event": "cad:openFileManager",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openImport",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openIntersect",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openLayerPrefs",
+    "status": "SKIPPED",
+    "reason": "needs a layer id; the blank drawing has none"
+  },
+  {
+    "event": "cad:openLayerTransfer",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openNewDrawingDialog",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openPointFileLibrary",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openPrintDialog",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openSealPicker",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openSettings",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  },
+  {
+    "event": "cad:openSketchReconcileDialog",
+    "opened": false,
+    "status": "DID-NOT-OPEN"
+  }
+]

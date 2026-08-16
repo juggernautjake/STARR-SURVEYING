@@ -15,6 +15,7 @@ import {
   useDrawingStore,
   useSelectionStore,
   useToolStore,
+  hasPendingPick,
   useViewportStore,
   useUndoStore,
   useUIStore,
@@ -5402,6 +5403,46 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
     }
 
     if (!previewPoint) return;
+
+    // ── C14b — DRAW_POINT's cursor ghost ────────────────────────────────────────────────────────
+    //
+    // The contract's fourth question is "what will I get before I commit", and for the one-click
+    // place tools it says the preview follows the cursor. DRAW_POINT had none: the crosshair
+    // cursor showed WHERE and nothing showed WHAT, so the size, colour and symbol of the thing
+    // being placed were only knowable after placing it.
+    //
+    // The style is read the way `createFeature` builds it — DEFAULT_FEATURE_STYLE under the active
+    // layer's style — rather than assembled independently here. A preview that computes its own
+    // appearance is a second implementation of the same rule, and the two would eventually
+    // disagree; then the ghost would be confidently wrong, which is worse than no ghost at all.
+    //
+    // Drawn at `previewPoint` rather than the raw cursor on purpose: `previewPoint` is already the
+    // snapped position, so the ghost lands exactly where the point will. A ghost sitting at the
+    // cursor while the point lands on a snap is a preview that lies about the one thing a surveyor
+    // is using the preview to check.
+    //
+    // DRAW_TEXT and DRAW_IMAGE are deliberately left without one. Both open an editor at the click
+    // and their content does not exist yet, so there is nothing to draw that the crosshair and the
+    // snap marker do not already say.
+    if (activeTool === 'DRAW_POINT') {
+      const { sx: px, sy: py } = w2s(previewPoint.x, previewPoint.y);
+      const ghostStyle = { ...DEFAULT_FEATURE_STYLE, ...activeLayerStyle };
+      const ghostAlpha = 0.5;
+      const ghostColor = parseInt((ghostStyle.color ?? '#0066cc').replace('#', ''), 16);
+      const symbol = ghostStyle.symbolId
+        ? findSymbol(ghostStyle.symbolId, useDrawingStore.getState().document.customSymbols ?? [])
+        : undefined;
+      if (symbol) {
+        const symPx = ghostStyle.symbolSize && ghostStyle.symbolSize > 0 ? ghostStyle.symbolSize : 14;
+        renderSymbol(g, symbol, px, py, symPx, ghostStyle.symbolRotation ?? 0, ghostColor, ghostAlpha);
+      } else {
+        const size = useDrawingStore.getState().document.settings.displayPreferences?.pointSize ?? 6;
+        g.lineStyle(Math.max(ghostStyle.lineWeight ?? 1, 2), ghostColor, ghostAlpha);
+        g.moveTo(px - size, py); g.lineTo(px + size, py);
+        g.moveTo(px, py - size); g.lineTo(px, py + size);
+      }
+      return;
+    }
 
     // For MOVE/COPY: show line from base point to cursor + ghost of the moved/copied selection
     if (
@@ -13206,10 +13247,18 @@ export default function CanvasViewport({ pendingPlaceImageId, onPlaceImageConsum
       // expects — abandon the geometry first, and only a SECOND Escape leaves the tool. Dropping
       // straight back to SELECT would make one keypress do two things and lose the tool the
       // surveyor is still using.
+      //
+      // C14b widened step 1 from `drawingPoints.length > 0` to `hasPendingPick`. The original
+      // question was right for the tools that accumulate clicks and wrong for the nine that park
+      // a first pick in a field of their own — FILLET, CHAMFER, MATCH_PROPERTIES, PERPENDICULAR,
+      // ARRAY (polar centre), MOVE / COPY / SCALE (base point) and ROTATE (centre). For those,
+      // Escape skipped straight to step 2 and took the tool away instead of the half-made pick,
+      // which is the opposite of what the comment above promises. The definition now lives in the
+      // store beside the fields it reads, so the prompt and this handler cannot disagree again.
       if (e.key === 'Escape') {
         const ts = useToolStore.getState();
-        if (ts.state.drawingPoints.length > 0) {
-          ts.clearDrawingPoints();
+        if (hasPendingPick(ts.state)) {
+          ts.clearPendingPick();
           e.stopPropagation();
         } else if (ts.state.activeTool !== 'SELECT' && ts.state.activeTool !== 'PAN') {
           ts.setTool('SELECT');
