@@ -1,11 +1,13 @@
 // app/admin/cad/components/CurveCalculator.tsx
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import ModalFrame from '@/app/admin/components/ui/ModalFrame';
 import { computeCurve, crossValidateCurve } from '@/lib/cad/geometry/curve';
 import type { CurveInput } from '@/lib/cad/geometry/curve';
 import type { CurveParameters } from '@/lib/cad/types';
+import { useSelectionStore, useDrawingStore, getSelectedFeatures } from '@/lib/cad/store';
+import { selectedPoints } from '@/lib/cad/ai/selection-points';
 
 type CurveMethod =
   | 'R_DELTA'        // Method 1: R + Δ
@@ -31,6 +33,37 @@ interface Props {
   onPlace?: (curve: CurveParameters) => void;
 }
 
+// ── C29's remaining gap, and a broken method underneath it ──────────────────────────────────────
+//
+// C27 measured 1 of 13 calculation surfaces reading the selection, and C29 carried the rest forward
+// as "twelve separate pieces of work". Auditing this one first found something worse than a missing
+// convenience: **the 3-point method has never been usable.**
+//
+// `THREE_POINT` is in the dropdown, `computeCurve` implements it completely (`circleThrough3Points`
+// at curve.ts:94), and the form has **no fields for the three points at all** — no state, no
+// inputs, and `compute()` never sets `point1`/`point2`/`point3`. Choosing it hides the R and
+// Direction fields, leaves nothing behind, and Compute answers *"Insufficient input — provide at
+// least R and one other parameter"*, which is advice for a method that does not take R.
+//
+// The same class of error C29 recorded for "Place on drawing": present in the signature, absent
+// from the running product, and invisible to type-reading.
+//
+// The fix and the carried gap are the same work, which is the argument for doing it here. Three
+// points typed as six coordinates is exactly the data a surveyor already has ON the drawing —
+// three shots — so the selection is not a shortcut for this method, it is the natural input.
+//
+// ── ORDER IS PART OF THE INPUT ──────────────────────────────────────────────────────────────────
+//
+// PC, a point along the arc, PT. `selectedIds` is a Set, and a Set preserves INSERTION order, so
+// the order is the order the surveyor clicked. That is meaningful and is stated in the UI, because
+// the alternative — sorting by anything — would silently pick a curve through the same three points
+// in a different direction and be indistinguishable from the right answer at a glance.
+
+// The POINT extraction is `lib/cad/ai/selection-points.ts`, not a local copy. Its own header
+// records why: an inline `.position` typo — the real field is `geometry.point` — shipped past the
+// solver unit tests and only appeared at runtime. Writing it again here would be a second chance
+// to make the same mistake, and this surface would have been the third caller to do so.
+
 export default function CurveCalculator({ onClose, onPlace }: Props) {
   const [method, setMethod] = useState<CurveMethod>('R_DELTA');
   const [result, setResult] = useState<CurveParameters | null>(null);
@@ -49,6 +82,17 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
   const [tangentIn, setTangentIn] = useState('');
   const [tangentOut, setTangentOut] = useState('');
 
+  // Both deps are INVALIDATION SIGNALS, not values read inside — the C29c note applies unchanged.
+  // Without `selectedIds` the list freezes at whatever was selected when the modal opened; without
+  // `featuresRef` dragging one of the three points would not change the curve it solves.
+  const selectedIds = useSelectionStore((s) => s.selectedIds);
+  const featuresRef = useDrawingStore((s) => s.document.features);
+  const points = useMemo(
+    () => selectedPoints(getSelectedFeatures()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedIds, featuresRef],
+  );
+
   const compute = useCallback(() => {
     setError(null);
     setValidationMsg(null);
@@ -56,6 +100,27 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
 
     try {
       const input: CurveInput = { direction };
+
+      if (method === 'THREE_POINT') {
+        // Refused with the count rather than a generic complaint. "Select exactly three points"
+        // when two are selected leaves the surveyor checking whether the tool can see the
+        // selection at all; naming what it can see answers that in the same sentence.
+        if (points.length !== 3) {
+          setError(
+            points.length === 0
+              ? 'Select three points on the drawing — the PC, a point along the arc, and the PT — then Compute.'
+              : `Three points are needed and ${points.length} ${points.length === 1 ? 'is' : 'are'} selected. Click the PC, a point along the arc, then the PT.`,
+          );
+          return;
+        }
+        input.point1 = points[0].point;
+        input.point2 = points[1].point;
+        input.point3 = points[2].point;
+        // Direction is DERIVED from the three points here, not taken from the radio buttons —
+        // which is why those are hidden for this method. A curve through three known positions
+        // already has a direction, and letting a stale radio override it would draw the major arc
+        // through the same three points: a 300-foot error that still looks like a curve.
+      }
 
       if (R) input.R = parseFloat(R);
       if (delta) input.delta = parseFloat(delta);
@@ -69,7 +134,14 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
 
       const computed = computeCurve(input);
       if (!computed) {
-        setError('Insufficient input — provide at least R and one other parameter.');
+        setError(
+          method === 'THREE_POINT'
+            // The engine returns null when the three points are collinear — no circle passes
+            // through them. Saying "insufficient input" there would be false: the input is
+            // complete and the geometry is impossible, and only one of those is worth re-checking.
+            ? 'Those three points lie on a straight line, so no arc passes through them.'
+            : 'Insufficient input — provide at least R and one other parameter.',
+        );
         return;
       }
 
@@ -88,7 +160,7 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
     } catch (e) {
       setError('Calculation error: ' + (e instanceof Error ? e.message : String(e)));
     }
-  }, [R, delta, L, C, T, E, M, direction, tangentIn, tangentOut, method]);
+  }, [R, delta, L, C, T, E, M, direction, tangentIn, tangentOut, method, points]);
 
   const handleCopy = () => {
     if (!result) return;
@@ -140,6 +212,46 @@ export default function CurveCalculator({ onClose, onPlace }: Props) {
             {/* Left: Inputs */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Input</h3>
+
+              {/* C29 — the 3-point method reads the live selection.
+                  Shown rather than assumed: a calculator that silently consumes whatever happens
+                  to be selected is one a surveyor cannot check, and the ROLE of each point (which
+                  is the PC and which the PT) changes the answer, so each row is labelled. */}
+              {method === 'THREE_POINT' && (
+                <div>
+                  <label className="block text-xs text-gray-600 mb-1">
+                    Points — click three on the drawing, in order
+                  </label>
+                  {points.length === 0 ? (
+                    <p className="text-xs text-gray-500 border border-dashed border-gray-300 rounded px-2 py-3">
+                      Nothing selected. Click the PC, then a point along the arc, then the PT.
+                    </p>
+                  ) : (
+                    <ol className="text-xs border border-gray-200 rounded divide-y divide-gray-100">
+                      {points.slice(0, 3).map((sp, i) => (
+                        <li key={sp.id} className="px-2 py-1 flex justify-between gap-2">
+                          <span className="text-gray-500">
+                            {['PC', 'Along arc', 'PT'][i]}
+                            {/* The point's own name, when it has one. A surveyor checking the
+                                answer recognises "CP-14", not a pair of coordinates. */}
+                            <span className="ml-1 text-gray-400">{sp.name}</span>
+                          </span>
+                          <span className="font-mono text-gray-800">
+                            {sp.point.x.toFixed(2)}, {sp.point.y.toFixed(2)}
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                  {points.length > 3 && (
+                    // Not silently truncated: taking the first three of five and solving would
+                    // answer a question the surveyor did not ask, and look right doing it.
+                    <p className="text-xs text-amber-700 mt-1" role="alert">
+                      {points.length} points selected — exactly three are needed.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Common: R */}
               {method !== 'THREE_POINT' && (

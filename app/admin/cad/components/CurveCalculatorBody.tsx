@@ -16,10 +16,24 @@
 // different chrome.
 
 import { useCallback } from 'react';
-import { useCalculatorStore } from '@/lib/cad/store';
+import { useCalculatorStore, getSelectedFeatures } from '@/lib/cad/store';
 import { computeCurve, crossValidateCurve } from '@/lib/cad/geometry/curve';
+import { selectedPoints } from '@/lib/cad/ai/selection-points';
 import type { CurveInput } from '@/lib/cad/geometry/curve';
-import type { CurveParameters } from '@/lib/cad/types';
+import type { CurveParameters, Point2D } from '@/lib/cad/types';
+
+/**
+ * The selected POINT coordinates, in click order.
+ *
+ * Read imperatively at Compute time rather than subscribed to, which is the one place this surface
+ * differs from `CurveCalculator`. Its whole state lives in the persisted calculator store and the
+ * component re-renders from that; adding two store subscriptions to drive a list it does not show
+ * would be state this body has no way to display. The selection is read at the moment the surveyor
+ * asks for an answer, which is also the moment it is true.
+ */
+function selectedCurvePoints(): Point2D[] {
+  return selectedPoints(getSelectedFeatures()).map((sp) => sp.point);
+}
 
 type CurveMethod =
   | 'R_DELTA'        // Radius + Δ
@@ -91,6 +105,33 @@ export default function CurveCalculatorBody() {
     const s = readState();
     try {
       const input: CurveInput = { direction: s.direction };
+
+      // C29 — the same 3-point defect as the standalone `CurveCalculator`, in the same words.
+      // THREE_POINT sat in the dropdown with no inputs and no `point1/2/3`, so choosing it and
+      // pressing Compute answered "Insufficient input — provide at least R", which is advice for a
+      // method that does not take R. Both surfaces share the compute kernel and neither shared
+      // this; the two dropdowns were the only thing that agreed.
+      //
+      // The points come from the live selection, in click order — the surveyor already has the
+      // three shots on the drawing, and reading six coordinates off the screen to retype them is
+      // precisely the gap C27 measured on this surface.
+      if (s.method === 'THREE_POINT') {
+        const pts = selectedCurvePoints();
+        if (pts.length !== 3) {
+          patch({
+            result: null,
+            error: pts.length === 0
+              ? 'Select three points on the drawing — the PC, a point along the arc, and the PT — then Compute.'
+              : `Three points are needed and ${pts.length} ${pts.length === 1 ? 'is' : 'are'} selected. Click the PC, a point along the arc, then the PT.`,
+            validationMsg: null,
+          });
+          return;
+        }
+        input.point1 = pts[0];
+        input.point2 = pts[1];
+        input.point3 = pts[2];
+      }
+
       if (s.R) input.R = parseFloat(s.R);
       if (s.delta) input.delta = parseFloat(s.delta);
       if (s.L) input.L = parseFloat(s.L);
@@ -102,7 +143,16 @@ export default function CurveCalculatorBody() {
       if (s.tangentOut) input.tangentOutBearing = parseFloat(s.tangentOut);
       const computed = computeCurve(input);
       if (!computed) {
-        patch({ result: null, error: 'Insufficient input — provide at least R and one other parameter.', validationMsg: null });
+        patch({
+          result: null,
+          // The engine returns null when the three points are collinear. "Insufficient input"
+          // there is false — the input is complete and the geometry is impossible, and only one of
+          // those is worth re-checking what you typed over.
+          error: s.method === 'THREE_POINT'
+            ? 'Those three points lie on a straight line, so no arc passes through them.'
+            : 'Insufficient input — provide at least R and one other parameter.',
+          validationMsg: null,
+        });
         return;
       }
       let validationMsg: string | null = null;

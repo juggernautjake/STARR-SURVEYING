@@ -185,3 +185,61 @@ Ordered by what a survey deliverable actually needs.
 
 * Provenance exists on exactly one surface (F1). The field itself does not exist on `Feature`, so
   C30 starts in the model, the same way P6 did.
+
+---
+
+## F6 revisited — "selection-as-input is twelve surfaces" (C29, closing note 2026-08-15)
+
+It is not twelve, and the number was doing real harm: carried forward as twelve pieces of work, it
+made a small job look like a project and kept it parked through five slices.
+
+Auditing the thirteen surfaces that did not read the selection, against *what each one's input
+actually is*, splits them three ways.
+
+### Already take their input from the drawing, by a better mechanism than the selection
+
+`IntersectDialog`, `OffsetPanel`, `OnLineOffsetPanel` — all three are driven by a **canvas pick**.
+The surveyor clicks the feature on the drawing and the panel binds to it. That is a selection under
+another name, and a more precise one: a pick can capture *which segment* and *which side* of a
+feature was clicked, which a selection cannot express. Adding "reads the selection" to these would
+be a second, worse input path competing with the working one.
+
+### Have no selectable input at all
+
+`CalculatorModal` and `CalculatorPicker` are chrome — a frame and a list, with no inputs.
+`GenericCalculator` is a Windows-style pocket calculator over digits and operators.
+`AreaMeasureHUD` reports the polygon being drawn *right now*, so its input is the in-progress
+vertex list and cannot be a selection made before it started. `TraversePanel`, `TraverseViewer` and
+`ClosureReport` all read the traverse store, which is the traverse the surveyor has already built —
+selecting geometry would not tell them which traverse to report on.
+
+That is **ten of the thirteen** where the gap was never a gap. The measurement counted every
+surface that did not call `getSelectedFeatures`, which is not the same question as *should it*.
+
+### Genuinely wanted it — and one of them was broken, not merely inconvenient
+
+`CurveCalculator` and `CurveCalculatorBody` both offer a **3-point method** (PC, a point along the
+arc, PT). `computeCurve` implements it completely. **Neither form had any way to enter the three
+points** — no state, no inputs, and `compute()` never set `point1`/`point2`/`point3`. Choosing the
+method hid the R and Direction fields, left nothing behind, and Compute answered *"Insufficient
+input — provide at least R and one other parameter"*: advice for a method that does not take R.
+
+So the carried gap and a dead method were the same work. The three points are three shots the
+surveyor already has on the drawing, which makes the selection the method's natural input rather
+than a shortcut for it — six coordinates read off the screen and retyped is exactly the friction
+F6 was measuring. Both surfaces now read the live selection in **click order** (a `Set` preserves
+insertion order, so the order is the order clicked, and the panel labels each row PC / Along arc /
+PT because which point is which changes the answer). Collinear points are reported as collinear
+rather than as insufficient input, and a selection of more than three is refused rather than
+silently truncated to the first three — which would answer a question nobody asked and look right
+doing it.
+
+`AdvancedCurveCalculator` is the third and is left deliberately: compound, reverse and spiral
+curves are solved from **design parameters** — two radii, a length, an A-value — that the drawing
+does not hold. Its start position is the one thing a selection could supply, and it already accepts
+a typed one; that is a convenience worth having and it is not this gap.
+
+**Selection-as-input: 5 of 17 surfaces, and the remaining twelve are accounted for by name.** The
+`usesSelection` flag in `lib/cad/calculators/registry.ts` still tracks the count, and the ratchet
+still asserts that most surfaces do not read the selection — because the honest reading of that
+number is now "most surfaces have no selection to read", not "most surfaces are missing something".
