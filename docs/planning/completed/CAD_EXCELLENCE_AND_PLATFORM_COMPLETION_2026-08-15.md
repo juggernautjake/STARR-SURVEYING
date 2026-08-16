@@ -512,7 +512,14 @@ half-built schema and a merge of half-finished work are both hard to walk back.
    page that never rendered.
 5. **Read the findings before fixing any of them.** In the previous pass roughly half of every
    opening number was the instrument. The 28 CAD findings fixed in A14 were 3 real defects.
-6. **Drive the surface, don't only measure it.** The snap-popover clip found in A14 was invisible to
+6. **Never suppress stderr on a cleanup step.** `rm -rf .next 2>/dev/null` failed against a
+   zombie `next start` still holding the directory ("Directory not empty"), the `2>/dev/null`
+   hid it, and the next build layered onto a half-deleted `.next`. The served app then 404'd on
+   `main-app.js` and every page hung on the layout's session spinner — which looks exactly like a
+   product bug, on both a page that had just been changed and one that had not. Kill the servers,
+   delete with PowerShell's `Remove-Item -Recurse -Force`, and check the directory is actually
+   gone before building. Related to C0g4's two traps and the same root cause as the BUILD_ID note.
+7. **Drive the surface, don't only measure it.** The snap-popover clip found in A14 was invisible to
    all six audit rules at every width — it was found by reading the CSS, and it had been shipping.
 
 ---

@@ -176,6 +176,13 @@ function findUnreachable(): string[] {
  * answer was never wrong, there was just never time to finish computing it.
  *
  * A flaky ratchet is worse than a slow one — it is the check people learn to re-run rather than read.
+ *
+ * 2026-08-16: it timed out again, at 22.8 s in the full suite against 10.4 s alone. Caching the
+ * scan removed the 3× cost and the remaining gap is pure CPU contention — 1,600 test files sharing
+ * the cores. The tests that call it now carry an explicit 90 s timeout, because the thing being
+ * bounded here is machine load, not the correctness of the answer, and a default meant for a unit
+ * test is the wrong bound for a whole-repository walk. It failed as "Test timed out", never as an
+ * assertion, both times.
  * The result is pure with respect to the working tree, so caching it changes nothing except that the
  * work happens once.
  */
@@ -186,7 +193,7 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
   it('scans a meaningful number of modules', () => {
     // Guards the guard: a walker returning [] would make every assertion below pass forever.
     expect(walk(path.join(process.cwd(), 'lib'), isModule).length).toBeGreaterThan(800);
-  });
+  }, 90_000);
 
   it('gains no NEW unreachable module', () => {
     const known = new Set(KNOWN_ORPHANS);
@@ -197,13 +204,13 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
       + 'is not reachable — every dead module found on 2026-08-04 had a green suite. Wire it, delete '
       + 'it, or add it to KNOWN_ORPHANS.',
     ).toEqual([]);
-  });
+  }, 90_000);
 
   it('never grows the total', () => {
     // Belt and braces with the check above: that one catches a new PATH, this one catches the set
     // getting bigger by any route at all.
     expect(unreachable().length).toBeLessThanOrEqual(KNOWN_ORPHANS.length);
-  });
+  }, 90_000);
 
   it('lists no module that has since been WIRED', () => {
     // The other half, and the one that had actually gone wrong. `cad/geo/texas-state-plane.ts` sat in
@@ -226,7 +233,7 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
           `stale entry raises the allowance in "never grows the total" by one:\n  ${wired.join('\n  ')}`
         : undefined,
     ).toEqual([]);
-  });
+  }, 90_000);
 
   it('lists no module that has since been deleted', () => {
     // Added 2026-08-04 (S4c) after this ratchet went on passing with `cad/io/trv-bearings.ts` in its
@@ -248,5 +255,5 @@ describe('THE RATCHET — unreachable modules across lib/', () => {
           gone.join('\n  ')
         : undefined,
     ).toEqual([]);
-  });
+  }, 90_000);
 });

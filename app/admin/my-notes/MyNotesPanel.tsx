@@ -297,7 +297,7 @@ export default function MyNotesPanel() {
           <button className="mynotes-editor__back" onClick={closeEditor}>&larr; Back to My Notes</button>
           <div className="mynotes-editor__actions">
             {saveError
-              ? <span role="alert" className="mynotes-editor__saved" style={{ color: '#B91C1C' }}>{saveError}</span>
+              ? <span role="alert" className="mynotes-editor__saved mynotes-editor__saved--error">{saveError}</span>
               : lastSaved && <span className="mynotes-editor__saved">Saved {lastSaved}</span>}
             {saving && <span className="mynotes-editor__saving">Saving...</span>}
             <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => saveNote(true)} disabled={saving}>Save</button>

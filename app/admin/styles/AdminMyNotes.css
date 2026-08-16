@@ -154,6 +154,11 @@
 .mynotes-editor__saved {
   font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #10B981;
 }
+/* A save that failed. Sits beside --saved and --saving because it is the third state of the
+   same indicator, and it must outrank a stale "Saved 14:02" from the last success. */
+.mynotes-editor__saved--error {
+  color: var(--color-danger, #B91C1C); font-weight: 600;
+}
 .mynotes-editor__saving {
   font-family: 'Inter', sans-serif; font-size: 0.72rem; color: #F59E0B;
   animation: mynotes-pulse 1s infinite;
