@@ -3,7 +3,10 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const route = readFileSync(join(process.cwd(), 'app/api/admin/mileage/manual/route.ts'), 'utf8');
+const routeRaw = readFileSync(join(process.cwd(), 'app/api/admin/mileage/manual/route.ts'), 'utf8');
+// C0b4 — comments stripped, because the route's own comment names the symbol that was retired and
+// a "must not contain" assertion would read that prose as code. Same trap as C3's guard.
+const route = routeRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // C0g (2026-08-15) — was the Work Mode field-crew workspace. Capture now lives on /admin/mileage.
 const form = readFileSync(join(process.cwd(), 'app/admin/mileage/LogTripForm.tsx'), 'utf8');
 
@@ -13,9 +16,24 @@ describe('manual-mileage POST route', () => {
     expect(route).toMatch(/Unauthorized/);
     expect(route).toContain('default_org_id');
   });
-  it('computes miles + reimbursement from the shared resolveOdometerEntry (no second rate)', () => {
-    expect(route).toContain('resolveOdometerEntry');
-    expect(route).toContain("if ('error' in resolved)"); // a bad entry is a 400, never a saved line
+  // ── C0b4 ──────────────────────────────────────────────────────────────────────────────────────
+  //
+  // Was: "computes miles + reimbursement from the shared resolveOdometerEntry (no second rate)".
+  // The odometer path is retired — C0g deleted the only UI that submitted readings and the table
+  // holds zero rows of any source, so there was no history to keep compatible. What the assertion
+  // was really protecting survives and is what is asserted now: ONE rate, shared, so a trip cannot
+  // be valued two ways.
+  it('values a trip through the shared reimbursement helper — never a second rate', () => {
+    expect(route).toContain('mileageReimbursement');
+    expect(route).toContain('IRS_BUSINESS_RATE_2025');
+    expect(route).not.toContain('resolveOdometerEntry');
+  });
+
+  it('refuses a retired odometer submission by name', () => {
+    // A caller still sending readings — a stale bookmark, an old mobile build — must be told what
+    // changed, not handed a message about a `distance` field it has never heard of.
+    expect(route).toMatch(/startReading[\s\S]{0,200}endReading/);
+    expect(route).toMatch(/Odometer readings are no longer accepted/);
   });
   // ── CORRECTED 2026-08-15 (C0b3) ───────────────────────────────────────────────────────────────
   //

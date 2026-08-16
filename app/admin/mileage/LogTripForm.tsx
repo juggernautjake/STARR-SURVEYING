@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { IRS_BUSINESS_RATE_2025 } from '@/lib/mileage/summary';
 import { estimateTripFuel } from '@/lib/mileage/fuel';
-import { MAX_REASONABLE_DAILY_MILES } from '@/lib/mileage/odometer';
+import { MAX_REASONABLE_DAILY_MILES } from '@/lib/mileage/reimbursement';
 
 interface VehicleOption { id: string; name: string; mpg: number | null }
 interface JobOption { id: string; label: string }

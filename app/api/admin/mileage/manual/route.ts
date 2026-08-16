@@ -17,11 +17,14 @@
 // and `mileage_entries` held 0 rows in production — verified against the live database on
 // 2026-08-15, not inferred. The column is computed by the database; it is not ours to send.
 //
-// ── TWO WAYS TO GET `miles`, ONE WAY TO VALUE IT ────────────────────────────────────────────────
+// ── ONE WAY TO GET `miles`, AS OF C0b4 ──────────────────────────────────────────────────────────
 //
-// `distance` (the address-based path, C0b1/C0b3) or `startReading`/`endReading` (the odometer path
-// this route was built for). Both land on the same miles → reimbursement math, so a trip is valued
-// identically however it was entered, and `distance_source` records which was used.
+// This route was built for `startReading`/`endReading` — the odometer path — and grew a `distance`
+// branch when the owner respecified capture to addresses (D9). C0b4 retired the odometer half:
+// C0g had already deleted the Work Mode shell that held its form, so nothing in the repo submitted
+// those fields, and `mileage_entries` holds zero rows of any source, so there was no history to
+// keep compatible. `distance_source` still records 'typed' vs 'lookup', and the DB check
+// constraint still admits 'odometer' so an imported or restored row stays writable.
 //
 // The fuel cost is ADDITIVE and never replaces the reimbursement — see D9. `rate_cents_per_mile`
 // stays the IRS figure that `/admin/payouts/tax-report` reads.
@@ -29,7 +32,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { resolveOdometerEntry, mileageReimbursement, MAX_REASONABLE_DAILY_MILES } from '@/lib/mileage/odometer';
+import { mileageReimbursement, MAX_REASONABLE_DAILY_MILES } from '@/lib/mileage/reimbursement';
 import { IRS_BUSINESS_RATE_2025 } from '@/lib/mileage/summary';
 import { estimateTripFuel } from '@/lib/mileage/fuel';
 
@@ -51,12 +54,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const body = await req.json().catch(() => ({}));
 
-  // ── Miles: distance-first, odometer as the legacy path ────────────────────────────────────────
+  // ── Miles ─────────────────────────────────────────────────────────────────────────────────────
+  // C0b4 retired the odometer alternative, so distance is now the only way in. The union no longer
+  // admits 'odometer' — the DB check constraint still does, deliberately, so a row arriving from a
+  // backup or an import stays writable and readable.
   let miles: number;
   let reimbursement: number;
   let rate: number;
-  let distanceSource: 'typed' | 'lookup' | 'odometer';
-  let readingNote: string | null = null;
+  let distanceSource: 'typed' | 'lookup';
 
   if (body?.distance !== undefined && body?.distance !== null && body.distance !== '') {
     const d = Number(body.distance);
@@ -75,13 +80,26 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // anything else is a typed number, and the two must not be conflated in the audit trail.
     distanceSource = body?.distanceSource === 'lookup' ? 'lookup' : 'typed';
   } else {
-    const resolved = resolveOdometerEntry(Number(body?.startReading), Number(body?.endReading));
-    if ('error' in resolved) return NextResponse.json({ error: resolved.error }, { status: 400 });
-    miles = resolved.miles;
-    reimbursement = resolved.reimbursement;
-    rate = resolved.rate;
-    distanceSource = 'odometer';
-    readingNote = `Odometer ${Number(body?.startReading)}→${Number(body?.endReading)}`;
+    // C0b4 — the odometer branch is retired.
+    //
+    // It read `startReading`/`endReading` and resolved them through `resolveOdometerEntry`. The
+    // owner respecified capture from odometer readings to addresses (D9); C0b3b shipped the
+    // address form and C0g deleted the Work Mode shell that held the odometer one, so by the time
+    // this row came up for retirement NOTHING in the repo submitted those two fields.
+    //
+    // The refusal names the field rather than saying "distance required", because a caller still
+    // sending odometer readings — a stale bookmark, an old mobile build — otherwise gets a message
+    // about a field it never heard of and no way to work out what changed. This is the C16 rule:
+    // a refusal states the cause, it does not merely decline.
+    const sentOdometer = body?.startReading !== undefined || body?.endReading !== undefined;
+    return NextResponse.json(
+      {
+        error: sentOdometer
+          ? 'Odometer readings are no longer accepted. Send the trip distance in miles as `distance`.'
+          : 'A trip needs a distance in miles.',
+      },
+      { status: 400 },
+    );
   }
 
   const jobId = typeof body?.jobId === 'string' && body.jobId.trim() ? body.jobId.trim() : null;
@@ -129,7 +147,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const fuel = estimateTripFuel(miles, vehicleMpg, fuelPriceCents);
 
   const userNote = typeof body?.notes === 'string' ? body.notes.trim().slice(0, MAX_NOTES_LEN) : '';
-  const notes = [vehicleName, readingNote, userNote].filter(Boolean).join(' · ') || null;
+  const notes = [vehicleName, userNote].filter(Boolean).join(' · ') || null;
 
   const { data, error } = await supabaseAdmin
     .from('mileage_entries')

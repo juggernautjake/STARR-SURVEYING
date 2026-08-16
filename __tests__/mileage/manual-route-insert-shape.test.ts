@@ -21,10 +21,15 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const route = readFileSync(
+const routeRaw = readFileSync(
   join(process.cwd(), 'app/api/admin/mileage/manual/route.ts'),
   'utf8',
 );
+// C0b4 — comments stripped before any "must NOT contain" assertion. The route's own comment
+// explains which symbol was retired and therefore names it, which made the first version of the
+// retirement assertion fail against a correct route. Same trap that cost C3's guard three
+// revisions and C24's inline-hex fix a second pass: a source scan reads prose as if it were code.
+const route = routeRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 
 /** The object literal passed to `.insert({ … })`, which is the only part that reaches Postgres. */
 const insertBlock = (() => {
@@ -72,10 +77,22 @@ describe('the manual mileage insert', () => {
   });
 });
 
-describe('the two ways to enter a trip', () => {
-  it('accepts a typed/looked-up distance as well as odometer readings', () => {
+describe('the one way to enter a trip', () => {
+  // C0b4 — was "the two ways". The odometer half is retired; distance is the only way in.
+  it('takes the distance in miles, and nothing else', () => {
     expect(route).toMatch(/body\?\.distance/);
-    expect(route).toMatch(/resolveOdometerEntry/);
+    expect(route).not.toMatch(/resolveOdometerEntry/);
+  });
+
+  it('never writes distance_source: odometer, and never narrows the column to stop one existing', () => {
+    // The slice's brief was "existing rows must not be orphaned". Two halves, and only one of them
+    // is a source fact. The route must not PRODUCE an odometer row — asserted here. The database
+    // must still ACCEPT one, so a row from a backup or an import stays writable; that lives in the
+    // check constraint (`typed`/`lookup`/`odometer`, verified against the live DB on 2026-08-15)
+    // and is deliberately left alone. Narrowing it would be exactly the orphaning the brief warns
+    // about, and no source scan here could catch that, so it is written down rather than asserted.
+    expect(insertBlock).not.toMatch(/distance_source\s*:\s*'odometer'/);
+    expect(route).not.toMatch(/distanceSource\s*=\s*'odometer'/);
   });
 
   it('only claims a lookup when the client says so', () => {
