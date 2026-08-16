@@ -339,7 +339,7 @@ export const GET = withErrorHandler(
     };
     const notes: AdminFieldNoteRow[] = ((notesRaw ?? []) as RawNote[]).map(
       (n) => {
-        // C44z — was `JSON.parse(n.structured_data)` in a silent catch. Seed 594 makes the column
+        // C44z — was `JSON.parse(n.structured_data)` in a silent catch. Seed 596 makes the column
         // JSONB, so PostgREST returns an object, and `JSON.parse` stringifies its argument before
         // parsing — `"[object Object]"` throws on every row. The catch would have hidden it, and
         // every structured note would have rendered as plain text with no structured table, which

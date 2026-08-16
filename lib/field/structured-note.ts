@@ -5,7 +5,7 @@
 // ── WHY THIS IS ONE FUNCTION AND NOT TWO INLINE BLOCKS ──────────────────────────────────────────
 //
 // Both routes that read `fieldbook_notes.structured_data` — the per-job manifest and the per-point
-// viewer — carried the same eight lines, and both were wrong in the same way. Seed 594 adds the
+// viewer — carried the same eight lines, and both were wrong in the same way. Seed 596 adds the
 // column as **JSONB**, so PostgREST hands back an object that is already parsed. The code was:
 //
 //     if (n.structured_data) {

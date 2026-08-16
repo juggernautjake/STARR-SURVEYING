@@ -173,7 +173,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       .order('captured_at', { ascending: false }),
     supabaseAdmin
       .from('fieldbook_notes')
-      // C44z — `content`, not `body`; see the seed 594 header. `body` is the MOBILE app's local
+      // C44z — `content`, not `body`; see the seed 596 header. `body` is the MOBILE app's local
       // SQLite column name, and asking PostgREST for a column that does not exist fails the whole
       // select, which is how a job with notes reported having none.
       .select(
@@ -201,7 +201,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // C44z checked, and it was the opposite. There is one fieldbook; it has always carried `job_id`,
   // `job_name` and `job_number`, and `learn/fieldbook/route.ts` advertises "job-linked notes" in
   // its own header. The job routes were pointed at exactly the right table, asking it for columns
-  // a migration was supposed to have added and never did (seed 594 now adds them), under the one
+  // a migration was supposed to have added and never did (seed 596 now adds them), under the one
   // column name that belongs to the mobile app's local database rather than this one.
   //
   // The cost of coupling them was not theoretical. `job_media` is the only record of what the crew

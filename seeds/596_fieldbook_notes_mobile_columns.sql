@@ -1,5 +1,5 @@
 -- ============================================================================
--- 594_fieldbook_notes_mobile_columns.sql
+-- 596_fieldbook_notes_mobile_columns.sql
 --
 -- C44z of docs/planning/in-progress/CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md
 --

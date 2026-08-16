@@ -2,7 +2,7 @@
 //
 // ── THE BUG THE MIGRATION CREATED ───────────────────────────────────────────────────────────────
 //
-// Seed 594 adds `fieldbook_notes.structured_data` as JSONB, so PostgREST returns it already parsed.
+// Seed 596 adds `fieldbook_notes.structured_data` as JSONB, so PostgREST returns it already parsed.
 // Both routes that read it were written as:
 //
 //     try { JSON.parse(n.structured_data) } catch { /* malformed JSON — body still renders */ }
