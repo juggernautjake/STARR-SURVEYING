@@ -363,3 +363,44 @@ vocabulary character-scoped, privilege-escalation op names refused), grounding c
 Full app test suite green (the dnd suite alone is now **2,269 passing**, grown with each guard). What's
 left is only Sections A–D above (owner decisions, Brendan's content, eyes-on-app / device work, and the
 deploy-time security config).
+
+---
+
+## Payroll S9c — re-verified 2026-08-16, still blocked, and blocked on one sentence from an accountant
+
+C40 of `CAD_EXCELLENCE_AND_PLATFORM_COMPLETION_2026-08-15.md`, re-checked against the code rather
+than against the row that describes it, because that row was written after the precondition it
+depends on had already been dropped once.
+
+**The verification, so nobody has to repeat it:**
+
+| Claim | Checked | Result |
+|---|---|---|
+| `POST /api/admin/payroll/runs` is the only producer of `pay_stubs` rows | `grep "from('pay_stubs')"` across `app/` and `lib/` | Six references, **all in that one file**, and exactly one is an `insert` (route.ts:404) |
+| It is the only caller of `buildStubTotals` | `grep buildStubTotals` | Two references: the import and the call, both in that file. The definition is `lib/payroll/pay-stub.ts:125` |
+
+So S9c's own condition — *"once nothing unique lives behind it"* — is **not met**, and closing the
+route today would leave the firm with no way to produce a pay stub at all. That is the same finding
+the payroll doc records in its own header, and it has not changed.
+
+### What would actually unblock it, in order
+
+1. **An accountant answers one question: does the firm withhold?** This is the whole blocker and it
+   is not an engineering question. The legacy engine carries flat 12% / 6.2% / 1.45% **estimates**;
+   porting those onto a wage statement would print invented tax figures on a document an employee is
+   legally entitled to rely on. The surviving path withholds nothing and pays gross.
+2. **If yes — real withholding is a build**, not a port: federal and state tables, filing status per
+   employee, YTD accumulators, and the statement itself. S9b becomes real work.
+3. **If no — S9b is nearly done.** `lib/payroll/payment-statement.ts` already ships the honest half:
+   a payment statement that states gross pay and withholds nothing, because that is what happened.
+   What remains is moving stub generation onto the batch path so `POST /payroll/runs` stops being
+   the only producer.
+4. **Only then S9c**: close `POST`, keep `GET` (historical runs and stubs are records of real
+   payments) and keep `PUT` (an existing run must still be finishable).
+
+### What was deliberately NOT done
+
+No stub-generation code was written against either answer. Building the withholding path would bake
+in a tax policy nobody has chosen; building the gross-only path *first* would make step 1 look
+answered when it is not. The row's own phrasing is the right one: **the cost here is a conversation,
+not engineering.**
