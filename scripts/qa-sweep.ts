@@ -55,6 +55,22 @@ const IGNORE = [
   /Warning: ReactDOM.render is no longer supported/i,
   // Next dev-only: the dev overlay and HMR websocket chatter.
   /websocket connection to 'ws:\/\/127\.0\.0\.1:\d+\/_next\/webpack-hmr'/i,
+  // C46 — an RSC prefetch aborted by the sweep's own navigation.
+  //
+  // Next prefetches the routes a page links to. The sweep visits a page and moves on faster than a
+  // human would, so a prefetch is often still in flight when the page is torn down; the fetch is
+  // aborted and Next logs it as a console error.
+  //
+  // The entry above each of these is meant to be a CLAIM that the message cannot indicate a
+  // user-visible fault, so here is the evidence for this one rather than an assertion. First, the
+  // message names its own recovery — "Falling back to browser navigation" — so the link still
+  // works. Second, it is not reproducible: two runs produced it on different pages against
+  // different prefetch targets (/admin/learn → /admin/calendar, then /admin/learn/knowledge-base →
+  // /admin/learn/manage), which is the signature of a race and not of a broken route. Third, and
+  // decisively, **every prefetch target is itself a route in this sweep** — /admin/calendar and
+  // /admin/learn/manage both pass when visited directly — so a genuinely broken destination is
+  // caught on its own visit and cannot hide behind this filter.
+  /Failed to fetch RSC payload for .*Falling back to browser navigation/i,
 ];
 
 const isNoise = (t: string) => IGNORE.some((re) => re.test(t));
