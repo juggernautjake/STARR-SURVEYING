@@ -224,12 +224,37 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     page_context, page_url, module_id, lesson_id, topic_id, article_id, context_type, context_label,
   } = body;
 
-  // Unmark any current entry for this user
-  await supabaseAdmin
-    .from('fieldbook_notes')
-    .update({ is_current: false })
-    .eq('user_email', email)
-    .eq('is_current', true);
+  // ── C0d2 — `is_current` carries TWO meanings, and a job note must not be caught by the other ──
+  //
+  // The column is read two incompatible ways in this codebase, and both are load-bearing:
+  //
+  //   * **A soft-archive flag.** `mobile/lib/fieldNotes.ts` says so in as many words ("defaults to
+  //     true; soft-archive flips to false") and filters its lists on `is_current = 1`. Both admin
+  //     readers agree — `/admin/jobs/[id]/field` and `/admin/field-data/[id]` render `!is_current`
+  //     as an **"archived"** badge.
+  //   * **A per-user "the note I have open" pointer**, which is what the line below implements and
+  //     what seed 099's `(user_email, is_current) WHERE is_current = true` index is shaped for:
+  //     exactly one true row per user.
+  //
+  // Those coexisted only because nothing wrote a job note through this route. The moment the job
+  // page gained a compose box (C0d2), creating one would clear the pointer on the author's PREVIOUS
+  // job note — and the job page would badge that note **"archived"**, in front of the whole crew,
+  // for no reason anybody could see.
+  //
+  // So the sweep is skipped for job notes. A job note is not anybody's personal open notebook entry;
+  // it belongs to a job and to everyone working it. It is still created `is_current: true` below, so
+  // it reads as active under the archive meaning — which is the meaning every READER uses.
+  //
+  // The two meanings on one column remain, and are recorded in the C0d2 ledger row for an explicit
+  // owner call rather than settled unilaterally here: picking one changes what mobile lists and what
+  // the notebook considers open, and that is a decision, not a bug fix.
+  if (!job_id) {
+    await supabaseAdmin
+      .from('fieldbook_notes')
+      .update({ is_current: false })
+      .eq('user_email', email)
+      .eq('is_current', true);
+  }
 
   const insertData: Record<string, unknown> = {
     user_email: email,
