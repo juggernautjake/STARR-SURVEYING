@@ -1,7 +1,7 @@
 'use client';
 // app/admin/cards/PaymentsReadinessPanel.tsx — what is still stopping real money from moving.
 //
-// M0b of docs/planning/in-progress/MONEY_RAILS_AND_CARDS_2026-08-17.md.
+// M0b of docs/planning/pending/MONEY_RAILS_AND_CARDS_2026-08-17.md.
 //
 // ── WHY A PANEL AND NOT JUST THE ENDPOINT ───────────────────────────────────────────────────────
 //

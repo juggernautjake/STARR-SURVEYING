@@ -1,6 +1,6 @@
 // app/api/admin/payments/readiness/route.ts — can real money move, and if not, what is stopping it?
 //
-// M-slice of docs/planning/in-progress/MONEY_RAILS_AND_CARDS_2026-08-17.md.
+// M-slice of docs/planning/pending/MONEY_RAILS_AND_CARDS_2026-08-17.md.
 //
 // The plan asks the owner to verify five things by hand across three dashboards before setting
 // `PAYMENTS_LIVE=true`. Four are answerable from the server instantly and the fifth from the

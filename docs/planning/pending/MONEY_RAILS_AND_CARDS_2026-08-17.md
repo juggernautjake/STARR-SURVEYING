@@ -1,6 +1,16 @@
 # Getting paid, paying people, and knowing whose card it was
 
-**Status:** IN PROGRESS · opened 2026-08-17
+**Status:** PENDING · opened 2026-08-17 · **every remaining item is an owner action in an external
+dashboard.** Moved out of `in-progress/` on 2026-08-17 per the rubric in `../README.md`: that folder
+is for "action items being worked NOW", and the engineering half is done.
+
+**Nothing here is deferred or abandoned.** M0 and M0b shipped; M1–M7 are real work that is waiting on
+somebody opening Vercel, Stripe, PNC and the Venmo app. Move this back to `in-progress/` the moment
+that work starts, or when M7 comes round — flipping `PAYMENTS_LIVE` and taking the first live payment
+is a joint step.
+
+The fastest way to see what is still outstanding is not this doc: it is the panel at the top of
+**`/admin/cards`**, which reads the live environment and shrinks as each item is done.
 
 > **Owner, 2026-08-17:** *"The next thing I want to do is set up
 > stripe/venmo/cashapp/personal banking, and I also want to start logging cards for business use.

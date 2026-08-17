@@ -1,6 +1,6 @@
 // lib/payments/readiness.ts — "what is still missing before real money can move?"
 //
-// M-slice of docs/planning/in-progress/MONEY_RAILS_AND_CARDS_2026-08-17.md.
+// M-slice of docs/planning/pending/MONEY_RAILS_AND_CARDS_2026-08-17.md.
 //
 // ── WHY THIS IS A CHECK AND NOT A CHECKLIST IN A DOC ────────────────────────────────────────────
 //
