@@ -34,6 +34,7 @@ import {
   type ReceiptEditable,
 } from '@/lib/receipts/edit';
 import { confidenceScore, reviewNeeds } from '@/lib/receipts/review-needs';
+import { ReceiptLineItems } from './ReceiptLineItems';
 import './ReceiptSlideshow.css';
 
 interface Props {
@@ -426,23 +427,14 @@ export default function ReceiptSlideshow({
               </div>
             </div>
 
-            {current.line_items?.length > 0 && (
-              <div className="rcv__section">
-                <h4 className="rcv__sectionTitle">Line items</h4>
-                <table className="rcv__items">
-                  <thead><tr><th>Item</th><th>Qty</th><th>Amount</th></tr></thead>
-                  <tbody>
-                    {current.line_items.map((li) => (
-                      <tr key={li.id}>
-                        <td>{li.description ?? '—'}</td>
-                        <td>{li.quantity ?? ''}</td>
-                        <td>{money(li.amount_cents)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            {/* The lines on the receipt — editable, with business/personal per item and a
+                reason attached to anything added or removed. Replaces the read-only table that used
+                to sit here; see ReceiptLineItems for why a removed line stays on screen. */}
+            <ReceiptLineItems
+              receiptId={current.id}
+              receiptIsBusiness={(current as { expense_nature?: string | null }).expense_nature !== 'personal'}
+              onChanged={onChanged}
+            />
 
             {/* ── correct it ── */}
             <div className="rcv__section">

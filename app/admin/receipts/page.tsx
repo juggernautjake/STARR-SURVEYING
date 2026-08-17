@@ -12,7 +12,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Trash2, Wrench, X, AlertTriangle, Landmark, Copy } from 'lucide-react';
+import { Trash2, Wrench, X, AlertTriangle, Landmark, Copy, ChevronLeft, ChevronRight, Images } from 'lucide-react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 
@@ -28,6 +28,10 @@ import { LOW_CONFIDENCE, reviewNeeds, reviewSummary } from '@/lib/receipts/revie
 import { ReceiptEditor } from './ReceiptEditor';
 import ReceiptSlideshow from './ReceiptSlideshow';
 import { parseReceiptFilters, describeFilters } from '@/lib/receipts/filters';
+import {
+  PERIODS, PERIOD_LABELS, describePeriod, detectPeriod, isCurrentPeriod, periodRange, shiftPeriod,
+  todayIso,
+} from '@/lib/receipts/periods';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -123,9 +127,24 @@ export default function ReceiptsApprovalPage() {
   const { safeFetch, safeAction } = usePageError('ReceiptsApprovalPage');
 
   const [tab, setTab] = useState<StatusTab>('pending');
-  const [from, setFrom] = useState<string>(() => firstOfMonthIso());
-  const [to, setTo] = useState<string>(() => todayIso());
+  // The default is the WHOLE current month, not month-to-date. Two reasons, and neither is
+  // cosmetic: a receipt cannot be dated in the future, so the rows returned are identical either
+  // way — and a to-date range is not a month, so `detectPeriod` correctly called it "custom" and the
+  // preset row opened with nothing lit and no arrows. The default state of a control should be one
+  // its own buttons can describe.
+  const [from, setFrom] = useState<string>(() => periodRange('month', todayIso()).from);
+  const [to, setTo] = useState<string>(() => periodRange('month', todayIso()).to);
   const [emailFilter, setEmailFilter] = useState<string>('');
+  // Derived from the dates rather than stored beside them. Storing it would let the two disagree —
+  // type a date by hand and the "Month" button would still be lit over a range that is not a month.
+  const period = useMemo(() => detectPeriod(from, to), [from, to]);
+  /** Move the whole range one period back or forward — the arrows. */
+  const step = useCallback((delta: number) => {
+    if (period === 'custom') return;
+    const r = periodRange(period, shiftPeriod(period, from, delta));
+    setFrom(r.from);
+    setTo(r.to);
+  }, [period, from]);
   // "Show deleted" toggle (Batch FF). Off by default — tombstoned
   // rows are an audit-trail artifact, not part of the daily queue.
   // When on, the API includes rows where `deleted_at IS NOT NULL`
@@ -483,6 +502,105 @@ export default function ReceiptsApprovalPage() {
         ))}
       </nav>
 
+      {/* ── "A given day, week, month, year" (owner, 2026-08-17) ───────────────────────────────
+          The from/to pair below is still the source of truth — this row just writes into it, and
+          `detectPeriod` reads back out of it so the lit button always describes what is actually on
+          screen, including after somebody types dates by hand. The arrows step a whole period, which
+          is the part a date input cannot do: "the month before this one" is three clicks and a
+          calendar lookup in two date fields, and one click here. */}
+      <div style={styles.periodRow}>
+        <div style={styles.periodPresets} role="group" aria-label="Show a whole day, week, month or year">
+          {PERIODS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => {
+                // Anchored on today, not on the current `from`: clicking "Month" means "this month".
+                const r = periodRange(p, todayIso());
+                setFrom(r.from);
+                setTo(r.to);
+              }}
+              aria-pressed={period === p}
+              style={{
+                ...styles.periodBtn,
+                ...(period === p ? styles.periodBtnOn : null),
+              }}
+            >
+              {PERIOD_LABELS[p]}
+            </button>
+          ))}
+        </div>
+
+        {period !== 'custom' && (
+          <div style={styles.periodNav}>
+            <button
+              type="button"
+              onClick={() => step(-1)}
+              style={styles.periodArrow}
+              aria-label={`Previous ${period}`}
+              title={`Previous ${period}`}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span style={styles.periodLabel} aria-live="polite">
+              {describePeriod(period, from)}
+            </span>
+            <button
+              type="button"
+              onClick={() => step(1)}
+              // Forward past the current period only ever shows an empty list — a receipt cannot be
+              // filed for a week that has not happened. Disabling it says so before the click.
+              disabled={isCurrentPeriod(period, from)}
+              style={{
+                ...styles.periodArrow,
+                ...(isCurrentPeriod(period, from) ? styles.periodArrowOff : null),
+              }}
+              aria-label={`Next ${period}`}
+              title={isCurrentPeriod(period, from) ? `You are on the current ${period}` : `Next ${period}`}
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* THE way into the carousel, and deliberately the loudest control on the page. It sits with
+            the period picker because that is the sentence being built — "this month → review them" —
+            and it names the count so nobody opens it wondering how long it is.
+            Disabled with a reason when the filter is empty: a button that opens an empty viewer
+            teaches people it is broken. */}
+        <button
+          type="button"
+          onClick={() => setSlideshowAt(0)}
+          disabled={loading || receipts.length === 0}
+          // A stable name, because the visible text swaps to "Nothing to review" when the filter is
+          // empty. A screen reader — and anything looking for this control — should not have to know
+          // which of two sentences it is currently wearing.
+          aria-label="Open the receipt carousel"
+          style={{
+            ...styles.reviewCta,
+            ...(receipts.length === 0 ? styles.reviewCtaOff : null),
+          }}
+          title={
+            loading
+              ? 'Still counting what is in this filter'
+              : receipts.length === 0
+                ? 'Nothing to review in this filter'
+                : `Step through all ${receipts.length} one at a time, photo enlarged, editing as you go`
+          }
+        >
+          <Images size={16} />
+          {/* `loading` is checked FIRST and is not a nicety. An in-flight fetch also has
+              `receipts.length === 0`, so without this the button spends every filter change
+              announcing "Nothing to review" over a filter that is about to return fifteen — which
+              is how somebody concludes the month is empty and stops looking. */}
+          {loading
+            ? 'Loading…'
+            : receipts.length === 0
+              ? 'Nothing to review'
+              : `Review ${receipts.length} ${receipts.length === 1 ? 'receipt' : 'receipts'} in a carousel`}
+        </button>
+      </div>
+
       {/* receipts-filter-row-alignment-2026-06-20 — separate the
           labeled inputs from the trailing controls + buttons, then
           align every control to the same baseline so the row reads
@@ -613,32 +731,10 @@ export default function ReceiptsApprovalPage() {
               <span>Show deleted</span>
             </span>
           </label>
-          {/* The slideshow, over whatever the filters above have selected. Disabled with a reason
-              when there is nothing to walk — a button that opens an empty viewer teaches people it
-              is broken. */}
-          <label style={styles.filterLabel} aria-label="Review these receipts one at a time">
-            <span aria-hidden>&nbsp;</span>
-            <button
-              type="button"
-              onClick={() => setSlideshowAt(0)}
-              disabled={receipts.length === 0}
-              style={{
-                ...styles.refreshButton,
-                background: receipts.length === 0 ? undefined : 'var(--color-brand-navy)',
-                color: receipts.length === 0 ? undefined : 'var(--color-text-on-brand)',
-                borderColor: receipts.length === 0 ? undefined : 'var(--color-brand-navy)',
-                opacity: receipts.length === 0 ? 0.5 : 1,
-                cursor: receipts.length === 0 ? 'default' : 'pointer',
-              }}
-              title={
-                receipts.length === 0
-                  ? 'Nothing to review in this filter'
-                  : `Step through all ${receipts.length} of these one at a time, with the photo enlarged`
-              }
-            >
-              Review {receipts.length > 0 ? `all ${receipts.length}` : ''}
-            </button>
-          </label>
+          {/* The carousel button used to sit HERE, tenth in the filter row behind a blank spacer
+              label. Owner, 2026-08-17: *"The access point to this receipt viewer should be
+              obvious."* It now lives in the period row above, where it reads as the thing you do
+              with the period you just chose rather than as one more filter control. */}
           {/* V5b — re-read the whole filtered set. Counts and confirms first, because every one of
               these is a paid vision call. */}
           <label style={styles.filterLabel} aria-label="Run the AI again over every receipt in this filter">
@@ -1697,15 +1793,9 @@ function buildExportUrl(filters: {
   return `/api/admin/receipts/export?${params}`;
 }
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function firstOfMonthIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-}
+// `todayIso` and `firstOfMonthIso` lived here as local copies until 2026-08-17. Both now come from
+// `lib/receipts/periods.ts` — the second is just `periodRange('month', todayIso()).from` — so the
+// preset row and the default range cannot drift apart in what they think a month is.
 
 function zeroCounters() {
   return { pending: 0, approved: 0, rejected: 0, exported: 0, needs_review: 0, total: 0 };
@@ -1740,6 +1830,102 @@ const styles: Record<string, React.CSSProperties> = {
     flexWrap: 'wrap',
     alignItems: 'flex-end',
     marginBottom: 16,
+  },
+  // ── The day/week/month/year row (owner 2026-08-17) ─────────────────────────────────────────────
+  // `space-between` on desktop, wrapping to two stacked rows on a phone. Tokens throughout, so it
+  // survives a skin change — the older styles in this file predate the tokens and do not.
+  periodRow: {
+    display: 'flex',
+    gap: 12,
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  periodPresets: {
+    display: 'flex',
+    gap: 4,
+    padding: 3,
+    borderRadius: 8,
+    background: 'var(--color-surface-alt, var(--color-surface))',
+    border: '1px solid var(--color-border)',
+  },
+  periodBtn: {
+    padding: '6px 14px',
+    borderRadius: 6,
+    border: '1px solid transparent',
+    background: 'transparent',
+    color: 'var(--color-text-secondary)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    fontWeight: 500,
+    cursor: 'pointer',
+    // 44px of touch target on a phone without making the desktop row tall.
+    minHeight: 32,
+    minWidth: 60,
+  },
+  // The same brand pair the carousel button uses. No literal fallback: in a `style` object a
+  // fallback hex is just a hard-coded colour with extra steps, unreachable by the print stylesheet
+  // and by every skin — which is the exact thing the ratchet counts.
+  periodBtnOn: {
+    background: 'var(--color-brand-navy)',
+    borderColor: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
+    fontWeight: 600,
+  },
+  periodNav: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+  },
+  periodArrow: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 34,
+    height: 34,
+    borderRadius: 6,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  periodArrowOff: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+  },
+  // The carousel call-to-action. Filled brand navy against a row of outlined controls, because the
+  // owner asked for the way in to be obvious and "obvious" is contrast, not placement alone.
+  reviewCta: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '9px 16px',
+    borderRadius: 8,
+    border: '1px solid var(--color-brand-navy)',
+    background: 'var(--color-brand-navy)',
+    color: 'var(--color-text-on-brand)',
+    fontSize: 14,
+    fontFamily: 'inherit',
+    fontWeight: 600,
+    cursor: 'pointer',
+    minHeight: 38,
+    whiteSpace: 'nowrap',
+  },
+  reviewCtaOff: {
+    opacity: 0.45,
+    cursor: 'default',
+  },
+  periodLabel: {
+    minWidth: 168,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: 600,
+    color: 'var(--color-text-primary)',
+    // Fixed width so stepping through months does not shuffle the arrows left and right under the
+    // cursor — "May 2026" and "September 2026" are very different lengths.
+    whiteSpace: 'nowrap',
   },
   // receipts-filter-row-alignment-2026-06-20 — left + right groups
   // of the row so the inputs cluster together and the action buttons

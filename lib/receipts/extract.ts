@@ -36,6 +36,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { matchCardOnFile } from './card-on-file';
+import { linesToReplaceOnReextract, type LineItem } from './line-items';
 import { breakdownCharges } from './charges';
 import { reconcileAmounts } from './reconcile';
 import { findSamePurchase, type ComparableReceipt } from './same-purchase';
@@ -598,21 +599,46 @@ async function writeBack(
     }
   }
 
-  // Replace line items rather than append — a re-extraction would otherwise double every line.
-  const { error: deleteErr } = await supabaseAdmin
+  // ── REPLACE THE TRANSCRIPTION, KEEP THE DECISIONS (2026-08-17) ────────────────────────────────
+  //
+  // This used to `.delete().eq('receipt_id', …)` — every line, unconditionally — so that a
+  // re-extraction did not double them. That was correct while a line was nothing but a
+  // transcription.
+  //
+  // It stopped being correct the moment lines could carry human decisions: whether an item is a
+  // business expense, a reason somebody removed it, a line somebody added because the AI missed it.
+  // The blanket delete would have destroyed all of it silently, and worst on the receipts somebody
+  // had spent the most time correcting — those being exactly the ones most likely to be re-read.
+  //
+  // So only untouched AI rows are replaced. `linesToReplaceOnReextract` decides, and its rule is
+  // narrow on purpose: no edit, no removal, no business/personal ruling, and not user-added.
+  const { data: existing, error: linesReadErr } = await supabaseAdmin
     .from('receipt_line_items')
-    .delete()
+    .select('id, source, is_business_expense, removed_at, edited_at')
     .eq('receipt_id', row.id);
-  if (deleteErr) return `line-items clear: ${deleteErr.message}`;
+  if (linesReadErr) return `line-items read: ${linesReadErr.message}`;
+
+  const replaceable = linesToReplaceOnReextract((existing ?? []) as LineItem[]);
+  if (replaceable.length > 0) {
+    const { error: deleteErr } = await supabaseAdmin
+      .from('receipt_line_items')
+      .delete()
+      .in('id', replaceable);
+    if (deleteErr) return `line-items clear: ${deleteErr.message}`;
+  }
 
   if (extracted.line_items.length > 0) {
+    // Positions continue after whatever was kept, so a preserved line and a fresh one cannot claim
+    // the same slot and render in an arbitrary order.
+    const keptCount = (existing ?? []).length - replaceable.length;
     const { error: insertErr } = await supabaseAdmin.from('receipt_line_items').insert(
       extracted.line_items.map((li, idx) => ({
         receipt_id: row.id,
         description: li.description,
         amount_cents: li.amount_cents,
         quantity: li.quantity,
-        position: idx,
+        position: keptCount + idx,
+        source: 'ai',
       })),
     );
     if (insertErr) return `line-items insert: ${insertErr.message}`;

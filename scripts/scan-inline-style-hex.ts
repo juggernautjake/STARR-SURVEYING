@@ -92,8 +92,20 @@ function countHexInMatchedBlocks(source: string, re: RegExp, openDepth: number):
       else if (c === '}') depth -= 1;
       i += 1;
     }
+    // Comments are stripped BEFORE counting, and that is not tidiness.
+    //
+    // Caught 2026-08-17: a style object gained the comment *"the older styles in this file mix raw
+    // hex (`#666`, `#ccc`) which is invisible in one of the two themes"* — and this scanner counted
+    // both, reporting a two-colour regression for a note explaining that hard-coded colours are bad.
+    // A guard that fires on prose about the thing it guards teaches people to stop writing the prose.
+    //
+    // `theme-vars-are-adopted.test.ts` already strips comments for exactly this reason, and its note
+    // says it was the fifth time that day a check in this repo read prose as code.
+    const block = source.slice(m.index, i)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
     // 3–8 digits covers #abc, #aabbcc and the 4/8-digit alpha forms.
-    total += (source.slice(m.index, i).match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).length;
+    total += (block.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).length;
   }
   return total;
 }

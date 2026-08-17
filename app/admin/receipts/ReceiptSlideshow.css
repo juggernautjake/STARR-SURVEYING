@@ -473,32 +473,32 @@
   margin-top: 10px;
   padding: 9px 11px;
   border-radius: 8px;
-  border: 1px solid var(--theme-border);
+  border: 1px solid var(--theme-border, #E2E8F0);
   border-left-width: 3px;
   font-size: 0.82rem;
   line-height: 1.45;
 }
 .rcv__confidence--full {
-  border-left-color: var(--theme-success);
-  color: var(--theme-fg-secondary);
+  border-left-color: var(--theme-success, #10B981);
+  color: var(--theme-fg-secondary, #475569);
   display: flex;
   align-items: baseline;
   gap: 7px;
 }
-.rcv__confidence--mid { border-left-color: var(--theme-warning); }
-.rcv__confidence--low { border-left-color: var(--theme-danger); }
+.rcv__confidence--mid { border-left-color: var(--theme-warning, #F59E0B); }
+.rcv__confidence--low { border-left-color: var(--theme-danger, #EF4444); }
 
 .rcv__confidenceHead {
   display: flex;
   align-items: baseline;
   gap: 7px;
   flex-wrap: wrap;
-  color: var(--theme-fg-primary);
+  color: var(--theme-fg-primary, #0F172A);
 }
 .rcv__confidenceScore {
   font-size: 1.15rem;
   font-weight: 700;
-  color: var(--theme-fg-primary);
+  color: var(--theme-fg-primary, #0F172A);
   flex-shrink: 0;
 }
 .rcv__confidenceList {
@@ -506,13 +506,177 @@
   padding-left: 18px;
   display: grid;
   gap: 4px;
-  color: var(--theme-fg-secondary);
+  color: var(--theme-fg-secondary, #475569);
 }
-.rcv__confidenceList strong { color: var(--theme-fg-primary); }
+.rcv__confidenceList strong { color: var(--theme-fg-primary, #0F172A); }
 
 /* On a phone the score and its sentence stack rather than squeezing the number onto its own line. */
 @media (max-width: 720px) {
   .rcv__confidenceHead { gap: 5px; }
   .rcv__confidenceScore { font-size: 1.05rem; }
   .rcv__confidenceList { padding-left: 16px; }
+}
+
+/* ── Line items (owner 2026-08-17) ──────────────────────────────────────────────────────────────
+ *
+ * A removed line STAYS on screen, struck through and greyed, with its reason beside it. That is the
+ * "reviewable" half of the ask and the reason the delete is soft: a line that vanishes tells the
+ * next person nothing, while one that says "removed by jacob — personal snack" answers the question
+ * before it is asked.
+ *
+ * The flags never rely on colour alone — each one says what it is in words, because "why is this row
+ * a slightly different grey" is not a question a bookkeeper should have to answer. */
+.rli__review {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  color: var(--theme-fg-secondary, #475569);
+  font-style: italic;
+}
+.rli__empty { margin: 0 0 8px; font-size: 0.8rem; color: var(--theme-fg-muted, #64748B); line-height: 1.45; }
+
+.rli__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rli__item {
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 7px;
+  padding: 7px 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+.rli__item--removed { opacity: 0.62; background: var(--theme-bg-elevated, #F1F5F9); }
+.rli__item--removed .rli__desc,
+.rli__item--removed .rli__qty,
+.rli__item--removed .rli__amount { text-decoration: line-through; }
+
+.rli__row { display: flex; gap: 6px; align-items: center; }
+.rli__desc { flex: 1 1 auto; min-width: 0; }
+.rli__qty { width: 58px; flex: 0 0 auto; text-align: center; }
+.rli__amount { width: 84px; flex: 0 0 auto; text-align: right; }
+.rli__row input {
+  height: var(--input-height-sm, 30px);
+  box-sizing: border-box;
+  padding: 0 7px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--theme-fg-primary, #0F172A);
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 5px;
+}
+.rli__row input:disabled { background: var(--theme-bg-elevated, #F1F5F9); color: var(--theme-fg-muted, #64748B); }
+
+.rli__icon {
+  flex: 0 0 auto;
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 5px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  cursor: pointer;
+}
+.rli__icon--danger:hover { color: var(--theme-danger, #EF4444); border-color: var(--theme-danger, #EF4444); }
+
+.rli__meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
+
+/* Three positions, and the default says which way it currently falls. */
+.rli__toggle { display: inline-flex; border: 1px solid var(--theme-border, #E2E8F0); border-radius: 5px; overflow: hidden; }
+.rli__toggleBtn {
+  border: none;
+  border-left: 1px solid var(--theme-border, #E2E8F0);
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 3px 7px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rli__toggleBtn:first-child { border-left: none; }
+/* `:not(--on)` so hovering the SELECTED position cannot repaint its label over its own fill —
+ * specificity 0,2,0 beats 0,1,0, which has erased a selected label three times in this codebase. */
+.rli__toggleBtn:not(.rli__toggleBtn--on):hover { color: var(--color-brand-navy); }
+.rli__toggleBtn--on,
+.rli__toggleBtn--on:hover { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); }
+
+.rli__flag {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  color: var(--theme-fg-secondary, #475569);
+}
+.rli__flag--added { border-color: var(--theme-info, #3B82F6); color: var(--theme-info, #3B82F6); }
+.rli__flag--removed { border-color: var(--theme-danger, #EF4444); color: var(--theme-danger, #EF4444); }
+.rli__flag--edited { border-color: var(--theme-warning, #F59E0B); color: var(--theme-warning, #F59E0B); }
+
+.rli__totals { margin: 8px 0 0; font-size: 0.8rem; color: var(--theme-fg-secondary, #475569); }
+.rli__totals strong { color: var(--theme-fg-primary, #0F172A); }
+
+.rli__addBtn {
+  margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px dashed var(--theme-border, #E2E8F0);
+  background: none;
+  color: var(--theme-fg-secondary, #475569);
+  font-size: 0.78rem;
+  padding: 5px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.rli__addBtn:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
+
+.rli__add {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 58px 84px;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 7px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+.rli__add input {
+  height: var(--input-height-sm, 30px);
+  box-sizing: border-box;
+  padding: 0 7px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  color: var(--theme-fg-primary, #0F172A);
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 5px;
+  width: 100%;
+}
+.rli__addReason { grid-column: 1 / -1; }
+.rli__addActions { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; }
+.rli__addActions button {
+  height: var(--button-height-sm);
+  padding: 0 11px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 5px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  cursor: pointer;
+}
+.rli__primary {
+  background: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  color: var(--theme-accent-fg, #FFF);
+}
+.rli__error { margin: 7px 0 0; font-size: 0.75rem; color: var(--theme-danger, #EF4444); }
+
+/* On a phone the row stacks: the description gets its own line so it is not squeezed to six
+ * characters beside a quantity box, and the touch targets keep their height. */
+@media (max-width: 720px) {
+  .rli__row { flex-wrap: wrap; }
+  .rli__desc { flex: 1 1 100%; }
+  .rli__qty { flex: 0 0 auto; width: 64px; }
+  .rli__amount { flex: 1 1 auto; text-align: right; }
+  .rli__row input { height: var(--button-height-sm); font-size: 0.85rem; }
+  .rli__icon { width: 34px; height: 34px; }
+  .rli__toggleBtn { padding: 5px 8px; font-size: 0.7rem; }
+  .rli__add { grid-template-columns: 1fr 1fr; }
+  .rli__add input:first-child { grid-column: 1 / -1; }
 }

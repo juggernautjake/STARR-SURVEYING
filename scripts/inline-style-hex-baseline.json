@@ -196,7 +196,7 @@
   "app/dnd/_sheet/components/Inventory.tsx": 3,
   "app/dnd/_sheet/components/ItemBuilder.tsx": 4,
   "app/dnd/_sheet/components/MlmPanel.tsx": 4,
-  "app/dnd/_sheet/components/rollers/RollerTemplateBar.tsx": 9,
+  "app/dnd/_sheet/components/rollers/RollerTemplateBar.tsx": 5,
   "app/dnd/_sheet/components/SectionsManager.tsx": 2,
   "app/dnd/_sheet/components/stream/AliasBar.tsx": 2,
   "app/dnd/_sheet/components/stream/ChatSearchPanel.tsx": 5,
