@@ -73,6 +73,31 @@ that.
 
 If any is wrong, it is a one-line change in that file — tell me the correct values.
 
+### Considered and NOT built: making the handles configurable — 2026-08-17
+
+The obvious slice here is "move them to env vars so the owner can fix a wrong handle without a code
+change". It was investigated and rejected, and the reason is worth recording because the trap is not
+visible from the file:
+
+**`lib/payments/live.ts` is imported by CLIENT components** — `app/admin/invoicing`,
+`payments/inbox`, `finances/overview`, `invoices/new` and others all carry `'use client'`. A plain
+`process.env.STARR_VENMO_HANDLE` resolves on the server and is `undefined` in the browser, so the
+customer portal would render the hard-coded default while `paymentsReadiness()` reported the
+configured value. **Split-brain on the exact value a customer sends money to** — strictly worse than
+today, where at least both halves agree.
+
+`NEXT_PUBLIC_` would fix that by inlining at build time, but it still needs a redeploy to change, so
+it swaps a code edit for an env edit and buys very little. Putting the handles in `org_settings`
+would genuinely fix it, and is a real slice — just not a small one.
+
+And the deciding point: **configurability does not reduce the actual risk.** The risk in §2 is that a
+handle is WRONG and nobody notices. Only a person opening Venmo can answer that, which is why the
+readiness panel marks it `warn` with the consequence spelled out rather than `ok`. Making the wrong
+value easier to change does not make anyone check it.
+
+Revisit if the handles ever need to differ per environment, or if `org_settings` grows a payments
+section for other reasons.
+
 ---
 
 ## 3. Stripe — two gaps
