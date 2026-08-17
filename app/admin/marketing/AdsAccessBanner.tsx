@@ -76,6 +76,12 @@ export default function AdsAccessBanner(): React.ReactElement | null {
       </strong>
       <span className="mkt-access__body">{report.summary}</span>
       {report.action ? <span className="mkt-access__action">{report.action}</span> : null}
+      {/* Every state this banner renders is fixed in the same place, and until now the banner named
+          the problem without saying where to go. A notice that describes a fault and offers no way
+          to act on it is the shape this codebase keeps paying for. */}
+      <a className="mkt-access__link" href="/admin/marketing?tab=uploads">
+        Open connection settings →
+      </a>
       {report.raw ? (
         // Google's own words, collapsed. A classifier that hides the raw error is impossible to
         // debug on the day it guesses wrong.

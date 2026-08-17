@@ -22,6 +22,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { CREDENTIAL_HELP, conversionActionStatus, credentialProblem } from '@/lib/integrations/google-ads/client';
+import { grantedAdsScope, grantedDataManagerScope } from '@/lib/integrations/google-ads/oauth';
 import { WINDOW_SKIP_KEY } from '@/lib/integrations/google-ads/adjustments';
 
 interface LogRow {
@@ -49,7 +50,7 @@ export const GET = withErrorHandler(async () => {
 
   const { data: connRow } = await supabaseAdmin
     .from('google_ads_connections')
-    .select('customer_id, user_email, last_uploaded_at, last_error, created_at')
+    .select('customer_id, user_email, last_uploaded_at, last_error, created_at, scope')
     .limit(1)
     .maybeSingle();
 
@@ -85,6 +86,19 @@ export const GET = withErrorHandler(async () => {
       // it is not an error, the job succeeds, and the milestones without a resource name are dropped
       // into `skipped.noAction` — which was counted and displayed nowhere until 2026-08-06.
       conversionActions: conversionActionStatus(),
+      // ── WHICH PERMISSIONS THE CONNECTION ACTUALLY CARRIES (2026-08-17) ─────────────────────────
+      //
+      // A connection is not one boolean. Google closed `UploadClickConversions` to new integrations,
+      // so offline conversions now go through the Data Manager API — which needs its OWN scope. A
+      // connection authorised before 2026-08-16 has the Ads scope and not that one, so it reports
+      // "connected", reads reports perfectly, and cannot upload a single conversion.
+      //
+      // That state has no error to show. Nothing fails; the uploads simply never happen. So the page
+      // has to be told the difference, or the only symptom is a conversion count that stays at zero.
+      scopes: {
+        ads: grantedAdsScope((connRow as { scope?: string } | null)?.scope),
+        dataManager: grantedDataManagerScope((connRow as { scope?: string } | null)?.scope),
+      },
     },
     counts: {
       total: log.length,

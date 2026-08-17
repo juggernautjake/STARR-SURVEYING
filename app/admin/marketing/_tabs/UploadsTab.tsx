@@ -43,6 +43,9 @@ interface Payload {
     lastUploadedAt: string | null;
     lastError: string | null;
     conversionActions?: { configured: string[]; missing: string[] };
+    /** Which permissions the stored connection actually carries. A connection authorised before
+     *  2026-08-16 has `ads` and not `dataManager`, reads reports perfectly, and cannot upload. */
+    scopes?: { ads: boolean; dataManager: boolean };
   };
   counts: {
     total: number; uploaded: number; failed: number; pending: number;
@@ -94,13 +97,22 @@ export default function MarketingUploadsPage(): React.ReactElement {
     window.history.replaceState(null, '', `${window.location.pathname}${q ? `?${q}` : ''}`);
   }, []);
 
-  const connect = useCallback(async () => {
+  /**
+   * `forCustomerId` is passed in rather than read from state.
+   *
+   * The reconnect button knows the account already — it is on screen — and calling
+   * `setCustomerId(...)` then `connect()` would send the PREVIOUS value, because `connect` closes
+   * over the state as it was at render. That bug produces a consent screen for the wrong account,
+   * or for an empty one, and it only shows up in a browser.
+   */
+  const connect = useCallback(async (forCustomerId?: string) => {
+    const target = (forCustomerId ?? customerId).replace(/\D/g, '');
     setConnecting(true); setError(null);
     try {
       const res = await fetch('/api/admin/marketing/google-ads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'connect', customerId }),
+        body: JSON.stringify({ action: 'connect', customerId: target }),
       });
       const body = await res.json().catch(() => ({})) as { url?: string; error?: string };
       if (!res.ok || !body.url) throw new Error(body.error ?? `HTTP ${res.status}`);
@@ -154,6 +166,57 @@ export default function MarketingUploadsPage(): React.ReactElement {
          * The refresh token is issued by Google directly to the server after the owner clicks Allow
          * on Google's own consent screen — it is never displayed, never pasted, and never passes
          * through anyone's clipboard. The only thing typed here is the account number. */}
+        {/* ── THE MISSING SCOPE, AND THE BUTTON THAT FIXES IT (2026-08-17) ────────────────────────
+         *
+         * Owner: *"I am not seeing the connect / reconnect google ads button on the marketing page."*
+         * They were right, and it was not just the wrong page. The connect block below renders ONLY
+         * when `problem === 'not-connected'`, so once an account is connected there was no way to
+         * RE-authorise it. That is fine while a connection's permissions never change — and they
+         * just did: Google closed `UploadClickConversions` to new integrations, so offline
+         * conversions need the Data Manager scope, which no existing connection has.
+         *
+         * So the state that needed a button most was the one state that had none: connected,
+         * healthy-looking, quietly unable to upload a single conversion. */}
+        {!loading && conn?.customerId && conn.scopes && !conn.scopes.dataManager && (
+          <div className="mu__pending" data-testid="uploads-scope-missing">
+            <strong>Offline conversions are not being uploaded.</strong>{' '}
+            This connection was authorised before Google required the Data Manager permission, so it
+            can read reports but cannot send conversions back. Reconnect below and approve{' '}
+            <strong>both</strong> permissions on Google&apos;s screen.
+          </div>
+        )}
+
+        {/* Reconnect is available whenever an account is LINKED — keyed on `customerId`, not on the
+         * absence of a problem.
+         *
+         * Gating it on `!conn.problem` was the first attempt and it was wrong in both directions.
+         * Re-authorising is not a repair for a healthy connection; it is the ordinary way to grant a
+         * new permission, switch accounts, or replace a revoked token. And several `problem` values
+         * — a revoked refresh token most of all — are fixed by precisely this button, so hiding it
+         * whenever anything is wrong hides it exactly when it is needed.
+         *
+         * Caught by driving the page: locally there is no developer token, `problem` was
+         * `missing-developer-token`, and the button I had just added did not appear. */}
+        {!loading && conn?.customerId && (
+          <div className="mu__connect" data-testid="uploads-reconnect">
+            <div className="mu__connect-row">
+              <button
+                type="button"
+                onClick={() => void connect(conn.customerId ?? '')}
+                disabled={connecting}
+                data-testid="uploads-reconnect-button"
+              >
+                {connecting ? 'Opening Google…' : 'Reconnect Google Ads'}
+              </button>
+            </div>
+            <p className="mu__muted">
+              Sends you to Google to approve access again for{' '}
+              <strong>{conn.customerId ?? 'this account'}</strong>. Approve every permission shown —
+              approving only some leaves the connection able to do only some of its job.
+            </p>
+          </div>
+        )}
+
         {!loading && conn?.problem === 'not-connected' && (
           <div className="mu__connect" data-testid="uploads-connect">
             <label htmlFor="gads-customer-id" className="mu__muted">

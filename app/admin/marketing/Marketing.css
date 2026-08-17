@@ -799,6 +799,15 @@
 .mkt-access__head { display: flex; align-items: center; gap: 0.35rem; font-weight: 700; }
 .mkt-access__body { line-height: 1.45; }
 .mkt-access__action { font-weight: 600; }
+/* The way out of the state the banner is describing. Underlined and coloured so it reads as the
+   action it is, rather than as more prose in a notice people already skim. */
+.mkt-access__link {
+  display: inline-block;
+  margin-top: 0.35rem;
+  font-weight: 600;
+  color: var(--color-brand-navy);
+  text-decoration: underline;
+}
 .mkt-access__raw { margin-top: 0.2rem; font-size: 0.74rem; }
 .mkt-access__raw code { overflow-wrap: anywhere; }
 

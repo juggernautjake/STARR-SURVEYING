@@ -63,9 +63,13 @@ const TABS = [
   },
   {
     id: 'uploads',
-    label: 'Upload log',
+    // Renamed 2026-08-17. It was "Upload log", which describes half of what the tab holds and not
+    // the half people go looking for: connecting and RECONNECTING the Google Ads account lives here
+    // too. Owner: *"I am not seeing the connect / reconnect google ads button on the marketing
+    // page"* — it was on this tab the whole time, behind a name that gave no reason to open it.
+    label: 'Connection & uploads',
     icon: Upload,
-    hint: 'What the nightly upload sent, and what Google rejected.',
+    hint: 'Connect or reconnect Google Ads, and see what the nightly upload sent or Google rejected.',
   },
 ] as const;
 
