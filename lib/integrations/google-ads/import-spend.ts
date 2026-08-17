@@ -28,7 +28,9 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import { CREDENTIAL_HELP, reportingProblem, runReportQuery } from './client';
-import { buildSpendQuery, parseSpendRows, totalSpend } from './spend';
+import {
+  buildCampaignSpendQuery, buildSpendQuery, mergeSpendRows, parseSpendRows, totalSpend,
+} from './spend';
 
 export interface ImportResult {
   from: string;
@@ -80,8 +82,27 @@ export async function importSpendRange(from: string, to: string, now = Date.now(
   if ('error' in report) return { ...base, error: report.error };
 
   const { warning } = report;
-  const rows = parseSpendRows(report.body);
-  if (!rows.length) return { ...base, warning };
+  const adGroupRows = parseSpendRows(report.body);
+
+  // ── AND THE CAMPAIGNS THAT HAVE NO AD GROUPS (owner, 2026-08-16) ─────────────────────────────
+  //
+  // Performance Max is built from ASSET groups, so `FROM ad_group` returns nothing for it — no
+  // error, just fewer rows. The account's PMax campaign had never once been imported. See
+  // `buildCampaignSpendQuery` for the measurement.
+  //
+  // A failure here is NOT fatal to the import: the ad-group rows are real and worth writing. It
+  // degrades to a warning, because losing today's Search spend because a second query timed out
+  // would be a worse trade than reporting one campaign late.
+  const campaignReport = await runReportQuery(buildCampaignSpendQuery(from, to));
+  let rows = adGroupRows;
+  let campaignWarning: string | undefined;
+  if ('error' in campaignReport) {
+    campaignWarning = `Campaign-level spend (Performance Max) was not imported: ${campaignReport.error}`;
+  } else {
+    rows = mergeSpendRows(adGroupRows, parseSpendRows(campaignReport.body));
+  }
+
+  if (!rows.length) return { ...base, warning: warning ?? campaignWarning };
 
   // Upsert on the grain the unique constraint enforces. `source: 'api'` overwrites a manual estimate
   // for the same day — the real number should win, and silently keeping the guess would be worse.
@@ -109,6 +130,10 @@ export async function importSpendRange(from: string, to: string, now = Date.now(
       { onConflict: 'spend_date,platform,campaign_id,ad_group_id' },
     );
 
-  if (error) return { ...base, error: error.message, warning };
-  return { ...base, imported: rows.length, totalMicros: totalSpend(rows), warning };
+  // Both warnings matter and only one field carries them, so they are joined rather than one winning.
+  // Dropping `campaignWarning` here would restore the exact defect this change exists to fix: an
+  // import that quietly covered part of the account and reported success.
+  const warnings = [warning, campaignWarning].filter(Boolean).join(' · ') || undefined;
+  if (error) return { ...base, error: error.message, warning: warnings };
+  return { ...base, imported: rows.length, totalMicros: totalSpend(rows), warning: warnings };
 }

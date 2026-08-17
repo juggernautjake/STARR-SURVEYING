@@ -80,6 +80,58 @@ export function buildSpendQuery(from: string, to: string): string {
   ].join(' ');
 }
 
+/**
+ * The same daily metrics at CAMPAIGN grain — for the campaigns `FROM ad_group` cannot see.
+ *
+ * ── WHY THIS EXISTS (owner, 2026-08-16) ─────────────────────────────────────────────────────────
+ *
+ * **Performance Max campaigns have no ad groups.** They are built from ASSET groups, and
+ * `FROM ad_group` simply returns no rows for them — no error, no warning, just a smaller result set.
+ * So the ad-group query above, which had looked correct since it was written, was silently importing
+ * a fraction of the account.
+ *
+ * Measured against the live database on 2026-08-16: `ad_spend_daily` contained exactly ONE campaign
+ * ever — `Demand Gen - Land Surveying - Texas`. The account's other campaign, `Texas Land Surveyor`
+ * (Performance Max, $43/day and budget-limited), had **zero rows, ever**. It is also the one actually
+ * producing conversions, so every cost-per-lead figure the marketing page has ever shown was computed
+ * on the half of the account that does not convert.
+ *
+ * This is the failure shape this repo keeps paying for: not a crash, but a query that answers a
+ * narrower question than the one being asked, and a screen that reports the answer as if it were
+ * complete.
+ *
+ * Demand Gen, Search, Shopping and Display all DO have ad groups, so this does not replace the query
+ * above — it fills the gap. `mergeSpendRows` keeps the ad-group detail where it exists and only takes
+ * campaign-level totals for campaigns the ad-group query missed, so nothing is counted twice.
+ */
+export function buildCampaignSpendQuery(from: string, to: string): string {
+  if (!DATE_RE.test(from) || !DATE_RE.test(to)) {
+    throw new Error(`Spend query needs YYYY-MM-DD dates, got "${from}".."${to}"`);
+  }
+  if (from > to) throw new Error(`Spend query range is backwards: "${from}".."${to}"`);
+  return [
+    'SELECT segments.date, campaign.id, campaign.name,',
+    'metrics.impressions, metrics.clicks, metrics.cost_micros,',
+    'metrics.conversions, metrics.conversions_value',
+    'FROM campaign',
+    `WHERE segments.date BETWEEN '${from}' AND '${to}'`,
+  ].join(' ');
+}
+
+/**
+ * Ad-group rows win; campaign rows fill in the campaigns those could not see.
+ *
+ * The test is per (date, campaign), not per campaign: a campaign can gain or lose ad groups mid-range,
+ * and taking a campaign-level total for a DAY that already has ad-group rows would double-count that
+ * day's spend. Getting this wrong inflates reported spend, which is the direction that quietly makes
+ * every ROI number look worse and sends somebody hunting for a problem that is not there.
+ */
+export function mergeSpendRows(adGroupRows: SpendRow[], campaignRows: SpendRow[]): SpendRow[] {
+  const covered = new Set(adGroupRows.map((r) => `${r.spendDate}|${r.campaignId ?? ''}`));
+  const filler = campaignRows.filter((r) => !covered.has(`${r.spendDate}|${r.campaignId ?? ''}`));
+  return [...adGroupRows, ...filler];
+}
+
 /** int64-as-string is the proto3 JSON mapping. `Number("12340000")` is right; `+` on it is not. */
 function int64(v: unknown): number {
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;

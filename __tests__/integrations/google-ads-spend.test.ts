@@ -5,7 +5,8 @@
 // money units in the same metrics object.
 import { describe, it, expect } from 'vitest';
 import {
-  MICROS_PER_UNIT, buildSpendQuery, costPer, grainKey, headlineMetrics, parseSpendRows, toUnits, totalSpend,
+  MICROS_PER_UNIT, buildCampaignSpendQuery, buildSpendQuery, costPer, grainKey, headlineMetrics,
+  mergeSpendRows, parseSpendRows, toUnits, totalSpend,
 } from '@/lib/integrations/google-ads/spend';
 
 const result = (over: Record<string, unknown> = {}) => ({
@@ -264,5 +265,86 @@ describe('headlineMetrics — the arithmetic', () => {
     expect(m.impressions).toBe(0);
     expect(m.costMicros).toBe(0);
     expect(Number.isNaN(m.clicks)).toBe(false);
+  });
+});
+
+// ── Performance Max: the campaigns `FROM ad_group` cannot see (owner, 2026-08-16) ───────────────
+//
+// PMax is built from ASSET groups, so `FROM ad_group` returns no rows for it — no error, just a
+// smaller result set. Measured against the live database: `ad_spend_daily` had ever contained
+// exactly ONE campaign, and the account's PMax campaign (`Texas Land Surveyor`, $43/day, budget
+// limited, and the only one producing conversions) had zero rows. Every cost-per-lead figure the
+// marketing page had shown was computed on the half of the account that does not convert.
+
+describe('buildCampaignSpendQuery — the half of the account ad_group cannot reach', () => {
+  it('reads FROM campaign, and asks for no ad-group fields', () => {
+    const q = buildCampaignSpendQuery('2026-08-01', '2026-08-16');
+    expect(q).toContain('FROM campaign');
+    expect(q).not.toContain('ad_group');
+  });
+
+  it('carries the same metrics, so the two queries produce the same row shape', () => {
+    const q = buildCampaignSpendQuery('2026-08-01', '2026-08-16');
+    for (const field of ['segments.date', 'campaign.id', 'campaign.name',
+      'metrics.impressions', 'metrics.clicks', 'metrics.cost_micros',
+      'metrics.conversions', 'metrics.conversions_value']) {
+      expect(q, `missing ${field}`).toContain(field);
+    }
+  });
+
+  it('validates dates exactly as the ad-group query does — GAQL has no parameter binding', () => {
+    for (const bad of ["2026-07-01' OR '1'='1", '07/01/2026', 'yesterday', '']) {
+      expect(() => buildCampaignSpendQuery(bad, '2026-07-31')).toThrow();
+      expect(() => buildCampaignSpendQuery('2026-07-01', bad)).toThrow();
+    }
+    expect(() => buildCampaignSpendQuery('2026-07-31', '2026-07-01')).toThrow(/backwards/);
+  });
+});
+
+describe('mergeSpendRows — fill the gap without double-counting', () => {
+  const row = (spendDate: string, campaignId: string, adGroupId: string | null, costMicros: number) => ({
+    spendDate, campaignId, campaignName: `c${campaignId}`,
+    adGroupId, adGroupName: adGroupId ? `g${adGroupId}` : null,
+    impressions: 1, clicks: 1, costMicros, conversions: 0, conversionValueMicros: 0,
+  });
+
+  it('adds a campaign that has no ad-group rows at all — the PMax case', () => {
+    const merged = mergeSpendRows(
+      [row('2026-08-16', '111', 'g1', 1_000_000)],
+      [row('2026-08-16', '111', null, 1_000_000), row('2026-08-16', '222', null, 3_000_000)],
+    );
+    expect(merged).toHaveLength(2);
+    expect(merged.find((r) => r.campaignId === '222')?.costMicros).toBe(3_000_000);
+  });
+
+  it('does NOT re-add a campaign that already has ad-group rows', () => {
+    // The whole point. Taking the campaign total on top of its ad groups would double that day's
+    // spend and make every ROI number look worse than it is.
+    const merged = mergeSpendRows(
+      [row('2026-08-16', '111', 'g1', 1_000_000), row('2026-08-16', '111', 'g2', 2_000_000)],
+      [row('2026-08-16', '111', null, 3_000_000)],
+    );
+    expect(merged).toHaveLength(2);
+    expect(totalSpend(merged)).toBe(3_000_000);
+  });
+
+  it('decides PER DAY, because a campaign can gain or lose ad groups mid-range', () => {
+    const merged = mergeSpendRows(
+      [row('2026-08-15', '111', 'g1', 1_000_000)],
+      [row('2026-08-15', '111', null, 1_000_000), row('2026-08-16', '111', null, 5_000_000)],
+    );
+    // The 15th is covered by its ad-group row; the 16th is not, so it is filled in.
+    expect(merged).toHaveLength(2);
+    expect(totalSpend(merged)).toBe(6_000_000);
+  });
+
+  it('keeps ad-group detail rather than flattening to campaign totals', () => {
+    const merged = mergeSpendRows([row('2026-08-16', '111', 'g1', 1_000_000)], []);
+    expect(merged[0].adGroupId).toBe('g1');
+  });
+
+  it('an empty campaign result changes nothing', () => {
+    const ad = [row('2026-08-16', '111', 'g1', 1_000_000)];
+    expect(mergeSpendRows(ad, [])).toEqual(ad);
   });
 });
