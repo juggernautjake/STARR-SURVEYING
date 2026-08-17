@@ -192,3 +192,45 @@ describe('the browser key is never used server-side', () => {
     expect(calls).toHaveLength(0);
   });
 });
+
+// ── THE KEY THAT WAS ALREADY THERE (2026-08-17) ─────────────────────────────────────────────────
+//
+// `GOOGLE_MAPS_SERVER_KEY` was a name this file invented and nobody ever created. Auditing Vercel
+// production found a server-side maps key had existed for 115 days as `GOOGLE_MAPS_API_KEY`, used
+// server-side by four research services for Static Maps and geocoding — so it is not referrer-locked.
+// The owner was being told to create a second server key beside one they already had, purely because
+// two parts of the codebase named the same idea differently.
+
+describe('which environment variable supplies the key', () => {
+  const saved = { ...process.env };
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('prefers GOOGLE_MAPS_SERVER_KEY when it is set', () => {
+    process.env.GOOGLE_MAPS_SERVER_KEY = 'specific-key';
+    process.env.GOOGLE_MAPS_API_KEY = 'general-key';
+    expect(isDistanceLookupConfigured()).toBe(true);
+  });
+
+  it('falls back to GOOGLE_MAPS_API_KEY, which production already has', () => {
+    delete process.env.GOOGLE_MAPS_SERVER_KEY;
+    process.env.GOOGLE_MAPS_API_KEY = 'general-key';
+    expect(isDistanceLookupConfigured()).toBe(true);
+  });
+
+  it('still does NOT fall back to the public browser key', () => {
+    // It is referrer-restricted, so a server call is rejected — and being NEXT_PUBLIC_ it ships to
+    // every visitor, which would put the firm's billed quota behind a value anyone can read.
+    delete process.env.GOOGLE_MAPS_SERVER_KEY;
+    delete process.env.GOOGLE_MAPS_API_KEY;
+    process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY = 'browser-key';
+    expect(isDistanceLookupConfigured()).toBe(false);
+  });
+
+  it('treats whitespace and stray quotes as unset rather than as a key', () => {
+    delete process.env.GOOGLE_MAPS_SERVER_KEY;
+    process.env.GOOGLE_MAPS_API_KEY = '   ';
+    expect(isDistanceLookupConfigured()).toBe(false);
+  });
+});

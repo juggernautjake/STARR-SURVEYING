@@ -61,10 +61,32 @@ const METERS_PER_MILE = 1609.344;
  * for the browser is also a key that ships to every visitor, and using it for a billed server API
  * would put the firm's quota behind a value anyone can read out of the page source.
  */
+/**
+ * ── AND THE KEY THAT WAS ALREADY THERE (2026-08-17) ─────────────────────────────────────────────
+ *
+ * `GOOGLE_MAPS_SERVER_KEY` was the name this file invented, and nobody ever created it. Auditing
+ * Vercel production found a server-side maps key had existed for 115 days under a different name —
+ * **`GOOGLE_MAPS_API_KEY`** — already used server-side by `lib/research/boundary-fetch.service.ts`,
+ * `parcel-map-capture.service.ts`, `progressive-zoom.service.ts` and the Bell county lot correlator.
+ * Those call Static Maps and geocoding from the server and work, so that key is not referrer-locked.
+ *
+ * So the owner was being asked to create a second server key next to one they already had, because
+ * two parts of this codebase named the same idea differently. The research services already read
+ * `GOOGLE_MAPS_API_KEY || NEXT_PUBLIC_...`; this now reads the same variable, minus the public
+ * fallback, which stays excluded for the reason above.
+ *
+ * If that key's API restrictions do not include the **Routes API**, this does not fail silently:
+ * `PROVIDER_ERROR` carries Google's own message, which names the missing API. That is a better
+ * outcome than `NOT_CONFIGURED`, because it says which single checkbox to tick.
+ */
+const SERVER_KEY_VARS = ['GOOGLE_MAPS_SERVER_KEY', 'GOOGLE_MAPS_API_KEY'] as const;
+
 function serverKey(): string | null {
-  const raw = process.env.GOOGLE_MAPS_SERVER_KEY;
-  const key = raw?.trim().replace(/^["']|["']$/g, '');
-  return key ? key : null;
+  for (const name of SERVER_KEY_VARS) {
+    const key = process.env[name]?.trim().replace(/^["']|["']$/g, '');
+    if (key) return key;
+  }
+  return null;
 }
 
 /** True when a lookup can actually be attempted. The form asks this to decide whether to show the
@@ -101,7 +123,10 @@ export async function lookupDrivingDistance(
       reason: 'NOT_CONFIGURED',
       // The message names the variable, because the person who reads it is the person who can set
       // it. "Distance lookup unavailable" would send them looking for a bug.
-      detail: 'Set GOOGLE_MAPS_SERVER_KEY to enable the address lookup. Until then, type the distance.',
+      // Names BOTH accepted variables, because naming only the one this file invented is what sent
+      // somebody off to create a second key beside the one they already had.
+      detail: 'Set GOOGLE_MAPS_SERVER_KEY (or GOOGLE_MAPS_API_KEY) to a maps key with no referrer '
+        + 'restriction and the Routes API enabled. Until then, type the distance.',
     };
   }
 
