@@ -438,9 +438,30 @@ restrictions **None** (or IP addresses) → API restrictions **Routes API**. Put
 addresses" button explains that the key is unset rather than failing silently. The adapter, the
 route, the UI and 15 tests are already shipped — the key is the entire remaining step.
 
-### 2. `fieldbook_notes.is_current` means two incompatible things
+### 2. `fieldbook_notes.is_current` means two incompatible things — DECIDED 2026-08-16
 
-- [ ] **Decide which meaning `is_current` has**, then make the other reader agree.
+- [x] **Decided: `is_current` means SOFT-ARCHIVE.** `true` = active, `false` = archived. The
+      per-user "note I have open" pointer is retired, and the sweep that maintained it is deleted.
+
+Owner delegated the call. What decided it:
+
+| meaning | readers |
+|---|---|
+| **archive** (kept) | 5 — `mobile/lib/fieldNotes.ts` (its header already said "soft-archive flips to false"), `mobile/lib/jobs.ts`, `/admin/field-data/[id]`, `/admin/jobs/[id]/field`, `JobNotesPanel` |
+| pointer (retired) | 1 — `action=current` in the learn fieldbook route |
+
+The count was not the real argument. The pointer was per-user **private** state stored in a
+**shared** column that shared screens render as "archived for everyone": writing a note flipped your
+previous note to `false`, and three other surfaces then showed it to the whole crew as archived.
+
+Removing it cost nothing. `action=current` already ordered by `updated_at desc limit 1`, so it
+returns the same answer — and a better one on the day you archive the note you had open, when the
+pointer version returned nothing. Seed 099's `(user_email, is_current) WHERE is_current` is a plain
+partial index, not unique, so no constraint depended on the pointer, and the index still serves the
+archive meaning ("this user's active notes"). Pinned by
+`__tests__/field/is-current-means-archived.test.ts`.
+
+<details><summary>The original write-up, kept for context</summary>
 
 Both meanings are live and both are load-bearing:
 
@@ -467,6 +488,8 @@ the field page's notes list, and that list rendered an "archived" badge which th
 route now returns a resolved `archived` boolean and the panel badges it, restoring the old
 behaviour. This still decides nothing: `archived` is only what all three existing readers already
 render `is_current === false` as.
+
+</details>
 
 ---
 

@@ -37,21 +37,24 @@ const route = strip(routeRaw);
 const pageRaw = read('app/admin/jobs/[id]/field/page.tsx');
 const page = strip(pageRaw);
 
-describe('creating a job note does not archive the author’s last one', () => {
-  it('the is_current sweep is skipped when the note belongs to a job', () => {
-    // The whole defect in one assertion. Without the guard, every office note silently marked the
-    // author's previous job note archived.
-    expect(route).toMatch(/if\s*\(\s*!job_id\s*\)\s*\{[\s\S]{0,300}is_current:\s*false/);
+describe('creating a note does not archive the author’s last one', () => {
+  // ── SUPERSEDED 2026-08-16, AND THE REPLACEMENT IS STRONGER ────────────────────────────────────
+  //
+  // These two used to assert the CONTAINMENT: that the `is_current` sweep still ran for personal
+  // notes and was skipped for job notes. That was the right call while the column's meaning was an
+  // open question — fixing the job page by deleting the sweep would have changed the notebook's
+  // behaviour on an undecided premise.
+  //
+  // The owner has since delegated the decision and it is made: `is_current` means SOFT-ARCHIVE,
+  // full stop. So the sweep is gone for every note, not just job notes, and the narrower assertion
+  // is replaced by the broader one. Full reasoning in `is-current-means-archived.test.ts`.
+
+  it('the sweep is gone entirely — for personal notes too, not just job notes', () => {
+    expect(route).not.toMatch(/update\(\{\s*is_current:\s*false\s*\}\)/);
+    expect(route).not.toContain('is_current: false');
   });
 
-  it('a personal note still moves the pointer', () => {
-    // The pointer meaning is real and is what the notebook UI uses. Removing the sweep outright
-    // would have fixed the job page by breaking the notebook.
-    expect(route).toContain('is_current: false');
-    expect(route).toMatch(/eq\('user_email', email\)/);
-  });
-
-  it('a job note is still created active, because that is the meaning every reader uses', () => {
+  it('a note is created active, because that is the meaning every reader uses', () => {
     // Both admin surfaces and mobile treat `is_current` as an archive flag. A job note created
     // false would render "archived" the instant it was written and vanish from mobile's lists.
     expect(route).toMatch(/is_current:\s*true/);

@@ -56,7 +56,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  // --- Get current active entry ---
+  // --- The note to reopen: the most recently updated ACTIVE one ---
+  //
+  // `is_current` means "not archived" (decided 2026-08-16 — see the long note further down). It is
+  // NOT a per-user "the one I have open" pointer any more, so this reads as: of the notes you have
+  // not archived, the one you touched last. The query is unchanged, because ordering by
+  // `updated_at desc limit 1` already gave that answer; what changed is that nothing clears the flag
+  // on your other notes behind your back.
   if (action === 'current') {
     const { data } = await supabaseAdmin
       .from('fieldbook_notes')
@@ -241,20 +247,33 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // job note — and the job page would badge that note **"archived"**, in front of the whole crew,
   // for no reason anybody could see.
   //
-  // So the sweep is skipped for job notes. A job note is not anybody's personal open notebook entry;
-  // it belongs to a job and to everyone working it. It is still created `is_current: true` below, so
-  // it reads as active under the archive meaning — which is the meaning every READER uses.
+  // ── DECIDED 2026-08-16: `is_current` MEANS SOFT-ARCHIVE, AND ONLY THAT ────────────────────────
   //
-  // The two meanings on one column remain, and are recorded in the C0d2 ledger row for an explicit
-  // owner call rather than settled unilaterally here: picking one changes what mobile lists and what
-  // the notebook considers open, and that is a decision, not a bug fix.
-  if (!job_id) {
-    await supabaseAdmin
-      .from('fieldbook_notes')
-      .update({ is_current: false })
-      .eq('user_email', email)
-      .eq('is_current', true);
-  }
+  // Owner delegated the call. The sweep that used to live here — "unmark any current entry for this
+  // user" — is gone, which is what settles the column on one meaning.
+  //
+  // What the two meanings actually cost, measured before choosing:
+  //
+  //   archive (true = active)   — FIVE readers. `mobile/lib/fieldNotes.ts` says so in its own header
+  //                               ("soft-archive flips to false") and filters every list on it;
+  //                               `mobile/lib/jobs.ts` does too; `/admin/field-data/[id]` and
+  //                               `/admin/jobs/[id]/field` render `!is_current` as an "archived"
+  //                               badge; and `JobNotesPanel` now shows the same badge.
+  //   pointer (one true/user)   — ONE reader: `action=current`, immediately above. And it already
+  //                               orders by `updated_at desc limit 1`, so it needs no pointer at
+  //                               all — "your most recently updated ACTIVE note" is the same answer
+  //                               on the day you have one, and a better answer on the day you
+  //                               archived it, when the pointer version returned nothing.
+  //
+  // The deeper reason is not the count. The pointer is per-user PRIVATE state — which note you
+  // happen to have open — stored in a SHARED column that shared screens read as "archived for
+  // everyone". Writing a new note marked your previous one `is_current = false`, and two admin
+  // screens and the mobile app then showed that note to the whole crew as archived. That is not a
+  // column with two meanings so much as private state in a public field.
+  //
+  // Nothing enforced the pointer either: seed 099's `(user_email, is_current) WHERE is_current` is a
+  // plain partial index, not a unique one, so removing the sweep breaks no constraint — and the index
+  // still earns its keep under the archive meaning, which is "find this user's active notes".
 
   const insertData: Record<string, unknown> = {
     user_email: email,
