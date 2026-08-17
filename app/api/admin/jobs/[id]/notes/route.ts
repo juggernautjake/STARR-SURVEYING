@@ -62,9 +62,17 @@ async function orgMember(email: string): Promise<{ orgId: string; role: string }
   const { data: user } = await supabaseAdmin
     .from('registered_users').select('default_org_id').eq('email', email).maybeSingle();
   if (!user?.default_org_id) return null;
+  // `status = 'active'` is REQUIRED, and leaving it out was a real hole rather than an omission.
+  //
+  // The schema says it plainly: *"Status=active means they can sign in as that org."* `lib/auth.ts`
+  // enforces that at sign-in — but route authorisation ran on the mere EXISTENCE of a membership
+  // row, so deactivating somebody (status → 'inactive') stopped them getting a NEW session while
+  // leaving every route open to the session they already had. Measured on 2026-08-16: two
+  // deactivated accounts still got 200 from this route.
   const { data: m } = await supabaseAdmin
     .from('organization_members').select('role')
-    .eq('org_id', user.default_org_id).eq('user_email', email).maybeSingle();
+    .eq('org_id', user.default_org_id).eq('user_email', email)
+    .eq('status', 'active').maybeSingle();
   if (!m) return null;
   return { orgId: user.default_org_id as string, role: (m as { role: string }).role };
 }

@@ -22,8 +22,13 @@ async function orgMember(email: string): Promise<{ orgId: string; role: string }
   const { data: user } = await supabaseAdmin
     .from('registered_users').select('default_org_id').eq('email', email).maybeSingle();
   if (!user?.default_org_id) return null;
+  // `status = 'active'`, for the reason written out in the notes route beside the same helper: a
+  // membership row EXISTING is not the same as it being live, and without this a deactivated member
+  // kept full access through the session they already held.
   const { data: m } = await supabaseAdmin
-    .from('organization_members').select('role').eq('org_id', user.default_org_id).eq('user_email', email).maybeSingle();
+    .from('organization_members').select('role')
+    .eq('org_id', user.default_org_id).eq('user_email', email)
+    .eq('status', 'active').maybeSingle();
   if (!m) return null;
   return { orgId: user.default_org_id as string, role: (m as { role: string }).role };
 }

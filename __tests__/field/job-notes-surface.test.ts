@@ -82,6 +82,15 @@ describe('authorisation — signed in is not the same as allowed', () => {
     expect(route.match(/'Job not found' \}, \{ status: 404 \}/g) ?? []).toHaveLength(2);
   });
 
+  it('a membership must be ACTIVE, not merely present', () => {
+    // Measured 2026-08-16: two accounts deactivated in the database (status → 'inactive') still got
+    // 200 from this route, because the check asked only whether a membership ROW existed. The schema
+    // comment is explicit — "Status=active means they can sign in as that org" — and `lib/auth.ts`
+    // enforces it at sign-in, so the gap only showed for a session that already existed. Which is
+    // exactly the session a removed person still has.
+    expect(route).toMatch(/\.eq\('status', 'active'\)/);
+  });
+
   it('the dead `isAdmin` import is gone rather than left as decoration', () => {
     // An imported-but-uncalled authorisation helper reads, at a glance, as an authorisation check.
     // Checked against the STRIPPED source: the header explains the removal and names it in prose.
