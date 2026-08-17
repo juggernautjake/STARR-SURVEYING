@@ -93,15 +93,38 @@
   min-width: 60px;
   flex: 1;
 }
-.tl-day-btn:hover { border-color: var(--color-brand-navy); background: #F0F4FF; }
-.tl-day-btn--active { border-color: var(--color-brand-navy); background: var(--color-brand-navy); color: white; }
+/* ── THE SELECTED DAY KEEPS ITS DARK BACKGROUND (owner, 2026-08-16) ──────────────────────────────
+ *
+ * *"whenever I click a day/date element in My Hours the text font color becomes white, and it is
+ * not readable against the light background."*
+ *
+ * The selected day is white text on navy. TWO other rules were repainting the BACKGROUND light
+ * while leaving that white text alone, and both are the same mistake:
+ *
+ *   1. `.tl-day-btn:hover` is specificity 0,2,0 and beats `.tl-day-btn--active` at 0,1,0. After you
+ *      click a day the pointer is still on it, so the hover background (#F0F4FF, near-white) won —
+ *      white text on near-white, exactly at the moment you are looking at it.
+ *   2. `--rejected` and `--approved` are the SAME specificity as `--active` and are declared after
+ *      it, so source order decided. That one is not even transient: any approved day, selected, was
+ *      permanently white-on-#F0FDF4. Most days with hours on them are approved.
+ *
+ * So the state rules are now scoped to `:not(--active)`, and the selected day gets an explicit hover
+ * of its own. Same defect as `.tl-range__btn` on the approval page, fixed the same way — a `:hover`
+ * that does not exclude the selected state will always outrank it. */
+.tl-day-btn:not(.tl-day-btn--active):hover { border-color: var(--color-brand-navy); background: #F0F4FF; }
+.tl-day-btn--active,
+.tl-day-btn--active:hover { border-color: var(--color-brand-navy); background: var(--color-brand-navy); color: white; }
 .tl-day-btn--active .tl-day-btn__name,
 .tl-day-btn--active .tl-day-btn__hours { color: rgba(255,255,255,0.8); }
 .tl-day-btn--active .tl-day-btn__date { color: white; }
 .tl-day-btn--today { border-color: #D97706; }
 .tl-day-btn--today.tl-day-btn--active { border-color: var(--color-brand-navy); }
-.tl-day-btn--rejected { border-color: #FCA5A5; background: var(--theme-bg-elevated, #FEF2F2); }
-.tl-day-btn--approved { border-color: #6EE7B7; background: #F0FDF4; }
+/* The approved/rejected tint is how an UNSELECTED day shows its state. On the selected day the navy
+ * fill carries that job, and its border still shows red or green underneath. */
+.tl-day-btn--rejected:not(.tl-day-btn--active) { border-color: #FCA5A5; background: var(--theme-bg-elevated, #FEF2F2); }
+.tl-day-btn--approved:not(.tl-day-btn--active) { border-color: #6EE7B7; background: #F0FDF4; }
+.tl-day-btn--rejected.tl-day-btn--active { border-color: #FCA5A5; }
+.tl-day-btn--approved.tl-day-btn--active { border-color: #6EE7B7; }
 .tl-day-btn__name { font-size: 0.7rem; color: var(--theme-fg-muted, #6B7280); font-weight: 500; text-transform: uppercase; }
 .tl-day-btn__date { font-size: 1.1rem; font-weight: 700; color: var(--theme-fg-primary, #1F2937); }
 .tl-day-btn__hours { font-size: 0.7rem; color: var(--color-brand-navy); font-weight: 600; }
