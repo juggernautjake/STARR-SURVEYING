@@ -26,6 +26,8 @@ import JobRefPicker from '@/app/admin/components/jobs/JobRefPicker';
 import type { ReceiptAiHealth } from '@/app/api/admin/receipts/ai-health/route';
 import { LOW_CONFIDENCE, reviewNeeds, reviewSummary } from '@/lib/receipts/review-needs';
 import { ReceiptEditor } from './ReceiptEditor';
+import ReceiptSlideshow from './ReceiptSlideshow';
+import { parseReceiptFilters, describeFilters } from '@/lib/receipts/filters';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -134,6 +136,28 @@ export default function ReceiptsApprovalPage() {
   /** Whether this deployment can run the AI at all, and what is waiting. Null until the first check. */
   const [aiHealth, setAiHealth] = useState<ReceiptAiHealth | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // ── The slideshow (RECEIPT_REVIEW_SLIDESHOW_2026-08-14) ──────────────────────────────────────
+  //
+  // Owner: *"instead of having to go down and individually click each receipt to open it, (which we
+  // can also do)"* — so this is ADDITIVE. `expandedId` above is untouched; the row still expands in
+  // place for somebody who only wants to glance at one.
+  //
+  // The index, not the id: the arrows walk the filtered list in the order shown, and an id would
+  // need a lookup on every keypress.
+  const [slideshowAt, setSlideshowAt] = useState<number | null>(null);
+  /** V5b — bulk re-extract state. The message is kept on screen rather than shown as a toast: it
+   *  reports what a paid action actually did, and that is worth being able to re-read. */
+  const [bulkAiBusy, setBulkAiBusy] = useState(false);
+  const [bulkAiMsg, setBulkAiMsg] = useState<string | null>(null);
+  // F1 — the review filters. Kept beside the existing date/email ones rather than replacing them.
+  const [q, setQ] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
+  const [methodFilter, setMethodFilter] = useState('');
+  const [cardFilter, setCardFilter] = useState('');
+  const [last4Filter, setLast4Filter] = useState('');
+  const [dateField, setDateField] = useState<'recorded' | 'purchase'>('recorded');
+  // The saved cards are already fetched once below for the payer panel — the card filter and the
+  // slideshow's card picker reuse that list rather than fetching it a second time.
   // Bulk-approve selection (Batch JJ). Only meaningful on the
   // 'pending' tab — when the bookkeeper switches tabs we drop the
   // selection so a stale set can't leak to the wrong status.
@@ -161,15 +185,21 @@ export default function ReceiptsApprovalPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ status: tab, from, to });
+      const params = new URLSearchParams({ status: tab, from, to, dateField });
       if (emailFilter.trim()) params.set('email', emailFilter.trim());
       if (showDeleted) params.set('include_deleted', '1');
+      // F1 — only sent when set, so an untouched control does not narrow the list.
+      if (q.trim()) params.set('q', q.trim());
+      if (categoryFilter) params.set('category', categoryFilter);
+      if (methodFilter) params.set('paymentMethod', methodFilter);
+      if (cardFilter) params.set('cardId', cardFilter);
+      if (last4Filter.trim()) params.set('last4', last4Filter.trim());
       const res = await safeFetch<ListResponse>(`/api/admin/receipts?${params}`);
       setData(res ?? { receipts: [], counters: zeroCounters() });
     } finally {
       setLoading(false);
     }
-  }, [tab, from, to, emailFilter, showDeleted, safeFetch]);
+  }, [tab, from, to, dateField, emailFilter, showDeleted, q, categoryFilter, methodFilter, cardFilter, last4Filter, safeFetch]);
 
   useEffect(() => {
     void load();
@@ -214,6 +244,91 @@ export default function ReceiptsApprovalPage() {
 
   const counters = data?.counters ?? zeroCounters();
   const receipts = useMemo(() => data?.receipts ?? [], [data?.receipts]);
+
+  /** The query string the bulk re-extract shares with the list, so "re-read these" means exactly
+   *  the receipts on screen. */
+  const filterParams = useCallback(() => {
+    const p = new URLSearchParams({ status: tab, from, to, dateField });
+    if (emailFilter.trim()) p.set('email', emailFilter.trim());
+    if (q.trim()) p.set('q', q.trim());
+    if (categoryFilter) p.set('category', categoryFilter);
+    if (methodFilter) p.set('paymentMethod', methodFilter);
+    if (cardFilter) p.set('cardId', cardFilter);
+    if (last4Filter.trim()) p.set('last4', last4Filter.trim());
+    return p;
+  }, [tab, from, to, dateField, emailFilter, q, categoryFilter, methodFilter, cardFilter, last4Filter]);
+
+  /**
+   * V5b — re-read every receipt in the current filter.
+   *
+   * Counts first and asks, because each one is a paid vision call. Then loops in server-bounded
+   * batches, passing back the ids already done: ordering alone cannot guarantee progress, since a
+   * receipt that FAILS keeps its place in any ordering by completion time and would be re-read
+   * forever.
+   */
+  const reextractAll = useCallback(async () => {
+    const params = filterParams();
+    const head = await fetch(`/api/admin/receipts/reextract?${params}`);
+    const info = (await head.json().catch(() => ({}))) as { count?: number; error?: string };
+    if (!head.ok) { setBulkAiMsg(info.error ?? 'Could not count the receipts to re-read.'); return; }
+    const count = info.count ?? 0;
+    if (count === 0) { setBulkAiMsg('Nothing in this filter has a photo to re-read.'); return; }
+    if (!window.confirm(
+      `Re-read ${count} receipt${count === 1 ? '' : 's'} with the AI?\n\n`
+      + 'This overwrites what the AI previously found on each one. Corrections you saved by hand to '
+      + 'a field the AI does not return are kept. It costs roughly a cent or two per receipt.',
+    )) return;
+
+    setBulkAiBusy(true);
+    setBulkAiMsg(`Re-reading ${count}…`);
+    try {
+      let done: string[] = [];
+      let processed = 0; let failed = 0; let cost = 0;
+      // A hard ceiling on iterations as well as on the server's batch: a bug that stops making
+      // progress must stop, not bill until somebody notices.
+      for (let i = 0; i < 200; i++) {
+        const res = await fetch(`/api/admin/receipts/reextract?${params}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ done }),
+        });
+        const j = (await res.json().catch(() => ({}))) as {
+          processed?: number; failed?: number; costCents?: number;
+          doneIds?: string[]; remaining?: number; error?: string;
+        };
+        if (!res.ok) { setBulkAiMsg(j.error ?? `Stopped after ${processed}.`); break; }
+        processed += j.processed ?? 0;
+        failed += j.failed ?? 0;
+        cost += j.costCents ?? 0;
+        done = j.doneIds ?? done;
+        setBulkAiMsg(`Re-read ${processed} of ${count}…`);
+        if (!j.processed || (j.remaining ?? 0) <= 0) break;
+      }
+      setBulkAiMsg(
+        `Re-read ${processed} receipt${processed === 1 ? '' : 's'}`
+        + `${failed > 0 ? `, ${failed} could not be read` : ''} · $${(cost / 100).toFixed(2)}`,
+      );
+      await load();
+    } catch (e) {
+      setBulkAiMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkAiBusy(false);
+    }
+  }, [filterParams, load]);
+
+  /** A sentence naming the active filter, shown in the viewer's header. Without it, a reviewer who
+   *  walked 8 receipts and expected 40 has no way to tell a filter from a missing receipt. */
+  const slideshowFilterNote = useMemo(() => {
+    const parts = describeFilters(
+      parseReceiptFilters({
+        status: tab, from, to, dateField, email: emailFilter, q,
+        category: categoryFilter, paymentMethod: methodFilter,
+        cardId: cardFilter, last4: last4Filter,
+      }),
+      cards.find((c) => c.id === cardFilter)?.label ?? null,
+    );
+    return parts.length > 0 ? `${tab} · ${parts.join(' · ')}` : tab;
+  }, [tab, from, to, dateField, emailFilter, q, categoryFilter, methodFilter, cardFilter, last4Filter, cards]);
 
   const onToggleSelected = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -394,7 +509,77 @@ export default function ReceiptsApprovalPage() {
               style={styles.input}
             />
           </label>
-          <label style={{ ...styles.filterLabel, flex: 1 }}>
+          {/* F1 — WHICH date the range bounds. The endpoint has always filtered `created_at` while
+              its own header claimed `transaction_at`, so "show me April" meant *recorded* in April
+              and a 28 April purchase photographed on 2 May was filed under May with no way to ask
+              otherwise. These are two different questions and this says which one is being asked. */}
+          <label style={styles.filterLabel}>
+            Dates are
+            <select
+              value={dateField}
+              onChange={(e) => setDateField(e.target.value as 'recorded' | 'purchase')}
+              style={styles.select}
+              title="Whether the range above applies to when the purchase was made, or when the receipt was recorded"
+            >
+              <option value="recorded">when recorded</option>
+              <option value="purchase">when purchased</option>
+            </select>
+          </label>
+          <label style={{ ...styles.filterLabel, flex: 1, minWidth: 180 }}>
+            Vendor or place
+            <input
+              type="search"
+              placeholder="Desert Sands, Las Cruces…"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              style={styles.input}
+              title="Searches the vendor name and the address printed on the receipt"
+            />
+          </label>
+          <label style={styles.filterLabel}>
+            Type
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={styles.select}>
+              <option value="">Any type</option>
+              {['supplies', 'meals', 'fuel', 'lodging', 'equipment', 'materials', 'travel', 'office', 'permits', 'subcontractor', 'other']
+                .map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label style={styles.filterLabel}>
+            Paid by
+            <select value={methodFilter} onChange={(e) => setMethodFilter(e.target.value)} style={styles.select}>
+              <option value="">Any method</option>
+              <option value="card">card</option>
+              <option value="cash">cash</option>
+              <option value="check">check</option>
+              <option value="other">other</option>
+            </select>
+          </label>
+          <label style={styles.filterLabel}>
+            Card on file
+            <select value={cardFilter} onChange={(e) => setCardFilter(e.target.value)} style={styles.select}>
+              <option value="">Any card</option>
+              {cards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {(c.label || c.brand || 'Card')} ···· {c.last4 ?? ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {/* Deliberately separate from the picker above: the owner's case is a card that is NOT on
+              file — an employee's own card that printed four digits and matched nothing. Those
+              receipts have a `payment_last4` and a null `payment_card_id`, so only a search on the
+              printed digits finds them. */}
+          <label style={styles.filterLabel}>
+            or card ending
+            <input
+              type="text" inputMode="numeric" placeholder="4824" maxLength={19}
+              value={last4Filter}
+              onChange={(e) => setLast4Filter(e.target.value)}
+              style={{ ...styles.input, minWidth: 110 }}
+              title="Type any part of a card number — only the last four digits are used"
+            />
+          </label>
+          <label style={{ ...styles.filterLabel, flex: 1, minWidth: 160 }}>
             Submitter email (optional)
             <input
               type="text"
@@ -428,6 +613,52 @@ export default function ReceiptsApprovalPage() {
               <span>Show deleted</span>
             </span>
           </label>
+          {/* The slideshow, over whatever the filters above have selected. Disabled with a reason
+              when there is nothing to walk — a button that opens an empty viewer teaches people it
+              is broken. */}
+          <label style={styles.filterLabel} aria-label="Review these receipts one at a time">
+            <span aria-hidden>&nbsp;</span>
+            <button
+              type="button"
+              onClick={() => setSlideshowAt(0)}
+              disabled={receipts.length === 0}
+              style={{
+                ...styles.refreshButton,
+                background: receipts.length === 0 ? undefined : 'var(--color-brand-navy)',
+                color: receipts.length === 0 ? undefined : 'var(--color-text-on-brand)',
+                borderColor: receipts.length === 0 ? undefined : 'var(--color-brand-navy)',
+                opacity: receipts.length === 0 ? 0.5 : 1,
+                cursor: receipts.length === 0 ? 'default' : 'pointer',
+              }}
+              title={
+                receipts.length === 0
+                  ? 'Nothing to review in this filter'
+                  : `Step through all ${receipts.length} of these one at a time, with the photo enlarged`
+              }
+            >
+              Review {receipts.length > 0 ? `all ${receipts.length}` : ''}
+            </button>
+          </label>
+          {/* V5b — re-read the whole filtered set. Counts and confirms first, because every one of
+              these is a paid vision call. */}
+          <label style={styles.filterLabel} aria-label="Run the AI again over every receipt in this filter">
+            <span aria-hidden>&nbsp;</span>
+            <button
+              type="button"
+              onClick={() => void reextractAll()}
+              disabled={bulkAiBusy || receipts.length === 0}
+              style={{
+                ...styles.rowViewBtn,
+                marginRight: 0,
+                height: 36,
+                opacity: bulkAiBusy || receipts.length === 0 ? 0.5 : 1,
+                cursor: bulkAiBusy || receipts.length === 0 ? 'default' : 'pointer',
+              }}
+              title="Re-read every receipt matching the filters above. Overwrites what the AI found; hand-typed corrections to fields it does not return are kept."
+            >
+              {bulkAiBusy ? 'Re-reading…' : 'Re-run AI on all'}
+            </button>
+          </label>
           <label style={styles.filterLabel} aria-label="Refresh the list">
             <span aria-hidden>&nbsp;</span>
             <button type="button" onClick={() => void load()} style={styles.refreshButton}>
@@ -446,6 +677,33 @@ export default function ReceiptsApprovalPage() {
           </label>
         </div>
       </div>
+
+      {/* What the bulk re-read did. Persistent, not a toast — it reports the outcome of a paid
+          action, including how much it cost, and that is worth being able to read twice. */}
+      {bulkAiMsg && (
+        <p
+          role="status"
+          style={{
+            margin: '0 0 12px',
+            fontSize: 13,
+            color: 'var(--color-text-secondary)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid var(--color-info)',
+            borderRadius: 6,
+            padding: '8px 10px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+          }}
+        >
+          <span style={{ flex: 1 }}>{bulkAiMsg}</span>
+          {!bulkAiBusy && (
+            <button type="button" onClick={() => setBulkAiMsg(null)} style={styles.rowViewBtn}>
+              Dismiss
+            </button>
+          )}
+        </p>
+      )}
 
       {loading ? (
         <p style={styles.empty}>Loading…</p>
@@ -481,9 +739,24 @@ export default function ReceiptsApprovalPage() {
               }
               selected={selectedIds.has(r.id)}
               onToggleSelected={() => onToggleSelected(r.id)}
+              onOpenSlideshow={() => setSlideshowAt(receipts.indexOf(r))}
             />
           ))}
         </div>
+      )}
+
+      {/* The slideshow. Mounted only while open, so its keyboard handlers and body-scroll lock are
+          not live over the list. It walks `receipts` — the filtered set, in the order shown — which
+          is why it takes an index rather than an id. */}
+      {slideshowAt !== null && receipts.length > 0 && (
+        <ReceiptSlideshow
+          receipts={receipts}
+          startIndex={slideshowAt}
+          filterNote={slideshowFilterNote}
+          cards={cards}
+          onClose={() => setSlideshowAt(null)}
+          onChanged={() => void load()}
+        />
       )}
 
       {/* Sticky bulk-approve action bar (Batch JJ). Renders only on
@@ -534,6 +807,9 @@ interface ReceiptRowProps {
   selectable?: boolean;
   selected?: boolean;
   onToggleSelected?: () => void;
+  /** Opens the slideshow starting on THIS receipt. The row's own expand-in-place is unchanged —
+   *  the owner asked for both paths ("which we can also do"). */
+  onOpenSlideshow?: () => void;
 }
 
 function ReceiptRow({
@@ -545,6 +821,7 @@ function ReceiptRow({
   selectable,
   selected,
   onToggleSelected,
+  onOpenSlideshow,
   onRefresh,
 }: ReceiptRowProps) {
   const [rejectReason, setRejectReason] = useState('');
@@ -754,6 +1031,19 @@ function ReceiptRow({
           </span>
         </div>
       </button>
+      {/* Outside the summary button, because a button inside a button is invalid HTML and the
+          browser silently un-nests it — which drops the click handler. */}
+      {onOpenSlideshow ? (
+        <button
+          type="button"
+          onClick={onOpenSlideshow}
+          style={styles.rowViewBtn}
+          title="Open this receipt in the reviewer, with the photo enlarged and zoomable"
+          aria-label={`Review ${row.vendor_name ?? 'this receipt'} in the slideshow`}
+        >
+          Review
+        </button>
+      ) : null}
       </div>
 
       {expanded ? (
@@ -1516,6 +1806,22 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#374151',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
+  },
+  /** The per-row "Review" button. Tokens throughout — the older styles in this file mix raw hex
+   *  (`#666`, `#ccc`) which is invisible in one of the two themes. */
+  rowViewBtn: {
+    alignSelf: 'center',
+    marginRight: 12,
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-primary)',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
   },
   refreshButton: {
     padding: '0 16px',

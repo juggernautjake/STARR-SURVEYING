@@ -31,6 +31,18 @@ import { EDITABLE_KEYS, applyReceiptEdits, clearConfidenceFor } from '@/lib/rece
 
 const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'exported']);
 const ALLOWED_TAX_FLAGS = new Set(['full', 'partial_50', 'none', 'review']);
+// `ALLOWED_PAYMENT_METHODS` used to live here, with the note that the column has no CHECK
+// constraint — seed 220 records the four values in a comment only — so validation had to be in code
+// or the column would accept anything. That is still true; it just moved. `parsePaymentMethod` in
+// `lib/receipts/edit-fields.ts` owns it now, alongside every other extracted field, so there is one
+// allow-list rather than one here and another in the registry drifting apart.
+/** Editing any of these means a human has corrected what the AI read, which is what
+ *  `user_reviewed_at` records. Deciding a status or filing to a job is not that. */
+const TOUCHES_EXTRACTED_FIELDS = [
+  'vendor_name', 'vendor_address', 'transaction_at',
+  'subtotal_cents', 'tax_cents', 'tip_cents', 'total_cents',
+  'payment_method', 'payment_last4',
+] as const;
 
 interface PatchBody {
   status?: string;
@@ -39,6 +51,25 @@ interface PatchBody {
   tax_deductible_flag?: string | null;
   notes?: string | null;
   job_id?: string | null;
+  // ── V4 (2026-08-14) — the extracted fields became editable ──────────────────────────────────
+  //
+  // Owner: *"sometimes the AI gets info wrong… we need to be able to manually edit all of the info
+  // for each receipt if needed."* Until now this route accepted the bookkeeper's DECISIONS
+  // (status, category, tax flag, job) but none of the facts the AI had read — so a mis-read vendor
+  // or a transposed total could be seen and not corrected. The only recourse was re-running the AI
+  // and hoping it read it differently the second time.
+  //
+  // Each one is validated below rather than passed through: these write to typed columns, and a
+  // total of "12.3.4" reaching an INT column is a 500 the bookkeeper cannot act on.
+  vendor_name?: string | null;
+  vendor_address?: string | null;
+  transaction_at?: string | null;
+  subtotal_cents?: number | null;
+  tax_cents?: number | null;
+  tip_cents?: number | null;
+  total_cents?: number | null;
+  payment_method?: string | null;
+  payment_last4?: string | null;
   // ── Seed 591 — answering "whose money was this?" ────────────────────────────────────────────
   /** 'business' | 'personal' | null. The one fact nothing can derive. */
   expense_nature?: string | null;

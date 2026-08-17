@@ -5,7 +5,8 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  LOW_CONFIDENCE, arithmeticIsOff, reviewNeeds, reviewSummary,
+  LOW_CONFIDENCE, arithmeticIsOff, confidenceScore, reviewNeeds, reviewSummary,
+  type ReviewableReceipt,
 } from '@/lib/receipts/review-needs';
 
 describe('a clean receipt says nothing', () => {
@@ -141,5 +142,79 @@ describe('the summary line', () => {
     });
     expect(s?.severity).toBe('warn');
     expect(s?.text).toMatch(/2 more/);
+  });
+});
+
+// ── THE CONFIDENCE SCORE (owner, 2026-08-17) ────────────────────────────────────────────────────
+//
+// *"generate receipt confidence scores … If the confidence score is lower than 100, then the
+// reason(s) should be simply and prominently displayed."*
+//
+// That contains a requirement it is easy to miss: a score below 100 must ALWAYS have a reason to
+// show. So the score is derived from `reviewNeeds()` rather than computed alongside it — an
+// independent average would land at 94 with nothing to display, and the screen would either print
+// an empty list or invent one.
+
+describe('confidenceScore', () => {
+  it('is exactly 100 when there is nothing to review', () => {
+    const clean = {
+      total_cents: 4218, subtotal_cents: 3900, tax_cents: 318,
+      ai_confidence_per_field: { vendor_name: 0.98, total_cents: 0.99 },
+      card_match_status: 'on_file',
+    };
+    expect(reviewNeeds(clean)).toEqual([]);
+    expect(confidenceScore(clean)).toBe(100);
+  });
+
+  it('is NEVER 100 when there is a reason — the two can never disagree', () => {
+    // The invariant the display depends on, checked across every reason type.
+    const cases: ReviewableReceipt[] = [
+      { ai_extras: { legibility: { fields_to_verify: ['transaction_at'] } } },
+      { card_match_status: 'not_on_file' },
+      { card_match_status: 'unknown' },
+      { subtotal_cents: 3900, tax_cents: 318, total_cents: 9999 },
+      { ai_confidence_per_field: { total_cents: 0.4 } },
+    ];
+    for (const r of cases) {
+      expect(reviewNeeds(r).length, JSON.stringify(r)).toBeGreaterThan(0);
+      expect(confidenceScore(r), JSON.stringify(r)).toBeLessThan(100);
+    }
+  });
+
+  it('weights a confidently-wrong reading above a merely uncertain one', () => {
+    // Faded ink produces a confident WRONG answer — the failure you cannot catch by re-reading.
+    const faded = confidenceScore({ ai_extras: { legibility: { fields_to_verify: ['transaction_at'] } } });
+    const unsure = confidenceScore({ ai_confidence_per_field: { transaction_at: 0.5 } });
+    expect(faded).toBeLessThan(unsure);
+  });
+
+  it('scales the low-confidence penalty by how unsure the model actually was', () => {
+    const barely = confidenceScore({ ai_confidence_per_field: { total_cents: 0.74 } });
+    const wildGuess = confidenceScore({ ai_confidence_per_field: { total_cents: 0.05 } });
+    expect(barely).toBeGreaterThan(wildGuess);
+  });
+
+  it('treats "could not check the card" as lighter than "the card does not match"', () => {
+    // Absence of evidence is not evidence of error.
+    expect(confidenceScore({ card_match_status: 'unknown' }))
+      .toBeGreaterThan(confidenceScore({ card_match_status: 'not_on_file' }));
+  });
+
+  it('floors at 5, never 0', () => {
+    // A receipt is a photograph of a real purchase; the vendor and total are usually still legible.
+    // "0%" reads as "ignore this", which is the opposite of the intent.
+    const awful = {
+      subtotal_cents: 1, tax_cents: 1, total_cents: 99999,
+      card_match_status: 'not_on_file',
+      ai_extras: { legibility: { quality: 'poor', fields_to_verify: ['transaction_at', 'payment_last4', 'total_cents'] } },
+      ai_confidence_per_field: { vendor_name: 0.01, tax_cents: 0.01, subtotal_cents: 0.01 },
+    } as ReviewableReceipt;
+    expect(confidenceScore(awful)).toBe(5);
+  });
+
+  it('and caps at 99 below perfect, so 100 means genuinely nothing to check', () => {
+    // A single trivial doubt must not round back up to a clean bill of health.
+    const oneTinyDoubt = { ai_confidence_per_field: { vendor_name: 0.7499 } };
+    expect(confidenceScore(oneTinyDoubt)).toBeLessThanOrEqual(99);
   });
 });

@@ -166,6 +166,65 @@ export function reviewNeeds(r: ReviewableReceipt): ReviewItem[] {
 }
 
 /**
+ * How much of this reading to trust, 0–100.
+ *
+ * Owner, 2026-08-17: *"generate receipt confidence scores for the AI analysis and display that. If
+ * the confidence score is lower than 100, then the reason(s) should be simply and prominently
+ * displayed."*
+ *
+ * ── THE SCORE IS DERIVED FROM THE REASONS, NOT ALONGSIDE THEM ───────────────────────────────────
+ *
+ * That instruction contains a requirement it is easy to miss: **a score below 100 must always have
+ * a reason attached.** A number computed independently — say, an average of `ai_confidence_per_field`
+ * — would routinely land at 94 with nothing to show for it, and the screen would either print an
+ * empty "reasons" list or invent one. Both destroy the number's meaning.
+ *
+ * So the score is computed BY subtracting from 100 for each thing in `reviewNeeds()`. That makes the
+ * relationship exact and unbreakable in both directions:
+ *
+ *     score === 100  ⟺  reviewNeeds() is empty
+ *     score  <  100  ⟺  there is at least one reason, and it is on screen
+ *
+ * ── WHY THE WEIGHTS DIFFER ──────────────────────────────────────────────────────────────────────
+ *
+ * They are ordered by how wrong the figure can be, not by how loud the check is:
+ *
+ *   hard_to_read (25)      — a faded stroke produces a CONFIDENT WRONG answer, which is the failure
+ *                            that cannot be caught by reading the number back.
+ *   arithmetic (25)        — the parts contradict the total, so one of them IS wrong; not a doubt.
+ *   card_not_on_file (20)  — a real mismatch against something checkable.
+ *   card_unverifiable (10) — could not be checked. Absence of evidence, not evidence of error.
+ *   low_confidence (15×d)  — scaled by how unsure the model said it was, so 0.7 costs less than 0.2.
+ *
+ * Floored at 5 rather than 0: a receipt is a photograph of a real purchase, and "0% confident" would
+ * say the extraction is worthless when the vendor and total are usually still legible. It is also a
+ * number a bookkeeper would read as "ignore this", which is the opposite of the intent.
+ */
+export function confidenceScore(r: ReviewableReceipt): number {
+  const needs = reviewNeeds(r);
+  if (needs.length === 0) return 100;
+
+  const conf = r.ai_confidence_per_field ?? {};
+  let score = 100;
+  for (const n of needs) {
+    switch (n.reason) {
+      case 'hard_to_read': score -= 25; break;
+      case 'arithmetic': score -= 25; break;
+      case 'card_not_on_file': score -= 20; break;
+      case 'card_unverifiable': score -= 10; break;
+      case 'low_confidence': {
+        // Scaled by the model's own doubt: 15 points at zero confidence, less as it approaches the
+        // threshold. A field it was 74% sure of should not cost what a 20% guess costs.
+        const said = typeof conf[n.field] === 'number' ? conf[n.field] : 0;
+        score -= Math.round(15 * (1 - Math.min(1, Math.max(0, said))));
+        break;
+      }
+    }
+  }
+  return Math.max(5, Math.min(99, score));
+}
+
+/**
  * One line for the top of the receipt.
  *
  * `null` when there is nothing to say — an unqualified "looks clean" banner on every receipt is
