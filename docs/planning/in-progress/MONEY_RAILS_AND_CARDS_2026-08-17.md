@@ -157,6 +157,7 @@ the portal and cannot pay through it, which is a coherent state to be in while s
 | # | Step | Who | Done |
 |---|---|---|---|
 | **M0** | **Readiness check — answer M3/M4/M5 automatically instead of by hand** | **me** | ✅ |
+| **M0b** | **Put it on screen at /admin/cards** | **me** | ✅ |
 | M1 | Add every business + personal card with its role | Owner | ⬜ |
 | M2 | Verify the Venmo / CashApp / Zelle handles are real | Owner | ⬜ |
 | M3 | Confirm Stripe keys are live-mode | Owner | ⬜ *(now answered by M0)* |
@@ -194,5 +195,23 @@ itself: whether `@StarrSurveying` is really the firm's Venmo (no API can answer 
 paying the wrong handle gets no error), and whether the Stripe webhook ENDPOINT still exists (a
 signing secret from a deleted endpoint verifies nothing).
 
-Not yet rendered on a page — the endpoint is the useful half and the surface is a follow-up. Call it
-at `/api/admin/payments/readiness` as an admin, or ask and I will put it on `/admin/money`.
+### M0b — shipped 2026-08-17
+
+`app/admin/cards/PaymentsReadinessPanel.tsx`, mounted on `/admin/cards`.
+
+M0 shipped an endpoint and nothing that opened it, which is this repo's most frequent defect — work
+that exists, is correct, and is unreachable. The M0 note above admitted it in writing, so it was
+fixed rather than left as a follow-up nobody would pick up.
+
+It sits on the **cards** page because that is where the owner already is for M1, one of the checks
+IS the company-card count, and the register's whole purpose is deciding what a charge means. It
+renders **nothing at all** when everything is clear: a panel that is always present stops being read.
+
+Verified in a browser — blockers first, then the two manual checks, with the reason on each line.
+Worth noting what it got right unprompted: the single card on file is role `UNKNOWN`, and the panel
+correctly reports "no company card is registered" rather than counting it.
+
+*(A detour worth recording: the first browser check showed the page stuck on the session spinner.
+That was not the panel — it was `.next` corrupted by running `npm run build` and then `next dev` in
+the same directory, exactly as `CAD_EXCELLENCE`'s lesson 6 describes. Kill every next process, delete
+`.next`, restart. I walked into a trap this repo had already written down.)*

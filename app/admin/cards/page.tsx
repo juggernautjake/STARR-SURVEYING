@@ -34,6 +34,7 @@ import { useCallback, useEffect, useState } from 'react';
 // have rendered `undefined` for every card. Importing the real one is what makes the compiler able
 // to answer the question, and is the same lesson as the casts removed elsewhere today.
 import { CARD_ROLE_OPTIONS, type CardTaxTreatment } from '@/lib/finance/payment-cards';
+import { PaymentsReadinessPanel } from './PaymentsReadinessPanel';
 
 interface RegistryCard {
   id: string;
@@ -258,6 +259,11 @@ export default function CardRegistryPage() {
         a personal card is money owed back to a person, and a client’s card is not our transaction
         at all. Receipts paid on a card that is not listed here are flagged for review.
       </p>
+
+      {/* What is still stopping customers being charged. Sits here because this is where the owner
+          already is — one of its checks IS the company-card count, and the register's whole purpose
+          is deciding what a charge means. Renders nothing when everything is clear. */}
+      <PaymentsReadinessPanel />
 
       {/* The distinction the route exists to preserve. An empty list here would be a lie. */}
       {!data.registryExists && (
