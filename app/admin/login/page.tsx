@@ -71,7 +71,18 @@ function LoginContent() {
       });
 
       if (result?.error) {
-        setFormError('Invalid email or password.');
+        // Deliberately still generic about WHICH half was wrong — telling an unauthenticated caller
+        // "that account has no password" confirms the address exists, and this form is on the public
+        // internet.
+        //
+        // But the old message described only one of the two ways to land here, and it was the less
+        // likely one: an account created by signing in with Google gets `password_hash: ''`, so four
+        // of five staff had no password at all and were being told theirs was wrong. The second
+        // sentence covers that case without naming it.
+        setFormError(
+          'Invalid email or password. If you normally sign in with Google, use the Google button above — '
+          + 'then set a password under Profile → Password sign-in to use this form.',
+        );
         setLoading(false);
         return;
       }

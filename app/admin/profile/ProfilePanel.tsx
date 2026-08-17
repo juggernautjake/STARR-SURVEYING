@@ -12,6 +12,7 @@ import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { X } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
+import { PasswordCard } from './components/PasswordCard';
 import { ThemePicker } from './components/ThemePicker';
 import { DensityPicker } from './components/DensityPicker';
 import { FontScaleSlider } from './components/FontScaleSlider';
@@ -441,12 +442,21 @@ export default function ProfilePanel() {
           <div className="emp-manage__field"><label>Name</label><span>{profile?.user_name || name || '—'}</span></div>
           <div className="emp-manage__field"><label>Email</label><span>{email}</span></div>
           <div className="emp-manage__field"><label>Role</label><span>{profile?.job_title || role}</span></div>
-          <div className="emp-manage__field"><label>Authentication</label><span>Google Workspace (@starr-surveying.com)</span></div>
+          {/* Was hard-coded to "Google Workspace (@starr-surveying.com)", which stopped being true
+              the moment password sign-in became usable — and was never true for the org members
+              whose address is not on that domain. The card below says which methods actually work
+              for this account, so this row no longer asserts one. */}
+          <div className="emp-manage__field"><label>Sign-in</label><span>Google, or email and password — see below</span></div>
           <div className="emp-manage__field"><label>Status</label><span style={{ color: profile?.is_active !== false ? '#059669' : 'var(--color-error)' }}>{profile?.is_active !== false ? 'Active' : 'Inactive'}</span></div>
           {profile?.available_balance !== undefined && (
             <div className="emp-manage__field"><label>Available Balance</label><span>{fmtCurrency(profile.available_balance)}</span></div>
           )}
         </div>
+
+        {/* Set or change the password used by the email + password form on /admin/login. Sits on the
+            Profile tab rather than "Credentials" — that tab is professional certifications (RPLS and
+            the like), and putting sign-in details under the same word would be a trap. */}
+        <PasswordCard />
 
         {/* Slice EP1 — Personal info card. View / edit toggle so
             the surveyor can fill in DOB / gender / pronouns / bio
