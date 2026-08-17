@@ -522,3 +522,58 @@ webhook and by cron are already sitting with `org_id` NULL. Adding those tables 
 is a worse failure than not enforcing it, because it looks like data loss"). Seed first, backfill
 the NULLs, verify 100% coverage, and only then enrol the tables. That is a slice with a live-database
 step, not a line in a merge.
+
+---
+
+## Phone calls — built, never merged, and DELIBERATELY PARKED (2026-08-17)
+
+- [ ] **Owner's call: leave phone calls working exactly as they do today.** Revisit when there is a
+      reason to automate. Nothing is broken; nothing needs configuring.
+
+### What exists
+
+The `calls` table is live in the database (seeds 594/595) with **0 rows**, and **no code in `main`
+touches it** — verified two ways on 2026-08-17: a repo-wide search for `provider_call_sid` /
+`is_voicemail` / `transcript_status` returns nothing, and `git merge-base --is-ancestor` puts every
+phone commit outside `main`.
+
+The system itself is finished and was tested against a real call. It sits on
+**`origin/claude/job-lifecycle-2026-08-14`**:
+
+| commit | what |
+|---|---|
+| `3df2e6ff8` | the plan, and the foundations a webhook needs |
+| `bd36b47d1` | a call comes in, gets answered or recorded, and is written down |
+| `ca0c5fd4c` | ledger — P0, I1-I3, T1 shipped; D2 resolved as an adapter |
+| `a900e0fcb` | transcript, summary, the call log, calling people back |
+| `675162f0e` | three defects browser QA **and a live call** found; doc → completed/ |
+
+The same branch also carries work worth having independently: receipt **slideshow review with zoom**
+and **re-run the AI across a whole filtered set** (`38d04cada`, `c47647650`), job **briefings** and
+deliverables (`3e95de70c`, `06383c2ed`), one notifier for job events (`112188865`), and a real UI fix
+— `--color-danger` is not a token, so those colours rendered as nothing (`a35a5c20b`).
+
+### Why parking it is the right call, and what it costs
+
+Merging would put a Twilio webhook in charge of the business number. The owner wants calls to keep
+behaving exactly as they do now, so shipping it would change how a live phone answers — the one thing
+that must not surprise anybody. **Not merging is the safe default here, not the lazy one.**
+
+The cost is drift. Measured 2026-08-17: the branch is **17 commits ahead / 119 behind**, touching 118
+files of which only **8** have also changed on `main` —
+`__tests__/lib-orphan-ratchet.test.ts`, `app/admin/jobs/[id]/page.tsx`,
+`app/admin/receipts/page.tsx`, `app/api/admin/jobs/[id]/instructions/route.ts`,
+`app/api/admin/receipts/[id]/route.ts`, `app/api/admin/settings/route.ts`,
+`lib/admin/route-registry.ts`, `lib/saas/api-bundle-gate.ts`. Four of those eight were edited on
+2026-08-16/17 (receipts editing, the job-notes mount, the instructions org-scope check), so the
+conflicts are known rather than mysterious. That number only grows.
+
+### To pick it up later
+
+1. Merge `main` into the branch, resolving the 8 files above; run the full gate.
+2. Drive one real call in a browser before merging to `main`.
+3. Then, and only then, the two owner settings: point the Twilio number's **voice webhook** at the
+   deployed URL, and set the one staff number that should ring.
+
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_PHONE_NUMBER` are already set; the code reads
+`TWILIO_FROM_NUMBER`, which is **not** the same variable — reconcile that during the merge.
