@@ -303,39 +303,39 @@ export async function uploadClickConversions(conversions: ClickConversion[]): Pr
   const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/\D/g, '');
   const url = `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}:uploadClickConversions`;
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
-        ...(process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
-          ? { 'login-customer-id': process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/\D/g, '') }
-          : {}),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        conversions: conversions.map((c) => ({
-          ...(c.gclid ? { gclid: c.gclid } : {}),
-          ...(c.gbraid ? { gbraid: c.gbraid } : {}),
-          ...(c.wbraid ? { wbraid: c.wbraid } : {}),
-          conversionAction: c.conversionAction,
-          conversionDateTime: c.conversionDateTime,
-          ...(typeof c.conversionValue === 'number' ? { conversionValue: c.conversionValue } : {}),
-          currencyCode: c.currencyCode ?? 'USD',
-          orderId: c.orderId,
-        })),
-        // See the doc comment. One bad row must not cost the whole night.
-        partialFailure: true,
-      }),
-    });
+  const payload = {
+    conversions: conversions.map((c) => ({
+      ...(c.gclid ? { gclid: c.gclid } : {}),
+      ...(c.gbraid ? { gbraid: c.gbraid } : {}),
+      ...(c.wbraid ? { wbraid: c.wbraid } : {}),
+      conversionAction: c.conversionAction,
+      conversionDateTime: c.conversionDateTime,
+      ...(typeof c.conversionValue === 'number' ? { conversionValue: c.conversionValue } : {}),
+      currencyCode: c.currencyCode ?? 'USD',
+      orderId: c.orderId,
+    })),
+    // See the doc comment. One bad row must not cost the whole night.
+    partialFailure: true,
+  };
 
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const message = (body as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}`;
-      return { attempted: conversions.length, uploaded: 0, failures: [], fatal: message };
+  try {
+    // `postWithLoginRetry`, not a bare fetch. `runReportQuery` grew this retry on 2026-08-11 and the
+    // upload paths did not, which is exactly why READS kept working while every conversion upload
+    // failed — 45 of 45, for nine days, with `last_error: "The caller does not have permission"`.
+    //
+    // Probed live on 2026-08-16: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` is 7539170249, a manager account that
+    // manages ONLY ITSELF; the real ad account 7071902603 was never linked under it. Sending that
+    // header says "reach this account through that manager", which is not true, so Google refuses.
+    // The identical request without the header returns 200.
+    //
+    // Fixing the variable is the real cure and is being done separately. This makes the integration
+    // survive the next time somebody sets it wrong, because the failure mode is silent money: the
+    // bidding just never learns.
+    const res = await postWithLoginRetry(url, auth.token, payload);
+    if ('error' in res) {
+      return { attempted: conversions.length, uploaded: 0, failures: [], fatal: res.error };
     }
-    return parseUploadResponse(body, conversions.length);
+    return parseUploadResponse(res.body, conversions.length);
   } catch (e) {
     return {
       attempted: conversions.length,
@@ -405,39 +405,30 @@ export async function uploadConversionAdjustments(adjustments: ConversionAdjustm
   const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/\D/g, '');
   const url = `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}:uploadConversionAdjustments`;
 
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${auth.token}`,
-        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
-        ...(process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID
-          ? { 'login-customer-id': process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/\D/g, '') }
-          : {}),
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        conversionAdjustments: adjustments.map((a) => ({
-          conversionAction: a.conversionAction,
-          orderId: a.orderId,
-          adjustmentType: a.adjustmentType,
-          adjustmentDateTime: a.adjustmentDateTime,
-          // A RETRACTION carries no value. Sending `restatementValue: 0` alongside RETRACTION is a
-          // different statement — "it happened and was worth nothing" — and Google ignores it anyway.
-          ...(a.adjustmentType === 'RESTATEMENT' && typeof a.restatementValue === 'number'
-            ? { restatementValue: { adjustedValue: a.restatementValue, currencyCode: a.currencyCode ?? 'USD' } }
-            : {}),
-        })),
-        partialFailure: true,
-      }),
-    });
+  const payload = {
+    conversionAdjustments: adjustments.map((a) => ({
+      conversionAction: a.conversionAction,
+      orderId: a.orderId,
+      adjustmentType: a.adjustmentType,
+      adjustmentDateTime: a.adjustmentDateTime,
+      // A RETRACTION carries no value. Sending `restatementValue: 0` alongside RETRACTION is a
+      // different statement — "it happened and was worth nothing" — and Google ignores it anyway.
+      ...(a.adjustmentType === 'RESTATEMENT' && typeof a.restatementValue === 'number'
+        ? { restatementValue: { adjustedValue: a.restatementValue, currencyCode: a.currencyCode ?? 'USD' } }
+        : {}),
+    })),
+    partialFailure: true,
+  };
 
-    const body = await res.json().catch(() => null);
-    if (!res.ok) {
-      const message = (body as { error?: { message?: string } } | null)?.error?.message ?? `HTTP ${res.status}`;
-      return { attempted: adjustments.length, uploaded: 0, failures: [], fatal: message };
+  try {
+    // Same retry as the conversion upload above, for the same reason: an adjustment that cannot be
+    // sent means a job that was won or paid never reaches the bidding, which is the half of the
+    // signal that carries the money.
+    const res = await postWithLoginRetry(url, auth.token, payload);
+    if ('error' in res) {
+      return { attempted: adjustments.length, uploaded: 0, failures: [], fatal: res.error };
     }
-    return parseUploadResponse(body, adjustments.length);
+    return parseUploadResponse(res.body, adjustments.length);
   } catch (e) {
     return {
       attempted: adjustments.length,
@@ -461,6 +452,69 @@ export interface ReportSuccess {
   body: unknown;
   /** Set when the query only succeeded after dropping `login-customer-id`. See below. */
   warning?: string;
+}
+
+/**
+ * POST to the Ads API, and if a bad `login-customer-id` is the reason it was refused, send it again
+ * without that header.
+ *
+ * ── WHY THE WRITE PATHS NEEDED THIS TOO ─────────────────────────────────────────────────────────
+ *
+ * `runReportQuery` below grew exactly this retry on 2026-08-11. The two UPLOAD paths did not, and
+ * that asymmetry is the whole reason the integration looked half-alive for nine days: spend imports
+ * kept arriving (the read retried and succeeded), while every conversion upload failed —
+ * 45 of 45, `last_error: "The caller does not have permission"`, `last_uploaded_at: null`.
+ *
+ * Probed live 2026-08-16: `GOOGLE_ADS_LOGIN_CUSTOMER_ID` = 7539170249, a manager account that
+ * manages ONLY ITSELF. The ad account 7071902603 was never linked beneath it, and the signed-in user
+ * has direct Admin access to it anyway — so the header was not merely wrong, it was unnecessary.
+ * With it: `USER_PERMISSION_DENIED`. Without it: 200, twelve conversion actions, both campaigns.
+ *
+ * The header is optional by design — it is required only when reaching an account THROUGH a manager.
+ * It is also the single most commonly misconfigured value in this integration, and the cost of it
+ * being wrong is silent: nothing errors on a page, the bidding simply never learns.
+ */
+async function postWithLoginRetry(
+  url: string,
+  token: string,
+  payload: unknown,
+): Promise<{ body: unknown; warning?: string } | { error: string }> {
+  const loginCustomerId = (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? '').replace(/\D/g, '');
+
+  const attempt = async (withLogin: boolean) => {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN ?? '',
+        ...(withLogin && loginCustomerId ? { 'login-customer-id': loginCustomerId } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json().catch(() => null);
+    if (res.ok) return { ok: true as const, body };
+    const message = (body as { error?: { message?: string } } | null)?.error?.message
+      ?? `HTTP ${res.status}`;
+    return { ok: false as const, error: message };
+  };
+
+  const first = await attempt(true);
+  if (first.ok) return { body: first.body };
+
+  if (loginCustomerId && /USER_PERMISSION_DENIED|not have permission/i.test(first.error)) {
+    const second = await attempt(false);
+    if (second.ok) {
+      return {
+        body: second.body,
+        warning:
+          `GOOGLE_ADS_LOGIN_CUSTOMER_ID (${loginCustomerId}) does not manage this ad account — the `
+          + 'upload only succeeded once that header was dropped. Unset it, or set it to the manager '
+          + 'account that really owns the account.',
+      };
+    }
+  }
+  return { error: first.error };
 }
 
 /**
