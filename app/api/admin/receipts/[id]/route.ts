@@ -27,6 +27,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { notify } from '@/lib/notifications';
 import { buildReceiptDecisionNotification } from '@/lib/notifications/receipt-decision';
 import { resolveSubmitterEmails } from '@/lib/receipts/submitter';
+import { EDITABLE_KEYS, applyReceiptEdits, clearConfidenceFor } from '@/lib/receipts/edit-fields';
 
 const ALLOWED_STATUSES = new Set(['pending', 'approved', 'rejected', 'exported']);
 const ALLOWED_TAX_FLAGS = new Set(['full', 'partial_50', 'none', 'review']);
@@ -44,6 +45,10 @@ interface PatchBody {
   expense_nature_note?: string | null;
   /** The card on file that really paid. Sending this CONFIRMS it — `null` un-confirms and clears. */
   payment_card_id?: string | null;
+  // Every field the extractor reads is correctable too. They are not listed one by one because
+  // `EDITABLE_FIELDS` in lib/receipts/edit-fields.ts is the single place a field is declared, along
+  // with its validator and where it is stored — a second list here would drift from it.
+  [field: string]: unknown;
 }
 
 const ALLOWED_EXPENSE_NATURE = new Set(['business', 'personal']);
@@ -165,6 +170,64 @@ export const PATCH = withErrorHandler(
       // Allow updating the rejection reason without changing status
       // (bookkeeper clarifying after the fact).
       update.rejected_reason = body.rejected_reason;
+    }
+
+    // ── CORRECTING WHAT THE AI READ (owner, 2026-08-16) ──────────────────────────────────────────
+    //
+    // *"We also need to be able to edit all of the details of a receipt once it has been analyzed …
+    // I uploaded a receipt that had the date 8/12/2016, but because the ink quality was poor … it
+    // looked like 8/2/2026."*
+    //
+    // Until now every field the extractor read — vendor, DATE, subtotal, tax, tip, total, last four
+    // — was write-once and unreachable afterwards. The nine things this route accepted were all
+    // bookkeeping decisions ABOUT the receipt, not what the receipt says. So a misread date could be
+    // re-run through the AI (which reads the same faded ink the same way), rejected, or left wrong.
+    // There was nowhere to put the right answer.
+    //
+    // The registry in `lib/receipts/edit-fields.ts` validates and routes each field; this reads the
+    // row first because a correction log needs to record what the value changed FROM.
+    const editKeys = Object.keys(body as Record<string, unknown>).filter((k) => EDITABLE_KEYS.has(k));
+    if (editKeys.length > 0) {
+      const { data: currentRow } = await supabaseAdmin
+        .from('receipts')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+      if (!currentRow) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 });
+
+      const current = currentRow as Record<string, unknown> & { ai_extras?: Record<string, unknown> | null };
+      const edits = applyReceiptEdits(current, body as Record<string, unknown>);
+      if (edits.errors.length > 0) {
+        return NextResponse.json({ error: edits.errors.join(' ') }, { status: 400 });
+      }
+
+      Object.assign(update, edits.columnUpdate);
+
+      if (Object.keys(edits.aiExtrasUpdate).length > 0) {
+        // Merged, never replaced: `ai_extras` also carries the summary, review flags and the
+        // legibility block, and a whole-object write would drop them.
+        update.ai_extras = { ...(current.ai_extras ?? {}), ...edits.aiExtrasUpdate };
+      }
+
+      const changedKeys = Object.keys(edits.changed);
+      if (changedKeys.length > 0) {
+        // The AI's confidence in a field a human has since corrected is a statement about a number
+        // that is no longer on the screen. Left in place, the page keeps drawing "the AI was 30%
+        // sure of this" beside a figure somebody read off the paper themselves — which is exactly
+        // backwards, and would make the low-confidence marker mean nothing.
+        update.ai_confidence_per_field = clearConfidenceFor(
+          current.ai_confidence_per_field as Record<string, number> | null,
+          changedKeys,
+        );
+        // What was corrected, and from what. Answers "what does the AI keep getting wrong", which
+        // is the question a pile of corrections is actually worth asking.
+        const priorEdits = (current.user_review_edits ?? {}) as Record<string, unknown>;
+        update.user_review_edits = {
+          ...priorEdits,
+          [new Date().toISOString()]: { by: session.user.email, changed: edits.changed },
+        };
+        update.user_reviewed_at = new Date().toISOString();
+      }
     }
 
     if (Object.keys(update).length === 0) {

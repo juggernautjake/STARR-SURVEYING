@@ -71,9 +71,28 @@ export interface ReceiptRow {
     review_flags?: string[];
     vendor_phone?: string | null;
     card_brand?: string | null;
+    card_holder_name?: string | null;
     receipt_number?: string | null;
     discount_cents?: number | null;
+    service_charge_cents?: number | null;
     currency?: string | null;
+    /**
+     * How readable the PAPER was, assessed separately from how sure the model was of the characters
+     * (2026-08-16).
+     *
+     * The distinction is the whole point: a receipt printed 8/12/2016 was read as 8/2/2026, and a
+     * missing ink stroke does not produce an uncertain answer — it produces a confident wrong one.
+     * `fields_to_verify` is the model saying "these characters could be something else", which
+     * `ai_confidence_per_field` had no way to express.
+     *
+     * Optional, and absent on every receipt extracted before this shipped — which is why
+     * `parseLegibility` defaults to `good` rather than putting a warning on the whole back catalogue.
+     */
+    legibility?: {
+      quality?: 'good' | 'fair' | 'poor' | null;
+      issues?: string[] | null;
+      fields_to_verify?: string[] | null;
+    } | null;
   } | null;
   /** Batch Z. Set when this receipt fingerprints identically to an earlier non-rejected one from the
    *  same submitter. A WARNING, never an auto-discard — two $5 coffees on the same day are both

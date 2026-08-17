@@ -24,6 +24,8 @@ import { PromoteToAssetPanel } from './PromoteToAsset';
 import { receiptTaxLine } from '@/lib/finance/tax-summary';
 import JobRefPicker from '@/app/admin/components/jobs/JobRefPicker';
 import type { ReceiptAiHealth } from '@/app/api/admin/receipts/ai-health/route';
+import { LOW_CONFIDENCE, reviewNeeds, reviewSummary } from '@/lib/receipts/review-needs';
+import { ReceiptEditor } from './ReceiptEditor';
 
 // ── Types — mirror app/api/admin/receipts/route.ts ────────────────────────────
 
@@ -805,6 +807,48 @@ function ReceiptRow({
             </div>
             {aiMsg ? <div style={styles.aiMsg}>{aiMsg}</div> : null}
 
+            {/* ── WHICH PARTS TO CHECK, AND WHY (owner, 2026-08-16) ──────────────────────────────
+                *"If the AI is not certain about a name/number/etc for anything on the receipt, it
+                should inform the viewer that they should review those parts of the receipt."*
+
+                The per-field markers below have existed for a while, but they only work if you are
+                already looking at the field. Nothing said, at the top, "three things here are
+                doubtful and one of them is the total". This merges the four separate reasons a value
+                can be doubtful — the model said so, the paper is faded, the card does not match
+                anything on file, the arithmetic disagrees — into one list, most serious first.
+
+                Absent entirely on a clean receipt: a banner that is always there stops being read. */}
+            {(() => {
+              const summary = reviewSummary(row);
+              if (!summary) return null;
+              const needs = reviewNeeds(row);
+              return (
+                <div
+                  style={summary.severity === 'poor' ? styles.legibilityBandPoor : styles.legibilityBand}
+                  role="note"
+                >
+                  <strong style={styles.flagTitle}>
+                    <AlertTriangle size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} />
+                    {summary.text}
+                  </strong>
+                  {/* The paper's own condition, in the AI's words — "thermal print faded across the
+                      top third" tells a bookkeeper what to expect before they open the photo. */}
+                  {(row.ai_extras?.legibility?.issues?.length ?? 0) > 0 ? (
+                    <p style={styles.legibilityIssues}>
+                      {row.ai_extras!.legibility!.issues!.join(' · ')}
+                    </p>
+                  ) : null}
+                  {needs.length > 0 ? (
+                    <ul style={styles.flagList}>
+                      {needs.map((n) => (
+                        <li key={n.field}><strong>{n.label}</strong> — {n.detail}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              );
+            })()}
+
             {/* Advisory, and it must read that way. A band that fires on ordinary receipts is one
                 people learn to scroll past — which is how the one real problem gets approved along
                 with the rest. The extractor is told an empty array is the common, correct answer. */}
@@ -947,6 +991,20 @@ function ReceiptRow({
               <Field label="Reject reason" value={row.rejected_reason} />
             ) : null}
           </dl>
+
+          {/* Correct anything above. Directly under the fields it edits, because the alternative —
+              a pencil on each row — would be seventeen affordances for one action, and the person
+              doing this has the photo open and is fixing several at once. */}
+          {/* `gridColumn: 1 / -1` because `styles.expanded` is an auto-fit grid — without it the
+              editor becomes one more column beside the photo and the field list, and its inputs get
+              squeezed into ~200px. Same reason `editRow` spans. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <ReceiptEditor
+              row={row}
+              busy={!!busy}
+              onSave={(patch) => onMutate(row.id, patch, 'Saving corrections')}
+            />
+          </div>
 
           {/* R6 — the transcribed lines. This is the part a bookkeeper genuinely cannot rebuild
               later: the photo fades, the paper goes in a drawer, and "$84.19 at a hardware store"
@@ -1289,8 +1347,14 @@ function ReceiptRow({
 
 
 /** Below this, the AI is telling us it was guessing — inferred or partial, per the prompt's own
- *  scale (1.0 printed and clear, 0.5 inferred, 0.2 best-guess). */
-const LOW_CONFIDENCE = 0.6;
+ *  scale (1.0 printed and clear, 0.5 inferred, 0.2 best-guess).
+ *
+ *  Now imported rather than declared here, and the value RISES from 0.6 to 0.75 with the move.
+ *  0.6 meant a field the model was only 65% sure of was drawn as though it were fine, and the owner
+ *  asked for the opposite — *"If the AI is not certain about a name/number/etc for anything on the
+ *  receipt, it should inform the viewer that they should review those parts."* One constant, in
+ *  `lib/receipts/review-needs.ts`, so the banner at the top and the marker on the field can never
+ *  disagree about which fields are doubtful. */
 
 function Field({
   label,
@@ -1709,6 +1773,32 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     padding: '8px 12px',
     minWidth: 0,
+  },
+  /** "Check these fields." Same amber as the review flags because it is the same kind of advice. */
+  legibilityBand: {
+    border: '1px solid var(--theme-warning)',
+    background: 'var(--theme-bg-elevated)',
+    borderRadius: 6,
+    padding: '8px 12px',
+    minWidth: 0,
+    marginBottom: 8,
+  },
+  /** Poor print gets the stronger colour: it is the case where a figure can be confidently wrong,
+   *  which is worse than one the AI already admits it is unsure of. */
+  legibilityBandPoor: {
+    border: '1px solid var(--theme-danger)',
+    borderLeft: '3px solid var(--theme-danger)',
+    background: 'var(--theme-bg-elevated)',
+    borderRadius: 6,
+    padding: '8px 12px',
+    minWidth: 0,
+    marginBottom: 8,
+  },
+  legibilityIssues: {
+    margin: '2px 0 6px',
+    fontSize: 12,
+    color: 'var(--theme-fg-muted)',
+    fontStyle: 'italic',
   },
   flagTitle: { fontSize: 12.5, color: '#92400E', display: 'block', marginBottom: 4 },
   flagList: {

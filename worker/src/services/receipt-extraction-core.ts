@@ -99,6 +99,19 @@ export interface ExtractedReceipt {
   }>;
   /** Free-form per-field 0..1 confidence Claude reports for itself. */
   confidence: Record<string, number>;
+  /**
+   * How readable the PAPER was, assessed separately from how sure the model is of the characters.
+   *
+   * Added 2026-08-16 because confidence alone could not catch the failure that prompted it: a
+   * receipt printed 8/12/2016 was read as 8/2/2026, because a faded stroke does not produce an
+   * uncertain answer — it produces a confident wrong one. `fields_to_verify` is the model saying
+   * "these characters could be something else", which is a different claim from "I am unsure".
+   */
+  legibility: {
+    quality: 'good' | 'fair' | 'poor';
+    issues: string[];
+    fields_to_verify: string[];
+  };
 }
 
 /** Fields a runner reads back before deciding what to overwrite — see `buildReceiptUpdate`. */
@@ -182,6 +195,9 @@ export function buildReceiptUpdate(
     ai_extras: {
       summary: extracted.ai_summary,
       review_flags: extracted.review_flags,
+      // What the PAPER was like. Read by `lib/receipts/review-needs.ts` to decide which fields the
+      // banner tells a bookkeeper to check against the photo.
+      legibility: extracted.legibility,
       vendor_phone: extracted.vendor_phone,
       card_brand: extracted.card_brand,
       card_holder_name: extracted.card_holder_name,
@@ -271,6 +287,43 @@ export function parseExtraction(raw: string): ExtractedReceipt {
           }))
       : [],
     confidence: isObject(parsed.confidence) ? (parsed.confidence as Record<string, number>) : {},
+    legibility: parseLegibility(parsed.legibility),
+  };
+}
+
+/** Field keys the model is allowed to nominate for verification. An unrecognised key would render
+ *  as a row nobody can act on, and would let a hallucinated field name onto the screen. */
+const VERIFIABLE_FIELDS = new Set([
+  'vendor_name', 'vendor_address', 'vendor_phone', 'transaction_at',
+  'subtotal_cents', 'tax_cents', 'tip_cents', 'service_charge_cents', 'discount_cents', 'total_cents',
+  'currency', 'payment_method', 'payment_last4', 'card_brand', 'card_holder_name',
+  'receipt_number', 'category',
+]);
+
+/**
+ * Normalise the `legibility` block.
+ *
+ * Defaults to `good` with nothing to verify when the model omits it — which it will for as long as
+ * any queued receipt was extracted before this field existed. The alternative, defaulting to
+ * `poor`, would put a "hard to read" banner on every receipt already in the system and teach
+ * everybody to ignore it on day one.
+ */
+export function parseLegibility(raw: unknown): ExtractedReceipt['legibility'] {
+  const src = isObject(raw) ? raw : {};
+  const q = trimOrNull(src.quality)?.toLowerCase();
+  const quality = q === 'poor' || q === 'fair' ? q : 'good';
+  return {
+    quality,
+    issues: Array.isArray(src.issues)
+      ? src.issues.map(trimOrNull).filter((s): s is string => s !== null).slice(0, 8)
+      : [],
+    fields_to_verify: Array.isArray(src.fields_to_verify)
+      ? [...new Set(
+          src.fields_to_verify
+            .map(trimOrNull)
+            .filter((s): s is string => s !== null && VERIFIABLE_FIELDS.has(s)),
+        )].slice(0, 12)
+      : [],
   };
 }
 
@@ -383,6 +436,11 @@ The user has uploaded a photo of a paper receipt (gas station, hardware store, r
     "total_cents":  0..1,
     "category":     0..1
     // ...one entry per field you populated; omit fields you set to null
+  },
+  "legibility": {
+    "quality":          "good" | "fair" | "poor",   // How readable the PAPER is — see the rules below
+    "issues":           [string],                    // Why, in short phrases: "faded thermal ink", "glare across the total", "receipt is creased through the date"
+    "fields_to_verify": [string]                     // Field KEYS (e.g. "transaction_at", "payment_last4") a human should confirm against the photo
   }
 }
 
@@ -451,5 +509,56 @@ Rules:
 - review_flags: raise one ONLY when a person needs to act. Good examples: "Subtotal + tax does not equal total", "Date is illegible", "Contains what looks like a personal item (birthday card)", "Handwritten total", "Receipt is for a return/refund, amount may need to be negative". Do NOT flag ordinary receipts — an empty array is the common, correct answer.
 - ai_summary is for a human skimming a queue of fifty receipts. One sentence, no preamble, no restating the JSON.
 - The "confidence" object: report 0..1 for each populated field. 1.0 = printed and clearly readable; 0.5 = inferred or partial; 0.2 = best-guess. Skip fields you set to null.
+
+- **JUDGE THE PAPER, NOT ONLY THE TEXT — the "legibility" object.**
+  Owner, 2026-08-16: *"Some receipts are printed with low amounts of ink and digits and stuff can
+  become faded or missing. For instance, I uploaded a receipt that had the date 8/12/2016, but
+  because the ink quality was poor when the receipt was printed, it looked like 8/2/2026."*
+
+  That receipt did not look uncertain. It looked like a clean reading of a different date — which is
+  the whole problem. A missing stroke does not announce itself; it produces a plausible wrong answer
+  at high confidence. So assess the PHYSICAL condition of the receipt separately from how sure you
+  are of the characters you think you see.
+
+  \`quality\`:
+    * "good" — crisp printing, every figure unambiguous.
+    * "fair" — readable, but something is working against it: light ink, a crease, mild glare, a
+      phone photo at an angle, a fold through one line. You could read it, but a second pair of eyes
+      on the figures would not be wasted.
+    * "poor" — faded or partial thermal printing, missing character strokes, glare or shadow across
+      figures, torn or cut-off edges, heavy blur. Anything where a digit could plausibly be a
+      different digit.
+
+  \`fields_to_verify\` is the important one. Put a field key in it whenever the CHARACTERS could be
+  something else, even if you are confident in your reading. Specifically:
+    * **Digits that lose strokes when ink is low are the classic trap, and they are systematic, not
+      random.** With faded thermal printing: 8 reads as 3, 6 or 0; 6 and 5 read as 8; 0 reads as 8 or
+      D; 1 reads as 7; 7 reads as 1; 9 reads as 4 or 0; and a DROPPED digit shortens a number without
+      leaving a gap — "8/12/2016" becomes "8/2/2016" or "8/12/206" and still looks well-formed.
+    * **Dates.** If any digit of the date is faded, broken or ambiguous, put "transaction_at" in
+      fields_to_verify — ALWAYS, even at high confidence. A two-digit day losing a stroke becomes a
+      one-digit day, and a year is four chances to be wrong. If the date you read is in the future or
+      more than a few years old, you have almost certainly misread it: return what you see, put it in
+      fields_to_verify, and say so in issues.
+    * **The last four of the card.** Four digits, usually the smallest and faintest print on the
+      slip, and frequently dot-matrix. If any of them is less than crisp, put "payment_last4" in
+      fields_to_verify. Do not "clean up" a digit to make it look like a plausible number.
+    * **Amounts**, wherever a leading digit or a decimal point could be lost.
+    * **Names** — vendor or cardholder — where letters are broken or the print is cut off.
+
+  Keep \`fields_to_verify\` honest: an empty array on a crisply printed receipt is the common and
+  correct answer, and a list naming every field on a clean receipt is as useless as naming none.
+
+  \`issues\` is for a person: short phrases saying what is wrong with the paper ("thermal print
+  faded across the top third", "glare over the card line", "bottom of the receipt is torn off").
+
+- **DO NOT quietly correct a number to make it look sensible.** If the date reads 8/2/2026 because a
+  stroke is missing, report what is printed, mark it in fields_to_verify, and say the ink is faded.
+  Returning a tidied-up guess with no flag is the one outcome that costs somebody real money, because
+  it is indistinguishable from a correct reading.
+
+- The last four of the card is checked against the firm's cards on file AFTER you answer, by code —
+  you cannot see that list, so do not speculate about which card it is. Your job is to report the
+  digits faithfully and say how clearly you could see them.
 - DO NOT wrap your response in markdown code fences. Return raw JSON only.
 `;
