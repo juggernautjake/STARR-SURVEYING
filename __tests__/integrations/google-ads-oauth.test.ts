@@ -23,6 +23,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ADS_OAUTH_SCOPE,
+  DATA_MANAGER_OAUTH_SCOPE,
   adsRedirectUri,
   buildAdsAuthUrl,
   grantedAdsScope,
@@ -38,8 +39,20 @@ describe('the authorisation URL', () => {
     expect(q.get('prompt')).toBe('consent');
   });
 
-  it('asks for the Ads scope', () => {
-    expect(url().searchParams.get('scope')).toBe(ADS_OAUTH_SCOPE);
+  it('asks for the Ads scope AND the Data Manager scope', () => {
+    // Widened 2026-08-16. Google closed `ConversionUploadService.UploadClickConversions` to new
+    // integrations, so offline conversions go to the Data Manager API — which its own docs say
+    // "requires credentials with a different scope than the Google Ads API". Asking for only one of
+    // the two produces a connection that reports healthy and silently cannot upload a conversion.
+    const scopes = (url().searchParams.get('scope') ?? '').split(/\s+/);
+    expect(scopes).toContain(ADS_OAUTH_SCOPE);
+    expect(scopes).toContain(DATA_MANAGER_OAUTH_SCOPE);
+  });
+
+  it('and asks for nothing beyond those two', () => {
+    // A consent screen that requests more than it needs is one people decline.
+    expect((url().searchParams.get('scope') ?? '').split(/\s+/).sort())
+      .toEqual([ADS_OAUTH_SCOPE, DATA_MANAGER_OAUTH_SCOPE].sort());
   });
 
   it('carries the state through unmodified, so the callback can verify it', () => {

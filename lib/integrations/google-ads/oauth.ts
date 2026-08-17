@@ -22,6 +22,25 @@
 /** Ads uses one scope for everything — reporting and uploads alike. */
 export const ADS_OAUTH_SCOPE = 'https://www.googleapis.com/auth/adwords';
 
+/**
+ * The Data Manager API is a SEPARATE scope, and the Ads scope does not imply it.
+ *
+ * Google closed `ConversionUploadService.UploadClickConversions` to new integrations — measured on
+ * 2026-08-16, an otherwise valid upload came back *"New integrations for uploading click conversions
+ * should use the Data Manager API"*. Offline conversions now go to `datamanager.googleapis.com`, and
+ * its own documentation is explicit: *"The Data Manager API requires credentials with a different
+ * scope than the Google Ads API."*
+ *
+ * Requesting both here means a person who reconnects gets an integration that can read reports AND
+ * upload conversions. Asking for only one of the two is how you get a connection that looks healthy
+ * and silently cannot do half its job — which is exactly the state this integration spent nine days
+ * in for a different reason.
+ */
+export const DATA_MANAGER_OAUTH_SCOPE = 'https://www.googleapis.com/auth/datamanager';
+
+/** What the consent screen asks for. Space-separated, per OAuth 2.0. */
+export const REQUESTED_OAUTH_SCOPES = `${ADS_OAUTH_SCOPE} ${DATA_MANAGER_OAUTH_SCOPE}`;
+
 /** Short-lived CSRF nonce cookie, set when the flow starts and read by the callback.
  *
  *  Lives here rather than in the route that sets it: a `route.ts` may export ONLY Next's handler
@@ -51,7 +70,7 @@ export function buildAdsAuthUrl(redirectUri: string, state: string): string {
     client_id: process.env.GOOGLE_CLIENT_ID ?? '',
     redirect_uri: redirectUri,
     response_type: 'code',
-    scope: ADS_OAUTH_SCOPE,
+    scope: REQUESTED_OAUTH_SCOPES,
     // `offline` is what makes Google issue a refresh token at all — without it the connection dies
     // in an hour and every nightly run after the first fails.
     access_type: 'offline',
@@ -93,6 +112,17 @@ export async function exchangeAdsCode(code: string, redirectUri: string): Promis
  *  that cannot call the Ads API would produce a green "connected" badge and a nightly 403. */
 export function grantedAdsScope(scope: string | undefined | null): boolean {
   return (scope ?? '').split(/\s+/).includes(ADS_OAUTH_SCOPE);
+}
+
+/** Did they also grant Data Manager — the scope offline conversion uploads now need?
+ *
+ *  Deliberately a SEPARATE question from `grantedAdsScope`, and deliberately not fatal. Google's
+ *  consent screen lets someone approve a subset, and a connection with Ads but not Data Manager is
+ *  genuinely useful: reporting, spend import and the whole marketing dashboard work. Only offline
+ *  conversions do not. Folding the two into one boolean would either reject a working connection or
+ *  claim uploads work when they cannot. */
+export function grantedDataManagerScope(scope: string | undefined | null): boolean {
+  return (scope ?? '').split(/\s+/).includes(DATA_MANAGER_OAUTH_SCOPE);
 }
 
 /** The numeric customer id, digits only.

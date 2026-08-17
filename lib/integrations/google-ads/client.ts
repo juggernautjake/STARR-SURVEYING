@@ -24,6 +24,9 @@
 // error text per row, and reports how many actually landed — never "ok".
 
 import { supabaseAdmin } from '@/lib/supabase';
+import {
+  DATA_MANAGER_ENDPOINT, buildIngestRequest, isScopeProblem,
+} from './data-manager';
 import crypto from 'node:crypto';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -284,6 +287,79 @@ export function parseUploadResponse(body: unknown, attempted: number): UploadOut
 }
 
 /**
+ * Send the batch through `datamanager.googleapis.com`.
+ *
+ * Returns `null` — meaning "I did not handle this, try the old path" — ONLY when the Data Manager
+ * scope has not been granted or the API is not enabled. Any other outcome, success or failure, is
+ * returned, because falling back after a real rejection would upload the same conversions twice
+ * through two APIs and file them against the account under two different mechanisms.
+ */
+async function uploadViaDataManager(
+  conversions: ClickConversion[],
+  customerId: string,
+  token: string,
+): Promise<UploadOutcome | null> {
+  const { request, unresolved } = buildIngestRequest(
+    conversions.map((c) => ({
+      gclid: c.gclid, gbraid: c.gbraid, wbraid: c.wbraid,
+      conversionAction: c.conversionAction,
+      conversionDateTime: c.conversionDateTime,
+      conversionValue: c.conversionValue,
+      currencyCode: c.currencyCode,
+      orderId: c.orderId,
+    })),
+    {
+      operatingAccountId: customerId,
+      loginAccountId: process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? null,
+    },
+  );
+
+  // A conversion whose action id cannot be resolved is a configuration fault, not a transient one,
+  // and it is reported per-row rather than sinking the batch.
+  const unresolvedFailures = unresolved.map(({ index, conversion }) => ({
+    index,
+    code: 'CONVERSION_ACTION_UNREADABLE',
+    message: `Could not read a conversion action id from "${conversion.conversionAction}" — set the `
+      + 'GOOGLE_ADS_RESOURCE_* variable to a resource name or a numeric id.',
+  }));
+
+  if (!request.events.length) {
+    return unresolvedFailures.length
+      ? { attempted: conversions.length, uploaded: 0, failures: unresolvedFailures }
+      : { attempted: conversions.length, uploaded: 0, failures: [] };
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(DATA_MANAGER_ENDPOINT, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+    });
+  } catch (e) {
+    return {
+      attempted: conversions.length, uploaded: 0, failures: unresolvedFailures,
+      fatal: e instanceof Error ? e.message : 'Data Manager request failed',
+    };
+  }
+
+  const body = await res.json().catch(() => null) as { error?: { message?: string } } | null;
+  if (!res.ok) {
+    const message = body?.error?.message ?? `HTTP ${res.status}`;
+    // Not yet set up is the EXPECTED state until somebody reconnects, and it must not look like a
+    // broken integration — it is a button somebody has to press.
+    if (isScopeProblem(message)) return null;
+    return { attempted: conversions.length, uploaded: 0, failures: unresolvedFailures, fatal: message };
+  }
+
+  return {
+    attempted: conversions.length,
+    uploaded: request.events.length,
+    failures: unresolvedFailures,
+  };
+}
+
+/**
  * Upload conversions. Returns an outcome; never throws.
  *
  * `partialFailure: true` is not optional — without it, ONE bad row rejects the entire batch, which for a
@@ -301,6 +377,21 @@ export async function uploadClickConversions(conversions: ClickConversion[]): Pr
   }
 
   const customerId = (process.env.GOOGLE_ADS_CUSTOMER_ID ?? '').replace(/\D/g, '');
+
+  // ── THE DATA MANAGER API IS THE ONLY PATH OPEN TO THIS ACCOUNT ────────────────────────────────
+  //
+  // Measured 2026-08-16: with the permission problem fixed, `ConversionUploadService` answered 200
+  // and rejected the row — *"New integrations for uploading click conversions should use the Data
+  // Manager API. Usage of ConversionUploadService.UploadClickConversions is limited to existing
+  // users."* This account was not an existing user, so that service can never work for it.
+  //
+  // The old call is kept below it, not deleted, because it is the fallback for the case Google's
+  // message describes: an account that IS an existing user. If Data Manager reports that nobody has
+  // granted its scope yet, falling back gets today's conversions in rather than losing them while a
+  // person is asked to click Reconnect.
+  const viaDataManager = await uploadViaDataManager(conversions, customerId, auth.token);
+  if (viaDataManager) return viaDataManager;
+
   const url = `https://googleads.googleapis.com/${ADS_API_VERSION}/customers/${customerId}:uploadClickConversions`;
 
   const payload = {
