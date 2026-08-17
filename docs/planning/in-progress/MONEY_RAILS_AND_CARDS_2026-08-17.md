@@ -156,10 +156,43 @@ the portal and cannot pay through it, which is a coherent state to be in while s
 
 | # | Step | Who | Done |
 |---|---|---|---|
+| **M0** | **Readiness check — answer M3/M4/M5 automatically instead of by hand** | **me** | ✅ |
 | M1 | Add every business + personal card with its role | Owner | ⬜ |
 | M2 | Verify the Venmo / CashApp / Zelle handles are real | Owner | ⬜ |
-| M3 | Confirm Stripe keys are live-mode | Owner | ⬜ |
-| M4 | Add `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Owner | ⬜ |
-| M5 | Confirm the Stripe webhook endpoint is live and its secret matches | Owner | ⬜ |
+| M3 | Confirm Stripe keys are live-mode | Owner | ⬜ *(now answered by M0)* |
+| M4 | Add `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Owner | ⬜ *(now answered by M0)* |
+| M5 | Confirm the Stripe webhook endpoint is live and its secret matches | Owner | ⬜ *(secret answered by M0; the endpoint still needs eyes)* |
 | M6 | Import a PNC CSV and reconcile | Owner | ⬜ |
 | M7 | Set `PAYMENTS_LIVE=true`, redeploy, take one real $1 test payment | Owner + me | ⬜ |
+
+### M0 — shipped 2026-08-17
+
+`lib/payments/readiness.ts` + `GET /api/admin/payments/readiness`, 21 tests.
+
+Written because M3–M5 are a checklist, and **a checklist gets walked once, on the day it is written,
+while `PAYMENTS_LIVE` stays on forever afterwards.** Four of those five questions are answerable from
+the server in a millisecond and the fifth from the database, so they are.
+
+What it catches that a person reading a dashboard would not:
+
+- **A test key.** `sk_test_` and `sk_live_` differ by four characters, Stripe issues both from the
+  same screen, and a card charged against a test key returns a perfectly successful response. The
+  customer sees a receipt; the money does not exist; nothing downstream can tell.
+- **A mixed pair** — live secret with a test publishable key, or the reverse. Its own line, because
+  reporting "both set" would hide it and the errors it throws read like a broken integration.
+- **A key in the wrong variable.** A secret pasted into `NEXT_PUBLIC_…` publishes it to every
+  visitor, so the prefix FAMILY is checked, not just the mode.
+- **Live-with-blockers** — the only state where a customer can be charged while something is known
+  to be wrong. Called out as the worst thing on the page.
+
+It returns classifications (`live` / `test` / `malformed` / `missing`), **never a key value** — pinned
+by a test, because a readiness endpoint that echoes the secret it checks is a worse problem than the
+one it solves.
+
+Deliberately still manual, and marked `warn` rather than `ok` with the reason written into the check
+itself: whether `@StarrSurveying` is really the firm's Venmo (no API can answer that, and a customer
+paying the wrong handle gets no error), and whether the Stripe webhook ENDPOINT still exists (a
+signing secret from a deleted endpoint verifies nothing).
+
+Not yet rendered on a page — the endpoint is the useful half and the surface is a follow-up. Call it
+at `/api/admin/payments/readiness` as an admin, or ask and I will put it on `/admin/money`.
