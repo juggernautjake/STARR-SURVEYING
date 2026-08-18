@@ -27,6 +27,7 @@ import type { ReceiptAiHealth } from '@/app/api/admin/receipts/ai-health/route';
 import { LOW_CONFIDENCE, reviewNeeds, reviewSummary } from '@/lib/receipts/review-needs';
 import { ReceiptEditor } from './ReceiptEditor';
 import ReceiptSlideshow from './ReceiptSlideshow';
+import { ReceiptDeepRead } from './ReceiptDeepRead';
 import { parseReceiptFilters, describeFilters } from '@/lib/receipts/filters';
 import {
   PERIODS, PERIOD_LABELS, describePeriod, detectPeriod, isCurrentPeriod, periodRange, shiftPeriod,
@@ -1389,6 +1390,29 @@ function ReceiptRow({
               row={row}
               busy={!!busy}
               onSave={(patch) => onMutate(row.id, patch, 'Saving corrections')}
+            />
+          </div>
+
+          {/* The thorough read — the same panel the slideshow carries, and deliberately the same
+              component rather than a second rendering of the same data. Owner, 2026-08-18: *"This
+              needs to work for the slideshow and for the list view."* Two implementations of one
+              panel is how the two surfaces end up disagreeing about what a receipt says, which is
+              precisely the failure this whole feature exists to detect.
+              Spans the grid for the same reason the editor does: `styles.expanded` is auto-fit, so
+              without it the transcript is squeezed into a ~200px column. */}
+          <div style={{ gridColumn: '1 / -1' }}>
+            <ReceiptDeepRead
+              receiptId={row.id}
+              initial={row.deep_read_at ? {
+                summary: null,
+                discrepancies: row.deep_discrepancies ?? [],
+                transcript: row.deep_transcript ?? [],
+                vendorCheck: row.deep_vendor_check,
+                bandCount: row.deep_band_count ?? undefined,
+                totalMs: row.deep_duration_ms ?? undefined,
+                costCents: row.deep_cost_cents ?? undefined,
+              } : null}
+              onDone={onRefresh}
             />
           </div>
 

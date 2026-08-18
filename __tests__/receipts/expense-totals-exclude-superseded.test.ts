@@ -46,6 +46,13 @@ const EXEMPT: ReadonlyArray<{ file: string; why: string }> = [
     why: 'Single receipt by id. There is no total to get wrong.',
   },
   {
+    file: 'app/api/admin/receipts/[id]/deep-read/route.ts',
+    why:
+      'Single receipt by id, read so the AI can re-analyse its photo. It sums nothing, and it must '
+      + 'be able to reach a superseded row: the itemised bill of a pair is exactly the one somebody '
+      + 'is most likely to want read properly, because it carries the line items the card slip does not.',
+  },
+  {
     file: 'app/api/admin/team/[email]/today/route.ts',
     why: 'A day view listing what somebody submitted, including the count of photos. Counting the bill is correct there — they did take that photo.',
   },

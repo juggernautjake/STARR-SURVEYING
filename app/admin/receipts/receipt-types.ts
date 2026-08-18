@@ -50,6 +50,20 @@ export interface ReceiptRow {
   extraction_error: string | null;
   extraction_cost_cents: number | null;
   ai_confidence_per_field: Record<string, number> | null;
+  // ── The thorough read (owner 2026-08-18) ─────────────────────────────────────────────────────
+  // Evidence from `/api/admin/receipts/[id]/deep-read`, stored on the row by seed 598 so the panel
+  // is populated on load rather than only after somebody presses the button. Null on every receipt
+  // that has not had a deep read — which is the honest distinction from "read and found nothing".
+  deep_read_at: string | null;
+  deep_transcript: string[] | null;
+  deep_discrepancies: {
+    code: string; field?: string; severity: 'high' | 'medium' | 'low'; message: string;
+    readings?: { source: string; value: string }[];
+  }[] | null;
+  deep_vendor_check: { status: string; detail: string } | null;
+  deep_band_count: number | null;
+  deep_duration_ms: number | null;
+  deep_cost_cents: number | null;
   created_at: string;
   updated_at: string | null;
   /** F10.9 — set when a bookkeeper-approved receipt is promoted

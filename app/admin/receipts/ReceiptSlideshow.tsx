@@ -35,6 +35,7 @@ import {
 } from '@/lib/receipts/edit';
 import { confidenceScore, reviewNeeds } from '@/lib/receipts/review-needs';
 import { ReceiptLineItems } from './ReceiptLineItems';
+import { ReceiptDeepRead } from './ReceiptDeepRead';
 import './ReceiptSlideshow.css';
 
 interface Props {
@@ -434,6 +435,23 @@ export default function ReceiptSlideshow({
               receiptId={current.id}
               receiptIsBusiness={(current as { expense_nature?: string | null }).expense_nature !== 'personal'}
               onChanged={onChanged}
+            />
+
+            {/* The thorough read, and where its independent passes disagreed. Sits directly above
+                "Correct anything" on purpose: the discrepancies are the list of things to correct,
+                so reading them and acting on them should not require scrolling between the two. */}
+            <ReceiptDeepRead
+              receiptId={current.id}
+              initial={current.deep_read_at ? {
+                summary: null,
+                discrepancies: current.deep_discrepancies ?? [],
+                transcript: current.deep_transcript ?? [],
+                vendorCheck: current.deep_vendor_check,
+                bandCount: current.deep_band_count ?? undefined,
+                totalMs: current.deep_duration_ms ?? undefined,
+                costCents: current.deep_cost_cents ?? undefined,
+              } : null}
+              onDone={onChanged}
             />
 
             {/* ── correct it ── */}

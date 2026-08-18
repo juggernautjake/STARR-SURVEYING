@@ -174,12 +174,37 @@ export default function NewReceiptPage() {
     // stream instead of a NotFoundError.
     try {
       return await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: mode } },
+        video: {
+          facingMode: { ideal: mode },
+          // ── ASK FOR THE RESOLUTION. Owner, 2026-08-18: *"the AI is not doing a very good job of
+          // actually reading the receipt."* ────────────────────────────────────────────────────
+          //
+          // This request carried NO resolution constraint until now, so every browser handed back
+          // its default — 640×480 — and every receipt photographed through this page was stored at
+          // VGA. Measured against the live bucket on 2026-08-18: the six most recent receipts were
+          // 480×640 without exception, about 0.3 megapixels, from phones with 12-megapixel cameras.
+          //
+          // At that size the last four of a card number is a handful of pixels per digit and the
+          // strokes that separate an 8 from a 3 were never captured. No prompt, no tiling and no
+          // second opinion can recover detail the photograph does not contain — every other
+          // accuracy measure in the deep reader is downstream of this one line.
+          //
+          // `ideal`, never `exact`: a laptop webcam that cannot do 4K must degrade to what it has
+          // rather than throw OverconstrainedError and leave somebody with no camera at all.
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
+        },
         audio: false,
       });
     } catch (firstErr) {
       if (firstErr instanceof DOMException && firstErr.name === 'OverconstrainedError') {
-        return await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        // Even the fallback asks. `ideal` cannot over-constrain, so if we somehow land here the
+        // resolution hint is still the right thing to carry — dropping it was how the default got
+        // taken in the first place.
+        return await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: 3840 }, height: { ideal: 2160 } },
+          audio: false,
+        });
       }
       throw firstErr;
     }

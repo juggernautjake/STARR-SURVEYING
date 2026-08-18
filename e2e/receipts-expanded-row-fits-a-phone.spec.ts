@@ -108,6 +108,14 @@ const ROW: AdminReceiptRow = {
   card_confirmed_by: null,
   expense_nature: null,
   expense_nature_note: null,
+  // The thorough read has never run on this fixture, which is the ordinary state for a receipt.
+  deep_read_at: null,
+  deep_transcript: null,
+  deep_discrepancies: null,
+  deep_vendor_check: null,
+  deep_band_count: null,
+  deep_duration_ms: null,
+  deep_cost_cents: null,
 };
 
 const PAYLOAD = {

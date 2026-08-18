@@ -680,3 +680,159 @@
   .rli__add { grid-template-columns: 1fr 1fr; }
   .rli__add input:first-child { grid-column: 1 / -1; }
 }
+
+/* ── Thorough read (owner 2026-08-18) ──────────────────────────────────────────────────────────
+   Owner: *"For any discrepancies, then we can have warnings and stuff to let the reviewer know."*
+   Fallback literals on every var() — this is a .css file, where an unset variable renders as
+   nothing rather than falling back to the browser default. */
+
+.rdr__blurb {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #475569);
+}
+
+.rdr__run {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-accent, #1E3A8A);
+  background: var(--theme-accent, #1E3A8A);
+  color: var(--theme-accent-fg, #FFFFFF);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 38px;
+}
+.rdr__run:disabled { opacity: 0.6; cursor: default; }
+
+.rdr__spin { animation: rdr-spin 1s linear infinite; }
+@keyframes rdr-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .rdr__spin { animation: none; } }
+
+.rdr__progress {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--theme-fg-muted, #64748B);
+}
+
+.rdr__error {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: var(--theme-danger-bg, #FEF2F2);
+  color: var(--theme-danger, #B91C1C);
+  font-size: 13px;
+}
+
+.rdr__summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 0 8px;
+  padding: 10px 13px;
+  border-radius: 8px;
+  background: var(--theme-warning-bg, #FFFBEB);
+  color: var(--theme-fg-primary, #0F172A);
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+.rdr__summary--high {
+  background: var(--theme-danger-bg, #FEF2F2);
+  color: var(--theme-danger, #B91C1C);
+}
+.rdr__summary--clean {
+  background: var(--theme-success-bg, #ECFDF5);
+  color: var(--theme-success, #047857);
+}
+
+/* A severity stripe, so what matters reads at a glance rather than needing the sentence parsed. */
+.rdr__item {
+  margin: 0 0 8px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--theme-border, #E2E8F0);
+  border-radius: 0 7px 7px 0;
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+.rdr__item--high { border-left-color: var(--theme-danger, #B91C1C); }
+.rdr__item--medium { border-left-color: var(--theme-warning, #B45309); }
+.rdr__item--low { border-left-color: var(--theme-border, #E2E8F0); }
+
+.rdr__itemMsg {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+/* Who claimed what. The comparison IS the finding, so both readings stay on screen together. */
+.rdr__readings {
+  margin: 7px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+}
+.rdr__readings li { display: flex; gap: 6px; align-items: baseline; font-size: 12.5px; }
+.rdr__src { color: var(--theme-fg-muted, #64748B); }
+.rdr__val {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #0F172A);
+}
+
+.rdr__vendor {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #475569);
+}
+.rdr__vendor--confirmed { color: var(--theme-success, #047857); }
+.rdr__vendor--mismatch { color: var(--theme-warning, #B45309); }
+
+.rdr__transcriptWrap { margin-top: 12px; }
+
+.rdr__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border, #E2E8F0);
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #475569);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.rdr__transcript {
+  margin: 8px 0 0;
+  padding: 11px 13px;
+  max-height: 340px;
+  overflow: auto;
+  border-radius: 7px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  color: var(--theme-fg-primary, #0F172A);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.rdr__meta {
+  margin: 9px 0 0;
+  font-size: 11.5px;
+  color: var(--theme-fg-muted, #64748B);
+}
