@@ -836,3 +836,19 @@
   font-size: 11.5px;
   color: var(--theme-fg-muted, #64748B);
 }
+
+/* The submitter's own note, where it checked out. Green because it is a confirmation, and placed
+   above the vendor lookup because a person holding the paper is the stronger evidence. */
+.rdr__noteOk {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-radius: 7px;
+  background: var(--theme-success-bg, #ECFDF5);
+  color: var(--theme-success, #047857);
+  font-size: 12.5px;
+  line-height: 1.5;
+  font-weight: 500;
+}

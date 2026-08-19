@@ -92,6 +92,10 @@ export const POST = withErrorHandler(
     try {
       result = await deepReadReceipt(Buffer.from(await file.arrayBuffer()), {
         bands: body.bands,
+        // The note the person wrote when they photographed it. It was already on the row and was
+        // already being SELECTed for the merge snapshot — it had simply never been shown to the AI,
+        // which is this repo's most common defect wearing its usual costume.
+        userNote: (row as { notes?: string | null }).notes ?? null,
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -118,6 +122,7 @@ export const POST = withErrorHandler(
     update.deep_discrepancies = result.discrepancies;
     update.deep_stages = result.stages;
     update.deep_vendor_check = result.vendorCheck ?? null;
+    update.deep_note_confirmations = result.noteConfirmations;
     update.deep_crop = result.crop ?? null;
     update.deep_band_count = result.bandCount;
     update.deep_duration_ms = result.totalMs;
@@ -139,6 +144,7 @@ export const POST = withErrorHandler(
         discrepancies: result.discrepancies,
         transcript: result.transcript,
         vendorCheck: result.vendorCheck,
+        noteConfirmations: result.noteConfirmations,
         stages: result.stages,
         bandCount: result.bandCount,
         totalMs: result.totalMs,

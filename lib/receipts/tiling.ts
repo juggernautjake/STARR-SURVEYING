@@ -237,7 +237,25 @@ export function planTiles(
   // enlarged to fill the model's budget. Otherwise the count is the minimum that avoids downscaling.
   let count: number;
   if (wantsThoroughSplit) {
-    count = Math.min(Math.max(options.thoroughBands ?? 3, 2), maxBands);
+    // ── THE BAND COUNT IS CAPPED BY THE SOURCE, NOT BY THE REQUEST ───────────────────────────────
+    //
+    // Measured against this firm's own receipts, 2026-08-18. Five bands on a 480×640 photo made the
+    // reading WORSE than three:
+    //
+    //   Guy's Quick Stop  5 bands → total $27.69 (wrong)   3 bands → $27.89 (right)
+    //   CEFCO #18         5 bands → total  $9.08 (wrong)   3 bands →  $9.03 (right)
+    //
+    // Splitting that photo five ways leaves each band about 124 SOURCE rows — a few lines of print
+    // and no surrounding structure. A reader shown a fragment cannot tell a totals block from a
+    // list of items, and enlarging the fragment does not give it back the context it needs; it just
+    // magnifies the JPEG artefacts. More looks is not monotonically better.
+    //
+    // So a band must carry a minimum number of ORIGINAL rows. On a 4K photo that constraint never
+    // binds and the requested count stands; on a VGA photo it caps the split at what the pixels can
+    // actually support.
+    const MIN_SOURCE_ROWS_PER_BAND = 200;
+    const affordable = Math.floor(sourceHeight / MIN_SOURCE_ROWS_PER_BAND);
+    count = Math.min(Math.max(options.thoroughBands ?? 3, 2), maxBands, Math.max(2, affordable));
   } else {
     const maxBandOutputHeight = tallestFittingHeight(outputWidth, tier);
     const maxBandSourceHeight = Math.max(1, maxBandOutputHeight / scale);

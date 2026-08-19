@@ -45,6 +45,7 @@ import {
 import { describeBand, planTiles } from './tiling';
 import { mapBoxToOriginal, tierForModel, type Box } from './vision-geometry';
 import { verifyVendor, type VendorVerification } from './vendor-verify';
+import { checkNoteAgainstReading, noteBriefingFor, parseNoteHints } from './user-notes';
 
 /** Overridable so a better vision model can be adopted without a redeploy — and so the resolution
  *  tier follows the model automatically, via `tierForModel`. */
@@ -72,6 +73,8 @@ export interface DeepReadResult {
   /** One line for the top of the review panel, or null when there is nothing to say. */
   summary: string | null;
   vendorCheck?: VendorVerification;
+  /** What the person's note confirmed, for the summary. Empty when they wrote nothing checkable. */
+  noteConfirmations: string[];
   stages: DeepStage[];
   inputTokens: number;
   outputTokens: number;
@@ -345,6 +348,15 @@ export interface DeepReadOptions {
   thinkingBudget?: number;
   /** Skip the outside lookup (used by tests and by offline runs). */
   skipResearch?: boolean;
+  /**
+   * What the person who photographed the receipt wrote about it.
+   *
+   * Owner, 2026-08-18: *"if the user writes anything in the notes, the AI takes that into
+   * account."* On a 480×640 photo this is regularly the ONLY source that can settle a digit — see
+   * `user-notes.ts` for the Guy's Quick Stop case, where two independent readings AND the
+   * arithmetic all agreed on the wrong number.
+   */
+  userNote?: string | null;
   signal?: AbortSignal;
 }
 
@@ -368,6 +380,12 @@ export async function deepReadReceipt(
     stages: [],
   };
   const tier = tierForModel(DEEP_MODEL);
+
+  // Parsed once, used three times: in the two prompts that reason, and in the deterministic check
+  // afterwards. Parsing is pure and cheap; re-deriving it per use is how the prompt and the check
+  // end up disagreeing about what the person wrote.
+  const noteHints = parseNoteHints(options.userNote);
+  const noteBriefing = noteBriefingFor(options.userNote, noteHints);
 
   // ── 1. Upright, then locate ──────────────────────────────────────────────────────────────────
   const upright = await loadUpright(original);
@@ -485,6 +503,7 @@ export async function deepReadReceipt(
               + (uncertainNotes.length
                 ? `\n\nCHARACTERS THE STRIP READERS FLAGGED AS AMBIGUOUS:\n${uncertainNotes.map((u) => `  - ${u}`).join('\n')}`
                 : '')
+              + (noteBriefing ? `\n\n${noteBriefing}` : '')
               + '\n\nNo close-up re-readings or lookup are available yet — this is the first structured pass. '
               + 'Fill in what the transcript supports.',
           },
@@ -593,6 +612,9 @@ export async function deepReadReceipt(
               ? `CONFLICTS THE AUTOMATIC CHECKS ALREADY FOUND:\n${discrepancies.map((d) => `  - [${d.severity}] ${d.message}`).join('\n')}`
               : 'The automatic checks found no conflicts.',
             '',
+            noteBriefing ?? '',
+            noteBriefing ? '' : 'The person who photographed this receipt left no note.',
+            '',
             'Decide what this receipt says. Resolve the conflicts where the evidence supports it, and',
             'leave flagged what it does not.',
           ].join('\n'),
@@ -645,6 +667,21 @@ export async function deepReadReceipt(
     });
   }
 
+  // The note, checked against the FINAL reading rather than the first one — the deliberation may
+  // already have adopted the note's figure, and flagging a disagreement it has just resolved would
+  // send a person to look at something that is now right.
+  //
+  // In code, not in the prompt. The model has been asked to weigh the note and generally does; this
+  // is the part that cannot forget to. A total the person wrote down and the machine did not read is
+  // the single most valuable disagreement in the pipeline, and it is one subtraction.
+  const noteCheck = checkNoteAgainstReading(noteHints, {
+    total_cents: typeof fields.total_cents === 'number' ? fields.total_cents : null,
+    subtotal_cents: typeof fields.subtotal_cents === 'number' ? fields.subtotal_cents : null,
+    transaction_at: (fields.transaction_at as string | null) ?? null,
+    vendor_name: (fields.vendor_name as string | null) ?? null,
+  });
+  discrepancies.push(...noteCheck.discrepancies);
+
   const sorted = sortDiscrepancies(discrepancies);
 
   return {
@@ -653,6 +690,7 @@ export async function deepReadReceipt(
     discrepancies: sorted,
     summary: summariseDiscrepancies(sorted),
     vendorCheck,
+    noteConfirmations: noteCheck.confirmations,
     stages: ctx.stages,
     inputTokens: ctx.inputTokens,
     outputTokens: ctx.outputTokens,

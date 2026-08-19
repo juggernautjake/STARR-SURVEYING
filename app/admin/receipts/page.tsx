@@ -1408,6 +1408,7 @@ function ReceiptRow({
                 discrepancies: row.deep_discrepancies ?? [],
                 transcript: row.deep_transcript ?? [],
                 vendorCheck: row.deep_vendor_check,
+                noteConfirmations: row.deep_note_confirmations ?? [],
                 bandCount: row.deep_band_count ?? undefined,
                 totalMs: row.deep_duration_ms ?? undefined,
                 costCents: row.deep_cost_cents ?? undefined,

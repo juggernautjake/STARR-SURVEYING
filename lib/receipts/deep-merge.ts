@@ -80,9 +80,39 @@ export function assembleTranscript(bands: readonly BandTranscript[]): string[] {
     for (let n = maxCheck; n >= 1; n -= 1) {
       const tail = out.slice(out.length - n).map(normaliseForMatch);
       const head = lines.slice(0, n).map(normaliseForMatch);
-      // A line that normalises to nothing (a rule of dashes) matches everything, so a run made only
-      // of those is not evidence of an overlap and must not be allowed to anchor the splice.
-      if (tail.every((t, i) => t === head[i]) && tail.some((t) => t.length > 2)) {
+
+      // ── WHY THIS TOLERATES A MISMATCHED LINE ────────────────────────────────────────────────
+      //
+      // Requiring EVERY line of the run to match exactly was too strict, and the cost was measured:
+      // on Guy's Quick Stop the assembled transcript carried the item lines twice, the structured
+      // pass duly reported six items on a four-item receipt, and their sum ($29.46) no longer
+      // matched the subtotal — destroying the one check that could have caught a misread subtotal.
+      //
+      // Two readers looking at the same strip do not produce identical line LISTS. One catches a
+      // faint separator the other drops; one splits a wrapped line in two. A single such difference
+      // anywhere in the overlap made the whole run fail to match, so no overlap was detected and
+      // every repeated line was kept.
+      //
+      // So the run is accepted on a majority of its lines matching. Two independent readings of
+      // unrelated text do not agree on 60% of their lines; two readings of the same strip nearly
+      // always do.
+      // Matched by MEMBERSHIP in the tail, not position. A dropped line shifts everything after it,
+      // so a positional comparison declares the rest of the run mismatched — and the first attempt
+      // at this fix duly swallowed the "Subtotal 25.82" line that only the second reader had caught.
+      const window = new Set(out.slice(Math.max(0, out.length - n - 5)).map(normaliseForMatch));
+      void tail;
+
+      const substantive = head.filter((t) => t.length > 2);
+      if (substantive.length < 1) continue;
+      const matched = substantive.filter((t) => window.has(t)).length;
+
+      // The LAST line of the prefix being dropped must itself be present. Without this the run can
+      // be accepted on the strength of its earlier lines while its final line — the one the other
+      // reader alone saw — is discarded unread. That is a silent hole in the middle of the receipt,
+      // which is the failure mode this whole module exists to avoid.
+      const lastIsPresent = head[n - 1].length <= 2 || window.has(head[n - 1]);
+
+      if (lastIsPresent && matched >= Math.max(1, Math.ceil(substantive.length * 0.6))) {
         bestOverlap = n;
         break;
       }

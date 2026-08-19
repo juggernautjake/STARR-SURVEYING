@@ -56,6 +56,31 @@ describe('assembleTranscript', () => {
     expect(out).toContain('ITEM TWO');
   });
 
+  it('still splices when one reader dropped a line the other caught', () => {
+    // The Guy's Quick Stop failure, 2026-08-18. Two readers of the same strip do not produce
+    // identical line LISTS — one catches a faint separator the other misses. Requiring every line to
+    // match meant no overlap was found, the items were kept twice, and the structured pass reported
+    // six items on a four-item receipt. Their sum then disagreed with the subtotal, which destroyed
+    // the one check that could have caught the misread subtotal underneath.
+    const out = assembleTranscript([
+      { index: 0, lines: ['44oz soda 1.99', '32oz Soda 1.85', '-------', 'DELI 11.99'] },
+      { index: 1, lines: ['44oz soda 1.99', '32oz Soda 1.85', 'DELI 11.99', 'Subtotal 25.82'] },
+    ]);
+    expect(out.filter((l) => /DELI/.test(l))).toHaveLength(1);
+    expect(out.filter((l) => /44oz/.test(l))).toHaveLength(1);
+    expect(out[out.length - 1]).toBe('Subtotal 25.82');
+  });
+
+  it('KEEPS a genuinely repeated item — two of the same thing is not an overlap', () => {
+    // Tractor Supply really does print "CNL BAR CHAIN OIL … 8.99" twice in a row, because two were
+    // bought. A dedup pass that removed adjacent duplicates would delete a real line and understate
+    // the subtotal by $8.99, which is why the fix is better ALIGNMENT and not deduplication.
+    const out = assembleTranscript([
+      { index: 0, lines: ['CNL BAR CHAIN OIL 8.99', 'CNL BAR CHAIN OIL 8.99', 'OREGON CHAIN 24.99'] },
+    ]);
+    expect(out.filter((l) => /BAR CHAIN OIL/.test(l))).toHaveLength(2);
+  });
+
   it('handles bands that do not overlap at all', () => {
     const out = assembleTranscript([
       { index: 0, lines: ['A', 'B'] },

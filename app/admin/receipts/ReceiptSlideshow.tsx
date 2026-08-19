@@ -447,6 +447,7 @@ export default function ReceiptSlideshow({
                 discrepancies: current.deep_discrepancies ?? [],
                 transcript: current.deep_transcript ?? [],
                 vendorCheck: current.deep_vendor_check,
+                noteConfirmations: current.deep_note_confirmations ?? [],
                 bandCount: current.deep_band_count ?? undefined,
                 totalMs: current.deep_duration_ms ?? undefined,
                 costCents: current.deep_cost_cents ?? undefined,

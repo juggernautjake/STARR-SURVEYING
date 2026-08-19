@@ -65,6 +65,16 @@ export default function NewReceiptPage() {
   // job does not exist yet.
   const [job, setJob] = useState<JobRefOption | null>(null);
   const [notes, setNotes] = useState('');
+  // ── A NOTE PER RECEIPT, not one per batch (owner, 2026-08-18) ────────────────────────────────
+  // *"They can write individual notes for each receipt they capture."* The box at the bottom of the
+  // form applies to the whole stack, which is right for "all of these are the Henry job" and useless
+  // for "this one is the $27.89 lunch". Both now exist: the shared note is the default and a
+  // per-photo note is appended to it.
+  //
+  // Keyed by shot id rather than by index, because removing photo 2 must not silently slide photo
+  // 3's note onto photo 4 — which is how a note ends up attached to the wrong receipt, and a note on
+  // the wrong receipt is worse than no note at all now that the AI weighs it.
+  const [shotNotes, setShotNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // R8 — bumped after every successful upload so the "your receipts" list below refetches. That
@@ -328,6 +338,11 @@ export default function NewReceiptPage() {
   function removeShot(id: string) {
     const index = shots.findIndex((s) => s.id === id);
     if (index < 0) return;
+    setShotNotes((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     URL.revokeObjectURL(shots[index].url);
     setShots((prev) => prev.filter((s) => s.id !== id));
     setBatchFiles((prev) => prev.filter((_, i) => i !== index));
@@ -479,7 +494,12 @@ export default function NewReceiptPage() {
         const form = new FormData();
         form.append('file', batchFiles[i]);
         if (job) form.append('jobId', job.id);
-        if (notes.trim()) form.append('notes', notes.trim());
+        // Shared note first, then this photo's own. Joined rather than replaced: somebody who typed
+        // "Henry job" once for the stack and "$27.89" on one photo means both, and dropping either
+        // loses information the reader is about to be judged on.
+        const own = (shotNotes[shots[i]?.id ?? ''] ?? '').trim();
+        const combined = [notes.trim(), own].filter(Boolean).join(' — ');
+        if (combined) form.append('notes', combined);
         const res = await fetch('/api/admin/receipts/upload', { method: 'POST', body: form });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -790,6 +810,19 @@ export default function NewReceiptPage() {
                     {dupe && dupeIndex >= 0 && (
                       <span style={styles.dupeBadge}>Looks like photo {dupeIndex + 1}</span>
                     )}
+                    {/* This photo's own note. Worth the space it takes: on a faded receipt the total
+                        somebody types here is regularly the only evidence that can settle a digit
+                        the photograph does not contain. The placeholder asks for the total first
+                        because that is the field it rescues most often. */}
+                    <input
+                      type="text"
+                      value={shotNotes[s.id] ?? ''}
+                      onChange={(e) => setShotNotes((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                      disabled={busy}
+                      placeholder="Note for this one — total, place, job…"
+                      aria-label={`Note for photo ${i + 1}`}
+                      style={styles.shotNote}
+                    />
                     <button
                       type="button"
                       onClick={() => removeShot(s.id)}
@@ -1251,6 +1284,25 @@ const styles: Record<string, React.CSSProperties> = {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     background: 'var(--color-warning, #f59e0b)', color: '#1f2937',
     fontSize: '0.62rem', fontWeight: 700, textAlign: 'center', padding: '0.15rem 0.2rem',
+  },
+  // The per-photo note. Full width under the thumbnail, and 36px tall so it is a real tap target
+  // for somebody standing at a truck with a handful of receipts.
+  shotNote: {
+    display: 'block',
+    width: '100%',
+    minHeight: 36,
+    padding: '6px 8px',
+    // Bare `var()`, no literal fallback. In a style OBJECT a fallback hex is just a hard-coded
+    // colour with extra steps — unreachable by a design token, by the print stylesheet and by every
+    // skin, which is exactly what the inline-hex ratchet counts. The older styles in this file
+    // predate that rule; new ones do not get to inherit it.
+    border: '1px solid var(--color-border)',
+    borderTop: 'none',
+    background: 'var(--color-surface)',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'inherit',
+    fontSize: '0.72rem',
+    boxSizing: 'border-box',
   },
   // 34px so it stays a comfortable tap target on a phone held in one hand over a stack of paper.
   reviewRemove: {

@@ -61,6 +61,7 @@ export interface ReceiptRow {
     readings?: { source: string; value: string }[];
   }[] | null;
   deep_vendor_check: { status: string; detail: string } | null;
+  deep_note_confirmations: string[] | null;
   deep_band_count: number | null;
   deep_duration_ms: number | null;
   deep_cost_cents: number | null;

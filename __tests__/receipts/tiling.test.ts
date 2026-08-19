@@ -130,6 +130,29 @@ describe('it does not split what does not need splitting', () => {
   });
 });
 
+describe('thorough mode is capped by what the source can support', () => {
+  it('gives a VGA receipt three bands even when five are asked for', () => {
+    // Measured, not guessed. On the firm's own 480×640 photos, five bands read Guy's Quick Stop as
+    // $27.69 and CEFCO as $9.08; three bands read $27.89 and $9.03 — both correct. Splitting that
+    // photo five ways leaves ~124 source rows per band, which is a fragment with no structure in it,
+    // and enlarging a fragment magnifies the JPEG artefacts rather than the ink.
+    const plan = planTiles(215, 620, { thorough: true, thoroughBands: 5 });
+    expect(plan.bands).toHaveLength(3);
+  });
+
+  it('but honours the full request on a photo with the pixels to back it', () => {
+    // A 4K capture cropped to the paper. Here the constraint never binds.
+    const plan = planTiles(950, 3400, { thorough: true, thoroughBands: 5 });
+    expect(plan.bands).toHaveLength(5);
+  });
+
+  it('never falls below two bands, however small the receipt', () => {
+    const plan = planTiles(120, 300, { thorough: true, thoroughBands: 5 });
+    expect(plan.bands.length).toBeGreaterThanOrEqual(2);
+    expect(coversEveryRow(plan, 300)).toBe(true);
+  });
+});
+
 describe('limits', () => {
   it('honours the band cap on an absurdly long roll', () => {
     const plan = planTiles(1200, 60000, { maxBands: 8 });

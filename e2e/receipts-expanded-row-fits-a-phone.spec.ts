@@ -113,6 +113,7 @@ const ROW: AdminReceiptRow = {
   deep_transcript: null,
   deep_discrepancies: null,
   deep_vendor_check: null,
+  deep_note_confirmations: null,
   deep_band_count: null,
   deep_duration_ms: null,
   deep_cost_cents: null,

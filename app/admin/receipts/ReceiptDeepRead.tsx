@@ -14,7 +14,7 @@
 // So a clean receipt shows one line and stops. A banner that is always present stops being read.
 
 import { useCallback, useState } from 'react';
-import { AlertTriangle, Check, FileSearch, Loader2, MapPin, ScrollText } from 'lucide-react';
+import { AlertTriangle, Check, FileSearch, Loader2, MapPin, ScrollText, StickyNote } from 'lucide-react';
 import { summariseDiscrepancies } from '@/lib/receipts/deep-merge';
 
 export interface Discrepancy {
@@ -29,6 +29,8 @@ export interface DeepReadPayload {
   summary: string | null;
   discrepancies: Discrepancy[];
   transcript: string[];
+  /** Parts of the submitter's own note the read verified. Disagreements are in `discrepancies`. */
+  noteConfirmations?: string[] | null;
   vendorCheck?: { status: string; detail: string } | null;
   bandCount?: number;
   totalMs?: number;
@@ -139,6 +141,16 @@ export function ReceiptDeepRead({
               )}
             </div>
           ))}
+
+          {/* What the submitter's own note confirmed. Shown ABOVE the vendor lookup because it is
+              the stronger evidence: a person holding the paper beats a database, and on a faded
+              photo it is regularly the only source that can settle a digit. */}
+          {data.noteConfirmations && data.noteConfirmations.length > 0 && (
+            <p className="rdr__noteOk">
+              <StickyNote size={13} aria-hidden />
+              Your note checks out — {data.noteConfirmations.join(', ')}.
+            </p>
+          )}
 
           {data.vendorCheck && (
             <p className={`rdr__vendor rdr__vendor--${data.vendorCheck.status}`}>
