@@ -118,6 +118,8 @@ export default function JobDetailPage() {
   const [cadCount, setCadCount] = useState<number | null>(null);
   const [photoCount, setPhotoCount] = useState<number | null>(null);
   const [videoCount, setVideoCount] = useState<number | null>(null);
+  /** Every tab's count, fetched once on load so the strip is informative before anything is opened. */
+  const [tabCountsLoaded, setTabCountsLoaded] = useState<Record<string, number>>({});
   // contacts plan Slice 6 — linked-contacts state for the overview tab.
   const [contactLinks, setContactLinks] = useState<Array<{
     id: string; role: string; notes?: string | null;
@@ -159,6 +161,22 @@ export default function JobDetailPage() {
   }, [jobId, reportPageError]);
 
   useEffect(() => { loadJob(); }, [loadJob]);
+
+  // Counts for every tab, once, on load. Separate from `loadJob` so a slow count query can never
+  // delay the job itself — the badges simply read 0 until they arrive, which is also what they
+  // would read if the answer really were zero.
+  const loadCounts = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/jobs/counts?job_id=${encodeURIComponent(jobId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data?.counts) setTabCountsLoaded(data.counts as Record<string, number>);
+    } catch {
+      /* a badge is a hint; its absence is not worth reporting to the user */
+    }
+  }, [jobId]);
+
+  useEffect(() => { void loadCounts(); }, [loadCounts]);
 
   // Inline-edit save: PUT the single changed field, then patch local
   // state so the UI reflects it without a full reload. Throws on
@@ -447,16 +465,26 @@ export default function JobDetailPage() {
 
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
 
-  // Tab badge counts. Files always known (job.file_count); research +
-  // field work fill in once their tab loads; CAD + Photos report via
-  // onCountChange. undefined = no badge.
+  // ── EVERY BADGE, ON LOAD (2026-08-19) ────────────────────────────────────────────────────────
+  //
+  // Owner: *"we need to make sure that we are displaying the numbers associated with each button
+  // immediately on page load if there is anything… if there is nothing related to it, then it
+  // should just have 0."*
+  //
+  // These used to come from the tabs themselves — `research.length` after the Research tab had been
+  // opened, `onCountChange` when CAD or Photos mounted — so a badge only appeared for somewhere you
+  // had already been. The tab strip could not answer the one question it exists to answer: where is
+  // there anything? All ten now arrive in a single request on load.
+  //
+  // A tab that has since been OPENED prefers its own live number, so uploading a photo updates the
+  // badge without another round trip; the loaded count is the floor, not a cache to fight.
   const tabCounts: Record<string, number | undefined> = {
-    research: research.length || undefined,
-    cad: cadCount ?? undefined,
-    fieldwork: fieldData.length || undefined,
-    files: job.file_count || undefined,
-    photos: photoCount ?? undefined,
-    videos: videoCount ?? undefined,
+    ...tabCountsLoaded,
+    ...(cadCount !== null ? { cad: cadCount } : {}),
+    ...(photoCount !== null ? { photos: photoCount } : {}),
+    ...(videoCount !== null ? { videos: videoCount } : {}),
+    ...(research.length > 0 ? { research: research.length } : {}),
+    ...(fieldData.length > 0 ? { fieldwork: fieldData.length } : {}),
   };
 
   return (
@@ -653,10 +681,21 @@ export default function JobDetailPage() {
                 data-testid={`job-tab-${tab.key}`}
               >
                 <span className="job-detail__tab-icon"><tab.Icon size={15} strokeWidth={1.75} /></span>
-                {tab.label}
-                {typeof count === 'number' && count > 0 && (
-                  <span className="job-detail__tab-badge">{count}</span>
-                )}
+                <span className="job-detail__tab-label">{tab.label}</span>
+                {/* ── THE BADGE IS ALWAYS PRESENT, EVEN WHEN EMPTY ─────────────────────────────
+                    Owner: *"The buttons should already have the space for a number built in."*
+
+                    It used to render only when `count > 0`, which is exactly why the tiles were
+                    different sizes on a phone: a badged tile got an extra line and grew taller than
+                    its neighbours. The element is always in the DOM now and reserves its space; a
+                    tab with nothing shows `0`, and Overview — a summary, not a collection — keeps
+                    the space with nothing in it rather than claiming a meaningless zero. */}
+                <span
+                  className={`job-detail__tab-badge${count === undefined ? ' job-detail__tab-badge--empty' : ''}`}
+                  aria-hidden={count === undefined}
+                >
+                  {count === undefined ? '' : count}
+                </span>
               </button>
             </Tooltip>
           );

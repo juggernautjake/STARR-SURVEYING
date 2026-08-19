@@ -917,27 +917,65 @@
 }
 .job-detail__tab-icon { display: inline-flex; }
 
-/* The phone layout: every tab visible, thumb-sized, no sideways hunting. */
+/* ── THE PHONE LAYOUT: IDENTICAL TILES ────────────────────────────────────────────────────────
+ *
+ * Owner, 2026-08-19: *"The little button/widgets on the mobile screen … all need to be the same
+ * size and shape. right now some of them are different sizes."*
+ *
+ * They differed for two reasons, both now fixed at the source:
+ *   1. The badge only rendered when the count was above zero, so a badged tile gained a line and
+ *      grew taller than its neighbours. It is always in the DOM now (see the job page).
+ *   2. "Field Work" wraps to two lines where "CAD" does not, so an auto-height tile was taller.
+ *
+ * So the geometry is fixed rather than derived: four equal columns, one fixed height, and three
+ * rows INSIDE each tile — icon, label, badge — each with its own reserved space. A tile is then the
+ * same size whatever it contains, which is the only way this stays true as tabs are added.
+ */
 @media (max-width: 720px) {
   .job-detail__tabs {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(5.4rem, 1fr));
+    /* Four fixed columns rather than auto-fit: auto-fit re-flows to a different count as the label
+     * lengths change, which is how a row of four became a row of three and looked broken. */
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.4rem;
     padding-bottom: 0.8rem;
   }
+  /* Each tab is wrapped in a Tooltip, so the GRID ITEM is that wrapper `<span>` and not the button
+   * inside it. The columns were already equal — 93.5px each, measured — while the buttons sized
+   * themselves to their labels and sat at 50–89px within them. Both have to fill the column, or
+   * "equal columns" never becomes equal buttons. */
+  .job-detail__tabs > * { display: block; width: 100%; min-width: 0; }
   .job-detail__tab {
-    flex-direction: column;
-    gap: 0.2rem;
-    padding: 0.6rem 0.3rem;
-    min-height: 3.5rem;
+    width: 100%;
+    display: grid;
+    grid-template-rows: 1.15rem 1fr 0.95rem;
+    justify-items: center;
+    align-items: center;
+    gap: 0.1rem;
+    padding: 0.5rem 0.2rem;
+    /* Fixed, not min: a two-line label must not make its tile taller than a one-line neighbour. */
+    height: 4.6rem;
     border-radius: 12px;
-    justify-content: center;
     text-align: center;
-    font-size: 0.74rem;
+    font-size: 0.7rem;
     white-space: normal;
-    line-height: 1.15;
+    line-height: 1.1;
+    overflow: hidden;
   }
-  .job-detail__tab-icon { font-size: 1.05rem; }
+  .job-detail__tab-icon { display: inline-flex; align-items: center; }
+  .job-detail__tab-label {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    /* Long single words ("Financial") must shrink rather than push the tile wider. */
+    overflow-wrap: anywhere;
+    align-self: center;
+  }
+  /* Three columns at the narrowest widths — four 90px tiles cannot hold "Field Work" legibly. */
+  @media (max-width: 360px) {
+    .job-detail__tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
 }
 .job-detail__tab-badge {
   display: inline-flex;
@@ -956,8 +994,14 @@
 }
 .job-detail__tab--active .job-detail__tab-badge {
   background: var(--color-brand-navy, #1D3095);
-  color: #fff;
+  color: var(--theme-fg-inverse, #fff);
 }
+/* Overview has no collection to count, so its slot holds the space without claiming a figure.
+ * `visibility` rather than `display` — the box must still occupy its row, which is the whole point. */
+.job-detail__tab-badge--empty { visibility: hidden; }
+/* Zero is shown, and shown quietly: it is information ("nothing here yet"), not a call to action,
+ * so it should not read as loudly as a tab holding forty photos. */
+.job-detail__tab-badge:not(.job-detail__tab-badge--empty) { min-width: 1.25rem; }
 
 /* Overview quick-action strip (JOB_WORKSPACE_BUILDOUT C) */
 .job-detail__quick-actions {
