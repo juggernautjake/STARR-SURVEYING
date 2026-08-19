@@ -1,6 +1,6 @@
 # Receipts, jobs, and the file system that should already know about both
 
-**Status:** IN PROGRESS · opened 2026-08-19
+**Status:** DONE · opened and closed 2026-08-19 · merged to main (`e5d0f33af`)
 
 > **Owner, 2026-08-19:** *"I want the receipt interface and functionality to be fully built out and
 > for the project/job pages and UI and project/job management to be fully fleshed out. I want it all
@@ -209,3 +209,10 @@ unrecoverable. Those are different sized mistakes.
 | `npm run build` | exit 0 |
 
 Both scripts create their own data and put it back, and report what they could not undo.
+
+### One more counterpart, found while closing
+
+`job_file_uploaded` had no opposite. Deleting a job file soft-deleted the row and its backup and
+recorded nothing, so the Activity tab could show a file arriving and never show it leaving.
+`job_file_deleted` now exists, and the row is read *before* the update — after it there is no name
+left to put in the record, and "a file was deleted" without saying which one is not an audit entry.

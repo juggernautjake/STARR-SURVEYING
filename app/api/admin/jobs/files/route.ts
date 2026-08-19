@@ -193,9 +193,29 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'File ID required' }, { status: 400 });
 
+  // Read it before it goes: after the update there is no name left to put in the record, and
+  // "a file was deleted" without saying which one is not an audit entry.
+  const { data: doomed } = await supabaseAdmin
+    .from('job_files')
+    .select('id, job_id, file_name, name, section')
+    .eq('id', id)
+    .maybeSingle();
+
   // Soft delete file and its backup
   await supabaseAdmin.from('job_files').update({ is_deleted: true }).eq('id', id);
   await supabaseAdmin.from('job_files').update({ is_deleted: true }).eq('backup_of', id);
+
+  // The counterpart to `job_file_uploaded`, which had no counterpart until now: the activity feed
+  // could show a file arriving and never show it leaving.
+  if (doomed?.job_id) {
+    await fireAndForget(supabaseAdmin.from('activity_log').insert({
+      user_email: session.user.email,
+      action_type: 'job_file_deleted',
+      entity_type: 'job',
+      entity_id: doomed.job_id,
+      metadata: { file_id: id, file_name: doomed.file_name ?? doomed.name, section: doomed.section },
+    }));
+  }
 
   return NextResponse.json({ success: true });
 }, { routeName: 'jobs/files' });

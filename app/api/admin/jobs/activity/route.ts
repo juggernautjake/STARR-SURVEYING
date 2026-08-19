@@ -29,6 +29,7 @@ interface ActivityItem {
 const ACTION_LABELS: Record<string, string> = {
   job_created: 'Job created',
   job_file_uploaded: 'File uploaded',
+  job_file_deleted: 'File deleted',
   job_photo_uploaded: 'Photo uploaded',
   job_team_added: 'Team member added',
   job_stage_changed: 'Stage changed',
@@ -38,7 +39,7 @@ const ACTION_LABELS: Record<string, string> = {
 function summarizeDetails(action: string, details: unknown): string | undefined {
   if (!details || typeof details !== 'object') return undefined;
   const d = details as Record<string, unknown>;
-  if (action === 'job_file_uploaded' || action === 'job_photo_uploaded') {
+  if (action === 'job_file_uploaded' || action === 'job_photo_uploaded' || action === 'job_file_deleted') {
     return d.file_name ? String(d.file_name) : undefined;
   }
   if (action === 'job_team_added') {
