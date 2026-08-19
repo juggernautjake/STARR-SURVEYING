@@ -2154,3 +2154,47 @@
 @media (max-width: 480px) {
   .vsplit__foot > button { flex: 1 1 0; justify-content: center; }
 }
+
+/* ── Upload progress bar (2026-08-19) ─────────────────────────────────────────────────────────
+ * Owner: "Please add a loading bar that shows exactly how far along the uploading is."
+ * The XHR progress events already existed and nothing consumed them, so a 300 MB video showed no
+ * sign of life for minutes. */
+.jup {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  background: var(--color-bg-subtle, #F9FAFB);
+}
+.jup__head { display: flex; justify-content: space-between; gap: 0.6rem; align-items: baseline; margin-bottom: 0.4rem; }
+.jup__name {
+  font-size: 0.84rem; font-weight: 600; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--theme-fg-primary, #111827);
+}
+.jup__of { font-size: 0.75rem; color: var(--color-text-muted, #6B7280); white-space: nowrap; }
+.jup__track {
+  height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--theme-border, #E5E7EB);
+}
+.jup__fill {
+  height: 100%;
+  background: var(--color-brand-navy, #1D3095);
+  border-radius: 999px;
+  /* Eased so the bar glides between progress events rather than stepping — a stepping bar on a slow
+   * connection looks like it has stalled between jumps. */
+  transition: width 200ms ease-out;
+}
+/* Bytes are sent; the row is being written. Striped so 100%-but-not-done is visibly not finished. */
+.jup__fill--finishing {
+  background: repeating-linear-gradient(
+    45deg,
+    var(--color-brand-navy, #1D3095) 0 8px,
+    var(--theme-brand-hover, #162470) 8px 16px
+  );
+}
+.jup__meta {
+  display: flex; justify-content: space-between; gap: 0.6rem;
+  margin-top: 0.35rem; font-size: 0.76rem;
+  color: var(--color-text-muted, #6B7280); font-variant-numeric: tabular-nums;
+}

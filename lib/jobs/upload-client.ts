@@ -26,9 +26,22 @@ export interface JobUploadResult {
   storage_bucket: string;
 }
 
+/**
+ * How far along one file is.
+ *
+ * Bytes as well as a percentage, because on a 300 MB phone video a percentage alone is not enough
+ * to tell a slow upload from a stalled one — "142 MB of 310 MB" moving is information, "46%" that
+ * has not changed in a minute is not.
+ */
+export interface UploadProgress {
+  pct: number;
+  loaded: number;
+  total: number;
+}
+
 /** PUT with a progress callback. XHR rather than fetch because fetch still cannot report upload
- *  progress — and a 90 MB attachment with no progress bar reads as a frozen page. */
-function putWithProgress(url: string, file: File, onPct?: (pct: number) => void): Promise<void> {
+ *  progress — and a 300 MB attachment with no progress bar reads as a frozen page. */
+function putWithProgress(url: string, file: File, onProgress?: (p: UploadProgress) => void): Promise<void> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
@@ -40,13 +53,26 @@ function putWithProgress(url: string, file: File, onPct?: (pct: number) => void)
     // a phone. `contentTypeFor` falls back to the extension and the upload simply works.
     xhr.setRequestHeader('Content-Type', contentTypeFor(file.name, file.type));
     xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable && onPct) onPct(Math.round((ev.loaded / ev.total) * 100));
+      if (!onProgress) return;
+      // `lengthComputable` is false on some proxies. Falling back to the File's own size keeps the
+      // bar moving rather than freezing at 0% for the whole transfer.
+      const total = ev.lengthComputable ? ev.total : file.size;
+      const loaded = Math.min(ev.loaded, total);
+      onProgress({ pct: total > 0 ? Math.round((loaded / total) * 100) : 0, loaded, total });
     };
+    // The bytes are all sent before the server answers; a 300 MB video then sits at 100% while
+    // storage commits it. Reported so the caller can say "finishing" rather than appear stuck.
+    xhr.upload.onload = () => onProgress?.({ pct: 100, loaded: file.size, total: file.size });
     xhr.onload = () =>
       (xhr.status >= 200 && xhr.status < 300
         ? resolve()
         : reject(new Error(`Upload failed (${xhr.status})`)));
-    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.onerror = () => reject(new Error('Network error during upload. Check your connection and try again.'));
+    xhr.onabort = () => reject(new Error('Upload cancelled.'));
+    // NO `xhr.timeout` is set, deliberately. A 500 MB video over a field connection can legitimately
+    // take the better part of an hour, and any fixed deadline would kill exactly the uploads this
+    // whole path exists to make possible. A genuinely dead connection surfaces through `onerror`.
+    // (An `ontimeout` handler without a `timeout` value is dead code — it never fires.)
     xhr.send(file);
   });
 }
@@ -60,9 +86,9 @@ function putWithProgress(url: string, file: File, onPct?: (pct: number) => void)
 export async function uploadJobFileBytes(
   jobId: string,
   file: File,
-  onPct?: (pct: number) => void,
+  onProgress?: (p: UploadProgress) => void,
 ): Promise<JobUploadResult> {
-  return uploadAttachmentBytes({ job_id: jobId }, file, onPct);
+  return uploadAttachmentBytes({ job_id: jobId }, file, onProgress);
 }
 
 /**
@@ -76,15 +102,15 @@ export async function uploadJobFileBytes(
 export async function uploadProjectFileBytes(
   projectId: string,
   file: File,
-  onPct?: (pct: number) => void,
+  onProgress?: (p: UploadProgress) => void,
 ): Promise<JobUploadResult> {
-  return uploadAttachmentBytes({ project_id: projectId }, file, onPct);
+  return uploadAttachmentBytes({ project_id: projectId }, file, onProgress);
 }
 
 async function uploadAttachmentBytes(
   owner: { job_id?: string; project_id?: string },
   file: File,
-  onPct?: (pct: number) => void,
+  onProgress?: (p: UploadProgress) => void,
 ): Promise<JobUploadResult> {
   const init = await fetch('/api/admin/jobs/files/upload', {
     method: 'POST',
@@ -98,6 +124,6 @@ async function uploadAttachmentBytes(
   }
 
   const started = (await init.json()) as JobUploadStarted;
-  await putWithProgress(started.signed_url, file, onPct);
+  await putWithProgress(started.signed_url, file, onProgress);
   return { file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket };
 }

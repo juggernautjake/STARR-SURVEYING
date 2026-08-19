@@ -89,6 +89,13 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(0);
+  /** Live upload progress for the bar. `phase` separates "still sending bytes" from "sent, saving
+   *  the record" — without it a 300 MB video sits at 100% and looks hung. */
+  const [progress, setProgress] = useState<{
+    index: number; total: number; name: string;
+    pct: number; loaded: number; bytes: number;
+    phase: 'sending' | 'finishing';
+  } | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -173,11 +180,19 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
     setError(null);
     setUploading(incoming.length);
     try {
-      for (const file of incoming) {
+      for (const [i, file] of incoming.entries()) {
         // Bytes straight to storage, then a row that points at them — the same three-step the
         // Files tab and the File Explorer use. It replaced a `FileReader` that put the whole
         // photo in a database column as base64, where the File Explorer could never see it.
-        const { file_id, storage_path, storage_bucket } = await uploadJobFileBytes(jobId, file);
+        setProgress({
+          index: i + 1, total: incoming.length, name: file.name,
+          pct: 0, loaded: 0, bytes: file.size, phase: 'sending',
+        });
+        const { file_id, storage_path, storage_bucket } = await uploadJobFileBytes(jobId, file, (p) =>
+          setProgress((cur) => (cur ? { ...cur, pct: p.pct, loaded: p.loaded, bytes: p.total } : cur)));
+        // The bytes are in storage; the row still has to be written. Said out loud because a 300 MB
+        // video sits at 100% for a moment here, and a bar stuck at 100% reads as a hang.
+        setProgress((cur) => (cur ? { ...cur, phase: 'finishing', pct: 100 } : cur));
         const res = await fetch('/api/admin/jobs/files', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -205,6 +220,7 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
       setError(e instanceof Error ? e.message : 'Upload failed');
     }
     setUploading(0);
+    setProgress(null);
     if (fileInput.current) fileInput.current.value = '';
     // The camera input too, or recording the same clip twice in a row fires no change event.
     if (captureInput.current) captureInput.current.value = '';
@@ -330,6 +346,41 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
 
       {error && (
         <div className="job-detail__error" role="alert" style={{ marginTop: '0.75rem' }}>{error}</div>
+      )}
+
+      {/* ── THE LOADING BAR (2026-08-19) ────────────────────────────────────────────────────────
+          Owner: *"Please add a loading bar that shows exactly how far along the uploading is."*
+
+          The XHR progress events were already being emitted — nothing consumed them, so a 300 MB
+          video showed a button reading "Uploading 1…" and no other sign of life for minutes, which
+          is indistinguishable from a frozen page.
+
+          Bytes as well as a percentage: "142 MB of 310 MB" that is moving tells you it is working;
+          "46%" that has not changed in a minute does not. */}
+      {progress && (
+        <div className="jup" role="status" aria-live="polite" data-testid="upload-progress">
+          <div className="jup__head">
+            <span className="jup__name" title={progress.name}>{progress.name}</span>
+            {progress.total > 1 && (
+              <span className="jup__of">file {progress.index} of {progress.total}</span>
+            )}
+          </div>
+          <div className="jup__track">
+            <div
+              className={`jup__fill${progress.phase === 'finishing' ? ' jup__fill--finishing' : ''}`}
+              style={{ width: `${progress.pct}%` }}
+              data-testid="upload-progress-fill"
+            />
+          </div>
+          <div className="jup__meta">
+            <span data-testid="upload-progress-pct">{progress.pct}%</span>
+            <span>
+              {progress.phase === 'finishing'
+                ? 'Saving…'
+                : `${human(progress.loaded)} of ${human(progress.bytes)}`}
+            </span>
+          </div>
+        </div>
       )}
 
       {/* ── The warning the owner asked for, before anything is cut ─────────────────────────────
@@ -485,4 +536,13 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
       )}
     </div>
   );
+}
+
+/** Bytes as a person reads them. MB is the right unit here — a field video is never in KB, and
+ *  "0.31 GB" is harder to compare against a limit stated in MB. */
+function human(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1048576).toFixed(bytes < 10 * 1048576 ? 1 : 0)} MB`;
 }
