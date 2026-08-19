@@ -135,7 +135,7 @@
   "app/admin/profile/components/ThemePicker.tsx": 1,
   "app/admin/profile/ProfilePanel.tsx": 36,
   "app/admin/receipts/new/MyReceipts.tsx": 8,
-  "app/admin/receipts/new/page.tsx": 55,
+  "app/admin/receipts/new/page.tsx": 53,
   "app/admin/receipts/page.tsx": 57,
   "app/admin/reports/job/[jobId]/page.tsx": 4,
   "app/admin/reports/page.tsx": 1,

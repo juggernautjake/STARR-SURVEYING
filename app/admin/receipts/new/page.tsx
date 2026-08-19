@@ -39,6 +39,11 @@ import {
 } from '@/lib/receipts/capture-queue';
 import type { BatchReviewRow } from '@/app/api/admin/receipts/batch-review/route';
 import JobRefPicker, { type JobRefOption } from '@/app/admin/components/jobs/JobRefPicker';
+import {
+  CATEGORY_LABELS, FIELD_LABELS, FIELD_ORDER, PAYMENT_LABELS, PAYMENT_METHODS,
+  RECEIPT_CATEGORIES, checkDeclaration, describeMissing, resolveDeclaration, todayIso,
+  type FieldKey, type ReceiptDeclarationInput,
+} from '@/lib/receipts/required-fields';
 import MyReceipts from './MyReceipts';
 
 const ACCEPTED_TYPES_FILE = 'image/*,application/pdf';
@@ -75,6 +80,17 @@ export default function NewReceiptPage() {
   // 3's note onto photo 4 — which is how a note ends up attached to the wrong receipt, and a note on
   // the wrong receipt is worse than no note at all now that the AI weighs it.
   const [shotNotes, setShotNotes] = useState<Record<string, string>>({});
+
+  // ── THE THREE REQUIRED FIELDS, PER RECEIPT (owner, 2026-08-18) ───────────────────────────────
+  // *"Before it can be submitted, the user has to put in the date, business name, and total
+  // amount."* Keyed by shot id for the same reason the notes are: removing photo 2 must not slide
+  // photo 3's total onto photo 4, and a wrong total on the wrong receipt is worse than none.
+  const [shotFields, setShotFields] = useState<Record<string, ReceiptDeclarationInput>>({});
+
+  const setShotField = useCallback((id: string, key: keyof ReceiptDeclarationInput, value: string) => {
+    setShotFields((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
+  }, []);
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // R8 — bumped after every successful upload so the "your receipts" list below refetches. That
@@ -111,6 +127,34 @@ export default function NewReceiptPage() {
   // order — every mutation below touches both, so an index means the same photo in each.
   const [shots, setShots] = useState<Array<QueuedShot & { url: string }>>([]);
   const shotSeq = useRef(0);
+
+  /**
+   * Category, nature and payment method, answered once for the whole stack.
+   *
+   * A fortnight of fuel receipts is twenty times fuel, business, same card. Demanding twenty
+   * identical answers is how a required field becomes something people click through without
+   * reading — which produces confidently wrong data, strictly worse than the honest uncertainty it
+   * replaced. Each receipt can still override; the date, business and total never inherit.
+   */
+  const [sharedFields, setSharedFields] = useState<ReceiptDeclarationInput>({});
+
+  /**
+   * Whether somebody has tried to submit yet.
+   *
+   * A form that turns red before it has been touched is scolding somebody for not yet having done
+   * something they are in the middle of doing. Errors in a VALUE (a future date) show immediately —
+   * those are about what was typed. "Still needed" waits for a submit attempt.
+   */
+  const [touched, setTouched] = useState(false);
+
+  /** One check per queued photo, in queue order, against the effective values — each receipt's own
+   *  answers with the stack's filling the shareable gaps. Recomputed as they type, so the submit
+   *  button and the per-field messages can never disagree about whether the queue is ready. */
+  const shotChecks = useMemo(
+    () => shots.map((s) => checkDeclaration(resolveDeclaration(shotFields[s.id], sharedFields))),
+    [shots, shotFields, sharedFields],
+  );
+  const blockingReason = useMemo(() => describeMissing(shotChecks), [shotChecks]);
 
   /** Pairs of photos that look like the same piece of paper. Advisory: nothing is ever removed for
    *  you — two $5 coffees on the same day are both real. */
@@ -421,7 +465,17 @@ export default function NewReceiptPage() {
       setFile(null);
       return;
     }
-    setFile(f);
+    // ── ONE PATH, ONE FORM, ONE GATE (owner, 2026-08-18) ──────────────────────────────────────
+    //
+    // A single picked file used to set `file` and go straight to `onUpload`, bypassing the queue
+    // entirely — and therefore bypassing the required fields, which live on the queue's cards. The
+    // rule would have held for the camera and the bulk picker and quietly not for "Choose a file",
+    // which is the worst kind of half-enforced rule: it looks enforced.
+    //
+    // So a single pick now joins the same queue as everything else. That also removes a genuine
+    // duplication — two upload paths that did the same thing and had to be kept in step by hand.
+    setFile(null);
+    void (async () => { enqueue(f, await hashPickedFile(f)); })();
   }
 
   function openFilePicker() {
@@ -485,6 +539,10 @@ export default function NewReceiptPage() {
    *  exactly the same rows a one-at-a-time upload does and the worker cannot tell them apart. */
   async function onUploadBatch() {
     if (busy || batchFiles.length === 0) return;
+    // Checked here as well as at the button, because this is the function a future caller will
+    // reach for. A rule enforced only by the control that happens to call it today is a rule that
+    // lasts until somebody adds a second control.
+    if (blockingReason) { setTouched(true); return; }
     setBusy(true);
     setError(null);
     const items = buildBatch(batchFiles);
@@ -500,6 +558,17 @@ export default function NewReceiptPage() {
         const own = (shotNotes[shots[i]?.id ?? ''] ?? '').trim();
         const combined = [notes.trim(), own].filter(Boolean).join(' — ');
         if (combined) form.append('notes', combined);
+
+        // The declared fields for THIS photo — its own answers, with the stack's filling the
+        // shareable gaps. Resolved with the same function the validation used, so what is sent can
+        // never differ from what was checked.
+        const decl = resolveDeclaration(shotFields[shots[i]?.id ?? ''], sharedFields);
+        form.append('transactionDate', decl.date ?? '');
+        form.append('vendorName', decl.vendor ?? '');
+        form.append('totalAmount', decl.total ?? '');
+        form.append('category', decl.category ?? '');
+        form.append('expenseNature', decl.nature ?? '');
+        form.append('paymentMethod', decl.payment ?? '');
         const res = await fetch('/api/admin/receipts/upload', { method: 'POST', body: form });
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
@@ -794,45 +863,234 @@ export default function NewReceiptPage() {
         {shots.length > 0 && !cameraOpen && (
           <div style={styles.reviewWrap}>
             <p style={styles.batchSummary} role="status">{describeReview(shots, duplicates)}</p>
+
+            {/* ── Answer once for the whole stack ───────────────────────────────────────────────
+                These three are still mandatory and still stored per receipt; this simply lets one
+                answer satisfy all of them. Twenty identical dropdowns is how a required field turns
+                into something people click through without reading. */}
+            <div style={styles.sharedBar}>
+              <span style={styles.sharedBarLabel}>Same for all:</span>
+              <select
+                value={sharedFields.category ?? ''}
+                onChange={(e) => setSharedFields((p) => ({ ...p, category: e.target.value }))}
+                disabled={busy}
+                aria-label="Category for every receipt in this batch"
+                style={styles.sharedSelect}
+              >
+                <option value="">Category…</option>
+                {RECEIPT_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                ))}
+              </select>
+              <select
+                value={sharedFields.nature ?? ''}
+                onChange={(e) => setSharedFields((p) => ({ ...p, nature: e.target.value }))}
+                disabled={busy}
+                aria-label="Business or personal for every receipt in this batch"
+                style={styles.sharedSelect}
+              >
+                <option value="">Business or personal…</option>
+                <option value="business">Business expense</option>
+                <option value="personal">Personal — not claimed</option>
+              </select>
+              <select
+                value={sharedFields.payment ?? ''}
+                onChange={(e) => setSharedFields((p) => ({ ...p, payment: e.target.value }))}
+                disabled={busy}
+                aria-label="Payment method for every receipt in this batch"
+                style={styles.sharedSelect}
+              >
+                <option value="">Paid by…</option>
+                {PAYMENT_METHODS.map((m) => (
+                  <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+                ))}
+              </select>
+              <span style={styles.sharedHint}>Any receipt can differ — change it on the receipt.</span>
+            </div>
+
             <ul style={styles.reviewGrid}>
               {shots.map((s, i) => {
                 const dupe = duplicates.find((d) => d.id === s.id);
                 const dupeIndex = dupe ? shots.findIndex((x) => x.id === dupe.duplicateOfId) : -1;
+                const check = shotChecks[i];
+                const own = shotFields[s.id] ?? {};
+                const eff = resolveDeclaration(own, sharedFields);
+                const bad = (f: FieldKey) => Boolean(check?.errors[f])
+                  || Boolean(touched && check?.missing.includes(f));
+                const inputStyle = (f: FieldKey) => ({
+                  ...styles.shotInput,
+                  ...(bad(f) ? styles.shotInputBad : null),
+                });
                 return (
                   <li
                     key={s.id}
-                    style={{ ...styles.reviewCell, ...(dupe ? styles.reviewCellDupe : {}) }}
+                    style={{
+                      ...styles.reviewCell,
+                      ...(dupe ? styles.reviewCellDupe : {}),
+                      ...(touched && !check?.ok ? styles.reviewCellBad : {}),
+                    }}
                   >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={s.url} alt={`Photo ${i + 1}`} style={styles.reviewThumb} />
-                    {/* The badge is a suggestion. Nothing is removed for you — two $5 coffees on the
-                        same day are both real, and a queue that drops the second loses a receipt. */}
-                    {dupe && dupeIndex >= 0 && (
-                      <span style={styles.dupeBadge}>Looks like photo {dupeIndex + 1}</span>
-                    )}
-                    {/* This photo's own note. Worth the space it takes: on a faded receipt the total
-                        somebody types here is regularly the only evidence that can settle a digit
-                        the photograph does not contain. The placeholder asks for the total first
-                        because that is the field it rescues most often. */}
-                    <input
-                      type="text"
-                      value={shotNotes[s.id] ?? ''}
-                      onChange={(e) => setShotNotes((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                      disabled={busy}
-                      placeholder="Note for this one — total, place, job…"
-                      aria-label={`Note for photo ${i + 1}`}
-                      style={styles.shotNote}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeShot(s.id)}
-                      disabled={busy}
-                      style={styles.reviewRemove}
-                      aria-label={`Remove photo ${i + 1}`}
-                      title="Remove this photo"
-                    >
-                      ✕
-                    </button>
+                    <div style={styles.shotPhotoCol}>
+                      <p style={styles.shotIndex}>Receipt {i + 1} of {shots.length}</p>
+                      {/* The remove control lives on the PHOTO, not in the card's top-right corner.
+                          Absolutely positioned against the card it landed on top of the Total input
+                          — a 34px target sitting over the one field somebody is most likely to be
+                          typing into. Over the thumbnail it is both unambiguous ("remove this
+                          photo") and out of the form's way. */}
+                      <button
+                        type="button"
+                        onClick={() => removeShot(s.id)}
+                        disabled={busy}
+                        style={styles.reviewRemove}
+                        aria-label={`Remove receipt ${i + 1}`}
+                        title="Remove this receipt"
+                      >
+                        ✕
+                      </button>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={s.url} alt={`Receipt ${i + 1}`} style={styles.reviewThumb} />
+                      {/* The badge is a suggestion. Nothing is removed for you — two $5 coffees on
+                          the same day are both real, and a queue that drops the second loses a
+                          receipt. */}
+                      {dupe && dupeIndex >= 0 && (
+                        <p style={styles.dupeInline}>Looks like receipt {dupeIndex + 1}</p>
+                      )}
+                    </div>
+
+                    {/* ── What the person must tell us about THIS receipt ────────────────────────
+                        Owner, 2026-08-18: *"once the images are captured the user has to fill out
+                        the information before fully submitting."*
+
+                        Not bureaucracy. These are the fields the reader gets wrong on a bad photo,
+                        and some cannot be recovered by reading harder: Guy's Quick Stop prints
+                        $27.89 and was read as $27.69 at every band count tried, with the arithmetic
+                        unable to arbitrate because both readings balance. Somebody holding the paper
+                        settles it in seconds, and this is the only moment they still have it. */}
+                    <div style={styles.shotForm}>
+                      <div style={styles.shotFormRow}>
+                        <label>
+                          <span style={styles.shotFieldLabel}>Date *</span>
+                          <input
+                            type="date"
+                            value={own.date ?? ''}
+                            onChange={(e) => setShotField(s.id, 'date', e.target.value)}
+                            disabled={busy}
+                            max={todayIso()}
+                            aria-label={`Date on receipt ${i + 1}`}
+                            aria-invalid={bad('date')}
+                            style={inputStyle('date')}
+                          />
+                        </label>
+                        <label>
+                          <span style={styles.shotFieldLabel}>Total *</span>
+                          <input
+                            type="text"
+                            // `inputMode="decimal"` rather than `type="number"`: a number input still
+                            // shows a keypad on a phone but silently drops a trailing "." mid-typing,
+                            // and on a desktop a stray scroll wheel changes the amount.
+                            inputMode="decimal"
+                            value={own.total ?? ''}
+                            onChange={(e) => setShotField(s.id, 'total', e.target.value)}
+                            disabled={busy}
+                            placeholder="27.89"
+                            aria-label={`Total on receipt ${i + 1}`}
+                            aria-invalid={bad('total')}
+                            style={inputStyle('total')}
+                          />
+                        </label>
+                      </div>
+
+                      <label>
+                        <span style={styles.shotFieldLabel}>Business name *</span>
+                        <input
+                          type="text"
+                          value={own.vendor ?? ''}
+                          onChange={(e) => setShotField(s.id, 'vendor', e.target.value)}
+                          disabled={busy}
+                          placeholder="Where did you buy it?"
+                          aria-label={`Business name on receipt ${i + 1}`}
+                          aria-invalid={bad('vendor')}
+                          style={inputStyle('vendor')}
+                        />
+                      </label>
+
+                      <div style={styles.shotFormRow}>
+                        <label>
+                          <span style={styles.shotFieldLabel}>Category *</span>
+                          <select
+                            value={eff.category ?? ''}
+                            onChange={(e) => setShotField(s.id, 'category', e.target.value)}
+                            disabled={busy}
+                            aria-label={`Category for receipt ${i + 1}`}
+                            aria-invalid={bad('category')}
+                            style={inputStyle('category')}
+                          >
+                            <option value="">Choose…</option>
+                            {RECEIPT_CATEGORIES.map((c) => (
+                              <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                            ))}
+                          </select>
+                        </label>
+                        <label>
+                          <span style={styles.shotFieldLabel}>Paid by *</span>
+                          <select
+                            value={eff.payment ?? ''}
+                            onChange={(e) => setShotField(s.id, 'payment', e.target.value)}
+                            disabled={busy}
+                            aria-label={`Payment method for receipt ${i + 1}`}
+                            aria-invalid={bad('payment')}
+                            style={inputStyle('payment')}
+                          >
+                            <option value="">Choose…</option>
+                            {PAYMENT_METHODS.map((m) => (
+                              <option key={m} value={m}>{PAYMENT_LABELS[m]}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+
+                      <label>
+                        <span style={styles.shotFieldLabel}>Business or personal *</span>
+                        <select
+                          value={eff.nature ?? ''}
+                          onChange={(e) => setShotField(s.id, 'nature', e.target.value)}
+                          disabled={busy}
+                          aria-label={`Business or personal for receipt ${i + 1}`}
+                          aria-invalid={bad('nature')}
+                          style={inputStyle('nature')}
+                        >
+                          <option value="">Choose…</option>
+                          <option value="business">Business expense</option>
+                          <option value="personal">Personal — not claimed</option>
+                        </select>
+                      </label>
+
+                      <label>
+                        <span style={styles.shotFieldLabel}>Note (optional)</span>
+                        <input
+                          type="text"
+                          value={shotNotes[s.id] ?? ''}
+                          onChange={(e) => setShotNotes((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                          disabled={busy}
+                          placeholder="Anything worth recording"
+                          aria-label={`Note for receipt ${i + 1}`}
+                          style={styles.shotInput}
+                        />
+                      </label>
+
+                      {/* The specific complaint, under the form it is about. A summary at the top of
+                          a queue of twenty says "something is wrong somewhere", which is not help.
+                          The "still needed" line waits for a submit attempt, so a form nobody has
+                          touched yet is not already scolding them. */}
+                      {FIELD_ORDER.filter((f) => check?.errors[f]).map((f) => (
+                        <p key={f} style={styles.shotError}>{check!.errors[f]}</p>
+                      ))}
+                      {touched && check && check.missing.length > 0 && (
+                        <p style={styles.shotError}>
+                          Still needed: {check.missing.map((f) => FIELD_LABELS[f]).join(', ')}.
+                        </p>
+                      )}
+                    </div>
                   </li>
                 );
               })}
@@ -1023,23 +1281,43 @@ export default function NewReceiptPage() {
           {(() => {
             const bulk = batchFiles.length > 0;
             const bulkDone = bulk && (batch?.finished ?? false);
+            // ── The gate (owner, 2026-08-18) ────────────────────────────────────────────────────
+            // *"the user has to fill out the information before fully submitting."* The button is
+            // NOT disabled when fields are missing — it stays live and, when pressed, marks the form
+            // touched so every incomplete receipt says what it needs. A disabled button with no
+            // explanation is the single most frustrating state a form can be in: it refuses, and it
+            // will not say why. This refuses and points at the reason.
+            const incomplete = bulk && Boolean(blockingReason);
             const disabled = busy || (bulk ? bulkDone : !file);
             return (
-              <button
-                type="button"
-                onClick={bulk ? onUploadBatch : onUpload}
-                disabled={disabled}
-                style={{ ...styles.uploadBtn, opacity: disabled ? 0.55 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-              >
-                {busy
-                  ? 'Uploading…'
-                  : bulk
-                    // "Upload 1 receipts" — harmless when the batch path was only ever reached by
-                    // the multi-file picker, and newly common now that one photograph from the
-                    // rapid-fire camera goes through the same queue.
-                    ? (bulkDone ? 'Batch finished' : `Upload ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}`)
-                    : 'Upload receipt'}
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (bulk && blockingReason) { setTouched(true); return; }
+                    void (bulk ? onUploadBatch() : onUpload());
+                  }}
+                  disabled={disabled}
+                  aria-describedby={incomplete ? 'upload-blocked' : undefined}
+                  style={{
+                    ...styles.uploadBtn,
+                    opacity: disabled ? 0.55 : incomplete ? 0.8 : 1,
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {busy
+                    ? 'Uploading…'
+                    : bulk
+                      // "Upload 1 receipts" — harmless when the batch path was only ever reached by
+                      // the multi-file picker, and newly common now that one photograph from the
+                      // rapid-fire camera goes through the same queue.
+                      ? (bulkDone ? 'Batch finished' : `Upload ${batchFiles.length} receipt${batchFiles.length === 1 ? '' : 's'}`)
+                      : 'Upload receipt'}
+                </button>
+                {incomplete && (
+                  <p id="upload-blocked" role="status" style={styles.blockedNote}>{blockingReason}</p>
+                )}
+              </>
             );
           })()}
         </div>
@@ -1265,44 +1543,152 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 10,
     padding: '0.8rem',
   },
-  // auto-fill so one photo does not stretch across the whole card and twenty stay thumb-sized.
+  // ── One CARD per receipt, not a thumbnail grid ────────────────────────────────────────────────
+  //
+  // The grid was `repeat(auto-fill, minmax(92px, 1fr))` — ninety-two pixels, which is the right size
+  // for a thumbnail and far too small for six labelled fields. Six inputs squeezed into a 92px
+  // column is unusable on any screen.
+  //
+  // So each receipt is now a row: the photo on the left at a fixed width, the form beside it. On a
+  // phone the whole thing stacks, which `gridTemplateColumns` handles below via a single-column
+  // fallback rather than a media query — inline styles cannot carry one.
   reviewGrid: {
     listStyle: 'none', margin: 0, padding: 0,
-    display: 'grid', gap: '0.5rem',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))',
+    display: 'flex', flexDirection: 'column', gap: '0.75rem',
   },
   reviewCell: {
     position: 'relative',
-    borderRadius: 8,
-    overflow: 'hidden',
-    border: '2px solid transparent',
-    background: 'var(--color-bg-card, #fff)',
+    display: 'grid',
+    // `auto-fit` with a min of 220px: two columns when there is room, one when there is not. This is
+    // the whole responsive story, and it needs no media query — which inline styles cannot express.
+    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+    gap: '0.75rem',
+    padding: '0.7rem',
+    borderRadius: 10,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-bg-card)',
   },
-  reviewCellDupe: { border: '2px solid var(--color-warning, #f59e0b)' },
-  reviewThumb: { display: 'block', width: '100%', aspectRatio: '3 / 4', objectFit: 'cover' },
+  reviewCellDupe: { borderColor: 'var(--color-warning)', borderWidth: 2 },
+  reviewCellBad: { borderColor: 'var(--color-danger)' },
+  // Capped so a tall till roll cannot push the form off the screen, and `contain` rather than
+  // `cover` so the whole receipt stays visible — this is the picture somebody is reading the total
+  // off while they type it.
+  reviewThumb: {
+    display: 'block', width: '100%', maxHeight: 260,
+    objectFit: 'contain', borderRadius: 6,
+    background: 'var(--color-bg-subtle)',
+  },
   dupeBadge: {
     position: 'absolute', left: 0, right: 0, bottom: 0,
     background: 'var(--color-warning, #f59e0b)', color: '#1f2937',
     fontSize: '0.62rem', fontWeight: 700, textAlign: 'center', padding: '0.15rem 0.2rem',
   },
-  // The per-photo note. Full width under the thumbnail, and 36px tall so it is a real tap target
-  // for somebody standing at a truck with a handful of receipts.
-  shotNote: {
+  // ── The per-receipt form ──────────────────────────────────────────────────────────────────────
+  // Bare `var()` throughout, no literal fallbacks. In a style OBJECT a fallback hex is a hard-coded
+  // colour with extra steps — unreachable by a design token, by the print stylesheet and by every
+  // skin, which is exactly what the inline-hex ratchet counts.
+  shotForm: {
+    display: 'grid',
+    gap: '0.4rem',
+    alignContent: 'start',
+  },
+  shotFormRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '0.4rem',
+  },
+  shotFieldLabel: {
+    display: 'block',
+    fontSize: '0.66rem',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+    marginBottom: 2,
+  },
+  shotInput: {
     display: 'block',
     width: '100%',
-    minHeight: 36,
-    padding: '6px 8px',
-    // Bare `var()`, no literal fallback. In a style OBJECT a fallback hex is just a hard-coded
-    // colour with extra steps — unreachable by a design token, by the print stylesheet and by every
-    // skin, which is exactly what the inline-hex ratchet counts. The older styles in this file
-    // predate that rule; new ones do not get to inherit it.
+    minHeight: 38,
+    padding: '7px 9px',
+    borderRadius: 6,
     border: '1px solid var(--color-border)',
-    borderTop: 'none',
     background: 'var(--color-surface)',
     color: 'var(--color-text-primary)',
     fontFamily: 'inherit',
-    fontSize: '0.72rem',
+    fontSize: '0.82rem',
     boxSizing: 'border-box',
+  },
+  // A red edge, not a red background: the value stays readable while being flagged, and a filled
+  // red box on a form somebody is halfway through typing reads as an accusation.
+  shotInputBad: {
+    borderColor: 'var(--color-danger)',
+    borderWidth: 2,
+  },
+  shotError: {
+    margin: 0,
+    fontSize: '0.7rem',
+    lineHeight: 1.4,
+    color: 'var(--color-danger)',
+  },
+  shotPhotoCol: { position: 'relative' },
+  shotIndex: {
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    color: 'var(--color-text-secondary)',
+    marginBottom: '0.3rem',
+  },
+  dupeInline: {
+    margin: '0.35rem 0 0',
+    padding: '0.2rem 0.4rem',
+    borderRadius: 4,
+    background: 'var(--color-warning)',
+    color: 'var(--color-text-primary)',
+    fontSize: '0.68rem',
+    fontWeight: 700,
+    textAlign: 'center',
+  },
+  // The set-once bar. Sits directly above the receipts it governs, so the relationship is visible
+  // rather than something a person has to be told.
+  sharedBar: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '0.4rem',
+    padding: '0.5rem 0.6rem',
+    marginBottom: '0.6rem',
+    borderRadius: 8,
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+  },
+  sharedBarLabel: {
+    fontSize: '0.7rem',
+    fontWeight: 700,
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
+    color: 'var(--color-text-secondary)',
+  },
+  sharedSelect: {
+    minHeight: 34,
+    padding: '5px 8px',
+    borderRadius: 6,
+    border: '1px solid var(--color-border)',
+    background: 'var(--color-bg-card)',
+    color: 'var(--color-text-primary)',
+    fontFamily: 'inherit',
+    fontSize: '0.78rem',
+  },
+  sharedHint: {
+    fontSize: '0.68rem',
+    color: 'var(--color-text-secondary)',
+    flexBasis: '100%',
+  },
+  blockedNote: {
+    margin: '0.4rem 0 0',
+    fontSize: '0.78rem',
+    fontWeight: 600,
+    color: 'var(--color-danger)',
+    textAlign: 'center',
   },
   // 34px so it stays a comfortable tap target on a phone held in one hand over a stack of paper.
   reviewRemove: {

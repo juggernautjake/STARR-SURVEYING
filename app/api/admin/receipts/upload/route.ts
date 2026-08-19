@@ -21,6 +21,7 @@ import { normaliseImage, UnsupportedImageError } from '@/lib/media/normalise-ima
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { checkDeclaration, describeMissing } from '@/lib/receipts/required-fields';
 import { resolveJobRef } from '@/lib/jobs/job-ref';
 
 const RECEIPTS_BUCKET = 'starr-field-receipts';
@@ -197,6 +198,33 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const notes = typeof notesRaw === 'string' && notesRaw.trim().length > 0 ? notesRaw.trim() : null;
 
+  // ── THE THREE DECLARED FIELDS (owner, 2026-08-18) ─────────────────────────────────────────────
+  //
+  // *"For each receipt, before it can be submitted, the user has to put in the date, business name,
+  // and total amount."* The capture page will not let a photo through without them, and this checks
+  // again on arrival — the page is one caller, and a rule enforced only in the browser is a rule
+  // enforced only for people using the browser as intended.
+  //
+  // Validated with the SAME function the form uses, so the two cannot drift into disagreeing about
+  // what a valid date is.
+  const field = (k: string) => (typeof form.get(k) === 'string' ? String(form.get(k)) : '');
+  const declaration = checkDeclaration({
+    date: field('transactionDate'),
+    vendor: field('vendorName'),
+    total: field('totalAmount'),
+    category: field('category'),
+    nature: field('expenseNature'),
+    payment: field('paymentMethod'),
+  });
+  if (!declaration.ok || !declaration.value) {
+    const missing = describeMissing([declaration]) ?? 'The date, business name and total are required.';
+    const detail = Object.values(declaration.errors).join(' ');
+    return NextResponse.json(
+      { error: [missing, detail].filter(Boolean).join(' '), fields: declaration.errors },
+      { status: 400 },
+    );
+  }
+
   const { data: inserted, error: insertErr } = await supabaseAdmin
     .from('receipts')
     .insert({
@@ -204,6 +232,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       user_id: userId,
       job_id: jobId,
       notes,
+      // Stored on the row at INSERT, which is what makes them authoritative for free: the extractor
+      // merges with `fillIfEmpty`, so a field that already holds a value is never overwritten by a
+      // machine reading. No extra rule was needed to protect them — they simply arrive first.
+      transaction_at: declaration.value.dateIso,
+      vendor_name: declaration.value.vendorName,
+      total_cents: declaration.value.totalCents,
+      category: declaration.value.category,
+      // `category_source` already exists and already means "who chose this". A person choosing it at
+      // capture time is a stronger claim than the AI's guess, and the queue's own filters read this
+      // column to decide whether a category still needs review.
+      category_source: 'user',
+      expense_nature: declaration.value.nature,
+      payment_method: declaration.value.payment,
+      // Recorded so a person reading the row later can tell a figure somebody typed from one the AI
+      // read. Without it the two are indistinguishable, and "who said this?" is the first question
+      // asked when a total turns out to be wrong.
+      declared_by_submitter: true,
       photo_url: path,
       status: 'pending',
       extraction_status: 'queued',
