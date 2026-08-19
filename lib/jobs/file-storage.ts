@@ -47,11 +47,44 @@ export const JOB_FILES_BUCKET = 'starr-field-files';
  *  there; everything else stays put. */
 export const JOB_VIDEOS_BUCKET = 'starr-field-videos';
 
-/** Matches the mobile cap, which is the bucket's own `file_size_limit` from seeds/226. */
-export const MAX_JOB_FILE_BYTES = 100 * 1024 * 1024;
-/** The video bucket's own limit. Five times the documents cap, because video is five times the
- *  problem — see seeds/605. */
-export const MAX_JOB_VIDEO_BYTES = 500 * 1024 * 1024;
+/**
+ * ── THE ONLY LIMIT THAT IS REAL (measured 2026-08-19) ──────────────────────────────────────────
+ *
+ * Owner: *"Right now I am trying to upload a 375MB video and it is failing… once the upload gets to
+ * 100%, it throws a 400 error."*
+ *
+ * Because the limit this code believed in did not exist. `job_files` said 100 MB and the video
+ * bucket said 500 MB, and **Supabase caps every upload at the PROJECT level, which overrides both.**
+ * Probed against live storage by uploading real bytes:
+ *
+ *     50 MB exactly (52,428,800 bytes)  accepted
+ *     50 MB + 1 byte                    REJECTED — "The object exceeded the maximum allowed size"
+ *
+ * So a 375 MB video transferred all 375 MB and was refused at the very end. The bar reaching 100%
+ * and then failing is exactly what a client-side cap that is larger than the server's produces:
+ * every byte is spent before anybody finds out.
+ *
+ * A bucket's `file_size_limit` can only ever be LOWER than the project ceiling, never higher — which
+ * is why raising it in seeds/605 changed nothing.
+ *
+ * ── RAISING IT ─────────────────────────────────────────────────────────────────────────────────
+ *
+ * The project ceiling is a dashboard setting (Storage → Settings → Upload file size limit), not
+ * anything this code can change. When it is raised, set `NEXT_PUBLIC_MAX_UPLOAD_BYTES` to the new
+ * value and everything here follows — the cap, the error text, and the point at which a video is
+ * offered a split. Hardcoding a second wrong number is what caused this.
+ */
+const PROJECT_UPLOAD_CEILING = 50 * 1024 * 1024;
+
+function configuredCeiling(): number {
+  const raw = Number.parseInt(process.env.NEXT_PUBLIC_MAX_UPLOAD_BYTES ?? '', 10);
+  return Number.isFinite(raw) && raw > 0 ? raw : PROJECT_UPLOAD_CEILING;
+}
+
+/** What storage will actually accept. One number, because there is only one real limit. */
+export const MAX_JOB_FILE_BYTES = configuredCeiling();
+/** Video is capped by the same ceiling. It was 500 MB, which storage never honoured. */
+export const MAX_JOB_VIDEO_BYTES = configuredCeiling();
 
 const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|mpe?g|hevc)$/i;
 
@@ -242,10 +275,13 @@ export function checkJobUpload(input: { name?: string | null; sizeBytes?: number
       ok: false,
       // Say what it is and what the limit is, not just that it failed — the person's next move is
       // to re-record shorter or drop the resolution, and neither is guessable from "too large".
+      // The number is the REAL one now, so this message is actionable instead of misleading. A
+      // video over it is offered a split by the caller rather than simply refused.
       error: isVideo
         ? `Videos must be ${Math.round(cap / 1024 / 1024)} MB or smaller. This one is `
-          + `${Math.round(size / 1024 / 1024)} MB — try a shorter clip, or record at 1080p instead of 4K.`
-        : `Files must be ${Math.round(cap / 1024 / 1024)} MB or smaller.`,
+          + `${Math.round(size / 1024 / 1024)} MB — it can be split into parts that fit.`
+        : `Files must be ${Math.round(cap / 1024 / 1024)} MB or smaller. This one is `
+          + `${Math.round(size / 1024 / 1024)} MB.`,
     };
   }
   return { ok: true };

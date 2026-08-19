@@ -139,6 +139,11 @@
 
 .proj__filters { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
 .proj__chip {
+  /* inline-flex, not the default inline: a chip carrying an icon otherwise breaks between the icon
+   * and its label and renders as two lines, which was visible on the "Date & people" filter. */
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
   font: inherit;
   font-size: 0.82rem;
   padding: 0.32rem 0.7rem;
@@ -149,6 +154,7 @@
   cursor: pointer;
   white-space: nowrap;
 }
+.proj__chip svg { flex: none; }
 .proj__chip:hover { border-color: var(--color-brand-navy, #1D3095); }
 .proj__chip.is-on {
   background: var(--theme-brand-subtle, #EBF0FF);
@@ -472,3 +478,66 @@
 .pfiles__btn:hover { border-color: var(--color-brand-navy, #1D3095); color: var(--color-brand-navy, #1D3095); }
 .pfiles__btn--danger:hover { border-color: #DC2626; color: #DC2626; }
 .pfiles__links { margin-top: 0.35rem; }
+
+/* ── Recent projects (2026-08-19) ─────────────────────────────────────────────────────────────
+ * Owner: "a section for recent projects that shows the 5 most recent projects that have been
+ * opened/created/worked on." Ranked by the latest of those three — which needed a new fact,
+ * because opening a project changes nothing and so was written down nowhere. */
+.proj__recent { margin-bottom: 1rem; }
+.proj__recent-title {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-family: 'Sora', sans-serif; font-size: 0.85rem; font-weight: 700;
+  color: var(--color-text-muted, #6B7280);
+  margin: 0 0 0.45rem; text-transform: uppercase; letter-spacing: 0.04em;
+}
+/* Scrolls sideways rather than wrapping: five cards wrapping to a second row makes the shortcut
+ * taller than the list it is a shortcut to. */
+.proj__recent-row {
+  display: flex; gap: 0.5rem; overflow-x: auto;
+  padding-bottom: 0.3rem; scrollbar-width: none;
+}
+.proj__recent-row::-webkit-scrollbar { display: none; }
+.proj__recent-card {
+  flex: 0 0 13rem;
+  display: flex; flex-direction: column; gap: 0.15rem;
+  text-align: left; font: inherit; cursor: pointer;
+  background: var(--theme-bg-elevated, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-left: 3px solid var(--color-brand-navy, #1D3095);
+  border-radius: 10px; padding: 0.55rem 0.7rem; min-width: 0;
+}
+.proj__recent-card:hover { border-color: var(--color-brand-navy, #1D3095); background: var(--theme-brand-tint, #FAFBFF); }
+.proj__recent-card:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 2px; }
+.proj__recent-num { font-size: 0.7rem; font-weight: 700; color: var(--color-text-muted, #6B7280); }
+.proj__recent-name {
+  font-weight: 700; font-size: 0.86rem; color: var(--theme-fg-primary, #111827);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.proj__recent-meta {
+  font-size: 0.73rem; color: var(--color-text-muted, #6B7280);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+@media (max-width: 560px) { .proj__recent-card { flex: 0 0 11rem; } }
+
+/* Date + assignee filters */
+.proj__advanced {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.6rem;
+  padding: 0.75rem 0.85rem; margin-bottom: 0.9rem;
+  border: 1px solid var(--theme-border, #E5E7EB); border-radius: 10px;
+  background: var(--color-bg-subtle, #F9FAFB);
+}
+.proj__adv-field { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.proj__adv-field--wide { flex: 1 1 15rem; }
+.proj__adv-field > span { font-size: 0.74rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); }
+.proj__adv-field input {
+  font: inherit; font-size: 0.85rem; padding: 0.35rem 0.5rem;
+  border: 1px solid var(--theme-border-strong, #D1D5DB); border-radius: 7px;
+  background: var(--theme-bg-elevated, #fff); min-width: 0;
+}
+.proj__adv-note {
+  flex: 1 1 100%; margin: 0; font-size: 0.74rem; line-height: 1.45;
+  color: var(--color-text-muted, #6B7280);
+}
+@media (max-width: 560px) {
+  .proj__adv-field, .proj__adv-field--wide { flex: 1 1 100%; }
+}

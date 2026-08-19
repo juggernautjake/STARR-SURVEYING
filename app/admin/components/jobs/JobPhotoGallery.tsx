@@ -12,7 +12,8 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
-import { MAX_JOB_FILE_BYTES, maxBytesFor } from '@/lib/jobs/file-storage';
+import { MAX_JOB_FILE_BYTES, maxBytesFor, contentTypeFor } from '@/lib/jobs/file-storage';
+import { backgroundUploadSupport, startBackgroundUpload, ensureNotifyPermission } from '@/lib/jobs/upload-background';
 import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
 import { readVideoDuration } from '@/lib/jobs/video-split-run';
 
@@ -97,6 +98,9 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
     phase: 'sending' | 'finishing';
   } | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  /** How many files were handed to the browser to finish on its own — the banner that replaces a
+   *  progress bar when the upload is no longer this page's responsibility. */
+  const [handedOff, setHandedOff] = useState(0);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   /** The camera. A SEPARATE input because `capture` is an attribute, not a runtime option — one
@@ -129,6 +133,11 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
   }, [jobId, onCountChange, cfg.section]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Read once on mount: it depends on the browser, which does not change mid-session, and calling
+  // it during render would touch  on the server.
+  const [supportNote, setSupportNote] = useState('');
+  useEffect(() => { setSupportNote(backgroundUploadSupport().explanation); }, []);
 
     const upload = useCallback(async (fileList: FileList | File[]) => {
     // A phone hands over `video/quicktime` for a .mov and occasionally an EMPTY type — so a video
@@ -179,42 +188,150 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
     }
     setError(null);
     setUploading(incoming.length);
-    try {
-      for (const [i, file] of incoming.entries()) {
-        // Bytes straight to storage, then a row that points at them — the same three-step the
-        // Files tab and the File Explorer use. It replaced a `FileReader` that put the whole
-        // photo in a database column as base64, where the File Explorer could never see it.
-        setProgress({
-          index: i + 1, total: incoming.length, name: file.name,
-          pct: 0, loaded: 0, bytes: file.size, phase: 'sending',
-        });
-        const { file_id, storage_path, storage_bucket } = await uploadJobFileBytes(jobId, file, (p) =>
-          setProgress((cur) => (cur ? { ...cur, pct: p.pct, loaded: p.loaded, bytes: p.total } : cur)));
-        // The bytes are in storage; the row still has to be written. Said out loud because a 300 MB
-        // video sits at 100% for a moment here, and a bar stuck at 100% reads as a hang.
-        setProgress((cur) => (cur ? { ...cur, phase: 'finishing', pct: 100 } : cur));
-        const res = await fetch('/api/admin/jobs/files', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            job_id: jobId,
-            file_id,
-            storage_path,
-            // Which bucket the bytes went to — video is not in the documents bucket, and a row
-            // that does not say so is a row the download cannot find.
-            storage_bucket,
-            file_name: file.name,
-            file_type: cfg.fileType,
-            file_size: file.size,
-            mime_type: file.type,
-            section: cfg.section,
-          }),
-        });
-        if (!res.ok) {
-          const d = await res.json().catch(() => ({}));
-          throw new Error(d.error || `Upload failed for ${file.name}`);
+
+    // ── BACKGROUND, WHERE THE BROWSER ALLOWS IT (2026-08-19) ────────────────────────────────────
+    //
+    // Owner: *"I want it so that I can leave the web app and have it still working in the background
+    // … and then once it is done it can notify me."*
+    //
+    // Handed to the browser process via Background Fetch, which keeps going after the tab closes and
+    // wakes the service worker to create the row and raise the notification. Chrome and Android
+    // only — Safari does not implement it, so iOS falls through to the foreground path below and the
+    // banner says so rather than promising something the platform cannot do.
+    const support = backgroundUploadSupport();
+    if (support.mode === 'background') {
+      await ensureNotifyPermission();
+      let handedOff = 0;
+      for (const file of incoming) {
+        try {
+          const init = await fetch('/api/admin/jobs/files/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ job_id: jobId, name: file.name, size_bytes: file.size, mime_type: file.type }),
+          });
+          if (!init.ok) throw new Error((await init.json().catch(() => ({}))).error ?? 'Could not start the upload.');
+          const started = await init.json();
+          const ok = await startBackgroundUpload({
+            signedUrl: started.signed_url,
+            file,
+            contentType: contentTypeFor(file.name, file.type),
+            row: {
+              id: started.file_id,
+              rowEndpoint: '/api/admin/jobs/files',
+              rowBody: {
+                job_id: jobId, file_id: started.file_id, storage_path: started.path,
+                storage_bucket: started.bucket, file_name: file.name, file_type: cfg.fileType,
+                file_size: file.size, mime_type: file.type, section: cfg.section,
+              },
+              fileName: file.name,
+              sizeBytes: file.size,
+              openUrl: `/admin/jobs/${jobId}`,
+            },
+          });
+          if (ok) handedOff += 1;
+          else throw new Error('handoff-declined');
+        } catch (e) {
+          // The signed URL is already spent for this file, so there is nothing to fall back TO for
+          // it — say so plainly instead of appearing to succeed.
+          if (e instanceof Error && e.message !== 'handoff-declined') {
+            setError(e.message);
+            setUploading(0);
+            return;
+          }
+          break; // Background Fetch declined; fall through to the foreground path for everything.
         }
       }
+      if (handedOff === incoming.length) {
+        setUploading(0);
+        setProgress(null);
+        setHandedOff(handedOff);
+        if (fileInput.current) fileInput.current.value = '';
+        if (captureInput.current) captureInput.current.value = '';
+        // Not reloaded here: the rows do not exist yet — the worker writes them when the transfer
+        // finishes. Claiming otherwise would show an empty gallery and look like a failure.
+        return;
+      }
+    }
+
+    try {
+      // ── UPLOADED IN PARALLEL (2026-08-19) ─────────────────────────────────────────────────────
+      //
+      // Owner: *"if there is anything that can be done to speed up the upload speed, please make it
+      // happen."*
+      //
+      // One at a time was the single biggest cost, and it only became obvious once a 375 MB video
+      // started arriving as NINE parts: sequentially that is nine round trips end to end, each one
+      // idle while the next waits. A small pool overlaps them, so the wall-clock is roughly the
+      // slowest few rather than the sum of all.
+      //
+      // THREE, not more. Browsers cap concurrent connections per host (~6), and the pool shares that
+      // budget with the page's own requests; saturating it makes the job page itself stop responding
+      // mid-upload, which looks exactly like the freeze this work set out to remove.
+      const CONCURRENCY = Math.min(3, incoming.length);
+      const totalBytes = incoming.reduce((a, f) => a + f.size, 0);
+      // Aggregate rather than per-file: with several running at once "file 3 of 9" is meaningless,
+      // while total bytes moved is the honest measure of how far along the whole thing is.
+      const sent = new Map<number, number>();
+      const pushProgress = (doneCount: number) => {
+        const loaded = [...sent.values()].reduce((a, b) => a + b, 0);
+        setProgress({
+          index: Math.min(doneCount + 1, incoming.length),
+          total: incoming.length,
+          name: incoming.length === 1 ? incoming[0].name : `${incoming.length} files`,
+          pct: totalBytes > 0 ? Math.min(100, Math.round((loaded / totalBytes) * 100)) : 0,
+          loaded,
+          bytes: totalBytes,
+          phase: 'sending',
+        });
+      };
+      pushProgress(0);
+
+      let done = 0;
+      let cursor = 0;
+      const worker = async () => {
+        for (;;) {
+          const i = cursor;
+          cursor += 1;
+          if (i >= incoming.length) return;
+          const file = incoming[i];
+          // Bytes straight to storage, then a row that points at them — the same three-step the
+          // Files tab and the File Explorer use.
+          const { file_id, storage_path, storage_bucket } = await uploadJobFileBytes(jobId, file, (p) => {
+            sent.set(i, p.loaded);
+            pushProgress(done);
+          });
+          sent.set(i, file.size);
+          const res = await fetch('/api/admin/jobs/files', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              job_id: jobId,
+              file_id,
+              storage_path,
+              // Which bucket the bytes went to — video is not in the documents bucket, and a row
+              // that does not say so is a row the download cannot find.
+              storage_bucket,
+              file_name: file.name,
+              file_type: cfg.fileType,
+              file_size: file.size,
+              mime_type: file.type,
+              section: cfg.section,
+            }),
+          });
+          if (!res.ok) {
+            const d = await res.json().catch(() => ({}));
+            throw new Error(d.error || `Upload failed for ${file.name}`);
+          }
+          done += 1;
+          pushProgress(done);
+        }
+      };
+
+      // `Promise.all` so the FIRST failure rejects immediately rather than after every other part
+      // has also finished — on a nine-part video that is minutes of pointless waiting before the
+      // person is told something went wrong.
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+      setProgress((cur) => (cur ? { ...cur, phase: 'finishing', pct: 100 } : cur));
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Upload failed');
@@ -357,6 +474,31 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
 
           Bytes as well as a percentage: "142 MB of 310 MB" that is moving tells you it is working;
           "46%" that has not changed in a minute does not. */}
+      {/* ── HANDED TO THE BROWSER ────────────────────────────────────────────────────────────────
+          There is no progress bar to show once Background Fetch owns the transfer — the OS shows its
+          own, and this page may not even be open when it finishes. Saying that is more useful than
+          a bar that would be lying about who is doing the work. */}
+      {handedOff > 0 && (
+        <div className="jup jup--handed" role="status" data-testid="upload-handed-off">
+          <strong>
+            {handedOff} {handedOff === 1 ? 'file is' : 'files are'} uploading in the background.
+          </strong>
+          <span>
+            You can leave this page or lock your phone — your browser will finish it and notify you.
+            It will appear here once it lands.
+          </span>
+          <button type="button" className="jobs-page__btn jobs-page__btn--secondary" onClick={() => { setHandedOff(0); void load(); }}>
+            Refresh
+          </button>
+        </div>
+      )}
+
+      {/* What this browser will actually do, said before anything is chosen. iOS cannot upload in
+          the background at all, and somebody who knows that keeps the page open. */}
+      {!progress && handedOff === 0 && supportNote && (
+        <p className="jup__note" data-testid="upload-support-note">{supportNote}</p>
+      )}
+
       {progress && (
         <div className="jup" role="status" aria-live="polite" data-testid="upload-progress">
           <div className="jup__head">

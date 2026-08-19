@@ -76,6 +76,12 @@ export default function ProjectDetailPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Record that this project was opened, so the Recent strip can rank by it. Fire-and-forget: a
+  // recents list must never be able to fail somebody's attempt to open a project.
+  useEffect(() => {
+    void fetch(`/api/admin/projects/${id}/open`, { method: 'POST' }).catch(() => undefined);
+  }, [id]);
+
   async function setStatus(status: ProjectStatus) {
     setSavingStatus(true);
     const res = await fetch(`/api/admin/projects/${id}`, {

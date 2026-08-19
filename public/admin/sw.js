@@ -194,3 +194,154 @@ self.addEventListener('notificationclick', (event) => {
     }),
   );
 });
+
+/* ── BACKGROUND UPLOADS (2026-08-19) ───────────────────────────────────────────────────────────
+ *
+ * Owner: *"I want it so that I can leave the web app and have it still working in the background
+ * while I'm doing other things on my phone, and then once it is done it can notify me."*
+ *
+ * A page's JavaScript stops when its tab is closed or suspended, so the page cannot do this. The
+ * Background Fetch API hands the transfer to the browser process and wakes THIS worker when it
+ * finishes — which is why the follow-up work lives here rather than in the gallery component.
+ *
+ * The page uploaded the bytes straight to storage with a signed URL. Two things still have to
+ * happen after that, and both are this worker's job now:
+ *   1. Create the `job_files` row, or the bytes exist and nothing lists them.
+ *   2. Say so, because the person is somewhere else entirely by then.
+ *
+ * The row payload travels through IndexedDB (`starr-uploads`), because Background Fetch carries only
+ * an id and this worker cannot see any variable the page held.
+ *
+ * NOTE ON iOS: none of this runs there. Safari does not implement Background Fetch, so `lib/jobs/
+ * upload-background.ts` reports `foreground` and the page tells the person to keep it open. That is
+ * a platform limitation, not a gap here — see that file.
+ */
+
+const UPLOAD_DB = 'starr-uploads';
+const UPLOAD_STORE = 'pending';
+
+function openUploadDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(UPLOAD_DB, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(UPLOAD_STORE)) {
+        req.result.createObjectStore(UPLOAD_STORE, { keyPath: 'id' });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+function readPending(db, id) {
+  return new Promise((resolve) => {
+    const tx = db.transaction(UPLOAD_STORE, 'readonly');
+    const get = tx.objectStore(UPLOAD_STORE).get(id);
+    get.onsuccess = () => resolve(get.result || null);
+    get.onerror = () => resolve(null);
+  });
+}
+
+function dropPending(db, id) {
+  return new Promise((resolve) => {
+    const tx = db.transaction(UPLOAD_STORE, 'readwrite');
+    tx.objectStore(UPLOAD_STORE).delete(id);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => resolve();
+  });
+}
+
+self.addEventListener('backgroundfetchsuccess', (event) => {
+  const id = event.registration.id;
+  event.waitUntil((async () => {
+    let pending = null;
+    try {
+      const db = await openUploadDb();
+      pending = await readPending(db, id);
+      if (pending) await dropPending(db, id);
+      db.close();
+    } catch {
+      /* the row payload is gone; the notification below still tells the truth about the bytes */
+    }
+
+    let rowOk = false;
+    if (pending) {
+      try {
+        // Same-origin, so the session cookie rides along and the route authorises exactly as it
+        // would from the page. `credentials: 'include'` is explicit because a worker's default
+        // differs from a page's and this must not be left to chance.
+        const res = await fetch(pending.rowEndpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(pending.rowBody),
+        });
+        rowOk = res.ok;
+      } catch {
+        rowOk = false;
+      }
+    }
+
+    const name = (pending && pending.fileName) || 'Your file';
+    await self.registration.showNotification(
+      rowOk ? 'Upload finished' : 'Upload finished, but not filed',
+      {
+        body: rowOk
+          ? `${name} has been uploaded and attached to the job.`
+          // Distinguished on purpose: the bytes ARE safe in storage. Telling somebody the upload
+          // failed when it did not would send them off to re-record something they already have.
+          : `${name} uploaded, but it could not be attached. Open the job and add it again.`,
+        tag: `upload-${id}`,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data: { href: (pending && pending.openUrl) || '/admin/jobs' },
+      },
+    );
+  })());
+});
+
+/* Failed or cancelled. Reported rather than swallowed: a silent failure is how somebody discovers
+ * three weeks later that the walkthrough of the access road was never saved. */
+for (const evt of ['backgroundfetchfail', 'backgroundfetchabort']) {
+  self.addEventListener(evt, (event) => {
+    const id = event.registration.id;
+    event.waitUntil((async () => {
+      let pending = null;
+      try {
+        const db = await openUploadDb();
+        pending = await readPending(db, id);
+        await dropPending(db, id);
+        db.close();
+      } catch { /* nothing recoverable */ }
+      const name = (pending && pending.fileName) || 'A file';
+      await self.registration.showNotification('Upload did not finish', {
+        body: `${name} was not uploaded. Open the job and try again.`,
+        tag: `upload-${id}`,
+        icon: '/icons/icon-192.png',
+        data: { href: (pending && pending.openUrl) || '/admin/jobs' },
+      });
+    })());
+  });
+}
+
+/* Tapping the OS progress notification goes to the job, not to a blank app. */
+self.addEventListener('backgroundfetchclick', (event) => {
+  const id = event.registration.id;
+  event.waitUntil((async () => {
+    let href = '/admin/jobs';
+    try {
+      const db = await openUploadDb();
+      const pending = await readPending(db, id);
+      if (pending && pending.openUrl) href = pending.openUrl;
+      db.close();
+    } catch { /* fall back to the jobs list */ }
+    const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const client of clientList) {
+      if (client.url.includes('/admin') && 'focus' in client) {
+        client.navigate(href);
+        return client.focus();
+      }
+    }
+    return self.clients.openWindow(href);
+  })());
+});

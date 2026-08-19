@@ -137,10 +137,19 @@ describe('what is refused before a signed URL is handed out', () => {
     expect(checkJobUpload({ name: 'a.pdf', sizeBytes: 0 }).ok).toBe(false);
   });
 
-  it('refuses over the bucket cap, BEFORE the bytes are sent', () => {
+  // ── THE CAP WAS FICTION UNTIL IT WAS MEASURED (2026-08-19) ────────────────────────────────────
+  //
+  // This asserted "100 MB" — a number storage never honoured. Supabase caps every upload at the
+  // PROJECT level, which overrides any bucket setting, and it was probed at exactly 50 MB:
+  // 52,428,800 bytes accepted, one byte more refused. So a 375 MB video transferred all 375 MB and
+  // failed at 100%, which is precisely what a client cap larger than the server's produces.
+  //
+  // Asserted against the constant rather than a literal now, so raising the project ceiling and
+  // setting NEXT_PUBLIC_MAX_UPLOAD_BYTES cannot leave this test pinning a third wrong number.
+  it('refuses over the REAL cap, before the bytes are sent', () => {
     const v = checkJobUpload({ name: 'huge.zip', sizeBytes: MAX_JOB_FILE_BYTES + 1 });
     expect(v.ok).toBe(false);
-    expect(v.error).toMatch(/100 MB/);
+    expect(v.error).toMatch(new RegExp(`${Math.round(MAX_JOB_FILE_BYTES / 1024 / 1024)} MB`));
   });
 
   it('refuses a missing size rather than defaulting it to zero', () => {

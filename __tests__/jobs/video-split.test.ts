@@ -130,3 +130,33 @@ describe('the target ratio', () => {
     expect(SPLIT_TARGET_RATIO).toBeGreaterThan(0.5);
   });
 });
+
+describe('the owner’s actual failing file (2026-08-19)', () => {
+  // "Right now I am trying to upload a 375MB video and it is failing." It failed because the app
+  // believed in a 500 MB cap that storage never honoured — the real project ceiling is 50 MB,
+  // probed by uploading real bytes. With the true cap the same file is split instead of refused.
+  const CAP_50 = 50 * MB;
+
+  it('splits a 375 MB, six-minute video into parts that all fit under 50 MB', () => {
+    const plan = planSplit({ sizeBytes: 375 * MB, durationSec: 6 * 60, capBytes: CAP_50, name: 'field-walk.mp4' });
+    expect(plan.needed).toBe(true);
+    expect(plan.parts.length).toBeGreaterThanOrEqual(9);
+    // The whole point: each piece must be comfortably under what storage accepts, with room for a
+    // keyframe cut to overshoot.
+    expect(plan.approxPartBytes).toBeLessThanOrEqual(CAP_50);
+    expect(plan.parts[plan.parts.length - 1].startSec + plan.parts[plan.parts.length - 1].durationSec)
+      .toBeCloseTo(360, 1);
+  });
+
+  it('gives parts long enough to be worth watching', () => {
+    const plan = planSplit({ sizeBytes: 375 * MB, durationSec: 6 * 60, capBytes: CAP_50, name: 'f.mp4' });
+    for (const p of plan.parts) expect(p.durationSec).toBeGreaterThan(2);
+  });
+
+  it('tells the person the real numbers', () => {
+    const plan = planSplit({ sizeBytes: 375 * MB, durationSec: 6 * 60, capBytes: CAP_50, name: 'f.mp4' });
+    const msg = describePlan(plan, 375 * MB, CAP_50);
+    expect(msg).toContain('375 MB');
+    expect(msg).toContain('50 MB');
+  });
+});

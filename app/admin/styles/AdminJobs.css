@@ -2198,3 +2198,16 @@
   margin-top: 0.35rem; font-size: 0.76rem;
   color: var(--color-text-muted, #6B7280); font-variant-numeric: tabular-nums;
 }
+
+/* Background-upload banner (2026-08-19). Replaces the progress bar once the browser owns the
+ * transfer — there is nothing for this page to measure, and a bar would be claiming work it is not
+ * doing. */
+.jup--handed { display: flex; flex-direction: column; gap: 0.35rem; align-items: flex-start; }
+.jup--handed strong { font-size: 0.88rem; color: var(--theme-fg-primary, #111827); }
+.jup--handed span { font-size: 0.8rem; color: var(--color-text-muted, #6B7280); line-height: 1.5; }
+.jup__note {
+  margin: 0.6rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--color-text-muted, #6B7280);
+}
