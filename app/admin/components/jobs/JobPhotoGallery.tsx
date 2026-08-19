@@ -2,18 +2,25 @@
 // JOB_WORKSPACE_BUILDOUT slice B.
 //
 // Image-only view over the existing job_files API, tagged
-// section='photos' so photos stay distinct from documents. Photos
-// are stored as data URLs (same as JobFileManager), so thumbnails +
-// the lightbox render straight from file_url. Upload via button or
+// section='photos' so photos stay distinct from documents. Photos are
+// stored as OBJECTS in the starr-field-files bucket (2026-08-19 — they
+// used to be base64 data URLs in the row, which is why the File
+// Explorer could not see them), so thumbnails + the lightbox render
+// from the resolved download_href. Upload via button or
 // drag-and-drop; click a thumbnail to open the lightbox (prev/next /
 // Esc); delete with confirm.
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
+import { MAX_JOB_FILE_BYTES } from '@/lib/jobs/file-storage';
 
 interface Photo {
   id: string;
   file_name: string;
   file_url?: string;
+  /** Resolved by `GET /api/admin/jobs/files` — a storage object, a legacy `data:` URI, or a
+   *  linked document, all reduced to one thing an `<img src>` can point at. */
+  download_href?: string | null;
   file_size?: number;
   mime_type?: string;
   description?: string;
@@ -26,7 +33,11 @@ interface Props {
   onCountChange?: (count: number) => void;
 }
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per image — base64 lives in the DB row
+// 10 MB used to be the cap because the image was base64 IN THE ROW, and the message sent people to
+// the Files tab — which had exactly the same problem, so the advice moved the cost rather than
+// removing it. Photos now go to the `starr-field-files` bucket like everything else, so the real
+// limit is the bucket's, and a phone photo of a monument is never the thing that hits it.
+const MAX_BYTES = MAX_JOB_FILE_BYTES;
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif';
 
 export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
@@ -56,15 +67,7 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
-  const readAsDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result as string);
-      r.onerror = () => reject(new Error(`Could not read ${file.name}`));
-      r.readAsDataURL(file);
-    });
-
-  const upload = useCallback(async (fileList: FileList | File[]) => {
+    const upload = useCallback(async (fileList: FileList | File[]) => {
     const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
     if (incoming.length === 0) {
       setError('Only image files can be added here.');
@@ -72,22 +75,26 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
     }
     const tooBig = incoming.find((f) => f.size > MAX_BYTES);
     if (tooBig) {
-      setError(`"${tooBig.name}" is larger than 10 MB. Compress it or add it under the Files tab instead.`);
+      setError(`"${tooBig.name}" is larger than ${Math.round(MAX_JOB_FILE_BYTES / 1024 / 1024)} MB, which is the storage limit for one file.`);
       return;
     }
     setError(null);
     setUploading(incoming.length);
     try {
       for (const file of incoming) {
-        const dataUrl = await readAsDataUrl(file);
+        // Bytes straight to storage, then a row that points at them — the same three-step the
+        // Files tab and the File Explorer use. It replaced a `FileReader` that put the whole
+        // photo in a database column as base64, where the File Explorer could never see it.
+        const { file_id, storage_path } = await uploadJobFileBytes(jobId, file);
         const res = await fetch('/api/admin/jobs/files', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             job_id: jobId,
+            file_id,
+            storage_path,
             file_name: file.name,
             file_type: 'image',
-            file_url: dataUrl,
             file_size: file.size,
             mime_type: file.type,
             section: 'photos',
@@ -200,7 +207,7 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
               }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={p.file_url} alt={p.file_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src={(p.download_href ?? p.file_url) || undefined} alt={p.file_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </button>
           ))}
         </div>
@@ -217,7 +224,7 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={active.file_url}
+            src={(active.download_href ?? active.file_url) || undefined}
             alt={active.file_name}
             onClick={(e) => e.stopPropagation()}
             style={{ maxWidth: '90vw', maxHeight: '78vh', objectFit: 'contain', borderRadius: 6 }}

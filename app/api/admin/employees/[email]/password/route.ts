@@ -86,8 +86,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   try {
     await supabaseUnscoped.from('activity_log').insert({
       user_email: session.user.email,
-      action: 'employee.password_set',
-      details: `Set the sign-in password for ${row.email}`,
+      action_type: 'employee.password_set',
+      entity_type: 'employee',
+      entity_id: row.email,
+      // `metadata` is jsonb. The old code put a bare sentence in it, which stores as a JSON string
+      // and cannot be queried by subject — so "show me everything done to this account" could not
+      // be answered from it. The sentence is kept; the subject is now a field.
+      metadata: { subject_email: row.email, note: `Set the sign-in password for ${row.email}` },
     });
   } catch {
     // Never fail the operation because the note failed — but do not swallow it silently either.

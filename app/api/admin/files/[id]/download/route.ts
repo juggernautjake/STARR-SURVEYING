@@ -10,6 +10,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { accessForNode } from '@/lib/files/server';
 import { canDownload, type FileUser } from '@/lib/files/permissions';
 import { MOUNT_PREFIX, resolveMountFile } from '@/lib/files/mounts';
+import { recordFileEvent } from '@/lib/files/audit-log';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
@@ -23,6 +24,12 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     const ref = await resolveMountFile(params.id, user, admin);
     if (!ref.ok) {
       return NextResponse.json({ error: ref.error ?? 'File not found.' }, { status: ref.status ?? 404 });
+    }
+
+    // A source that already HAS a URL — a legacy job attachment stored as a `data:` URI, or an
+    // ordinary link. Nothing to sign and nothing to serve: hand back what it already is.
+    if (ref.directUrl) {
+      return NextResponse.json({ url: ref.directUrl, name: ref.name, mime_type: ref.mime });
     }
 
     // F1 — a source whose "file" lives in the database rather than a bucket.
@@ -82,5 +89,16 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (error || !data) {
     return NextResponse.json({ error: error?.message ?? 'Could not generate a link.' }, { status: 500 });
   }
+  // Recorded for real `file_nodes` only. The mount branches above hand out receipts, job files and
+  // drawings, whose ids belong to their own source tables — writing those under `entity_type
+  // = 'file_node'` would put rows in the history of nodes that do not exist. `inline` is kept as a
+  // field because previewing a document in the viewer and pulling a copy down are different acts.
+  await recordFileEvent({
+    action: 'file_downloaded',
+    nodeId: node.id,
+    actorEmail: user.email,
+    metadata: { name: node.name, inline: inlineReq, size_bytes: node.size_bytes ?? null },
+  });
+
   return NextResponse.json({ url: data.signedUrl, name: node.name, mime_type: node.mime_type });
 }

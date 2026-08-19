@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
-  ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder,
+  ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen,
   Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
   Circle, type LucideIcon,
 } from 'lucide-react';
@@ -122,7 +122,7 @@ export default function JobDetailPage() {
   }>>([]);
   const [showLinkContactDialog, setShowLinkContactDialog] = useState(false);
   const [stageHistory, setStageHistory] = useState<{ from_stage?: string; to_stage: string; changed_by: string; notes?: string; created_at: string }[]>([]);
-  const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
+  const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; download_href?: string | null; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
   const [timeEntries, setTimeEntries] = useState<{ id: string; user_email: string; user_name?: string; work_type: string; start_time: string; end_time?: string; duration_minutes?: number; description?: string; billable: boolean }[]>([]);
   const [payments, setPayments] = useState<{ id: string; amount: number; payment_type: string; payment_method?: string; reference_number?: string; notes?: string; paid_at: string; recorded_by: string }[]>([]);
@@ -309,7 +309,12 @@ export default function JobDetailPage() {
     }
   }
 
-  async function uploadFile(file: { file_name: string; file_type: string; file_url: string; file_size: number; section: string; description: string }) {
+  async function uploadFile(file: {
+    file_name: string; file_type: string; file_size: number; section: string; description: string;
+    mime_type?: string;
+    // The storage shape (2026-08-19). `file_url` remains only for the legacy inline path.
+    file_id?: string; storage_path?: string; file_url?: string;
+  }) {
     try {
       await fetch('/api/admin/jobs/files', {
         method: 'POST',
@@ -883,12 +888,26 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'files' && (
-          <JobFileManager
-            files={files}
-            onUpload={uploadFile}
-            onDelete={deleteFile}
-            onAttachFromFiles={attachFileFromExplorer}
-          />
+          <>
+            <JobFileManager
+              jobId={jobId}
+              files={files}
+              onUpload={uploadFile}
+              onDelete={deleteFile}
+              onAttachFromFiles={attachFileFromExplorer}
+            />
+            {/* The other direction of the same link (2026-08-19). The File Explorer now carries a
+                folder per job holding this job's files, photos, receipts, drawings and field media
+                in one place — which is the view somebody wants when they are looking for a file
+                rather than working the job. Until this, that folder existed and nothing pointed at
+                it, which is this codebase's most frequent defect. */}
+            <p className="job-files__explorer-link">
+              <Link href={`/admin/files?node=mnt:jobs:${jobId}`}>
+                <FolderOpen size={13} aria-hidden /> Open this job&rsquo;s folder in Files
+              </Link>
+              <span> — everything attached to this job in one place, including receipts and drawings.</span>
+            </p>
+          </>
         )}
 
         {activeTab === 'photos' && (

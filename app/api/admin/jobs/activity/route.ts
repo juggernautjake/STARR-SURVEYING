@@ -6,6 +6,12 @@
 //     photo uploads, team changes, drawings saved, job created, etc.
 //   - job_stages_history rows: stage transitions with notes.
 // Returns newest-first, normalized to { type, label, actor, at, detail }.
+//
+// 2026-08-19 — the columns are `action_type` and `metadata`. This file asked for `action, details`,
+// which do not exist, so PostgREST errored and `dbErrorResponse` returned early: the Activity tab
+// was not showing half a feed, it was failing outright. The six routes that WRITE here had the same
+// two names wrong, wrapped in `fireAndForget`, so nothing was being recorded either. See
+// `lib/files/audit.ts` for the account and for where the shape is pinned so it cannot recur.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
@@ -66,7 +72,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     const [logRes, stageRes] = await Promise.all([
       supabaseAdmin
         .from('activity_log')
-        .select('id, user_email, action, details, entity_id, created_at')
+        .select('id, user_email, action_type, metadata, entity_id, created_at')
         .eq('entity_type', 'job')
         .order('created_at', { ascending: false })
         .limit(limit * 3),
@@ -92,7 +98,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
     const feed: Array<ActivityItem & { id: string; job_id: string | null; job_name: string | null; job_number: string | null }> = [];
     for (const row of logRes.data ?? []) {
-      const action = String(row.action ?? '');
+      const action = String(row.action_type ?? '');
       if (action === 'job_stage_changed') continue; // richer copy lives in stage history
       const job = row.entity_id ? jobMap.get(String(row.entity_id)) : undefined;
       feed.push({
@@ -101,7 +107,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
         label: ACTION_LABELS[action] ?? action.replace(/_/g, ' '),
         actor: String(row.user_email ?? 'system'),
         at: String(row.created_at),
-        detail: summarizeDetails(action, row.details),
+        detail: summarizeDetails(action, row.metadata),
         job_id: row.entity_id ? String(row.entity_id) : null,
         job_name: job?.name ?? null,
         job_number: job?.job_number ?? null,
@@ -131,7 +137,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const [logRes, stageRes] = await Promise.all([
     supabaseAdmin
       .from('activity_log')
-      .select('user_email, action, details, created_at')
+      .select('user_email, action_type, metadata, created_at')
       .eq('entity_type', 'job')
       .eq('entity_id', jobId)
       .order('created_at', { ascending: false })
@@ -150,7 +156,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const items: ActivityItem[] = [];
 
   for (const row of logRes.data ?? []) {
-    const action = String(row.action ?? '');
+    const action = String(row.action_type ?? '');
     // Stage changes also live in job_stages_history with richer data —
     // skip the activity_log copy to avoid duplicates.
     if (action === 'job_stage_changed') continue;
@@ -159,7 +165,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       label: ACTION_LABELS[action] ?? action.replace(/_/g, ' '),
       actor: String(row.user_email ?? 'system'),
       at: String(row.created_at),
-      detail: summarizeDetails(action, row.details),
+      detail: summarizeDetails(action, row.metadata),
     });
   }
 

@@ -37,9 +37,35 @@ import {
   Plus,
   Check,
   Search,
+  ExternalLink,
+  History,
+  RotateCcw,
 } from 'lucide-react';
 
 type AccessLevel = 'none' | 'view' | 'download' | 'edit' | 'manage';
+
+/** One line of a node's history, already described by the server. */
+interface HistoryEvent {
+  id: string;
+  action: string;
+  label: string;
+  detail?: string;
+  actor: string;
+  at: string;
+  /** Present only when the event happened to something INSIDE the folder being viewed. */
+  node_name?: string;
+}
+
+/** One thing in the bin — a deletion root, never the files that went down with it. */
+interface BinEntry {
+  id: string;
+  name: string;
+  node_type: 'folder' | 'file';
+  deleted_at: string;
+  owner_email: string | null;
+  in_folder: string;
+  items: number;
+}
 
 interface FileNode {
   id: string;
@@ -146,6 +172,16 @@ export default function FilesPage(): React.ReactElement {
   const [parentId, setParentId] = useState<string | null>(null);
   const [nodes, setNodes] = useState<FileNode[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<Crumb[]>([]);
+  /** Set when the folder being viewed corresponds to a page — a job folder to its job. */
+  const [folderHref, setFolderHref] = useState<string | null>(null);
+  // History + bin (2026-08-19).
+  const [histFor, setHistFor] = useState<{ id: string; name: string } | null>(null);
+  const [histEvents, setHistEvents] = useState<HistoryEvent[]>([]);
+  const [histBusy, setHistBusy] = useState(false);
+  const [histNote, setHistNote] = useState<string | null>(null);
+  const [binOpen, setBinOpen] = useState(false);
+  const [binEntries, setBinEntries] = useState<BinEntry[]>([]);
+  const [binBusy, setBinBusy] = useState(false);
   const [parentAccess, setParentAccess] = useState<AccessLevel>('manage');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,26 +212,62 @@ export default function FilesPage(): React.ReactElement {
   const [draftValue, setDraftValue] = useState('');
   const [draftLevel, setDraftLevel] = useState<Grant['access_level']>('view');
 
+  // ── THE FOLDER THAT WINS IS THE ONE ASKED FOR LAST, NOT THE ONE THAT ANSWERS LAST ────────────
+  //
+  // `?node=` is read in an effect, so the first render always loads the ROOT and the deep-linked
+  // folder is only requested on the next pass. Two requests are therefore in flight at once, and
+  // `fetch` promises nothing about the order they resolve in — whichever landed last used to write
+  // its listing into state and keep it.
+  //
+  // That is not a theoretical race. It was measured: `/admin/files?node=mnt:jobs:<id>` rendered the
+  // ROOT listing, because root is one cheap query and a job folder is five, so the root response
+  // overtook the folder it was supposed to be replaced by. The symptom is the worst kind — the deep
+  // link looks like it simply does nothing, and the folder it opened is nowhere on screen.
+  //
+  // So every load takes a ticket, and only the newest ticket may touch state. A superseded response
+  // is discarded entirely, including its `setLoading(false)` — otherwise a stale answer clears the
+  // spinner while the folder the user actually asked for is still loading.
+  const loadSeq = useRef(0);
+
   const load = useCallback(async (pid: string | null) => {
+    const seq = ++loadSeq.current;
+    const current = () => loadSeq.current === seq;
     setLoading(true);
     setError(null);
-    const res = await fetch(`/api/admin/files?parent=${pid ?? 'root'}`);
-    setLoading(false);
+    const res = await fetch(`/api/admin/files?parent=${encodeURIComponent(pid ?? 'root')}`);
+    if (!current()) return;
     if (!res.ok) {
+      setLoading(false);
       setError(await errOf(res, 'Failed to load files.'));
       setNodes([]);
       return;
     }
     const data = await res.json();
+    if (!current()) return;
+    setLoading(false);
     setNodes(data.nodes ?? []);
     setBreadcrumb(data.breadcrumb ?? []);
     setParentAccess(data.parent_access ?? 'view');
+    // A job folder is a view of a job; this is the page it belongs to.
+    setFolderHref(data.open_href ?? null);
   }, []);
 
   useEffect(() => {
     load(parentId);
     setSelected(new Set()); // selection is per-folder
   }, [parentId, load]);
+
+  // ── ?node= — so anything can link INTO a folder ───────────────────────────────────────────────
+  //
+  // Without this the explorer was only reachable at its root, so "this job's files" could be
+  // described but never linked to, and every cross-reference in the product had to end with an
+  // instruction to click through the tree. Read once on mount from `window.location` rather than
+  // `useSearchParams`, which would require wrapping this page in a Suspense boundary for a value
+  // that is only consulted at startup.
+  useEffect(() => {
+    const node = new URLSearchParams(window.location.search).get('node');
+    if (node) setParentId(node);
+  }, []);
 
   // ── F2/F3 — search + format filters ──────────────────────────────────────────────────────────
   //
@@ -402,13 +474,85 @@ export default function FilesPage(): React.ReactElement {
   }
 
   async function remove(n: FileNode) {
-    if (!window.confirm(`Delete "${n.name}"${n.node_type === 'folder' ? ' and everything inside it' : ''}? This can be undone by an admin.`)) return;
+    // The old copy promised "this can be undone by an admin", which was not true of any screen that
+    // existed — deletes were soft in the database and unreachable everywhere else. Now that the bin
+    // is real, the prompt names where the thing actually goes.
+    if (!window.confirm(`Delete "${n.name}"${n.node_type === 'folder' ? ' and everything inside it' : ''}? You can restore it from the bin.`)) return;
     const res = await fetch(`/api/admin/files/${n.id}`, { method: 'DELETE' });
     if (!res.ok) {
       setError(await errOf(res, 'Could not delete.'));
       return;
     }
     load(parentId);
+  }
+
+  // ---- history (2026-08-19) ---------------------------------------------
+  //
+  // Opened per node, and for the folder being viewed. A folder's own record is nearly empty by
+  // nature, so the endpoint folds in what happened to its contents — which is the question somebody
+  // standing in a folder actually has.
+  async function openHistory(n: { id: string; name: string }) {
+    setHistFor(n);
+    setHistBusy(true);
+    setHistEvents([]);
+    setHistNote(null);
+    const res = await fetch(`/api/admin/files/${encodeURIComponent(n.id)}/history`);
+    setHistBusy(false);
+    if (!res.ok) {
+      setHistFor(null);
+      setError(await errOf(res, 'Could not load the history.'));
+      return;
+    }
+    const data = await res.json();
+    setHistEvents(data.events ?? []);
+    setHistNote(data.note ?? null);
+  }
+
+  // ---- the bin (2026-08-19) ---------------------------------------------
+  const loadBin = useCallback(async () => {
+    setBinBusy(true);
+    const res = await fetch('/api/admin/files/bin');
+    setBinBusy(false);
+    if (!res.ok) {
+      setError(await errOf(res, 'Could not open the bin.'));
+      return;
+    }
+    setBinEntries((await res.json()).entries ?? []);
+  }, []);
+
+  async function openBin() {
+    setBinOpen(true);
+    await loadBin();
+  }
+
+  async function restoreFromBin(e: BinEntry) {
+    setBinBusy(true);
+    const res = await fetch(`/api/admin/files/bin/${encodeURIComponent(e.id)}`, { method: 'POST' });
+    setBinBusy(false);
+    if (!res.ok) {
+      setError(await errOf(res, 'Could not restore that item.'));
+      return;
+    }
+    const data = await res.json();
+    // Saying so is the point: a file that reappears under a name nobody chose reads as the wrong
+    // file having been restored.
+    if (data.renamed) {
+      setError(`"${e.name}" came back as "${data.name}" — something with its old name is already there.`);
+    }
+    await loadBin();
+    load(parentId);
+  }
+
+  async function purgeFromBin(e: BinEntry) {
+    if (!window.confirm(`Permanently delete "${e.name}"${e.items ? ` and ${e.items} item(s) inside it` : ''}? This cannot be undone.`)) return;
+    setBinBusy(true);
+    const res = await fetch(`/api/admin/files/bin/${encodeURIComponent(e.id)}`, { method: 'DELETE' });
+    setBinBusy(false);
+    if (!res.ok) {
+      setError(await errOf(res, 'Could not permanently delete that item.'));
+      return;
+    }
+    await loadBin();
   }
 
   // ---- permissions dialog (F7) ------------------------------------------
@@ -729,6 +873,9 @@ export default function FilesPage(): React.ReactElement {
               <X size={16} />
             </button>
           )}
+          <button type="button" className="fx-btn fx-btn--ghost" onClick={openBin} disabled={busy} data-testid="fx-bin-open">
+            <Trash2 size={16} /> Bin
+          </button>
           <button type="button" className="fx-btn fx-btn--ghost" onClick={createFolder} disabled={!canWriteHere || busy} data-testid="fx-new-folder">
             <FolderPlus size={16} /> New folder
           </button>
@@ -826,6 +973,14 @@ export default function FilesPage(): React.ReactElement {
             </span>
           );
         })}
+        {/* A job folder's own page. Deliberately NOT wired to the folder's name click — clicking a
+            folder must open the folder, and a name that sometimes navigates away instead would make
+            the folder unopenable. */}
+        {folderHref && (
+          <a className="fx__crumb fx__crumb--open" href={folderHref} data-testid="fx-open-source">
+            <ExternalLink size={13} aria-hidden /> Open the job
+          </a>
+        )}
       </nav>
 
       {/* Selection toolbar */}
@@ -967,6 +1122,15 @@ export default function FilesPage(): React.ReactElement {
                   {canEdit(n.access) && (
                     <button type="button" className="fx__icon-btn" onClick={() => duplicate(n)} title="Duplicate" aria-label={`Duplicate ${n.name}`}>
                       <CopyPlus size={16} />
+                    </button>
+                  )}
+                  {/* Not gated on edit: if you can see the item you can see what happened to it.
+                      The endpoint applies the same rule, so this is a matching affordance rather
+                      than a second, weaker gate. Mounts are read-only views of other systems and
+                      have no history of their own. */}
+                  {!n.id.startsWith('mnt:') && (
+                    <button type="button" className="fx__icon-btn" onClick={() => openHistory(n)} title="History" aria-label={`History for ${n.name}`} data-testid={`fx-history-${n.id}`}>
+                      <History size={16} />
                     </button>
                   )}
                   {canEdit(n.access) && (
@@ -1195,6 +1359,116 @@ export default function FilesPage(): React.ReactElement {
         </div>
       )}
 
+      {/* ── History ──────────────────────────────────────────────────────────────────────────── */}
+      {histFor && (
+        <div
+          className="fx__modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`History for ${histFor.name}`}
+          data-testid="fx-history-dialog"
+          onClick={(e) => { if (e.target === e.currentTarget) setHistFor(null); }}
+        >
+          <div className="fx__sheet">
+            <div className="fx__sheet-head">
+              <div>
+                <h2 className="fx__sheet-title">History</h2>
+                <p className="fx__sheet-sub">{histFor.name}</p>
+              </div>
+              <button type="button" className="fx__icon-btn" onClick={() => setHistFor(null)} aria-label="Close" data-testid="fx-history-close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="fx__sheet-body">
+              {histBusy && <p className="fx__hist-empty">Loading…</p>}
+              {!histBusy && histNote && <p className="fx__hist-empty">{histNote}</p>}
+              {!histBusy && !histNote && histEvents.length === 0 && (
+                // Said plainly, because "nothing here" and "tracking is broken" look identical
+                // otherwise — and in this codebase that has been the true answer before.
+                <p className="fx__hist-empty">
+                  Nothing has been recorded for this item yet. Changes made from now on will appear here.
+                </p>
+              )}
+              {!histBusy && histEvents.length > 0 && (
+                <ol className="fx__hist" data-testid="fx-history-list">
+                  {histEvents.map((ev) => (
+                    <li key={ev.id} className="fx__hist-item">
+                      <div className="fx__hist-line">
+                        <span className="fx__hist-label">{ev.label}</span>
+                        {ev.node_name && <span className="fx__hist-node">{ev.node_name}</span>}
+                        {ev.detail && <span className="fx__hist-detail">{ev.detail}</span>}
+                      </div>
+                      <div className="fx__hist-meta">
+                        {ev.actor} · {new Date(ev.at).toLocaleString()}
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── The bin ──────────────────────────────────────────────────────────────────────────── */}
+      {binOpen && (
+        <div
+          className="fx__modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Deleted items"
+          data-testid="fx-bin-dialog"
+          onClick={(e) => { if (e.target === e.currentTarget) setBinOpen(false); }}
+        >
+          <div className="fx__sheet">
+            <div className="fx__sheet-head">
+              <div>
+                <h2 className="fx__sheet-title">Bin</h2>
+                <p className="fx__sheet-sub">Deleted files and folders you can restore</p>
+              </div>
+              <button type="button" className="fx__icon-btn" onClick={() => setBinOpen(false)} aria-label="Close" data-testid="fx-bin-close">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="fx__sheet-body">
+              {binBusy && <p className="fx__hist-empty">Working…</p>}
+              {!binBusy && binEntries.length === 0 && (
+                <p className="fx__hist-empty">The bin is empty.</p>
+              )}
+              {!binBusy && binEntries.length > 0 && (
+                <ul className="fx__bin" data-testid="fx-bin-list">
+                  {binEntries.map((e) => (
+                    <li key={e.id} className="fx__bin-item">
+                      <div className="fx__bin-main">
+                        <span className="fx__bin-name">
+                          {e.node_type === 'folder' ? <Folder size={15} aria-hidden /> : <FileText size={15} aria-hidden />}
+                          {e.name}
+                        </span>
+                        <span className="fx__bin-meta">
+                          {/* Where it goes back to, and how much comes with it: "restore" is a
+                              promise about a destination. */}
+                          from {e.in_folder}
+                          {e.items > 0 && ` · ${e.items} item${e.items === 1 ? '' : 's'} inside`}
+                          {' · '}deleted {new Date(e.deleted_at).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="fx__bin-actions">
+                        <button type="button" className="fx-chip" onClick={() => restoreFromBin(e)} disabled={binBusy} data-testid={`fx-bin-restore-${e.id}`}>
+                          <RotateCcw size={14} /> Restore
+                        </button>
+                        <button type="button" className="fx-chip fx-chip--danger" onClick={() => purgeFromBin(e)} disabled={binBusy} data-testid={`fx-bin-purge-${e.id}`}>
+                          <Trash2 size={14} /> Delete forever
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {fileDrag && (
         <div className="fx__dropzone" aria-hidden>
           <div className="fx__dropzone-card">
@@ -1225,6 +1499,8 @@ const styles = `
   .fx-btn--paste:hover:not(:disabled) { background: #9d0f14; }
   .fx-btn:disabled, .fx-btn--disabled { opacity: 0.5; cursor: not-allowed; }
 
+  .fx__crumb--open { margin-left: auto; display: inline-flex; align-items: center; gap: 0.3rem; text-decoration: none; color: var(--color-brand-navy, #1E3A5F); font-weight: 600; }
+  .fx__crumb--open:hover { text-decoration: underline; }
   .fx__crumbs { max-width: 1100px; margin: 0 auto 0.85rem; display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; font-size: 0.9rem; }
   .fx__crumb-wrap { display: inline-flex; align-items: center; gap: 0.15rem; }
   .fx__crumb { display: inline-flex; align-items: center; gap: 0.3rem; background: none; border: none; cursor: pointer; color: #1D3095; font: inherit; font-weight: 600; padding: 0.2rem 0.35rem; border-radius: 6px; }
@@ -1295,6 +1571,23 @@ const styles = `
   .fx__sheet-sub { margin: 0.15rem 0 0; color: #6b7280; font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 24rem; }
   .fx__sheet-body { padding: 1rem 1.25rem; overflow-y: auto; }
   .fx__sheet-foot { display: flex; justify-content: flex-end; gap: 0.5rem; padding: 0.85rem 1.25rem; border-top: 1px solid #eef0f5; }
+
+  /* History + bin (2026-08-19) */
+  .fx__hist-empty { margin: 0; color: #6b7280; font-size: 0.9rem; line-height: 1.5; }
+  .fx__hist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.7rem; }
+  .fx__hist-item { border-left: 2px solid #e5e7eb; padding: 0 0 0 0.7rem; }
+  .fx__hist-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; }
+  .fx__hist-label { font-weight: 700; font-size: 0.9rem; color: #1D3095; }
+  .fx__hist-node { font-size: 0.85rem; color: #111827; font-weight: 600; word-break: break-word; }
+  .fx__hist-detail { font-size: 0.85rem; color: #4b5563; word-break: break-word; }
+  .fx__hist-meta { font-size: 0.78rem; color: #6b7280; margin-top: 0.15rem; }
+
+  .fx__bin { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.6rem; }
+  .fx__bin-item { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.6rem 0.7rem; border: 1px solid #eef0f5; border-radius: 10px; }
+  .fx__bin-main { min-width: 0; flex: 1 1 14rem; }
+  .fx__bin-name { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 600; font-size: 0.92rem; word-break: break-word; }
+  .fx__bin-meta { display: block; font-size: 0.78rem; color: #6b7280; margin-top: 0.15rem; }
+  .fx__bin-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 
   .fx__seg { display: inline-flex; background: #eef1fb; border-radius: 10px; padding: 0.2rem; gap: 0.2rem; }
   .fx__seg-opt { font: inherit; font-weight: 700; font-size: 0.85rem; padding: 0.4rem 0.95rem; border: none; background: none; color: #1D3095; border-radius: 8px; cursor: pointer; }

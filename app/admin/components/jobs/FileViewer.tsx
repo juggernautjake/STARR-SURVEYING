@@ -3,10 +3,22 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { FileText, Paperclip } from 'lucide-react';
 
+// A job attachment's bytes are reachable in three different ways depending on which writer made
+// the row — a storage object, a legacy `data:` URI, or a linked File Explorer document. The server
+// resolves that to one `download_href` (see `lib/jobs/file-storage.ts`); this component just
+// prefers it, and keeps reading `file_url` so nothing that has not been updated breaks.
+/** Where this file's bytes actually are. `download_href` covers storage, legacy and linked rows;
+ *  `file_url` remains for any caller still passing a raw row. */
+function src(file: { file_url?: string; download_href?: string | null }): string | null {
+  return (file.download_href ?? file.file_url) || null;
+}
+
 interface FileViewerProps {
   file: {
     file_name: string;
     file_url?: string;
+    /** Resolved by `GET /api/admin/jobs/files` — works for every row shape. */
+    download_href?: string | null;
     file_type: string;
     mime_type?: string;
   };
@@ -167,9 +179,9 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
                 <span className="file-viewer__divider" />
               </>
             )}
-            {file.file_url && (
+            {src(file) && (
               <a
-                href={file.file_url}
+                href={src(file) ?? undefined}
                 download={file.file_name}
                 className="file-viewer__ctrl-btn"
                 title="Download"
@@ -194,7 +206,7 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
           onMouseLeave={handleMouseUp}
           style={{ cursor: category === 'image' ? (dragging ? 'grabbing' : 'grab') : 'default' }}
         >
-          {!file.file_url ? (
+          {!src(file) ? (
             <div className="file-viewer__no-preview">
               <span className="file-viewer__no-preview-icon"><FileText size={36} strokeWidth={1.5} /></span>
               <p>No file URL available for preview</p>
@@ -210,7 +222,7 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={file.file_url}
+                src={src(file) ?? undefined}
                 alt={file.file_name}
                 className="file-viewer__image"
                 draggable={false}
@@ -218,13 +230,13 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
             </div>
           ) : category === 'pdf' ? (
             <iframe
-              src={file.file_url}
+              src={src(file) ?? undefined}
               className="file-viewer__iframe"
               title={file.file_name}
             />
           ) : category === 'text' ? (
             <iframe
-              src={file.file_url}
+              src={src(file) ?? undefined}
               className="file-viewer__iframe"
               title={file.file_name}
             />
@@ -233,8 +245,8 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
               <span className="file-viewer__no-preview-icon"><Paperclip size={36} strokeWidth={1.5} /></span>
               <p>Preview not available for this file type</p>
               <p className="file-viewer__no-preview-sub">{file.file_name}</p>
-              {file.file_url && (
-                <a href={file.file_url} download={file.file_name} className="file-viewer__download-link">
+              {src(file) && (
+                <a href={src(file) ?? undefined} download={file.file_name} className="file-viewer__download-link">
                   Download File
                 </a>
               )}

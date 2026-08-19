@@ -237,10 +237,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Activity log is purely advisory — never surface its failure.
   await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
-    action: 'job_created',
+    action_type: 'job_created',
     entity_type: 'job',
     entity_id: job.id,
-    details: { job_number: finalJobNumber, name },
+    metadata: { job_number: finalJobNumber, name },
   }));
 
   return NextResponse.json(

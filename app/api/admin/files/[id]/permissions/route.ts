@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin, ALL_ROLES, type UserRole } from '@/lib/auth';
 import { accessForNode, loadGrants, replaceGrants } from '@/lib/files/server';
 import { canManage, type FileUser, type PermissionGrant } from '@/lib/files/permissions';
+import { recordFileEvent } from '@/lib/files/audit-log';
 
 const ACCESS_LEVELS = ['view', 'download', 'edit', 'manage'] as const;
 type GrantAccess = (typeof ACCESS_LEVELS)[number];
@@ -119,5 +120,25 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 
   const result = await replaceGrants(node.id, mode, grants);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 });
+
+  // Who could see what, and when it changed, is the entry an audit actually gets asked for. The
+  // grants are stored in full rather than summarised — a count tells you something changed, but not
+  // whether the thing that changed was "everyone can now download this".
+  await recordFileEvent({
+    action: 'file_permissions_changed',
+    nodeId: node.id,
+    actorEmail: user.email,
+    metadata: {
+      name: node.name,
+      permission_mode: mode,
+      grant_count: grants.length,
+      grants: grants.map((g) => ({
+        grantee_type: g.grantee_type,
+        grantee_value: g.grantee_value,
+        access_level: g.access_level,
+      })),
+    },
+  });
+
   return NextResponse.json({ ok: true, permission_mode: mode, grants });
 }

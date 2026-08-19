@@ -16,6 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { copySubtree, getNode } from '@/lib/files/server';
 import type { FileUser } from '@/lib/files/permissions';
+import { recordFileEvent } from '@/lib/files/audit-log';
 
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
@@ -37,9 +38,29 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     destParentId = body.parent_id && body.parent_id !== 'root' ? body.parent_id : null;
   }
 
+  const src = await getNode(id);
   const result = await copySubtree(id, destParentId, user, admin, body.name);
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status ?? 500 });
   }
+
+  // Recorded against the NEW node, not the original: the question a copy raises later is "where did
+  // this come from", and that belongs in the copy's own history. The source is named in the
+  // metadata so the trail still points back.
+  if (result.node?.id) {
+    await recordFileEvent({
+      action: 'file_copied',
+      nodeId: String(result.node.id),
+      actorEmail: user.email,
+      metadata: {
+        name: result.node.name,
+        source_id: id,
+        source_name: src?.name ?? null,
+        parent_id: destParentId,
+        copied: result.copied,
+      },
+    });
+  }
+
   return NextResponse.json({ node: result.node, copied: result.copied, skipped: result.skipped });
 }

@@ -74,8 +74,14 @@ describe('F5 — a link, not a copy', () => {
   it('does not auto-create a backup for a linked file', () => {
     // The backup exists because `file_url` holds the only copy of an uploaded file's bytes. A
     // reference has no bytes, so a "backup" would be a second pointer at the same document.
-    const s = src(ROUTE);
-    expect(s).toMatch(/create_backup\s*!==\s*false\s*&&\s*!file_node_id/);
+    //
+    // The RULE outlived the inline condition that used to state it. Job files moved to storage on
+    // 2026-08-19, which added a third case with the same property — a storage row's twin would
+    // point at the same key — so the decision moved into `wantsBackupRow` and this guard follows
+    // it there. Deleting the guard because its old spelling vanished is how a guarantee gets lost
+    // during a refactor that never intended to drop it.
+    expect(src(ROUTE)).toMatch(/wantsBackupRow\(/);
+    expect(src('lib/jobs/file-storage.ts')).toMatch(/shapeOf\(row\) === 'legacy-inline'/);
   });
 
   it('never writes bytes for an attach — the client sends no file_url', () => {
@@ -88,7 +94,20 @@ describe('F5 — a link, not a copy', () => {
   it('downloads a linked file through the explorer route, not from the job row', () => {
     // Routing the download through the explorer means the VIEWER's access is re-checked, not just the
     // attacher's — otherwise a job page would leak documents to everyone who can see the job.
-    expect(src(MANAGER)).toMatch(/\/api\/admin\/files\/\$\{file\.file_node_id\}\/download/);
+    //
+    // The manager used to spell this URL inline, in one of TWO download controls — which is how a
+    // storage-backed upload ended up with no download button at all. There is one control now, and
+    // the href comes from `downloadHref`, so this asserts the rule where it now lives.
+    expect(src('lib/jobs/file-storage.ts')).toMatch(/case 'linked':[\s\S]{0,400}\/api\/admin\/files\/\$\{row\.file_node_id\}\/download/);
+    expect(src(MANAGER)).toMatch(/hrefOf\(file\)/);
+  });
+
+  it('and a job attachment never serves a linked document itself', () => {
+    // The other half of the same rule, on the route added with storage: asked for a linked row's
+    // bytes, the job download must hand the caller to the explorer rather than answering.
+    const s = src('app/api/admin/jobs/files/[id]/download/route.ts');
+    expect(s).toMatch(/shape === 'linked'/);
+    expect(s).toMatch(/\/api\/admin\/files\/\$\{row\.file_node_id\}\/download/);
   });
 });
 

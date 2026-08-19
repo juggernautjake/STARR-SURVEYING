@@ -1,6 +1,7 @@
 // app/admin/components/jobs/JobFileManager.tsx — File management with viewer + multi upload
 'use client';
 import { useState } from 'react';
+import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
 import { Loader2, FolderOpen, Eye, Download, Trash2, Link2 } from 'lucide-react';
 import FileViewer, { isImageFile } from './FileViewer';
 import FilePicker from '@/app/admin/components/files/FilePicker';
@@ -10,6 +11,9 @@ interface JobFile {
   file_name: string;
   file_type: string;
   file_url?: string;
+  /** Resolved by `GET /api/admin/jobs/files`: works whether the bytes are a storage object, a
+   *  legacy `data:` URI, or a linked File Explorer document. */
+  download_href?: string | null;
   file_size?: number;
   mime_type?: string;
   section: string;
@@ -87,7 +91,17 @@ function detectFileType(fileName: string): string {
 
 interface Props {
   files: JobFile[];
-  onUpload?: (file: { file_name: string; file_type: string; file_url: string; file_size: number; mime_type?: string; section: string; description: string }) => void;
+  onUpload?: (file: {
+    file_name: string; file_type: string; file_size: number; mime_type?: string;
+    section: string; description: string;
+    /** The storage shape — the id the upload route minted and the key the bytes went to. */
+    file_id?: string; storage_path?: string;
+    /** Legacy only. Kept so a caller that has not been given a `jobId` still works. */
+    file_url?: string;
+  }) => void;
+  /** Required for real uploads. Without it the component falls back to the old inline path, which
+   *  is what every byte in this table used to be — see `lib/jobs/file-storage.ts`. */
+  jobId?: string;
   onDelete?: (id: string) => void;
   activeSection?: string;
   /**
@@ -98,7 +112,7 @@ interface Props {
   onAttachFromFiles?: (attach: { file_node_id: string; file_name: string; file_type: string; section: string; description: string }) => void;
 }
 
-export default function JobFileManager({ files, onUpload, onDelete, activeSection, onAttachFromFiles }: Props) {
+export default function JobFileManager({ files, onUpload, onDelete, activeSection, onAttachFromFiles, jobId }: Props) {
   const [section, setSection] = useState(activeSection || 'general');
   const [showUpload, setShowUpload] = useState(false);
   const [uploadType, setUploadType] = useState('document');
@@ -107,6 +121,8 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
   const [viewingFile, setViewingFile] = useState<JobFile | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadCount, setUploadCount] = useState(0);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
 
   const sectionFiles = files.filter(f => !activeSection || f.section === section);
@@ -118,54 +134,87 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
     return (bytes / 1048576).toFixed(1) + ' MB';
   }
 
-  function processFile(file: File) {
-    const reader = new FileReader();
-    reader.onload = () => {
+  // ── THE BYTES GO TO STORAGE NOW, NOT INTO A DATABASE COLUMN (2026-08-19) ────────────────────
+  //
+  // This used to be `FileReader.readAsDataURL` → the whole file, base64, posted as JSON and stored
+  // in `job_files.file_url`. Two things were wrong with that and neither announced itself: a 10 MB
+  // PDF became ~13 MB of text on a row that every file list pulls, and the File Explorer — which
+  // reads storage objects — could not see a single attachment the job page had ever made.
+  //
+  // It is also now AWAITED. The old version fired one FileReader per file and hid the form after a
+  // fixed 500 ms, so a failure looked exactly like a success: the form closed, the list reloaded,
+  // and the file simply was not there.
+  async function uploadMany(list: FileList) {
+    const chosen = Array.from(list);
+    if (chosen.length === 0) return;
+
+    setUploading(true);
+    setUploadCount(chosen.length);
+    setUploadError(null);
+
+    let done = 0;
+    for (const file of chosen) {
       const detectedType = detectFileType(file.name);
-      onUpload?.({
-        file_name: file.name,
-        file_type: uploadType === 'document' ? detectedType : uploadType,
-        file_url: reader.result as string,
-        file_size: file.size,
-        mime_type: file.type,
-        section,
-        description,
-      });
-    };
-    reader.readAsDataURL(file);
+      const file_type = uploadType === 'document' ? detectedType : uploadType;
+      try {
+        if (jobId) {
+          setUploadNote(`Uploading ${file.name} (${done + 1}/${chosen.length})…`);
+          const { file_id, storage_path } = await uploadJobFileBytes(jobId, file, (pct) =>
+            setUploadNote(`Uploading ${file.name} (${done + 1}/${chosen.length})… ${pct}%`),
+          );
+          await onUpload?.({
+            file_name: file.name, file_type, file_size: file.size, mime_type: file.type,
+            section, description, file_id, storage_path,
+          });
+        } else {
+          // No job id supplied: the old inline path, so an unwired caller still works rather than
+          // silently dropping the file.
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+            reader.readAsDataURL(file);
+          });
+          await onUpload?.({
+            file_name: file.name, file_type, file_size: file.size, mime_type: file.type,
+            section, description, file_url: dataUrl,
+          });
+        }
+        done += 1;
+      } catch (err) {
+        setUploadError(err instanceof Error ? err.message : `Could not upload ${file.name}.`);
+        break;
+      }
+    }
+
+    setUploading(false);
+    setUploadCount(0);
+    setUploadNote(null);
+    if (done === chosen.length) {
+      setDescription('');
+      setShowUpload(false);
+    }
   }
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault();
     setDragActive(false);
-    const fileList = e.dataTransfer.files;
-    if (!fileList.length) return;
-
-    setUploading(true);
-    setUploadCount(fileList.length);
-    for (let i = 0; i < fileList.length; i++) {
-      processFile(fileList[i]);
-    }
-    setDescription('');
-    setTimeout(() => { setShowUpload(false); setUploading(false); setUploadCount(0); }, 500);
+    if (e.dataTransfer.files.length) void uploadMany(e.dataTransfer.files);
   }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const fileList = e.target.files;
     if (!fileList?.length) return;
-
-    setUploading(true);
-    setUploadCount(fileList.length);
-    for (let i = 0; i < fileList.length; i++) {
-      processFile(fileList[i]);
-    }
-    setDescription('');
-    setTimeout(() => { setShowUpload(false); setUploading(false); setUploadCount(0); }, 500);
+    void uploadMany(fileList);
     e.target.value = '';
   }
 
+  function hrefOf(file: JobFile): string | null {
+    return (file.download_href ?? file.file_url) || null;
+  }
+
   function canPreview(file: JobFile): boolean {
-    if (!file.file_url) return false;
+    if (!hrefOf(file)) return false;
     return isImageFile(file.file_name, file.mime_type) ||
       file.file_name.toLowerCase().endsWith('.pdf') ||
       file.file_name.toLowerCase().endsWith('.txt') ||
@@ -213,6 +262,12 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
         </div>
       )}
 
+      {/* A failed upload has to say so. The old path hid the form on a timer whether or not
+          anything arrived, so "it didn't upload" and "it uploaded" looked identical. */}
+      {uploadError && (
+        <div className="job-files__upload-error" role="alert">{uploadError}</div>
+      )}
+
       {showUpload && (
         <div className="job-files__upload-form">
           <div className="job-files__upload-row">
@@ -241,7 +296,12 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
             {uploading ? (
               <>
                 <span className="job-files__drop-icon"><Loader2 size={24} strokeWidth={2} className="animate-spin" /></span>
-                <p className="job-files__drop-text">Uploading {uploadCount} file{uploadCount !== 1 ? 's' : ''}...</p>
+                {/* The per-file line, with a percentage on the file being sent. A 90 MB drawing is
+                    now a real upload rather than an instant base64 read, so a spinner with no
+                    progress behind it is indistinguishable from a hang. */}
+                <p className="job-files__drop-text">
+                  {uploadNote ?? `Uploading ${uploadCount} file${uploadCount !== 1 ? 's' : ''}…`}
+                </p>
               </>
             ) : (
               <>
@@ -331,20 +391,22 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                       <Eye size={15} strokeWidth={2} />
                     </button>
                   )}
-                  {file.file_url && (
-                    <a href={file.file_url} download={file.file_name} className="job-files__item-btn" title="Download">
-                      <Download size={15} strokeWidth={2} />
-                    </a>
-                  )}
-                  {/* F5 — a linked file downloads through the EXPLORER's route, not from here. That
-                      route re-checks the viewer's own access, so a job page can never become a way to
-                      read a document you are not entitled to: whoever attached it had access, but
-                      whoever is looking now must too. */}
-                  {file.file_node_id && file.linked_file?.available && (
+                  {/* ONE download control for every shape. It used to be two — one reading
+                      `file_url` and one for linked documents — which meant a storage-backed upload,
+                      the shape everything writes now, had NO download button at all.
+
+                      F5 still holds and is why this is a plain href rather than a fetch: a linked
+                      file resolves to the EXPLORER's own route, which re-checks the viewer's access.
+                      Whoever attached it had access; whoever is looking now must too. A linked row
+                      whose document is gone shows no button, because there is nothing to hand over. */}
+                  {hrefOf(file) && !(file.file_node_id && !file.linked_file?.available) && (
                     <a
-                      href={`/api/admin/files/${file.file_node_id}/download`}
+                      href={hrefOf(file) as string}
+                      download={file.file_name}
                       className="job-files__item-btn"
-                      title="Download from the File Explorer (checks your own permissions)"
+                      title={file.file_node_id
+                        ? 'Download from the File Explorer (checks your own permissions)'
+                        : 'Download'}
                     >
                       <Download size={15} strokeWidth={2} />
                     </a>

@@ -13,6 +13,7 @@ import { canEdit, type FileUser } from '@/lib/files/permissions';
 import { sanitizeName, nextAvailableName } from '@/lib/files/tree';
 import { provisionForUser } from '@/lib/files/provision';
 import { MOUNT_PREFIX, mountRootNodes, listMount } from '@/lib/files/mounts';
+import { recordFileEvent } from '@/lib/files/audit-log';
 
 function sessionUser(session: { user?: { email?: string | null; roles?: string[] } } | null): FileUser | null {
   if (!session?.user?.email) return null;
@@ -35,8 +36,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       parent_id: parentId,
       parent_access: 'view',
-      breadcrumb: [{ id: parentId, name: m.name }],
+      // A flat mount is one crumb deep; the Jobs mount is three (Jobs / the job / the kind) and
+      // returns its own trail, so somebody inside a job folder can still climb out.
+      breadcrumb: m.trail ?? [{ id: parentId, name: m.name }],
       nodes: m.nodes,
+      // Present on a job folder: the job page it is a view of.
+      ...(m.openHref ? { open_href: m.openHref } : {}),
     });
   }
 
@@ -92,5 +97,13 @@ export async function POST(req: NextRequest) {
     .select(NODE_COLS)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await recordFileEvent({
+    action: 'file_folder_created',
+    nodeId: String(data.id),
+    actorEmail: user.email,
+    metadata: { name: finalName, parent_id: parentId },
+  });
+
   return NextResponse.json({ node: data });
 }

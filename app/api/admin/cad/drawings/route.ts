@@ -218,10 +218,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (data?.job_id) {
     await fireAndForget(supabaseAdmin.from('activity_log').insert({
       user_email: session.user.email,
-      action: 'cad_drawing_saved',
+      action_type: 'cad_drawing_saved',
       entity_type: 'job',
       entity_id: data.job_id,
-      details: { name: data.name, drawing_id: data.id },
+      metadata: { name: data.name, drawing_id: data.id },
     }));
   }
 

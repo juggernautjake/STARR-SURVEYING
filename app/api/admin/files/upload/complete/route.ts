@@ -10,6 +10,7 @@ import { accessForNode, siblingNames, NODE_COLS } from '@/lib/files/server';
 import { canEdit, type FileUser } from '@/lib/files/permissions';
 import { sanitizeName, nextAvailableName } from '@/lib/files/tree';
 import { FILE_EXPLORER_BUCKET } from '@/lib/files/upload';
+import { recordFileEvent } from '@/lib/files/audit-log';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -55,5 +56,18 @@ export async function POST(req: NextRequest) {
     .select(NODE_COLS)
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await recordFileEvent({
+    action: 'file_uploaded',
+    nodeId: String(data.id),
+    actorEmail: user.email,
+    metadata: {
+      name: finalName,
+      parent_id: parentId,
+      mime_type: body.mime_type ?? null,
+      size_bytes: typeof body.size_bytes === 'number' ? body.size_bytes : null,
+    },
+  });
+
   return NextResponse.json({ node: data });
 }

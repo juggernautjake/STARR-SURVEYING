@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { accessForNode } from '@/lib/files/server';
 import { canDownload, type FileUser } from '@/lib/files/permissions';
+import { downloadHref, shapeOf, wantsBackupRow, type JobFileRow } from '@/lib/jobs/file-storage';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -61,10 +62,20 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({
     files: files.map((f) => {
-      if (!f.file_node_id) return f;
+      // ── EVERY ROW GETS AN HREF, AND THE CALLER STOPS GUESSING (2026-08-19) ───────────────────
+      //
+      // Three writers have made rows in this table — the job page (a base64 `data:` URI in
+      // `file_url`), the mobile app (`storage_path` in the `starr-field-files` bucket) and the F5
+      // attach path (`file_node_id`, no bytes of its own). Every consumer used to reach for
+      // `file_url` and silently render nothing for the other two shapes. The rule lives in
+      // `lib/jobs/file-storage.ts` now, and is applied once, here.
+      const href = downloadHref(f as JobFileRow);
+      const shape = shapeOf(f as JobFileRow);
+      const base = { ...f, download_href: href, storage_shape: shape };
+      if (!f.file_node_id) return base;
       const node = nodes[f.file_node_id];
       return {
-        ...f,
+        ...base,
         // `linked_file` is additive — nothing that reads `file_url` today changes behaviour.
         linked_file: node
           ? { id: node.id, name: node.name, mime_type: node.mime_type, size_bytes: node.size_bytes, available: true }
@@ -78,7 +89,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { job_id, file_name, file_type, file_url, file_size, mime_type, section, description, create_backup, file_node_id } = await req.json();
+  const {
+    job_id, file_name, file_type, file_url, file_size, mime_type, section, description,
+    create_backup, file_node_id,
+    // The storage shape, from `jobs/files/upload`: the id it minted and the key the bytes went to.
+    file_id, storage_path,
+  } = await req.json();
   if (!job_id || !file_name) return NextResponse.json({ error: 'job_id and file_name required' }, { status: 400 });
 
   // F5 — attaching an existing File Explorer document. The permission check is the point of doing it
@@ -105,14 +121,34 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // Create main file record
+  // ── ONE ROW, WRITTEN IN THE SHAPE EVERYTHING ELSE READS ────────────────────────────────────
+  //
+  // A storage upload fills BOTH column families on purpose: `storage_path`/`content_type`/
+  // `file_size_bytes`/`upload_state`/`name` because that is what the mobile app and
+  // `lib/files/mounts.ts` read, and `file_name`/`file_type`/`section`/`mime_type`/`file_size`
+  // because that is what this job page's own list, its sections and its filters read. Writing only
+  // one family is precisely how the two halves of this table stopped being able to see each other.
+  //
+  // `file_url` stays NULL for a storage upload. That column is what held the base64.
+  const isStorage = typeof storage_path === 'string' && storage_path.trim().length > 0;
   const { data: file, error } = await supabaseAdmin
     .from('job_files')
     .insert({
-      job_id, file_name, file_type: file_type || 'other', file_url, file_size,
+      ...(isStorage && typeof file_id === 'string' ? { id: file_id } : {}),
+      job_id, file_name, file_type: file_type || 'other', file_size,
       mime_type, section: section || 'general', description,
       uploaded_by: session.user.email,
       file_node_id: file_node_id ?? null,
+      ...(isStorage
+        ? {
+            name: file_name,
+            storage_path: storage_path.trim(),
+            content_type: mime_type ?? null,
+            file_size_bytes: typeof file_size === 'number' ? file_size : null,
+            upload_state: 'done',
+            file_url: null,
+          }
+        : { file_url }),
     })
     .select()
     .single();
@@ -126,7 +162,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // duplicating it would create a row pointing at the SAME document, which backs up nothing, and would
   // show the job two attachments where the user made one. The File Explorer is where that document's
   // history lives.
-  if (create_backup !== false && !file_node_id) {
+  // `wantsBackupRow` extends the reasoning above to storage uploads: a twin row pointing at the
+  // SAME storage key backs up nothing, while showing the job two attachments where one was made.
+  // The twin only ever made sense while `file_url` held the only copy of the bytes.
+  if (wantsBackupRow({ file_url, storage_path, file_node_id }, create_backup !== false)) {
     await supabaseAdmin.from('job_files').insert({
       job_id, file_name: `[BACKUP] ${file_name}`, file_type, file_url, file_size,
       mime_type, section, description: `Backup of ${file_name}`,
@@ -137,10 +176,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   await fireAndForget(supabaseAdmin.from('activity_log').insert({
     user_email: session.user.email,
-    action: 'job_file_uploaded',
+    action_type: 'job_file_uploaded',
     entity_type: 'job',
     entity_id: job_id,
-    details: { file_name, file_type },
+    metadata: { file_name, file_type },
   }));
 
   return NextResponse.json({ file }, { status: 201 });
