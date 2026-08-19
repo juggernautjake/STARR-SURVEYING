@@ -352,6 +352,94 @@ try {
     bad('there is no firm-wide roll-up for the financial pages');
   }
 
+  // ── Video from a phone (2026-08-19) ──────────────────────────────────────────────────────────
+  //
+  // Owner: *"I need to be able to upload videos from phones, including android and iphones."*
+  // The blocker was not the UI — it was the bucket. `starr-field-files` caps at 100 MB, and an
+  // iPhone shoots ~350 MB per minute at 4K, so anything past ~17 seconds was refused. Video now
+  // goes to `starr-field-videos` (500 MB, video MIME allowlist).
+  console.log(`\n  video, the way a phone sends it\n`);
+
+  // An iPhone recording: `.mov`, reported as video/quicktime.
+  const movBytes = Buffer.from('Starr QA — pretend iPhone recording.\n', 'utf8');
+  const movInit = await page.request.post(`${BASE}/api/admin/jobs/files/upload`, {
+    data: { job_id: jobIds[0], name: 'field-walk.mov', size_bytes: movBytes.length, mime_type: 'video/quicktime' },
+  });
+  if (movInit.ok()) {
+    const started = await movInit.json();
+    if (started.bucket === 'starr-field-videos') ok('an iPhone .mov is routed to the video bucket');
+    else bad(`a .mov went to "${started.bucket}" — the 100 MB documents bucket`);
+
+    const put = await page.request.fetch(started.signed_url, {
+      method: 'PUT', data: movBytes, headers: { 'content-type': 'video/quicktime' },
+    });
+    if (put.ok()) ok('and storage accepts it');
+    else bad(`the video PUT was refused (${put.status()}): ${(await put.text()).slice(0, 120)}`);
+
+    const row = await page.request.post(`${BASE}/api/admin/jobs/files`, {
+      data: {
+        job_id: jobIds[0], file_id: started.file_id, storage_path: started.path,
+        storage_bucket: started.bucket, file_name: 'field-walk.mov', file_type: 'video',
+        file_size: movBytes.length, mime_type: 'video/quicktime', section: 'videos',
+      },
+    });
+    if (row.ok()) ok('the row is created in the videos section');
+    else bad(`the video row failed (${row.status()}): ${(await row.text()).slice(0, 160)}`);
+
+    const stored = await db.query('SELECT storage_bucket, section FROM public.job_files WHERE id = $1', [started.file_id]);
+    if (stored.rows[0]?.storage_bucket === 'starr-field-videos') ok('and the row remembers which bucket holds it');
+    else bad(`the row says bucket=${stored.rows[0]?.storage_bucket}`);
+
+    // The download must look in the RIGHT bucket — this is what a hardcoded constant broke.
+    const dl = await page.request.get(`${BASE}/api/admin/files/${encodeURIComponent(`mnt:job-files:${started.file_id}`)}/download`);
+    if (dl.ok()) {
+      const { url } = await dl.json();
+      const got = await page.request.fetch(url);
+      if (got.ok() && (await got.text()).includes('pretend iPhone recording')) ok('and it downloads from the video bucket, not the documents one');
+      else bad('the video download returned the wrong bytes');
+    } else {
+      bad(`the video download failed (${dl.status()})`);
+    }
+
+    // The videos section must not leak into the photos gallery, or vice versa.
+    const vids = await (await page.request.get(`${BASE}/api/admin/jobs/files?job_id=${jobIds[0]}&section=videos`)).json();
+    const pics = await (await page.request.get(`${BASE}/api/admin/jobs/files?job_id=${jobIds[0]}&section=photos`)).json();
+    if ((vids.files ?? []).some((f) => f.id === started.file_id)) ok('the Videos tab lists it');
+    else bad('the video is missing from the videos section');
+    if (!(pics.files ?? []).some((f) => f.id === started.file_id)) ok('and the Photos tab does not');
+    else bad('the video leaked into the photos gallery');
+
+    await db.query('DELETE FROM public.job_files WHERE id = $1', [started.file_id]);
+  } else {
+    bad(`starting a video upload failed (${movInit.status()}): ${(await movInit.text()).slice(0, 160)}`);
+  }
+
+  // An Android recording with an EMPTY mime type — the case that used to be misrouted.
+  const emptyType = await page.request.post(`${BASE}/api/admin/jobs/files/upload`, {
+    data: { job_id: jobIds[0], name: 'clip.mp4', size_bytes: 1024, mime_type: '' },
+  });
+  if (emptyType.ok()) {
+    const s = await emptyType.json();
+    if (s.bucket === 'starr-field-videos') ok('an Android .mp4 with no reported type still routes by extension');
+    else bad(`an .mp4 with an empty mime went to "${s.bucket}"`);
+  } else {
+    bad(`the empty-mime upload was refused (${emptyType.status()})`);
+  }
+
+  // A phone-sized video must be ACCEPTED — 250 MB is a normal minute of 4K.
+  const big = await page.request.post(`${BASE}/api/admin/jobs/files/upload`, {
+    data: { job_id: jobIds[0], name: 'long-walk.mp4', size_bytes: 250 * 1024 * 1024, mime_type: 'video/mp4' },
+  });
+  if (big.ok()) ok('a 250 MB video is accepted — it would have been refused at the old 100 MB cap');
+  else bad(`a 250 MB video was refused: ${(await big.text()).slice(0, 160)}`);
+
+  // …and a document of the same size must still be refused, or the guard is gone.
+  const bigDoc = await page.request.post(`${BASE}/api/admin/jobs/files/upload`, {
+    data: { job_id: jobIds[0], name: 'huge.pdf', size_bytes: 250 * 1024 * 1024, mime_type: 'application/pdf' },
+  });
+  if (bigDoc.status() === 400) ok('while a 250 MB document is still refused, so the guard is intact');
+  else bad(`a 250 MB PDF returned ${bigDoc.status()} — the documents cap is gone`);
+
   // ── The screens ──────────────────────────────────────────────────────────────────────────────
   console.log(`\n  the screens\n`);
   await page.goto(`${BASE}/admin/projects`, { waitUntil: 'networkidle', timeout: 180000 });

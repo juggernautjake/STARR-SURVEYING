@@ -2056,3 +2056,57 @@
  * than a broken image — as a class, because an inline hex cannot be reached by a token, a media
  * query, the print stylesheet or a contrast audit. */
 .job-video-thumb, .job-video-player { background: var(--theme-media-ground, #000); }
+
+/* Media actions (2026-08-19). "Record video" is a phone action: on a desktop the same control opens
+ * a webcam, which is never what somebody documenting a boundary wants. Shown only where a camera is
+ * the likely input — coarse pointer, i.e. a touch device. */
+.job-media__actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.job-media__capture { display: none; }
+@media (pointer: coarse) {
+  .job-media__capture { display: inline-flex; }
+  .job-media__actions { width: 100%; }
+  .job-media__actions > * { flex: 1 1 0; justify-content: center; }
+}
+
+/* ── Oversized-video dialog (2026-08-19) ──────────────────────────────────────────────────────
+ * Owner: "There should be some kind of warning/notification that pops up to let the user know that
+ * the video can only be stored as multiple videos."
+ *
+ * A real dialog rather than window.confirm: the cut takes time and needs somewhere to report
+ * progress, and a native confirm cannot say the three things that matter — how big it is, how many
+ * files it becomes, and that nothing is re-encoded. */
+.vsplit {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  background: rgba(21, 32, 80, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.vsplit__card {
+  background: var(--theme-bg-elevated, #fff);
+  border-radius: 14px;
+  max-width: 30rem;
+  width: 100%;
+  padding: 1.1rem 1.25rem;
+  box-shadow: 0 18px 50px rgba(21, 32, 80, 0.3);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.vsplit__title {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.02rem;
+  margin: 0 0 0.5rem;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.vsplit__msg { margin: 0 0 0.7rem; font-size: 0.88rem; line-height: 1.55; color: var(--theme-fg-secondary, #374151); }
+.vsplit__parts { margin: 0 0 0.9rem; padding-left: 1.1rem; font-size: 0.82rem; color: var(--color-text-muted, #6B7280); }
+.vsplit__parts li { margin-bottom: 0.15rem; overflow-wrap: anywhere; }
+.vsplit__parts span { color: var(--theme-fg-secondary, #374151); font-weight: 600; }
+.vsplit__foot { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+.vsplit__working { margin: 0; font-size: 0.82rem; color: var(--color-text-muted, #6B7280); }
+@media (max-width: 480px) {
+  .vsplit__foot > button { flex: 1 1 0; justify-content: center; }
+}

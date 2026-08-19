@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { checkJobUpload, jobFileStoragePath, JOB_FILES_BUCKET } from '@/lib/jobs/file-storage';
+import { checkJobUpload, jobFileStoragePath, bucketFor } from '@/lib/jobs/file-storage';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -26,13 +26,16 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     project_id?: string;
     name?: string;
     size_bytes?: number;
+    /** The browser's `File.type`. Decides the bucket and therefore the cap — video gets 500 MB
+     *  rather than 100, which is the difference between a phone video uploading and not. */
+    mime_type?: string;
   };
 
   if (!body.job_id && !body.project_id) {
     return NextResponse.json({ error: 'job_id or project_id is required.' }, { status: 400 });
   }
 
-  const check = checkJobUpload({ name: body.name, sizeBytes: body.size_bytes });
+  const check = checkJobUpload({ name: body.name, sizeBytes: body.size_bytes, mime: body.mime_type });
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
 
   // The owner has to exist, and has to not be in the bin. Without this, a mistyped id writes an
@@ -47,7 +50,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     if (!project) return NextResponse.json({ error: 'That project no longer exists.' }, { status: 404 });
   }
 
-  await ensureStorageBucket(JOB_FILES_BUCKET, { public: false });
+  // Video goes to the 500 MB video bucket; everything else to the 100 MB documents bucket. One
+  // function decides, so the upload, the row and the download cannot disagree — see seeds/605.
+  const bucket = bucketFor(body.name, body.mime_type);
+  await ensureStorageBucket(bucket, { public: false });
 
   // The row id is minted HERE and returned, so the storage key and the `job_files` row that will
   // point at it agree by construction rather than by a second lookup that could pick the wrong row.
@@ -55,7 +61,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const path = jobFileStoragePath(session.user.email, fileId, body.name as string);
 
   const { data, error } = await supabaseAdmin.storage
-    .from(JOB_FILES_BUCKET)
+    .from(bucket)
     .createSignedUploadUrl(path);
 
   if (error || !data) {
@@ -67,7 +73,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({
     file_id: fileId,
-    bucket: JOB_FILES_BUCKET,
+    bucket,
     path: data.path,
     token: data.token,
     signed_url: data.signedUrl,

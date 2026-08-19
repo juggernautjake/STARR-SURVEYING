@@ -9,15 +9,21 @@
 // Browser-only (XHR, File). The pure decisions it depends on are tested next door; what is left
 // here is the network, which is why this module is deliberately thin.
 
+import { contentTypeFor } from './file-storage';
+
 export interface JobUploadStarted {
   file_id: string;
   path: string;
   signed_url: string;
+  bucket: string;
 }
 
 export interface JobUploadResult {
   file_id: string;
   storage_path: string;
+  /** Which bucket the bytes went to. The row must record it, or the download looks in the wrong
+   *  place — video lives in `starr-field-videos`, everything else in `starr-field-files`. */
+  storage_bucket: string;
 }
 
 /** PUT with a progress callback. XHR rather than fetch because fetch still cannot report upload
@@ -26,6 +32,13 @@ function putWithProgress(url: string, file: File, onPct?: (pct: number) => void)
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
+    // ── AN EXPLICIT CONTENT TYPE (2026-08-19) ───────────────────────────────────────────────────
+    //
+    // Letting the browser derive this from `File.type` is fine until it is empty — which some
+    // Android camera apps do for their own recordings. The video bucket has a MIME allowlist, so an
+    // empty type is rejected with a message about MIME types that means nothing to somebody holding
+    // a phone. `contentTypeFor` falls back to the extension and the upload simply works.
+    xhr.setRequestHeader('Content-Type', contentTypeFor(file.name, file.type));
     xhr.upload.onprogress = (ev) => {
       if (ev.lengthComputable && onPct) onPct(Math.round((ev.loaded / ev.total) * 100));
     };
@@ -76,7 +89,7 @@ async function uploadAttachmentBytes(
   const init = await fetch('/api/admin/jobs/files/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...owner, name: file.name, size_bytes: file.size }),
+    body: JSON.stringify({ ...owner, name: file.name, size_bytes: file.size, mime_type: file.type }),
   });
 
   if (!init.ok) {
@@ -86,5 +99,5 @@ async function uploadAttachmentBytes(
 
   const started = (await init.json()) as JobUploadStarted;
   await putWithProgress(started.signed_url, file, onPct);
-  return { file_id: started.file_id, storage_path: started.path };
+  return { file_id: started.file_id, storage_path: started.path, storage_bucket: started.bucket };
 }

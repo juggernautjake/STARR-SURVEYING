@@ -12,7 +12,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
-import { MAX_JOB_FILE_BYTES } from '@/lib/jobs/file-storage';
+import { MAX_JOB_FILE_BYTES, maxBytesFor } from '@/lib/jobs/file-storage';
+import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
+import { readVideoDuration } from '@/lib/jobs/video-split-run';
 
 interface Photo {
   id: string;
@@ -90,6 +92,18 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
   const [dragOver, setDragOver] = useState(false);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  /** The camera. A SEPARATE input because `capture` is an attribute, not a runtime option — one
+   *  input cannot offer both "record now" and "choose an existing recording", and on a phone those
+   *  are genuinely different actions. */
+  const captureInput = useRef<HTMLInputElement>(null);
+  /** The oversized-video conversation: measure → confirm → cut → upload. Held in state rather than
+   *  a `window.confirm` because the cut can take a while and needs a progress line. */
+  const [splitState, setSplitState] = useState<{
+    file: File;
+    plan?: SplitPlan;
+    phase: 'measuring' | 'confirm' | 'splitting';
+    message: string;
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -121,9 +135,39 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
       setError(media === 'videos' ? 'Only video files can be added here.' : 'Only image files can be added here.');
       return;
     }
-    const tooBig = incoming.find((f) => f.size > MAX_BYTES);
+    // ── TOO BIG FOR ONE OBJECT: ASK, THEN CUT (2026-08-19) ──────────────────────────────────────
+    //
+    // Owner: *"if it finds a video to be bigger than the limit, it cuts the video up into multiple
+    // videos that are within the limit automatically. There should be some kind of
+    // warning/notification that pops up."*
+    //
+    // A DOCUMENT over the cap is still just refused — there is no sensible way to cut a PDF in half.
+    // A VIDEO gets a plan and a dialog, and the person decides before anything happens: three files
+    // appearing unannounced where one recording was expected is its own kind of failure.
+    const tooBig = incoming.find((f) => f.size > maxBytesFor(f.name, f.type));
     if (tooBig) {
-      setError(`"${tooBig.name}" is larger than ${Math.round(MAX_JOB_FILE_BYTES / 1024 / 1024)} MB, which is the storage limit for one file.`);
+      const cap = maxBytesFor(tooBig.name, tooBig.type);
+      if (media !== 'videos') {
+        setError(`"${tooBig.name}" is larger than ${Math.round(cap / 1024 / 1024)} MB, which is the storage limit for one file.`);
+        return;
+      }
+      setError(null);
+      setUploading(0);
+      // Reading the duration needs the browser to parse the container — a moment, not a decode.
+      setSplitState({ file: tooBig, phase: 'measuring', message: 'Checking how long this video is…' });
+      const durationSec = await readVideoDuration(tooBig);
+      const plan = planSplit({ sizeBytes: tooBig.size, durationSec, capBytes: cap, name: tooBig.name });
+      if (!plan.needed || plan.parts.length === 0) {
+        setSplitState(null);
+        setError(describePlan(plan, tooBig.size, cap) || 'That video cannot be stored.');
+        return;
+      }
+      setSplitState({
+        file: tooBig,
+        plan,
+        phase: 'confirm',
+        message: describePlan(plan, tooBig.size, cap),
+      });
       return;
     }
     setError(null);
@@ -133,7 +177,7 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
         // Bytes straight to storage, then a row that points at them — the same three-step the
         // Files tab and the File Explorer use. It replaced a `FileReader` that put the whole
         // photo in a database column as base64, where the File Explorer could never see it.
-        const { file_id, storage_path } = await uploadJobFileBytes(jobId, file);
+        const { file_id, storage_path, storage_bucket } = await uploadJobFileBytes(jobId, file);
         const res = await fetch('/api/admin/jobs/files', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -141,6 +185,9 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
             job_id: jobId,
             file_id,
             storage_path,
+            // Which bucket the bytes went to — video is not in the documents bucket, and a row
+            // that does not say so is a row the download cannot find.
+            storage_bucket,
             file_name: file.name,
             file_type: cfg.fileType,
             file_size: file.size,
@@ -159,7 +206,43 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
     }
     setUploading(0);
     if (fileInput.current) fileInput.current.value = '';
+    // The camera input too, or recording the same clip twice in a row fires no change event.
+    if (captureInput.current) captureInput.current.value = '';
   }, [jobId, load, media, cfg.section, cfg.fileType]);
+
+  /** The person said yes: cut the file, then hand the parts to the ordinary upload path. */
+  const runSplit = useCallback(async () => {
+    if (!splitState?.plan) return;
+    const { file, plan } = splitState;
+    setSplitState({ ...splitState, phase: 'splitting', message: 'Preparing to cut the video…' });
+    const { splitVideo } = await import('@/lib/jobs/video-split-run');
+    const outcome = await splitVideo(file, plan.parts, (p) =>
+      setSplitState((s) => (s ? { ...s, message: `Cutting part ${p.part} of ${p.total}… ${p.pct}%` } : s)));
+    setSplitState(null);
+    if (!outcome.ok || !outcome.files) {
+      setError(outcome.error ?? 'The video could not be split.');
+      return;
+    }
+    // ── A PART CAN STILL OVERSHOOT ──────────────────────────────────────────────────────────────
+    //
+    // Cuts land on keyframes, not on the requested second, so a recording with sparse keyframes can
+    // produce a piece larger than planned — measured at 5.0s against a 2.9s target on a stream with
+    // widely spaced keyframes. Uploading it anyway would mean waiting through the transfer to be
+    // refused by storage. Checked here instead, before a byte moves.
+    const cap = maxBytesFor(file.name, file.type);
+    const over = outcome.files.find((f) => f.size > cap);
+    if (over) {
+      setError(
+        `The video was cut, but "${over.name}" is still ${Math.round(over.size / 1024 / 1024)} MB — over the `
+        + `${Math.round(cap / 1024 / 1024)} MB limit, because this recording's keyframes are far apart. `
+        + 'Please record at a lower resolution, or in shorter clips.',
+      );
+      return;
+    }
+    // The parts are ordinary Files now, so nothing downstream knows a split happened.
+    await upload(outcome.files);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitState]);
 
   const remove = useCallback(async (id: string) => {
     if (!confirm(media === 'videos' ? 'Delete this video?' : 'Delete this photo?')) return;
@@ -196,9 +279,33 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
             {cfg.blurb}
           </p>
         </div>
-        <button className="jobs-page__btn jobs-page__btn--primary" onClick={() => fileInput.current?.click()} disabled={uploading > 0}>
-          {uploading > 0 ? `Uploading ${uploading}…` : cfg.addLabel}
-        </button>
+        {/* ── TWO WAYS IN ON A PHONE, ONE ON A DESKTOP (2026-08-19) ─────────────────────────────
+            Owner: *"Please make sure there is a clear and surfaced way to upload videos from mobile
+            devices and pcs."*
+
+            On a phone these are genuinely different actions and the browser cannot offer both from
+            one input: `capture` opens the camera straight into record mode, and its ABSENCE opens
+            the library. A single button has to pick one, so somebody who filmed the site an hour
+            ago either cannot reach the recording, or cannot start a new one. Both are offered, and
+            the camera one is hidden on a desktop where it would open a webcam nobody wants. */}
+        <div className="job-media__actions">
+          <button
+            className="jobs-page__btn jobs-page__btn--primary"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading > 0}
+            data-testid={`media-add-${media}`}
+          >
+            {uploading > 0 ? `Uploading ${uploading}…` : cfg.addLabel}
+          </button>
+          <button
+            className="jobs-page__btn jobs-page__btn--secondary job-media__capture"
+            onClick={() => captureInput.current?.click()}
+            disabled={uploading > 0}
+            data-testid={`media-capture-${media}`}
+          >
+            {media === 'videos' ? '🎬 Record video' : '📸 Take photo'}
+          </button>
+        </div>
         <input
           ref={fileInput}
           type="file"
@@ -206,11 +313,60 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
           multiple
           style={{ display: 'none' }}
           onChange={(e) => { if (e.target.files) upload(e.target.files); }}
+          data-testid={`media-input-${media}`}
+        />
+        {/* `capture="environment"` = the rear camera, which is the one pointed at the monument.
+            Not `multiple` — a capture produces exactly one recording. */}
+        <input
+          ref={captureInput}
+          type="file"
+          accept={media === 'videos' ? 'video/*' : 'image/*'}
+          capture="environment"
+          style={{ display: 'none' }}
+          onChange={(e) => { if (e.target.files) upload(e.target.files); }}
+          data-testid={`media-capture-input-${media}`}
         />
       </div>
 
       {error && (
         <div className="job-detail__error" role="alert" style={{ marginTop: '0.75rem' }}>{error}</div>
+      )}
+
+      {/* ── The warning the owner asked for, before anything is cut ─────────────────────────────
+          Shown as a real dialog rather than a `window.confirm` because the cut itself takes time
+          and needs somewhere to report progress — and because a native confirm cannot say the
+          three things that matter here: how big it is, how many files it becomes, and that the
+          quality is untouched. */}
+      {splitState && (
+        <div className="vsplit" role="alertdialog" aria-modal="true" aria-label="This video must be split" data-testid="video-split-dialog">
+          <div className="vsplit__card">
+            <h4 className="vsplit__title">
+              {splitState.phase === 'splitting' ? 'Cutting the video…' : 'This video is too big for one file'}
+            </h4>
+            <p className="vsplit__msg">{splitState.message}</p>
+            {splitState.phase === 'confirm' && splitState.plan && (
+              <ol className="vsplit__parts">
+                {splitState.plan.parts.map((p) => (
+                  <li key={p.index}>{p.name} <span>{Math.round(p.durationSec)}s</span></li>
+                ))}
+              </ol>
+            )}
+            <div className="vsplit__foot">
+              {splitState.phase === 'confirm' ? (
+                <>
+                  <button type="button" className="jobs-page__btn jobs-page__btn--secondary" onClick={() => setSplitState(null)} data-testid="video-split-cancel">
+                    Cancel
+                  </button>
+                  <button type="button" className="jobs-page__btn jobs-page__btn--primary" onClick={() => void runSplit()} data-testid="video-split-confirm">
+                    Split and upload
+                  </button>
+                </>
+              ) : (
+                <p className="vsplit__working">Please keep this page open.</p>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Drop zone */}

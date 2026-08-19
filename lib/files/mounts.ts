@@ -8,7 +8,7 @@
 // source is role-gated; the download route re-validates the same gate.
 
 import { supabaseAdmin } from '@/lib/supabase';
-import { shapeOf, displayName, mimeOf, sizeOf, type JobFileRow } from '@/lib/jobs/file-storage';
+import { shapeOf, displayName, mimeOf, sizeOf, bucketOf, type JobFileRow } from '@/lib/jobs/file-storage';
 import { isImageMime, isPdfMime } from './upload';
 import { STARR_DRAWING_MIME } from './kinds';
 import type { AccessLevel, FileUser } from './permissions';
@@ -119,9 +119,21 @@ function mimeFromPath(path: string | null): string | null {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic'].includes(ext)) return `image/${ext === 'jpg' ? 'jpeg' : ext}`;
   if (ext === 'pdf') return 'application/pdf';
-  if (['mp4', 'mov', 'webm'].includes(ext)) return `video/${ext}`;
+  // `video/mov` is not a real media type — a .mov is `video/quicktime`, which is what a browser
+  // needs to see before it will play the file rather than offer to download it. Same for the other
+  // container extensions a phone produces.
+  const VIDEO_MIME: Record<string, string> = {
+    mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
+    mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', '3g2': 'video/3gpp2',
+  };
+  if (VIDEO_MIME[ext]) return VIDEO_MIME[ext];
   if (['m4a', 'mp3', 'wav', 'ogg'].includes(ext)) return `audio/${ext}`;
   return null;
+}
+
+/** Video is previewable — the explorer's viewer plays it rather than offering a download. */
+function isVideoMime(mime: string | null): boolean {
+  return (mime ?? '').startsWith('video/');
 }
 
 const MEDIA_BUCKET: Record<string, string> = {
@@ -810,7 +822,7 @@ export async function resolveMountFile(fileId: string, user: FileUser, isAdmin: 
   if (key === 'job-files') {
     const { data } = await supabaseAdmin
       .from('job_files')
-      .select('id, file_name, name, file_url, storage_path, mime_type, content_type, file_node_id')
+      .select('id, file_name, name, file_url, storage_path, storage_bucket, mime_type, content_type, file_node_id')
       .eq('id', rowId)
       .maybeSingle();
     const r = data as JobFileRow | null;
@@ -832,7 +844,9 @@ export async function resolveMountFile(fileId: string, user: FileUser, isAdmin: 
       return { ok: false, status: 404, error: 'This attachment is a link to a document in Files — open it there.' };
     }
     if (shape === 'missing') return { ok: false, status: 404, error: 'That attachment has no file behind it.' };
-    return { ok: true, bucket: 'starr-field-files', path: r.storage_path as string, name, mime, previewable };
+    // Video lives in a different bucket to documents (seeds/605), so the row is asked rather than
+    // assumed — hardcoding the files bucket here would 404 every video the moment it worked.
+    return { ok: true, bucket: bucketOf(r), path: r.storage_path as string, name, mime, previewable: previewable || isVideoMime(mime) };
   }
   if (key === 'research') {
     const { data } = await supabaseAdmin.from('research_documents').select('original_filename, document_label, storage_path').eq('id', rowId).maybeSingle();

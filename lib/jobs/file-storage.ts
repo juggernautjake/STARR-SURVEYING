@@ -35,8 +35,81 @@
 /** The bucket the mobile app already uploads job files to, and the one `resolveMountFile` signs. */
 export const JOB_FILES_BUCKET = 'starr-field-files';
 
+/** ── WHERE VIDEO GOES, AND WHY IT IS NOT HERE (2026-08-19) ─────────────────────────────────────
+ *
+ *  Owner: *"I need to be able to upload videos from phones, including android and iphones."*
+ *
+ *  `starr-field-files` caps at 100 MB — seed 226 says so and explains itself: *"videos go in
+ *  starr-field-videos"*. A phone shoots ~350 MB per minute at 4K and ~65 MB at 1080p, so at
+ *  default iPhone settings anything past about seventeen seconds of 4K was refused outright.
+ *
+ *  The video bucket already existed, allows video MIME types, and caps at 500 MB. Video now goes
+ *  there; everything else stays put. */
+export const JOB_VIDEOS_BUCKET = 'starr-field-videos';
+
 /** Matches the mobile cap, which is the bucket's own `file_size_limit` from seeds/226. */
 export const MAX_JOB_FILE_BYTES = 100 * 1024 * 1024;
+/** The video bucket's own limit. Five times the documents cap, because video is five times the
+ *  problem — see seeds/605. */
+export const MAX_JOB_VIDEO_BYTES = 500 * 1024 * 1024;
+
+const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|mpe?g|hevc)$/i;
+
+/**
+ * Is this a video, by the two signals a browser actually gives us?
+ *
+ * The MIME type is checked first and the extension second, because a phone is unreliable about
+ * exactly one of them at a time: iOS reports `video/quicktime` correctly but some Android camera
+ * apps hand over an EMPTY type for their own recording. Trusting only the type sends a 300 MB
+ * `.mp4` to the 100 MB documents bucket, where it is refused for a reason nobody can act on.
+ */
+export function isVideoUpload(name?: string | null, mime?: string | null): boolean {
+  if ((mime ?? '').toLowerCase().startsWith('video/')) return true;
+  return VIDEO_EXT.test((name ?? '').trim());
+}
+
+/** Which bucket an upload belongs in. One function, so the upload, the row and the download can
+ *  never disagree about where the bytes are. */
+export function bucketFor(name?: string | null, mime?: string | null): string {
+  return isVideoUpload(name, mime) ? JOB_VIDEOS_BUCKET : JOB_FILES_BUCKET;
+}
+
+/**
+ * Which bucket an EXISTING row's bytes are in.
+ *
+ * `storage_bucket` is authoritative when set. When it is null the row predates seed 605, and every
+ * one of those was written to the files bucket — inferring from the filename instead would send a
+ * legacy `.mp4` to the video bucket, where it has never been, and 404.
+ */
+export function bucketOf(row: JobFileRow): string {
+  const named = (row.storage_bucket ?? '').trim();
+  return named || JOB_FILES_BUCKET;
+}
+
+/** The cap that actually applies to this file, which depends on where it is going. */
+export function maxBytesFor(name?: string | null, mime?: string | null): number {
+  return isVideoUpload(name, mime) ? MAX_JOB_VIDEO_BYTES : MAX_JOB_FILE_BYTES;
+}
+
+/**
+ * A content type storage will accept for this upload.
+ *
+ * `xhr.send(file)` lets the browser set the header from `File.type`, which is empty often enough to
+ * matter — and the video bucket has a MIME allowlist, so an empty type is rejected with a message
+ * about MIME types that means nothing to somebody holding a phone. Falling back to the extension
+ * turns that into an upload that simply works.
+ */
+export function contentTypeFor(name?: string | null, mime?: string | null): string {
+  const given = (mime ?? '').trim();
+  if (given) return given;
+  const ext = (name ?? '').toLowerCase().match(VIDEO_EXT)?.[1] ?? '';
+  const byExt: Record<string, string> = {
+    mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
+    mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', '3g2': 'video/3gpp2',
+    mpg: 'video/mpeg', mpeg: 'video/mpeg', hevc: 'video/hevc',
+  };
+  return byExt[ext] ?? 'application/octet-stream';
+}
 
 export interface JobFileRow {
   id?: string | null;
@@ -51,6 +124,8 @@ export interface JobFileRow {
   file_size?: number | null;
   file_size_bytes?: number | null;
   file_node_id?: string | null;
+  /** Which bucket holds the object (seeds/605). Null on rows written before video got its own. */
+  storage_bucket?: string | null;
 }
 
 /**
@@ -151,14 +226,27 @@ export interface UploadCheck {
 
 /** Validate before handing out a signed URL — a name that is only whitespace produces a storage key
  *  nobody can find again, and the bucket rejects the oversized upload only after it has been sent. */
-export function checkJobUpload(input: { name?: string | null; sizeBytes?: number | null }): UploadCheck {
+export function checkJobUpload(input: { name?: string | null; sizeBytes?: number | null; mime?: string | null }): UploadCheck {
   const name = (input.name ?? '').trim();
   if (!name) return { ok: false, error: 'A file name is required.' };
   const size = input.sizeBytes;
   if (size == null || !Number.isFinite(size) || size < 0) return { ok: false, error: 'Invalid file size.' };
   if (size === 0) return { ok: false, error: 'That file is empty.' };
-  if (size > MAX_JOB_FILE_BYTES) {
-    return { ok: false, error: `Files must be ${Math.round(MAX_JOB_FILE_BYTES / 1024 / 1024)} MB or smaller.` };
+
+  // The cap depends on where the file is going — 500 MB for video, 100 MB for everything else.
+  // Applying the documents cap to video is what refused seventeen seconds of iPhone 4K.
+  const cap = maxBytesFor(name, input.mime);
+  if (size > cap) {
+    const isVideo = isVideoUpload(name, input.mime);
+    return {
+      ok: false,
+      // Say what it is and what the limit is, not just that it failed — the person's next move is
+      // to re-record shorter or drop the resolution, and neither is guessable from "too large".
+      error: isVideo
+        ? `Videos must be ${Math.round(cap / 1024 / 1024)} MB or smaller. This one is `
+          + `${Math.round(size / 1024 / 1024)} MB — try a shorter clip, or record at 1080p instead of 4K.`
+        : `Files must be ${Math.round(cap / 1024 / 1024)} MB or smaller.`,
+    };
   }
   return { ok: true };
 }

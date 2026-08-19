@@ -67,13 +67,13 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
       const file = chosen[i];
       try {
         setBusy(`Uploading ${file.name} (${i + 1}/${chosen.length})…`);
-        const { file_id, storage_path } = await uploadProjectFileBytes(projectId, file, (pct) =>
+        const { file_id, storage_path, storage_bucket } = await uploadProjectFileBytes(projectId, file, (pct) =>
           setBusy(`Uploading ${file.name} (${i + 1}/${chosen.length})… ${pct}%`));
         const res = await fetch('/api/admin/jobs/files', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            project_id: projectId, file_id, storage_path,
+            project_id: projectId, file_id, storage_path, storage_bucket,
             file_name: file.name, file_type: isImageName(file.name) ? 'photo' : 'document',
             file_size: file.size, mime_type: file.type, section: 'project',
           }),

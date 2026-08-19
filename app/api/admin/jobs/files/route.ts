@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, fireAndForget } from '@/lib/apiErrorHandler';
 import { accessForNode } from '@/lib/files/server';
 import { canDownload, type FileUser } from '@/lib/files/permissions';
-import { downloadHref, shapeOf, wantsBackupRow, type JobFileRow } from '@/lib/jobs/file-storage';
+import { downloadHref, shapeOf, wantsBackupRow, JOB_FILES_BUCKET, type JobFileRow } from '@/lib/jobs/file-storage';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -101,8 +101,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const {
     job_id, file_name, file_type, file_url, file_size, mime_type, section, description,
     create_backup, file_node_id,
-    // The storage shape, from `jobs/files/upload`: the id it minted and the key the bytes went to.
-    file_id, storage_path,
+    // The storage shape, from `jobs/files/upload`: the id it minted, the key the bytes went to, and
+    // WHICH BUCKET — video lands in a different one to documents (seeds/605).
+    file_id, storage_path, storage_bucket,
     // 2026-08-19 — a project-level document, belonging to the engagement rather than to one job.
     project_id,
   } = await req.json();
@@ -162,6 +163,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         ? {
             name: file_name,
             storage_path: storage_path.trim(),
+            // Where the bytes actually are. Video is in a different bucket to documents; a row
+            // that does not say so is a row the download cannot find. See seeds/605.
+            storage_bucket: typeof storage_bucket === 'string' && storage_bucket.trim() ? storage_bucket.trim() : JOB_FILES_BUCKET,
             content_type: mime_type ?? null,
             file_size_bytes: typeof file_size === 'number' ? file_size : null,
             upload_state: 'done',

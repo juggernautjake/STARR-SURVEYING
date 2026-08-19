@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { shapeOf, displayName, JOB_FILES_BUCKET, type JobFileRow } from '@/lib/jobs/file-storage';
+import { shapeOf, displayName, bucketOf, type JobFileRow } from '@/lib/jobs/file-storage';
 
 const SIGNED_URL_SECONDS = 60 * 15;
 
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const { data } = await supabaseAdmin
     .from('job_files')
-    .select('id, job_id, file_name, name, file_url, storage_path, mime_type, content_type, file_node_id, is_deleted')
+    .select('id, job_id, file_name, name, file_url, storage_path, storage_bucket, mime_type, content_type, file_node_id, is_deleted')
     .eq('id', id)
     .maybeSingle();
 
@@ -75,7 +75,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   }
 
   const { data: signed, error } = await supabaseAdmin.storage
-    .from(JOB_FILES_BUCKET)
+    .from(bucketOf(row))
     .createSignedUrl(row.storage_path as string, SIGNED_URL_SECONDS);
 
   if (error || !signed?.signedUrl) {
