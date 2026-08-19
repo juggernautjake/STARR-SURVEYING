@@ -55,6 +55,16 @@ function counter(
 
 const COUNTERS: Record<string, Counter[]> = {
   work: [
+    // First, because a project is now the unit of work the firm takes on — a job is a step inside
+    // one. Counting jobs without counting projects would report the parts and not the whole.
+    counter('Active projects', '/admin/projects', () =>
+      supabaseAdmin
+        .from('projects')
+        .select('id', { count: 'exact', head: true })
+        .is('deleted_at', null)
+        .eq('is_archived', false)
+        .eq('status', 'active'),
+    ),
     counter('Active jobs', '/admin/jobs', () =>
       supabaseAdmin
         .from('jobs')

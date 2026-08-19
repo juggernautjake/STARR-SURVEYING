@@ -15,7 +15,7 @@ import type { AccessLevel, FileUser } from './permissions';
 
 export const MOUNT_PREFIX = 'mnt:';
 
-type SourceKey = 'receipts' | 'job-files' | 'research' | 'field-media' | 'drawings' | 'jobs';
+type SourceKey = 'receipts' | 'job-files' | 'research' | 'field-media' | 'drawings' | 'jobs' | 'projects';
 
 interface MountSource {
   key: SourceKey;
@@ -54,6 +54,16 @@ const SOURCES: MountSource[] = [
   // would reach receipts through a job folder that they cannot reach through the Receipts folder.
   // A permissions hole wearing a folder icon.
   { key: 'jobs', label: 'Jobs', roles: ['admin', 'developer', 'field_crew', 'drawer'] },
+  // ── Projects (2026-08-19) — one level up from Jobs ────────────────────────────────────────────
+  //
+  // A project is the engagement: one client, one parcel, several jobs over months. The Jobs mount
+  // answers *"everything for job 24-103"*; this answers *"everything for the Smith Tract"*, which
+  // is the question asked when nobody remembers which of the four jobs a drawing was filed under.
+  //
+  // It reuses `jobKindNodes` verbatim, so a file appears with the SAME id it has everywhere else
+  // (`mnt:job-files:…`) and download, preview and search need no third code path. The role gates
+  // are the same ones too, applied per kind, per job — a project folder cannot widen access.
+  { key: 'projects', label: 'Projects', roles: ['admin', 'developer', 'field_crew', 'drawer'] },
 ];
 
 /** The kinds of thing a job folder can hold, in the order a job accumulates them.
@@ -170,6 +180,7 @@ export async function listMount(mountId: string, user: FileUser, isAdmin: boolea
   if (!canSee(source, user, isAdmin)) return { ok: false, status: 403, error: 'You do not have access to this source.' };
 
   if (key === 'jobs') return listJobsMount(segments, user, isAdmin);
+  if (key === 'projects') return listProjectsMount(segments, user, isAdmin);
 
   // Every other source is a flat folder. Extra segments mean a FILE id was passed where a folder
   // was expected — listing the whole folder instead would quietly answer a different question.
@@ -550,6 +561,136 @@ async function listJobsMount(
   };
 }
 
+/**
+ * `mnt:projects` → a project → one of its jobs → a kind → the items.
+ *
+ * Four levels rather than the Jobs mount's three, and the bottom two are the SAME code: once a job
+ * is chosen it delegates to `jobKindNodes`, so a file has one id, one gate and one download path no
+ * matter which folder somebody reached it through. Adding a parallel resolver here would have been
+ * a second place to get permissions wrong.
+ */
+async function listProjectsMount(
+  segments: string[],
+  user: FileUser,
+  isAdmin: boolean,
+): Promise<MountListResult> {
+  const root = `${MOUNT_PREFIX}projects`;
+  const kinds = kindsVisibleTo(user, isAdmin);
+
+  // ── Level 1: the projects ────────────────────────────────────────────────────────────────────
+  if (segments.length === 0) {
+    const { data, error } = await supabaseAdmin
+      .from('projects')
+      .select('id, project_number, name, updated_at, is_archived')
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(LIMIT);
+    if (error) return { ok: false, status: 500, error: error.message };
+    type Row = { id: string; project_number: string | null; name: string | null; updated_at: string; is_archived: boolean | null };
+    const nodes: MountNode[] = ((data ?? []) as Row[]).map((p) => ({
+      id: `${root}:${p.id}`,
+      parent_id: root,
+      node_type: 'folder',
+      name: `${p.project_number?.trim() || 'No number'} — ${p.name?.trim() || 'Untitled project'}${p.is_archived ? ' (archived)' : ''}`,
+      mime_type: null,
+      size_bytes: null,
+      updated_at: p.updated_at,
+      access: 'view',
+    }));
+    return { ok: true, name: 'Projects', nodes, trail: [{ id: root, name: 'Projects' }] };
+  }
+
+  const [projectId, jobId, kindSeg] = segments;
+
+  const { data: projRow } = await supabaseAdmin
+    .from('projects')
+    .select('id, project_number, name')
+    .eq('id', projectId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  const project = projRow as { id: string; project_number: string | null; name: string | null } | null;
+  if (!project) return { ok: false, status: 404, error: 'That project is not here.' };
+  const projLabel = `${project.project_number?.trim() || 'No number'} — ${project.name?.trim() || 'Untitled project'}`;
+  const projNode = `${root}:${project.id}`;
+  const projTrail = [{ id: root, name: 'Projects' }, { id: projNode, name: projLabel }];
+
+  // ── Level 2: this project's jobs ─────────────────────────────────────────────────────────────
+  if (segments.length === 1) {
+    const { data, error } = await supabaseAdmin
+      .from('jobs')
+      .select('id, job_number, name, updated_at, is_archived')
+      .eq('project_id', project.id)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(LIMIT);
+    if (error) return { ok: false, status: 500, error: error.message };
+    type Row = { id: string; job_number: string | null; name: string | null; updated_at: string; is_archived: boolean | null };
+    const nodes: MountNode[] = ((data ?? []) as Row[]).map((j) => ({
+      id: `${projNode}:${j.id}`,
+      parent_id: projNode,
+      node_type: 'folder',
+      name: `${j.job_number?.trim() || 'No number'} — ${j.name?.trim() || 'Untitled job'}${j.is_archived ? ' (archived)' : ''}`,
+      mime_type: null,
+      size_bytes: null,
+      updated_at: j.updated_at,
+      access: 'view',
+    }));
+    return { ok: true, name: projLabel, nodes, trail: projTrail, openHref: `/admin/projects/${project.id}` };
+  }
+
+  // Below here the job must actually be IN this project — otherwise `mnt:projects:<a>:<jobFromB>`
+  // would render another project's job under this project's breadcrumb, which is a quiet way to
+  // file a drawing against the wrong engagement.
+  const { data: jobRow } = await supabaseAdmin
+    .from('jobs')
+    .select('id, job_number, name')
+    .eq('id', jobId)
+    .eq('project_id', project.id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  const job = jobRow as { id: string; job_number: string | null; name: string | null } | null;
+  if (!job) return { ok: false, status: 404, error: 'That job is not in this project.' };
+  const jobLabel = `${job.job_number?.trim() || 'No number'} — ${job.name?.trim() || 'Untitled job'}`;
+  const jobNode = `${projNode}:${job.id}`;
+  const jobTrail = [...projTrail, { id: jobNode, name: jobLabel }];
+
+  // ── Level 3: the kinds that hold something ───────────────────────────────────────────────────
+  if (segments.length === 2) {
+    const counted = await Promise.all(
+      kinds.map(async (k) => ({ kind: k, result: await jobKindNodes(k.key, job.id, jobNode) })),
+    );
+    const failed = counted.find((c) => !c.result.ok);
+    if (failed) return { ok: false, status: 500, error: failed.result.error };
+
+    const nodes: MountNode[] = counted
+      .filter((c) => c.result.nodes.length > 0)
+      .map((c) => ({
+        id: `${jobNode}:${c.kind.key}`,
+        parent_id: jobNode,
+        node_type: 'folder',
+        name: `${c.kind.label} (${c.result.nodes.length})`,
+        mime_type: null,
+        size_bytes: null,
+        updated_at: c.result.nodes.reduce((a, n) => (n.updated_at > a ? n.updated_at : a), ''),
+        access: 'view',
+      }));
+
+    return { ok: true, name: jobLabel, nodes, trail: jobTrail, openHref: `/admin/jobs/${job.id}` };
+  }
+
+  // ── Level 4: the items ───────────────────────────────────────────────────────────────────────
+  const kind = kinds.find((k) => k.key === kindSeg);
+  if (!kind) return { ok: false, status: 404, error: 'That folder is not here.' };
+  const result = await jobKindNodes(kind.key, job.id, `${jobNode}:${kind.key}`);
+  if (!result.ok) return { ok: false, status: 500, error: result.error };
+  return {
+    ok: true,
+    name: kind.label,
+    nodes: result.nodes,
+    trail: [...jobTrail, { id: `${jobNode}:${kind.key}`, name: kind.label }],
+  };
+}
+
 export interface MountFileRef {
   ok: boolean;
   status?: number;
@@ -589,7 +730,7 @@ export async function resolveMountFile(fileId: string, user: FileUser, isAdmin: 
   // Every id under `mnt:jobs:…` names a FOLDER — the items inside a job folder carry their own
   // source's id (`mnt:receipts:…`), which is what makes them resolvable at all. Falling through
   // here would try to read a job id out of the receipts table and 404 for the wrong reason.
-  if (key === 'jobs') return { ok: false, status: 400, error: 'That is a folder, not a file.' };
+  if (key === 'jobs' || key === 'projects') return { ok: false, status: 400, error: 'That is a folder, not a file.' };
 
   if (key === 'receipts') {
     const { data } = await supabaseAdmin.from('receipts').select('photo_url, vendor_name, created_at').eq('id', rowId).maybeSingle();

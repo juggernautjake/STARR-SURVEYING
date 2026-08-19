@@ -1,0 +1,440 @@
+/* app/admin/styles/AdminProjects.css — the Projects surface.
+ *
+ * ── WHY THIS FILE EXISTS AT ALL ─────────────────────────────────────────────────────────────────
+ *
+ * The projects pages were first written against `jobs-page__*`, on the reasoning that projects and
+ * jobs are siblings and should look identical. They do not load: `AdminJobs.css` is imported by
+ * `app/admin/jobs/layout.tsx`, so it is scoped to the /admin/jobs route tree and nothing under
+ * /admin/projects ever saw it. Every header, button and title rendered as raw browser default — a
+ * 60px unstyled <h1>, a primary button as white text on white, a secondary button as a bare red
+ * link. Zero horizontal overflow the whole time, which is why a measurement said nothing was wrong.
+ *
+ * The rest was styled-jsx, and that half looked right — except `.pd__job`, which sits on a `<Link>`.
+ * styled-jsx only adds its scope class to INTRINSIC elements; a custom component like `Link` never
+ * receives it, so that rule silently matched nothing. Both traps disappear by putting the styles in
+ * a plain stylesheet loaded by a projects layout.
+ *
+ * Values are copied from AdminJobs.css deliberately, so the two surfaces read as one product.
+ */
+
+/* ── Page shell ─────────────────────────────────────────────────────────────────────────────── */
+.proj-page { margin-bottom: 1.5rem; }
+
+.proj-page__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.proj-page__header-left {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.proj-page__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: 'Sora', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #1F2937);
+  /* A project name is long and arbitrary ("Smith Tract Development — Phase 2 & 3"). Without this it
+   * pushes the header actions off the row on a phone. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.proj-page__title svg { flex: none; color: var(--color-brand-navy, #1D3095); }
+.proj-page__count { font-size: 0.85rem; color: var(--color-text-muted, #6B7280); white-space: nowrap; }
+
+.proj-page__header-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+
+.proj-page__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.proj-page__btn--primary { background: var(--color-brand-navy, #1D3095); color: var(--theme-fg-inverse, #fff); }
+.proj-page__btn--primary:hover { background: var(--theme-brand-hover, #162470); }
+.proj-page__btn--secondary {
+  background: var(--color-bg-subtle, #F3F4F6);
+  color: var(--theme-fg-secondary, #374151);
+  border: var(--border-light, 1px solid #E5E7EB);
+}
+.proj-page__btn--secondary:hover { background: var(--theme-bg-subtle-hover, #E5E7EB); }
+.proj-page__btn--danger { background: var(--theme-danger-solid, #DC2626); color: var(--theme-fg-inverse, #fff); }
+.proj-page__btn--danger:hover { background: var(--theme-danger-solid-hover, #B91C1C); }
+.proj-page__btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* On a phone the two header buttons should read as a pair of equal actions rather than wrapping
+ * into a ragged stack, so they share the row and split it. */
+@media (max-width: 560px) {
+  .proj-page__header { align-items: stretch; }
+  .proj-page__header-actions { width: 100%; }
+  .proj-page__header-actions > * { flex: 1 1 0; }
+  .proj-page__btn { justify-content: center; width: 100%; }
+}
+
+.proj-page__error {
+  background: var(--theme-danger-bg, #FEF2F2);
+  border: 1px solid #FECACA;
+  color: var(--theme-danger-fg, #991B1B);
+  border-radius: 10px;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.88rem;
+  margin-bottom: 0.8rem;
+}
+.proj-page__loading, .proj-page__empty {
+  background: var(--theme-bg-elevated, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  padding: 2rem 1.25rem;
+  text-align: center;
+  color: var(--color-text-muted, #6B7280);
+}
+.proj-page__empty h2 {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.05rem;
+  margin: 0.6rem 0 0.35rem;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.proj-page__empty p { margin: 0 auto 1rem; max-width: 32rem; line-height: 1.55; font-size: 0.9rem; }
+
+/* ── List controls ──────────────────────────────────────────────────────────────────────────── */
+.proj__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.9rem;
+}
+.proj__search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--theme-bg-elevated, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  padding: 0 0.7rem;
+  min-height: 38px;
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.proj__search svg { flex: none; color: var(--color-text-muted, #6B7280); }
+.proj__search input { border: none; outline: none; font: inherit; flex: 1; background: none; min-width: 0; }
+
+.proj__filters { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; }
+.proj__chip {
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #fff);
+  color: var(--theme-fg-secondary, #374151);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.proj__chip:hover { border-color: var(--color-brand-navy, #1D3095); }
+.proj__chip.is-on {
+  background: var(--theme-brand-subtle, #EBF0FF);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: var(--color-brand-navy, #1D3095);
+  font-weight: 700;
+}
+.proj__archived {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: var(--color-text-muted, #6B7280);
+  white-space: nowrap;
+}
+
+/* The filter row is the first thing to overflow on a phone. Let it scroll sideways as one strip
+ * rather than wrapping into four ragged lines above the list. */
+@media (max-width: 560px) {
+  .proj__filters {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    width: 100%;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+  .proj__filters::-webkit-scrollbar { display: none; }
+}
+
+/* ── The project cards ──────────────────────────────────────────────────────────────────────── */
+.proj__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.9rem;
+}
+@media (max-width: 420px) { .proj__grid { grid-template-columns: 1fr; } }
+
+.proj__card {
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: var(--theme-bg-elevated, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.proj__card:hover { border-color: var(--color-brand-navy, #1D3095); box-shadow: 0 4px 14px rgba(29, 48, 149, 0.1); }
+.proj__card:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 2px; }
+
+.proj__card-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.proj__number { font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted, #6B7280); letter-spacing: 0.02em; }
+.proj__status { font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.proj__name {
+  font-family: 'Sora', sans-serif;
+  font-size: 1.02rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--theme-fg-primary, #111827);
+  overflow-wrap: anywhere;
+  line-height: 1.3;
+}
+.proj__meta {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.83rem;
+  color: var(--color-text-muted, #6B7280);
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.proj__meta svg { flex: none; margin-top: 0.15rem; }
+.proj__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.75rem;
+  margin-top: 0.4rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--theme-border-subtle, #F3F4F6);
+  font-size: 0.82rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+.proj__stat strong { color: var(--theme-fg-primary, #111827); }
+.proj__stat--owed strong { color: var(--theme-warning-fg, #B45309); }
+
+/* ── Detail page ────────────────────────────────────────────────────────────────────────────── */
+.pd { display: flex; flex-direction: column; gap: 1rem; }
+
+.pd__statusbar { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+@media (max-width: 560px) {
+  .pd__statusbar { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 0.25rem; scrollbar-width: none; }
+  .pd__statusbar::-webkit-scrollbar { display: none; }
+}
+.pd__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #fff);
+  color: var(--theme-fg-secondary, #374151);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pd__status:hover:not(:disabled) { border-color: var(--color-brand-navy, #1D3095); }
+.pd__status.is-on { font-weight: 700; }
+.pd__status:disabled { cursor: wait; opacity: 0.7; }
+
+/* Two columns on a desktop, one on anything narrower. The sidebar keeps a real minimum so the
+ * money figures never wrap mid-number. */
+.pd__cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(17rem, 21rem); gap: 1rem; align-items: start; }
+@media (max-width: 900px) { .pd__cols { grid-template-columns: 1fr; } }
+
+.pd__main, .pd__card {
+  background: var(--theme-bg-elevated, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  min-width: 0;
+}
+.pd__side { display: flex; flex-direction: column; gap: 0.8rem; min-width: 0; }
+.pd__section-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: 'Sora', sans-serif;
+  font-size: 1rem;
+  margin: 0 0 0.7rem;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.pd__badge {
+  background: var(--theme-brand-subtle, #EBF0FF);
+  color: var(--color-brand-navy, #1D3095);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  margin-left: 0.2rem;
+}
+.pd__card h3 {
+  font-family: 'Sora', sans-serif;
+  font-size: 0.9rem;
+  margin: 0 0 0.5rem;
+  color: var(--color-brand-navy, #1D3095);
+}
+
+/* The job rows. This is the class that silently matched nothing under styled-jsx, because it sits
+ * on a <Link>. */
+.pd__jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.pd__job {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.6rem 0.75rem;
+  /* A near-invisible hairline made three jobs read as one block of text, especially on a phone
+   * where each job occupies three lines. A tinted ground separates them at a glance without
+   * turning the list into a table. */
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--color-bg-subtle, #F9FAFB);
+  border-radius: 9px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 120ms, background 120ms, box-shadow 120ms;
+}
+.pd__job:hover {
+  border-color: var(--color-brand-navy, #1D3095);
+  background: var(--theme-brand-tint, #FAFBFF);
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.08);
+}
+.pd__job:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 2px; }
+.pd__job-num { font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted, #6B7280); white-space: nowrap; }
+.pd__job-name { font-weight: 600; font-size: 0.9rem; overflow-wrap: anywhere; line-height: 1.35; color: var(--color-brand-navy, #1D3095); }
+.pd__job:hover .pd__job-name { text-decoration: underline; }
+.pd__job-stage { font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+.pd__job-money { font-size: 0.82rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); white-space: nowrap; text-align: right; }
+
+/* On a phone a four-column row cannot hold a job number, a name, a stage pill and a figure. Two
+ * rows: identity on top, status and money beneath — which is also the order somebody reads them. */
+@media (max-width: 640px) {
+  .pd__job { grid-template-columns: minmax(0, 1fr) auto; row-gap: 0.35rem; }
+  .pd__job-num { grid-column: 1; }
+  .pd__job-money { grid-column: 2; grid-row: 1; }
+  .pd__job-name { grid-column: 1 / -1; grid-row: 2; }
+  .pd__job-stage { grid-column: 1 / -1; grid-row: 3; justify-self: start; }
+}
+
+.pd__empty { text-align: center; padding: 1.5rem 1rem; color: var(--color-text-muted, #6B7280); }
+.pd__empty p { margin: 0 0 0.4rem; }
+.pd__empty-sub { font-size: 0.85rem; max-width: 30rem; margin: 0 auto 0.9rem; line-height: 1.5; }
+
+.pd__money { margin: 0; display: flex; flex-direction: column; gap: 0.32rem; }
+.pd__money > div { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; font-size: 0.86rem; }
+.pd__money dt { color: var(--color-text-muted, #6B7280); margin: 0; }
+.pd__money dd { margin: 0; font-weight: 700; color: var(--theme-fg-primary, #111827); font-variant-numeric: tabular-nums; }
+.pd__money-owed { border-top: 1px solid var(--theme-border-subtle, #F3F4F6); padding-top: 0.32rem; margin-top: 0.1rem; }
+.pd__money-owed dd { color: var(--theme-warning-fg, #B45309); }
+
+.pd__line {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.4rem;
+  margin: 0 0 0.32rem;
+  font-size: 0.86rem;
+  color: var(--theme-fg-secondary, #374151);
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.pd__line svg { flex: none; margin-top: 0.18rem; color: var(--color-text-muted, #6B7280); }
+.pd__line a { color: var(--color-brand-navy, #1D3095); text-decoration: none; font-weight: 600; }
+.pd__line a:hover { text-decoration: underline; }
+.pd__note { margin: 0.35rem 0 0; font-size: 0.78rem; color: var(--color-text-muted, #9CA3AF); line-height: 1.45; }
+
+/* ── The create form ────────────────────────────────────────────────────────────────────────── */
+.pf { max-width: 62rem; }
+.pf__lead { color: var(--color-text-muted, #6B7280); font-size: 0.88rem; line-height: 1.55; margin: 0 0 1rem; max-width: 46rem; }
+.pf__set {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  padding: 0.9rem 1rem 1.1rem;
+  margin: 0 0 1rem;
+  background: var(--theme-bg-elevated, #fff);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.75rem;
+}
+@media (max-width: 480px) { .pf__set { grid-template-columns: 1fr; } }
+.pf__set legend {
+  grid-column: 1 / -1;
+  font-family: 'Sora', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-brand-navy, #1D3095);
+  padding: 0 0.3rem;
+}
+.pf__field { display: flex; flex-direction: column; gap: 0.25rem; min-width: 0; }
+.pf__field--wide { grid-column: 1 / -1; }
+.pf__field > span { font-size: 0.8rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); }
+.pf__field input, .pf__field textarea {
+  font: inherit;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--theme-border-strong, #D1D5DB);
+  border-radius: 8px;
+  outline: none;
+  min-width: 0;
+  background: var(--theme-bg-elevated, #fff);
+  color: var(--theme-fg-primary, #111827);
+}
+.pf__field textarea { resize: vertical; }
+.pf__field input:focus, .pf__field textarea:focus {
+  border-color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 0 0 3px rgba(29, 48, 149, 0.12);
+}
+.pf__foot { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+@media (max-width: 480px) {
+  .pf__foot > * { flex: 1 1 0; justify-content: center; }
+}
+.pf__sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* The name suggestion — offered, never imposed. */
+.pf__suggest {
+  margin: -0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #6B7280);
+  line-height: 1.5;
+}
+.pf__suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-brand-navy, #1D3095);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.pf__suggest-btn:hover { text-decoration: underline; }

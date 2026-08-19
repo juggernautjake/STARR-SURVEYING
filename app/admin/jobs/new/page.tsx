@@ -22,6 +22,9 @@ export default function NewJobPage() {
 
   const [form, setForm] = useState({
     name: '',
+    // Blank means "assign the next number in this year's sequence" — the API's long-standing
+    // behaviour, now reachable from the form instead of only from the API.
+    job_number: '',
     description: '',
     survey_type: 'boundary',
     address: '',
@@ -79,6 +82,81 @@ export default function NewJobPage() {
     })();
   }, [fromLeadId]);
 
+  // ── THE PROJECT, WHICH IS NOW REQUIRED (2026-08-19) ──────────────────────────────────────────
+  //
+  // Owner's decision: every job belongs to a project. Arriving from a project page carries
+  // `?project=<id>`, in which case the choice is already made and the picker shows it rather than
+  // asking again — the person clicked "New job in this project" and asking them which project would
+  // be the form doubting a decision it just watched them take.
+  //
+  // Choosing a project also PREFILLS the client and site from it, so the fourth job on a parcel is
+  // not a fourth retyping of the same address. Prefill fills blanks only; anything already typed
+  // stays, because a value in the box is a deliberate statement.
+  const presetProjectId = searchParams?.get('project') ?? null;
+  const [projects, setProjects] = useState<Array<{
+    id: string; project_number: string | null; name: string;
+    client_name: string | null; client_company: string | null; client_email: string | null;
+    client_phone: string | null; client_address: string | null;
+    address: string | null; city: string | null; state: string | null; zip: string | null;
+    county: string | null; subdivision: string | null; abstract_number: string | null;
+    lot_number: string | null; acreage: number | null; lead_rpls_email: string | null;
+  }>>([]);
+  const [projectId, setProjectId] = useState<string>(presetProjectId ?? '');
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/projects?limit=200', { credentials: 'include' });
+        if (res.ok) setProjects((await res.json()).projects ?? []);
+      } catch (e) {
+        console.error('[new-job] could not load projects', e);
+      } finally {
+        setProjectsLoaded(true);
+      }
+    })();
+  }, []);
+
+  function applyProjectPrefill(id: string) {
+    setProjectId(id);
+    const p = projects.find((x) => x.id === id);
+    if (!p) return;
+    setForm((prev) => {
+      const next = { ...prev };
+      const fill = (key: keyof typeof prev, value: unknown) => {
+        if (value === null || value === undefined || value === '') return;
+        if (String(prev[key] ?? '').trim()) return; // never overwrite what is already typed
+        (next as Record<string, unknown>)[key] = typeof value === 'number' ? String(value) : value;
+      };
+      fill('client_name', p.client_name);
+      fill('client_email', p.client_email);
+      fill('client_phone', p.client_phone);
+      fill('client_company', p.client_company);
+      fill('client_address', p.client_address);
+      fill('address', p.address);
+      fill('city', p.city);
+      fill('state', p.state);
+      fill('zip', p.zip);
+      fill('county', p.county);
+      fill('subdivision', p.subdivision);
+      fill('abstract_number', p.abstract_number);
+      fill('lot_number', p.lot_number);
+      fill('acreage', p.acreage);
+      fill('lead_rpls_email', p.lead_rpls_email);
+      return next;
+    });
+  }
+
+  // Prefill once the preset project's row has actually arrived — on first paint `projects` is empty,
+  // so doing this in the initial state would silently fill nothing.
+  const presetAppliedRef = useRef(false);
+  useEffect(() => {
+    if (presetAppliedRef.current || !presetProjectId || projects.length === 0) return;
+    presetAppliedRef.current = true;
+    applyProjectPrefill(presetProjectId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetProjectId, projects]);
+
   function updateField(field: string, value: string | boolean) {
     setForm(prev => ({ ...prev, [field]: value }));
   }
@@ -97,12 +175,17 @@ export default function NewJobPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name) { setError('Job name is required'); return; }
+    if (!projectId) {
+      setError('Pick a project for this job — every job belongs to one.');
+      return;
+    }
     setSaving(true);
     setError('');
 
     try {
       const body = {
         ...form,
+        project_id: projectId,
         acreage: form.acreage ? parseFloat(form.acreage) : undefined,
         quote_amount: form.quote_amount ? parseFloat(form.quote_amount) : undefined,
         tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
@@ -195,6 +278,80 @@ export default function NewJobPage() {
         {error && <div className="job-form__error">{error}</div>}
 
         <form onSubmit={handleSubmit}>
+          {/* ── The project this job belongs to (2026-08-19) ────────────────────────────────────
+              First, and required, because it is the container the job goes into and choosing it
+              fills the client and site below. Asking for it after the address would mean typing an
+              address the project already knows. */}
+          <div className="job-form__section">
+            <h3 className="job-form__section-title">Project</h3>
+            <div className="job-form__grid">
+              <div className="job-form__field job-form__field--full">
+                <label className="job-form__label" htmlFor="job-project">
+                  <span className="job-form__label-row">
+                    Project *
+                    <Tooltip text="Every job belongs to a project — the engagement for one client on one parcel. A project usually holds several jobs: the boundary survey, then the topo, then the staking. Picking one fills in its client and site details below." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <select
+                  id="job-project"
+                  className="job-form__input"
+                  value={projectId}
+                  onChange={(e) => applyProjectPrefill(e.target.value)}
+                  required
+                  data-testid="job-project-select"
+                >
+                  <option value="">
+                    {projectsLoaded ? 'Choose a project…' : 'Loading projects…'}
+                  </option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.project_number ? `${p.project_number} — ${p.name}` : p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="job-form__hint">
+                  {projectId
+                    ? 'This job’s client and site were filled in from the project. Change anything below that differs for this job.'
+                    : 'Every job belongs to a project.'}{' '}
+                  <Link href="/admin/projects/new">Create a new project</Link>
+                </p>
+              </div>
+
+              {/* ── The job's number (2026-08-19) ───────────────────────────────────────────────
+                  Owner: *"we will create the job(s) within the project folder and give the job a
+                  number."* The API has always accepted a `job_number` and generated one when it was
+                  absent — but no form ever offered the field, so the number could only ever be
+                  automatic. Left blank it still auto-numbers, so nothing about the existing habit
+                  changes; typed, it is honoured. */}
+              <div className="job-form__field">
+                <label className="job-form__label" htmlFor="job-number">
+                  <span className="job-form__label-row">
+                    Job Number
+                    <Tooltip text="Leave blank and the next number in this year's sequence is assigned automatically (2026-0007, 2026-0008…). Type one to set it yourself — useful when matching a number a client or a legacy file already uses." position="right">
+                      <span className="job-form__info-icon">?</span>
+                    </Tooltip>
+                  </span>
+                </label>
+                <input
+                  id="job-number"
+                  className="job-form__input"
+                  value={form.job_number}
+                  onChange={(e) => updateField('job_number', e.target.value)}
+                  placeholder="Automatic"
+                  data-testid="job-number-input"
+                />
+                {projectsLoaded && projects.length === 0 && (
+                  <p className="job-form__error" style={{ marginTop: '0.4rem' }}>
+                    There are no projects yet, and a job needs one.{' '}
+                    <Link href="/admin/projects/new">Create the first project</Link>.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Job Info */}
           <div className="job-form__section">
             <h3 className="job-form__section-title">Job Information</h3>

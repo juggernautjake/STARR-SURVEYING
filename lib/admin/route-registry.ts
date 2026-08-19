@@ -171,8 +171,19 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Work rail. Previously it only existed as a file with no nav
   // entry, so users couldn't get to it without typing the URL.
   { href: '/admin/calendar',        label: 'Calendar',        workspace: 'work', iconName: 'CalendarDays',  description: 'Org-wide job schedule — year, month, week, day.', keywords: ['schedule', 'phases', 'events', 'jobs', 'planning'] },
-  { href: '/admin/jobs',            label: 'All Jobs',        workspace: 'work', iconName: 'ListChecks',    description: 'Every active + archived job.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['projects'] },
-  { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Create a job.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add'] },
+  // ── PROJECTS SIT ABOVE JOBS, BECAUSE THAT IS NOW THE SHAPE OF THE WORK (2026-08-19) ───────────
+  //
+  // Owner: *"I want us to be able to create new projects, and then within the project we can create
+  // a new job."* A project is the engagement — one client, one parcel — and it holds several jobs
+  // over months: the boundary survey, the topo, the staking. Every job belongs to one.
+  //
+  // These are listed BEFORE All Jobs deliberately. The nav is read top to bottom as the order you
+  // do things in, and creating a job now begins by choosing its project. `All Jobs` used to carry
+  // the keyword 'projects' — that keyword had no page behind it, and now it has its own.
+  { href: '/admin/projects',        label: 'All Projects',    workspace: 'work', iconName: 'FolderKanban',  description: 'Every client engagement, and the jobs inside it.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['project', 'engagement', 'client', 'parcel', 'tract'] },
+  { href: '/admin/projects/new',    label: 'New Project',     workspace: 'work', iconName: 'FolderPlus',    description: 'Start a project — the client and site its jobs will inherit.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add', 'project'] },
+  { href: '/admin/jobs',            label: 'All Jobs',        workspace: 'work', iconName: 'ListChecks',    description: 'Every job across every project, active + archived.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job'] },
+  { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Add a job to a project.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
   { href: '/admin/leads',           label: 'Leads',           workspace: 'work', iconName: 'Inbox',         description: 'Inbound contact + lead queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['contacts', 'prospects'] },
   // ── FOUR ENTRIES BECAME ONE (A1, 2026-08-11) ──────────────────────────────────────────────────

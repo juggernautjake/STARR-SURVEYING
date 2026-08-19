@@ -46,10 +46,14 @@ describe('the Jobs mount exists and is a mount like the others', () => {
     expect(s).toContain('${MOUNT_PREFIX}field-media:${r.id}');
   });
 
-  it('resolving a jobs id is refused — they are all folders', () => {
+  it('resolving a jobs or projects id is refused — they are all folders', () => {
     // Without this the id falls through the source chain and is read as a row id in whichever table
     // is last, which 404s for entirely the wrong reason.
-    expect(src()).toMatch(/key === 'jobs'\) return \{ ok: false, status: 400/);
+    //
+    // 2026-08-19: `projects` joined `jobs` here when the Projects mount landed. Every id under
+    // either one names a FOLDER — the items inside carry their own source's id (`mnt:job-files:…`),
+    // which is what makes them resolvable at all.
+    expect(src()).toMatch(/key === 'jobs' \|\| key === 'projects'\) return \{ ok: false, status: 400/);
   });
 
   it('a file id passed where a folder is expected is refused, not silently widened', () => {

@@ -6,7 +6,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
-  ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen,
+  ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
   Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
   Circle, type LucideIcon,
 } from 'lucide-react';
@@ -46,6 +46,7 @@ import { withAlpha } from '@/lib/admin/color-alpha';
 interface Job {
   id: string;
   job_number: string;
+  project_id?: string;
   name: string;
   description?: string;
   stage: string;
@@ -122,6 +123,9 @@ export default function JobDetailPage() {
   }>>([]);
   const [showLinkContactDialog, setShowLinkContactDialog] = useState(false);
   const [stageHistory, setStageHistory] = useState<{ from_stage?: string; to_stage: string; changed_by: string; notes?: string; created_at: string }[]>([]);
+  /** The project this job belongs to (2026-08-19). Loaded separately so a slow projects query can
+   *  never delay the job itself — the header simply shows no parent until it arrives. */
+  const [project, setProject] = useState<{ id: string; project_number: string | null; name: string } | null>(null);
   const [files, setFiles] = useState<{ id: string; file_name: string; file_type: string; file_url?: string; download_href?: string | null; file_size?: number; section: string; description?: string; uploaded_by: string; uploaded_at: string; is_backup: boolean }[]>([]);
   const [research, setResearch] = useState<{ id: string; category: string; title: string; content?: string; source?: string; reference_number?: string; date_of_record?: string; added_by: string; created_at: string }[]>([]);
   const [timeEntries, setTimeEntries] = useState<{ id: string; user_email: string; user_name?: string; work_type: string; start_time: string; end_time?: string; duration_minutes?: number; description?: string; billable: boolean }[]>([]);
@@ -136,6 +140,14 @@ export default function JobDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setJob(data.job);
+        // Best-effort: a job renders fine without its parent's name, and a failure here must not
+        // blank the page a person came to read.
+        if (data.job?.project_id) {
+          try {
+            const pr = await fetch(`/api/admin/projects/${data.job.project_id}`);
+            if (pr.ok) setProject((await pr.json()).project ?? null);
+          } catch { /* the header just omits the parent */ }
+        }
       }
     } catch (err) {
       reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load job' });
@@ -503,6 +515,15 @@ export default function JobDetailPage() {
         </div>
         <div className="job-detail__header-top">
           <div>
+            {/* The job's place in the hierarchy, above its own number (2026-08-19). A job now
+                always belongs to a project, and the fastest route to its sibling jobs — the topo
+                that goes with this boundary survey — is through the parent. */}
+            {project && (
+              <Link href={`/admin/projects/${project.id}`} className="job-detail__project" data-testid="job-project-link">
+                <FolderKanban size={12} aria-hidden />
+                {project.project_number ? `${project.project_number} — ${project.name}` : project.name}
+              </Link>
+            )}
             <div className="job-detail__number">{job.job_number}</div>
             <h2 className="job-detail__name">
               {job.is_priority && <Circle size={12} fill="currentColor" style={{ color: 'var(--color-error, #DC2626)', verticalAlign: 'middle', marginRight: '0.3rem' }} aria-label="Priority" />}

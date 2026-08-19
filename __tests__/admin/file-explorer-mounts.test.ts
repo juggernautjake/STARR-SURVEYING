@@ -11,21 +11,25 @@ const names = (roles: string[], admin = false) => mountRootNodes(u(roles), admin
 // This file is a SOURCE-LOCK: it pins the exact list so that adding a mount cannot pass unnoticed,
 // and it worked — adding `jobs` broke all four of these. The lists below are updated deliberately.
 //
+// `projects` (2026-08-19) is the same idea one level up — project → job → kind → items — and it
+// shares the Jobs union for the same reason: it delegates to `jobKindNodes`, which re-applies each
+// kind's own gate. It cannot show a field crew member anything the Jobs mount would not.
+//
 // `jobs` is visible to the UNION of the roles of the kinds a job folder can contain, because that
 // is only the door. Each kind inside re-applies its own gate (`kindsVisibleTo`), so a field crew
 // member who opens a job folder still cannot see its receipts. Getting that wrong would make the
 // Jobs mount a permissions hole wearing a folder icon — see the `jobKindNodes` gating tests.
 describe('files/mounts: mountRootNodes role gating', () => {
   it('admins see every source', () => {
-    expect(names([], true)).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs']);
+    expect(names([], true)).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs', 'Projects']);
   });
 
   it('developers see every source without the admin flag', () => {
-    expect(names(['developer'])).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs']);
+    expect(names(['developer'])).toEqual(['Receipts', 'Job Files', 'Research Documents', 'Field Media', 'Drawings', 'Jobs', 'Projects']);
   });
 
   it('field crew see job files + field media, and the Jobs folder that arranges them', () => {
-    expect(names(['field_crew'])).toEqual(['Job Files', 'Field Media', 'Jobs']);
+    expect(names(['field_crew'])).toEqual(['Job Files', 'Field Media', 'Jobs', 'Projects']);
   });
 
   it('researchers and drawers see research documents', () => {
@@ -35,7 +39,7 @@ describe('files/mounts: mountRootNodes role gating', () => {
     // F1 (2026-08-11) — a drawer now also sees Drawings. That is the point of the source: the
     // owner asked to find 'all of the drawings' in the file manager, and the people who make them
     // are the ones who need it.
-    expect(names(['drawer'])).toEqual(['Research Documents', 'Drawings', 'Jobs']);
+    expect(names(['drawer'])).toEqual(['Research Documents', 'Drawings', 'Jobs', 'Projects']);
   });
 
   it('a base employee sees no read-only sources', () => {

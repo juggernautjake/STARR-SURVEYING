@@ -1753,3 +1753,30 @@
  * broken data — it is a true statement about something that changed elsewhere, and the row is kept
  * deliberately so it can say so. */
 .job-files__item-linked--gone { color: var(--theme-warning, #B45309); }
+
+/* The job's parent project, shown above its own number (2026-08-19). A job always belongs to a
+ * project now, and its siblings — the topo that goes with this boundary survey — are reached
+ * through the parent. */
+.job-detail__project {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-brand-navy, #1E3A5F);
+  text-decoration: none;
+  margin-bottom: 0.15rem;
+}
+.job-detail__project:hover { text-decoration: underline; }
+
+/* The project picker's helper line on the New Job form (2026-08-19). Declared HERE, in the
+ * stylesheet the jobs route actually imports — the projects pages learned the hard way that a class
+ * defined in another route's stylesheet renders as nothing at all. */
+.job-form__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted, #6B7280);
+  line-height: 1.5;
+}
+.job-form__hint a { color: var(--color-brand-navy, #1E3A5F); font-weight: 600; text-decoration: none; }
+.job-form__hint a:hover { text-decoration: underline; }

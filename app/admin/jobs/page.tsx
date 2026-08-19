@@ -203,12 +203,20 @@ export default function AllJobsPage() {
             <span className="jobs-page__count">{total} total</span>
           </div>
           <div className="jobs-page__header-actions">
+            {/* Jobs live inside projects now (2026-08-19), so the way UP is offered here — this
+                list is every job across every project, which is a useful view but no longer the
+                top of the hierarchy. */}
+            <Tooltip text="Projects are the containers jobs live in — one client, one parcel, several jobs over months." position="bottom">
+              <Link href="/admin/projects" className="jobs-page__btn jobs-page__btn--secondary">
+                All Projects
+              </Link>
+            </Tooltip>
             <Tooltip text="Import historical surveys from a previous system. Supports single entry, bulk CSV upload, and file attachments for existing jobs." position="bottom">
               <Link href="/admin/jobs/import" className="jobs-page__btn jobs-page__btn--secondary">
                 Import Legacy Jobs
               </Link>
             </Tooltip>
-            <Tooltip text="Create a new survey job from scratch. Fill in property details, client information, and assignment to start the quote-to-delivery workflow." position="bottom">
+            <Tooltip text="Create a new survey job. You will be asked which project it belongs to — every job belongs to one." position="bottom">
               <Link href="/admin/jobs/new" className="jobs-page__btn jobs-page__btn--primary">
                 + New Job
               </Link>

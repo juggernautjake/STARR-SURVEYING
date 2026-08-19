@@ -33,6 +33,12 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/employees', roles: ['admin', 'developer', 'tech_support'] },
 
   // ── Work (specific before general) ──
+  // Projects (2026-08-19) — the container jobs live in. Gated exactly like jobs, and for the same
+  // reason: a project carries the client's name, contact details and the parcel, which is customer
+  // data before it is a work queue. `new` is admin-only, matching /admin/jobs/new — creating the
+  // container the firm bills against is not a field-crew action.
+  { prefix: '/admin/projects/new', roles: ['admin'] },
+  { prefix: '/admin/projects', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },
   { prefix: '/admin/jobs/new', roles: ['admin'] },
   { prefix: '/admin/jobs/import', roles: ['admin'] },
   { prefix: '/admin/jobs', roles: ['admin', 'developer', 'field_crew', 'researcher', 'tech_support'] },

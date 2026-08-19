@@ -29,10 +29,34 @@ describe('the conversion carries the link forward', () => {
   });
 
   it('the jobs API accepts and stores all three', () => {
-    expect(JOBS_API).toMatch(/origin_lead_id, customer_id, accepted_quote_id \} = body/);
+    expect(JOBS_API).toMatch(/origin_lead_id, customer_id, accepted_quote_id,/);
     expect(JOBS_API).toMatch(/origin_lead_id: origin_lead_id \|\| null/);
-    expect(JOBS_API).toMatch(/customer_id: customer_id \|\| null/);
     expect(JOBS_API).toMatch(/accepted_quote_id: accepted_quote_id \|\| null/);
+  });
+
+  // ── `customer_id` MOVED, and this is the assertion that says so (2026-08-19) ──────────────────
+  //
+  // Projects landed, and `customer_id` became one of the fields a job inherits from its project.
+  // The old line `customer_id: customer_id || null` had to GO, and not for tidiness: it sat after
+  // the inheritance spread, so it overwrote the project's customer with `null` on every job created
+  // without one — which is most of them.
+  //
+  // The chain this file exists to protect is unchanged in behaviour, because inheritance fills
+  // BLANKS ONLY: a conversion that sends the lead's `customer_id` still wins over the project's.
+  // That is the property worth locking, so it is locked here rather than the literal line.
+  it('the lead’s customer_id still reaches the job, now via inheritance', () => {
+    // It is handed to `inheritFromProject` as a caller-supplied value…
+    expect(JOBS_API).toMatch(/inheritFromProject\(/);
+    expect(JOBS_API).toMatch(/customer_id: customer_id \|\| null,/);
+    // …and is NOT re-assigned afterwards, which is what would clobber it.
+    expect(JOBS_API).toMatch(/NOT re-set here: `customer_id` is one of the inherited fields/);
+  });
+
+  it('inheritance fills blanks only, so a supplied value is never overwritten', () => {
+    // The guarantee the assertion above depends on. If this ever changes, a lead conversion would
+    // silently adopt the project's customer instead of the one the lead actually named.
+    const MODEL = read('lib/projects/model.ts');
+    expect(MODEL).toMatch(/if \(present\(out\[field\]\)\) continue;/);
   });
 
   it('a job with no lead is still a valid job', () => {

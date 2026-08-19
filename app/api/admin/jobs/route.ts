@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler, dbErrorResponse, fireAndForget } from '@/lib/apiErrorHandler';
 import { recordMilestone, toCents } from '@/lib/pipeline/events';
+import { inheritFromProject, INHERITED_FIELDS } from '@/lib/projects/model';
 
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -104,9 +105,34 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     date_received, date_quoted, date_accepted, date_started, stage,
     // A6 — where this job came from. All optional: a job typed straight into the office has no lead,
     // no customer and no quote behind it, and that is an ordinary job, not an incomplete one.
-    origin_lead_id, customer_id, accepted_quote_id } = body;
+    origin_lead_id, customer_id, accepted_quote_id,
+    // 2026-08-19 — every job belongs to a project. See seeds/601.
+    project_id } = body;
 
   if (!name) return NextResponse.json({ error: 'Job name is required' }, { status: 400 });
+
+  // ── THE PROJECT, WHICH IS NOW REQUIRED ───────────────────────────────────────────────────────
+  //
+  // Owner's decision, 2026-08-19: a job cannot exist outside a project. The database enforces it
+  // too (`jobs.project_id` is NOT NULL with a foreign key), and this check exists so the caller
+  // gets a sentence rather than a constraint violation. It is also where the client and site facts
+  // come from, so that the fourth job on a parcel is not a fourth retyping of the same address.
+  if (!project_id) {
+    return NextResponse.json(
+      { error: 'A job must belong to a project. Pick a project, or create one first.', code: 'PROJECT_REQUIRED' },
+      { status: 400 },
+    );
+  }
+  const { data: project, error: projErr } = await supabaseAdmin
+    .from('projects')
+    .select('id, org_id, ' + INHERITED_FIELDS.join(', '))
+    .eq('id', project_id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (projErr) return dbErrorResponse(projErr, 'look up the project');
+  if (!project) {
+    return NextResponse.json({ error: 'That project no longer exists.', code: 'PROJECT_MISSING' }, { status: 404 });
+  }
 
   // The jobs table is org-scoped (org_id is NOT NULL). Resolve the
   // creator's organisation so the insert satisfies the constraint —
@@ -158,20 +184,35 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .from('jobs')
     .insert({
       org_id: orgId,
-      name, job_number: finalJobNumber, description, address, city,
-      state: state || 'TX', zip, county, survey_type: survey_type || 'boundary',
-      acreage, client_name, client_email, client_phone, client_company, client_address,
-      lead_rpls_email, deadline, quote_amount, notes,
+      // ── Inherited from the project, but never OVER what the caller typed ─────────────────────
+      //
+      // `inheritFromProject` fills only the blanks. Somebody entering a different address is
+      // telling you this job is on the adjoining parcel, and a project that overwrote it would
+      // silently discard the more specific of the two facts. The values are WRITTEN ONTO the job
+      // rather than resolved through the project on read, so a job stays a complete, self-
+      // describing record — every PDF export, field packet and CAD title block already reads
+      // `job.client_name` and `job.address`.
+      ...inheritFromProject(project as Record<string, unknown>, {
+        address, city, zip, county,
+        acreage, client_name, client_email, client_phone, client_company, client_address,
+        lot_number, subdivision, abstract_number, latitude, longitude,
+        lead_rpls_email, customer_id: customer_id || null,
+      }),
+      project_id,
+      name, job_number: finalJobNumber, description,
+      state: state || 'TX', survey_type: survey_type || 'boundary',
+      deadline, quote_amount, notes,
       is_legacy: is_legacy || false,
       is_priority: is_priority || false,
-      lot_number, subdivision, abstract_number, latitude, longitude,
       date_received, date_quoted, date_accepted, date_started,
       stage: stage || 'quote',
       created_by: session.user.email,
       // A6 — the forward links. `origin_lead_id` turns "where did this job come from" into a key lookup
       // instead of the unindexed reverse scan over `leads.converted_job_id` that origin-lead was doing.
       origin_lead_id: origin_lead_id || null,
-      customer_id: customer_id || null,
+      // NOT re-set here: `customer_id` is one of the inherited fields above, so writing it again
+      // after the spread would overwrite the project's customer with null on every job created
+      // without one — which is most of them.
       accepted_quote_id: accepted_quote_id || null,
     })
     .select()
