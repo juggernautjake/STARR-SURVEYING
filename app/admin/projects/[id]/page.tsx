@@ -13,10 +13,11 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, FolderOpen, Trash2, Briefcase, Check, Pencil,
+  FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, Trash2, Briefcase, Check, Pencil,
 } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG } from '../../components/jobs/JobCard';
+import ProjectFilesPanel from '../../components/projects/ProjectFilesPanel';
 import {
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, projectLabel, type ProjectStatus,
 } from '@/lib/projects/model';
@@ -245,18 +246,8 @@ export default function ProjectDetailPage() {
               {!site && !project.county && <p className="pd__note">No site details on this project.</p>}
             </div>
 
-            <div className="pd__card">
-              <h3>Files</h3>
-              {/* Built on the Jobs mount: one folder holding every job's files, photos, receipts and
-                  drawings across the whole project. */}
-              <p className="pd__line">
-                <FolderOpen size={13} aria-hidden />
-                <Link href={`/admin/files?node=mnt:projects:${project.id}`} data-testid="project-files-link">
-                  Open this project&rsquo;s folder
-                </Link>
-              </p>
-              <p className="pd__note">Everything attached to every job in this project, in one place.</p>
-            </div>
+            {/* Real upload, plus both ways out to the wider file system. */}
+            <ProjectFilesPanel projectId={project.id} />
 
             {project.description && (
               <div className="pd__card"><h3>About</h3><p className="pd__line">{project.description}</p></div>

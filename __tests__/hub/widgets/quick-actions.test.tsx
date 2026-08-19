@@ -26,10 +26,21 @@ import {
 } from '@/lib/hub/widgets/quick-actions';
 
 describe('quick-actions catalog', () => {
-  it('ships exactly the 8 planning-doc starters', () => {
+  // ── THE CATALOGUE AND THE DEFAULTS CAME APART (2026-08-19) ─────────────────────────────────
+  //
+  // Owner: "make sure that the quick actions widget on the hub has new project instead of new job
+  // as the option." A job cannot be created without a project now, so a one-click New Job led to a
+  // form whose first question is "which project?" — and when the answer was "a new one", it was the
+  // wrong starting point.
+  //
+  // `new-job` is KEPT in the catalogue: hubs with a saved layout already name it, and removing the
+  // entry would leave those tiles rendering nothing. It is simply no longer a default. So the
+  // catalogue is 9, the default set is 8, and these are no longer the same assertion.
+  it('ships the 9 catalogue entries, with new-project ahead of new-job', () => {
     const ids = QUICK_ACTIONS_CATALOG.map((a) => a.id);
     expect(ids).toEqual([
       'clock-in-out',
+      'new-project',
       'new-job',
       'approve-receipts',
       'view-reports',
@@ -40,8 +51,26 @@ describe('quick-actions catalog', () => {
     ]);
   });
 
-  it('DEFAULT_QUICK_ACTION_IDS == every catalog id', () => {
-    expect(DEFAULT_QUICK_ACTION_IDS).toEqual(QUICK_ACTIONS_CATALOG.map((a) => a.id));
+  it('defaults to 8, offering New Project and NOT New Job', () => {
+    expect(DEFAULT_QUICK_ACTION_IDS).toEqual([
+      'clock-in-out',
+      'new-project',
+      'approve-receipts',
+      'view-reports',
+      'open-cad',
+      'send-message',
+      'capture-receipt',
+      'schedule',
+    ]);
+    expect(DEFAULT_QUICK_ACTION_IDS).not.toContain('new-job');
+  });
+
+  it('every default id is a real catalogue entry', () => {
+    // The default list is hand-written now rather than a slice of the catalogue — which is what
+    // stopped an insertion silently pushing the last default out. This is the assertion that stops
+    // a typo in that list becoming a tile which renders as nothing.
+    const ids = new Set(QUICK_ACTIONS_CATALOG.map((a) => a.id));
+    for (const id of DEFAULT_QUICK_ACTION_IDS) expect(ids.has(id), id).toBe(true);
   });
 
   it('findQuickAction looks up by id', () => {
@@ -111,7 +140,9 @@ describe('quick-actions widget — registry', () => {
   it('default content selects every starter and ships shortcuts off', () => {
     const def = getWidget('quick-actions');
     const content = def?.defaultContent as { actionIds: string[]; enableShortcuts: boolean; layoutStyle: string; displayStyle: string };
-    expect(content.actionIds.length).toBe(QUICK_ACTIONS_CATALOG.length);
+    // The default set is a deliberate subset now — `new-job` is in the catalogue but is not a
+    // starter (2026-08-19), so this is DEFAULT_QUICK_ACTION_IDS, not the catalogue's length.
+    expect(content.actionIds).toEqual([...DEFAULT_QUICK_ACTION_IDS]);
     expect(content.enableShortcuts).toBe(false);
     expect(content.layoutStyle).toBe('grid');
     expect(content.displayStyle).toBe('icon-label');
@@ -165,16 +196,18 @@ describe('quick-actions widget — empty-state render', () => {
         content: def.defaultContent,
       }),
     );
-    // Default = grid, every starter visible.
-    expect(html).toContain('New Job');
+    // Default = grid, every starter visible. New PROJECT is the starter now; New Job stays in the
+    // catalogue for anyone who adds it back, but a fresh hub does not ship it.
+    expect(html).toContain('New Project');
+    expect(html).not.toContain('New Job');
     expect(html).toContain('Open CAD');
     // quick-actions-wiring-2026-06-22 — the clock tile flips its
     // visible label based on session state. At SSR, no clock session
     // is read yet so the label reads "Clock In". The catalog label
     // ("Clock In/Out") still surfaces in aria-label / sr text.
     expect(html).toContain('Clock In');
-    // Link kind actions render as anchors.
-    expect(html).toContain('href="/admin/jobs/new"');
+    // Link kind actions render as anchors. The create-tile points at the PROJECT form now.
+    expect(html).toContain('href="/admin/projects/new"');
     expect(html).toContain('href="/admin/cad"');
     // quick-actions-wiring-2026-06-22 — Capture Receipt now points at
     // /admin/receipts/new instead of rendering as a "Coming soon" stub.

@@ -191,6 +191,74 @@ try {
   if (foreign.status() === 404) ok('a job that is not in this project is not reachable through its folder');
   else bad(`a foreign job id under this project returned ${foreign.status()}`);
 
+  // ── Stages are reachable in BOTH directions (2026-08-19) ─────────────────────────────────────
+  //
+  // Owner: "we need to be able to go back to previous stages of the job at any time." The timeline
+  // used to be seven divs and a forward-only button.
+  console.log(`\n  stages, in both directions\n`);
+  const jobForStage = jobIds[0];
+  await page.request.post(`${BASE}/api/admin/jobs/stages`, { data: { job_id: jobForStage, to_stage: 'drawing' } });
+  const atDrawing = await db.query('SELECT stage, date_accepted FROM public.jobs WHERE id = $1', [jobForStage]);
+  if (atDrawing.rows[0].stage === 'drawing') ok('a job can be set forward to drawing');
+  else bad(`the job is at ${atDrawing.rows[0].stage}`);
+
+  await page.request.post(`${BASE}/api/admin/jobs/stages`, { data: { job_id: jobForStage, to_stage: 'research' } });
+  const backAtResearch = await db.query('SELECT stage, date_accepted FROM public.jobs WHERE id = $1', [jobForStage]);
+  if (backAtResearch.rows[0].stage === 'research') ok('and moved BACK to research');
+  else bad(`moving back failed — the job is at ${backAtResearch.rows[0].stage}`);
+
+  // The milestone must not be rewritten by revisiting. `date_accepted` is stamped on arrival at
+  // research; going back must not claim the job was accepted today.
+  const first = atDrawing.rows[0].date_accepted;
+  const after = backAtResearch.rows[0].date_accepted;
+  if (!first || String(first) === String(after)) ok('and revisiting a stage did not rewrite its milestone date');
+  else bad(`moving back overwrote date_accepted: ${first} → ${after}`);
+
+  // ── A file can belong to the PROJECT, not only to a job ──────────────────────────────────────
+  console.log(`\n  files on the project itself\n`);
+  const bytes = Buffer.from('Starr QA — the signed contract for the whole tract.\n', 'utf8');
+  const pInit = await page.request.post(`${BASE}/api/admin/jobs/files/upload`, {
+    data: { project_id: projectId, name: 'contract.txt', size_bytes: bytes.length },
+  });
+  if (pInit.ok()) {
+    const { file_id, path, signed_url } = await pInit.json();
+    ok('the server issues a signed URL for a project document');
+    const put = await page.request.fetch(signed_url, { method: 'PUT', data: bytes, headers: { 'content-type': 'text/plain' } });
+    if (put.ok()) ok('the bytes go straight to storage');
+    else bad(`the PUT failed (${put.status()})`);
+
+    const row = await page.request.post(`${BASE}/api/admin/jobs/files`, {
+      data: {
+        project_id: projectId, file_id, storage_path: path, file_name: 'contract.txt',
+        file_type: 'document', file_size: bytes.length, mime_type: 'text/plain', section: 'project',
+      },
+    });
+    if (row.ok()) ok('and the row is created against the project, with no job');
+    else bad(`the project file row failed (${row.status()}): ${(await row.text()).slice(0, 160)}`);
+
+    const check = await db.query('SELECT job_id, project_id FROM public.job_files WHERE id = $1', [file_id]);
+    if (check.rows[0]?.project_id === projectId && check.rows[0]?.job_id === null) ok('stored with project_id and a null job_id');
+    else bad(`the row is ${JSON.stringify(check.rows[0])}`);
+
+    const listed = await (await page.request.get(`${BASE}/api/admin/jobs/files?project_id=${projectId}`)).json();
+    if ((listed.files ?? []).some((f) => f.id === file_id)) ok('and the project lists it');
+    else bad('the project does not list its own document');
+
+    // A job's own file list must NOT suddenly include the project's documents.
+    const jobList = await (await page.request.get(`${BASE}/api/admin/jobs/files?job_id=${jobIds[0]}`)).json();
+    if (!(jobList.files ?? []).some((f) => f.id === file_id)) ok('and a job’s file list is unaffected by it');
+    else bad('a project document leaked into a job’s file list');
+
+    const docsFolder = await (await page.request.get(
+      `${BASE}/api/admin/files?parent=${encodeURIComponent(`mnt:projects:${projectId}:docs`)}`)).json();
+    if ((docsFolder.nodes ?? []).some((n) => n.name.includes('contract'))) ok('and the File Explorer shows it under Project documents');
+    else bad(`the project-documents folder does not hold it — saw ${JSON.stringify((docsFolder.nodes ?? []).map((n) => n.name))}`);
+
+    await db.query('DELETE FROM public.job_files WHERE id = $1', [file_id]);
+  } else {
+    bad(`could not start a project upload (${pInit.status()}): ${(await pInit.text()).slice(0, 160)}`);
+  }
+
   // ── The screens ──────────────────────────────────────────────────────────────────────────────
   console.log(`\n  the screens\n`);
   await page.goto(`${BASE}/admin/projects`, { waitUntil: 'networkidle', timeout: 180000 });
@@ -213,6 +281,13 @@ try {
   else bad('the project page does not link to its files');
   if (await page.locator('[data-testid="project-edit"]').count()) ok('and a way to edit it');
   else bad('the project page offers no way to correct the project');
+  // Asserted HERE, while the project page is the page on screen. These three lived after the
+  // New Job navigation once and reported "the project page has no upload control" — about a page
+  // that was not open. An assertion has to run where the thing it names actually is.
+  if (await page.locator('[data-testid="project-upload-label"]').count()) ok('and can upload files to the project itself');
+  else bad('the project page has no upload control');
+  if (await page.locator('[data-testid="project-all-files-link"]').count()) ok('and links to all files on the platform');
+  else bad('the project page does not offer the whole file system');
 
   await page.goto(`${BASE}/admin/projects/${projectId}/edit`, { waitUntil: 'networkidle', timeout: 180000 });
   const nameBox = page.locator('[data-testid="proj-edit-name"]');
@@ -246,12 +321,34 @@ try {
     bad('the New Job form has no project picker');
   }
 
-  // The job page points back up.
+  // The job page points back up, surfaces its files, and is navigable stage-by-stage.
   if (jobIds[0]) {
     await page.goto(`${BASE}/admin/jobs/${jobIds[0]}`, { waitUntil: 'networkidle', timeout: 180000 });
-    await page.waitForTimeout(1800);
+    await page.locator('[data-testid="job-project-link"]').waitFor({ state: 'attached', timeout: 30000 }).catch(() => {});
     if (await page.locator('[data-testid="job-project-link"]').count()) ok('the job page links up to its project');
     else bad('the job page does not show which project it belongs to');
+
+    if (await page.locator('[data-testid="job-files-quick"]').count()) ok('and offers Files & photos from the header');
+    else bad('the job page buries its files in the tab strip');
+
+    // Every stage must be openable, whatever the job's current stage is — the whole point.
+    const openable = await page.locator('[data-testid^="stage-open-"]').count();
+    if (openable === 7) ok(`all ${openable} stages are clickable, not just the current one`);
+    else bad(`only ${openable} stage(s) are clickable`);
+
+    // Clicking Research must open the research work, without re-staging the job.
+    const stageBefore = (await db.query('SELECT stage FROM public.jobs WHERE id = $1', [jobIds[0]])).rows[0].stage;
+    await page.locator('[data-testid="stage-open-research"]').click();
+    await page.waitForTimeout(1200);
+    const stageAfter = (await db.query('SELECT stage FROM public.jobs WHERE id = $1', [jobIds[0]])).rows[0].stage;
+    if (stageAfter === stageBefore) ok('and opening a stage does NOT change the job’s stage');
+    else bad(`opening the research stage re-staged the job: ${stageBefore} → ${stageAfter}`);
+
+    // Files quick-access really lands on the files panel.
+    await page.locator('[data-testid="job-files-quick"]').click();
+    await page.waitForTimeout(1200);
+    if (await page.locator('[data-testid="job-all-files-link"]').count()) ok('and the files view offers the whole platform’s files');
+    else bad('the job files view is a dead end');
   }
 
   // Nav.

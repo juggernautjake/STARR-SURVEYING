@@ -1780,3 +1780,101 @@
 }
 .job-form__hint a { color: var(--color-brand-navy, #1E3A5F); font-weight: 600; text-decoration: none; }
 .job-form__hint a:hover { text-decoration: underline; }
+
+/* ── The stage timeline became navigable (2026-08-19) ─────────────────────────────────────────
+ *
+ * Owner: "we need to be able to go back to previous stages of the job at any time. If I set the
+ * initial stage to drawing, I should still be able to click on the research stage and open up that
+ * page." Every stage used to be a <div> — nothing was clickable at all.
+ *
+ * Two verbs, styled apart on purpose: the dot OPENS the stage's work (never changes the job), and
+ * the small control beneath MOVES the job there (a real edit). Making them look alike is how
+ * somebody re-stages a job while trying to read it. */
+.job-timeline__open {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.job-timeline__open:hover .job-timeline__dot {
+  transform: scale(1.08);
+  box-shadow: 0 2px 8px rgba(29, 48, 149, 0.25);
+}
+.job-timeline__open:hover .job-timeline__label { text-decoration: underline; }
+.job-timeline__open:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 3px; }
+.job-timeline__dot { transition: transform 120ms, box-shadow 120ms; }
+
+.job-timeline__set {
+  margin-top: 0.3rem;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #fff);
+  color: var(--color-text-muted, #6B7280);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.job-timeline__set:hover {
+  border-color: var(--color-brand-navy, #1D3095);
+  color: var(--color-brand-navy, #1D3095);
+}
+.job-timeline__set--confirm {
+  background: var(--theme-brand-subtle, #EBF0FF);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: var(--color-brand-navy, #1D3095);
+}
+.job-timeline__setrow { display: flex; flex-direction: column; gap: 0.2rem; align-items: center; }
+.job-timeline__here {
+  margin-top: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-brand-navy, #1D3095);
+  white-space: nowrap;
+}
+
+/* On a phone seven stages cannot share a row. Scroll them as one strip, each wide enough to read,
+ * rather than crushing seven labels into 390px. */
+@media (max-width: 720px) {
+  .job-timeline__track {
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 0.3rem;
+  }
+  .job-timeline__track::-webkit-scrollbar { display: none; }
+  .job-timeline__stage { flex: 0 0 6.5rem; }
+}
+
+/* Files where somebody looking for them will look (2026-08-19). The Files and Photos tabs already
+ * existed — as two of ten tabs, which is not the same as being findable. The count is on the button
+ * because a number is what tells you whether the click is worth it. */
+.job-detail__filesbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--theme-fg-inverse, #fff);
+  background: var(--color-brand-navy, #1E3A5F);
+  border: 1px solid var(--color-brand-navy, #1E3A5F);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.job-detail__filesbtn:hover { background: var(--theme-brand-hover, #162470); }
+.job-detail__filesbtn-count {
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}

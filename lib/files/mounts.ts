@@ -569,6 +569,38 @@ async function listJobsMount(
  * matter which folder somebody reached it through. Adding a parallel resolver here would have been
  * a second place to get permissions wrong.
  */
+/** A project's own documents: `project_id` set, `job_id` null. Same shaping as `jobKindNodes`'
+ *  files branch, and the same `mnt:job-files:` ids, so download needs no new code path. */
+async function projectDocNodes(
+  projectId: string,
+  parent: string,
+): Promise<{ ok: boolean; error?: string; nodes: MountNode[] }> {
+  const { data, error } = await supabaseAdmin
+    .from('job_files')
+    .select('id, file_name, name, file_url, storage_path, mime_type, content_type, file_size, file_size_bytes, file_node_id, uploaded_at, created_at')
+    .eq('project_id', projectId)
+    .is('job_id', null)
+    .eq('is_deleted', false)
+    .eq('is_backup', false)
+    .order('uploaded_at', { ascending: false, nullsFirst: false })
+    .limit(LIMIT);
+  if (error) return { ok: false, error: error.message, nodes: [] };
+  type Row = JobFileRow & { uploaded_at: string | null; created_at: string | null };
+  const nodes = ((data ?? []) as unknown as Row[])
+    .filter((r) => shapeOf(r) !== 'missing')
+    .map((r) => ({
+      id: `${MOUNT_PREFIX}job-files:${r.id}`,
+      parent_id: parent,
+      node_type: 'file' as const,
+      name: displayName(r),
+      mime_type: mimeOf(r) ?? mimeFromPath(r.storage_path ?? null),
+      size_bytes: sizeOf(r),
+      updated_at: r.uploaded_at ?? r.created_at ?? '',
+      access: 'download' as const,
+    }));
+  return { ok: true, nodes };
+}
+
 async function listProjectsMount(
   segments: string[],
   user: FileUser,
@@ -635,7 +667,43 @@ async function listProjectsMount(
       updated_at: j.updated_at,
       access: 'view',
     }));
+    // ── The project's OWN documents sit beside its jobs ─────────────────────────────────────────
+    //
+    // Files with a `project_id` and no `job_id` — the contract, the title commitment. They are not
+    // any job's, so they appear as a sibling folder rather than being hidden inside whichever job
+    // happened to be created first. Same gate as job files, because they are the same table.
+    if (canSee(SOURCES.find((s) => s.key === 'job-files') as MountSource, user, isAdmin)) {
+      const docs = await projectDocNodes(project.id, `${projNode}:docs`);
+      if (docs.ok && docs.nodes.length > 0) {
+        nodes.unshift({
+          id: `${projNode}:docs`,
+          parent_id: projNode,
+          node_type: 'folder',
+          name: `Project documents (${docs.nodes.length})`,
+          mime_type: null,
+          size_bytes: null,
+          updated_at: docs.nodes.reduce((a, n) => (n.updated_at > a ? n.updated_at : a), ''),
+          access: 'view',
+        });
+      }
+    }
+
     return { ok: true, name: projLabel, nodes, trail: projTrail, openHref: `/admin/projects/${project.id}` };
+  }
+
+  // The project-documents folder, which is a leaf of files rather than another job.
+  if (segments.length === 2 && jobId === 'docs') {
+    if (!canSee(SOURCES.find((s) => s.key === 'job-files') as MountSource, user, isAdmin)) {
+      return { ok: false, status: 404, error: 'That folder is not here.' };
+    }
+    const docs = await projectDocNodes(project.id, `${projNode}:docs`);
+    if (!docs.ok) return { ok: false, status: 500, error: docs.error };
+    return {
+      ok: true,
+      name: 'Project documents',
+      nodes: docs.nodes,
+      trail: [...projTrail, { id: `${projNode}:docs`, name: 'Project documents' }],
+    };
   }
 
   // Below here the job must actually be IN this project — otherwise `mnt:projects:<a>:<jobFromB>`

@@ -438,3 +438,37 @@
   text-align: left;
 }
 .pf__suggest-btn:hover { text-decoration: underline; }
+
+/* Project files (2026-08-19) — the engagement's own documents, uploaded here. */
+.pfiles__upload { width: 100%; justify-content: center; margin-bottom: 0.5rem; }
+.pfiles__upload.is-busy { opacity: 0.7; cursor: progress; }
+.pfiles { list-style: none; margin: 0.5rem 0 0.6rem; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.pfiles__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--color-bg-subtle, #F9FAFB);
+}
+.pfiles__icon { display: inline-flex; color: var(--color-text-muted, #6B7280); }
+.pfiles__name { font-size: 0.84rem; font-weight: 600; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.pfiles__meta { display: block; font-size: 0.72rem; font-weight: 400; color: var(--color-text-muted, #6B7280); }
+.pfiles__actions { display: inline-flex; gap: 0.2rem; }
+.pfiles__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #fff);
+  color: var(--theme-fg-secondary, #374151);
+  cursor: pointer;
+}
+.pfiles__btn:hover { border-color: var(--color-brand-navy, #1D3095); color: var(--color-brand-navy, #1D3095); }
+.pfiles__btn--danger:hover { border-color: #DC2626; color: #DC2626; }
+.pfiles__links { margin-top: 0.35rem; }

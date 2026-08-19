@@ -41,17 +41,35 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const { job_id, to_stage, notes } = await req.json();
   if (!job_id || !to_stage) return NextResponse.json({ error: 'job_id and to_stage required' }, { status: 400 });
 
-  // Get current job
-  const { data: job } = await supabaseAdmin.from('jobs').select('stage, job_number').eq('id', job_id).single();
+  if (!STAGE_ORDER.includes(to_stage) && to_stage !== 'cancelled' && to_stage !== 'on_hold') {
+    return NextResponse.json({ error: `Unknown stage: ${to_stage}` }, { status: 400 });
+  }
+
+  // Get current job. The milestone date is read too — see below.
+  const dateCol = STAGE_DATE_MAP[to_stage];
+  const { data: job } = await supabaseAdmin
+    .from('jobs')
+    .select(`stage, job_number${dateCol ? `, ${dateCol}` : ''}`)
+    .eq('id', job_id)
+    .single();
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-  // Update job stage and corresponding date
+  // ── MOVING IS ALLOWED IN BOTH DIRECTIONS, BUT A MILESTONE IS STAMPED ONCE ────────────────────
+  //
+  // Nothing here has ever restricted the direction of a transition, and it still does not — the
+  // owner needs to put a job back to research when the deed work turns out to be wrong (2026-08-19).
+  //
+  // What DID need fixing is the date. `STAGE_DATE_MAP` stamps a milestone column on arrival, so
+  // moving back to `research` overwrote `date_accepted` with today — silently rewriting when the
+  // job was accepted, a figure that feeds reporting and the customer's paperwork. A milestone
+  // records when a thing FIRST happened; revisiting a stage is not it happening again. So the date
+  // is only written when it is not already set.
   const updateFields: Record<string, unknown> = {
     stage: to_stage,
     stage_changed_at: new Date().toISOString(),
   };
-  if (STAGE_DATE_MAP[to_stage]) {
-    updateFields[STAGE_DATE_MAP[to_stage]] = new Date().toISOString();
+  if (dateCol && !(job as Record<string, unknown>)[dateCol]) {
+    updateFields[dateCol] = new Date().toISOString();
   }
 
   const { error: updateError } = await supabaseAdmin

@@ -13,17 +13,26 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { searchParams } = new URL(req.url);
   const jobId = searchParams.get('job_id');
+  // 2026-08-19 — a file can belong to the engagement rather than to one job (the contract, the
+  // title commitment). `?project_id=` lists ONLY those: a project's own documents, not the union of
+  // its jobs' files, which is what the project's folder in the File Explorer is for. Two different
+  // questions, and answering both from one parameter would make neither answerable.
+  const projectId = searchParams.get('project_id');
   const section = searchParams.get('section');
   const fileType = searchParams.get('file_type');
-  if (!jobId) return NextResponse.json({ error: 'job_id required' }, { status: 400 });
+  if (!jobId && !projectId) {
+    return NextResponse.json({ error: 'job_id or project_id required' }, { status: 400 });
+  }
 
   let query = supabaseAdmin
     .from('job_files')
     .select('*')
-    .eq('job_id', jobId)
     .eq('is_deleted', false)
     .eq('is_backup', false)
     .order('uploaded_at', { ascending: false });
+
+  if (jobId) query = query.eq('job_id', jobId);
+  else query = query.eq('project_id', projectId as string).is('job_id', null);
 
   if (section) query = query.eq('section', section);
   if (fileType) query = query.eq('file_type', fileType);
@@ -94,8 +103,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     create_backup, file_node_id,
     // The storage shape, from `jobs/files/upload`: the id it minted and the key the bytes went to.
     file_id, storage_path,
+    // 2026-08-19 — a project-level document, belonging to the engagement rather than to one job.
+    project_id,
   } = await req.json();
-  if (!job_id || !file_name) return NextResponse.json({ error: 'job_id and file_name required' }, { status: 400 });
+  if (!file_name) return NextResponse.json({ error: 'file_name required' }, { status: 400 });
+  if (!job_id && !project_id) {
+    return NextResponse.json({ error: 'A file must belong to a job or a project.' }, { status: 400 });
+  }
 
   // F5 — attaching an existing File Explorer document. The permission check is the point of doing it
   // here rather than trusting the client: without it, anyone who can post to this route could attach
@@ -135,7 +149,12 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     .from('job_files')
     .insert({
       ...(isStorage && typeof file_id === 'string' ? { id: file_id } : {}),
-      job_id, file_name, file_type: file_type || 'other', file_size,
+      // `job_id` may be null for a project-level document. When it is set, the database trigger
+      // fills `project_id` from the job, so a job file is always findable through its engagement
+      // without every caller remembering to send both.
+      job_id: job_id ?? null,
+      project_id: project_id ?? null,
+      file_name, file_type: file_type || 'other', file_size,
       mime_type, section: section || 'general', description,
       uploaded_by: session.user.email,
       file_node_id: file_node_id ?? null,

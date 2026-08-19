@@ -62,10 +62,30 @@ export const QUICK_ACTIONS_CATALOG: ReadonlyArray<QuickActionDef> = [
     allowedRoles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'],
     tint: 'success',
   },
+  // ── NEW PROJECT REPLACED NEW JOB IN THE DEFAULT SET (2026-08-19) ─────────────────────────────
+  //
+  // Owner: *"make sure that the quick actions widget on the hub has new project instead of new job
+  // as the option."* Which follows from the hierarchy: a job cannot be created without a project, so
+  // "New Job" as the one-click action was a shortcut to a form whose first question is "which
+  // project?" — and if the answer is "a new one", it was the wrong starting point.
+  //
+  // The id stays `new-job` for the tile that still points at the job form; the DEFAULT list swaps to
+  // `new-project`. Renaming the id would silently drop the tile from every hub that has already
+  // saved a layout containing it, because saved layouts store ids.
+  {
+    id: 'new-project',
+    label: 'New Project',
+    description: 'Start a project — the client and site its jobs will inherit.',
+    iconName: 'FolderPlus',
+    kind: 'link',
+    href: '/admin/projects/new',
+    allowedRoles: ['admin'],
+    tint: 'accent',
+  },
   {
     id: 'new-job',
     label: 'New Job',
-    description: 'Create a new job from the work workspace.',
+    description: 'Add a job to an existing project.',
     iconName: 'FilePlus',
     kind: 'link',
     href: '/admin/jobs/new',
@@ -172,7 +192,26 @@ export function quickActionsForRoles(roles: UserRole[]): QuickActionDef[] {
   });
 }
 
-/** Returns the id list of the default selection — first 8 entries.
- *  Used by the widget's `defaultContent`. */
-export const DEFAULT_QUICK_ACTION_IDS: ReadonlyArray<string> =
-  QUICK_ACTIONS_CATALOG.slice(0, 8).map((a) => a.id);
+/**
+ * The default eight, named rather than sliced.
+ *
+ * This was `QUICK_ACTIONS_CATALOG.slice(0, 8)`, which meant the default set was whatever happened to
+ * be declared first — so inserting one entry anywhere near the top silently pushed the last default
+ * out of every new hub. Adding `new-project` on 2026-08-19 would have quietly dropped `schedule`,
+ * and nothing would have said so.
+ *
+ * **`new-project`, not `new-job`** (owner, 2026-08-19). A job cannot be created without a project, so
+ * a one-click "New Job" led to a form whose first question is "which project?" — and when the answer
+ * was "a new one", it was the wrong starting point. `new-job` stays in the catalogue for anyone who
+ * wants to add it back, and for hubs whose saved layout already names it.
+ */
+export const DEFAULT_QUICK_ACTION_IDS: ReadonlyArray<string> = [
+  'clock-in-out',
+  'new-project',
+  'approve-receipts',
+  'view-reports',
+  'open-cad',
+  'send-message',
+  'capture-receipt',
+  'schedule',
+];

@@ -22,24 +22,30 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const body = (await req.json().catch(() => ({}))) as {
     job_id?: string;
+    // 2026-08-19 — a document belonging to the engagement rather than to one job.
+    project_id?: string;
     name?: string;
     size_bytes?: number;
   };
 
-  if (!body.job_id) return NextResponse.json({ error: 'job_id is required.' }, { status: 400 });
+  if (!body.job_id && !body.project_id) {
+    return NextResponse.json({ error: 'job_id or project_id is required.' }, { status: 400 });
+  }
 
   const check = checkJobUpload({ name: body.name, sizeBytes: body.size_bytes });
   if (!check.ok) return NextResponse.json({ error: check.error }, { status: 400 });
 
-  // The job has to exist, and has to not be in the bin. Without this, a mistyped id writes an
-  // orphan object into the bucket that no job page will ever list and no cleanup will ever find.
-  const { data: job } = await supabaseAdmin
-    .from('jobs')
-    .select('id')
-    .eq('id', body.job_id)
-    .is('deleted_at', null)
-    .maybeSingle();
-  if (!job) return NextResponse.json({ error: 'That job no longer exists.' }, { status: 404 });
+  // The owner has to exist, and has to not be in the bin. Without this, a mistyped id writes an
+  // orphan object into the bucket that no page will ever list and no cleanup will ever find.
+  if (body.job_id) {
+    const { data: job } = await supabaseAdmin
+      .from('jobs').select('id').eq('id', body.job_id).is('deleted_at', null).maybeSingle();
+    if (!job) return NextResponse.json({ error: 'That job no longer exists.' }, { status: 404 });
+  } else {
+    const { data: project } = await supabaseAdmin
+      .from('projects').select('id').eq('id', body.project_id as string).is('deleted_at', null).maybeSingle();
+    if (!project) return NextResponse.json({ error: 'That project no longer exists.' }, { status: 404 });
+  }
 
   await ensureStorageBucket(JOB_FILES_BUCKET, { public: false });
 

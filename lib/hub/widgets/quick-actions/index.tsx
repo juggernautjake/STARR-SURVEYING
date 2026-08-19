@@ -1142,6 +1142,9 @@ function emojiForAction(iconName: string): string {
   const map: Record<string, string> = {
     Clock: '⏱',
     FilePlus: '➕',
+    // The hub's default create action is a PROJECT now (2026-08-19); without an entry it fell
+    // through to the generic bolt, which says nothing about what the tile does.
+    FolderPlus: '📁',
     BadgeCheck: '✔︎',
     FileBarChart: '📊',
     PenTool: '✏️',

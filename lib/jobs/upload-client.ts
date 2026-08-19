@@ -49,10 +49,34 @@ export async function uploadJobFileBytes(
   file: File,
   onPct?: (pct: number) => void,
 ): Promise<JobUploadResult> {
+  return uploadAttachmentBytes({ job_id: jobId }, file, onPct);
+}
+
+/**
+ * The same upload, for a document that belongs to the PROJECT rather than to one job — the signed
+ * contract, the title commitment, the deed the whole tract was quoted from (2026-08-19).
+ *
+ * One function for both owners rather than two near-copies: the three-step and its failure handling
+ * are the part that is easy to get subtly different, and a project upload that retried differently
+ * from a job upload would be a bug nobody could see.
+ */
+export async function uploadProjectFileBytes(
+  projectId: string,
+  file: File,
+  onPct?: (pct: number) => void,
+): Promise<JobUploadResult> {
+  return uploadAttachmentBytes({ project_id: projectId }, file, onPct);
+}
+
+async function uploadAttachmentBytes(
+  owner: { job_id?: string; project_id?: string },
+  file: File,
+  onPct?: (pct: number) => void,
+): Promise<JobUploadResult> {
   const init = await fetch('/api/admin/jobs/files/upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ job_id: jobId, name: file.name, size_bytes: file.size }),
+    body: JSON.stringify({ ...owner, name: file.name, size_bytes: file.size }),
   });
 
   if (!init.ok) {

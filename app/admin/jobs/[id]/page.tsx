@@ -7,7 +7,7 @@ import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
-  Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download,
+  Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download, Files,
   Circle, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
@@ -476,6 +476,24 @@ export default function JobDetailPage() {
               to avoid adding new CSS to the existing job-detail
               stylesheet. */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* ── FILES, WHERE SOMEBODY LOOKING FOR THEM WILL ACTUALLY LOOK (2026-08-19) ────────
+                Owner: "Please make it plain in the project/job workflow where I can quickly open up
+                the files/images related to the current job."
+                The Files and Photos tabs already existed — as two of TEN tabs, which is not the same
+                thing as being findable. This is a header action with the live count on it, because
+                a number is what tells you whether it is worth the click. */}
+            <button
+              type="button"
+              onClick={() => setActiveTab('files')}
+              className="job-detail__filesbtn"
+              title="Every file and photo attached to this job"
+              data-testid="job-files-quick"
+            >
+              <Folder size={14} strokeWidth={2} aria-hidden /> Files &amp; photos
+              {typeof job.file_count === 'number' && job.file_count > 0 && (
+                <span className="job-detail__filesbtn-count">{job.file_count}</span>
+              )}
+            </button>
             <Link
               href={`/admin/jobs/${jobId}/field`}
               style={{
@@ -610,6 +628,10 @@ export default function JobDetailPage() {
         history={stageHistory}
         onAdvance={advanceStage}
         canAdvance={true}
+        // Opening a stage just moves the tab strip. It is not a change to the job, so it does not
+        // go through `advanceStage` — clicking Research to read last month's deed work must never
+        // re-stage a job that is out for delivery.
+        onOpen={setActiveTab}
       />
 
       {/* Tabs */}
@@ -927,6 +949,22 @@ export default function JobDetailPage() {
                 <FolderOpen size={13} aria-hidden /> Open this job&rsquo;s folder in Files
               </Link>
               <span> — everything attached to this job in one place, including receipts and drawings.</span>
+            </p>
+            {/* The second half of what was asked for: "from there I should also be able to view all
+                of the files on the platform if I want to." A folder that is a dead end makes people
+                navigate by URL. */}
+            <p className="job-files__explorer-link">
+              <Link href="/admin/files" data-testid="job-all-files-link">
+                <Files size={13} aria-hidden /> Browse all files on the platform
+              </Link>
+              {project && (
+                <>
+                  <span> · </span>
+                  <Link href={`/admin/files?node=mnt:projects:${project.id}`} data-testid="job-project-files-link">
+                    Everything in {project.project_number ?? 'this project'}
+                  </Link>
+                </>
+              )}
             </p>
           </>
         )}
