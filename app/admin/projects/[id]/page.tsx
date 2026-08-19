@@ -13,7 +13,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import {
-  FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, FolderOpen, Trash2, Briefcase, Check,
+  FolderKanban, Plus, ArrowLeft, MapPin, User, Mail, Phone, FolderOpen, Trash2, Briefcase, Check, Pencil,
 } from 'lucide-react';
 import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG } from '../../components/jobs/JobCard';
@@ -131,6 +131,9 @@ export default function ProjectDetailPage() {
         <div className="proj-page__header-actions">
           <Link href="/admin/projects" className="proj-page__btn proj-page__btn--secondary">
             <ArrowLeft size={15} aria-hidden /> All Projects
+          </Link>
+          <Link href={`/admin/projects/${project.id}/edit`} className="proj-page__btn proj-page__btn--secondary" data-testid="project-edit">
+            <Pencil size={15} aria-hidden /> Edit
           </Link>
           {/* The point of the page. `?project=` prefills and preselects the picker on the job form. */}
           <Link

@@ -52,6 +52,10 @@ let projectId = null;
 const jobIds = [];
 
 const CLIENT = 'Smith Holdings QA';
+// The edit step below deliberately corrects the client name, so anything asserted AFTER that point
+// must expect the corrected value. Checking for the original there fails against a form that is
+// behaving perfectly — which it did, once.
+const CLIENT_CORRECTED = 'Smith Holdings CORRECTED';
 const ADDRESS = '100 County Road 12';
 const COUNTY = 'Hidalgo';
 
@@ -133,6 +137,29 @@ try {
   if (detail.rollup && typeof detail.rollup.billable === 'number') ok('and a money roll-up summed from them');
   else bad('there is no roll-up on the project');
 
+  // ── Editing, which was create-only until the last slice ──────────────────────────────────────
+  //
+  // A project's client and site are what every NEW job inherits, so an uncorrectable typo does not
+  // sit still — it propagates into every job made afterwards. Equally load-bearing: the edit must
+  // NOT reach back into jobs that already exist, whose copies are what get printed.
+  const beforeEdit = await db.query('SELECT client_name, address FROM public.jobs WHERE id = $1', [jobIds[0]]);
+  const edited = await page.request.patch(`${BASE}/api/admin/projects/${projectId}`, {
+    data: { client_name: CLIENT_CORRECTED, county: 'Starr' },
+  });
+  if (edited.ok()) {
+    const p = (await edited.json()).project;
+    if (p.client_name === CLIENT_CORRECTED && p.county === 'Starr') ok('the project can be corrected after it exists');
+    else bad(`the edit did not stick: ${JSON.stringify({ n: p.client_name, c: p.county })}`);
+  } else {
+    bad(`editing the project failed (${edited.status()})`);
+  }
+  const afterEdit = await db.query('SELECT client_name, address FROM public.jobs WHERE id = $1', [jobIds[0]]);
+  if (afterEdit.rows[0]?.client_name === beforeEdit.rows[0]?.client_name) {
+    ok('and it did NOT rewrite the jobs already inside it');
+  } else {
+    bad(`the project edit cascaded into an existing job: ${beforeEdit.rows[0]?.client_name} → ${afterEdit.rows[0]?.client_name}`);
+  }
+
   // ── A project holding live jobs cannot be deleted ────────────────────────────────────────────
   const refused = await page.request.delete(`${BASE}/api/admin/projects/${projectId}`);
   if (refused.status() === 409) {
@@ -184,6 +211,21 @@ try {
   else bad('the project page has no way to add a job — which is the point of it');
   if (await page.locator('[data-testid="project-files-link"]').count()) ok('and a link to its folder in Files');
   else bad('the project page does not link to its files');
+  if (await page.locator('[data-testid="project-edit"]').count()) ok('and a way to edit it');
+  else bad('the project page offers no way to correct the project');
+
+  await page.goto(`${BASE}/admin/projects/${projectId}/edit`, { waitUntil: 'networkidle', timeout: 180000 });
+  const nameBox = page.locator('[data-testid="proj-edit-name"]');
+  const editReady = await nameBox.waitFor({ state: 'visible', timeout: 30000 }).then(() => true).catch(() => false);
+  if (editReady) {
+    ok('the edit form opens');
+    if ((await nameBox.inputValue()).includes('Smith Tract')) ok('with the project’s current values in it');
+    else bad(`the edit form did not load the current name (${await nameBox.inputValue()})`);
+    if (await page.locator('[data-testid="proj-archive"]').count()) ok('and offers archiving');
+    else bad('the edit form has no archive control');
+  } else {
+    bad('the edit form did not render');
+  }
 
   // The job form must demand a project, and prefill from the one it arrived with.
   await page.goto(`${BASE}/admin/jobs/new?project=${projectId}`, { waitUntil: 'networkidle', timeout: 180000 });
@@ -196,7 +238,7 @@ try {
     else bad(`the ?project= parameter did not preselect it (value: ${await sel.inputValue()})`);
     const addr = await page.locator('input').filter({ hasText: '' }).count();
     const filled = await page.evaluate((want) =>
-      Array.from(document.querySelectorAll('input')).some((i) => i.value === want), CLIENT);
+      Array.from(document.querySelectorAll('input')).some((i) => i.value === want), CLIENT_CORRECTED);
     if (filled) ok('and prefilled the client from the project');
     else bad('the form did not prefill the client from the project');
     void addr;

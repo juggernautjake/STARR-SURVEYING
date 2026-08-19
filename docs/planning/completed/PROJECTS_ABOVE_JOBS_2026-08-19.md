@@ -1,6 +1,6 @@
 # Projects, and the jobs that live inside them
 
-**Status:** IN PROGRESS · opened 2026-08-19
+**Status:** DONE · opened and closed 2026-08-19 · merged to main
 
 > **Owner, 2026-08-19:** *"On the backend it really seems like the project functionality I wanted is
 > not surfaced. We have it so that we can create a new job or edit jobs, but what I want is for us to
@@ -152,3 +152,36 @@ Responsive behaviour that needed deciding rather than defaulting:
 
 Verified by screenshot at 1440 and 390 on every new page, waiting for real content rather than
 sleeping at it — the first attempt captured the app shell's own loading screen and measured that.
+
+## 8. Closing slice — a project could be created but never corrected
+
+Found while closing this doc rather than assumed done: the `PATCH` route accepted **every** editable
+field from the day it was written, and the only UI that ever called it set `status`. A project was
+create-only.
+
+That is worse here than on an ordinary record. A project's client and site are the values every
+**new** job inherits, so an uncorrectable typo does not sit still — it propagates into every job made
+afterwards, and each of those copies is what ends up on a drawing.
+
+Shipped: `/admin/projects/[id]/edit` (name, description, client, site, notes), an **Archive**
+toggle, and an **Edit** button on the project page. A cleared box saves as `null`, not `''` — an
+empty string reads as a real value of nothing and prints as a blank line on a report.
+
+**Editing deliberately does not cascade into existing jobs**, and the page says so on screen rather
+than leaving somebody to assume either behaviour. The check now asserts both halves: that the
+correction sticks on the project, and that the job created before it is untouched.
+
+That check also produced its **second self-inflicted false finding** — the new edit step renames the
+client, and the later "did the form prefill?" assertion was still looking for the original name. The
+form was behaving perfectly. *A fixture that mutates shared state invalidates every assertion
+downstream of it; the expected value has to move with it.*
+
+---
+
+## Status: DONE
+
+Every action item in this doc is shipped. Moving to `completed/` per the rubric in
+`docs/planning/README.md`: the feature has shipped, `scripts/check-projects-jobs.mjs` still resolves
+against it, and the decision record above is worth preserving.
+
+Nothing is deferred.
