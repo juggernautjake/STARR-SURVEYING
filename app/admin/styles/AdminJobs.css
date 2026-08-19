@@ -860,36 +860,85 @@
 /* --------------------------------------------------------------------------
    Job Detail Tabs
    -------------------------------------------------------------------------- */
+/* ── THE TAB STRIP, MADE VISIBLE AND THUMB-SIZED (2026-08-19) ──────────────────────────────────
+ *
+ * Owner: *"On the job pages we have the overview, schedule, research, cad, field work, photos, etc.
+ * I want those to be more prominently displayed a bit, and I want them to be easier to access and
+ * select on mobile especially."*
+ *
+ * It was ten items in a thin underline strip that scrolled sideways. On a phone that is the worst
+ * of both: most of the tabs are off-screen with no indication they exist, the hit targets are the
+ * height of a line of text, and the only marker of where you are is a 2px rule. On a desktop it was
+ * simply quiet — the primary navigation of the page read as a caption.
+ *
+ * Desktop: real chips with a filled active state, so the tab strip looks like the control it is.
+ * Phone: a GRID, not a scroller — every tab on screen at once, icon over label, at a size a thumb
+ * can hit. Nothing is hidden, so nothing has to be discovered by swiping.
+ */
 .job-detail__tabs {
   display: flex;
-  gap: 0.25rem;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  padding-bottom: 0.7rem;
   border-bottom: 2px solid var(--theme-border, #E5E7EB);
   margin-bottom: 1rem;
-  overflow-x: auto;
 }
 .job-detail__tab {
   display: flex;
   align-items: center;
-  gap: 0.3rem;
-  padding: 0.65rem 1rem;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  gap: 0.35rem;
+  padding: 0.5rem 0.85rem;
+  background: var(--color-bg-subtle, #F3F4F6);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 999px;
   cursor: pointer;
   font-family: inherit;
   font-size: 0.85rem;
-  color: var(--color-text-tertiary);
-  white-space: nowrap;
-  transition: color 0.15s, border-color 0.15s;
-}
-.job-detail__tab:hover { color: var(--color-brand-navy); }
-.job-detail__tab--active {
-  color: var(--color-brand-navy);
   font-weight: 600;
-  border-bottom-color: var(--color-brand-navy);
+  color: var(--theme-fg-secondary, #374151);
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
 }
-.job-detail__tab-icon { font-size: 1rem; }
+.job-detail__tab:hover {
+  color: var(--color-brand-navy);
+  border-color: var(--color-brand-navy);
+  background: var(--theme-brand-subtle, #EBF0FF);
+}
+.job-detail__tab:focus-visible { outline: 2px solid var(--color-brand-navy, #1D3095); outline-offset: 2px; }
+.job-detail__tab--active {
+  background: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: var(--theme-fg-inverse, #fff);
+  font-weight: 700;
+}
+.job-detail__tab--active:hover {
+  background: var(--theme-brand-hover, #162470);
+  color: var(--theme-fg-inverse, #fff);
+}
+.job-detail__tab-icon { display: inline-flex; }
+
+/* The phone layout: every tab visible, thumb-sized, no sideways hunting. */
+@media (max-width: 720px) {
+  .job-detail__tabs {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(5.4rem, 1fr));
+    gap: 0.4rem;
+    padding-bottom: 0.8rem;
+  }
+  .job-detail__tab {
+    flex-direction: column;
+    gap: 0.2rem;
+    padding: 0.6rem 0.3rem;
+    min-height: 3.5rem;
+    border-radius: 12px;
+    justify-content: center;
+    text-align: center;
+    font-size: 0.74rem;
+    white-space: normal;
+    line-height: 1.15;
+  }
+  .job-detail__tab-icon { font-size: 1.05rem; }
+}
 .job-detail__tab-badge {
   display: inline-flex;
   align-items: center;
@@ -1449,6 +1498,9 @@
 .file-viewer__image-wrapper { transition: transform 0.1s ease-out; }
 .file-viewer__image { max-width: 100%; max-height: 85vh; max-height: 85dvh; display: block; border-radius: 4px; }
 .file-viewer__iframe { width: 100%; height: 100%; border: none; background: var(--theme-bg-surface, #fff); }
+/* Video (2026-08-19). Fits the frame without cropping — a field video is usually portrait from a
+ * phone, and object-fit: cover would hide the top of the very thing being filmed. */
+.file-viewer__video { max-width: 100%; max-height: 100%; width: auto; height: auto; background: var(--theme-media-ground, #000); border-radius: 8px; }
 .file-viewer__no-preview { text-align: center; color: var(--color-text-muted); padding: 3rem; }
 .file-viewer__no-preview-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
 .file-viewer__no-preview p { margin: 0 0 0.5rem; font-size: 0.9rem; }
@@ -1878,3 +1930,129 @@
   font-size: 0.72rem;
   font-weight: 700;
 }
+
+/* ── Job money (2026-08-19): bid, received, owed, and how it got that way ────────────────────── */
+.jmoney {
+  background: var(--theme-bg-elevated, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+}
+.jmoney__head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; flex-wrap: wrap; }
+.jmoney__head h3 {
+  display: flex; align-items: center; gap: 0.35rem;
+  font-family: 'Sora', sans-serif; font-size: 1rem; margin: 0;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.jmoney__head-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.jmoney__btn {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font: inherit; font-size: 0.8rem; font-weight: 600;
+  padding: 0.4rem 0.7rem; border-radius: 8px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-elevated, #fff);
+  color: var(--theme-fg-secondary, #374151);
+  cursor: pointer;
+}
+.jmoney__btn--primary {
+  background: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: var(--theme-fg-inverse, #fff);
+}
+.jmoney__btn--danger { border-color: #FCA5A5; color: var(--theme-danger-fg, #B42318); }
+.jmoney__btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* The four figures, big enough to read across a room, tabular so they line up. */
+.jmoney__figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 0.6rem;
+  margin: 0.8rem 0 0.4rem;
+}
+.jmoney__figures > div {
+  border: 1px solid var(--theme-border-subtle, #F3F4F6);
+  border-radius: 10px;
+  padding: 0.55rem 0.7rem;
+  background: var(--color-bg-subtle, #F9FAFB);
+}
+.jmoney__figures dt { margin: 0 0 0.15rem; font-size: 0.74rem; color: var(--color-text-muted, #6B7280); font-weight: 600; }
+.jmoney__figures dd {
+  margin: 0; font-size: 1.05rem; font-weight: 700;
+  color: var(--theme-fg-primary, #111827); font-variant-numeric: tabular-nums;
+}
+.jmoney__in { color: var(--theme-success-fg, #047857); }
+.jmoney__owed { color: var(--theme-warning-fg, #B45309); }
+
+.jmoney__note { margin: 0.3rem 0 0; font-size: 0.78rem; color: var(--color-text-muted, #6B7280); line-height: 1.45; }
+.jmoney__warn {
+  display: flex; align-items: flex-start; gap: 0.35rem;
+  margin: 0.5rem 0 0; padding: 0.5rem 0.6rem;
+  border-radius: 8px; font-size: 0.8rem; line-height: 1.45;
+  background: var(--theme-warning-bg, #FFFBEB);
+  border: 1px solid var(--theme-warning-border, #FDE68A);
+  color: var(--theme-warning-fg, #92400E);
+}
+.jmoney__cancelled {
+  display: flex; align-items: center; gap: 0.35rem;
+  margin: 0.5rem 0 0; padding: 0.5rem 0.6rem; border-radius: 8px;
+  background: var(--theme-danger-bg, #FEF2F2);
+  border: 1px solid #FECACA;
+  color: var(--theme-danger-fg, #991B1B);
+  font-size: 0.82rem;
+}
+.jmoney__error {
+  margin: 0.5rem 0 0; padding: 0.5rem 0.6rem; border-radius: 8px;
+  background: var(--theme-danger-bg, #FEF2F2); border: 1px solid #FECACA;
+  color: var(--theme-danger-fg, #991B1B); font-size: 0.82rem;
+}
+
+.jmoney__form {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 0.5rem; margin: 0.8rem 0;
+  padding: 0.8rem; border-radius: 10px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--color-bg-subtle, #F9FAFB);
+}
+.jmoney__form label { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.jmoney__form label > span { font-size: 0.75rem; font-weight: 600; color: var(--theme-fg-secondary, #374151); }
+.jmoney__form input, .jmoney__form select {
+  font: inherit; font-size: 0.85rem; padding: 0.4rem 0.5rem;
+  border: 1px solid var(--theme-border-strong, #D1D5DB); border-radius: 7px;
+  min-width: 0; background: var(--theme-bg-elevated, #fff);
+}
+.jmoney__wide { grid-column: 1 / -1; }
+.jmoney__formfoot { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 0.4rem; }
+
+.jmoney__sub {
+  display: flex; align-items: center; gap: 0.3rem;
+  font-family: 'Sora', sans-serif; font-size: 0.85rem;
+  margin: 1rem 0 0.4rem; color: var(--color-brand-navy, #1D3095);
+}
+.jmoney__count {
+  background: var(--theme-brand-subtle, #EBF0FF); color: var(--color-brand-navy, #1D3095);
+  font-size: 0.68rem; font-weight: 700; padding: 0 0.35rem; border-radius: 999px; margin-left: 0.15rem;
+}
+.jmoney__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; }
+.jmoney__list li {
+  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap;
+  padding: 0.4rem 0.55rem; border-radius: 8px;
+  border: 1px solid var(--theme-border-subtle, #F3F4F6);
+  background: var(--color-bg-subtle, #F9FAFB);
+  font-size: 0.83rem;
+}
+.jmoney__amt { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--theme-fg-primary, #111827); }
+.jmoney__kind { font-weight: 600; color: var(--color-brand-navy, #1D3095); font-size: 0.78rem; }
+.jmoney__when { color: var(--color-text-muted, #6B7280); font-size: 0.76rem; }
+.jmoney__hist { flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+.jmoney__histline { font-weight: 600; overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .jmoney__head-actions { width: 100%; }
+  .jmoney__head-actions > * { flex: 1 1 0; justify-content: center; }
+}
+
+/* Video surfaces (2026-08-19). A black ground so letterboxed field footage reads as a player rather
+ * than a broken image — as a class, because an inline hex cannot be reached by a token, a media
+ * query, the print stylesheet or a contrast audit. */
+.job-video-thumb, .job-video-player { background: var(--theme-media-ground, #000); }

@@ -7,7 +7,7 @@ import { usePageError } from '../../hooks/usePageError';
 import Link from 'next/link';
 import {
   ClipboardList, CalendarDays, Search, DraftingCompass, HardHat, Folder, FolderOpen, FolderKanban,
-  Camera, DollarSign, History, MessageSquare, MapPin, Trash2, Download, Files,
+  Camera, Video, DollarSign, History, MessageSquare, MapPin, Trash2, Download, Files,
   Circle, type LucideIcon,
 } from 'lucide-react';
 import JobStageTimeline from '../../components/jobs/JobStageTimeline';
@@ -33,6 +33,7 @@ import { JOB_CONTACT_ROLES } from '@/lib/contacts/labels';
 import { exportJobPdf } from '../../components/jobs/jobPdf';
 import JobChecklist from '../../components/jobs/JobChecklist';
 import JobQuoteBuilder from '../../components/jobs/JobQuoteBuilder';
+import JobMoneyPanel from '../../components/jobs/JobMoneyPanel';
 import JobTimeTracker from '../../components/jobs/JobTimeTracker';
 import FieldWorkView from '../../components/jobs/FieldWorkView';
 import type { FieldPoint, JobContext } from '../../components/jobs/FieldWorkView';
@@ -94,6 +95,7 @@ const TABS: { key: string; label: string; Icon: LucideIcon; tip: string }[] = [
   { key: 'fieldwork', label: 'Field Work', Icon: HardHat, tip: 'Interactive map showing collected field points, shot log with search, and timeline visualization. View GPS positions, total station data, and field observations.' },
   { key: 'files', label: 'Files', Icon: Folder, tip: 'All uploaded files for this job — drawings, documents, CAD files, and Trimble data. Organized by section with automatic backup tracking.' },
   { key: 'photos', label: 'Photos', Icon: Camera, tip: 'Field photos for this job — corners, monuments, site conditions. Thumbnail gallery with a click-to-enlarge lightbox and drag-and-drop upload.' },
+  { key: 'videos', label: 'Videos', Icon: Video, tip: 'Field video for this job — access routes, site conditions, anything a still photo cannot explain. Plays in the browser; no download needed.' },
   { key: 'financial', label: 'Financial', Icon: DollarSign, tip: 'Quote details, payment tracking, and time entries. View revenue summary, record payments, and log hours worked by team members.' },
   { key: 'activity', label: 'Activity', Icon: History, tip: 'Chronological log of everything on this job — stage changes, file/photo uploads, drawings saved, team changes — newest first.' },
   { key: 'messages', label: 'Messages', Icon: MessageSquare, tip: 'Dedicated messaging thread for this job. Coordinate with team members, share updates, and discuss field observations in one place.' },
@@ -115,6 +117,7 @@ export default function JobDetailPage() {
   // are heavy). null = not yet known, so no badge shows.
   const [cadCount, setCadCount] = useState<number | null>(null);
   const [photoCount, setPhotoCount] = useState<number | null>(null);
+  const [videoCount, setVideoCount] = useState<number | null>(null);
   // contacts plan Slice 6 — linked-contacts state for the overview tab.
   const [contactLinks, setContactLinks] = useState<Array<{
     id: string; role: string; notes?: string | null;
@@ -453,6 +456,7 @@ export default function JobDetailPage() {
     fieldwork: fieldData.length || undefined,
     files: job.file_count || undefined,
     photos: photoCount ?? undefined,
+    videos: videoCount ?? undefined,
   };
 
   return (
@@ -643,6 +647,10 @@ export default function JobDetailPage() {
               <button
                 className={`job-detail__tab ${activeTab === tab.key ? 'job-detail__tab--active' : ''}`}
                 onClick={() => setActiveTab(tab.key)}
+                // The strip is the page's primary navigation, so which one you are on has to be
+                // available to a screen reader too, not only as a colour.
+                aria-current={activeTab === tab.key ? 'page' : undefined}
+                data-testid={`job-tab-${tab.key}`}
               >
                 <span className="job-detail__tab-icon"><tab.Icon size={15} strokeWidth={1.75} /></span>
                 {tab.label}
@@ -973,8 +981,19 @@ export default function JobDetailPage() {
           <JobPhotoGallery jobId={jobId} onCountChange={setPhotoCount} />
         )}
 
+        {/* Same component, different medium (2026-08-19). The upload, drag-and-drop, delete and
+            keyboard navigation are identical; only the section, the accepted types and whether a
+            tile is an <img> or a <video> differ. */}
+        {activeTab === 'videos' && (
+          <JobPhotoGallery jobId={jobId} media="videos" onCountChange={setVideoCount} />
+        )}
+
         {activeTab === 'financial' && (
           <div className="job-detail__financial">
+            {/* Bid, received, owed — plus down payments, price history and cancellation, all from
+                one arithmetic source (lib/jobs/money.ts) so this page and the financial pages can
+                never report different numbers for the same job. */}
+            <JobMoneyPanel jobId={jobId} onChanged={loadJob} />
             <JobQuoteBuilder
               quoteAmount={job.quote_amount}
               finalAmount={job.final_amount}

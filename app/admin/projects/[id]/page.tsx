@@ -18,6 +18,7 @@ import {
 import { usePageError } from '../../hooks/usePageError';
 import { STAGE_CONFIG } from '../../components/jobs/JobCard';
 import ProjectFilesPanel from '../../components/projects/ProjectFilesPanel';
+import ProjectMoneyPanel from '../../components/projects/ProjectMoneyPanel';
 import {
   PROJECT_STATUSES, PROJECT_STATUS_LABELS, PROJECT_STATUS_COLORS, projectLabel, type ProjectStatus,
 } from '@/lib/projects/model';
@@ -212,20 +213,9 @@ export default function ProjectDetailPage() {
 
           {/* ── The facts every job inherits, plus the totals ─────────────────────────────────── */}
           <aside className="pd__side">
-            {rollup && (
-              <div className="pd__card">
-                <h3>Money</h3>
-                {/* Summed from the jobs, never stored — a stored total drifts the first time a job
-                    is edited by something that does not know to update its parent. */}
-                <dl className="pd__money">
-                  <div><dt>Quoted</dt><dd>{money(rollup.quoted)}</dd></div>
-                  <div><dt>Billable</dt><dd>{money(rollup.billable)}</dd></div>
-                  <div><dt>Paid</dt><dd>{money(rollup.paid)}</dd></div>
-                  <div className="pd__money-owed"><dt>Outstanding</dt><dd>{money(rollup.outstanding)}</dd></div>
-                </dl>
-                <p className="pd__note">Summed from this project&rsquo;s {rollup.jobs} job{rollup.jobs === 1 ? '' : 's'}.</p>
-              </div>
-            )}
+            {/* Replaced the read-only roll-up (2026-08-19): the same totals, plus a straightforward
+                way to record a payment — including a partial one — against the engagement itself. */}
+            <ProjectMoneyPanel projectId={project.id} onChanged={load} />
 
             <div className="pd__card">
               <h3>Client</h3>

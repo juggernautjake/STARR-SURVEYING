@@ -259,6 +259,99 @@ try {
     bad(`could not start a project upload (${pInit.status()}): ${(await pInit.text()).slice(0, 160)}`);
   }
 
+  // ── Money: down payments, price changes, cancellation (2026-08-19) ───────────────────────────
+  console.log(`\n  money — bid, received, owed\n`);
+  const moneyJob = jobIds[1] ?? jobIds[0];
+
+  await page.request.put(`${BASE}/api/admin/jobs`, {
+    data: { id: moneyJob, quote_amount: 4200, price_reason: 'Opening bid' },
+  });
+  await page.request.put(`${BASE}/api/admin/jobs`, {
+    data: { id: moneyJob, quote_amount: 5600, price_reason: 'Client added the topo' },
+  });
+  const hist = await db.query(
+    'SELECT field, old_amount, new_amount, reason FROM public.job_price_history WHERE job_id = $1 ORDER BY created_at',
+    [moneyJob],
+  );
+  if (hist.rows.length >= 2) ok(`the price change was recorded (${hist.rows.length} entries)`);
+  else bad(`price history has ${hist.rows.length} row(s) — the change was not recorded`);
+  const raise = hist.rows.find((r) => Number(r.new_amount) === 5600);
+  if (raise && Number(raise.old_amount) === 4200) ok('with the OLD figure, which the job row no longer holds');
+  else bad(`the raise did not keep its old amount: ${JSON.stringify(raise)}`);
+  if (raise?.reason === 'Client added the topo') ok('and the reason it changed');
+  else bad(`the reason was not stored: ${JSON.stringify(raise?.reason)}`);
+
+  // A down payment.
+  const dep = await page.request.post(`${BASE}/api/admin/jobs/payments`, {
+    data: { job_id: moneyJob, amount: 1500, payment_type: 'deposit', payment_method: 'check', reference_number: '1042' },
+  });
+  if (dep.ok()) ok('a down payment can be recorded');
+  else bad(`recording a down payment failed (${dep.status()})`);
+
+  const m1 = await (await page.request.get(`${BASE}/api/admin/jobs/money?job_id=${moneyJob}`)).json();
+  if (m1.summary?.billed === 5600) ok(`the job bills the current price (${m1.summary.billed})`);
+  else bad(`billed is ${m1.summary?.billed}, expected 5600`);
+  if (m1.summary?.deposits === 1500) ok('and reports the down payment separately');
+  else bad(`deposits is ${m1.summary?.deposits}`);
+  if (m1.summary?.outstanding === 4100) ok('and owes the remainder (4100)');
+  else bad(`outstanding is ${m1.summary?.outstanding}, expected 4100`);
+  if (m1.reconcile?.agrees) ok('and the stored total agrees with the payment records');
+  else bad(`the stored total drifted: ${JSON.stringify(m1.reconcile)}`);
+
+  // A refund must reduce what was received — both sides of the arithmetic agree now.
+  await page.request.post(`${BASE}/api/admin/jobs/payments`, {
+    data: { job_id: moneyJob, amount: 500, payment_type: 'refund' },
+  });
+  const m2 = await (await page.request.get(`${BASE}/api/admin/jobs/money?job_id=${moneyJob}`)).json();
+  if (m2.summary?.received === 1000) ok('a refund reduces what was received');
+  else bad(`received is ${m2.summary?.received}, expected 1000`);
+  if (m2.reconcile?.agrees) ok('and the job row still agrees with the records');
+  else bad(`a refund put the stored total out of step: ${JSON.stringify(m2.reconcile)}`);
+
+  // Cancel it, with a reason and a retained amount.
+  await page.request.put(`${BASE}/api/admin/jobs`, {
+    data: { id: moneyJob, result: 'abandoned', result_reason: 'Client sold the property', amount_retained: 1000 },
+  });
+  const m3 = await (await page.request.get(`${BASE}/api/admin/jobs/money?job_id=${moneyJob}`)).json();
+  if (m3.job?.result_reason === 'Client sold the property') ok('a cancellation records why');
+  else bad(`the cancellation reason is ${JSON.stringify(m3.job?.result_reason)}`);
+  if (m3.job?.cancelled_at) ok('and when');
+  else bad('cancelled_at was not stamped');
+  if (m3.summary?.outstanding === 0) ok('and a cancelled job stops being a receivable');
+  else bad(`a cancelled job still shows ${m3.summary?.outstanding} outstanding`);
+  if (m3.summary?.received === 1000) ok('while the money that really arrived is still counted');
+  else bad(`received is ${m3.summary?.received} after cancellation`);
+
+  // A payment against the PROJECT, not one of its jobs — a retainer, or one cheque for several.
+  const projPay = await page.request.post(`${BASE}/api/admin/jobs/payments`, {
+    data: { project_id: projectId, amount: 2000, payment_type: 'deposit', payment_method: 'transfer' },
+  });
+  if (projPay.ok()) ok('a payment can be recorded against the project itself');
+  else bad(`a project-level payment failed (${projPay.status()}): ${(await projPay.text()).slice(0, 160)}`);
+
+  const projPayRow = await db.query(
+    'SELECT job_id, project_id FROM public.job_payments WHERE project_id = $1 AND job_id IS NULL',
+    [projectId],
+  );
+  if (projPayRow.rows.length === 1) ok('stored against the project, with no job');
+  else bad(`expected one project-level payment row, found ${projPayRow.rows.length}`);
+
+  const pm = await (await page.request.get(`${BASE}/api/admin/jobs/money?project_id=${projectId}`)).json();
+  if (pm.totals?.direct_payments === 2000) ok('and the project total counts it');
+  else bad(`the project roll-up reports direct_payments=${pm.totals?.direct_payments}`);
+  // It must NOT leak into a job's own figures — that is what filing it on a job would have done.
+  const jm = await (await page.request.get(`${BASE}/api/admin/jobs/money?job_id=${jobIds[0]}`)).json();
+  if (!(jm.payments ?? []).some((p) => Number(p.amount) === 2000)) ok('without attaching itself to any one job');
+  else bad('the project payment leaked onto a job');
+
+  // The firm-wide roll-up the financial pages read.
+  const firm = await (await page.request.get(`${BASE}/api/admin/jobs/money`)).json();
+  if (firm.totals && typeof firm.totals.billed === 'number' && typeof firm.totals.received === 'number') {
+    ok(`the firm-wide roll-up answers bid/received/owed (${firm.totals.jobs} jobs)`);
+  } else {
+    bad('there is no firm-wide roll-up for the financial pages');
+  }
+
   // ── The screens ──────────────────────────────────────────────────────────────────────────────
   console.log(`\n  the screens\n`);
   await page.goto(`${BASE}/admin/projects`, { waitUntil: 'networkidle', timeout: 180000 });

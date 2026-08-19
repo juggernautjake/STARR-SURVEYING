@@ -27,6 +27,11 @@ interface FileViewerProps {
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.tiff', '.tif'];
 const DOC_EXTENSIONS = ['.pdf', '.doc', '.docx', '.txt', '.rtf', '.xls', '.xlsx', '.csv'];
+// Owner, 2026-08-19: *"we need to be able to upload videos as well as photos… so that we have a
+// video viewer built in."* A field video of a washed-out access road used to fall through to
+// `other` and render as a download prompt — the one file type where "download it and find an app"
+// is most annoying, because it is usually being watched to answer a question in the next minute.
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.m4v', '.webm', '.ogv', '.avi', '.mkv'];
 
 function isImageFile(name: string, mime?: string): boolean {
   if (mime && mime.startsWith('image/')) return true;
@@ -34,8 +39,15 @@ function isImageFile(name: string, mime?: string): boolean {
   return IMAGE_EXTENSIONS.includes(ext);
 }
 
-function getFileCategory(name: string, mime?: string): 'image' | 'pdf' | 'text' | 'other' {
+export function isVideoFile(name: string, mime?: string): boolean {
+  if (mime && mime.startsWith('video/')) return true;
+  const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
+  return VIDEO_EXTENSIONS.includes(ext);
+}
+
+function getFileCategory(name: string, mime?: string): 'image' | 'video' | 'pdf' | 'text' | 'other' {
   if (isImageFile(name, mime)) return 'image';
+  if (isVideoFile(name, mime)) return 'video';
   const ext = name.toLowerCase().slice(name.lastIndexOf('.'));
   if (ext === '.pdf' || mime === 'application/pdf') return 'pdf';
   if (['.txt', '.csv', '.rtf'].includes(ext) || mime?.startsWith('text/')) return 'text';
@@ -228,6 +240,21 @@ export default function FileViewer({ file, onClose }: FileViewerProps) {
                 draggable={false}
               />
             </div>
+          ) : category === 'video' ? (
+            /* The browser's own player. `controls` rather than a bespoke chrome because scrubbing,
+               volume, fullscreen and picture-in-picture already work correctly here, on a phone as
+               well as a desktop, and a hand-built transport would be a worse copy of all four.
+               NOT zoom-wrapped: dragging a <video> around a zoom canvas fights the scrubber. */
+            <video
+              src={src(file) ?? undefined}
+              className="file-viewer__video"
+              controls
+              playsInline
+              preload="metadata"
+              data-testid="file-viewer-video"
+            >
+              <track kind="captions" />
+            </video>
           ) : category === 'pdf' ? (
             <iframe
               src={src(file) ?? undefined}

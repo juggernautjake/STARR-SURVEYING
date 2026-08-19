@@ -298,8 +298,33 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   const { id, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'Job ID required' }, { status: 400 });
 
-  // Remove relational fields from direct update
-  const { tags, ...directUpdates } = updates;
+  // Remove relational fields from direct update. `price_reason` is not a column — it is the
+  // explanation that rides along with a price change and lands in `job_price_history`.
+  const { tags, price_reason, ...directUpdates } = updates;
+
+  // ── A PRICE CHANGE IS A COMMERCIAL EVENT, NOT AN EDIT (2026-08-19) ───────────────────────────
+  //
+  // Owner: *"sometimes we change the price of the job as well, and we need to be able to record the
+  // history of when payments are made and when price changes are made."*
+  //
+  // `quote_amount` and `final_amount` were single values that got overwritten — change a quote from
+  // $4,200 to $5,600 and the $4,200 was simply gone, with no record it was ever offered. "We bid
+  // 4,200, then they added the topo" is the sentence somebody has to reconstruct months later while
+  // being asked why the invoice does not match the proposal.
+  //
+  // Read BEFORE the update: afterwards the old figure no longer exists anywhere.
+  const touchesMoney = directUpdates.quote_amount !== undefined || directUpdates.final_amount !== undefined;
+  const { data: before } = touchesMoney
+    ? await supabaseAdmin.from('jobs').select('quote_amount, final_amount, result').eq('id', id).maybeSingle()
+    : { data: null };
+
+  // Cancelling is likewise a moment, not just a value: stamp when, so it is not inferred from
+  // `stage_changed_at`, which moves on every transition.
+  const nowCancelled = directUpdates.result === 'lost' || directUpdates.result === 'abandoned';
+  if (nowCancelled && !(before as { result?: string } | null)?.result) {
+    directUpdates.cancelled_at = new Date().toISOString();
+    directUpdates.result_set_at = directUpdates.result_set_at ?? new Date().toISOString();
+  }
 
   const { data, error } = await supabaseAdmin
     .from('jobs')
@@ -309,6 +334,27 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
     .single();
 
   if (error) return dbErrorResponse(error, 'update the job');
+
+  if (touchesMoney && before) {
+    const prev = before as { quote_amount: number | null; final_amount: number | null };
+    const rows: Array<Record<string, unknown>> = [];
+    const changed = (a: number | null, b: unknown) =>
+      b !== undefined && Number(a ?? NaN) !== Number(b ?? NaN) && !(a == null && b == null);
+
+    if (changed(prev.quote_amount, directUpdates.quote_amount)) {
+      rows.push({ job_id: id, field: 'quote', old_amount: prev.quote_amount, new_amount: directUpdates.quote_amount });
+    }
+    if (changed(prev.final_amount, directUpdates.final_amount)) {
+      rows.push({ job_id: id, field: 'final', old_amount: prev.final_amount, new_amount: directUpdates.final_amount });
+    }
+    // Advisory: the price is already saved, and losing the audit line is bad but losing the edit
+    // because the audit failed would be worse.
+    if (rows.length > 0) {
+      await fireAndForget(supabaseAdmin.from('job_price_history').insert(
+        rows.map((r) => ({ ...r, reason: price_reason ?? null, changed_by: session.user!.email })),
+      ));
+    }
+  }
 
   // Update tags if provided
   if (tags && Array.isArray(tags)) {

@@ -31,7 +31,48 @@ interface Photo {
 interface Props {
   jobId: string;
   onCountChange?: (count: number) => void;
+  /** Which medium this gallery is for (2026-08-19). Owner: *"we need to be able to upload videos as
+   *  well as photos… and there is a video tab too."*
+   *
+   *  One component rather than a near-copy: the upload, the drag-and-drop, the delete, the keyboard
+   *  navigation and the count reporting are identical, and two copies of that would drift the first
+   *  time one of them was fixed. What genuinely differs is three things — the section rows are
+   *  filed under, what the file input accepts, and whether a tile is an `<img>` or a `<video>`. */
+  media?: MediaKind;
 }
+
+type MediaKind = 'photos' | 'videos';
+
+const MEDIA: Record<MediaKind, {
+  section: string; accept: string; title: string; blurb: string;
+  addLabel: string; emptyIcon: string; empty: string; dropHint: string; fileType: string;
+}> = {
+  photos: {
+    section: 'photos',
+    accept: 'image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif',
+    title: 'Photos',
+    blurb: 'Field photos for this job — corners, monuments, site conditions. Click a photo to enlarge; use ← → to flip through.',
+    addLabel: '📷 Add Photos',
+    emptyIcon: '📷',
+    empty: 'No photos yet for this job.',
+    dropHint: 'Drag & drop images here, or use',
+    fileType: 'photo',
+  },
+  videos: {
+    section: 'videos',
+    // `video/*` as well as the named types: a phone will hand over `video/quicktime`, and some
+    // Android builds send an empty type for .mkv, which a strict list would silently refuse with
+    // no explanation in the file picker.
+    accept: 'video/*,video/mp4,video/quicktime,video/webm',
+    title: 'Videos',
+    blurb: 'Field video for this job — access routes, site conditions, anything a still photo cannot explain. Click one to play it.',
+    addLabel: '🎥 Add Videos',
+    emptyIcon: '🎥',
+    empty: 'No videos yet for this job.',
+    dropHint: 'Drag & drop video here, or use',
+    fileType: 'video',
+  },
+};
 
 // 10 MB used to be the cap because the image was base64 IN THE ROW, and the message sent people to
 // the Files tab — which had exactly the same problem, so the advice moved the cost rather than
@@ -40,7 +81,8 @@ interface Props {
 const MAX_BYTES = MAX_JOB_FILE_BYTES;
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif';
 
-export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
+export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos' }: Props) {
+  const cfg = MEDIA[media];
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,24 +95,30 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/jobs/files?job_id=${encodeURIComponent(jobId)}&section=photos`);
+      const res = await fetch(`/api/admin/jobs/files?job_id=${encodeURIComponent(jobId)}&section=${cfg.section}`);
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || `Failed to load photos (${res.status})`);
+      if (!res.ok) throw new Error(data.error || `Failed to load ${cfg.section} (${res.status})`);
       const list: Photo[] = data.files ?? [];
       setPhotos(list);
       onCountChange?.(list.length);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load photos');
+      setError(e instanceof Error ? e.message : `Failed to load ${cfg.section}`);
     }
     setLoading(false);
-  }, [jobId, onCountChange]);
+  }, [jobId, onCountChange, cfg.section]);
 
   useEffect(() => { load(); }, [load]);
 
     const upload = useCallback(async (fileList: FileList | File[]) => {
-    const incoming = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
+    // A phone hands over `video/quicktime` for a .mov and occasionally an EMPTY type — so a video
+    // gallery accepts anything that is not obviously an image rather than demanding `video/`, which
+    // would refuse a real recording with no explanation the person could act on.
+    const wanted = media === 'videos'
+      ? (f: File) => f.type.startsWith('video/') || (!f.type && /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(f.name))
+      : (f: File) => f.type.startsWith('image/');
+    const incoming = Array.from(fileList).filter(wanted);
     if (incoming.length === 0) {
-      setError('Only image files can be added here.');
+      setError(media === 'videos' ? 'Only video files can be added here.' : 'Only image files can be added here.');
       return;
     }
     const tooBig = incoming.find((f) => f.size > MAX_BYTES);
@@ -94,10 +142,10 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
             file_id,
             storage_path,
             file_name: file.name,
-            file_type: 'image',
+            file_type: cfg.fileType,
             file_size: file.size,
             mime_type: file.type,
-            section: 'photos',
+            section: cfg.section,
           }),
         });
         if (!res.ok) {
@@ -111,10 +159,10 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
     }
     setUploading(0);
     if (fileInput.current) fileInput.current.value = '';
-  }, [jobId, load]);
+  }, [jobId, load, media, cfg.section, cfg.fileType]);
 
   const remove = useCallback(async (id: string) => {
-    if (!confirm('Delete this photo?')) return;
+    if (!confirm(media === 'videos' ? 'Delete this video?' : 'Delete this photo?')) return;
     try {
       const res = await fetch(`/api/admin/jobs/files?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
       if (!res.ok) throw new Error(`Delete failed (${res.status})`);
@@ -143,18 +191,18 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
     <div className="job-detail__section">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
-          <h3>Photos</h3>
+          <h3>{cfg.title}</h3>
           <p className="job-detail__section-desc">
-            Field photos for this job — corners, monuments, site conditions. Click a photo to enlarge; use ← → to flip through.
+            {cfg.blurb}
           </p>
         </div>
         <button className="jobs-page__btn jobs-page__btn--primary" onClick={() => fileInput.current?.click()} disabled={uploading > 0}>
-          {uploading > 0 ? `Uploading ${uploading}…` : '📷 Add Photos'}
+          {uploading > 0 ? `Uploading ${uploading}…` : cfg.addLabel}
         </button>
         <input
           ref={fileInput}
           type="file"
-          accept={ACCEPT}
+          accept={cfg.accept}
           multiple
           style={{ display: 'none' }}
           onChange={(e) => { if (e.target.files) upload(e.target.files); }}
@@ -177,15 +225,18 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
           textAlign: 'center', color: 'var(--text-secondary, #64748b)', fontSize: '0.85rem',
         }}
       >
-        Drag &amp; drop images here, or use <strong>Add Photos</strong>. Up to 10 MB each.
+        {/* "Up to 10 MB each" was left over from the base64-in-the-row era and is no longer the
+            limit — which matters most for video, where 10 MB is about eight seconds. */}
+        {cfg.dropHint} <strong>{cfg.addLabel.replace(/^\S+\s/, '')}</strong>. Up to{' '}
+        {Math.round(MAX_JOB_FILE_BYTES / 1024 / 1024)} MB each.
       </div>
 
-      {loading && <p className="job-detail__section-desc" style={{ marginTop: '1rem' }}>Loading photos…</p>}
+      {loading && <p className="job-detail__section-desc" style={{ marginTop: '1rem' }}>Loading {cfg.section}…</p>}
 
       {!loading && photos.length === 0 && (
         <div className="job-detail__messages-placeholder" style={{ marginTop: '1rem' }}>
-          <span>📷</span>
-          <p>No photos yet for this job.</p>
+          <span>{cfg.emptyIcon}</span>
+          <p>{cfg.empty}</p>
         </div>
       )}
 
@@ -206,8 +257,23 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
                 overflow: 'hidden', cursor: 'pointer', background: 'var(--color-surface)', aspectRatio: '4 / 3',
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={(p.download_href ?? p.file_url) || undefined} alt={p.file_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              {media === 'videos' ? (
+                /* `preload="metadata"` fetches only the header, so a wall of tiles does not pull
+                   down hundreds of megabytes of field video to show a poster frame. No `controls`
+                   here — the tile's job is to open the player, and a scrubber inside a 140px
+                   thumbnail is a target nobody can hit. */
+                <video
+                  src={(p.download_href ?? p.file_url) || undefined}
+                  preload="metadata"
+                  muted
+                  playsInline
+                  className="job-video-thumb"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }}
+                />
+              ) : (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img src={(p.download_href ?? p.file_url) || undefined} alt={p.file_name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              )}
             </button>
           ))}
         </div>
@@ -222,13 +288,31 @@ export default function JobPhotoGallery({ jobId, onCountChange }: Props) {
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={(active.download_href ?? active.file_url) || undefined}
-            alt={active.file_name}
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: '90vw', maxHeight: '78vh', objectFit: 'contain', borderRadius: 6 }}
-          />
+          {media === 'videos' ? (
+            /* The browser's own player: scrubbing, volume, fullscreen and picture-in-picture all
+               already work, on a phone as well as a desktop. `autoPlay` because the click that
+               opened this was a request to watch it. */
+            <video
+              src={(active.download_href ?? active.file_url) || undefined}
+              onClick={(e) => e.stopPropagation()}
+              controls
+              autoPlay
+              playsInline
+              className="job-video-player"
+              style={{ maxWidth: '90vw', maxHeight: '78vh', borderRadius: 6 }}
+              data-testid="job-video-player"
+            >
+              <track kind="captions" />
+            </video>
+          ) : (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={(active.download_href ?? active.file_url) || undefined}
+              alt={active.file_name}
+              onClick={(e) => e.stopPropagation()}
+              style={{ maxWidth: '90vw', maxHeight: '78vh', objectFit: 'contain', borderRadius: 6 }}
+            />
+          )}
           <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '0.75rem', color: '#fff', textAlign: 'center', maxWidth: '90vw' }}>
             <div style={{ fontWeight: 600 }}>{active.file_name}</div>
             <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>

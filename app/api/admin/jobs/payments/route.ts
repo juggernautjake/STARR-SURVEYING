@@ -10,13 +10,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   const { searchParams } = new URL(req.url);
   const jobId = searchParams.get('job_id');
-  if (!jobId) return NextResponse.json({ error: 'job_id required' }, { status: 400 });
+  // 2026-08-19 — a payment can be against the whole engagement (a retainer, one cheque covering
+  // several jobs). `?project_id=` lists ONLY those, the same way the files route does: the sum of a
+  // project's jobs' payments is a different question and lives in `jobs/money`.
+  const projectId = searchParams.get('project_id');
+  if (!jobId && !projectId) {
+    return NextResponse.json({ error: 'job_id or project_id required' }, { status: 400 });
+  }
 
-  const { data, error } = await supabaseAdmin
-    .from('job_payments')
-    .select('*')
-    .eq('job_id', jobId)
-    .order('paid_at', { ascending: false });
+  let query = supabaseAdmin.from('job_payments').select('*').order('paid_at', { ascending: false });
+  if (jobId) query = query.eq('job_id', jobId);
+  else query = query.eq('project_id', projectId as string).is('job_id', null);
+
+  const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -41,13 +47,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Admin only' }, { status: 403 });
   }
 
-  const { job_id, amount, payment_type, payment_method, reference_number, notes, paid_at } = await req.json();
-  if (!job_id || !amount) return NextResponse.json({ error: 'job_id and amount required' }, { status: 400 });
+  const { job_id, project_id, amount, payment_type, payment_method, reference_number, notes, paid_at } = await req.json();
+  if (!amount) return NextResponse.json({ error: 'amount required' }, { status: 400 });
+  if (!job_id && !project_id) {
+    return NextResponse.json({ error: 'A payment must be against a job or a project.' }, { status: 400 });
+  }
 
   const { data, error } = await supabaseAdmin
     .from('job_payments')
     .insert({
-      job_id, amount, payment_type: payment_type || 'payment',
+      // A job payment also carries its project, filled by the database trigger — so the engagement
+      // total never depends on every caller remembering to send both.
+      job_id: job_id ?? null,
+      project_id: project_id ?? null,
+      amount, payment_type: payment_type || 'payment',
       payment_method, reference_number, notes,
       paid_at: paid_at || new Date().toISOString(),
       recorded_by: session.user.email,
@@ -57,15 +70,27 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // A project-level payment has no job whose running total needs recomputing — the roll-up in
+  // `jobs/money` sums the rows. Returning early also avoids the `.eq('job_id', undefined)` below,
+  // which PostgREST would turn into a match on every row with a null job_id.
+  if (!job_id) return NextResponse.json({ payment: data }, { status: 201 });
+
   // Update job payment totals
   const { data: allPayments } = await supabaseAdmin
     .from('job_payments')
     .select('amount, payment_type')
     .eq('job_id', job_id);
 
+  // ── A REFUND IS MONEY GOING BACK OUT (2026-08-19) ────────────────────────────────────────────
+  //
+  // This used to FILTER refunds out, so a job that took $1,500 and refunded $500 still reported
+  // $1,500 received — and `payment_status` could read 'paid' on a job that had been made whole
+  // again. `lib/jobs/money.ts` subtracts refunds, and two different answers to "how much came in?"
+  // is precisely the drift `reconcile` exists to catch. Same rule on both sides now.
   const totalPaid = (allPayments || [])
-    .filter((p: { payment_type: string }) => p.payment_type !== 'refund')
-    .reduce((sum: number, p: { amount: number }) => sum + (p.amount || 0), 0);
+    .reduce((sum: number, p: { amount: number; payment_type: string }) => (
+      p.payment_type === 'refund' ? sum - Math.abs(p.amount || 0) : sum + (p.amount || 0)
+    ), 0);
 
   // Get job quote for status
   const { data: job } = await supabaseAdmin.from('jobs').select('quote_amount, final_amount').eq('id', job_id).single();
