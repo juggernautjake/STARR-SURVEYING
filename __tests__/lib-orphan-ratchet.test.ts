@@ -101,6 +101,12 @@ const KNOWN_ORPHANS: readonly string[] = [
   'payments/rls-allowlist.ts',
   'payments/secrets.ts',
   'payouts/stripe-payout.ts',
+  // S9c (2026-08-18): the legacy payroll engine was closed, and it was this module's only caller.
+  // NOT deleted — if an accountant says the firm must withhold, stub generation moves onto the batch
+  // path and this is the arithmetic (S9b). Its withholding is a flat ESTIMATE while the surviving
+  // engine pays GROSS, so it must stay uncalled until that decision is made; `one-pay-model.test.ts`
+  // fails if anything calls `buildStubTotals`.
+  'payroll/pay-stub.ts',
   'research/document-segmentation.ts',
   'research/multi-source-confidence.ts',
   'research/place-county.ts',

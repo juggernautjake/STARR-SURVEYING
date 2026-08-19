@@ -1717,6 +1717,10 @@
 /* admin-ui-alignment-2026-08-15 — the payout failure used `tl-pay-error`, which is declared in
  * AdminTimeLogs.css and never loaded here, so a failed payout reported itself as unstyled body
  * text. Same treatment, in the stylesheet this page actually imports. */
+/* Same treatment for the retired payroll engine refusing to complete an empty run (S9c,
+ * 2026-08-18). Declared HERE, in the stylesheet /admin/payroll actually imports — the note above
+ * records what happens when it is not. */
+.payroll-runs__error,
 .payroll-payowed__error {
   margin-bottom: 0.75rem;
   padding: 0.6rem 0.75rem;

@@ -348,9 +348,13 @@ export default function PayrollPage() {
           <div className="payroll-overview__section">
             <h3>Quick Actions</h3>
             <div className="payroll-overview__actions-grid">
-              <button className="payroll-overview__action-card" onClick={() => setActiveTab('payroll')}>
+              {/* "Run Payroll" used to open the Payroll Runs tab and its create form. That engine is
+                  retired (S9c) and creates nothing now, so a card promising to run payroll would land
+                  somebody on a history list — the same broken promise as the button that was on it. It
+                  goes where pay is actually prepared instead. */}
+              <button className="payroll-overview__action-card" onClick={() => router.push('/admin/payouts')}>
                 <span className="payroll-overview__action-icon"><Play size={18} strokeWidth={1.75} /></span>
-                <span className="payroll-overview__action-label">Run Payroll</span>
+                <span className="payroll-overview__action-label">Prepare a Payout</span>
               </button>
               <button className="payroll-overview__action-card" onClick={() => { setActiveTab('employees'); setShowAddForm(true); }}>
                 <span className="payroll-overview__action-icon"><Plus size={18} strokeWidth={1.75} /></span>

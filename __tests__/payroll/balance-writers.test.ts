@@ -53,7 +53,7 @@ const SANCTIONED: Array<{ file: string; why: string }> = [
   },
   {
     file: 'app/api/admin/payroll/runs/route.ts',
-    why: 'completing a legacy payroll run (retiring under D2, but existing runs must still finish)',
+    why: 'completing a legacy payroll run — the engine is closed to new work (S9c) but an existing draft must still be finishable',
   },
   {
     file: 'app/api/admin/payroll/balance/route.ts',

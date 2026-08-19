@@ -64,8 +64,10 @@ describe('the pay model has exactly one implementation', () => {
   });
 
   it('the routes that pay people read the model, not the rate tables', () => {
-    // These three are where money is decided: hours submitted, a decision recorded, a stub cut.
-    // Each previously had, or was one edit away from having, its own formula.
+    // These three are where money is decided: hours submitted, a decision recorded, and the engine
+    // that used to cut a stub. Each previously had, or was one edit away from having, its own
+    // formula. `payroll/runs` stays on the list after its retirement (S9c) precisely because a
+    // closed route is where a rate calculation could creep back unnoticed.
     //
     // `time-logs/rates/route.ts` is deliberately NOT in this list: it is the config-listing endpoint
     // and its whole job is to return those tables when asked for one by name. The test below pins
@@ -95,29 +97,30 @@ describe('the pay model has exactly one implementation', () => {
     expect(source.includes('base_rate *'), 'the rates endpoint is doing its own maths').toBe(false);
   });
 
-  it('the payroll run pays from the hours ledger people actually write to', () => {
-    // It read `job_time_entries`, which has never had a row, while every logged hour goes to
-    // `daily_time_logs`. A run produced a 0-hour stub for everybody and reported success — an empty
-    // result reading as a completed payroll.
-    const source = code(read('app/api/admin/payroll/runs/route.ts'));
-    expect(source).toContain("'daily_time_logs'");
+  it('the payout builder pays from the hours ledger people actually write to', () => {
+    // The legacy run read `job_time_entries`, which has never had a row, while every logged hour
+    // goes to `daily_time_logs`. A run produced a 0-hour stub for everybody and reported success —
+    // an empty result reading as a completed payroll. That engine is closed now (S9c), so the check
+    // moved to the one that survived: it reaches the hours through the shared loader, and
+    // `owed-loader.ts` is what reads them.
+    const source = code(read('app/api/admin/payroll/pay-owed/route.ts'));
+    expect(source).toContain('loadOwed(');
     expect(source.includes("'job_time_entries'"), 'payroll must not read job_time_entries').toBe(false);
+    expect(code(read('lib/payroll/owed-loader.ts'))).toContain("'daily_time_logs'");
   });
 
-  it('the payroll run pays only approved hours', () => {
-    const source = code(read('app/api/admin/payroll/runs/route.ts'));
-    expect(source).toContain("eq('status', 'approved')");
+  it('it pays only approved hours', () => {
+    expect(code(read('lib/payroll/owed-loader.ts'))).toContain("eq('status', 'approved')");
   });
 
-  it('the payroll run honours the approver’s decision over the resolved rate', () => {
-    const source = code(read('app/api/admin/payroll/runs/route.ts'));
-    expect(source).toContain("'time_log_pay_decisions'");
+  it('it honours the approver’s decision over the resolved rate', () => {
+    expect(code(read('lib/payroll/owed-loader.ts'))).toContain("'time_log_pay_decisions'");
   });
 });
 
 describe('pay advances come back out', () => {
   // An advance that is never recovered is a gift. Nothing about the recovery is enforced by types:
-  // deleting the call leaves a payroll run that typechecks, passes, and silently writes off every
+  // deleting the call leaves a payout builder that typechecks, passes, and silently writes off every
   // advance the firm has made.
   const runs = () => code(read('app/api/admin/payroll/runs/route.ts'));
 
@@ -175,35 +178,146 @@ describe('pay advances come back out', () => {
     ).toBe(false);
   });
 
-  it('the payroll run recovers outstanding advances', () => {
-    // The CALL, not the identifier. Matching the bare name passes on the import line alone, so
-    // deleting the invocation would have left this test green — a check that cannot fail for the
-    // reason it claims. Found by breaking it and watching it pass.
-    expect(runs()).toContain('planAdvanceRecovery({');
-    expect(runs()).toContain('recovery.recoveries');
-  });
-
   it('it recovers only against advances that were actually PAID OUT', () => {
     // The view filters to status 'paid'. Reading `pay_advance_requests` directly would recover
     // against approved-but-unpaid advances — taking back money never handed over.
-    expect(runs()).toContain("'pay_advances_outstanding'");
+    for (const src of [payOwed(), cron()]) {
+      expect(src).toContain("'pay_advances_outstanding'");
+      expect(
+        /from\('pay_advance_requests'\)[\s\S]{0,80}select\('id, user_email, outstanding/.test(src),
+        'the payout builder must read the outstanding view, not the raw request table',
+      ).toBe(false);
+    }
+  });
+
+  it('the retired engine is not still quietly doing it too', () => {
+    // Why the checks above moved off `payroll/runs`: `planAdvanceRecovery` was called in exactly ONE
+    // place and it was that handler, which is why retiring it first would have stopped recovery
+    // dead. Now that the batch path owns it, the legacy engine must NOT also be recovering — two
+    // engines taking the same advance would take it back twice, and the only evidence of that is a
+    // payment somebody says is short.
+    expect(runs().includes('planAdvanceRecovery({'), 'the retired engine still recovers advances').toBe(false);
+  });
+});
+
+describe('the retired payroll engine is closed to new work (S9c)', () => {
+  // D2 (2026-08-12) decided `payout_batches` survives and `payroll_runs` + `pay_stubs` becomes
+  // read-only history. Nothing about "read-only" is enforced by types: re-adding the creation body
+  // would typecheck, lint, and hand the firm back two engines that can each settle the same week —
+  // the single most dangerous thing this subsystem ever had.
+  const RUNS = 'app/api/admin/payroll/runs/route.ts';
+  const runs = () => code(read(RUNS));
+
+  it('POST refuses with a 410 and names where payroll happens now', () => {
+    // 410, not 404: the route existed and is deliberately retired, where a 404 reads as a typo or a
+    // broken deploy. And an error that only says "no" leaves somebody with wages to pay this week
+    // nowhere to go, so it names the surviving path.
+    expect(runs()).toMatch(/status: 410/);
+    expect(runs()).toContain('/admin/payouts');
+  });
+
+  it('it creates neither a run nor a stub', () => {
+    // The assertion that actually matters. A 410 somewhere in the file proves a branch exists, not
+    // that the creation body is gone.
     expect(
-      runs().includes("from('pay_advance_requests')\n    .select('id, user_email, outstanding"),
-      'payroll must read the outstanding view, not the raw request table',
+      /from\('payroll_runs'\)[\s\S]{0,60}\.insert\(/.test(runs()),
+      'the retired engine still inserts a payroll run',
+    ).toBe(false);
+    expect(
+      /from\('pay_stubs'\)[\s\S]{0,60}\.insert\(/.test(runs()),
+      'the retired engine still inserts a pay stub',
     ).toBe(false);
   });
 
-  it('every recovery is written as its own row, linked to the stub it came out of', () => {
-    // A running total alone cannot answer "which pay period took this", and cannot be reversed when
-    // a run is voided.
-    expect(runs()).toContain("'pay_advance_repayments'");
-    expect(runs()).toContain('pay_stub_id');
+  it('a run with no stubs cannot be COMPLETED, only cancelled', () => {
+    // Found in a browser, not in the code: the one payroll run in the live database is a draft over
+    // a 2019 period reading "2 employees · Gross $200.00 · Net $160.70" with ZERO `pay_stubs` rows
+    // behind it. Completing it would have credited nobody — the crediting loop had nothing to
+    // iterate — and left a row that reads everywhere as a payroll of $160.70 that was paid.
+    //
+    // POST already refused to CREATE an empty run. Nothing refused to complete one, and the last
+    // write path on a retired engine is exactly where nobody would look again.
+    expect(runs()).toMatch(/status: 409/);
+    expect(runs()).toContain('has no pay stubs');
   });
 
-  it('the recovery comes out of net pay, not gross', () => {
-    // An advance is money already handed over, not a pre-tax deduction. Taking it from gross would
-    // reduce the tax withheld on wages the person genuinely earned.
-    expect(runs()).toContain('net_pay: recovery.netAfterRecovery');
+  it('and the refusal reaches the person who pressed the button', () => {
+    // The panel discarded the PUT response entirely, so a 409 arrived as nothing at all: the list
+    // reloaded, the badge still said Draft, and the only available reading was "the button is
+    // broken". A refusal nobody is shown is the same as no refusal.
+    const panel = code(read('app/admin/components/payroll/PayrollRunPanel.tsx'));
+    expect(panel).toMatch(/if \(!res\.ok\)/);
+    expect(panel).toContain('setError(');
+    // And the class it renders with must live in the stylesheet this page imports — a rule declared
+    // elsewhere renders the failure as unstyled body text, which has happened here before.
+    expect(code(read('app/admin/styles/AdminPayroll.css'))).toContain('.payroll-runs__error');
+  });
+
+  it('GET and PUT survive — the history is real, and a draft must still be finishable', () => {
+    // Historical runs record payments actually made and `pay_stubs` rows are documents employees are
+    // entitled to. Retiring the engine must not delete the record of what it paid.
+    expect(runs()).toContain('export const GET');
+    expect(runs()).toContain('export const PUT');
+  });
+
+  it('nothing in the app asks it to create one', () => {
+    // A button whose only possible outcome is an error dialog is worse than no button: somebody
+    // presses it, reads a refusal, and still has payroll to run.
+    const offenders: string[] = [];
+    const walk = (dir: string) => {
+      for (const found of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+        const relative = `${dir}/${found.name}`;
+        if (found.isDirectory()) { walk(relative); continue; }
+        if (!/\.tsx?$/.test(found.name)) continue;
+        const src = code(read(relative));
+        if (src.includes('/api/admin/payroll/runs') && /method:\s*'POST'/.test(src)) offenders.push(relative);
+      }
+    };
+    walk('app');
+    walk('lib');
+
+    expect(
+      offenders,
+      `${offenders.join(', ')} still POSTs to the retired payroll engine. Prepare a payout instead.`,
+    ).toEqual([]);
+  });
+
+  it('the two-engine overlap guard retired with it', () => {
+    // `lib/payroll/engine-overlap.ts` existed for one reason: while BOTH engines could settle a
+    // period, a week paid on Friday by a batch could be paid again on Monday by a run. With the
+    // legacy engine closed there is no second settler, and the surviving one is balance-driven —
+    // `loadOwed` is approved earnings minus everything already committed, so a second batch for the
+    // same week finds nothing owed. Deleted rather than left as an uncalled module still claiming to
+    // guard something.
+    expect(fs.existsSync(path.join(ROOT, 'lib/payroll/engine-overlap.ts'))).toBe(false);
+    expect(runs().includes('findPeriodOverlap'), 'the retired overlap check is back').toBe(false);
+  });
+
+  it('the stub maths is kept, and stays uncalled', () => {
+    // `pay-stub.ts` is NOT dead code to delete: if an accountant says the firm must withhold, stub
+    // generation moves onto the batch path and this is the arithmetic. But it must have no caller
+    // until then, because its withholding is a flat ESTIMATE (12% / 6.2% / 1.45%) while the
+    // surviving engine pays GROSS. A stub whose net does not equal the payment is worse than no
+    // stub: it is wrong, and the reader has no way to tell which number to believe. See S9b.
+    expect(fs.existsSync(path.join(ROOT, 'lib/payroll/pay-stub.ts'))).toBe(true);
+    const callers: string[] = [];
+    const walk = (dir: string) => {
+      for (const found of fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+        const relative = `${dir}/${found.name}`;
+        if (found.isDirectory()) { walk(relative); continue; }
+        if (!/\.tsx?$/.test(found.name)) continue;
+        if (relative.startsWith('lib/payroll/')) continue;
+        if (code(read(relative)).includes('buildStubTotals(')) callers.push(relative);
+      }
+    };
+    walk('app');
+    walk('lib');
+
+    expect(
+      callers,
+      `${callers.join(', ')} generates pay stubs. Its tax lines are estimates and the batch path ` +
+      'pays gross — see S9b before wiring this back up.',
+    ).toEqual([]);
   });
 });
 

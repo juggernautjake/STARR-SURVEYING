@@ -2,7 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { formatCurrency, formatDate, formatDateTime, PAYROLL_STATUSES } from './PayrollConstants';
+import Link from 'next/link';
+import { formatCurrency, formatDate, PAYROLL_STATUSES } from './PayrollConstants';
 import { withAlpha } from '@/lib/admin/color-alpha';
 
 interface PayrollRun {
@@ -37,13 +38,7 @@ export default function PayrollRunPanel() {
   const [selectedRun, setSelectedRun] = useState<PayrollRun | null>(null);
   const [stubs, setStubs] = useState<PayStub[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreate, setShowCreate] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [form, setForm] = useState({
-    pay_period_start: '',
-    pay_period_end: '',
-    notes: '',
-  });
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadRuns();
@@ -67,42 +62,36 @@ export default function PayrollRunPanel() {
     } catch { /* ignore */ }
   }
 
-  async function createRun(e: React.FormEvent) {
-    e.preventDefault();
-    setCreating(true);
-    try {
-      const res = await fetch('/api/admin/payroll/runs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      if (res.ok) {
-        setShowCreate(false);
-        setForm({ pay_period_start: '', pay_period_end: '', notes: '' });
-        loadRuns();
-      } else {
-        const data = await res.json();
-        alert(data.error || 'Failed to create payroll run');
-      }
-    } catch { /* ignore */ }
-    setCreating(false);
-  }
-
   async function updateRunStatus(id: string, status: string) {
     if (status === 'completed' && !confirm('Complete this payroll run? This will credit employee balances.')) return;
     if (status === 'cancelled' && !confirm('Cancel this payroll run?')) return;
 
     try {
-      await fetch('/api/admin/payroll/runs', {
+      const res = await fetch('/api/admin/payroll/runs', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status }),
       });
+
+      // ── A REFUSAL HAS TO REACH THE PERSON WHO PRESSED THE BUTTON ────────────────────────────
+      //
+      // This used to discard the response entirely, so the route's 409 — "this run has no pay
+      // stubs, completing it would credit nobody" — arrived as nothing at all: the list reloaded,
+      // the badge still said Draft, and the only reading available was "the button is broken".
+      // Saying why is the whole point of refusing.
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || `That could not be done (${res.status}).`);
+        return;
+      }
+      setError(null);
       loadRuns();
       if (selectedRun?.id === id) {
         setSelectedRun(prev => prev ? { ...prev, status } : null);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError('That could not be done — the request did not reach the server.');
+    }
   }
 
   if (loading) return <div className="payroll-loading">Loading payroll runs...</div>;
@@ -110,56 +99,35 @@ export default function PayrollRunPanel() {
   return (
     <div className="payroll-runs">
       <div className="payroll-runs__header">
-        <h3 className="payroll-runs__title">Payroll Runs</h3>
-        <button className="payroll-btn payroll-btn--primary" onClick={() => setShowCreate(!showCreate)}>
-          {showCreate ? 'Cancel' : 'New Payroll Run'}
-        </button>
+        <h3 className="payroll-runs__title">Payroll Runs (history)</h3>
+        <Link className="payroll-btn payroll-btn--primary" href="/admin/payouts">
+          Prepare a payout
+        </Link>
       </div>
 
-      {showCreate && (
-        <form className="payroll-runs__form" onSubmit={createRun}>
-          <div className="payroll-form-row">
-            <div className="payroll-form-group">
-              <label>Pay Period Start</label>
-              <input
-                type="date"
-                required
-                value={form.pay_period_start}
-                onChange={e => setForm(f => ({ ...f, pay_period_start: e.target.value }))}
-              />
-            </div>
-            <div className="payroll-form-group">
-              <label>Pay Period End</label>
-              <input
-                type="date"
-                required
-                value={form.pay_period_end}
-                onChange={e => setForm(f => ({ ...f, pay_period_end: e.target.value }))}
-              />
-            </div>
-          </div>
-          <div className="payroll-form-group">
-            <label>Notes</label>
-            <textarea
-              value={form.notes}
-              onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-              rows={2}
-              placeholder="Optional notes..."
-            />
-          </div>
-          <button type="submit" className="payroll-btn payroll-btn--primary" disabled={creating}>
-            {creating ? 'Generating...' : 'Generate Payroll'}
-          </button>
-          <p className="payroll-runs__form-note">
-            This will auto-calculate pay for all active employees based on their time entries for this period.
-          </p>
-        </form>
+      {/* ── THE BUTTON THAT USED TO BE HERE MADE A PAYROLL RUN (S9c, 2026-08-18) ─────────────────
+          Pay is now prepared as a payout batch, and `POST /api/admin/payroll/runs` answers 410.
+          Leaving "New Payroll Run" on screen would have been a button whose only possible outcome
+          is an error dialog — which is worse than removing it, because somebody with wages to pay
+          would press it, read a refusal, and have nowhere to go. So the button is replaced by the
+          one that does the job, and this panel says plainly what it is now for. */}
+      <p className="payroll-runs__form-note">
+        These are the pay periods run by the retired payroll engine, kept because they record
+        payments that were actually made. Pay is now prepared as a payout batch on{' '}
+        <Link href="/admin/payouts">Payouts</Link> — that is the path with dispatch methods, an
+        approval, ACH export, void and employee-visible history.
+      </p>
+
+      {error && (
+        <div className="payroll-runs__error" role="alert">{error}</div>
       )}
 
       {/* Runs List */}
       <div className="payroll-runs__list">
         {runs.length === 0 ? (
-          <div className="payroll-runs__empty">No payroll runs yet. Create one to get started.</div>
+          <div className="payroll-runs__empty">
+            No payroll runs. Nothing was ever paid through this engine — see Payouts for what has.
+          </div>
         ) : (
           runs.map(run => {
             const statusInfo = PAYROLL_STATUSES[run.status] || { label: run.status, color: '#6B7280' };

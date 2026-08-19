@@ -1,5 +1,12 @@
 # Hours, payroll, and the money employees can see
 
+> ## STATUS 2026-08-18: **one payroll engine, and S9 is closed** · two items left, neither engineering
+>
+> *(2026-08-18)* S9c shipped: `POST /api/admin/payroll/runs` answers 410, the overlap guard is
+> deleted, and the "New Payroll Run" button is gone. There is now exactly one way to pay somebody.
+> What remains is S8 (auto-transfer — deliberately last, wants a ledger that has been reconciling)
+> and the accountant's answer behind S9b. See §1b.
+>
 > ## STATUS 2026-08-12: mostly shipped · **D2 is now ANSWERED** · back in progress
 >
 > Parked in `pending/` for part of a day awaiting D2, then reactivated when the owner delegated the
@@ -201,7 +208,7 @@ nobody can run payroll at all:
 | **S9a′** | ✅ **SHIPPED 2026-08-12.** Advance recovery now runs in both batch builders (hand-built and the weekly cron), writes a `pay_advance_repayments` row per (advance, item), and every money-moving surface sends the disbursed figure. Seed 588. **The schema decision:** the recovery is a WITHHOLDING from `total_cents`, not a component of it — `owed.ts` counts `total_cents` as paid, so netting it would leave the person owed the advance for ever. `adjustments_cents` was the tempting home and is wrong for exactly that reason (seed 325 defines the total as the sum of its components). |
 | **§2b** | ✅ **SHIPPED 2026-08-12.** Unpriced employees are skipped and NAMED — never written as `base_rate: 0`, which would be a stub claiming somebody worked for free. A run that ends up paying nobody now deletes itself and returns 409 rather than reporting an empty $0.00 payroll as complete; that second half was found by testing, not by reading. |
 | **S9b** | ⚠️ **SCOPE WAS WRONG — corrected 2026-08-12, see §S9b below.** Porting stub generation would print invented tax figures on a wage statement. The honest half shipped (`lib/payroll/payment-statement.ts`); whether the firm should withhold at all is an accountant's decision, not this codebase's. |
-| **S9c** | *Now* close `POST /api/admin/payroll/runs` — once nothing unique lives behind it. Keep `GET` (historical runs and stubs are records of real payments) and `PUT` (an existing run must still be finishable). |
+| **S9c** | ✅ **SHIPPED 2026-08-18.** `POST /api/admin/payroll/runs` answers **410 Gone** and names `/admin/payouts`; `GET` survives untouched; `PUT` gained one refusal (a run with no stubs cannot be completed — see below). `lib/payroll/engine-overlap.ts` and its test are **deleted** — it existed only to stop two engines settling the same week, and there is no second settler now. The "New Payroll Run" button is gone from `/admin/payroll`, because a button whose only outcome is an error dialog is worse than no button. 9 new guards in `one-pay-model.test.ts`, each verified to flip red at exactly this change, plus a 14-check browser pass that found two more defects. See §S9c below. |
 | **S7** | ✅ **SHIPPED 2026-08-12** (seed 589). Closing a week offers "Prepare the payout" and records which batch it produced, so "did we ever pay the week we closed?" stops being a comparison of dates by eye. The link means *what prompted the payout* — NOT "this batch holds exactly this week's hours", because the surviving engine is balance-driven and reading it that way would re-introduce the period-window thinking `owed.ts` exists to avoid. |
 | **S5** | ✅ **ANSWERED + GUARDED 2026-08-12: no.** `available_balance` means "we hold this and you can withdraw it"; approving a batch means "the firm agrees it owes this" and the batch can still be voided. Crediting at approval would let somebody withdraw against a payment that never happened. The credit stays where the obligation actually changes shape — an `account`-method item marked paid. Closed by a decision plus `__tests__/payroll/balance-writers.test.ts`, not by new crediting code. |
 | **S8** | Auto-transfer. Last, on a ledger that has been reconciling for a while. |
@@ -212,30 +219,30 @@ nobody can run payroll at all:
 double-pay, because the second finds nothing owed. Period-overlap comparison
 (`lib/payroll/engine-overlap.ts`, S0) therefore guards a risk that only exists while the legacy
 engine can still create period-scoped runs — it retires with S9c, and should be deleted rather than
-left as an uncalled module.
+left as an uncalled module. **✅ Done 2026-08-18: the module and its test are deleted, and a guard
+test asserts the file is gone and `findPeriodOverlap` has not come back.**
 
 ---
 
-## 1b. Where this stands — 2026-08-12
+## 1b. Where this stands — updated 2026-08-18
 
-**Shipped:** S0, S1, S2 (seed 585), S3, S4, S6, and the integrity guard from S5.
+**Shipped:** S0, S1, S2 (seed 585), S3, S4, S5 (answered + guarded), S6, S7 (seed 589),
+S9a′ (seed 588), the honest half of S9b, and **S9c — the second engine is now closed to new work.**
 
-**Not shipped, and why this doc stays open.** S5 (the rest), S7, S8 and S9 all depend on **D2** —
-which of the two payroll engines survives — and that is the owner's decision, not a cost/value
-judgement this build can make. They are NOT deferred: every one of them is worth doing, and each
-would have to be redone if D2 came back the other way.
+**There is exactly one payroll engine.** `payout_batches` + `payout_batch_items` is it;
+`payroll_runs` + `pay_stubs` answers reads and finishes anything already in flight, and can create
+nothing. S0's overlap guard has been deleted along with the risk it guarded: it stood between the two
+engines, and there is no longer a second one to stand between.
 
-Concretely, what each is waiting on:
+**Still open, and neither is engineering:**
 
 | Slice | Waiting on |
 |---|---|
-| S5 (rest) | Whether **approval** credits the balance, which only makes sense if the batch path survives |
-| S7 | Whether a period close builds a payout batch or a payroll run |
-| S8 | A ledger that has been reconciling in production for a while first — and S7 |
-| S9 | D2 by definition; it *is* retiring the loser |
+| S8 (auto-transfer) | A ledger that has been reconciling in production for a while first. Deliberately last — it is automated money movement, and the ledger has settled nothing yet. |
+| S9b (real pay stubs) | An accountant or a payroll provider answering whether the firm should be withholding at all. Until that is answered there is nothing to port, and inventing the figures is the one thing that must not happen. `lib/payroll/pay-stub.ts` is kept, tested and uncalled for exactly that decision — with a guard test that fails if anything calls it. |
 
-Until D2 is answered, S0's overlap guard is what stands between the two engines and a week paid
-twice. That is a guard, not a resolution, and it is stated that way on purpose.
+That is why this doc stays in `pending/` rather than moving to `completed/`: both remaining items
+are real, and neither is waiting on a keyboard.
 
 ---
 
@@ -534,15 +541,99 @@ meantime is the one thing that must not happen.
 
 ---
 
-### S9. Retire the second engine
+### S9c — shipped 2026-08-18: the second engine is closed
 
-Only after S0, S5 and S7 have been live long enough to trust.
+`POST /api/admin/payroll/runs` now returns **410 Gone** with a message naming `/admin/payouts`.
+`GET` and `PUT` are unchanged. `lib/payroll/engine-overlap.ts` + `__tests__/payroll/engine-overlap.test.ts`
+are deleted. The "New Payroll Run" form is gone from `PayrollRunPanel`, replaced by a line saying
+what the panel is now for and a link to the path that pays people.
 
-- Move `pay_stubs` generation onto the batch path (states require stubs; batches do not produce
-  them).
-- `payroll_runs` becomes read-only history.
-- Extend `__tests__/payroll/one-pay-model.test.ts` to cover it, exactly as it already covers the
-  retired `employee_payouts` table.
+**Why it was safe now and was not on 2026-08-12.** Everything that lived only inside that handler has
+been re-homed, each with a guard test:
+
+| Was only there | Now | Guard |
+|---|---|---|
+| Advance recovery (`planAdvanceRecovery`) | `pay-owed` + `cron/payout-prepare`, one `pay_advance_repayments` row per (advance, item), withheld via `recovered_cents` | "the hand-built payout batch recovers outstanding advances" / "the SCHEDULED payout batch recovers them too" |
+| Crediting `available_balance` | An `account`-method item marked paid (`account-credit.ts`) — S5 decided approval must not credit | `balance-writers.test.ts` |
+| A wage statement | `payment-statement.ts`, from figures that exist | `payment-statement.test.ts` |
+
+**410, not 404, and not a silent no-op.** A 404 reads as a typo or a broken deploy and sends somebody
+looking for a bug that does not exist; a route that accepted the request and did nothing would be the
+worst option of all — a period somebody believes is paid. The message names where payroll happens
+now, because an error that only says "no" leaves the person with wages to pay this week nowhere to go.
+
+**The overlap guard was deleted rather than left uncalled**, as this doc's own §1 note required. It
+answered one question — "could both engines settle this same week?" — and with one engine the answer
+is structural: `loadOwed` is approved earnings minus everything already committed, drafts included,
+so a second batch for the same week finds nothing owed. An uncalled module still claiming to guard
+something is worse than no module, because the next reader believes it.
+
+**The four tests that had to change, and what replaced them.** `one-pay-model.test.ts` asserted that
+`payroll/runs` read `daily_time_logs`, paid only approved hours, honoured the approver's decision,
+and recovered advances into a stub. All four described a handler that no longer exists — so each was
+re-pointed at the surviving engine (`pay-owed` → `owed-loader.ts`) rather than deleted, which is the
+part that matters: the guarantee outlives the engine that used to make it. Nine new guards pin the
+retirement itself, including one that no file anywhere still POSTs to the closed route, and one that
+`buildStubTotals` has no caller. **Each was checked against the pre-change code and fails there** —
+a guard that cannot fail for the reason it claims is how this repo has been fooled before.
+
+**What the live database says, measured rather than assumed:** `pay_stubs`, `payout_batches` and
+`payout_batch_items` are all **empty** — no payment has ever been made through either engine, so
+this retirement takes nothing away from anybody. `payroll_runs` holds exactly **one row**: a
+`draft` over a **2019** pay period, created 2026-08-13 by the owner's account, reading *"2 employees
+· Gross $200.00 · Net $160.70"* — with **zero stub rows behind it**, and zero approved hours anywhere
+in that week. Where its totals came from is not recoverable (the ratio is exactly `DEFAULT_DEDUCTIONS`,
+so the legacy estimate produced them); that they describe nobody is.
+
+### Found by opening the page, not by reading the code — 2026-08-18
+
+Two defects that every source-level test passed straight over, because both live in what a person
+sees rather than in what the route does:
+
+**1. A quick action that could no longer do what it said.** `/admin/payroll` → Overview → *"Run
+Payroll"* switched to the Payroll Runs tab, which is where the create form used to be. With that form
+gone the card promised payroll and delivered a history list — the same broken promise as the button
+it pointed at, one screen further back. It now goes to `/admin/payouts` and is called *"Prepare a
+Payout"*.
+
+**2. An empty run could still be COMPLETED — and would have recorded a payroll that paid nobody.**
+The draft above still offers *"Complete & Credit Balances"*. Pressing it would have run a crediting
+loop over zero stubs, credited nothing, and flipped the row to `completed` — leaving a record that
+reads on every screen and in every report as **$160.70 paid**. POST already refused to *create* an
+empty run (§2b); nothing refused to *complete* one, and the last remaining write path on a retired
+engine is precisely where nobody would look again.
+
+`PUT` now answers **409** for a run with no stubs, naming the reason and pointing at `/admin/payouts`.
+Cancelling is still allowed, and is what should happen to that row.
+
+**And the refusal had to be made visible**, which was a third defect underneath the second: the panel
+discarded the PUT response entirely, so a 409 arrived as *nothing at all* — the list reloaded, the
+badge still said Draft, and the only available reading was "the button is broken". A refusal nobody
+is shown is the same as no refusal. The error now renders on the panel, styled by a rule declared in
+`AdminPayroll.css` — the stylesheet this page actually imports, per the note already sitting beside
+`.payroll-payowed__error` about what happens when it is not.
+
+*Verified in a browser at 1440 and 390 (`scripts/check-payroll-runs-panel.mjs`, 14 checks, all
+clear; screenshots in `docs/planning/qa-evidence/`). The completion refusal was exercised against an
+id matching no run — a missing run has no stubs, so it takes the same branch — rather than against
+the firm's only payroll row, which is untouched and still `draft`.*
+
+---
+
+### S9. Retire the second engine — ✅ DONE 2026-08-18, with one item answered differently
+
+Written as three bullets. Two shipped as written; the first was investigated and **deliberately not
+done**, which is recorded here because a future reader would otherwise see it unticked and build it.
+
+- ~~Move `pay_stubs` generation onto the batch path~~ — **NO. See §S9b.** The two engines treat tax
+  differently, not cosmetically: the retired one withheld flat estimates and paid net, the surviving
+  one withholds nothing and pays gross. Porting it would print "Federal Tax −$120.00" and a net
+  figure on a document an employee is entitled to, while the payment they received was the gross
+  amount. `payment-statement.ts` shipped instead — what happened, from figures that exist. Whether
+  the firm should withhold at all is an accountant's decision.
+- ✅ `payroll_runs` is read-only history — `POST` answers 410, `GET` and `PUT` stay (S9c).
+- ✅ `__tests__/payroll/one-pay-model.test.ts` covers it, in the same shape as the retired
+  `employee_payouts` table: 7 guards under *"the retired payroll engine is closed to new work"*.
 
 ---
 
