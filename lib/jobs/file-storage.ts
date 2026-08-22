@@ -149,6 +149,10 @@ export interface JobFileRow {
   file_name?: string | null;
   /** The mobile/File-Explorer name column. Written by the web path too, from now on. */
   name?: string | null;
+  /** What a person renamed this to (seeds/607). Preferred over both name columns for display. */
+  label?: string | null;
+  /** Free-text tags for filtering (seeds/607). Normalised by `lib/files/labels.ts` before storage. */
+  tags?: string[] | null;
   file_url?: string | null;
   storage_path?: string | null;
   upload_state?: string | null;
@@ -207,8 +211,27 @@ export function downloadHref(row: JobFileRow): string | null {
   }
 }
 
-/** The name to show, whichever writer made the row. */
+/**
+ * The name to show, whichever writer made the row.
+ *
+ * `label` wins (2026-08-22). It is the one name a person actually chose — everything after it is a
+ * name some machine produced: the phone's `IMG_4417.MOV`, the mobile app's `name`, or nothing.
+ *
+ * `file_name` is deliberately NOT overwritten when somebody renames a file. The storage key is
+ * derived from it, the download's filename comes from it, and it is what the crew member who shot
+ * the video will search for. See `lib/files/labels.ts`.
+ */
 export function displayName(row: JobFileRow): string {
+  return (
+    (row.label ?? '').trim()
+    || (row.file_name ?? '').trim()
+    || (row.name ?? '').trim()
+    || 'File'
+  );
+}
+
+/** The uploaded name, ignoring any label — for the download filename and the "originally" hint. */
+export function originalName(row: JobFileRow): string {
   return (row.file_name ?? '').trim() || (row.name ?? '').trim() || 'File';
 }
 

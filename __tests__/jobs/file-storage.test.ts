@@ -8,6 +8,7 @@ import {
   shapeOf,
   downloadHref,
   displayName,
+  originalName,
   mimeOf,
   sizeOf,
   jobFileStoragePath,
@@ -85,6 +86,26 @@ describe('reading a row whichever writer made it', () => {
     expect(displayName({ file_name: 'plat.pdf' })).toBe('plat.pdf');
     expect(displayName({ name: 'from-mobile.jpg' })).toBe('from-mobile.jpg');
     expect(displayName({})).toBe('File');
+  });
+
+  // ── A rename is a DISPLAY layer, not a rename (seeds/607) ──────────────────────────────────
+  it('prefers the label a person chose over the name a machine produced', () => {
+    expect(displayName({ label: 'NW corner monument', file_name: 'IMG_4417.MOV' }))
+      .toBe('NW corner monument');
+  });
+
+  it('falls back to the uploaded name when the label is cleared', () => {
+    expect(displayName({ label: null, file_name: 'IMG_4417.MOV' })).toBe('IMG_4417.MOV');
+    expect(displayName({ label: '   ', file_name: 'IMG_4417.MOV' })).toBe('IMG_4417.MOV');
+  });
+
+  it('keeps the UPLOADED name reachable, extension and all', () => {
+    // The download route uses this rather than `displayName`. A label is prose with no extension,
+    // and saving the bytes under it hands somebody a file their computer cannot open.
+    const row = { label: 'NW corner monument', file_name: 'IMG_4417.MOV' };
+    expect(originalName(row)).toBe('IMG_4417.MOV');
+    expect(originalName({ name: 'from-mobile.jpg' })).toBe('from-mobile.jpg');
+    expect(originalName({})).toBe('File');
   });
 
   it('takes the mime from either column', () => {

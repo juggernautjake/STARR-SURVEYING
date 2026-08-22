@@ -14,7 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { shapeOf, displayName, bucketOf, type JobFileRow } from '@/lib/jobs/file-storage';
+import { shapeOf, originalName, bucketOf, type JobFileRow } from '@/lib/jobs/file-storage';
 
 const SIGNED_URL_SECONDS = 60 * 15;
 
@@ -59,7 +59,10 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return new NextResponse(new Uint8Array(bytes), {
       headers: {
         'Content-Type': mime,
-        'Content-Disposition': `inline; filename="${displayName(row).replace(/"/g, '')}"`,
+        // `originalName`, NOT `displayName`: since seeds/607 a file can be renamed, and a label is
+        // prose — "NW corner monument" — with no extension. Saving the bytes under it would hand
+        // somebody a file their computer cannot open.
+        'Content-Disposition': `inline; filename="${originalName(row).replace(/"/g, '')}"`,
         // Not cacheable by a shared cache: the row is only reachable to a signed-in user and this
         // response carries the bytes themselves.
         'Cache-Control': 'private, max-age=60',

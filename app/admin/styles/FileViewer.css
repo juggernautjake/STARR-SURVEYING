@@ -1,0 +1,205 @@
+/* app/admin/styles/FileViewer.css — the media viewer, and the details rail beside it.
+ *
+ * ── WHY THIS IS ITS OWN FILE (2026-08-22) ──────────────────────────────────────────────────────
+ *
+ * These rules lived in `AdminJobs.css`, which `app/admin/jobs/layout.tsx` imports and which is
+ * therefore scoped to the /admin/jobs and /admin/leads route trees. The viewer is used from
+ * /admin/projects as well, where that stylesheet has never loaded — and this repo has already been
+ * bitten by exactly that once: the projects pages were written against `jobs-page__*` and rendered
+ * as raw browser default while reporting zero overflow.
+ *
+ * Imported by `FileViewer.tsx` itself, so the styles travel with the component that needs them and
+ * cannot be left behind by a new caller.
+ *
+ * ── WHY THIS SURFACE IS DARK IN EVERY THEME ────────────────────────────────────────────────────
+ *
+ * These colours are NOT `var(--theme-*)`, and that is deliberate rather than skipped work.
+ *
+ * A media viewer is dark for the same reason every other one is — Preview, Lightroom, Google
+ * Photos: the brightness of the chrome around an image changes how the image itself reads. A survey
+ * photo of a monument in shadow, judged against a white surround, looks darker than it is. Somebody
+ * on the light skin asking "is that rebar or a shadow?" needs the same surround as everybody else,
+ * or the answer depends on their theme setting.
+ *
+ * This is the same exemption `theme-vars-are-adopted.test.ts` already grants `@media print` —
+ * *"paper is not themed"* — and the file makes it explicit rather than leaving a reader to guess
+ * whether the modal was simply missed by the conversion sweep.
+ *
+ * What that test is really counting is literals scattered through declarations, where nobody can
+ * find them all to retune. So the palette is declared ONCE here and referenced by name below.
+ *
+ * -------------------------------------------------------------------------- */
+.file-viewer__overlay,
+.file-viewer {
+  --fv-shell: #1F2937;        /* the dialog body behind the media */
+  --fv-chrome: #111827;       /* header and footer bars */
+  --fv-line: #374151;         /* borders and control fills */
+  --fv-line-hover: #4B5563;
+  --fv-text: #D1D5DB;         /* control labels on the chrome */
+  --fv-text-bright: #E5E7EB;  /* emphasis: author names, input text */
+  --fv-accent: var(--color-info, #2563EB);
+}
+
+.file-viewer__overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+.file-viewer { width: 95vw; height: 92vh; height: 92dvh; background: var(--fv-shell); border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
+.file-viewer__header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; background: var(--fv-chrome); border-bottom: 1px solid var(--fv-line); }
+.file-viewer__header-info { display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1; }
+.file-viewer__title { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-bg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-viewer__type { font-size: 0.7rem; color: var(--color-text-muted); background: var(--fv-line); padding: 0.1rem 0.5rem; border-radius: 8px; white-space: nowrap; }
+.file-viewer__controls { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
+.file-viewer__ctrl-btn { background: var(--fv-line); color: var(--fv-text); border: 1px solid var(--color-text-secondary); border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; text-decoration: none; transition: all 0.15s; }
+.file-viewer__ctrl-btn:hover { background: var(--color-text-secondary); color: #fff; }
+.file-viewer__zoom-level { font-size: 0.75rem; color: var(--color-text-muted); min-width: 40px; text-align: center; }
+.file-viewer__zoom-input { width: 46px; background: var(--fv-line); color: var(--fv-text); border: 1px solid var(--color-text-secondary); border-radius: 6px; padding: 0.3rem 0.4rem; font-size: 0.78rem; text-align: center; font-family: inherit; -moz-appearance: textfield; }
+.file-viewer__zoom-input::-webkit-inner-spin-button, .file-viewer__zoom-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.file-viewer__zoom-input:focus { outline: 1px solid var(--color-info); border-color: var(--color-info); }
+.file-viewer__zoom-pct { font-size: 0.78rem; color: var(--color-text-muted); }
+.file-viewer__divider { width: 1px; height: 20px; background: var(--color-text-secondary); margin: 0 0.25rem; }
+.file-viewer__close-btn { background: var(--color-error); color: #fff; border: none; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 1.1rem; cursor: pointer; line-height: 1; font-weight: 600; }
+.file-viewer__close-btn:hover { background: #DC2626; }
+.file-viewer__content { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; }
+.file-viewer__image-wrapper { transition: transform 0.1s ease-out; }
+.file-viewer__image { max-width: 100%; max-height: 85vh; max-height: 85dvh; display: block; border-radius: 4px; }
+.file-viewer__iframe { width: 100%; height: 100%; border: none; background: var(--theme-bg-surface, #fff); }
+/* Video (2026-08-19). Fits the frame without cropping — a field video is usually portrait from a
+ * phone, and object-fit: cover would hide the top of the very thing being filmed. */
+.file-viewer__video { max-width: 100%; max-height: 100%; width: auto; height: auto; background: var(--theme-media-ground, #000); border-radius: 8px; }
+.file-viewer__no-preview { text-align: center; color: var(--color-text-muted); padding: 3rem; }
+.file-viewer__no-preview-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
+.file-viewer__no-preview p { margin: 0 0 0.5rem; font-size: 0.9rem; }
+.file-viewer__no-preview-sub { font-size: 0.8rem; color: var(--color-text-tertiary); }
+.file-viewer__download-link { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-brand-navy); color: #fff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; }
+.file-viewer__download-link:hover { background: #162470; }
+.file-viewer__footer { padding: 0.4rem 1rem; text-align: center; font-size: 0.72rem; color: var(--color-text-tertiary); background: var(--fv-chrome); border-top: 1px solid var(--fv-line); }
+
+/* --------------------------------------------------------------------------
+   Stepping through a list, and the details rail (2026-08-22)
+   -------------------------------------------------------------------------- */
+
+/* The shell splits into media + rail. `min-height: 0` on both is what lets the thread inside the
+ * rail scroll: without it a flex child refuses to shrink below its content, so the dialog grows
+ * past the viewport instead and takes the note composer off-screen with it. */
+.file-viewer__body { flex: 1; display: flex; min-height: 0; }
+.file-viewer__stage { flex: 1; position: relative; display: flex; min-width: 0; min-height: 0; }
+.file-viewer__counter { font-size: 0.7rem; color: var(--color-text-muted); background: var(--fv-line); padding: 0.1rem 0.5rem; border-radius: 8px; white-space: nowrap; }
+
+.file-viewer__ctrl-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
+.file-viewer__ctrl-btn--on { background: var(--color-info, #2563EB); border-color: var(--color-info, #2563EB); color: #fff; }
+/* Delete. Not red at rest — a destructive control sitting lit up next to Download in a viewer
+ * people keep open while reading is an invitation to misclick; it colours on hover instead. */
+.file-viewer__ctrl-btn--danger:hover { background: var(--color-error, #EF4444); border-color: var(--color-error, #EF4444); color: #fff; }
+.file-viewer__close-btn { display: inline-flex; align-items: center; justify-content: center; }
+
+.file-viewer__speed { background: var(--fv-line); color: var(--fv-text); border: 1px solid var(--color-text-secondary); border-radius: 6px; padding: 0.3rem 0.35rem; font-size: 0.78rem; font-family: inherit; cursor: pointer; }
+
+/* Prev/next sit OVER the media rather than beside it, so the image keeps the full width of the
+ * stage. Translucent until hovered — a permanent solid chevron on top of a photo is in the way of
+ * the thing being looked at. */
+.file-viewer__nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 2;
+  width: 42px; height: 64px; display: flex; align-items: center; justify-content: center;
+  background: rgba(17,24,39,0.55); color: var(--fv-text-bright); border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px; cursor: pointer; transition: background 0.15s, opacity 0.15s; opacity: 0.55;
+}
+.file-viewer__nav:hover { background: rgba(17,24,39,0.9); opacity: 1; }
+.file-viewer__nav--prev { left: 10px; }
+.file-viewer__nav--next { right: 10px; }
+
+.file-viewer__audio-wrap { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; color: var(--color-text-muted); padding: 2rem; }
+.file-viewer__audio { width: min(520px, 80vw); }
+
+/* --------------------------------------------------------------------------
+   Details rail: name, tags, notes
+   -------------------------------------------------------------------------- */
+.file-details {
+  width: 320px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  background: var(--fv-chrome); border-left: 1px solid var(--fv-line); color: var(--fv-text);
+  font-size: 0.82rem; overflow-y: auto;
+}
+.file-details__section { padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--fv-shell); }
+.file-details__heading { margin: 0 0 0.45rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--color-text-muted); display: flex; align-items: center; gap: 0.4rem; }
+.file-details__count { background: var(--fv-line); border-radius: 8px; padding: 0 0.4rem; font-size: 0.68rem; letter-spacing: 0; }
+
+.file-details__label-show { display: flex; align-items: center; gap: 0.4rem; width: 100%; background: none; border: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.file-details__label-show:hover { color: #fff; }
+.file-details__label { word-break: break-word; }
+.file-details__label--unset { color: var(--color-text-muted); }
+.file-details__original { margin: 0.3rem 0 0; font-size: 0.7rem; color: var(--color-text-tertiary); word-break: break-all; }
+
+.file-details__label-edit { display: flex; align-items: center; gap: 0.3rem; }
+.file-details__input { flex: 1; min-width: 0; background: var(--fv-shell); color: var(--fv-text-bright); border: 1px solid var(--fv-line); border-radius: 6px; padding: 0.35rem 0.5rem; font: inherit; }
+.file-details__input:focus { outline: 1px solid var(--color-info, #2563EB); border-color: var(--color-info, #2563EB); }
+.file-details__icon-btn { background: var(--fv-line); color: var(--fv-text); border: none; border-radius: 6px; padding: 0.35rem; display: inline-flex; cursor: pointer; }
+.file-details__icon-btn:hover { background: var(--fv-line-hover); color: #fff; }
+.file-details__icon-btn:disabled { opacity: 0.6; cursor: default; }
+
+.file-details__tags { display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.file-details__tag { display: inline-flex; align-items: center; gap: 0.25rem; background: var(--fv-shell); border: 1px solid var(--fv-line); border-radius: 999px; padding: 0.15rem 0.35rem 0.15rem 0.55rem; font-size: 0.74rem; }
+.file-details__tag-x { background: none; border: none; color: var(--color-text-muted); cursor: pointer; display: inline-flex; padding: 0; }
+.file-details__tag-x:hover { color: var(--color-error, #EF4444); }
+/* `flex: 0 1 auto` with a modest width, NOT `flex: 1`: on a file with no tags yet the input was
+ * the only child of the row and stretched the full 320px, reading as a big empty text box rather
+ * than as the small "add one more" affordance it is. */
+.file-details__tag-input { flex: 0 1 auto; width: 8rem; min-width: 6rem; background: transparent; border: 1px dashed var(--fv-line); border-radius: 999px; padding: 0.15rem 0.55rem; color: var(--fv-text-bright); font: inherit; font-size: 0.74rem; }
+.file-details__tag-input:focus { outline: none; border-color: var(--color-info, #2563EB); border-style: solid; }
+
+.file-details__facts { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.72rem; color: var(--color-text-tertiary); }
+
+/* The thread is the part that grows, so it takes the leftover height and scrolls inside itself
+ * while the composer stays pinned below it. */
+.file-details__thread-section { flex: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: none; }
+.file-details__thread { flex: 1; overflow-y: auto; min-height: 80px; display: flex; flex-direction: column; gap: 0.6rem; padding-right: 0.15rem; }
+.file-details__muted { color: var(--color-text-tertiary); font-size: 0.76rem; margin: 0; line-height: 1.45; }
+
+.file-details__note { background: var(--fv-shell); border: 1px solid var(--fv-line); border-radius: 8px; padding: 0.5rem 0.6rem; }
+.file-details__note-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.4rem; font-size: 0.7rem; color: var(--color-text-muted); margin-bottom: 0.3rem; }
+.file-details__note-head strong { color: var(--fv-text-bright); font-size: 0.75rem; }
+.file-details__edited { font-style: italic; }
+/* pre-wrap, not normal: the line breaks somebody typed while listing three monuments are part of
+ * what they wrote, and re-flowing them into one paragraph loses their structure. */
+.file-details__note-body { margin: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.45; font-size: 0.8rem; }
+.file-details__note-actions { display: flex; gap: 0.5rem; margin-top: 0.35rem; }
+.file-details__note-action { background: none; border: none; padding: 0; color: var(--color-text-muted); font: inherit; font-size: 0.7rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.2rem; }
+.file-details__note-action:hover { color: #fff; }
+
+.file-details__note-edit { display: flex; flex-direction: column; gap: 0.35rem; }
+.file-details__textarea { width: 100%; background: var(--fv-shell); color: var(--fv-text-bright); border: 1px solid var(--fv-line); border-radius: 6px; padding: 0.4rem 0.5rem; font: inherit; font-size: 0.8rem; resize: vertical; }
+.file-details__textarea:focus { outline: 1px solid var(--color-info, #2563EB); border-color: var(--color-info, #2563EB); }
+
+.file-details__composer { display: flex; gap: 0.35rem; align-items: flex-end; padding-top: 0.6rem; }
+.file-details__send { background: var(--color-info, #2563EB); color: #fff; border: none; border-radius: 6px; padding: 0.45rem 0.55rem; cursor: pointer; display: inline-flex; align-items: center; }
+.file-details__send:disabled { opacity: 0.5; cursor: default; }
+
+.file-details__btn { background: var(--color-info, #2563EB); color: #fff; border: none; border-radius: 6px; padding: 0.3rem 0.6rem; font: inherit; font-size: 0.75rem; cursor: pointer; }
+.file-details__btn--ghost { background: var(--fv-line); }
+.file-details__error { margin: 0; padding: 0.5rem 0.9rem; color: var(--color-error, #EF4444); font-size: 0.75rem; }
+
+.file-details__spin { animation: file-details-spin 0.9s linear infinite; }
+@keyframes file-details-spin { to { transform: rotate(360deg); } }
+
+/* --------------------------------------------------------------------------
+   Phone: the rail goes under the media, not beside it
+   --------------------------------------------------------------------------
+   A 320px rail next to a portrait video on a 390px screen leaves about 70px for the video. Stacking
+   is the only layout that works, and the media keeps the top half because that is what was tapped. */
+@media (max-width: 780px) {
+  .file-viewer { width: 100vw; height: 100vh; height: 100dvh; border-radius: 0; }
+  .file-viewer__body { flex-direction: column; }
+  .file-viewer__stage { flex: 1 1 45%; min-height: 180px; }
+  .file-details { width: auto; max-height: 55%; border-left: none; border-top: 1px solid var(--fv-line); }
+  .file-viewer__nav { width: 34px; height: 52px; }
+  /* ── THE TOOLBAR MUST WRAP, AND `flex-wrap` ALONE DOES NOT MAKE IT ────────────────────────
+   *
+   * Measured at 390px: the control row is 469px wide, which put Download, Delete and — worst —
+   * **Close** past the right edge, with no horizontal scroll to reach them. The only way out of
+   * the viewer on a phone was tapping the backdrop, which is not discoverable.
+   *
+   * `flex-wrap: wrap` on the controls could not fix it on its own: the base rule sets
+   * `flex-shrink: 0` on this container, so it refused to narrow below its content and simply
+   * overflowed instead of wrapping. Both have to change, and the header has to let the row take a
+   * full line of its own rather than sharing one with the title. */
+  .file-viewer__header { flex-wrap: wrap; gap: 0.4rem; }
+  .file-viewer__header-info { flex: 1 1 100%; min-width: 0; }
+  .file-viewer__controls { flex-wrap: wrap; flex-shrink: 1; width: 100%; justify-content: flex-end; }
+  .file-viewer__footer { display: none; }
+}

@@ -1,10 +1,11 @@
 // app/admin/components/jobs/JobFileManager.tsx — File management with viewer + multi upload
 'use client';
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { uploadJobFileBytes } from '@/lib/jobs/upload-client';
-import { Loader2, FolderOpen, Eye, Download, Trash2, Link2 } from 'lucide-react';
+import { Loader2, FolderOpen, Eye, Download, Trash2, Link2, MessageSquare, Tag } from 'lucide-react';
 import FileViewer, { isImageFile } from './FileViewer';
 import FilePicker from '@/app/admin/components/files/FilePicker';
+import { matchesTags, tagFacets } from '@/lib/files/labels';
 
 interface JobFile {
   id: string;
@@ -21,6 +22,10 @@ interface JobFile {
   uploaded_by: string;
   uploaded_at: string;
   is_backup: boolean;
+  /** seeds/607 — what a person renamed this to. `file_name` keeps the uploaded name. */
+  label?: string | null;
+  /** seeds/607 — free-text tags, already normalised by the server. */
+  tags?: string[] | null;
   /** F5 — set when this row REFERENCES a File Explorer document instead of carrying its own bytes. */
   file_node_id?: string | null;
   /** Annotated by `GET /api/admin/jobs/files`. `available: false` means the document was deleted or
@@ -124,8 +129,54 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
   const [uploadNote, setUploadNote] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showPicker, setShowPicker] = useState(false);
+  /** Tags currently narrowing the list. AND, not OR — see `matchesTags`. */
+  const [activeTags, setActiveTags] = useState<string[]>([]);
+  /** How many notes each file has, so a row can say so without a request per row. */
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  /**
+   * Local overlay of edits made in the viewer.
+   *
+   * `files` is a prop owned by the page, and a rename made in the viewer must show in the list
+   * behind it immediately. Refetching the whole job to see one new name is both slower and visibly
+   * jumpy, so the patch is held here and merged on read.
+   */
+  const [patched, setPatched] = useState<Record<string, Partial<JobFile>>>({});
 
-  const sectionFiles = files.filter(f => !activeSection || f.section === section);
+  const merged = useMemo(
+    () => files.map((f) => (patched[f.id] ? { ...f, ...patched[f.id] } : f)),
+    [files, patched],
+  );
+
+  const sectionFiles = useMemo(
+    () => merged.filter(f => (!activeSection || f.section === section) && matchesTags(f, activeTags)),
+    [merged, activeSection, section, activeTags],
+  );
+
+  // Facets come from the SECTION's files ignoring the tag filter, so selecting a tag does not
+  // remove the other tags from the bar and strand the person with no way to widen the list again.
+  const facets = useMemo(
+    () => tagFacets(merged.filter(f => !activeSection || f.section === section)),
+    [merged, activeSection, section],
+  );
+
+  // One request for the whole visible list. Keyed on the ids so it re-runs when files are added or
+  // removed, not on every render.
+  const idKey = useMemo(() => sectionFiles.map(f => f.id).sort().join(','), [sectionFiles]);
+  const loadNoteCounts = useCallback(async () => {
+    if (!idKey) { setNoteCounts({}); return; }
+    try {
+      const res = await fetch(`/api/admin/files/comments?subject_type=job_file&subject_ids=${encodeURIComponent(idKey)}`);
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) setNoteCounts(body.counts ?? {});
+    } catch {
+      // A missing badge is not worth an error state — the notes themselves are still one click away.
+    }
+  }, [idKey]);
+  useEffect(() => { void loadNoteCounts(); }, [loadNoteCounts]);
+
+  function toggleTag(tag: string) {
+    setActiveTags(t => (t.includes(tag) ? t.filter(x => x !== tag) : [...t, tag]));
+  }
 
   function formatFileSize(bytes?: number): string {
     if (!bytes) return '';
@@ -321,8 +372,33 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
         </div>
       )}
 
+      {/* Tag filter. Rendered only once tags exist, so a job nobody has tagged shows no empty
+          furniture. Counts come from the section ignoring the current selection — see `facets`. */}
+      {facets.length > 0 && (
+        <div className="job-files__tagbar">
+          <span className="job-files__tagbar-icon" aria-hidden><Tag size={12} /></span>
+          {facets.map(({ tag, count }) => (
+            <button
+              key={tag}
+              className={`job-files__tag${activeTags.includes(tag) ? ' job-files__tag--on' : ''}`}
+              onClick={() => toggleTag(tag)}
+              aria-pressed={activeTags.includes(tag)}
+            >
+              {tag} <span className="job-files__tag-count">{count}</span>
+            </button>
+          ))}
+          {activeTags.length > 0 && (
+            <button className="job-files__tag-clear" onClick={() => setActiveTags([])}>Clear</button>
+          )}
+        </div>
+      )}
+
       {sectionFiles.length === 0 ? (
-        <div className="job-files__empty">No files in this section</div>
+        <div className="job-files__empty">
+          {activeTags.length > 0
+            ? `No files in this section tagged ${activeTags.join(' + ')}.`
+            : 'No files in this section'}
+        </div>
       ) : (
         <div className="job-files__list">
           {sectionFiles.map(file => {
@@ -353,10 +429,17 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                         className="job-files__view-link"
                         onClick={() => setViewingFile(file)}
                       >
-                        {file.file_name}
+                        {/* The label, when there is one. The uploaded name is still shown in the
+                            meta line below, so the file the phone made stays findable. */}
+                        {file.label?.trim() || file.file_name}
                       </button>
                     ) : (
-                      file.file_name
+                      file.label?.trim() || file.file_name
+                    )}
+                    {noteCounts[file.id] > 0 && (
+                      <span className="job-files__notes" title={`${noteCounts[file.id]} note${noteCounts[file.id] === 1 ? '' : 's'}`}>
+                        <MessageSquare size={11} aria-hidden /> {noteCounts[file.id]}
+                      </span>
                     )}
                   </span>
                   <span className="job-files__item-meta">
@@ -383,6 +466,25 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
                   )}
                   {file.description && (
                     <span className="job-files__item-desc">{file.description}</span>
+                  )}
+                  {/* Once renamed, say what it arrived as. Without this the crew member who shot
+                      the video cannot match it to anything on their phone. */}
+                  {file.label?.trim() && (
+                    <span className="job-files__item-orig">Uploaded as {file.file_name}</span>
+                  )}
+                  {(file.tags?.length ?? 0) > 0 && (
+                    <span className="job-files__item-tags">
+                      {file.tags?.map(tag => (
+                        <button
+                          key={tag}
+                          className={`job-files__tag${activeTags.includes(tag) ? ' job-files__tag--on' : ''}`}
+                          onClick={() => toggleTag(tag)}
+                          title={activeTags.includes(tag) ? `Stop filtering by "${tag}"` : `Show only "${tag}"`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </span>
                   )}
                 </div>
                 <div className="job-files__item-actions">
@@ -423,9 +525,29 @@ export default function JobFileManager({ files, onUpload, onDelete, activeSectio
         </div>
       )}
 
-      {/* File Viewer Modal */}
+      {/* File Viewer Modal.
+          `files` is what makes ← / → work: reviewing forty photos used to mean open-look-close
+          forty times. Only the previewable rows are passed — stepping onto a row that can only
+          render a download prompt is a dead end in the middle of a review. */}
       {viewingFile && (
-        <FileViewer file={viewingFile} onClose={() => setViewingFile(null)} />
+        <FileViewer
+          file={merged.find(f => f.id === viewingFile.id) ?? viewingFile}
+          files={sectionFiles.filter(canPreview)}
+          onClose={() => {
+            setViewingFile(null);
+            // Notes are added inside the panel without going through `onPatched`, so the badges are
+            // reconciled on the way out rather than left stale until the next page load.
+            void loadNoteCounts();
+          }}
+          onSelect={(f) => setViewingFile(f as JobFile)}
+          onPatched={(id, patch) => {
+            // The viewer's file type allows `null` where this list's allows `undefined` on a couple
+            // of nullable columns; the values are the same, only the declarations differ.
+            setPatched(p => ({ ...p, [id]: { ...p[id], ...(patch as Partial<JobFile>) } }));
+            // A note may have been added while the panel was open; the badge should agree.
+            void loadNoteCounts();
+          }}
+        />
       )}
 
       {/* F5 — the shared picker, in `file` mode. Same component and same two endpoints as the File

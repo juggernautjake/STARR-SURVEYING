@@ -15,13 +15,29 @@ import { AIServiceError } from '@/lib/research/ai-client';
  *     return NextResponse.json({ data });
  *   });
  */
-export function withErrorHandler(
-  handler: (req: NextRequest) => Promise<NextResponse>,
+/**
+ * ── WHY THIS FORWARDS A SECOND ARGUMENT (2026-08-22) ──────────────────────────────────────────
+ *
+ * It used to accept `(req) => …` only, and Next hands a dynamic route TWO arguments: the request
+ * and `{ params }`. The wrapper swallowed the second one, so `params` was `undefined` inside any
+ * wrapped `[id]` route — and the routes that needed an id worked around it by re-parsing the id out
+ * of `req.url` by segment index (see `equipment/templates/[id]/items`). That workaround is silently
+ * wrong the moment a route moves one level deeper.
+ *
+ * `Ctx` is generic and defaults to nothing, so every existing `(req) => …` caller keeps its exact
+ * type and behaviour; only handlers that declare a second parameter can see one.
+ */
+export function withErrorHandler<Ctx = unknown>(
+  handler: (req: NextRequest, ctx: Ctx) => Promise<NextResponse>,
   options?: { routeName?: string; exposeErrors?: boolean }
-): (req: NextRequest) => Promise<NextResponse> {
-  return async (req: NextRequest) => {
+): (req: NextRequest, ctx?: Ctx) => Promise<NextResponse> {
+  // `ctx` is OPTIONAL on the returned function, and that is not cosmetic: several tests and one
+  // internal caller invoke a wrapped handler as `GET(req)` with no context at all, which a required
+  // second parameter would break at compile time. A static route's handler never reads it, so the
+  // cast is sound for exactly the callers that pass nothing.
+  return async (req: NextRequest, ctx?: Ctx) => {
     try {
-      return await handler(req);
+      return await handler(req, ctx as Ctx);
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       const routePath = new URL(req.url).pathname;

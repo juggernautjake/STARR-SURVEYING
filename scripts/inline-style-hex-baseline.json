@@ -50,7 +50,7 @@
   "app/admin/components/jobs/JobFieldMediaPanel.tsx": 11,
   "app/admin/components/jobs/JobInstructionsPanel.tsx": 17,
   "app/admin/components/jobs/JobMessagesPanel.tsx": 8,
-  "app/admin/components/jobs/JobPhotoGallery.tsx": 2,
+  "app/admin/components/jobs/JobPhotoGallery.tsx": 1,
   "app/admin/components/jobs/JobQuoteBuilder.tsx": 1,
   "app/admin/components/jobs/LinkContactDialog.tsx": 6,
   "app/admin/components/QuizEngine.tsx": 2,

@@ -577,3 +577,65 @@ conflicts are known rather than mysterious. That number only grows.
 
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` and `TWILIO_PHONE_NUMBER` are already set; the code reads
 `TWILIO_FROM_NUMBER`, which is **not** the same variable — reconcile that during the merge.
+
+---
+
+## Large video uploads — one dashboard setting, and it is the only thing left (2026-08-22)
+
+Owner: *"Can we make it so that we can upload much larger videos? ... Can we just make it so that we
+can have videos up to 500MB?"*
+
+**Everything in code is done and merged. The cap is 50 MB because of a setting no code can reach.**
+
+### What was already true before this session
+
+`starr-field-videos` has had `file_size_limit = 524288000` (500 MB) since seed 605. It has never
+mattered, because **Supabase caps every upload at the PROJECT level and that ceiling overrides every
+bucket.** It is currently **50 MB**, proven by uploading real bytes on 2026-08-19:
+
+```
+50 MB exactly (52,428,800)  accepted
+50 MB + 1 byte              REJECTED — "The object exceeded the maximum allowed size"
+```
+
+A bucket's limit can only ever be LOWER than the project ceiling, never higher. That is why raising
+it in seed 605 changed nothing, and why a 375 MB video transferred all 375 MB and was refused at
+100%.
+
+### The one thing to do
+
+**Supabase dashboard → Storage → Settings → Upload file size limit → set to 1 GB.**
+
+Requires a paid plan; the project is at ~1.19 GB of storage, which is already past the free tier's
+1 GB, so this should simply be a slider. 1 GB rather than 500 MB deliberately: the app's own cap
+sits *below* the project ceiling, and headroom means the next raise needs no dashboard trip.
+
+Then, in Vercel (Production + Preview) and `.env.local`:
+
+```
+NEXT_PUBLIC_MAX_UPLOAD_BYTES=524288000
+```
+
+### Prove it rather than trust it
+
+```
+node scripts/check-upload-ceiling.mjs --expect 500
+```
+
+It uploads real bytes at escalating sizes and reports the number storage actually accepted. Written
+because the check that missed this last time asserted the API returned a *signed URL* for a 250 MB
+file — it never PUT the bytes, so the route was happy and the transfer was always going to fail.
+
+### Do not set the env var before raising the ceiling
+
+The app cap must stay **at or below** the project ceiling. Setting it higher is precisely the defect
+of 2026-08-19: the server signs the URL, the client sends every byte, and storage refuses the object
+at the very end. If it happens anyway, the client now says so by name instead of `Upload failed
+(400)` — see `explainPutFailure` in `lib/jobs/upload-client.ts`.
+
+### What ships regardless of the setting
+
+Seed 607 raised `starr-field-files` from 100 MB to 500 MB to match the video bucket, because the app
+has one cap constant for both. Without that, raising the app cap would have recreated the
+fail-at-100% defect for every non-video file (a 200 MB point cloud). Every number in the chain now
+agrees: app cap ≤ both buckets ≤ project ceiling.
