@@ -39,6 +39,48 @@ export interface UploadProgress {
   total: number;
 }
 
+/**
+ * Turn storage's refusal into something the person holding the phone can act on.
+ *
+ * ── THE FAILURE THIS NAMES (2026-08-22) ─────────────────────────────────────────────────────────
+ *
+ * There is exactly one way a correctly-sized upload still dies at 100%: the app's cap
+ * (`NEXT_PUBLIC_MAX_UPLOAD_BYTES`) is set HIGHER than the Supabase project ceiling, so the server
+ * signs the URL, the client sends every byte, and storage refuses the object at the very end. That
+ * is the 375 MB video of 2026-08-19, and the reason `scripts/check-upload-ceiling.mjs` exists.
+ *
+ * Supabase answers that case with `413` in a JSON `statusCode` — inside an HTTP **400** — and the
+ * message "The object exceeded the maximum allowed size". Reporting it as `Upload failed (400)`
+ * sent the last investigation looking at the route, which was fine, instead of at the ceiling,
+ * which was not. So it is named here, with the number that would have to change.
+ */
+export function explainPutFailure(status: number, responseText: string, file: { name: string; size: number }): string {
+  const body = (responseText ?? '').toLowerCase();
+  const tooBig =
+    status === 413
+    || body.includes('exceeded the maximum allowed size')
+    || body.includes('payload too large')
+    || body.includes('"statuscode":"413"');
+
+  if (tooBig) {
+    const mb = Math.round(file.size / 1024 / 1024);
+    return (
+      `Storage refused ${file.name} (${mb} MB) as too large, after the whole file had been sent. `
+      + 'This app is configured to allow more than the Supabase project actually accepts. '
+      + 'Raise Storage → Settings → Upload file size limit, then run '
+      + '`node scripts/check-upload-ceiling.mjs` and set NEXT_PUBLIC_MAX_UPLOAD_BYTES to what it proves.'
+    );
+  }
+
+  if (status === 0) {
+    return 'The connection dropped during the upload. Large files need the transfer to hold for its whole duration — try again with a stronger signal.';
+  }
+  if (status === 401 || status === 403) {
+    return 'The upload link expired before the file finished sending. Try again — a fresh link is issued each time.';
+  }
+  return `Upload failed (${status}).`;
+}
+
 /** PUT with a progress callback. XHR rather than fetch because fetch still cannot report upload
  *  progress — and a 300 MB attachment with no progress bar reads as a frozen page. */
 function putWithProgress(url: string, file: File, onProgress?: (p: UploadProgress) => void): Promise<void> {
@@ -66,7 +108,7 @@ function putWithProgress(url: string, file: File, onProgress?: (p: UploadProgres
     xhr.onload = () =>
       (xhr.status >= 200 && xhr.status < 300
         ? resolve()
-        : reject(new Error(`Upload failed (${xhr.status})`)));
+        : reject(new Error(explainPutFailure(xhr.status, xhr.responseText, file))));
     xhr.onerror = () => reject(new Error('Network error during upload. Check your connection and try again.'));
     xhr.onabort = () => reject(new Error('Upload cancelled.'));
     // NO `xhr.timeout` is set, deliberately. A 500 MB video over a field connection can legitimately

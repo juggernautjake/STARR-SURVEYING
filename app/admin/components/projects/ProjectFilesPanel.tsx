@@ -17,6 +17,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Upload, FileText, Image as ImageIcon, Download, Trash2, FolderOpen, Files } from 'lucide-react';
 import { uploadProjectFileBytes } from '@/lib/jobs/upload-client';
+// The same viewer the job page uses. A project document — a contract, a title commitment — was
+// download-only here, which meant leaving the app to read the thing the page is about. It carries
+// its own stylesheet, so it renders correctly outside the /admin/jobs route tree.
+import FileViewer, { type ViewerFile } from '@/app/admin/components/jobs/FileViewer';
 
 interface ProjectFile {
   id: string;
@@ -28,6 +32,9 @@ interface ProjectFile {
   uploaded_by: string;
   uploaded_at: string;
   download_href?: string | null;
+  /** seeds/607 — a chosen name and free tags, editable in the viewer's details rail. */
+  label?: string | null;
+  tags?: string[] | null;
 }
 
 function human(bytes?: number | null): string {
@@ -45,6 +52,7 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<ProjectFile | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -134,7 +142,15 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
                 {isImage(f) ? <ImageIcon size={14} aria-hidden /> : <FileText size={14} aria-hidden />}
               </span>
               <span className="pfiles__name">
-                {f.file_name}
+                {/* Opens the viewer rather than downloading. Files with no reachable bytes stay
+                    plain text — a button that opens an empty dialog is worse than no button. */}
+                {f.download_href ? (
+                  <button type="button" className="pfiles__open" onClick={() => setViewing(f)} title={`View ${f.label?.trim() || f.file_name}`}>
+                    {f.label?.trim() || f.file_name}
+                  </button>
+                ) : (
+                  f.label?.trim() || f.file_name
+                )}
                 <span className="pfiles__meta">{human(f.file_size)}{f.file_size ? ' · ' : ''}{f.uploaded_by}</span>
               </span>
               <span className="pfiles__actions">
@@ -164,6 +180,21 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
         <Link href="/admin/files" data-testid="project-all-files-link">Browse all files on the platform</Link>
       </p>
       <p className="pd__note">The folder holds every job&rsquo;s files, photos, receipts and drawings too.</p>
+
+      {viewing && (
+        <FileViewer
+          // Resolved from the refetched list by id, not held as a snapshot: after `onPatched`
+          // reloads, a captured object would keep showing the name from before the rename.
+          file={(files.find((f) => f.id === viewing.id) ?? viewing) as ViewerFile}
+          // Only the rows whose bytes are reachable, so ← / → cannot land on a dead end.
+          files={files.filter((f) => f.download_href) as ViewerFile[]}
+          onClose={() => { setViewing(null); void load(); }}
+          onSelect={(f) => setViewing(f as ProjectFile)}
+          // Reloading is cheap here — a project holds a handful of documents, not four hundred
+          // photos — so the list simply refetches rather than keeping a local patch overlay.
+          onPatched={() => { void load(); }}
+        />
+      )}
     </div>
   );
 }

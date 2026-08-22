@@ -1394,6 +1394,23 @@
 .job-files__item-name { font-size: 0.8rem; font-weight: 500; color: var(--theme-fg-primary, #1F2937); }
 .job-files__item-meta { font-size: 0.7rem; color: var(--color-text-muted); }
 .job-files__item-desc { font-size: 0.7rem; color: var(--color-text-tertiary); font-style: italic; }
+
+/* Names, tags and note counts on a file row (seeds/607, 2026-08-22) */
+.job-files__item-orig { font-size: 0.68rem; color: var(--color-text-tertiary); }
+.job-files__notes { display: inline-flex; align-items: center; gap: 0.15rem; margin-left: 0.4rem; font-size: 0.68rem; color: var(--color-text-muted); vertical-align: middle; }
+.job-files__item-tags { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.15rem; }
+
+.job-files__tagbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; padding: 0.5rem 0.25rem 0.65rem; }
+.job-files__tagbar-icon { display: inline-flex; color: var(--color-text-muted); margin-right: 0.1rem; }
+.job-files__tag {
+  background: var(--color-bg-subtle, #F3F4F6); border: var(--border-light, 1px solid #E5E7EB);
+  border-radius: 999px; padding: 0.1rem 0.5rem; font-size: 0.7rem; font-family: inherit;
+  color: var(--color-text-secondary); cursor: pointer; transition: all 0.15s;
+}
+.job-files__tag:hover { border-color: var(--color-info, #2563EB); color: var(--color-info, #2563EB); }
+.job-files__tag--on { background: var(--color-info, #2563EB); border-color: var(--color-info, #2563EB); color: #fff; }
+.job-files__tag-count { opacity: 0.65; font-size: 0.65rem; }
+.job-files__tag-clear { background: none; border: none; color: var(--color-text-muted); font-size: 0.7rem; font-family: inherit; cursor: pointer; text-decoration: underline; }
 .job-files__item-actions { display: flex; gap: 0.25rem; }
 .job-files__item-btn { background: none; border: none; cursor: pointer; font-size: 0.85rem; padding: 0.2rem 0.35rem; border-radius: 4px; text-decoration: none; }
 .job-files__item-btn:hover { background: var(--color-bg-subtle); }
@@ -1518,40 +1535,10 @@
 .job-time__entry-delete { background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--color-text-muted); padding: 0; }
 .job-time__entry-delete:hover { color: var(--color-error); }
 
-/* --------------------------------------------------------------------------
-   File Viewer (Fullscreen Modal)
-   -------------------------------------------------------------------------- */
-.file-viewer__overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 9999; display: flex; align-items: center; justify-content: center; }
-.file-viewer { width: 95vw; height: 92vh; height: 92dvh; background: #1F2937; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; }
-.file-viewer__header { display: flex; align-items: center; justify-content: space-between; padding: 0.65rem 1rem; background: #111827; border-bottom: 1px solid #374151; }
-.file-viewer__header-info { display: flex; align-items: center; gap: 0.75rem; min-width: 0; flex: 1; }
-.file-viewer__title { margin: 0; font-size: 0.9rem; font-weight: 600; color: var(--color-bg-subtle); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-viewer__type { font-size: 0.7rem; color: var(--color-text-muted); background: #374151; padding: 0.1rem 0.5rem; border-radius: 8px; white-space: nowrap; }
-.file-viewer__controls { display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0; }
-.file-viewer__ctrl-btn { background: #374151; color: #D1D5DB; border: 1px solid var(--color-text-secondary); border-radius: 6px; padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer; font-family: inherit; text-decoration: none; transition: all 0.15s; }
-.file-viewer__ctrl-btn:hover { background: var(--color-text-secondary); color: #fff; }
-.file-viewer__zoom-level { font-size: 0.75rem; color: var(--color-text-muted); min-width: 40px; text-align: center; }
-.file-viewer__zoom-input { width: 46px; background: #374151; color: #D1D5DB; border: 1px solid var(--color-text-secondary); border-radius: 6px; padding: 0.3rem 0.4rem; font-size: 0.78rem; text-align: center; font-family: inherit; -moz-appearance: textfield; }
-.file-viewer__zoom-input::-webkit-inner-spin-button, .file-viewer__zoom-input::-webkit-outer-spin-button { -webkit-appearance: none; }
-.file-viewer__zoom-input:focus { outline: 1px solid var(--color-info); border-color: var(--color-info); }
-.file-viewer__zoom-pct { font-size: 0.78rem; color: var(--color-text-muted); }
-.file-viewer__divider { width: 1px; height: 20px; background: var(--color-text-secondary); margin: 0 0.25rem; }
-.file-viewer__close-btn { background: var(--color-error); color: #fff; border: none; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 1.1rem; cursor: pointer; line-height: 1; font-weight: 600; }
-.file-viewer__close-btn:hover { background: #DC2626; }
-.file-viewer__content { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; user-select: none; }
-.file-viewer__image-wrapper { transition: transform 0.1s ease-out; }
-.file-viewer__image { max-width: 100%; max-height: 85vh; max-height: 85dvh; display: block; border-radius: 4px; }
-.file-viewer__iframe { width: 100%; height: 100%; border: none; background: var(--theme-bg-surface, #fff); }
-/* Video (2026-08-19). Fits the frame without cropping — a field video is usually portrait from a
- * phone, and object-fit: cover would hide the top of the very thing being filmed. */
-.file-viewer__video { max-width: 100%; max-height: 100%; width: auto; height: auto; background: var(--theme-media-ground, #000); border-radius: 8px; }
-.file-viewer__no-preview { text-align: center; color: var(--color-text-muted); padding: 3rem; }
-.file-viewer__no-preview-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
-.file-viewer__no-preview p { margin: 0 0 0.5rem; font-size: 0.9rem; }
-.file-viewer__no-preview-sub { font-size: 0.8rem; color: var(--color-text-tertiary); }
-.file-viewer__download-link { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-brand-navy); color: #fff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; }
-.file-viewer__download-link:hover { background: #162470; }
-.file-viewer__footer { padding: 0.4rem 1rem; text-align: center; font-size: 0.72rem; color: var(--color-text-tertiary); background: #111827; border-top: 1px solid #374151; }
+/* File Viewer styles moved to app/admin/styles/FileViewer.css (2026-08-22).
+ * The viewer is used from /admin/projects too, and this stylesheet is only loaded under
+ * /admin/jobs and /admin/leads — so its CSS now travels with the component that needs it. */
+
 
 /* --------------------------------------------------------------------------
    File Thumbnails & View Link

@@ -16,6 +16,8 @@ import { MAX_JOB_FILE_BYTES, maxBytesFor, contentTypeFor } from '@/lib/jobs/file
 import { backgroundUploadSupport, startBackgroundUpload, ensureNotifyPermission } from '@/lib/jobs/upload-background';
 import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
 import { readVideoDuration } from '@/lib/jobs/video-split-run';
+// The one viewer, shared with the Files tab and the project panel — see the lightbox below.
+import FileViewer, { type ViewerFile } from './FileViewer';
 
 interface Photo {
   id: string;
@@ -29,6 +31,11 @@ interface Photo {
   description?: string;
   uploaded_by: string;
   uploaded_at: string;
+  /** Returned by `GET /api/admin/jobs/files`; the shared viewer shows it as the type chip. */
+  file_type?: string;
+  /** seeds/607 — the chosen name and free tags, edited in the viewer's details rail. */
+  label?: string | null;
+  tags?: string[] | null;
 }
 
 interface Props {
@@ -389,17 +396,12 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
     }
   }, [load]);
 
-  // Lightbox keyboard nav
-  useEffect(() => {
-    if (lightboxIdx === null) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setLightboxIdx(null);
-      if (e.key === 'ArrowRight') setLightboxIdx((i) => (i === null ? i : (i + 1) % photos.length));
-      if (e.key === 'ArrowLeft') setLightboxIdx((i) => (i === null ? i : (i - 1 + photos.length) % photos.length));
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [lightboxIdx, photos.length]);
+  // ── NO KEYBOARD HANDLER HERE (2026-08-22) ──────────────────────────────────────────────────
+  //
+  // There used to be one: Escape / ArrowLeft / ArrowRight on `window`. `FileViewer` binds the same
+  // three keys, and both would have fired on every press — one arrow stepping the gallery TWO
+  // photos, and Escape closing through the viewer's fullscreen guard. Removed rather than guarded,
+  // because two components listening for the same key on `window` is the bug, not the symptom.
 
   const active = lightboxIdx !== null ? photos[lightboxIdx] : null;
 
@@ -600,7 +602,9 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
             <button
               key={p.id}
               onClick={() => setLightboxIdx(idx)}
-              title={p.file_name}
+              // The chosen name if there is one, so a wall of `IMG_4417.MOV` tiles becomes
+              // readable on hover. The uploaded name stays in the tooltip behind it.
+              title={p.label?.trim() ? `${p.label.trim()} — uploaded as ${p.file_name}` : p.file_name}
               style={{
                 padding: 0, border: '1px solid var(--color-border)', borderRadius: 8,
                 overflow: 'hidden', cursor: 'pointer', background: 'var(--color-surface)', aspectRatio: '4 / 3',
@@ -628,53 +632,33 @@ export default function JobPhotoGallery({ jobId, onCountChange, media = 'photos'
         </div>
       )}
 
-      {/* Lightbox */}
+      {/* ── THE LIGHTBOX IS NOW THE SHARED VIEWER (2026-08-22) ────────────────────────────────
+          Owner: *"I need it so that I can view the videos and pictures and files in the app in a
+          viewer that works well and has all of the controls that we might want."*
+
+          This used to be a bespoke overlay: an <img> or a <video>, Prev/Next/Delete/Close, and
+          nothing else. No zoom on a photo of a monument stamp, no rotate for a sideways phone
+          shot, no fullscreen, no playback speed on a six-minute walkthrough — and, once files
+          could be named and discussed, nowhere to do either.
+
+          Rebuilding those here would have made a second viewer to keep in step with the first.
+          `FileViewer` already has them, treats photos and videos as the same kind of thing, and
+          carries its own stylesheet so it renders correctly wherever it is mounted. Delete moved
+          into it as an optional control rather than being dropped. */}
       {active && (
-        <div
-          onClick={() => setLightboxIdx(null)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.85)',
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem',
+        <FileViewer
+          file={active as ViewerFile}
+          files={photos as ViewerFile[]}
+          onClose={() => setLightboxIdx(null)}
+          onSelect={(f) => {
+            const idx = photos.findIndex((p) => p.id === f.id);
+            if (idx >= 0) setLightboxIdx(idx);
           }}
-        >
-          {media === 'videos' ? (
-            /* The browser's own player: scrubbing, volume, fullscreen and picture-in-picture all
-               already work, on a phone as well as a desktop. `autoPlay` because the click that
-               opened this was a request to watch it. */
-            <video
-              src={(active.download_href ?? active.file_url) || undefined}
-              onClick={(e) => e.stopPropagation()}
-              controls
-              autoPlay
-              playsInline
-              className="job-video-player"
-              style={{ maxWidth: '90vw', maxHeight: '78vh', borderRadius: 6 }}
-              data-testid="job-video-player"
-            >
-              <track kind="captions" />
-            </video>
-          ) : (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={(active.download_href ?? active.file_url) || undefined}
-              alt={active.file_name}
-              onClick={(e) => e.stopPropagation()}
-              style={{ maxWidth: '90vw', maxHeight: '78vh', objectFit: 'contain', borderRadius: 6 }}
-            />
-          )}
-          <div onClick={(e) => e.stopPropagation()} style={{ marginTop: '0.75rem', color: '#fff', textAlign: 'center', maxWidth: '90vw' }}>
-            <div style={{ fontWeight: 600 }}>{active.file_name}</div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>
-              {lightboxIdx! + 1} of {photos.length} · uploaded by {active.uploaded_by} · {new Date(active.uploaded_at).toLocaleDateString()}
-            </div>
-            <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
-              <button className="jobs-page__btn jobs-page__btn--secondary" onClick={() => setLightboxIdx((i) => (i === null ? i : (i - 1 + photos.length) % photos.length))}>← Prev</button>
-              <button className="jobs-page__btn jobs-page__btn--secondary" onClick={() => setLightboxIdx((i) => (i === null ? i : (i + 1) % photos.length))}>Next →</button>
-              <button className="jobs-page__btn jobs-page__btn--danger" onClick={() => remove(active.id)}>Delete</button>
-              <button className="jobs-page__btn jobs-page__btn--secondary" onClick={() => setLightboxIdx(null)}>Close</button>
-            </div>
-          </div>
-        </div>
+          // A rename or a tag change refetches: a gallery is a handful of tiles, and the tile's
+          // own caption has to agree with what the viewer now shows.
+          onPatched={() => { void load(); }}
+          onDelete={(f) => { void remove(f.id as string); }}
+        />
       )}
     </div>
   );

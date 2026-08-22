@@ -62,6 +62,7 @@ the **Production** (and Preview) environments, then redeploy.
 | `RESEARCH_AI_MODEL` | | default `claude-sonnet-4-6` |
 | `CAD_AI_MODEL` | | model id for the CAD AI engine |
 | `RESEARCH_MAX_FILE_SIZE_MB` | | default `50` |
+| `NEXT_PUBLIC_MAX_UPLOAD_BYTES` | | job/project uploads. Unset = 50 MB. Must stay ≤ the Supabase project ceiling (Storage → Settings → Upload file size limit) — see docs/planning/BLOCKERS.md. Prove with `node scripts/check-upload-ceiling.mjs`. |
 | `RESEARCH_MAX_PROJECT_STORAGE_MB` | | default `500` |
 | `ENRICHMENT_DISABLED` | | set `1` to turn off background enrichment |
 
