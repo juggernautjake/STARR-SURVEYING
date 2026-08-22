@@ -42,11 +42,28 @@ const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 await ctx.addCookies([{ name: 'authjs.session-token', value: token, domain: '127.0.0.1', path: '/', httpOnly: true, sameSite: 'Lax' }]);
 const page = await ctx.newPage();
+if (process.argv.includes('--verbose')) {
+  await page.addInitScript(() => {
+    const Orig = window.XMLHttpRequest;
+    window.XMLHttpRequest = function Patched() {
+      const x = new Orig();
+      const send = x.send.bind(x);
+      x.send = (b) => {
+        x.addEventListener('readystatechange', () => console.log(`XHR readyState=${x.readyState} status=${x.status}`));
+        x.addEventListener('error', () => console.log('XHR error event'));
+        x.upload.addEventListener('progress', (e) => console.log(`XHR upload ${e.loaded}/${e.total}`));
+        return send(b);
+      };
+      return x;
+    };
+  });
+}
 page.on('pageerror', (e) => bad(`page error: ${String(e).slice(0, 200)}`));
 // `--verbose` prints the traffic and the console. An upload has three legs — sign, PUT, record —
 // and when one of them is the problem, knowing WHICH is most of the answer. Asset noise is dropped.
 if (process.argv.includes('--verbose')) {
   page.on('console', (m) => console.log(`    [console.${m.type()}] ${m.text().slice(0, 200)}`));
+  page.on('request', (r) => { if (!r.url().includes('/_next/')) console.log(`    [→] ${r.method()} ${r.url().slice(0, 110)}`); });
   page.on('requestfailed', (r) => console.log(`    [failed] ${r.method()} ${r.url().slice(0, 120)} — ${r.failure()?.errorText}`));
   page.on('response', async (r) => {
     const u = r.url();
@@ -111,24 +128,19 @@ try {
 
   await page.setInputFiles('input[type="file"]', { name, mimeType: 'video/webm', buffer: bytes });
 
-  // The row appears when the listing reloads, which the page does itself once the upload completes.
-  await page.waitForSelector(`text=${name}`, { timeout: 120_000 }).catch(() => {});
-  if (process.argv.includes('--verbose')) {
-    const banner = await page.evaluate(() => {
-      const el = document.querySelector('[role="alert"], .fx__error, .fx__upload');
-      return el ? el.textContent : null;
-    });
-    console.log();
+  // ── WAIT ON THE FACT, NOT ON THE SCREEN ──────────────────────────────────────────────────────
+  //
+  // This polls the listing API. It used to wait for the row to appear in the DOM, and that stalled
+  // the upload every time: Playwright's text engine polls the page while the XHR is in flight, and
+  // the request never came back. A property of the harness rather than of the product — the same
+  // upload completes in a second when nothing is watching the DOM — but it cost an afternoon and it
+  // would have been read as a product failure.
+  let made = null;
+  for (let waited = 0; waited < 120_000 && !made; waited += 1_000) {
+    await page.waitForTimeout(1_000);
+    const listing = await (await api.get('/api/admin/files?parent=root')).json();
+    made = (listing.nodes ?? []).find((n) => !beforeIds.has(n.id) && n.name === name) ?? null;
   }
-  if (process.argv.includes('--verbose')) {
-    const banner = await page.evaluate(() => {
-      const els = [...document.querySelectorAll('[role="alert"], .fx__upload, .fx__error')];
-      return els.map((e) => e.textContent).join(' | ') || '(nothing on screen)';
-    });
-    console.log('    [page says] ' + banner);
-  }
-  const after = await (await api.get('/api/admin/files?parent=root')).json();
-  const made = (after.nodes ?? []).find((n) => !beforeIds.has(n.id) && n.name === name);
   if (!made) { bad('the video never appeared in the listing — the upload did not complete'); throw new Error('no node'); }
   nodeId = made.id;
   ok(`uploaded it through the page's own control (${made.name})`);
@@ -140,6 +152,9 @@ try {
   else bad(`size recorded as ${made.size_bytes}, the file is ${bytes.length}`);
 
   // ── Open it, and require the picture to MOVE ──────────────────────────────────────────────────
+  // The page has been sitting on a listing from before the upload; reload so the row is really there.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('[data-testid="file-explorer"]', { timeout: 60_000 });
   await page.click(`text=${name}`);
   const video = await page.waitForSelector('[data-testid="fx-viewer-video"]', { timeout: 30_000 }).catch(() => null);
   if (!video) { bad('clicking the video did not open it in the viewer — it fell through to a download'); throw new Error('no viewer'); }
