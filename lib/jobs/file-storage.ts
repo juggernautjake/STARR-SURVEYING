@@ -44,7 +44,11 @@ export const JOB_FILES_BUCKET = 'starr-field-files';
  *  default iPhone settings anything past about seventeen seconds of 4K was refused outright.
  *
  *  The video bucket already existed, allows video MIME types, and caps at 500 MB. Video now goes
- *  there; everything else stays put. */
+ *  there; everything else stays put.
+ *
+ *  2026-08-22: `starr-field-files` is 500 MB too now (seed 607), so the two no longer differ on
+ *  SIZE — they differ on what may be stored. The video bucket keeps a MIME allowlist, which is the
+ *  guard that actually stops a drone flight being filed as "the survey". */
 export const JOB_VIDEOS_BUCKET = 'starr-field-videos';
 
 /**
@@ -67,14 +71,32 @@ export const JOB_VIDEOS_BUCKET = 'starr-field-videos';
  * A bucket's `file_size_limit` can only ever be LOWER than the project ceiling, never higher — which
  * is why raising it in seeds/605 changed nothing.
  *
- * ── RAISING IT ─────────────────────────────────────────────────────────────────────────────────
+ * ── RAISED, AND PROVEN BY TRANSFER (2026-08-22) ────────────────────────────────────────────────
  *
- * The project ceiling is a dashboard setting (Storage → Settings → Upload file size limit), not
- * anything this code can change. When it is raised, set `NEXT_PUBLIC_MAX_UPLOAD_BYTES` to the new
- * value and everything here follows — the cap, the error text, and the point at which a video is
- * offered a split. Hardcoding a second wrong number is what caused this.
+ * The owner raised the project ceiling to **2 GB** in the dashboard. Re-measured immediately with
+ * `scripts/check-upload-ceiling.mjs`, by sending real bytes rather than reading any config:
+ *
+ *     51 MB   → accepted (22s)     — the old 50 MB wall is gone
+ *     500 MB  → accepted (202s)    starr-field-videos
+ *     500 MB  → accepted (199s)    starr-field-files
+ *
+ * So the number below is **500 MB, not 2 GB**, and the difference is the whole discipline of this
+ * file. The project ceiling is no longer the binding constraint — the two BUCKETS are, and both cap
+ * at 500 MB (seeds 605 and 607). A cap of 2 GB here would be a client limit above the server's
+ * again, which is precisely the failure that spent every byte of a 375 MB video before refusing it.
+ *
+ * The chain, every link measured rather than assumed:
+ *
+ *     app cap 500 MB  ≤  both buckets 500 MB  ≤  project ceiling 2 GB
+ *
+ * ── TO GO HIGHER ───────────────────────────────────────────────────────────────────────────────
+ *
+ * There is now 1.5 GB of headroom above the buckets, so a further raise needs no dashboard trip:
+ * raise the two buckets' `file_size_limit` in a seed, then this constant — in that order, never the
+ * reverse. `NEXT_PUBLIC_MAX_UPLOAD_BYTES` still overrides for a one-off, and
+ * `node scripts/check-upload-ceiling.mjs --expect <MB>` proves whatever you land on.
  */
-const PROJECT_UPLOAD_CEILING = 50 * 1024 * 1024;
+const PROJECT_UPLOAD_CEILING = 500 * 1024 * 1024;
 
 function configuredCeiling(): number {
   const raw = Number.parseInt(process.env.NEXT_PUBLIC_MAX_UPLOAD_BYTES ?? '', 10);

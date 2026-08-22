@@ -580,6 +580,40 @@ conflicts are known rather than mysterious. That number only grows.
 
 ---
 
+## ~~Large video uploads~~ — RESOLVED the same day (2026-08-22)
+
+**The owner raised the project ceiling to 2 GB. Re-measured by transferring real bytes, not by
+reading a config:**
+
+```
+ 51 MB  → accepted (22s)      the old 50 MB wall is gone
+500 MB  → accepted (202s)     starr-field-videos
+500 MB  → accepted (199s)     starr-field-files
+```
+
+The app cap is now **500 MB**, set in `lib/jobs/file-storage.ts` rather than left to an env var —
+one number in one place beats a variable that has to be right in three environments.
+
+**500 MB and not 2 GB, deliberately.** The project ceiling stopped being the binding constraint the
+moment it was raised; the two BUCKETS are, and both cap at 500 MB. Setting the app cap to 2 GB would
+put the client limit above the server's again — the exact shape of the failure that spent every byte
+of a 375 MB video before refusing it. The chain is `app 500 MB ≤ buckets 500 MB ≤ project 2 GB`, and
+every link was measured.
+
+There is now 1.5 GB of headroom above the buckets, so going higher needs no dashboard trip: raise
+both buckets in a seed FIRST, then the constant. Never the reverse. Prove it with
+`node scripts/check-upload-ceiling.mjs --expect <MB>`.
+
+An unexpected first attempt is worth recording: the ceiling did not move on the first change, and
+three probes across two minutes ruled out propagation delay. Supabase has two "file size limit"
+settings — the per-bucket one (Storage → Buckets → Edit) and the project one (Settings → Storage →
+Upload file size limit) — and only the second one is the override. The per-bucket field was already
+at 500 MB and could never have taken effect on its own.
+
+The original write-up is kept below, because the reasoning is the part that stays useful.
+
+### — original entry, kept for the reasoning —
+
 ## Large video uploads — one dashboard setting, and it is the only thing left (2026-08-22)
 
 Owner: *"Can we make it so that we can upload much larger videos? ... Can we just make it so that we

@@ -15,6 +15,7 @@ import {
   checkJobUpload,
   wantsBackupRow,
   MAX_JOB_FILE_BYTES,
+  MAX_JOB_VIDEO_BYTES,
   JOB_FILES_BUCKET,
 } from '@/lib/jobs/file-storage';
 
@@ -175,6 +176,28 @@ describe('what is refused before a signed URL is handed out', () => {
 
   it('refuses a missing size rather than defaulting it to zero', () => {
     expect(checkJobUpload({ name: 'a.pdf' }).ok).toBe(false);
+  });
+
+  // ── THE CAP MAY NEVER EXCEED THE BUCKETS (2026-08-22) ────────────────────────────────────────
+  //
+  // The project ceiling is 2 GB now, so it is no longer what binds — the two buckets are, and both
+  // are 500 MB (seeds 605 and 607). The tempting "we have 2 GB, use it" edit is exactly the defect
+  // this file was written for: a client cap above the server's spends every byte of the upload
+  // before anybody is told it was refused.
+  //
+  // 500 MB on both buckets was proven by transfer on 2026-08-22 (202s and 199s of real bytes), so
+  // this bound is measured, not assumed. Raising it means raising the buckets in a seed FIRST.
+  const BUCKET_LIMIT_BYTES = 500 * 1024 * 1024;
+
+  it('never allows more than the buckets accept', () => {
+    expect(MAX_JOB_FILE_BYTES).toBeLessThanOrEqual(BUCKET_LIMIT_BYTES);
+    expect(MAX_JOB_VIDEO_BYTES).toBeLessThanOrEqual(BUCKET_LIMIT_BYTES);
+  });
+
+  it('actually allows a 500 MB video — the thing the owner asked for', () => {
+    // The positive case as well as the bound: a cap of 1 byte would satisfy the assertion above
+    // and fail every real upload.
+    expect(checkJobUpload({ name: 'walkthrough.mp4', sizeBytes: BUCKET_LIMIT_BYTES, mime: 'video/mp4' }).ok).toBe(true);
   });
 });
 
