@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { checkJobUpload, jobFileStoragePath, bucketFor } from '@/lib/jobs/file-storage';
+import { checkJobUpload, jobFileStoragePath, bucketFor, MAX_JOB_FILE_BYTES } from '@/lib/jobs/file-storage';
 
 export const POST = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
@@ -53,7 +53,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Video goes to the 500 MB video bucket; everything else to the 100 MB documents bucket. One
   // function decides, so the upload, the row and the download cannot disagree — see seeds/605.
   const bucket = bucketFor(body.name, body.mime_type);
-  await ensureStorageBucket(bucket, { public: false });
+  // Explicit, because `ensureStorageBucket`'s fallback is 50 MB — the number this whole file exists
+  // to stop the app believing. Both buckets are seeded at 500 MB, so this only matters if one is
+  // ever recreated from scratch, which is exactly when a silent 50 MB would be hardest to find.
+  await ensureStorageBucket(bucket, { public: false, fileSizeLimit: MAX_JOB_FILE_BYTES });
 
   // The row id is minted HERE and returned, so the storage key and the `job_files` row that will
   // point at it agree by construction rather than by a second lookup that could pick the wrong row.

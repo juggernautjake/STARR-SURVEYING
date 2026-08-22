@@ -12,6 +12,25 @@ import { canDownload, type FileUser } from '@/lib/files/permissions';
 import { MOUNT_PREFIX, resolveMountFile } from '@/lib/files/mounts';
 import { recordFileEvent } from '@/lib/files/audit-log';
 
+/**
+ * ── TWO LIFETIMES, BECAUSE A DOWNLOAD AND A PLAYBACK ARE NOT THE SAME REQUEST ────────────────────
+ *
+ * A download is ONE request. It only has to START before the link expires — the transfer then
+ * streams to completion however long it takes, so sixty seconds is plenty for half a gigabyte.
+ *
+ * Playing a video is not one request. `<video>` issues a fresh RANGE request every time it buffers
+ * ahead or somebody scrubs, and each of those is validated against the token's expiry on arrival.
+ * At sixty seconds that means a walkthrough plays for a minute and then dies the moment the viewer
+ * seeks — with no error the person can act on, because the element simply stalls.
+ *
+ * So the inline link, the one the in-app viewer puts in `src`, lasts a viewing session. The job
+ * side never had this problem: its `download_href` is a route that 302s to a freshly signed URL on
+ * every request, so each range request gets its own. This route answers with JSON, so the URL it
+ * hands out has to outlive the watching.
+ */
+const DOWNLOAD_URL_SECONDS = 60;
+const INLINE_URL_SECONDS = 60 * 60 * 2;
+
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -70,7 +89,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     }
     const { data, error } = await supabaseAdmin.storage
       .from(ref.bucket)
-      .createSignedUrl(ref.path, 60, inlineReq ? {} : { download: ref.name });
+      .createSignedUrl(ref.path, inlineReq ? INLINE_URL_SECONDS : DOWNLOAD_URL_SECONDS, inlineReq ? {} : { download: ref.name });
     if (error || !data) return NextResponse.json({ error: error?.message ?? 'Could not generate a link.' }, { status: 500 });
     return NextResponse.json({ url: data.signedUrl, name: ref.name, mime_type: ref.mime });
   }
@@ -85,7 +104,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   const { data, error } = await supabaseAdmin.storage
     .from(node.storage_bucket)
-    .createSignedUrl(node.storage_path, 60, inlineReq ? {} : { download: node.name });
+    .createSignedUrl(node.storage_path, inlineReq ? INLINE_URL_SECONDS : DOWNLOAD_URL_SECONDS, inlineReq ? {} : { download: node.name });
   if (error || !data) {
     return NextResponse.json({ error: error?.message ?? 'Could not generate a link.' }, { status: 500 });
   }

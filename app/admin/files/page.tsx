@@ -15,6 +15,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 // From `kinds`, NOT `server` — server.ts imports supabaseAdmin, which holds the service-role key
 // and must never be reachable from a client component's import graph.
 import { FILE_KINDS, kindOf } from '@/lib/files/kinds';
+// The cap, the video test and the refusal text — one set of them for every upload surface in the
+// app, so the Files area can never drift from what the job page believes. `upload.ts` is pure; it
+// does not reach the service-role client the way `files/server.ts` does.
+import { MAX_UPLOAD_BYTES, contentTypeForUpload } from '@/lib/files/upload';
+import { explainPutFailure, isVideoUpload, megabytes } from '@/lib/storage/uploads';
+import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
+import { readVideoDuration } from '@/lib/jobs/video-split-run';
 import FilePicker, { type PickedNode } from '@/app/admin/components/files/FilePicker';
 import {
   Folder,
@@ -133,7 +140,12 @@ const ACCESS_LABEL: Record<AccessLevel, string> = {
 
 const isImage = (m: string | null) => !!m && m.startsWith('image/');
 const isPdf = (m: string | null) => m === 'application/pdf';
-const isPreviewable = (n: FileNode) => n.node_type === 'file' && (isImage(n.mime_type) || isPdf(n.mime_type));
+// A row's stored type is not always a video type even when the file is one — some Android camera
+// apps hand over an empty `File.type`, so uploads written before `contentTypeForUpload` existed say
+// `application/octet-stream`. The name is checked too, or those files are unplayable forever.
+const isVideo = (m: string | null, name?: string) => (!!m && m.startsWith('video/')) || isVideoUpload(name, null);
+const isPreviewable = (n: FileNode) =>
+  n.node_type === 'file' && (isImage(n.mime_type) || isPdf(n.mime_type) || isVideo(n.mime_type, n.name));
 
 function formatDate(s: string | null | undefined): string {
   if (!s) return '—';
@@ -155,10 +167,23 @@ function putWithProgress(url: string, file: File, onPct: (pct: number) => void):
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open('PUT', url);
+    // An explicit type, because `xhr.send(file)` derives it from `File.type` — which some Android
+    // camera apps leave EMPTY for their own recordings. The row would then say
+    // `application/octet-stream` and the viewer would have no idea it was holding a video.
+    xhr.setRequestHeader('Content-Type', contentTypeForUpload(file.name, file.type));
     xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable) onPct(Math.round((ev.loaded / ev.total) * 100));
+      // `lengthComputable` is false behind some proxies. Falling back to the File's own size keeps
+      // the number moving instead of freezing at 0% for a five-minute transfer.
+      const total = ev.lengthComputable ? ev.total : file.size;
+      if (total > 0) onPct(Math.round((Math.min(ev.loaded, total) / total) * 100));
     };
-    xhr.onload = () => (xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`)));
+    xhr.onload = () =>
+      (xhr.status >= 200 && xhr.status < 300
+        ? resolve()
+        // `Upload failed (400)` is what sent the last investigation to the route, which was fine,
+        // instead of to the limits, which were not. `explainPutFailure` names the one failure that
+        // can still spend a whole transfer — see `lib/storage/uploads.ts`.
+        : reject(new Error(explainPutFailure(xhr.status, xhr.responseText, file))));
     xhr.onerror = () => reject(new Error('Network error during upload'));
     xhr.send(file);
   });
@@ -196,6 +221,18 @@ export default function FilesPage(): React.ReactElement {
 
   const [viewer, setViewer] = useState<{ node: FileNode; url: string } | null>(null);
   const [viewerLoading, setViewerLoading] = useState(false);
+
+  /** The oversized-video conversation: measure → confirm → cut → upload. State rather than a
+   *  `window.confirm`, because the cut takes a while and has to report progress. `dest` is carried
+   *  along so the parts land in the folder the drop happened on, even if the person has since
+   *  navigated somewhere else. */
+  const [splitState, setSplitState] = useState<{
+    file: File;
+    dest: string | null;
+    plan?: SplitPlan;
+    phase: 'measuring' | 'confirm' | 'splitting';
+    message: string;
+  } | null>(null);
 
   // Permissions dialog (F7)
   const [permNode, setPermNode] = useState<FileNode | null>(null);
@@ -330,6 +367,10 @@ export default function FilesPage(): React.ReactElement {
   const canWriteHere = canEdit(parentAccess);
 
   // ---- uploads -----------------------------------------------------------
+  /**
+   * Put one batch of bytes in storage. Every file here has already been checked against the cap by
+   * `startUpload`, so nothing in this loop needs to think about size.
+   */
   const uploadFiles = useCallback(
     async (list: File[], destId: string | null) => {
       if (list.length === 0) return;
@@ -355,7 +396,16 @@ export default function FilesPage(): React.ReactElement {
           await fetch('/api/admin/files/upload/complete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ parent_id: destId, name: file.name, path, mime_type: file.type, size_bytes: file.size }),
+            // The DERIVED type, matching the header the bytes were sent with. Storing `file.type`
+            // here would record an empty string for an Android recording and leave the viewer
+            // unable to tell a video from a blob.
+            body: JSON.stringify({
+              parent_id: destId,
+              name: file.name,
+              path,
+              mime_type: contentTypeForUpload(file.name, file.type),
+              size_bytes: file.size,
+            }),
           });
         } catch (err) {
           setError(err instanceof Error ? err.message : `Failed to upload ${file.name}.`);
@@ -368,9 +418,94 @@ export default function FilesPage(): React.ReactElement {
     [load, parentId],
   );
 
+  /**
+   * ── THE OVERSIZE CONVERSATION, THE SAME ONE THE JOB PAGE HAS (2026-08-22) ─────────────────────
+   *
+   * Owner: *"I need to know that video uploading for files and for projects/jobs allows us to
+   * upload longer videos successfully."*
+   *
+   * Files that fit go straight up. A file that does not is answered BEFORE a byte moves, and how
+   * depends on what it is:
+   *
+   *   a video      → measure it, plan the cut, ask, then remux into parts that fit
+   *   anything else → say the number, because there is nothing sensible to cut
+   *
+   * The planner and the remuxer are `lib/jobs/video-split*`, already used by the job page and
+   * already tested. They are named for jobs and are not about jobs — nothing in either module knows
+   * what a job is, and a walkthrough filed in the Files area needs the same cut as one filed on the
+   * job it came from. Duplicating them for a second caller is how the caps came to disagree.
+   */
+  const startUpload = useCallback(
+    async (list: File[], destId: string | null) => {
+      if (list.length === 0) return;
+      const fits = list.filter((f) => f.size <= MAX_UPLOAD_BYTES);
+      const tooBig = list.filter((f) => f.size > MAX_UPLOAD_BYTES);
+
+      // The ones that fit go first: a 700 MB video in the selection must not hold up four drawings.
+      if (fits.length) await uploadFiles(fits, destId);
+      if (tooBig.length === 0) return;
+
+      const notVideo = tooBig.filter((f) => !isVideoUpload(f.name, f.type));
+      if (notVideo.length) {
+        setError(
+          `${notVideo.map((f) => `"${f.name}"`).join(', ')} `
+          + `${notVideo.length === 1 ? 'is' : 'are'} larger than ${megabytes(MAX_UPLOAD_BYTES)} MB, `
+          + 'which is the limit for one file.',
+        );
+      }
+
+      // One at a time — cutting is a conversation, and two dialogs at once is nobody's idea of one.
+      const video = tooBig.find((f) => isVideoUpload(f.name, f.type));
+      if (!video) return;
+      setSplitState({ file: video, dest: destId, phase: 'measuring', message: 'Checking how long this video is…' });
+      const durationSec = await readVideoDuration(video);
+      const plan = planSplit({ sizeBytes: video.size, durationSec, capBytes: MAX_UPLOAD_BYTES, name: video.name });
+      if (!plan.needed || plan.parts.length === 0) {
+        setSplitState(null);
+        setError(describePlan(plan, video.size, MAX_UPLOAD_BYTES) || 'That video cannot be stored.');
+        return;
+      }
+      setSplitState({
+        file: video,
+        dest: destId,
+        plan,
+        phase: 'confirm',
+        message: describePlan(plan, video.size, MAX_UPLOAD_BYTES),
+      });
+    },
+    [uploadFiles],
+  );
+
+  /** The person said yes: cut the file, then hand the parts to the ordinary upload path. */
+  const runSplit = useCallback(async () => {
+    if (!splitState?.plan) return;
+    const { file, plan, dest } = splitState;
+    setSplitState({ ...splitState, phase: 'splitting', message: 'Preparing to cut the video…' });
+    const { splitVideo } = await import('@/lib/jobs/video-split-run');
+    const outcome = await splitVideo(file, plan.parts, (p) =>
+      setSplitState((s) => (s ? { ...s, message: `Cutting part ${p.part} of ${p.total}… ${p.pct}%` } : s)));
+    setSplitState(null);
+    if (!outcome.ok || !outcome.files) {
+      setError(outcome.error ?? 'The video could not be split.');
+      return;
+    }
+    // A cut lands on a keyframe, not on the requested second, so a recording with sparse keyframes
+    // can still produce a piece over the cap. Checked here, before the transfer rather than after.
+    const over = outcome.files.find((f) => f.size > MAX_UPLOAD_BYTES);
+    if (over) {
+      setError(
+        `The video was cut, but "${over.name}" is still ${megabytes(over.size)} MB — over the `
+        + `${megabytes(MAX_UPLOAD_BYTES)} MB limit, because this recording's keyframes are far apart. `
+        + 'Please record at a lower resolution, or in shorter clips.',
+      );
+      return;
+    }
+    await uploadFiles(outcome.files, dest);
+  }, [splitState, uploadFiles]);
+
   async function onUploadInput(e: React.ChangeEvent<HTMLInputElement>) {
     const files = e.target.files;
-    if (files && files.length) await uploadFiles(Array.from(files), parentId);
+    if (files && files.length) await startUpload(Array.from(files), parentId);
     e.target.value = '';
   }
 
@@ -842,7 +977,7 @@ export default function FilesPage(): React.ReactElement {
     const files = e.dataTransfer.files;
     if (files && files.length && canWriteHere) {
       e.preventDefault();
-      uploadFiles(Array.from(files), parentId);
+      startUpload(Array.from(files), parentId);
     }
   }
 
@@ -1211,12 +1346,51 @@ export default function FilesPage(): React.ReactElement {
               <img src={viewer.url} alt={viewer.node.name} className="fx__viewer-img" />
             ) : isPdf(viewer.node.mime_type) ? (
               <iframe src={viewer.url} title={viewer.node.name} className="fx__viewer-frame" />
+            ) : isVideo(viewer.node.mime_type, viewer.node.name) ? (
+              // The browser's own transport: scrubbing, volume, fullscreen, picture-in-picture and
+              // captions all work correctly there, on a phone as well as a desktop. `preload
+              // ="metadata"` so opening a 500 MB walkthrough fetches its header, not the film.
+              <video
+                src={viewer.url}
+                className="fx__viewer-video"
+                controls
+                autoPlay
+                playsInline
+                preload="metadata"
+                data-testid="fx-viewer-video"
+              />
             ) : (
               <div className="fx__viewer-fallback">
                 <FileText size={40} />
                 <p>This file can’t be previewed.</p>
                 <button type="button" className="fx-btn" onClick={() => download(viewer.node)}>
                   <Download size={16} /> Download
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {splitState && (
+        <div className="fx__modal" role="alertdialog" aria-modal="true" aria-label="This video must be split" data-testid="fx-split-dialog">
+          <div className="fx__sheet fx__split">
+            <div className="fx__sheet-head">
+              <div>
+                <h2 className="fx__sheet-title">This video is too big to store as one file</h2>
+                <p className="fx__sheet-sub">{splitState.file.name}</p>
+              </div>
+            </div>
+            <div className="fx__sheet-body">
+              <p className="fx__split-msg">{splitState.message}</p>
+            </div>
+            {splitState.phase === 'confirm' && (
+              <div className="fx__sheet-foot">
+                <button type="button" className="fx-btn fx-btn--ghost" onClick={() => setSplitState(null)} data-testid="fx-split-cancel">
+                  Cancel
+                </button>
+                <button type="button" className="fx-btn" onClick={() => void runSplit()} data-testid="fx-split-confirm">
+                  Split and upload
                 </button>
               </div>
             )}
@@ -1561,6 +1735,9 @@ const styles = `
   .fx__viewer-nav--next { right: 0.75rem; }
   .fx__viewer-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
   .fx__viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; background: #fff; }
+  .fx__viewer-video { max-width: 100%; max-height: 100%; border-radius: 8px; background: #000; }
+  .fx__split { max-width: 32rem; }
+  .fx__split-msg { margin: 0; line-height: 1.55; white-space: pre-line; color: #1b2559; }
   .fx__viewer-frame { width: 100%; height: 100%; border: none; border-radius: 8px; background: #fff; }
   .fx__viewer-fallback { background: #fff; color: #152050; border-radius: 14px; padding: 2rem 2.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.75rem; }
 

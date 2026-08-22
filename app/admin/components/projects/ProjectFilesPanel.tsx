@@ -17,6 +17,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Upload, FileText, Image as ImageIcon, Download, Trash2, FolderOpen, Files } from 'lucide-react';
 import { uploadProjectFileBytes } from '@/lib/jobs/upload-client';
+// A video too big for one object is CUT rather than refused — the same conversation the job page's
+// Videos tab has, from the same modules. Without it, the server's refusal ("it can be split into
+// parts that fit") was a promise this panel could not keep.
+import { maxBytesFor, isVideoUpload } from '@/lib/jobs/file-storage';
+import { megabytes } from '@/lib/storage/uploads';
+import { planSplit, describePlan, type SplitPlan } from '@/lib/jobs/video-split';
+import { readVideoDuration } from '@/lib/jobs/video-split-run';
 // The same viewer the job page uses. A project document — a contract, a title commitment — was
 // download-only here, which meant leaving the app to read the thing the page is about. It carries
 // its own stylesheet, so it renders correctly outside the /admin/jobs route tree.
@@ -53,6 +60,13 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<ProjectFile | null>(null);
+  /** measure → confirm → cut → upload, for a video over the cap. */
+  const [splitState, setSplitState] = useState<{
+    file: File;
+    plan?: SplitPlan;
+    phase: 'measuring' | 'confirm' | 'splitting';
+    message: string;
+  } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -67,10 +81,13 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
 
   // Awaited per file, and the form is only cleared once the row exists. The job page's old uploader
   // hid itself after a fixed 500ms, so a failure looked exactly like a success.
-  async function upload(list: FileList | null) {
-    if (!list || list.length === 0) return;
+  /**
+   * Everything here already fits — `startUpload` is what decides that, and a video that does not
+   * arrives back here as parts.
+   */
+  async function upload(chosen: File[]) {
+    if (chosen.length === 0) return;
     setError(null);
-    const chosen = Array.from(list);
     for (let i = 0; i < chosen.length; i += 1) {
       const file = chosen[i];
       try {
@@ -100,6 +117,67 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
     void load();
   }
 
+  /** The gate: what fits goes up, an oversized video is offered a cut, anything else is refused
+   *  with its number — all before a byte moves. */
+  async function startUpload(list: FileList | null) {
+    if (!list || list.length === 0) return;
+    const chosen = Array.from(list);
+    setError(null);
+    const fits = chosen.filter((f) => f.size <= maxBytesFor(f.name, f.type));
+    const tooBig = chosen.filter((f) => f.size > maxBytesFor(f.name, f.type));
+    if (fits.length) await upload(fits);
+    if (tooBig.length === 0) return;
+
+    const notVideo = tooBig.filter((f) => !isVideoUpload(f.name, f.type));
+    if (notVideo.length) {
+      setError(
+        `${notVideo.map((f) => `"${f.name}"`).join(', ')} `
+        + `${notVideo.length === 1 ? 'is' : 'are'} larger than `
+        + `${megabytes(maxBytesFor(notVideo[0].name, notVideo[0].type))} MB, which is the limit for one file.`,
+      );
+    }
+
+    const video = tooBig.find((f) => isVideoUpload(f.name, f.type));
+    if (!video) return;
+    const cap = maxBytesFor(video.name, video.type);
+    setSplitState({ file: video, phase: 'measuring', message: 'Checking how long this video is…' });
+    const durationSec = await readVideoDuration(video);
+    const plan = planSplit({ sizeBytes: video.size, durationSec, capBytes: cap, name: video.name });
+    if (!plan.needed || plan.parts.length === 0) {
+      setSplitState(null);
+      setError(describePlan(plan, video.size, cap) || 'That video cannot be stored.');
+      return;
+    }
+    setSplitState({ file: video, plan, phase: 'confirm', message: describePlan(plan, video.size, cap) });
+  }
+
+  /** Yes: remux into parts, check every part still fits, then upload them like any other files. */
+  async function runSplit() {
+    if (!splitState?.plan) return;
+    const { file, plan } = splitState;
+    setSplitState({ ...splitState, phase: 'splitting', message: 'Preparing to cut the video…' });
+    const { splitVideo } = await import('@/lib/jobs/video-split-run');
+    const outcome = await splitVideo(file, plan.parts, (pr) =>
+      setSplitState((st) => (st ? { ...st, message: `Cutting part ${pr.part} of ${pr.total}… ${pr.pct}%` } : st)));
+    setSplitState(null);
+    if (!outcome.ok || !outcome.files) {
+      setError(outcome.error ?? 'The video could not be split.');
+      return;
+    }
+    // Cuts land on keyframes, so a part can overshoot its plan. Caught before the transfer.
+    const cap = maxBytesFor(file.name, file.type);
+    const over = outcome.files.find((f) => f.size > cap);
+    if (over) {
+      setError(
+        `The video was cut, but "${over.name}" is still ${megabytes(over.size)} MB — over the `
+        + `${megabytes(cap)} MB limit, because this recording's keyframes are far apart. `
+        + 'Please record at a lower resolution, or in shorter clips.',
+      );
+      return;
+    }
+    await upload(outcome.files);
+  }
+
   async function remove(f: ProjectFile) {
     if (!window.confirm(`Delete "${f.file_name}"?`)) return;
     const res = await fetch(`/api/admin/jobs/files?id=${f.id}`, { method: 'DELETE' });
@@ -117,13 +195,28 @@ export default function ProjectFilesPanel({ projectId }: { projectId: string }) 
           ref={inputRef}
           type="file"
           multiple
-          onChange={(e) => upload(e.target.files)}
+          onChange={(e) => void startUpload(e.target.files)}
           disabled={Boolean(busy)}
           style={{ display: 'none' }}
           data-testid="project-upload-input"
         />
       </label>
       {busy && <p className="pd__note" data-testid="project-upload-progress">{busy}</p>}
+      {splitState && (
+        <div className="pd__note" role="status" data-testid="project-split">
+          <p>{splitState.message}</p>
+          {splitState.phase === 'confirm' && (
+            <p>
+              <button type="button" className="proj-page__btn proj-page__btn--secondary" onClick={() => setSplitState(null)} data-testid="project-split-cancel">
+                Cancel
+              </button>{' '}
+              <button type="button" className="proj-page__btn" onClick={() => void runSplit()} data-testid="project-split-confirm">
+                Split and upload
+              </button>
+            </p>
+          )}
+        </div>
+      )}
       {error && <p className="proj-page__error" role="alert">{error}</p>}
 
       {loading && <p className="pd__note">Loading…</p>}

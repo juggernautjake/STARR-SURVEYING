@@ -131,7 +131,14 @@ WHERE id = 'starr-field-files';
 
 COMMIT;
 
--- ── STILL REQUIRED, AND NOT DOABLE FROM SQL ─────────────────────────────────────────────────────
+-- ── RESOLVED 2026-08-22 — the note below is kept for its reasoning ──────────────────────────────
+--
+-- The owner raised the project ceiling to 2 GB, and 500 MB was then proven on both buckets by
+-- transferring real bytes (202s and 199s). The app cap is 500 MB, set in lib/storage/uploads.ts.
+-- Seed 608 brought the File Explorer's own bucket — which had never been created — to the same
+-- number. Nothing below is outstanding; read it for WHY a bucket limit alone never mattered.
+--
+-- ── STILL REQUIRED, AND NOT DOABLE FROM SQL (as of 2026-08-19) ──────────────────────────────────
 --
 -- Supabase caps every upload at the PROJECT level and that ceiling overrides both buckets above.
 -- It is currently 50 MB, so until it is raised in the dashboard (Storage → Settings → Upload file

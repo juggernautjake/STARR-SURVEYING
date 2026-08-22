@@ -62,7 +62,7 @@ the **Production** (and Preview) environments, then redeploy.
 | `RESEARCH_AI_MODEL` | | default `claude-sonnet-4-6` |
 | `CAD_AI_MODEL` | | model id for the CAD AI engine |
 | `RESEARCH_MAX_FILE_SIZE_MB` | | default `50` |
-| `NEXT_PUBLIC_MAX_UPLOAD_BYTES` | | **Leave unset.** Optional override; the code default is 500 MB, proven by real transfer 2026-08-22. Binding constraint is the two buckets (500 MB), not the project ceiling (2 GB). Prove any change with `node scripts/check-upload-ceiling.mjs`. |
+| `NEXT_PUBLIC_MAX_UPLOAD_BYTES` | | **Leave unset.** Optional override for EVERY upload surface (jobs, projects, File Explorer); the code default in `lib/storage/uploads.ts` is 500 MB, proven by real transfer 2026-08-22. Binding constraint is the three buckets (500 MB), not the project ceiling (2 GB). Prove any change with `node scripts/check-upload-ceiling.mjs --bucket <name>`. |
 | `RESEARCH_MAX_PROJECT_STORAGE_MB` | | default `500` |
 | `ENRICHMENT_DISABLED` | | set `1` to turn off background enrichment |
 

@@ -32,6 +32,12 @@
 //
 // Pure. No I/O. Tested in `__tests__/jobs/file-storage.test.ts`.
 
+import { uploadCapBytes, isVideoUpload, contentTypeFor } from '@/lib/storage/uploads';
+
+/** Re-exported so every existing caller keeps a single import site for "how a job file is
+ *  uploaded", while the definitions live beside the cap they belong to. */
+export { isVideoUpload, contentTypeFor };
+
 /** The bucket the mobile app already uploads job files to, and the one `resolveMountFile` signs. */
 export const JOB_FILES_BUCKET = 'starr-field-files';
 
@@ -52,76 +58,26 @@ export const JOB_FILES_BUCKET = 'starr-field-files';
 export const JOB_VIDEOS_BUCKET = 'starr-field-videos';
 
 /**
- * ── THE ONLY LIMIT THAT IS REAL (measured 2026-08-19) ──────────────────────────────────────────
+ * ── THE ONLY LIMIT THAT IS REAL ────────────────────────────────────────────────────────────────
  *
- * Owner: *"Right now I am trying to upload a 375MB video and it is failing… once the upload gets to
- * 100%, it throws a 400 error."*
+ * Owner, 2026-08-19: *"Right now I am trying to upload a 375MB video and it is failing… once the
+ * upload gets to 100%, it throws a 400 error."*
  *
  * Because the limit this code believed in did not exist. `job_files` said 100 MB and the video
- * bucket said 500 MB, and **Supabase caps every upload at the PROJECT level, which overrides both.**
- * Probed against live storage by uploading real bytes:
+ * bucket said 500 MB, and Supabase caps every upload at the PROJECT level, which overrode both — at
+ * 50 MB, probed by uploading real bytes. All 375 MB were spent before anybody found out, which is
+ * what a client cap larger than the server's always produces.
  *
- *     50 MB exactly (52,428,800 bytes)  accepted
- *     50 MB + 1 byte                    REJECTED — "The object exceeded the maximum allowed size"
- *
- * So a 375 MB video transferred all 375 MB and was refused at the very end. The bar reaching 100%
- * and then failing is exactly what a client-side cap that is larger than the server's produces:
- * every byte is spent before anybody finds out.
- *
- * A bucket's `file_size_limit` can only ever be LOWER than the project ceiling, never higher — which
- * is why raising it in seeds/605 changed nothing.
- *
- * ── RAISED, AND PROVEN BY TRANSFER (2026-08-22) ────────────────────────────────────────────────
- *
- * The owner raised the project ceiling to **2 GB** in the dashboard. Re-measured immediately with
- * `scripts/check-upload-ceiling.mjs`, by sending real bytes rather than reading any config:
- *
- *     51 MB   → accepted (22s)     — the old 50 MB wall is gone
- *     500 MB  → accepted (202s)    starr-field-videos
- *     500 MB  → accepted (199s)    starr-field-files
- *
- * So the number below is **500 MB, not 2 GB**, and the difference is the whole discipline of this
- * file. The project ceiling is no longer the binding constraint — the two BUCKETS are, and both cap
- * at 500 MB (seeds 605 and 607). A cap of 2 GB here would be a client limit above the server's
- * again, which is precisely the failure that spent every byte of a 375 MB video before refusing it.
- *
- * The chain, every link measured rather than assumed:
- *
- *     app cap 500 MB  ≤  both buckets 500 MB  ≤  project ceiling 2 GB
- *
- * ── TO GO HIGHER ───────────────────────────────────────────────────────────────────────────────
- *
- * There is now 1.5 GB of headroom above the buckets, so a further raise needs no dashboard trip:
- * raise the two buckets' `file_size_limit` in a seed, then this constant — in that order, never the
- * reverse. `NEXT_PUBLIC_MAX_UPLOAD_BYTES` still overrides for a one-off, and
- * `node scripts/check-upload-ceiling.mjs --expect <MB>` proves whatever you land on.
+ * The number now lives in `lib/storage/uploads.ts`, once, for every upload surface in the app — the
+ * job page, the File Explorer, and anything added later. That module carries the measurements and
+ * the ordering rule for raising it. Nothing about a job makes its cap special, and a second copy of
+ * the number here is precisely how there came to be three.
  */
-const PROJECT_UPLOAD_CEILING = 500 * 1024 * 1024;
-
-function configuredCeiling(): number {
-  const raw = Number.parseInt(process.env.NEXT_PUBLIC_MAX_UPLOAD_BYTES ?? '', 10);
-  return Number.isFinite(raw) && raw > 0 ? raw : PROJECT_UPLOAD_CEILING;
-}
 
 /** What storage will actually accept. One number, because there is only one real limit. */
-export const MAX_JOB_FILE_BYTES = configuredCeiling();
-/** Video is capped by the same ceiling. It was 500 MB, which storage never honoured. */
-export const MAX_JOB_VIDEO_BYTES = configuredCeiling();
-
-const VIDEO_EXT = /\.(mp4|mov|m4v|webm|mkv|avi|3gp|3g2|mpe?g|hevc)$/i;
-
-/**
- * Is this a video, by the two signals a browser actually gives us?
- *
- * The MIME type is checked first and the extension second, because a phone is unreliable about
- * exactly one of them at a time: iOS reports `video/quicktime` correctly but some Android camera
- * apps hand over an EMPTY type for their own recording. Trusting only the type sends a 300 MB
- * `.mp4` to the 100 MB documents bucket, where it is refused for a reason nobody can act on.
- */
-export function isVideoUpload(name?: string | null, mime?: string | null): boolean {
-  if ((mime ?? '').toLowerCase().startsWith('video/')) return true;
-  return VIDEO_EXT.test((name ?? '').trim());
-}
+export const MAX_JOB_FILE_BYTES = uploadCapBytes();
+/** Video is capped by the same number: both buckets are 500 MB since seed 607. */
+export const MAX_JOB_VIDEO_BYTES = uploadCapBytes();
 
 /** Which bucket an upload belongs in. One function, so the upload, the row and the download can
  *  never disagree about where the bytes are. */
@@ -144,26 +100,6 @@ export function bucketOf(row: JobFileRow): string {
 /** The cap that actually applies to this file, which depends on where it is going. */
 export function maxBytesFor(name?: string | null, mime?: string | null): number {
   return isVideoUpload(name, mime) ? MAX_JOB_VIDEO_BYTES : MAX_JOB_FILE_BYTES;
-}
-
-/**
- * A content type storage will accept for this upload.
- *
- * `xhr.send(file)` lets the browser set the header from `File.type`, which is empty often enough to
- * matter — and the video bucket has a MIME allowlist, so an empty type is rejected with a message
- * about MIME types that means nothing to somebody holding a phone. Falling back to the extension
- * turns that into an upload that simply works.
- */
-export function contentTypeFor(name?: string | null, mime?: string | null): string {
-  const given = (mime ?? '').trim();
-  if (given) return given;
-  const ext = (name ?? '').toLowerCase().match(VIDEO_EXT)?.[1] ?? '';
-  const byExt: Record<string, string> = {
-    mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm',
-    mkv: 'video/x-matroska', avi: 'video/x-msvideo', '3gp': 'video/3gpp', '3g2': 'video/3gpp2',
-    mpg: 'video/mpeg', mpeg: 'video/mpeg', hevc: 'video/hevc',
-  };
-  return byExt[ext] ?? 'application/octet-stream';
 }
 
 export interface JobFileRow {

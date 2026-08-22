@@ -604,6 +604,23 @@ There is now 1.5 GB of headroom above the buckets, so going higher needs no dash
 both buckets in a seed FIRST, then the constant. Never the reverse. Prove it with
 `node scripts/check-upload-ceiling.mjs --expect <MB>`.
 
+**The Files area was the same defect waiting in a second place.** `lib/files/upload.ts` had capped
+the File Explorer at 100 MB since F3, over a `file-explorer` bucket **that had never been created**
+— no seed made it, and `ensureStorageBucket` would have created it on the first upload at its 50 MB
+default. Measured rather than assumed: `storage.buckets` held no such row, and all 24 `file_nodes`
+rows had `storage_bucket IS NULL`, so nothing had ever been stored there. A 60 MB video would have
+transferred in full and been refused at 100%, exactly as the job video did.
+
+Seed 608 creates it at 500 MB, both upload routes now pass `fileSizeLimit` explicitly rather than
+inheriting the 50 MB fallback, and the cap itself moved to `lib/storage/uploads.ts` — one number for
+the job page, projects, the File Explorer and the mobile app (which was refusing at 100 MB on its
+own, the tightest limit in the platform and the one a surveyor actually hits).
+
+Two things the Files area also needed before a long video was really usable: it now PLAYS video in
+the viewer instead of only offering a download, and its inline signed URL lasts a viewing session
+rather than 60 seconds. A download is one request and only has to start in time; `<video>` issues a
+fresh range request on every seek, so a 60-second link died the moment somebody scrubbed.
+
 An unexpected first attempt is worth recording: the ceiling did not move on the first change, and
 three probes across two minutes ruled out propagation delay. Supabase has two "file size limit"
 settings — the per-bucket one (Storage → Buckets → Edit) and the project one (Settings → Storage →

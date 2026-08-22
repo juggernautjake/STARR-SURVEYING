@@ -40,8 +40,21 @@ export type JobFile = AppDatabase['job_files'];
 
 export const FILES_BUCKET = 'starr-field-files';
 
-/** Per the seeds/226 file_size_limit on the bucket. */
-const MAX_FILE_BYTES = 100 * 1024 * 1024; // 100 MB
+/**
+ * What `starr-field-files` accepts, and what the web app allows.
+ *
+ * Was 100 MB, per the seeds/226 limit on the bucket. Seed 607 raised that bucket to 500 MB and
+ * seed 608 brought the File Explorer's to the same number, so 100 MB here was no longer the
+ * server's answer — it was the field app refusing, on its own, four fifths of what storage would
+ * have taken. A phone shoots ~350 MB per minute at 4K, which made this the tightest limit in the
+ * platform and the one a surveyor actually hits.
+ *
+ * The web's copy of this number is `STORAGE_UPLOAD_CAP_BYTES` in `lib/storage/uploads.ts`. The two
+ * cannot import each other — separate apps, separate builds — so raising one means raising the
+ * other, and both must stay AT OR BELOW the bucket. A cap above the bucket's spends the whole
+ * upload before storage refuses it, which on cellular is somebody's afternoon.
+ */
+const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500 MB — seeds 605 / 607 / 608
 
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -141,7 +154,7 @@ function inferExtension(uri: string, mime: string | null): string {
  * Throws when:
  *   - the user isn't signed in
  *   - jobId / dataPointId aren't valid UUIDs
- *   - the file exceeds MAX_FILE_BYTES (100 MB bucket cap)
+ *   - the file exceeds MAX_FILE_BYTES (the bucket cap, 500 MB)
  *   - the picker / DB insert fails (caller surfaces to the UI)
  *
  * Returns null when the user cancels the picker.
@@ -197,9 +210,9 @@ export function usePickAndAttachFile(): (
         return null;
       }
 
-      // File-size guard. The bucket cap is 100 MB; the upload would
-      // 4xx anyway, but failing fast saves bandwidth + gives the user
-      // a clear "this file is too large" message.
+      // File-size guard. The bucket caps at MAX_FILE_BYTES; the upload
+      // would 4xx anyway, but failing fast saves bandwidth + gives the
+      // user a clear "this file is too large" message.
       let fileSize = asset.size ?? null;
       if (fileSize == null) {
         try {
@@ -211,7 +224,8 @@ export function usePickAndAttachFile(): (
       }
       if (fileSize != null && fileSize > MAX_FILE_BYTES) {
         const err = new Error(
-          `File too large (${Math.round(fileSize / (1024 * 1024))} MB > 100 MB cap).`
+          `File too large (${Math.round(fileSize / (1024 * 1024))} MB > ` +
+            `${Math.round(MAX_FILE_BYTES / (1024 * 1024))} MB cap).`
         );
         logWarn('jobFiles.attach', 'over size cap', err, {
           file_size: fileSize,

@@ -22,9 +22,12 @@ describe('explainPutFailure', () => {
     const message = explainPutFailure(400, body, file);
     expect(message).toContain('375 MB');
     expect(message).toContain('access-road.mp4');
-    // It must point at the setting that actually has to change, not at the code.
-    expect(message).toContain('Upload file size limit');
-    expect(message).toContain('NEXT_PUBLIC_MAX_UPLOAD_BYTES');
+    // It must point at the thing that actually has to change. Until 2026-08-22 that was the
+    // dashboard's project ceiling; now the ceiling is 2 GB and the BUCKET is what binds, so a
+    // message still sending somebody to Storage → Settings would waste the trip.
+    expect(message).toContain('file_size_limit');
+    expect(message).toContain('STORAGE_UPLOAD_CAP_BYTES');
+    expect(message).toContain('check-upload-ceiling');
   });
 
   it('recognises a plain 413 too', () => {

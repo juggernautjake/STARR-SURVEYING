@@ -10,7 +10,7 @@ import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin, ensureStorageBucket } from '@/lib/supabase';
 import { accessForNode } from '@/lib/files/server';
 import { canEdit, type FileUser } from '@/lib/files/permissions';
-import { validateUpload, buildStoragePath, FILE_EXPLORER_BUCKET } from '@/lib/files/upload';
+import { validateUpload, buildStoragePath, FILE_EXPLORER_BUCKET, MAX_UPLOAD_BYTES } from '@/lib/files/upload';
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -38,7 +38,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only admins can upload to the top level.' }, { status: 403 });
   }
 
-  await ensureStorageBucket(FILE_EXPLORER_BUCKET, { public: false });
+  // The size is passed EXPLICITLY. `ensureStorageBucket` falls back to 50 MB, so a bucket it
+  // auto-created would have sat 450 MB below what this route already told the client it could
+  // send — the fail-at-100% defect, in the one code path that creates a bucket at runtime. Seed 608
+  // creates it properly; this is the belt to that seed's braces.
+  await ensureStorageBucket(FILE_EXPLORER_BUCKET, { public: false, fileSizeLimit: MAX_UPLOAD_BYTES });
   const path = buildStoragePath(randomUUID(), body.name as string);
   const { data, error } = await supabaseAdmin.storage.from(FILE_EXPLORER_BUCKET).createSignedUploadUrl(path);
   if (error || !data) {
