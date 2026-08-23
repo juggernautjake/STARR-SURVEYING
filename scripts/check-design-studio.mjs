@@ -199,7 +199,11 @@ try {
 
   // ── It is listed, and can be reopened from the list ──────────────────────────────────────────
   await page.goto(`${BASE}/admin/design`, { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(400);
+  // Wait for the list, not for a number of milliseconds. A flat 400ms passed against a production
+  // build and reported "the design is not in the list (found 0)" against a dev server, where the
+  // route still has to compile — a green check that goes red on a slower machine and blames the
+  // app for it. Measured: 0 cards at 400ms, 15 at 1500ms, the API answering 200 the whole time.
+  await page.waitForSelector('.dsx-home__card', { timeout: 30_000 }).catch(() => {});
   const listed = await page.locator('.dsx-home__card', { hasText: name }).count();
   if (listed === 1) ok('it appears in the designs list');
   else bad(`the design is not in the list (found ${listed})`);

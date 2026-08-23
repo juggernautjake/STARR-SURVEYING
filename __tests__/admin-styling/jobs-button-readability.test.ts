@@ -52,8 +52,20 @@ describe('AdminJobs — primary action button stays white-on-navy', () => {
   });
 });
 
+// WHY THIS BLOCK READS AdminLayout.css AND NOT AdminResearch.css.
+//
+// It used to read AdminResearch.css, because that is where the tooltip was born. Slice
+// button-tooltip-portal-2026-06-20 moved the CSS to AdminLayout.css so the popup would work on
+// every admin page rather than only /admin/research — but the old copy was never deleted, and
+// AdminResearch.css loads AFTER AdminLayout.css on research routes. So the superseded rules kept
+// winning on exactly the pages the tooltip was written for, and THIS TEST WAS WHAT HELD THEM
+// THERE: it asserted against the stale file, so deleting the dead copy looked like a regression.
+//
+// A test pinned to the wrong file is worse than no test. It went green for two months while the
+// thing it described was not what rendered. Pointed at the live rules 2026-08-23, with the values
+// the live rules actually use (320px, not the old 300px).
 describe('Research tooltip — multiline popup, not layout-shifting text', () => {
-  const CSS = read('app/admin/styles/AdminResearch.css');
+  const CSS = read('app/admin/styles/AdminLayout.css');
 
   it('the tooltip is position: fixed so it cannot reflow the page on hover', () => {
     expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?position:\s*fixed/);
@@ -64,7 +76,7 @@ describe('Research tooltip — multiline popup, not layout-shifting text', () =>
   });
 
   it('the tooltip wraps onto multiple lines (max-width + word-wrap)', () => {
-    expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?max-width:\s*300px/);
+    expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?max-width:\s*320px/);
     expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?word-wrap:\s*break-word/);
     expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?white-space:\s*normal/);
   });
@@ -72,6 +84,15 @@ describe('Research tooltip — multiline popup, not layout-shifting text', () =>
   it('the tooltip text is light (#F9FAFB) on dark (#1F2937) so it stays readable', () => {
     expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?color:\s*#F9FAFB/);
     expect(CSS).toMatch(/\.research-tip\s*\{[\s\S]*?background:\s*#1F2937/);
+  });
+
+  // The point of the move: one definition. If a second one reappears in a route-scoped sheet it
+  // will load later and win, and this whole block goes back to describing something invisible.
+  it('is declared once — no route-scoped stylesheet redeclares it', () => {
+    const scoped = read('app/admin/styles/AdminResearch.css');
+    expect(scoped).not.toMatch(/^\.research-tip\s*\{/m);
+    expect(scoped).not.toMatch(/^\.research-tip-wrap\s*\{/m);
+    expect(scoped).not.toMatch(/^\.research-tip__shortcut\s*\{/m);
   });
 });
 

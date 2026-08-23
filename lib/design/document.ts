@@ -18,6 +18,16 @@
 // become ordinary elements of the other view with no memory of where they came from, so adjusting
 // one view can never disturb the other.
 
+/** A theme as a design carries it. Structurally the same as Theme in lib/design/theme.ts, and
+ *  declared here rather than imported to keep the document module free of dependencies — it is the
+ *  one module everything else imports, and a cycle through checks.ts would be the result. */
+export interface DesignTheme {
+  id: string;
+  name: string;
+  tokens: Record<string, string>;
+  paletteId?: string | null;
+}
+
 export type ViewId = 'desktop' | 'mobile';
 
 /** A placed thing. Three kinds, because they are edited differently:
@@ -132,6 +142,12 @@ export interface DesignDocument {
    *  does not change between desktop and mobile — and it goes into the exported brief, where it is
    *  the first thing worth reading. */
   notes?: string;
+  /** The theme this design is drawn under, EMBEDDED rather than referenced.
+   *
+   *  A reference would mean an exported file depends on a row that can be deleted, and a design
+   *  opened next year rendering in whatever the theme has become since. The theme library (seed
+   *  611) is for reuse — picking one copies it in, and from then on this design owns its copy. */
+  theme?: DesignTheme | null;
   views: Record<ViewId, DesignView>;
   createdAt: string;
   updatedAt: string;

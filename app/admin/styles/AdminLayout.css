@@ -593,7 +593,17 @@
 .admin-card--accent-amber { border-left:4px solid #F59E0B; }
 
 /* === BUTTONS === */
-.admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.55rem 1.15rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; text-decoration:none; border:2px solid transparent; }
+/* admin-ui-alignment-2026-08-14 — `.admin-btn` sized itself from padding alone, which rendered
+ * 43.3px measured, against the 40px every input and select gets from `height: var(--input-height)`
+ * in forms.css. That fix was written, but it was written into AdminLearn.css, so for a week it
+ * reached exactly one route tree while its own comment claimed it fixed 45 files at once. Measured
+ * 2026-08-23: /admin/learn 40px, /admin/jobs 43.3px, /admin/employees 43.3px, /admin/research
+ * 43.3px beside a 40px field. It lives here now, which is what "at once" requires.
+ *
+ * `min-height` and not `height`: a handful of usages wrap onto two lines and a hard height clips
+ * them. The vertical padding goes, or it stacks on top of the min-height. The <=768px rule in
+ * AdminResponsive.css raises this to 44px for gloved hands and still wins. */
+.admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; min-height:var(--button-height); padding:0 1.15rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; text-decoration:none; border:1px solid transparent; }
 .admin-btn--primary { background:var(--color-brand-red); color:#FFF; border-color:var(--color-brand-red); }
 .admin-btn--primary:hover { background:var(--color-brand-red-d); border-color:var(--color-brand-red-d); }
 .admin-btn--secondary { background:var(--color-brand-navy); color:#FFF; border-color:var(--color-brand-navy); }
@@ -602,15 +612,16 @@
 .admin-btn--ghost:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
 .admin-btn--success { background:#10B981; color:#FFF; border-color:#10B981; }
 .admin-btn--success:hover { background:#059669; border-color:#059669; }
-.admin-btn--sm { padding:.35rem .75rem; font-size:.78rem; }
-.admin-btn--lg { padding:.7rem 1.5rem; font-size:.95rem; }
+/* The dense variant is the contract's `--button-height-sm`, not a hand-rolled 36px. */
+.admin-btn--sm { min-height:var(--button-height-sm); padding:0 .75rem; font-size:.78rem; }
+.admin-btn--lg { min-height:calc(var(--button-height) + 8px); padding:0 1.5rem; font-size:.95rem; }
 .admin-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 /* === SEARCH === */
-.admin-search { position:relative; width:100%; max-width:500px; background:var(--theme-bg-surface, #FFF); border-radius:8px; }
-.admin-search__input { width:100%; padding:.6rem .85rem; font-family:'Inter',sans-serif; font-size:.9rem; border:2px solid var(--theme-border, #E5E7EB); border-radius:8px; background:transparent; color:#0F1419; margin:0; }
-.admin-search__input:focus { outline:none; border-color:var(--color-brand-navy); }
-.admin-search__input::placeholder { color:var(--theme-fg-muted, #9CA3AF); }
+/* `.admin-search` and `.admin-search__input` used to be declared here too. Both of the two pages
+ * that use them live under /admin/learn, which loads AdminLearn.css after this file — so this
+ * copy had never rendered a single pixel. `.admin-search__btn` below is the real one: learn uses
+ * it and only this file declares it. */
 .admin-search__btn { display:inline-flex; align-items:center; gap:.4rem; padding:.5rem .85rem; background:var(--color-brand-navy); color:#FFF; border:none; border-radius:8px; cursor:pointer; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; transition:background .15s; white-space:nowrap; }
 .admin-search__btn:hover { background:var(--color-brand-navy-d); }
 .admin-search__btn:disabled { opacity:.5; cursor:not-allowed; }

@@ -24,7 +24,7 @@
 //    against `lib/design/snap.ts`, which is tested.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote } from 'lucide-react';
+import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote, Palette as PaletteIcon } from 'lucide-react';
 import Link from 'next/link';
 import {
   type DesignDocument, type DesignElement, type ViewId,
@@ -35,6 +35,7 @@ import { placeRect, clampToArtboard, spacingTo, type Guide, type Rect } from '@/
 import { runChecks, applyDismissals, CONTRACT } from '@/lib/design/checks';
 import { punchListFrom, punchListMarkdown } from '@/lib/design/punchlist';
 import { type DrawTool, type DrawStyle, DEFAULT_DRAW_STYLE, LINE_WIDTHS, isRounded } from '@/lib/design/drawing';
+import { themeStyle, BUILT_IN_THEMES, type Theme } from '@/lib/design/theme';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
 import { saveDraft } from '@/lib/design/storage';
@@ -45,6 +46,7 @@ import Palette from './components/Palette';
 import Inspector from './components/Inspector';
 import Layers from './components/Layers';
 import DrawingCanvas from './components/DrawingCanvas';
+import ThemePanel from './components/ThemePanel';
 import './DesignStudio.css';
 
 // ── THE CATALOGUE'S STYLESHEETS HAVE TO BE HERE, OR THE MOCKUP IS A LIE ─────────────────────────
@@ -496,6 +498,7 @@ export default function Studio({ initial }: Props) {
 
   const [showChecks, setShowChecks] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  const [showTheme, setShowTheme] = useState(false);
   /** saved | saving | dirty | local — shown next to Save, because 'did that keep?' should never
    *  be a question somebody has to answer by reloading. */
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'dirty' | 'local'>('saved');
@@ -760,6 +763,12 @@ export default function Studio({ initial }: Props) {
               ref={artboardRef}
               className={`dsx__artboard${viewId === 'mobile' ? ' dsx__artboard--phone' : ''}`}
               style={{
+                // ── THE ENTIRE THEMING MECHANISM ────────────────────────────────────────────
+                // The theme is a map of CSS custom properties. Setting them here re-paints every
+                // element inside, because the app's real classes already read these variables —
+                // which is why no entry needed changing and an entry curated next year is
+                // theme-aware the moment it is written.
+                ...themeStyle(doc.theme ?? null),
                 width: view.width,
                 height,
                 transform: `scale(${zoom})`,
@@ -886,6 +895,14 @@ export default function Studio({ initial }: Props) {
         </div>
       </div>
 
+      {showTheme && (
+        <ThemePanel
+          theme={(doc.theme as Theme | null) ?? null}
+          onChange={(next) => { snapshot(); setDoc((d) => ({ ...d, theme: next, updatedAt: new Date().toISOString() })); }}
+          onClose={() => setShowTheme(false)}
+        />
+      )}
+
       {/* ── What this page is for ─────────────────────────────────────────────────────────────
         * Owner: *"a place to write notes for each page to explain what is on the page and what the
         * purpose for the page is."* It sits with the design rather than in a separate document
@@ -994,6 +1011,14 @@ export default function Studio({ initial }: Props) {
         >
           <StickyNote size={14} aria-hidden />
           <span>Notes</span>
+        </button>
+        <button
+          className={`dsx__tool${doc.theme ? ' is-on' : ''}`}
+          onClick={() => setShowTheme((s) => !s)}
+          title="Themes and colour palettes — applied to every element on the artboard"
+        >
+          <PaletteIcon size={14} aria-hidden />
+          <span>{doc.theme ? doc.theme.name : 'Theme'}</span>
         </button>
         {selected.length > 0 && (
           <span className="dsx__foot-actions">

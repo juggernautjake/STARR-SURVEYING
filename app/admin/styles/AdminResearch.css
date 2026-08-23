@@ -308,10 +308,12 @@
   display: flex;
   align-items: flex-start;
   overflow-y: auto;
-  padding: 2rem 1rem;
+  /* One padding, not two. This rule carried `2rem 1rem` and then `1rem` three lines later, so the
+   * 2rem of top breathing room had never once rendered - the second declaration silently won. The
+   * surviving value is the one that was actually on screen, so nothing moves. */
+  padding: 1rem;
   justify-content: center;
   z-index: 1000;
-  padding: 1rem;
 }
 
 .research-modal {
@@ -6560,97 +6562,19 @@
   color: var(--theme-fg-muted, #9CA3AF);
 }
 
-/* ── Custom Tooltip System ─────────────────────────────────────────────── */
-
-.research-tip-wrap {
-  display: inline-flex;
-  position: relative;
-}
-
-.research-tip {
-  position: fixed;
-  z-index: 10000;
-  pointer-events: none;
-  max-width: 300px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  font-size: 0.72rem;
-  font-weight: 450;
-  line-height: 1.4;
-  color: #F9FAFB;
-  background: #1F2937;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  animation: research-tip-in 0.15s ease-out;
-  word-wrap: break-word;
-  white-space: normal;
-}
-
-@keyframes research-tip-in {
-  from { opacity: 0; transform: translateY(2px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-/* Position transforms — shift the tooltip so the arrow points at the trigger */
-.research-tip--top {
-  transform: translate(-50%, -100%);
-}
-
-.research-tip--bottom {
-  transform: translate(-50%, 0);
-}
-
-.research-tip--left {
-  transform: translate(-100%, -50%);
-}
-
-.research-tip--right {
-  transform: translate(0, -50%);
-}
-
-/* Arrow indicators */
-.research-tip--top::after {
-  content: '';
-  position: absolute;
-  bottom: -4px;
-  left: 50%;
-  margin-left: -4px;
-  border-width: 4px 4px 0;
-  border-style: solid;
-  border-color: #1F2937 transparent transparent;
-}
-
-.research-tip--bottom::after {
-  content: '';
-  position: absolute;
-  top: -4px;
-  left: 50%;
-  margin-left: -4px;
-  border-width: 0 4px 4px;
-  border-style: solid;
-  border-color: transparent transparent #1F2937;
-}
-
-.research-tip--left::after {
-  content: '';
-  position: absolute;
-  right: -4px;
-  top: 50%;
-  margin-top: -4px;
-  border-width: 4px 0 4px 4px;
-  border-style: solid;
-  border-color: transparent transparent transparent #1F2937;
-}
-
-.research-tip--right::after {
-  content: '';
-  position: absolute;
-  left: -4px;
-  top: 50%;
-  margin-top: -4px;
-  border-width: 4px 4px 4px 0;
-  border-style: solid;
-  border-color: transparent #1F2937 transparent transparent;
-}
+/* ── Custom Tooltip System — MOVED, not deleted ─────────────────────────────
+ *
+ * slice button-tooltip-portal-2026-06-20 moved this to AdminLayout.css so the tooltip would work
+ * on every admin page instead of only /admin/research. The move happened; the deletion did not.
+ * This file loads AFTER AdminLayout.css on research routes, so the superseded copy kept winning
+ * on exactly the pages the tooltip was written for. Three things reverted silently:
+ *
+ *   - `.research-tip-wrap` was inline-flex here and inline-block there, and the newer comment
+ *     explains that inline-block is what makes getBoundingClientRect() anchor the portal;
+ *   - the popup rendered at 0.72rem/6px padding rather than the newer 0.78rem/8px;
+ *   - the arrow nubs came back, which AdminLayout.css says out loud were dropped on purpose.
+ *
+ * Deleted 2026-08-23. The rules live in AdminLayout.css, lines 404-455. */
 
 /* Tooltip toggle button active state */
 .research-toolbar__icon-btn--active {
@@ -9160,19 +9084,8 @@
 
 /* ── Tooltip shortcut badge ───────────────────────────────────────────────── */
 
-.research-tip__shortcut {
-  display: inline-block;
-  margin-left: 6px;
-  padding: 1px 5px;
-  background: rgba(255, 255, 255, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 4px;
-  font-size: 0.65rem;
-  font-family: 'SF Mono', 'Fira Code', ui-monospace, monospace;
-  letter-spacing: 0.02em;
-  vertical-align: middle;
-  line-height: 1.4;
-}
+/* `.research-tip__shortcut` was declared here identically to AdminLayout.css. Removed with the
+ * rest of the tooltip system above. */
 
 /* ── Tool button keyboard shortcut badge ─────────────────────────────────── */
 

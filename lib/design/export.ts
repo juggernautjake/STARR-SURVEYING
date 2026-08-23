@@ -20,6 +20,7 @@ import type { CatalogueEntry } from './catalogue/types';
 import type { DesignDocument, DesignElement, DesignView, ViewId } from './document';
 import { classesFor, positionStyle, renderElement, styleString, escapeHtml } from './render';
 import { runChecks, applyDismissals, type CheckContext } from './checks';
+import { themeCss } from './theme';
 
 export interface ExportContext {
   /** Resolves a catalogue id. Passed in rather than imported so the exporter stays pure and
@@ -229,7 +230,10 @@ export interface HtmlExport {
  */
 export function exportHtml(doc: DesignDocument, ctx: ExportContext, options: { annotations?: boolean } = {}): HtmlExport {
   const includeAnnotations = options.annotations ?? true;
-  const css = baseStylesheet();
+  // The theme AFTER the base stylesheet, so its :root wins. Without this the exported file would
+  // render in the app default while the canvas showed the theme — the two disagreeing about what
+  // the design looks like, which is the one thing the export must never do.
+  const css = [baseStylesheet(), themeCss(doc.theme ?? null)].filter(Boolean).join('\n\n');
   const slug = doc.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'design';
 
   const page = (title: string, body: string, styleTag: string) =>

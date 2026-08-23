@@ -6,9 +6,10 @@ Every admin route is opened signed-in at 1440px and walked with the same functio
 importer uses (`scripts/lib/design-capture.mjs`). Each element is matched against the
 catalogue. What follows is what the pages themselves say they wear.
 
-- **133 routes measured**, 46 catalogue entries
-- **10473 elements** found; **5383** matched no entry
-- **≈49% of rendered elements are catalogued**
+- **133 routes measured**, 50 catalogue entries
+- **11036 elements** found; **5926** matched no entry
+- **≈46% of rendered elements are catalogued**
+- 1 route(s) could not be measured (listed at the end)
 
 ## What to curate next
 
@@ -34,6 +35,7 @@ stylesheet does not know how many pages render it.
 | 3 | 6 | `span.text-white` | “—” |
 | 3 | 3 | `a.email-compose__back` | “← Messages” |
 | 3 | 3 | `h1.email-compose__title` | “New Email” |
+| 3 | 3 | `div.admin-layout` |  |
 | 3 | 3 | `button.job-form__submit` | “Import Job” |
 | 3 | 3 | `button.admin-kb__category-btn.admin-kb__category-btn--active` | “All” |
 | 2 | 147 | `button.manage__item-btn` | “Unpublish” |
@@ -74,13 +76,12 @@ stylesheet does not know how many pages render it.
 | 2 | 2 | `a.text-gray-400.hover:text-white.text-sm` | “← Research” |
 | 2 | 2 | `span.text-yellow-400` | “$0.00” |
 | 2 | 2 | `button.rewards__tab.rewards__tab--active` | “Company Store” |
-| 1 | 57 | `li.adapter-health__row.adapter-health__row--unknown` |  |
-| 1 | 57 | `span.adapter-health__state` | “no_record” |
-| 1 | 57 | `span.adapter-health__when` | “never checked” |
-| 1 | 51 | `div.manage__item` |  |
-| 1 | 51 | `button.manage__item-btn.manage__item-btn--primary` | “Edit” |
+| 1 | 151 | `code.dsx-pages__route` | “/admin” |
+| 1 | 150 | `button.dsx-pages__create` | “Design it” |
+| 1 | 150 | `button.dsx-pages__note-btn` | “＋” |
+| 1 | 114 | `a.dsx-pages__open` |  |
 
-…and 818 more, each on fewer routes.
+…and 820 more, each on fewer routes.
 
 ## Already decided against
 
@@ -114,9 +115,9 @@ adding an entry for one would be adding an entry for part of an entry.
 
 | Routes | Element |
 |---:|---|
-| 125 | `a.admin-page-header__crumb` |
-| 125 | `span.admin-page-header__back-label` |
-| 125 | `span.admin-page-header__crumb.admin-page-header__crumb--active` |
+| 122 | `a.admin-page-header__crumb` |
+| 122 | `span.admin-page-header__back-label` |
+| 122 | `span.admin-page-header__crumb.admin-page-header__crumb--active` |
 | 5 | `span.ws-landing__card-label` |
 | 5 | `span.ws-landing__card-meta` |
 | 4 | `input.job-form__input` |
@@ -151,6 +152,7 @@ adding an entry for one would be adding an entry for part of an entry.
 
 | Route | Elements | Unnamed | |
 |---|---:|---:|---|
+| `/admin/design` | 597 | 580 | **partial — hit the 600-element cap** |
 | `/admin/learn/manage/question-builder` | 595 | 539 | **partial — hit the 600-element cap** |
 | `/admin/pay-progression` | 581 | 383 | **partial — hit the 600-element cap** |
 | `/admin/learn/manage` | 431 | 371 |  |
@@ -165,9 +167,9 @@ adding an entry for one would be adding an entry for part of an entry.
 | `/admin/research/testing` | 133 | 105 |  |
 | `/admin/hours-approval` | 107 | 91 |  |
 | `/admin/reports` | 250 | 89 |  |
-| `/admin/employees` | 101 | 88 |  |
 | `/admin/users` | 106 | 87 |  |
 | `/admin/marketing` | 261 | 84 |  |
+| `/admin/employees` | 101 | 81 |  |
 | `/admin/jobs/new` | 120 | 78 |  |
 | `/admin/research/sites` | 245 | 64 |  |
 | `/admin/my-hours` | 89 | 59 |  |
@@ -196,10 +198,10 @@ adding an entry for one would be adding an entry for part of an entry.
 | `/admin/notes` | 35 | 29 |  |
 | `/admin/availability` | 45 | 27 |  |
 | `/admin/learn/knowledge-base` | 34 | 27 |  |
-| `/admin/payouts/tax-report` | 44 | 27 |  |
 | `/admin/invoices/new` | 65 | 26 |  |
 | `/admin/messages/new` | 31 | 26 |  |
 | `/admin/messages` | 31 | 24 |  |
+| `/admin/design/compare` | 254 | 23 |  |
 | `/admin/research/library` | 31 | 23 |  |
 | `/admin/research` | 26 | 22 |  |
 | `/admin/billing` | 42 | 21 |  |
@@ -207,7 +209,6 @@ adding an entry for one would be adding an entry for part of an entry.
 | `/admin/invoicing` | 90 | 19 |  |
 | `/admin/my-files` | 30 | 19 |  |
 | `/admin/profile` | 103 | 19 |  |
-| `/admin/design` | 72 | 18 |  |
 | `/admin/learn/flashcards/create` | 28 | 18 |  |
 | `/admin/settings` | 28 | 18 |  |
 | `/admin/learn/fieldbook` | 27 | 17 |  |
@@ -247,8 +248,6 @@ adding an entry for one would be adding an entry for part of an entry.
 | `/admin/announcements` | 10 | 4 |  |
 | `/admin/employees/manage` | 8 | 4 |  |
 | `/admin/equipment/templates/cleanup-queue` | 14 | 4 |  |
-| `/admin/equipment/templates/new` | 32 | 4 |  |
-| `/admin/invoicing/categories` | 98 | 4 |  |
 | `/admin/learn/exam-prep/rpls` | 10 | 4 |  |
 | `/admin/learn/flashcard-bank` | 597 | 4 | **partial — hit the 600-element cap** |
 | `/admin/learn/practice` | 24 | 4 |  |
@@ -277,13 +276,19 @@ adding an entry for one would be adding an entry for part of an entry.
 | `/admin/pass-through` | 10 | 3 |  |
 | `/admin/personnel/crew-calendar` | 106 | 3 |  |
 | `/admin/receipts` | 138 | 3 |  |
-| `/admin/receivables` | 48 | 3 |  |
 | `/admin/roles/custom` | 30 | 3 |  |
 | `/admin/search` | 26 | 3 |  |
 | `/admin/team` | 99 | 3 |  |
 | `/admin/time-off` | 17 | 3 |  |
 | `/admin/timeline` | 17 | 3 |  |
 | `/admin/vehicles` | 13 | 3 |  |
+| `/admin/invoicing/categories` | 2 | 1 |  |
+| `/admin/payouts/tax-report` | 2 | 1 |  |
+| `/admin/receivables` | 2 | 1 |  |
 
 Routes marked *partial* have more elements than the walk collects, so their gap counts
 are a floor rather than a total.
+
+## Could not be measured
+
+- `/admin/equipment/templates/new` — api 500

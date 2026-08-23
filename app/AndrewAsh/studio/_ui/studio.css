@@ -671,6 +671,9 @@ a.vaTile:hover {
   font-size: 0.8125rem;
   margin: 2px 0 0;
 }
+/* Also declared in AndrewAsh/_ui/voice.css at a 320px cap. The studio layout nests inside the
+ * AndrewAsh layout, so this 340px wins on every /studio route and voice.css's applies outside it.
+ * Deliberate; the li:last-child emphasis in voice.css is not overridden and still applies here. */
 .vaInvoiceTotals {
   margin-top: 20px;
   max-width: 340px;
@@ -982,6 +985,10 @@ a.vaTile:hover {
    rendering as a bare paragraph and a column of default links. It was never noticed because the
    guide is long and the block sits at the bottom of a section somebody has already read. The mobile
    sweep found it by measuring, which is the point of measuring. */
+/* Also declared in studio/_ui/guide.css, which /studio/guide loads after this file and therefore
+ * wins on that one route (22px/16px there against 18px/14px here). Deliberate: the guide page runs
+ * a looser rhythm than the rest of the studio. Stated because "which one wins" was previously a
+ * question you could only answer by working out the layout nesting. */
 .vaGuideSources {
   margin-top: 18px;
   padding-top: 14px;

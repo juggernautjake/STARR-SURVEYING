@@ -165,6 +165,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // exposes the whole app's structure, and a half-finished mockup on a foreman's screen would read
   // as a promise about what the page is going to be.
   { href: '/admin/design',          label: 'Page Designer',   workspace: 'office', section: 'Documents & records', iconName: 'PenTool',        description: 'Mock up any page — desktop and mobile as separate designs — then export the screenshots, HTML and a build spec.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['design', 'designer', 'mockup', 'wireframe', 'layout', 'page', 'canvas', 'prototype', 'ui', 'sketch'] },
+  // Reached from the Page Designer rather than from the Office grid, so `showInRail: false` keeps it
+  // out of that card list — but it is REGISTERED, which is what makes it searchable in the command
+  // palette and what stops the orphan audit calling it an unreachable page.
+  { href: '/admin/design/compare',  label: 'Compare designs', workspace: 'office', section: 'Documents & records', iconName: 'Layers',         description: 'Every version of one page side by side, under any theme.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['compare', 'versions', 'variants', 'side by side', 'theme', 'design', 'preview', 'alternatives'] },
   { href: '/admin/install',         label: 'Get the App',     workspace: 'hub', iconName: 'Smartphone',     description: 'Install the Starr Field mobile app on your phone.', keywords: ['mobile', 'app', 'download', 'install', 'iphone', 'android', 'testflight', 'apk', 'starr field'] },
   { href: '/admin/learn/fieldbook', label: 'My Fieldbook',    workspace: 'hub', iconName: 'BookMarked',     description: 'Field notes + research bookmarks.', keywords: ['notes', 'research'] },
 

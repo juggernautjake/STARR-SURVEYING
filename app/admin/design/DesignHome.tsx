@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Trash2, Copy, PenTool, Clock } from 'lucide-react';
+import { Plus, Search, Trash2, Copy, PenTool, Clock, Layers3 } from 'lucide-react';
 import { createDocument, type DesignDocument } from '@/lib/design/document';
 
 import { fetchDesigns, fetchDesign, pushDesign, removeDesign, type DesignSummary } from '@/lib/design/client';
@@ -110,6 +110,9 @@ export default function DesignHome() {
             <strong> {ENTRIES.length} elements</strong> in the palette, searchable by what they do.
           </p>
         </div>
+        <Link className="dsx-home__compare" href="/admin/design/compare">
+          <Layers3 size={15} aria-hidden /> Compare versions
+        </Link>
       </header>
 
       <section className="dsx-home__new">

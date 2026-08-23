@@ -9,6 +9,7 @@ import { CORE_ENTRIES, ANNOTATION_ENTRY_IDS } from './curated/core';
 import { STATUS_ENTRIES } from './curated/status';
 import { STRUCTURE_ENTRIES, STRUCTURE_EXCLUSIONS } from './curated/structure';
 import { BUBBLE_ENTRIES } from './curated/bubbles';
+import { LANDING_ENTRIES } from './curated/landing';
 import { CATEGORY_ORDER } from './categories';
 import type { AreaId, CatalogueEntry, CategoryId, CurationExclusion } from './types';
 
@@ -18,6 +19,7 @@ export const ENTRIES: CatalogueEntry[] = [
   ...STATUS_ENTRIES,
   ...STRUCTURE_ENTRIES,
   ...BUBBLE_ENTRIES,
+  ...LANDING_ENTRIES,
 ];
 
 export const EXCLUSIONS: CurationExclusion[] = [...BUTTON_EXCLUSIONS, ...STRUCTURE_EXCLUSIONS];

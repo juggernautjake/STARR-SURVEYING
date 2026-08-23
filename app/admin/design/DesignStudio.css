@@ -851,3 +851,155 @@
 .dsx__save-state.is-dirty { color: var(--theme-warning, #B45309); }
 .dsx__save-state.is-saving { color: var(--color-text-tertiary, #6B7280); }
 .dsx__save-state.is-local { color: var(--theme-danger, #B42318); }
+
+/* ── Themes and palettes (Phases T and P) ───────────────────────────────────────────────────────
+ *
+ * The panel sits above the footer like the checks and notes panels, because all three are about the
+ * whole design rather than about whatever is selected. */
+.dsx-theme {
+  border-top: 1px solid var(--color-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  max-height: 44vh;
+  overflow-y: auto;
+  flex: none;
+}
+.dsx-theme__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.8rem;
+  position: sticky;
+  top: 0;
+  background: var(--theme-bg-surface, #fff);
+  border-bottom: 1px solid var(--color-border, #E5E7EB);
+  font-size: 0.85rem;
+}
+.dsx-theme__head strong { display: inline-flex; align-items: center; gap: 0.35rem; }
+.dsx-theme__head span { color: var(--color-text-tertiary, #6B7280); font-size: 0.78rem; }
+.dsx-theme__head button { margin-left: auto; }
+
+.dsx-theme__section { padding: 0.7rem 0.8rem; border-bottom: 1px solid #F1F2F7; }
+.dsx-theme__section h4 { margin: 0 0 0.5rem; font: 700 0.75rem/1 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--theme-fg-muted, #8A90A2); }
+
+.dsx-theme__presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.dsx-theme__preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-secondary, #374151);
+  cursor: pointer;
+}
+.dsx-theme__preset:hover { border-color: var(--color-brand-navy, #1D3095); }
+.dsx-theme__preset.is-on { border-color: var(--color-brand-navy, #1D3095); box-shadow: inset 0 0 0 1px var(--color-brand-navy, #1D3095); }
+/* Three swatches say more about a theme than its name does. */
+.dsx-theme__chips { display: inline-flex; border-radius: 4px; overflow: hidden; border: 1px solid rgba(15, 20, 25, 0.12); }
+.dsx-theme__chips i { width: 12px; height: 18px; display: block; }
+
+.dsx-theme__builder { display: flex; align-items: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+.dsx-theme__field { display: inline-flex; flex-direction: column; gap: 0.2rem; font-size: 0.75rem; font-weight: 600; color: var(--color-text-tertiary, #6B7280); }
+.dsx-theme__field--grow { flex: 1 1 160px; min-width: 0; }
+.dsx-theme__field input[type="color"] { width: 44px; height: 36px; padding: 0; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; background: none; cursor: pointer; }
+.dsx-theme__field select { height: 36px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; font: inherit; font-size: 0.8rem; padding: 0 0.4rem; background: var(--theme-bg-surface, #fff); min-width: 0; }
+.dsx-theme__field input[type="checkbox"] { width: 20px; height: 20px; margin: 0.5rem 0; }
+.dsx-theme__hint { margin: 0.45rem 0 0; font-size: 0.76rem; line-height: 1.5; color: var(--color-text-tertiary, #6B7280); }
+
+.dsx-theme__swatches { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 0.5rem; }
+.dsx-theme__swatch i { display: block; width: 26px; height: 26px; border-radius: 5px; border: 1px solid rgba(15, 20, 25, 0.1); }
+
+.dsx-theme__adjustments { list-style: none; margin: 0.5rem 0 0; padding: 0; font-size: 0.75rem; color: var(--color-text-tertiary, #6B7280); }
+.dsx-theme__adjustments li { display: flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0; }
+.dsx-theme__adjustments i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(15, 20, 25, 0.15); flex: none; }
+
+.dsx-theme__problems { margin: 0; padding: 0.6rem 0.8rem; background: rgba(180, 35, 24, 0.06); border-bottom: 1px solid #F1F2F7; font-size: 0.78rem; }
+.dsx-theme__problems strong { display: inline-flex; align-items: center; gap: 0.35rem; color: var(--theme-danger, #B42318); }
+.dsx-theme__problems ul { margin: 0.3rem 0 0; padding-left: 1.1rem; color: var(--color-text-secondary, #374151); line-height: 1.6; }
+
+.dsx-theme__group { border-top: 1px solid #F5F6FA; }
+.dsx-theme__group-head { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; border: none; background: none; font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary, #374151); cursor: pointer; padding: 0; text-align: left; }
+.dsx-theme__group-chips { display: inline-flex; gap: 2px; }
+.dsx-theme__group-chips i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(15, 20, 25, 0.12); }
+.dsx-theme__tokens { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.35rem; padding: 0.2rem 0 0.6rem; }
+.dsx-theme__token { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; color: var(--color-text-secondary, #374151); min-width: 0; }
+.dsx-theme__token input[type="color"] { width: 30px; height: 30px; padding: 0; border: 1px solid var(--color-border, #E5E7EB); border-radius: 6px; background: none; cursor: pointer; flex: none; }
+.dsx-theme__token span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsx-theme__token em { font-style: normal; font-size: 0.7rem; color: var(--color-text-muted, #9CA3AF); flex: none; }
+.dsx-theme__foot { padding: 0.6rem 0.8rem; }
+
+/* ── Compare: every version of one page, side by side (Phase V) ─────────────────────────────────
+ *
+ * The previews are the REAL artboard markup under a CSS transform, not stored thumbnails. A stored
+ * picture goes stale the moment somebody edits a design, and — the part that matters — a picture
+ * cannot be re-themed, which is half of what this screen is for. */
+.dsx-compare { display: flex; flex-direction: column; height: calc(100vh - 64px); margin: -1rem; background: var(--theme-bg-page, #EEF0F6); overflow: hidden; }
+.dsx-compare__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.9rem;
+  background: var(--color-bg-card, #fff);
+  border-bottom: 1px solid var(--color-border, #E5E7EB);
+  flex: none;
+}
+.dsx-compare__field { display: inline-flex; flex-direction: column; gap: 0.15rem; font-size: 0.72rem; font-weight: 600; color: var(--color-text-tertiary, #6B7280); }
+.dsx-compare__field > span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.dsx-compare__field select { height: 36px; min-width: 170px; max-width: 280px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; font: inherit; font-size: 0.8rem; padding: 0 0.4rem; background: var(--theme-bg-surface, #fff); }
+.dsx-compare__count { margin-left: auto; font-size: 0.78rem; font-weight: 600; color: var(--color-text-tertiary, #6B7280); }
+.dsx-compare__empty { padding: 2rem 1.2rem 0; font-size: 0.88rem; color: var(--color-text-tertiary, #6B7280); }
+.dsx-compare__empty--hint { color: var(--color-text-secondary, #374151); }
+
+.dsx-compare__board { display: flex; gap: 1.25rem; align-items: flex-start; padding: 1.25rem; overflow: auto; flex: 1; min-height: 0; }
+.dsx-compare__col { flex: none; display: flex; flex-direction: column; gap: 0.5rem; }
+.dsx-compare__col-head { display: flex; flex-direction: column; gap: 0.15rem; }
+.dsx-compare__col-name { font-size: 0.86rem; font-weight: 700; color: var(--color-brand-navy, #1D3095); text-decoration: none; }
+.dsx-compare__col-name:hover { text-decoration: underline; }
+.dsx-compare__col-head span { font-size: 0.74rem; color: var(--color-text-muted, #9CA3AF); }
+/* The frame clips the scaled artboard and gives it the height it actually occupies — without this
+ * every column would reserve its FULL unscaled height and the page would be a mile long. */
+.dsx-compare__frame { position: relative; overflow: hidden; border-radius: 10px; box-shadow: 0 8px 28px rgba(15, 20, 25, 0.14); background: var(--color-bg-app, #F3F4F6); }
+.dsx-compare__board-art { position: absolute; left: 0; top: 0; box-shadow: none; }
+.dsx-compare__sketch { position: absolute; left: 0; top: 0; pointer-events: none; }
+.dsx-compare__notes { margin: 0; font-size: 0.76rem; line-height: 1.5; color: var(--color-text-tertiary, #6B7280); max-width: 360px; }
+
+@media (max-width: 860px) {
+  .dsx-compare__board { flex-direction: column; align-items: center; }
+}
+
+.dsx-home__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.dsx-home__compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--color-brand-navy, #1D3095);
+  text-decoration: none;
+  flex: none;
+}
+.dsx-home__compare:hover { border-color: var(--color-brand-navy, #1D3095); }
+
+.dsx-theme__foot { display: flex; align-items: center; gap: 0.4rem; padding: 0.6rem 0.8rem; flex-wrap: wrap; }
+.dsx-theme__save-name {
+  flex: 1 1 160px;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  padding: 0 0.6rem;
+  font: inherit;
+  font-size: 0.82rem;
+  background: var(--theme-bg-surface, #fff);
+}

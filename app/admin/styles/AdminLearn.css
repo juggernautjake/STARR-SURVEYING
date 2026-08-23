@@ -723,34 +723,25 @@
 .manage__item-btn--danger { color:var(--color-brand-red) !important; border-color:#FECACA !important; }
 .manage__item-btn--danger:hover { background:var(--color-error-bg) !important; border-color:var(--color-brand-red) !important; }
 
-/* === ADMIN BUTTONS ===
+/* === LEARN-ROUTE BUTTON SKIN ===
  *
- * admin-ui-alignment-2026-08-14 — `.admin-btn` is used in 45 admin files and sized itself from
- * padding alone: .5rem top and bottom over a .85rem/1.2 line box renders 43px. Every input and
- * select beside it renders 40px, because forms.css sets `height: var(--input-height)` on all of
- * them. A 3px mismatch on every screen that pairs this button with a field is exactly the
- * complaint this pass exists for, and fixing it here fixes it in 45 files at once.
+ * What used to sit here was a second copy of the whole admin design system: `.admin-btn`, its
+ * modifiers, `.admin-empty` and `.admin-search`, redeclared. Because /admin/learn nests inside
+ * the admin layout, this file always loaded last and always won, so learn quietly ran on a
+ * different button than the other 175 admin routes — including the size fix, which was stranded
+ * here. The sizing now lives in AdminLayout.css where it belongs.
  *
- * `min-height` rather than `height`: a handful of usages wrap onto two lines, and a hard height
- * would clip them. The vertical padding goes, or it would stack on top of the min-height.
- * The ≤768px rule in AdminResponsive.css raises this to 44px for gloved hands and still wins. */
-.admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:var(--button-height); padding:0 1rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; text-decoration:none; }
-.admin-btn--primary { background:var(--color-brand-navy); color:#FFF; border-color:var(--color-brand-navy); }
-.admin-btn--primary:hover { background:var(--color-brand-navy-d); }
-.admin-btn--primary:disabled { opacity:.5; cursor:not-allowed; }
+ * What remains is the one genuine difference: learn uses a NAVY primary where the rest of admin
+ * uses the brand red. That has shipped that way and is left alone deliberately rather than
+ * changed as a side effect of a CSS cleanup — but it is now stated instead of implied, and it is
+ * three lines to delete if the answer is that learn should match everything else.
+ *
+ * The `.admin-empty` rules that were here were dead on arrival: the IMPROVED EMPTY STATES block
+ * further down this same file overrode every one of them. */
+.admin-btn--primary { background:var(--color-brand-navy); border-color:var(--color-brand-navy); }
+.admin-btn--primary:hover { background:var(--color-brand-navy-d); border-color:var(--color-brand-navy-d); }
 .admin-btn--secondary { background:var(--theme-bg-surface, #FFF); color:var(--color-brand-navy); border-color:var(--color-brand-navy); }
-.admin-btn--secondary:hover { background:var(--color-info-bg); }
-.admin-btn--secondary:disabled { opacity:.5; cursor:not-allowed; }
-.admin-btn--ghost { background:transparent; color:var(--color-text-tertiary); border-color:var(--theme-border, #E5E7EB); }
-.admin-btn--ghost:hover { color:var(--color-brand-navy); border-color:var(--color-brand-navy); }
-/* The dense variant is the contract's `--button-height-sm`, not a hand-rolled 36px. */
-.admin-btn--sm { min-height:var(--button-height-sm); padding:0 .7rem; font-size:.78rem; }
-
-/* === ADMIN EMPTY STATE === */
-.admin-empty { text-align:center; padding:3rem 1.5rem; }
-.admin-empty__icon { font-size:2.5rem; margin-bottom:.75rem; }
-.admin-empty__title { font-family:'Sora',sans-serif; font-size:1.1rem; font-weight:600; color:var(--color-text-primary); margin-bottom:.35rem; }
-.admin-empty__desc { font-family:'Inter',sans-serif; font-size:.85rem; color:var(--color-text-tertiary); max-width:400px; margin:0 auto; line-height:1.5; }
+.admin-btn--secondary:hover { background:var(--color-info-bg); border-color:var(--color-brand-navy); }
 
 /* === ANIMATIONS === */
 @keyframes slideUp { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
@@ -2306,7 +2297,9 @@
 .assign__section-title { font-family: 'Sora', sans-serif; font-size: 0.95rem; font-weight: 600; color: var(--color-text-primary); margin-bottom: 0.25rem; }
 .assign__section-desc { font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--color-text-tertiary); margin-bottom: 0.75rem; }
 .assign__enroll-row { display: flex; gap: 0.65rem; align-items: center; flex-wrap: wrap; }
-.assign__filters { display: flex; gap: 0.35rem; margin-bottom: 1rem; flex-wrap: wrap; }
+/* `.assign__filters` was declared here and in AdminAssignments.css with different rules. Only
+ * /admin/assignments uses the class, and that route never loads this stylesheet, so the copy
+ * here was dead — and would have won in the UX harness, which loads both. Removed. */
 .assign__status {
   display: inline-block; font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 700;
   padding: 0.15rem 0.45rem; border-radius: 4px; text-transform: capitalize; letter-spacing: 0.3px;
