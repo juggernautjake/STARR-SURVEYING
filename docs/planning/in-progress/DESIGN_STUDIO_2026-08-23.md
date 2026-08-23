@@ -1077,6 +1077,26 @@ decided rather than open. Each is cheap to reverse and says how.
 
 ## §22. Decisions taken while building, that were nobody's question
 
+- **The image export draws SVG primitives, because `foreignObject` cannot be rasterised here.**
+  Every DOM-to-image library — and the first version of this — wraps the cloned DOM in an SVG
+  `<foreignObject>`, draws it to a canvas and reads it back. It produced nothing, silently. The
+  browser's answer, when finally asked directly, was
+  `SecurityError: Tainted canvases may not be exported`. The first suspicion was the Google Fonts
+  `@import`, since a cross-origin resource inside the image taints the canvas — embedding the fonts
+  as data URIs did not fix it. So the question was reduced to its simplest form: a `foreignObject`
+  containing one red `<div>`, no CSS, nothing remote.
+
+      bare foreignObject → TAINTED
+      plain <rect>       → 334-byte PNG, fine
+
+  **This browser taints any canvas drawn from an SVG containing a foreignObject, full stop**, and no
+  amount of cleaning the content changes that because the content was never the problem. So the
+  artboard is walked and emitted as real SVG: a `<rect>` per box from its computed background,
+  border and per-corner radius, and a `<text>` per LINE positioned from that line's own client rect,
+  so wrapped copy lands where it wrapped. Gradients, shadows and images are not carried, and the
+  file says so. The upside was not planned: the export is now VECTOR, so a `.svg` ships alongside
+  the `.png` and scales without blurring.
+
 - **Image export is written by hand, not with a library.** `html-to-image` was the plan's choice;
   it is one more dependency to serialise a DOM into an SVG `foreignObject` and paint it to a
   canvas, which is forty lines. Fewer dependencies in a tool that renders arbitrary app CSS is worth

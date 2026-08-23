@@ -394,3 +394,25 @@
   .dsx-pal, .dsx-ins { width: auto; max-height: 240px; border: none; border-bottom: 1px solid var(--color-border, #E5E7EB); }
   .dsx__canvas { padding: 12px; }
 }
+
+/* ── The emoji and symbol pickers ─────────────────────────────────────────────────────────────────
+ *
+ * A dense grid rather than a list: 1,112 emoji in a column would be a mile of scrolling, and
+ * picking a character is done by eye. Each cell is 32px, which is small for a tap target but this
+ * is a desktop tool and the alternative is four characters per screen.
+ */
+.dsx-pal__chars { display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 2px; }
+.dsx-pal__char {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.dsx-pal__char:hover { background: #EEF0F6; transform: scale(1.25); }

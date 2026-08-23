@@ -19,9 +19,12 @@ import { buildIndex, searchWithFallback } from '@/lib/design/search';
 import { CONCEPTS } from '@/lib/design/search/concepts';
 import { renderElement } from '@/lib/design/render';
 import type { ViewId } from '@/lib/design/document';
+import { EMOJI_GROUPS, SYMBOL_GROUPS, CHARACTER_COUNTS, searchCharacters } from '@/lib/design/libraries/characters';
 
 interface Props {
   onPlace: (catalogId: string) => void;
+  /** Drop a bare character — an emoji or a symbol — onto the artboard as free text. */
+  onPlaceCharacter: (character: string) => void;
   viewId: ViewId;
 }
 
@@ -53,16 +56,19 @@ function Preview({ catalogId }: { catalogId: string }) {
   );
 }
 
-export default function Palette({ onPlace, viewId }: Props) {
+export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
   const [query, setQuery] = useState('');
-  const [category, setCategory] = useState<CategoryId | 'all'>('all');
+  // 'symbol' is not a catalogue category — symbols are characters, not components — so the tab
+  // state is a superset of the category ids rather than pretending otherwise.
+  type Tab = CategoryId | 'all' | 'symbol';
+  const [category, setCategory] = useState<Tab>('all');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const index = useMemo(() => buildIndex(ENTRIES), []);
   const categories = useMemo(() => populatedCategories(), []);
 
   const { hits, note } = useMemo(
-    () => searchWithFallback(index, query, { categories: category === 'all' ? undefined : [category], limit: 80 }),
+    () => searchWithFallback(index, query, { categories: category === 'all' || category === 'symbol' ? undefined : [category], limit: 80 }),
     [index, query, category],
   );
 
@@ -77,15 +83,29 @@ export default function Palette({ onPlace, viewId }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // ── EMOJI AND SYMBOLS ────────────────────────────────────────────────────────────────────────
+  //
+  // Two extra tabs rather than catalogue entries: 1,341 characters would swamp a palette of
+  // twenty-seven components, and picking a character is a different act from picking an element —
+  // you browse for one and search for the other.
+  const characterTab = category === 'emoji' || category === 'symbol';
+  const characterGroups = useMemo(() => {
+    if (!characterTab) return [];
+    return searchCharacters(category === 'emoji' ? EMOJI_GROUPS : SYMBOL_GROUPS, query);
+  }, [category, characterTab, query]);
+
   const showingSearch = query.trim().length > 0;
   const grouped = useMemo(() => {
     if (showingSearch) return null;
     const list = category === 'all' ? categories : [category];
-    return list.map((id) => ({
-      id,
-      meta: CATEGORIES.find((c) => c.id === id)!,
-      entries: entriesInCategory(id),
-    })).filter((g) => g.entries.length);
+    return list
+      .filter((id): id is CategoryId => id !== 'symbol')
+      .map((id) => ({
+        id,
+        meta: CATEGORIES.find((c) => c.id === id)!,
+        entries: entriesInCategory(id),
+      }))
+      .filter((g) => g.entries.length && g.meta);
   }, [categories, category, showingSearch]);
 
   return (
@@ -116,6 +136,17 @@ export default function Palette({ onPlace, viewId }: Props) {
 
       <div className="dsx-pal__tabs" role="tablist" aria-label="Categories">
         <button role="tab" aria-selected={category === 'all'} className={`dsx-pal__tab${category === 'all' ? ' is-on' : ''}`} onClick={() => setCategory('all')}>All</button>
+        {(['emoji', 'symbol'] as const).map((id) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={category === id}
+            className={`dsx-pal__tab${category === id ? ' is-on' : ''}`}
+            onClick={() => setCategory(id)}
+          >
+            {id === 'emoji' ? 'Emoji' : 'Symbols'}
+          </button>
+        ))}
         {categories.map((id) => {
           const meta = CATEGORIES.find((c) => c.id === id)!;
           return (
@@ -134,9 +165,40 @@ export default function Palette({ onPlace, viewId }: Props) {
       </div>
 
       <div className="dsx-pal__list">
-        {note && <p className="dsx-pal__note">{note}</p>}
+        {characterTab && (
+          <>
+            <p className="dsx-pal__note">
+              {category === 'emoji'
+                ? `${CHARACTER_COUNTS.emoji} emoji, enumerated from Unicode itself. Click one to drop it on the page.`
+                : `${CHARACTER_COUNTS.symbols} symbols — arrows, maths, currency, typography, box drawing, and the survey marks.`}
+            </p>
+            {characterGroups.map((group) => (
+              <section key={group.id} className="dsx-pal__group">
+                <h3 className="dsx-pal__group-title">{group.label}<span>{group.chars.length}</span></h3>
+                <div className="dsx-pal__chars">
+                  {group.chars.map((entry) => (
+                    <button
+                      key={entry.c}
+                      className="dsx-pal__char"
+                      title={entry.k ? entry.k.join(', ') : group.label}
+                      onClick={() => onPlaceCharacter(entry.c)}
+                      data-testid={`ds-char-${entry.c}`}
+                    >
+                      {entry.c}
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+            {characterGroups.length === 0 && (
+              <p className="dsx-pal__note">Nothing matched. Try a group name — “arrows”, “food”, “currency”.</p>
+            )}
+          </>
+        )}
 
-        {showingSearch && hits.map((hit) => (
+        {!characterTab && note && <p className="dsx-pal__note">{note}</p>}
+
+        {!characterTab && showingSearch && hits.map((hit) => (
           <button
             key={hit.entry.id}
             className="dsx-pal__item"
@@ -152,7 +214,7 @@ export default function Palette({ onPlace, viewId }: Props) {
           </button>
         ))}
 
-        {!showingSearch && grouped?.map((group) => (
+        {!characterTab && !showingSearch && grouped?.map((group) => (
           <section key={group.id} className="dsx-pal__group">
             <h3 className="dsx-pal__group-title">{group.meta.label}<span>{group.entries.length}</span></h3>
             {group.entries.map((entry) => (
@@ -173,7 +235,7 @@ export default function Palette({ onPlace, viewId }: Props) {
           </section>
         ))}
 
-        {showingSearch && hits.length === 0 && !note && (
+        {!characterTab && showingSearch && hits.length === 0 && !note && (
           <p className="dsx-pal__note">Nothing matched. Try what the thing does — “save”, “empty”, “date”.</p>
         )}
       </div>

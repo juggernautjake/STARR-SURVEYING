@@ -35,7 +35,7 @@ import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
 import { saveDesign, saveDraft } from '@/lib/design/storage';
 import { exportHtml, exportSpec, exportPrompt, dsPrimitiveStyles } from '@/lib/design/export';
-import { captureArtboard, downloadBlob, downloadText } from '@/lib/design/capture';
+import { artboardToSvg, captureArtboard, downloadBlob, downloadText } from '@/lib/design/capture';
 import Palette from './components/Palette';
 import Inspector from './components/Inspector';
 import './DesignStudio.css';
@@ -109,6 +109,22 @@ export default function Studio({ initial }: Props) {
     patchView((v) => addElement(v, element));
     setSelection([element.id]);
     setStatus(`Placed ${entry.label}`);
+  }, [patchView, view.width]);
+
+  /** Drop a bare emoji or symbol as free text — big enough to see, editable like any other text. */
+  const placeCharacter = useCallback((character: string) => {
+    const element: Omit<DesignElement, 'z'> = {
+      id: newElementId(),
+      kind: 'text',
+      catalogId: 'shape.text',
+      slots: { text: character },
+      style: { fontSize: '32px' },
+      x: Math.round(view.width / 2 - 24), y: 80, w: 48, h: 48,
+      name: character,
+    };
+    patchView((v) => addElement(v, element));
+    setSelection([element.id]);
+    setStatus(`Placed ${character}`);
   }, [patchView, view.width]);
 
   /** Artboard coordinates from a pointer event, correcting for zoom and scroll. */
@@ -288,6 +304,8 @@ export default function Studio({ initial }: Props) {
       const { blob, error } = await captureArtboard(node, view.width, contentHeight(view));
       if (blob) {
         downloadBlob(`${slug}-${viewId}.png`, blob);
+        // The vector goes with it: same drawing, scales without blurring, and useful in a document.
+        if (artboardRef.current) downloadText(`${slug}-${viewId}.svg`, artboardToSvg(artboardRef.current, view.width, contentHeight(view)));
       } else {
         // Say WHY. A capture that fails silently is a bug nobody can report, and the fallback —
         // an OS screenshot — is what the owner does today, so this is a detour rather than a wall.
@@ -374,7 +392,7 @@ export default function Studio({ initial }: Props) {
       </header>
 
       <div className="dsx__body">
-        <Palette onPlace={place} viewId={viewId} />
+        <Palette onPlace={place} onPlaceCharacter={placeCharacter} viewId={viewId} />
 
         {/* ── Canvas ────────────────────────────────────────────────────────────────────────── */}
         <main className="dsx__canvas" onPointerDown={() => setSelection([])}>

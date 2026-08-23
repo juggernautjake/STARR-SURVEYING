@@ -1,125 +1,220 @@
-// lib/design/capture.ts — turning the artboard into a PNG, without a dependency.
+// lib/design/capture.ts — turning the artboard into a picture.
 //
 // Slice E1 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"I need to be able to… just capture the canvas view as an image."*
 //
-// ── WHY THIS IS HAND-WRITTEN ────────────────────────────────────────────────────────────────────
+// ── THE OBVIOUS APPROACH DOES NOT WORK HERE, AND THE PROOF IS SHORT ─────────────────────────────
 //
-// The plan named `html-to-image`. What that library does is: clone the node, inline the computed
-// styles, wrap it in an SVG `foreignObject`, paint the SVG onto a canvas and read the canvas back.
-// That is what this file does, in about eighty lines, and it avoids adding a dependency to a tool
-// whose whole job is to render arbitrary application CSS.
+// Every "DOM to image" library — `html-to-image`, `dom-to-image`, and the first version of this
+// file — wraps the cloned DOM in an SVG `<foreignObject>`, draws that SVG onto a canvas, and reads
+// the canvas back. It produced nothing at all, silently. Probed in the real browser:
 //
-// ── WHAT IT CANNOT DO, STATED HONESTLY ──────────────────────────────────────────────────────────
+//     SecurityError: Failed to execute 'toBlob' on 'HTMLCanvasElement':
+//     Tainted canvases may not be exported.
 //
-// `foreignObject` rendering has one real limit, and it is a sharp one: **anything the image fetches
-// from another origin taints the canvas**, and a tainted canvas cannot be read back at all. Fonts
-// are handled below by embedding them; a remote image in a mockup is neutralised rather than
-// allowed to poison the whole capture. If a capture still fails, it says why, and an OS screenshot
-// is the fallback — which is what the owner does today, so that is a detour rather than a wall.
+// The first suspicion was the fonts: the app `@import`s Google Fonts, and a cross-origin resource
+// inside the image taints the canvas. Embedding the fonts as data URIs did not fix it. So the
+// question was asked directly — draw a `foreignObject` containing one red `<div>`, with no CSS, no
+// fonts and nothing remote at all:
+//
+//     bare foreignObject → TAINTED
+//     plain <rect>       → 334 byte PNG, fine
+//
+// **This browser taints any canvas drawn from an SVG containing a foreignObject, full stop.** No
+// amount of cleaning the content changes that, because the content was never the problem.
+//
+// ── SO THE ARTBOARD IS DRAWN AS REAL SVG ────────────────────────────────────────────────────────
+//
+// Instead of asking the browser to rasterise HTML, this walks the artboard and emits the primitives
+// SVG has always been allowed to rasterise: a `<rect>` per box, using its computed background,
+// border and corner radius, and a `<text>` per LINE of text, positioned from the line's own client
+// rect so wrapped text lands exactly where it wrapped.
+//
+// It is not a screenshot and does not pretend to be — gradients, shadows and images are not carried
+// — but for a mockup made of boxes, borders and words it is faithful, it is VECTOR (so the SVG is
+// worth keeping in its own right), and unlike the approach every library uses, it actually works.
+
+/** A box we are going to draw, in artboard coordinates. */
+interface Box {
+  x: number; y: number; w: number; h: number;
+  fill?: string;
+  stroke?: { color: string; width: number };
+  radius: [number, number, number, number];
+  opacity: number;
+}
+
+interface TextLine {
+  x: number; y: number;
+  text: string;
+  font: string;
+  size: number;
+  weight: string;
+  colour: string;
+  anchor: 'start' | 'middle' | 'end';
+}
+
+const TRANSPARENT = /^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/i;
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+function radiusOf(style: CSSStyleDeclaration): [number, number, number, number] {
+  const read = (v: string) => Math.max(0, parseFloat(v) || 0);
+  return [
+    read(style.borderTopLeftRadius),
+    read(style.borderTopRightRadius),
+    read(style.borderBottomRightRadius),
+    read(style.borderBottomLeftRadius),
+  ];
+}
+
+/** A rounded rectangle path, so per-corner radii survive — one control that becomes four is a
+ *  feature of the inspector, and an export that flattens it would quietly discard the decision. */
+function roundedRectPath(box: Box): string {
+  const [tl, tr, br, bl] = box.radius.map((r) => Math.min(r, box.w / 2, box.h / 2));
+  const { x, y, w, h } = box;
+  return [
+    `M${x + tl},${y}`,
+    `H${x + w - tr}`, tr ? `A${tr},${tr} 0 0 1 ${x + w},${y + tr}` : '',
+    `V${y + h - br}`, br ? `A${br},${br} 0 0 1 ${x + w - br},${y + h}` : '',
+    `H${x + bl}`, bl ? `A${bl},${bl} 0 0 1 ${x},${y + h - bl}` : '',
+    `V${y + tl}`, tl ? `A${tl},${tl} 0 0 1 ${x + tl},${y}` : '',
+    'Z',
+  ].filter(Boolean).join(' ');
+}
 
 /**
- * ── THE TAINTED CANVAS, AND WHY THIS FILE IS LONGER THAN IT LOOKS ───────────────────────────────
+ * Walk the artboard and collect what to draw.
  *
- * The first version of this produced nothing at all, silently. Probed in a real browser, the failure
- * was exact:
- *
- *     SecurityError: Failed to execute 'toBlob' on 'HTMLCanvasElement':
- *     Tainted canvases may not be exported.
- *
- * The SVG carries the app's whole stylesheet — half a megabyte — and `app/styles/globals.css` opens
- * with `@import url('https://fonts.googleapis.com/…')`. Every `@font-face` in there points at
- * `fonts.gstatic.com`. Drawing an image that pulls a cross-origin resource taints the canvas, and a
- * tainted canvas cannot be read back. The SVG loaded fine; it was the read that was refused.
- *
- * Dropping the fonts would fix the taint and break the point: a mockup in the wrong typeface has the
- * wrong line breaks, and line breaks are most of what a layout IS. So the fonts are fetched and
- * embedded as data URIs — same bytes, no cross-origin request at draw time — and anything else
- * remote is neutralised.
- *
- * Only the Latin subsets are fetched. Google serves a dozen unicode-range slices per family; the
- * Cyrillic and Vietnamese ones are bytes nobody in this app will ever render.
+ * Boxes first, in DOM order, so later siblings paint over earlier ones exactly as the browser
+ * stacks them. Text is collected per line via `Range.getClientRects()`, which is the browser's own
+ * answer to "where did this text actually end up" — including wrapping, alignment and ellipsis.
  */
-const FONT_CACHE = new Map<string, string>();
+function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
+  const origin = root.getBoundingClientRect();
+  // The artboard is rendered at the studio's zoom; everything is divided back to 1:1.
+  const scale = origin.width / root.offsetWidth || 1;
+  const toLocal = (r: DOMRect) => ({
+    x: (r.left - origin.left) / scale,
+    y: (r.top - origin.top) / scale,
+    w: r.width / scale,
+    h: r.height / scale,
+  });
 
-function base64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = '';
-  // Chunked: `String.fromCharCode(...bytes)` blows the argument limit on a 30 KB font.
-  for (let i = 0; i < bytes.length; i += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  }
-  return btoa(binary);
-}
+  const boxes: Box[] = [];
+  const lines: TextLine[] = [];
+  const SKIP = /dsx__handle|dsx__size|dsx__guide|dsx__gap|dsx__fold|dsx__safe/;
 
-/** Does this `@font-face` block cover ordinary Latin text? */
-function isLatinFace(block: string): boolean {
-  const range = /unicode-range:\s*([^;}]+)/i.exec(block)?.[1];
-  if (!range) return true;                     // no range declared — it covers everything
-  return /U\+0{0,3}0[0-9a-f]{2}/i.test(range) || /U\+0-7F/i.test(range);
-}
+  const visit = (el: HTMLElement) => {
+    if (SKIP.test(el.className || '')) return;
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') return;
 
-async function embedFonts(css: string): Promise<string> {
-  // Keep only the font faces worth carrying, then inline their files.
-  const faces = [...css.matchAll(/@font-face\s*\{[^}]*\}/gi)].map((m) => m[0]);
-  let out = css;
-
-  for (const face of faces) {
-    if (!isLatinFace(face)) { out = out.split(face).join(''); continue; }
-    const url = /url\((['"]?)(https:\/\/fonts\.gstatic\.com\/[^)'"]+)\1\)/i.exec(face)?.[2];
-    if (!url) continue;
-    if (!FONT_CACHE.has(url)) {
-      try {
-        const res = await fetch(url, { mode: 'cors' });
-        FONT_CACHE.set(url, res.ok ? `data:font/woff2;base64,${base64(await res.arrayBuffer())}` : '');
-      } catch {
-        FONT_CACHE.set(url, '');
+    const rect = toLocal(el.getBoundingClientRect());
+    if (rect.w > 0 && rect.h > 0) {
+      const fill = TRANSPARENT.test(style.backgroundColor) ? undefined : style.backgroundColor;
+      const borderWidth = parseFloat(style.borderTopWidth) || 0;
+      const stroke = borderWidth > 0 && !TRANSPARENT.test(style.borderTopColor)
+        ? { color: style.borderTopColor, width: borderWidth / scale }
+        : undefined;
+      if (fill || stroke) {
+        boxes.push({ ...rect, fill, stroke, radius: radiusOf(style), opacity: parseFloat(style.opacity) || 1 });
       }
     }
-    const data = FONT_CACHE.get(url);
-    if (data) out = out.split(url).join(data);
-    else out = out.split(face).join('');       // could not fetch it — drop the face rather than taint
-  }
 
-  // An @import would re-fetch cross-origin CSS from inside the image; and any remaining remote
-  // url() — a background image, an icon — taints the canvas exactly the same way a font did.
-  out = out.replace(/@import\s+url\([^)]*\)\s*;?/gi, '');
-  out = out.replace(/url\((['"]?)https?:\/\/[^)'"]+\1\)/gi, 'none');
-  return out;
-}
-
-/** Every stylesheet rule in the document, as text. `foreignObject` gets no cascade of its own — the
- *  clone carries its styles or it renders as unstyled markup. */
-function collectStyles(): string {
-  const chunks: string[] = [];
-  for (const sheet of Array.from(document.styleSheets)) {
-    try {
-      const rules = (sheet as CSSStyleSheet).cssRules;
-      if (!rules) continue;
-      for (const rule of Array.from(rules)) chunks.push(rule.cssText);
-    } catch {
-      // A cross-origin stylesheet (Google Fonts) refuses `cssRules`. The @font-face it holds is
-      // already applied to the live document, and the fonts are loaded, so the capture still
-      // renders in the right typeface — there is nothing to recover here.
+    for (const node of Array.from(el.childNodes)) {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const text = node.textContent ?? '';
+        if (!text.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        // One <text> per visual line, so wrapped copy lands where it wrapped rather than on one
+        // long line running off the edge.
+        for (const lineRect of Array.from(range.getClientRects())) {
+          if (lineRect.width < 0.5) continue;
+          const local = toLocal(lineRect);
+          const size = (parseFloat(style.fontSize) || 14) / scale;
+          lines.push({
+            // The baseline sits roughly 78% down the line box for the stacks this app uses.
+            x: style.textAlign === 'center' ? local.x + local.w / 2
+              : style.textAlign === 'right' ? local.x + local.w
+                : local.x,
+            y: local.y + local.h * 0.78,
+            text: text.replace(/\s+/g, ' ').trim(),
+            font: style.fontFamily,
+            size,
+            weight: style.fontWeight,
+            colour: style.color,
+            anchor: style.textAlign === 'center' ? 'middle' : style.textAlign === 'right' ? 'end' : 'start',
+          });
+        }
+        range.detach?.();
+      } else if (node.nodeType === Node.ELEMENT_NODE) {
+        visit(node as HTMLElement);
+      }
     }
-  }
-  return chunks.join('\n');
+  };
+
+  visit(root);
+  return { boxes, lines };
 }
 
 /**
- * Render a DOM node to a PNG blob at its true size.
+ * The artboard as an SVG document.
  *
- * `scale` is a device-pixel multiplier: 2 produces a crisp image on a retina screen and for a
- * document somebody will zoom into.
+ * Exported in its own right: a vector file opens in any browser, scales without blurring, and can
+ * be dropped into a document. The PNG below is this, rasterised.
  */
+export function artboardToSvg(node: HTMLElement, width: number, height: number): string {
+  const { boxes, lines } = collect(node);
+  const parts: string[] = [];
+
+  parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
+  parts.push(`<rect width="${width}" height="${height}" fill="#F3F4F6"/>`);
+
+  for (const box of boxes) {
+    const opacity = box.opacity < 1 ? ` opacity="${box.opacity}"` : '';
+    const fill = box.fill ? ` fill="${box.fill}"` : ' fill="none"';
+    const stroke = box.stroke ? ` stroke="${box.stroke.color}" stroke-width="${box.stroke.width}"` : '';
+    const rounded = box.radius.some((r) => r > 0);
+    parts.push(rounded
+      ? `<path d="${roundedRectPath(box)}"${fill}${stroke}${opacity}/>`
+      : `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"${fill}${stroke}${opacity}/>`);
+  }
+
+  for (const line of lines) {
+    parts.push(
+      `<text x="${line.x.toFixed(1)}" y="${line.y.toFixed(1)}"`
+      + ` font-family="${escapeXml(line.font)}" font-size="${line.size.toFixed(1)}"`
+      + ` font-weight="${line.weight}" fill="${line.colour}"`
+      + (line.anchor === 'start' ? '' : ` text-anchor="${line.anchor}"`)
+      + `>${escapeXml(line.text)}</text>`,
+    );
+  }
+
+  parts.push('</svg>');
+  return parts.join('\n');
+}
+
 export interface CaptureResult {
   blob: Blob | null;
   /** Why it failed, in words a person can act on. Never swallowed: a capture that returns null with
-   *  no reason is a bug report nobody can file, and this one cost a debugging session. */
+   *  no reason is a bug report nobody can file, and that cost a debugging session once already. */
   error?: string;
 }
 
+/**
+ * Rasterise the artboard to a PNG.
+ *
+ * `scale` is a device-pixel multiplier: 2 is crisp on a retina screen and stands up to zooming.
+ */
 export async function captureArtboard(
   node: HTMLElement,
   width: number,
@@ -129,32 +224,17 @@ export async function captureArtboard(
   try {
     if (document.fonts?.ready) await document.fonts.ready;
 
-    const clone = node.cloneNode(true) as HTMLElement;
-    // The live artboard is scaled by the zoom control; the capture wants it at 1:1.
-    clone.style.transform = 'none';
-    clone.style.width = `${width}px`;
-    clone.style.height = `${height}px`;
-    clone.style.margin = '0';
-    // Editor-only furniture must not appear in the picture.
-    clone.querySelectorAll('.dsx__handle, .dsx__size, .dsx__guide, .dsx__gap, .dsx__fold, .dsx__safe')
-      .forEach((el) => el.remove());
-    clone.querySelectorAll('.is-selected').forEach((el) => el.classList.remove('is-selected'));
-
-    const styles = await embedFonts(collectStyles());
-    const serialized = new XMLSerializer().serializeToString(clone);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">`
-      + `<defs><style type="text/css"><![CDATA[\n${styles}\n]]></style></defs>`
-      + `<foreignObject x="0" y="0" width="${width}" height="${height}">`
-      + `<div xmlns="http://www.w3.org/1999/xhtml">${serialized}</div>`
-      + '</foreignObject></svg>';
-
+    const svg = artboardToSvg(node, width, height);
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
     try {
       const image = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image();
         img.onload = () => resolve(img);
-        img.onerror = () => reject(new Error('the artboard could not be rasterised — an element in it may reference an image the browser will not read'));
+        img.onerror = () => reject(new Error('the drawing could not be rasterised'));
         img.src = url;
+        // Never hang. A promise with no timeout is how an export button becomes a button that does
+        // nothing forever, with no message and nothing to report.
+        setTimeout(() => reject(new Error('rendering timed out after 20 seconds')), 20_000);
       });
 
       const canvas = document.createElement('canvas');
@@ -174,7 +254,7 @@ export async function captureArtboard(
     }
   } catch (err) {
     // Never throw at the caller — but never stay silent either. The message is what tells somebody
-    // whether to retry, screenshot instead, or report a bug.
+    // whether to retry, to export the SVG instead, or to report a bug.
     return { blob: null, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -195,6 +275,7 @@ export function downloadBlob(filename: string, blob: Blob): void {
 export function downloadText(filename: string, content: string): void {
   const type = filename.endsWith('.json') ? 'application/json'
     : filename.endsWith('.css') ? 'text/css'
+    : filename.endsWith('.svg') ? 'image/svg+xml'
     : filename.endsWith('.md') ? 'text/markdown'
     : 'text/html';
   downloadBlob(filename, new Blob([content], { type: `${type};charset=utf-8` }));
