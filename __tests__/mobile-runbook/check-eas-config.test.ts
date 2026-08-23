@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -124,5 +125,48 @@ describe('mobile/README_TESTFLIGHT.md — runbook present', () => {
 
   it('points at the validator script', () => {
     expect(README).toContain('check-eas');
+  });
+});
+
+// ── THE PART THAT WAS NEVER TESTED, AND SO WAS BROKEN FOR MONTHS (2026-08-22) ───────────────────
+//
+// Every test above imports the helpers. Not one of them RAN the script, and the script's CLI guard
+// compared `import.meta.url` with 'file://' + process.argv[1] — true on macOS and Linux, and never
+// true on Windows, which is the platform this project is developed on. `npm run check-eas` printed
+// nothing, exited 0, and `npm run build:ios` would dispatch a build against placeholder config.
+//
+// So these spawn the real thing. A guard is only proven by running it.
+describe('the validator as a CLI, not as a module', () => {
+  const script = path.join(repoRoot, 'mobile', 'scripts', 'check-eas-config.mjs');
+
+  it('exits non-zero and prints a punch list while placeholders remain', () => {
+    const run = spawnSync(process.execPath, [script], { encoding: 'utf8' });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain('refusing to invoke EAS');
+    // It must name the file as well as the key — two files are checked now.
+    expect(run.stderr).toMatch(/eas\.json: submit\.production\.ios\.appleId/);
+  });
+
+  it('checks app.json too, where a build actually dies', () => {
+    const run = spawnSync(process.execPath, [script], { encoding: 'utf8' });
+    // A placeholder OTA url ships an app that can never be updated; a missing projectId means the
+    // build has nowhere to go. Neither is visible in eas.json.
+    expect(run.stderr).toMatch(/expo\.updates\.url|projectId/);
+  });
+
+  it('says something at all — the original bug was silence', () => {
+    const run = spawnSync(process.execPath, [script], { encoding: 'utf8' });
+    expect(`${run.stdout}${run.stderr}`.trim().length).toBeGreaterThan(0);
+  });
+});
+
+describe('mobile/eas.json — no credentials, because the repo is public', () => {
+  it('does not carry the Supabase url or key, even as placeholders', () => {
+    // They live in EAS environment variables now. A placeholder here is an invitation to fill it
+    // in, and filling it in on a public repo is permanent.
+    const eas = JSON.parse(read('mobile/eas.json')) as Record<string, unknown>;
+    const serialised = JSON.stringify(eas);
+    expect(serialised).not.toMatch(/REPLACE_WITH_SUPABASE/);
+    expect(serialised).not.toMatch(/supabase\.co/);
   });
 });

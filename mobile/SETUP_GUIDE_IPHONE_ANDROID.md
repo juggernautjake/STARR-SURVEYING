@@ -90,27 +90,44 @@ The repo ships with clearly-marked `REPLACE_WITH_*` placeholders so no secrets
 are committed. Fill them in before your first build. A validator
 (`mobile/scripts/check-eas-config.mjs`) blocks the build until they're all set.
 
-### 2a. Backend connection — `mobile/eas.json`
+### 2a. Backend connection — EAS environment variables
 
-Both the `preview` and `production` profiles carry an `env` block. Set them to
-the **same public** Supabase values the website uses (the anon key is a public
-JWT — safe to embed in a phone app):
+The two values the app cannot run without:
 
-```diff
-   "env": {
--    "EXPO_PUBLIC_SUPABASE_URL": "REPLACE_WITH_SUPABASE_URL",
--    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "REPLACE_WITH_SUPABASE_ANON_KEY"
-+    "EXPO_PUBLIC_SUPABASE_URL": "https://YOURPROJECT.supabase.co",
-+    "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOi...(the anon key)"
-   }
+    EXPO_PUBLIC_SUPABASE_URL        https://YOURPROJECT.supabase.co
+    EXPO_PUBLIC_SUPABASE_ANON_KEY   eyJhbGciOi…  (the anon key — a public JWT)
+
+They used to live in `eas.json` as `REPLACE_WITH_*` placeholders waiting to be filled in.
+**This repository is public**, so filling them in would have committed them permanently. They
+live in EAS now, which is also the only place a cloud build reads them from:
+
+```bash
+cd mobile
+eas env:create --name EXPO_PUBLIC_SUPABASE_URL      --value "https://YOURPROJECT.supabase.co" --environment preview
+eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "eyJhbGciOi…"                     --environment preview
+# and again with --environment production
 ```
 
-> 🔒 **Never** put a `service_role` key or any `sk_…` / `sk-ant-…` secret in
-> here. Only `EXPO_PUBLIC_*` values are safe to ship to a phone.
-> Optional extras: `EXPO_PUBLIC_POWERSYNC_URL` (offline sync) and
-> `EXPO_PUBLIC_SENTRY_DSN` (crash reports). Leave them out to disable those.
+For `npx expo start` on your own machine, put the same two lines in `mobile/.env`
+(git-ignored). If either is missing at runtime the app throws by name on first launch —
+`mobile/lib/supabase.ts` — rather than failing quietly.
 
-### 2b. Over-the-air updates — `mobile/app.json`
+> 🔒 **Never** put a `service_role` key or any `sk_…` / `sk-ant-…` secret anywhere near this.
+> Only `EXPO_PUBLIC_*` values are safe to ship to a phone.
+> Optional extras: `EXPO_PUBLIC_POWERSYNC_URL` (offline sync) and `EXPO_PUBLIC_SENTRY_DSN`
+> (crash reports). Leave them out to disable those.
+
+### 2b. Link the project + over-the-air updates — `mobile/app.json`
+
+Two commands write both values for you, and neither can be typed correctly by hand:
+
+```bash
+cd mobile
+eas init              # writes expo.extra.eas.projectId — without it a build has nowhere to go
+eas update:configure  # writes expo.updates.url = https://u.expo.dev/<projectId>
+```
+
+The result looks like this:
 
 ```diff
      "updates": {

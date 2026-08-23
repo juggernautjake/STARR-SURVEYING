@@ -20,7 +20,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.starrsoftware.starrfield",
       "usesAppleSignIn": true,
-      "associatedDomains": ["applinks:starrsoftware.com"],
+      "associatedDomains": [
+        "applinks:starrsoftware.com"
+      ],
       "infoPlist": {
         "NSFaceIDUsageDescription": "Starr Field uses Face ID to unlock the app and confirm sensitive actions like deleting field data.",
         "NSLocationWhenInUseUsageDescription": "Starr Field stamps your clock-in / clock-out times with GPS so timesheets and mileage logs are accurate.",
@@ -29,7 +31,10 @@
         "NSMicrophoneUsageDescription": "Starr Field records voice memos so you can dictate notes hands-free, and captures audio with field videos. Recordings stay private to your Starr Surveying workspace.",
         "NSPhotoLibraryUsageDescription": "Starr Field can attach existing photos and videos from your library to receipts, points, or jobs (e.g. media you captured before opening the app).",
         "NSPhotoLibraryAddUsageDescription": "Starr Field optionally backs up your captured photos and videos to your device's Photos library (under a 'Starr Field' album) so you keep a personal copy. Off by default — enable on the Me tab.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -47,7 +52,10 @@
               "pathPrefix": "/accept-invite"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
           "autoVerify": true
         }
       ],
@@ -119,7 +127,9 @@
           "iCloudContainerEnvironment": "Production"
         }
       ],
-      "@sentry/react-native/expo"
+      "@sentry/react-native/expo",
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
