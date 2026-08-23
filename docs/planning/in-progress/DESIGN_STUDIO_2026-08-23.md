@@ -810,6 +810,20 @@ Two things fall out of this that are worth more than the feature itself:
 - It gives the owner "here is what the page is today" next to "here is what I want" — which is the
   clearest possible brief, and it is one click.
 
+**Shipped 2026-08-23 (M1–M2).** `node --env-file=.env.local scripts/design-import-page.mjs --route
+/admin/jobs` produces an editable design of that page and prints what the catalogue could not name.
+
+The second claim above turned out to be the true one. The first real run of `/admin/jobs` reported
+**23 uncatalogued elements** — `job-card__name`, `job-card__client`, `job-card__address`,
+`jobs-page__pipeline-*`, `jobs-page__search` — none of which anybody had noticed were missing, from
+a catalogue that had already been through a per-page curation pass. That list is not an opinion
+about coverage; it is the page saying what it wears. **This should be run on each route before
+curating it**, rather than reading the CSS and deciding what looks important.
+
+One caution for whoever reads the gap list: it also names things that are legitimately not entries —
+`admin-page-header__crumb` is a *part* of the catalogued `nav.breadcrumb`, not a missing entry. The
+report says "the catalogue cannot name this", which is not the same as "the catalogue should".
+
 ---
 
 ## §14. The punch list — the owner's actual motivation
@@ -1044,9 +1058,29 @@ it deepens something you can already open.
       Covered by 24 unit tests plus 5 assertions in the browser check, end to end into the brief.
 
 ### Phase 10 — Import
-- [ ] **M1** `scripts/design-import-page.mjs`.
-- [ ] **M2** Match imported elements to catalogue entries; report unmatched.
-- [ ] **M3** Flagging + punch-list export (§14).
+- [x] **M1** `scripts/design-import-page.mjs` — traces a signed-in route at both breakpoints into a
+      real design. `/admin/jobs` comes back as 74 editable elements wearing the app's own classes.
+      **The walk is deliberately lossy** (see the header of `lib/design/import.ts`): a page has
+      ~1,200 nodes and ~40 things a person would call an element, and a faithful DOM copy is an
+      unusable canvas of nested wrappers where nothing can be selected. Kept: what the catalogue
+      recognises, text-bearing leaves, and anything that PAINTS. That last rule was added after
+      looking at the first import — the job cards had no card behind them, just their number, name
+      and address floating on the artboard.
+- [x] **M2** Matching + the coverage report. Matching requires **every** class an entry names, not
+      an overlap: a loose rule labels `.admin-btn--danger` as a plain button, and a confident wrong
+      label is worse than an unmatched element, which is at least visibly a question.
+      Two things the first real run exposed, both fixed:
+      **(a)** variants were not consulted, so every `--primary` button on the page was reported as
+      uncatalogued — a report that would have sent somebody to curate an entry that already exists;
+      **(b)** it imported the admin **shell** — 17 sidebar links, the topbar XP pill — into a mockup
+      of the jobs page. The walk is now scoped to `.admin-layout__content`, and coordinates are
+      relative to it, or every element would land 240px right of where it belongs.
+      19 unit tests, plus `scripts/check-design-import.mjs` (10 assertions) which runs the real
+      script and opens the result.
+- [ ] **M3** Flagging + punch-list export (§14) — tag an imported element `broken` / `duplicate` /
+      `non-functional` / `ugly` with a note, and export the tags as a punch list. The groundwork is
+      in: every imported element carries `importedFrom` (its class signature), so a flag points at
+      something findable rather than at "the third button".
 
 ### Phase 11 — QA
 - [x] **T1** Browser pass: a real mockup built, moved, resized and exported, with the exported

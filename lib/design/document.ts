@@ -39,6 +39,13 @@ export interface DesignElement {
   variant?: string;
   /** A name you can set, shown in the layers panel. Falls back to the entry's label. */
   name?: string;
+  /** The class signature this element was traced from, when it came from a real page (§13). Kept
+   *  so an imported element can be told from a drawn one, and so a punch-list flag has something
+   *  concrete to point at — `.jobs-page__btn` is findable; "the third button" is not. */
+  importedFrom?: string;
+  /** Defects seen on this element: broken, does-nothing, duplicate, looks-wrong (§14). These export
+   *  as a punch list — see `lib/design/punchlist.ts` for why they are structured rather than notes. */
+  flags?: Array<{ kind: 'broken' | 'non-functional' | 'duplicate' | 'ugly'; note?: string }>;
 
   x: number;
   y: number;
