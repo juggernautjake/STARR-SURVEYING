@@ -109,6 +109,10 @@ for (const [i, route] of list.entries()) {
       gaps: coverage.gaps,
       gapCount,
       loading: stillLoading > 0 && coverage.desktop.kept < 5,
+      // The walk stops at 600 candidates. A route that hits the cap was measured PARTIALLY, and its
+      // gap count is a floor rather than a total — /admin/learn/flashcard-bank came back with 599.
+      // A silent cap reads as "we looked at everything", which is the one thing it did not do.
+      truncated: captured.length >= 600,
     });
     console.log(`${String(coverage.desktop.kept).padStart(4)} elements, ${String(coverage.gaps.length).padStart(3)} unnamed${stillLoading > 0 && coverage.desktop.kept < 5 ? '  (never finished loading)' : ''}`);
   } catch (err) {
@@ -125,16 +129,26 @@ for (const r of perRoute) {
   if (r.loading) continue;
   for (const gap of r.gaps) {
     const key = gap.classes;
-    const existing = byClass.get(key) ?? { classes: key, tag: gap.tag, routes: new Set(), total: 0, sample: gap.sample };
+    const existing = byClass.get(key) ?? {
+      classes: key, tag: gap.tag, routes: new Set(), total: 0, sample: gap.sample, insideKnown: gap.insideKnown,
+    };
     existing.routes.add(r.route);
     existing.total += gap.count;
+    // Inside a known element on ANY route is enough to call it a part rather than a gap.
+    existing.insideKnown = existing.insideKnown || gap.insideKnown;
     if (!existing.sample && gap.sample) existing.sample = gap.sample;
     byClass.set(key, existing);
   }
 }
-const ranked = [...byClass.values()]
+const all = [...byClass.values()]
   .map((g) => ({ ...g, routeCount: g.routes.size }))
   .sort((a, b) => b.routeCount - a.routeCount || b.total - a.total);
+
+// Two different questions, so two lists. An element with no catalogued ancestor is something to
+// curate; one INSIDE a catalogued element is a piece of it, and adding an entry for it would be
+// adding an entry for part of an entry.
+const ranked = all.filter((g) => !g.insideKnown);
+const parts = all.filter((g) => g.insideKnown);
 
 const measured = perRoute.filter((r) => !r.loading);
 const totalElements = measured.reduce((n, r) => n + r.kept, 0);
@@ -172,13 +186,31 @@ for (const g of ranked.slice(0, 60)) {
 if (ranked.length > 60) lines.push('', `…and ${ranked.length - 60} more, each on fewer routes.`);
 lines.push('');
 
+if (parts.length) {
+  lines.push('## Parts of elements the catalogue already knows', '');
+  lines.push('These sit INSIDE a catalogued element — a crumb inside the breadcrumb trail, an icon');
+  lines.push('inside an empty state. They are listed for completeness and are **not** curation work:');
+  lines.push('adding an entry for one would be adding an entry for part of an entry.', '');
+  lines.push('| Routes | Element |');
+  lines.push('|---:|---|');
+  for (const g of parts.slice(0, 30)) {
+    lines.push(`| ${g.routeCount} | \`${g.tag}.${g.classes.split(' ').join('.')}\` |`);
+  }
+  if (parts.length > 30) lines.push('', `…and ${parts.length - 30} more.`);
+  lines.push('');
+}
+
 lines.push('## Per route', '');
-lines.push('| Route | Elements | Unnamed |');
-lines.push('|---|---:|---:|');
+lines.push('| Route | Elements | Unnamed | |');
+lines.push('|---|---:|---:|---|');
 for (const r of [...measured].sort((a, b) => b.gapCount - a.gapCount)) {
-  lines.push(`| \`${r.route}\` | ${r.kept} | ${r.gapCount} |`);
+  lines.push(`| \`${r.route}\` | ${r.kept} | ${r.gapCount} | ${r.truncated ? '**partial — hit the 600-element cap**' : ''} |`);
 }
 lines.push('');
+if (measured.some((r) => r.truncated)) {
+  lines.push('Routes marked *partial* have more elements than the walk collects, so their gap counts');
+  lines.push('are a floor rather than a total.', '');
+}
 
 if (perRoute.some((r) => r.loading)) {
   lines.push('## Never finished loading', '');

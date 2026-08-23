@@ -47,6 +47,9 @@ export interface CapturedNode {
   paints?: boolean;
   /** How deep in the DOM, so a tie between two matches prefers the more specific one. */
   depth: number;
+  /** Classes worn by every ancestor up to the content root. Used to tell an element the catalogue
+   *  has never heard of from a PART of one it already knows — see `ImportedView.unmatched`. */
+  ancestorClasses?: string[];
 }
 
 export interface Match {
@@ -70,6 +73,24 @@ export interface Match {
  * Among the entries that qualify, the most specific wins: `.admin-btn.admin-btn--primary` beats
  * `.admin-btn`, because it explains more of what the node is wearing.
  */
+/**
+ * The classes on an entry's OUTERMOST element.
+ *
+ * `entry.classes` lists every class the entry's markup uses, across all of its nodes — the empty
+ * state declares `['admin-empty', 'admin-empty__icon', 'admin-empty__title', 'admin-empty__desc']`.
+ * Requiring all four on one node means that entry can never match anything, and the first full
+ * sweep duly reported `div.admin-empty` as an uncatalogued element on six routes while a catalogue
+ * entry for it sat right there. Composite entries — cards, toolbars, dialogs, empty states — were
+ * all invisible to matching for the same reason.
+ *
+ * What identifies an instance is the root, so that is what is compared.
+ */
+function rootClassesOf(entry: CatalogueEntry): string[] {
+  const first = /<[a-z][a-z0-9]*\s[^>]*class=["']([^"']+)["']/i.exec(entry.html ?? '');
+  const fromHtml = first?.[1].split(/\s+/).filter(Boolean).filter((c) => !c.includes('{{'));
+  return fromHtml?.length ? fromHtml : entry.classes;
+}
+
 export function matchCatalogue(node: CapturedNode, entries: CatalogueEntry[]): Match | null {
   const worn = new Set(node.classes);
   let best: Match | null = null;
@@ -84,7 +105,7 @@ export function matchCatalogue(node: CapturedNode, entries: CatalogueEntry[]): M
   };
 
   for (const entry of entries) {
-    consider(entry, entry.classes);
+    consider(entry, rootClassesOf(entry));
     // Variants are how this catalogue models `--primary` / `--danger`, and an entry's own `classes`
     // are only ONE of them — `button.page` is declared as the secondary variant. Matching just
     // `entry.classes` therefore reported every primary button on the page as an uncatalogued
@@ -127,8 +148,13 @@ export interface ImportedView {
   elements: Array<Omit<DesignElement, 'z'>>;
   kept: number;
   dropped: number;
-  /** Nodes nothing in the catalogue recognised, grouped by their class signature. */
-  unmatched: Array<{ classes: string; tag: string; count: number; sample: string }>;
+  /** Nodes nothing in the catalogue recognised, grouped by their class signature.
+   *
+   *  `insideKnown` separates the two kinds, and the distinction is what makes this list workable:
+   *  an element with no catalogued ancestor is a genuine gap, while one INSIDE a catalogued element
+   *  is a part of it. `.admin-page-header__crumb` sits inside the catalogued
+   *  `.admin-page-header__crumbs`; curating it would add an entry for a piece of an entry. */
+  unmatched: Array<{ classes: string; tag: string; count: number; sample: string; insideKnown: boolean }>;
 }
 
 /** Turn one viewport's capture into placeable elements, plus the coverage gaps it revealed. */
@@ -139,7 +165,8 @@ export function elementsFromCapture(
 ): ImportedView {
   const elements: Array<Omit<DesignElement, 'z'>> = [];
   const keptNodes: CapturedNode[] = [];
-  const gaps = new Map<string, { classes: string; tag: string; count: number; sample: string }>();
+  const gaps = new Map<string, { classes: string; tag: string; count: number; sample: string; insideKnown: boolean }>();
+  const catalogueClasses = new Set(entries.flatMap((e) => [...e.classes, ...(e.variants ?? []).flatMap((v) => v.classes)]));
   let dropped = 0;
 
   // Outermost first, so `isRedundantWith` compares against the container rather than the label.
@@ -156,7 +183,17 @@ export function elementsFromCapture(
       const key = `${node.tag}.${node.classes.join('.')}`;
       const existing = gaps.get(key);
       if (existing) existing.count += 1;
-      else gaps.set(key, { classes: node.classes.join(' '), tag: node.tag, count: 1, sample: node.text.slice(0, 40) });
+      else {
+        // Does anything the catalogue knows sit ABOVE this element? If so it is a part, not a gap.
+        const insideKnown = (node.ancestorClasses ?? []).some((c) => catalogueClasses.has(c));
+        gaps.set(key, {
+          classes: node.classes.join(' '),
+          tag: node.tag,
+          count: 1,
+          sample: node.text.slice(0, 40),
+          insideKnown,
+        });
+      }
     }
 
     keptNodes.push(node);
@@ -223,7 +260,7 @@ export interface ImportResult {
     desktop: { kept: number; dropped: number };
     mobile: { kept: number; dropped: number };
     /** What the catalogue could not name. The point of the exercise, arguably. */
-    gaps: Array<{ classes: string; tag: string; count: number; sample: string }>;
+    gaps: Array<{ classes: string; tag: string; count: number; sample: string; insideKnown: boolean }>;
   };
 }
 
@@ -264,7 +301,7 @@ export function documentFromCapture(input: {
 
   // Gaps are merged across both views: an element missing from the catalogue is missing once, not
   // once per breakpoint.
-  const merged = new Map<string, { classes: string; tag: string; count: number; sample: string }>();
+  const merged = new Map<string, { classes: string; tag: string; count: number; sample: string; insideKnown: boolean }>();
   for (const view of [perView.desktop, perView.mobile]) {
     for (const gap of view.unmatched) {
       const existing = merged.get(gap.classes);

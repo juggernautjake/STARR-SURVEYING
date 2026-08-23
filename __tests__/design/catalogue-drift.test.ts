@@ -22,7 +22,7 @@
 // has been renamed, moved to another file, or deleted.
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { ENTRIES, EXCLUSIONS } from '@/lib/design/catalogue';
 import { fingerprint } from '@/lib/design/catalogue/define';
@@ -32,6 +32,36 @@ const repoRoot = join(__dirname, '..', '..');
 /** How far a cited line may drift before it counts as wrong. Generous on purpose: comments get
  *  added, and a test that fails on cosmetic movement is a test somebody deletes. */
 const WINDOW = 60;
+
+/**
+ * Every stylesheet and component in the app, concatenated once, for "does this class exist at all"
+ * questions. Read lazily and cached: the answer is the same for all forty entries.
+ *
+ * **`lib/design` is excluded, and that exclusion is the whole test.** The first version of this
+ * walked `lib/` too and passed on a class that exists nowhere in the app — because
+ * `lib/design/catalogue/curated/structure.ts` is where the entry NAMES it. A search that includes
+ * the claim as evidence for the claim always succeeds; it was a green test proving nothing, which
+ * is the same instrument-is-the-bug shape as the sweep that measured loading splashes.
+ */
+let sourceCache: string | null = null;
+function allSourceText(): string {
+  if (sourceCache !== null) return sourceCache;
+  const parts: string[] = [];
+  const designLib = join(repoRoot, 'lib', 'design');
+  const walk = (dir: string) => {
+    if (dir.startsWith(designLib)) return;
+    for (const item of readdirSync(dir, { withFileTypes: true })) {
+      if (item.name === 'node_modules' || item.name.startsWith('.')) continue;
+      const full = join(dir, item.name);
+      if (item.isDirectory()) walk(full);
+      else if (/\.(css|tsx|ts)$/.test(item.name)) parts.push(readFileSync(full, 'utf8'));
+    }
+  };
+  walk(join(repoRoot, 'app'));
+  walk(join(repoRoot, 'lib'));
+  sourceCache = parts.join('\n');
+  return sourceCache;
+}
 
 describe('every citation resolves', () => {
   it('cites files that exist', () => {
@@ -85,6 +115,46 @@ describe('every citation resolves', () => {
     }
 
     expect(problems, `The catalogue has drifted from the code:\n  ${problems.join('\n  ')}`).toEqual([]);
+  });
+
+  // ── 2026-08-23: the check above passed while the thing it exists to prevent had happened ───────
+  //
+  // `nav.breadcrumb` rendered `<nav class="admin-page-header__crumbs">`. That class exists NOWHERE
+  // in this repo — not in a stylesheet, not in a component. The app's breadcrumb trail is
+  // `admin-page-header__trail`.
+  //
+  // It passed because the rule above is `entry.classes.some(...)`: at least ONE of an entry's
+  // classes must be declared near the citation. `admin-page-header__crumb` (singular) is real, so
+  // the entry's invented ROOT class was never questioned — and the root is the one that matters,
+  // because it is what an exported mockup tells somebody to build with and what the importer
+  // matches a real page against.
+  //
+  // It was found by the coverage sweep (C9) rather than by this test: 125 routes reported their
+  // breadcrumb as an uncatalogued element while a catalogue entry for it sat right there. So the
+  // rule is now "every class an entry names must exist somewhere in the app", which is a weaker
+  // check per class but covers every class instead of one.
+  it('names no class that does not exist anywhere in the app', () => {
+    const haystack = allSourceText();
+    const problems: string[] = [];
+
+    for (const entry of ENTRIES) {
+      if (entry.category === 'shape') continue;   // studio primitives, defined in the exporter
+      const invented = [...new Set([...entry.classes, ...(entry.variants ?? []).flatMap((v) => v.classes)])]
+        // `ds-*` is the studio's OWN prefix. Those primitives are deliberately not app classes:
+        // they are shapes the app draws per page rather than from a shared class (a dialog, a
+        // switch, a skeleton, written out separately in several files), catalogued so a mockup can
+        // ask for the one version. They are defined in lib/design/export.ts, which the haystack
+        // excludes for the reason above, so they are exempted by name rather than by accident.
+        .filter((cls) => !cls.startsWith('ds-'))
+        .filter((cls) => !new RegExp(`\\b${cls.replace(/[-_]/g, '[-_]')}\\b`).test(haystack));
+      if (invented.length) problems.push(`${entry.id}: [${invented.join(', ')}] appear nowhere in app/ or lib/`);
+    }
+
+    expect(
+      problems,
+      `These entries name classes the app does not have. An export citing one tells somebody to `
+      + `build with a class that will never match a stylesheet:\n  ${problems.join('\n  ')}`,
+    ).toEqual([]);
   });
 });
 

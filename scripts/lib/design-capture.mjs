@@ -51,7 +51,9 @@ export const CAPTURE = (known) => {
     const classes = (typeof el.className === 'string' ? el.className : '')
       .split(/\s+/)
       .filter(Boolean)
-      .filter((c) => !/^jsx-[0-9a-f]{8,}$/i.test(c));
+      // `jsx-undefined` too: styled-jsx emits it when a component's style block is conditional, and
+      // seven routes reported `h1.jsx-undefined` as a coverage gap on the first full sweep.
+      .filter((c) => !/^jsx-([0-9a-f]{8,}|undefined)$/i.test(c));
     const tag = el.tagName.toLowerCase();
     const ownText = [...el.childNodes]
       .filter((n) => n.nodeType === 3)
@@ -93,6 +95,19 @@ export const CAPTURE = (known) => {
       },
       paints,
       depth: depthOf(el),
+      // Every class worn by an ancestor, so the matcher can tell "nothing knows this element" from
+      // "this is a PART of an element something already knows". `.admin-page-header__crumb` is a
+      // child of the catalogued `.admin-page-header__crumbs`; reporting it as a coverage gap sends
+      // somebody to curate a piece of an entry that already exists. That distinction is the
+      // difference between a gap list you can work through and one you argue with.
+      ancestorClasses: (() => {
+        const seen = [];
+        for (let p = el.parentElement; p && p !== root.parentElement; p = p.parentElement) {
+          const cls = typeof p.className === 'string' ? p.className : '';
+          for (const c of cls.split(/\s+/)) if (c && !/^jsx-[0-9a-f]{8,}$/i.test(c)) seen.push(c);
+        }
+        return seen;
+      })(),
     });
     // A hard ceiling. A page with 900 kept nodes is a page this tool cannot help with anyway, and
     // silently truncating would be worse than saying so — the caller reports the cap.

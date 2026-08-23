@@ -62,15 +62,29 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     keywords: ['breadcrumb', 'crumb', 'path', 'trail', 'back', 'up', 'navigation', 'where'],
     synonyms: ['trail', 'path'],
     concepts: ['navigation'],
+    // ── Corrected 2026-08-23, and worth the note ──────────────────────────────────────────────
+    //
+    // This entry used to render `<nav class="admin-page-header__crumbs">` with
+    // `admin-page-header__crumb-sep` separators. **Neither class exists anywhere in this repo.**
+    // The app's trail is an `<ol class="admin-page-header__trail">` of
+    // `<li class="admin-page-header__crumb-item">`, and the separator is `__sep`.
+    //
+    // The drift ratchet passed it, because its rule was "at least one of the entry's classes is
+    // declared near the citation" and the singular `__crumb` is real. The coverage sweep found it:
+    // 125 routes reported their breadcrumb as an uncatalogued element while this entry sat right
+    // there claiming to be it. The ratchet now checks every class an entry names.
     html:
-      '<nav class="admin-page-header__crumbs">'
-      + '<a class="admin-page-header__crumb" href="#">{{first}}</a>'
-      + '<span class="admin-page-header__crumb-sep">›</span>'
-      + '<a class="admin-page-header__crumb" href="#">{{second}}</a>'
-      + '<span class="admin-page-header__crumb-sep">›</span>'
-      + '<span class="admin-page-header__crumb admin-page-header__crumb--active">{{current}}</span>'
-      + '</nav>',
-    classes: ['admin-page-header__crumbs', 'admin-page-header__crumb', 'admin-page-header__crumb--active'],
+      '<ol class="admin-page-header__trail">'
+      + '<li class="admin-page-header__crumb-item">'
+      + '<a class="admin-page-header__crumb" href="#">{{first}}</a></li>'
+      + '<li class="admin-page-header__crumb-item">'
+      + '<span class="admin-page-header__sep">›</span>'
+      + '<a class="admin-page-header__crumb" href="#">{{second}}</a></li>'
+      + '<li class="admin-page-header__crumb-item">'
+      + '<span class="admin-page-header__sep">›</span>'
+      + '<span class="admin-page-header__crumb admin-page-header__crumb--active">{{current}}</span></li>'
+      + '</ol>',
+    classes: ['admin-page-header__trail', 'admin-page-header__crumb-item', 'admin-page-header__crumb', 'admin-page-header__crumb--active', 'admin-page-header__sep'],
     slots: [
       { name: 'first', kind: 'text', label: 'Level 1', default: 'Work' },
       { name: 'second', kind: 'text', label: 'Level 2', default: 'All Jobs' },

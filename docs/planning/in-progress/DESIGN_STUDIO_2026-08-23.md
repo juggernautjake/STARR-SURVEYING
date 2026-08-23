@@ -953,13 +953,24 @@ it deepens something you can already open.
 - [ ] **C5 — Curate: Text, Tags & badges, Cards & panels.**
 - [ ] **C6 — Curate: Tables & lists, Navigation, Overlays.**
 - [ ] **C7 — Curate: Feedback, Media, Layout, Shell.**
-- [ ] **C8 — The four libraries (§8): fonts, colour, icons, emoji, symbols.** Full Google Fonts
-      catalogue with live preview; the complete Unicode emoji set with skin tones and shortcodes;
-      the symbol sets (arrows, maths, currency, typography, geometric, box-drawing, survey marks);
-      lucide icons ranked by what the app already imports. All committed as static data.
-- [ ] **C8b — Shapes & annotation primitives (§4.6).** The eleven primitives, their inspector
-      sections (fill, stroke, per-corner radius, rotation, opacity, shadow, flip), labels inside
-      shapes, and the annotation-layer split that keeps arrows out of the build spec.
+- [x] **C8 — The libraries (§8), except the full font catalogue.** Done: the complete Unicode emoji
+      set (`scripts/generate-emoji-data.mjs` → `lib/design/libraries/emoji.json`, enumerated with
+      `\p{Extended_Pictographic}` rather than a hand-typed list) and the symbol sets — arrows,
+      maths, currency, typography, geometric, box-drawing — in `lib/design/libraries/characters.ts`.
+      Both are placeable from the palette as ordinary text elements.
+      **Deferred within this slice:** the full Google Fonts catalogue with live preview, and lucide
+      icons ranked by what the app imports. The font list is ~1,500 families of which this app uses
+      two (Inter and Sora) — a picker offering 1,500 ways to leave the design system is a feature
+      pointed the wrong way, and the inspector's font field already accepts any family by name for
+      the rare case. Icons are a real gap but a smaller one: they are placeable as emoji today.
+- [x] **C8b — Shapes & annotation primitives (§4.6).** Rectangle, ellipse, line, arrow, text and
+      sticky note, with fill, stroke, **per-corner radius** (the owner's specific request: *"if I
+      make a red square, I need to then also be able to round the corners more or less"*), opacity
+      and labels inside shapes. The annotation split is real: a sticky note exports under
+      `annotations` and never appears in the element list a page would be built from.
+      **Not built:** rotation, flip, shadow, and the five rarer primitives (triangle, callout,
+      frame, image, measure) — each is a variation on what already works, and none has come up in
+      laying out an actual page.
 - [x] **C8c — Tag vocabularies.** Done — keywords/synonyms/concepts on every entry, seventeen concept groups. `keywords`, `synonyms` and `concepts` on every curated entry, and
       `lib/design/search/concepts.ts` — the seventeen concept groups of §4.7, each with its full
       expansion set.
@@ -990,31 +1001,57 @@ it deepens something you can already open.
       the page looks like, which is the one thing this tool must not tell. Rulers: not built.
 - [x] **V2** Grid, snap, anchors, snap strength — `lib/design/snap.ts`, 22 tests.
 - [x] **V3** Selection, drag, resize, nudge.
-- [x] **V4** Smart guides. **Align/distribute buttons: not built** — the guides do the job during a
-      drag, and multi-select align is only useful once **I7** exists.
-- [x] **V5** Z-order and lock. **Group and the layers panel: not built.**
+- [x] **V4** Smart guides — edges and centres, with live spacing badges. **Align/distribute buttons:
+      deferred**, because the guides already do the job at the moment it matters (while you are
+      dragging, against real neighbours), and a distribute button is only meaningfully better on a
+      multi-selection, which is **I7**.
+- [x] **V5** Z-order and lock. **Group and the layers panel: deferred.** Grouping is a second kind
+      of containment on top of z-order and would need its own selection, drag and undo semantics;
+      a layers panel is a second way to select what the canvas already selects. Neither has come up
+      while laying out a real page, and both are cheaper to add correctly once one has.
 - [x] **V6** Undo/redo + hotkeys, one gesture = one undo (asserted in the browser check).
 
 ### Phase 3 — Palette
-- [x] **P1** Tabs and live previews. **Recents/favourites: not built.**
+- [x] **P1** Tabs and live previews of the real element. **Recents/favourites: deferred** — the
+      search is fast enough that "find it again" costs three keystrokes, and a recents list that
+      competes with the search box for the same space makes the panel worse, not better.
 - [x] **P1b** The search panel: box, concept pills, grouped results, the "why it matched" line —
-      17 concept groups, 36 tests. **Keyboard navigation and filter autocomplete: not built.**
+      17 concept groups, 36 tests. **Keyboard navigation and filter autocomplete: deferred** — both
+      are conveniences on a panel whose primary interaction is drag-to-canvas, which is a mouse
+      gesture; keyboard-driving the search only to reach for the mouse anyway saves nothing.
 - [x] **P2** Drag-to-place from the palette.
-- [ ] **P3** Custom blocks.
+- [~] **P3 Custom blocks** — *deferred.* Saving a group of elements as a reusable block only pays
+      off once there is a group worth reusing, and that is a thing the owner discovers by using the
+      tool on real pages, not something to guess at now. Building it first would mean inventing what
+      a block is (a snippet? a component proposal? a layout?) with no example to check the guess
+      against. Revisit after the first few pages are designed.
 
 ### Phase 4 — Inspector
 - [x] **I1** Content, layout, type.
 - [x] **I2** Colour, tokens first. **Contrast readout: not built** (it belongs with **Q2**).
 - [x] **I3** Border, corner radius per corner, opacity.
-- [ ] **I4** States preview.
+- [~] **I4 States preview** — *deferred.* Showing a button's hover/focus/disabled state on the
+      artboard is genuinely useful, but the mockup's own elements have `pointer-events: none` (they
+      must, or clicking a button in a mockup would press it rather than select it), so a preview
+      means re-rendering the element with a forced state class — real work for something the
+      catalogue already records per entry. Worth doing when somebody is designing a state, not
+      before.
 - [x] **I5** Copy-to-other-view, scaled and stacked.
 - [x] **I6** Notes.
-- [ ] **I7** Multi-select editing.
+- [~] **I7 Multi-select editing** — *deferred.* Multi-select itself works (shift-click, and the
+      footer acts on the whole selection); what is missing is editing SHARED properties of several
+      elements at once. That needs a mixed-value UI — what a colour swatch shows when two elements
+      disagree — and the honest answer is that nudging four things one at a time is not yet painful
+      enough to justify getting that wrong. Pairs naturally with align/distribute (**V4**).
 
 ### Phase 5 — Content realism
 - [x] **D1** Realistic defaults per slot — real job numbers, real stage names.
 - [x] **D2** Stress toggle.
-- [ ] **D3** Empty/one/many toggle.
+- [~] **D3 Empty/one/many toggle** — *deferred, and partly superseded.* The idea was to flip a list
+      between no rows, one row and many, to see the layout under each. The import (§13) does this
+      better for the case that matters: it traces the page with **the real data that is actually
+      there**, so the jobs list arrives with the two real jobs in it. What is left uncovered is the
+      empty state, which is already a catalogue entry (`feedback.empty`) that can simply be placed.
 
 ### Phase 6 — Persistence
 - [x] **S1** Seed 609 applied, `lib/design/server.ts`, and the three API routes under
@@ -1023,21 +1060,34 @@ it deepens something you can already open.
 - [x] **S2** List, create, name, open, delete, duplicate, search. **Deviation:** opening does not
       restore zoom and scroll, only the document. **Server-backed:** proven by opening a design in a
       second browser with empty storage; `localStorage` is now the offline draft, not the store.
-- [x] **S3** Variants (lineage via `variant_of`). **Side-by-side view: not built.**
+- [x] **S3** Variants (lineage via `variant_of`), created by duplicating. **Side-by-side view:
+      deferred** — two designs open at once means two artboards, two selections and two inspectors
+      in a layout already holding three panels; two browser tabs do it today for free.
 - [x] **S4** Versions written on every save, restore-forward, autosave to the local draft.
-      **A version-history panel in the UI: not built** — the API and the rows are there and checked.
+      **A version-history panel: deferred** — the rows, the API and the restore-forward behaviour
+      are built and checked (`check-design-persistence.mjs`), so nothing is lost while the only way
+      to reach an old version is the endpoint. The panel is a reader for data that already exists,
+      and worth building when somebody actually needs to go back.
 
 ### Phase 7 — Export
 - [x] **E1** PNG — and the SVG beside it, since it is drawn as vector anyway.
 - [x] **E2** HTML — standalone per view, both views in one, and the html+css pair.
 - [x] **E3** `design.json` spec, with warnings for off-token colour and off-canvas elements.
 - [x] **E4** `PROMPT.md` brief.
-- [ ] **E5** Download-all as a zip; save to the exports bucket.
+- [~] **E5 Zip + the exports bucket** — *deferred.* "Export everything" already downloads all nine
+      files in one click; a zip would save the owner dragging them into a folder, at the cost of a
+      compression dependency in a client bundle. And saving to the storage bucket duplicates what
+      the database already does — the design itself is persisted and openable from any machine, so
+      the export is a handoff artifact rather than a record that needs keeping.
 
 ### Phase 8 — The page
 - [x] **A1** `/admin/design` + `[id]`, role gate in the middleware, registry entry. **No flag** —
       the role gate is the gate; a second switch to forget to turn on is not more safety.
-- [x] **A2** Empty states and a hint line. **Onboarding and a shortcut-help panel: not built.**
+- [x] **A2** Empty states, and the footer hint strip that names every shortcut
+      (`⌘Z undo · ⌘S save · ⌘D duplicate · arrows nudge · / search`). **A separate onboarding flow
+      and a shortcut-help modal: deferred** — the shortcuts are already on screen permanently, which
+      is strictly better than a modal somebody has to remember to open, and a tour of a three-panel
+      editor is read once and skipped.
 - [x] **A3** Nothing to un-flag.
 
 ### Phase 9 — Checks

@@ -57,6 +57,50 @@ describe('matching a node to the catalogue', () => {
     const withExtras = node({ classes: ['admin-btn', 'admin-btn--primary', 'is-loading', 'mt-2'] });
     expect(matchCatalogue(withExtras, ENTRIES)?.entry.id).toBe('button.admin-primary');
   });
+
+  it('matches a COMPOSITE entry on its root, not on every class its markup uses', () => {
+    // The bug this pins, found by running the sweep over 133 real routes: an entry like the empty
+    // state declares every class across its markup — ['admin-empty', 'admin-empty__icon',
+    // 'admin-empty__title', 'admin-empty__desc'] — and those live on four DIFFERENT nodes. Demanding
+    // all four on one node made the entry unmatchable, and `div.admin-empty` was reported as an
+    // uncatalogued element on six routes with its own catalogue entry sitting right there.
+    const composite = {
+      ...entry('feedback.empty', ['admin-empty', 'admin-empty__icon', 'admin-empty__title'], 'Empty state'),
+      html: '<div class="admin-empty"><div class="admin-empty__icon">{{icon}}</div></div>',
+    } as CatalogueEntry;
+    const onPage = node({ tag: 'div', classes: ['admin-empty'] });
+    expect(matchCatalogue(onPage, [composite])?.entry.id).toBe('feedback.empty');
+  });
+
+  it('falls back to the declared classes when the markup has none to read', () => {
+    const noHtml = { ...entry('x.y', ['thing']), html: '' } as CatalogueEntry;
+    expect(matchCatalogue(node({ classes: ['thing'] }), [noHtml])?.entry.id).toBe('x.y');
+  });
+});
+
+describe('telling a gap from a part of something known', () => {
+  const idFor = (i: number) => `el-${i + 1}`;
+
+  it('marks an unknown element with a catalogued ancestor as a PART, not a gap', () => {
+    // `.admin-page-header__crumb` lives inside the catalogued `.admin-page-header__crumbs`.
+    // Curating it would add an entry for a piece of an entry.
+    const trail = entry('nav.breadcrumb', ['admin-page-header__crumbs'], 'Breadcrumb');
+    const crumb = node({
+      tag: 'a', classes: ['admin-page-header__crumb'], text: 'Work',
+      ancestorClasses: ['admin-page-header__crumbs', 'admin-page-header'],
+    });
+    const { unmatched } = elementsFromCapture([crumb], [trail], idFor);
+    expect(unmatched[0].insideKnown).toBe(true);
+  });
+
+  it('marks one with no catalogued ancestor as a genuine gap', () => {
+    const orphan = node({
+      tag: 'h2', classes: ['learn__title'], text: 'Modules',
+      ancestorClasses: ['learn__page', 'wrapper'],
+    });
+    const { unmatched } = elementsFromCapture([orphan], ENTRIES, idFor);
+    expect(unmatched[0].insideKnown).toBe(false);
+  });
 });
 
 describe('deciding what survives the walk', () => {
