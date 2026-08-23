@@ -7,10 +7,16 @@
 import { BUTTON_ENTRIES, BUTTON_EXCLUSIONS } from './curated/buttons';
 import { CORE_ENTRIES, ANNOTATION_ENTRY_IDS } from './curated/core';
 import { STATUS_ENTRIES } from './curated/status';
+import { STRUCTURE_ENTRIES } from './curated/structure';
 import { CATEGORY_ORDER } from './categories';
 import type { AreaId, CatalogueEntry, CategoryId, CurationExclusion } from './types';
 
-export const ENTRIES: CatalogueEntry[] = [...BUTTON_ENTRIES, ...CORE_ENTRIES, ...STATUS_ENTRIES];
+export const ENTRIES: CatalogueEntry[] = [
+  ...BUTTON_ENTRIES,
+  ...CORE_ENTRIES,
+  ...STATUS_ENTRIES,
+  ...STRUCTURE_ENTRIES,
+];
 
 export const EXCLUSIONS: CurationExclusion[] = [...BUTTON_EXCLUSIONS];
 

@@ -24,11 +24,12 @@
 //    against `lib/design/snap.ts`, which is tested.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Download, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft } from 'lucide-react';
+import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   type DesignDocument, type DesignElement, type ViewId,
   addElement, removeElements, updateElement, newElementId, contentHeight, foldLines, PHONE_SAFE_AREA, reorder,
+  copyElementsToView,
 } from '@/lib/design/document';
 import { placeRect, clampToArtboard, spacingTo, type Guide, type Rect } from '@/lib/design/snap';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
@@ -39,6 +40,26 @@ import { artboardToSvg, captureArtboard, downloadBlob, downloadText } from '@/li
 import Palette from './components/Palette';
 import Inspector from './components/Inspector';
 import './DesignStudio.css';
+
+// ── THE CATALOGUE'S STYLESHEETS HAVE TO BE HERE, OR THE MOCKUP IS A LIE ─────────────────────────
+//
+// Caught by looking at a screenshot of the studio: the page title rendered enormous and unstyled.
+// `AdminJobs.css` is imported by `app/admin/jobs/layout.tsx` — it loads on the JOBS routes and
+// nowhere else — so on `/admin/design` every class the catalogue cites from it (`.job-detail__name`,
+// `.job-form__input`, `.jobs-page__btn`, `.job-card__tag`, `.job-timeline__set`) resolved to
+// nothing, and an `<h1>` fell back to the browser's default.
+//
+// That is fatal to the whole approach. The artboard renders the app's REAL elements precisely so a
+// mockup looks like the thing it is a mockup of; without these imports it shows something the app
+// would never render, which is worse than a drawing because it looks authoritative.
+//
+// So the studio imports every stylesheet its entries depend on. Adding a curated entry from a new
+// stylesheet means adding that stylesheet here — and the drift ratchet names the file, so the
+// citation is where you find out which one.
+import '../styles/AdminJobs.css';
+import '../styles/AdminProjects.css';
+import '../styles/AdminLearn.css';
+import '../styles/AdminTimeLogs.css';
 
 interface Props {
   initial: DesignDocument;
@@ -74,13 +95,56 @@ export default function Studio({ initial }: Props) {
     return () => clearTimeout(timer);
   }, [doc]);
 
-  const patchView = useCallback((fn: (v: DesignDocument['views'][ViewId]) => DesignDocument['views'][ViewId]) => {
+  // ── UNDO ─────────────────────────────────────────────────────────────────────────────────────
+  //
+  // Whole-document snapshots rather than a command stack with inverse operations. A design is a few
+  // kilobytes of JSON and there are at most a few hundred elements, so the memory argument for
+  // commands does not apply — and every command needing a correct inverse is where undo bugs come
+  // from, the kind where the fifth undo puts something back in the wrong place.
+  //
+  // A DRAG is one undo, not sixty: `snapshot()` is called once when the drag starts, and the
+  // hundred `setDoc` calls that follow do not push. Anything else would make Ctrl+Z useless on the
+  // action people take most.
+  const history = useRef<{ past: DesignDocument[]; future: DesignDocument[] }>({ past: [], future: [] });
+  const HISTORY_LIMIT = 80;
+
+  const snapshot = useCallback(() => {
+    history.current.past.push(doc);
+    if (history.current.past.length > HISTORY_LIMIT) history.current.past.shift();
+    history.current.future = [];
+  }, [doc]);
+
+  const undo = useCallback(() => {
+    const previous = history.current.past.pop();
+    if (!previous) { setStatus('Nothing to undo'); return; }
+    history.current.future.push(doc);
+    setDoc(previous);
+    setSelection([]);
+    setStatus('Undone');
+  }, [doc]);
+
+  const redo = useCallback(() => {
+    const next = history.current.future.pop();
+    if (!next) { setStatus('Nothing to redo'); return; }
+    history.current.past.push(doc);
+    setDoc(next);
+    setSelection([]);
+    setStatus('Redone');
+  }, [doc]);
+
+  const patchView = useCallback((fn: (v: DesignDocument['views'][ViewId]) => DesignDocument['views'][ViewId], options: { history?: boolean } = {}) => {
+    if (options.history !== false) snapshot();
     setDoc((d) => ({
       ...d,
       views: { ...d.views, [viewId]: fn(d.views[viewId]) },
       updatedAt: new Date().toISOString(),
     }));
-  }, [viewId]);
+  }, [snapshot, viewId]);
+
+  /** A mutation that is part of a gesture already snapshotted — a drag frame, a resize frame. */
+  const patchViewLive = useCallback((fn: (v: DesignDocument['views'][ViewId]) => DesignDocument['views'][ViewId]) => {
+    patchView(fn, { history: false });
+  }, [patchView]);
 
   const patchSettings = useCallback((patch: Partial<typeof settings>) => {
     patchView((v) => ({ ...v, settings: { ...v.settings, ...patch } }));
@@ -169,8 +233,9 @@ export default function Studio({ initial }: Props) {
     const next: DragState = { kind: 'move', id: el.id, startX: e.clientX, startY: e.clientY, originX: el.x, originY: el.y };
     dragRef.current = next;
     setDrag(next);
+    snapshot();
     if (!selection.includes(el.id)) setSelection(e.shiftKey ? [...selection, el.id] : [el.id]);
-  }, [selection]);
+  }, [selection, snapshot]);
 
   const beginResize = useCallback((e: React.PointerEvent, el: DesignElement, handle: string) => {
     e.stopPropagation();
@@ -178,7 +243,8 @@ export default function Studio({ initial }: Props) {
     const next: DragState = { kind: 'resize', id: el.id, handle, startX: e.clientX, startY: e.clientY, origin: { x: el.x, y: el.y, w: el.w, h: el.h } };
     dragRef.current = next;
     setDrag(next);
-  }, []);
+    snapshot();
+  }, [snapshot]);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     const state = dragRef.current;
@@ -197,7 +263,7 @@ export default function Studio({ initial }: Props) {
       });
       const clamped = clampToArtboard(result.rect, { width: view.width });
       setGuides(result.guides);
-      patchView((v) => updateElement(v, state.id, { x: clamped.x, y: clamped.y }));
+      patchViewLive((v) => updateElement(v, state.id, { x: clamped.x, y: clamped.y }));
       return;
     }
 
@@ -215,8 +281,8 @@ export default function Studio({ initial }: Props) {
         h: Math.max(8, Math.round(next.h / settings.size) * settings.size),
       };
     }
-    patchView((v) => updateElement(v, state.id, next));
-  }, [others, patchView, settings, view.elements, view.height, view.width, zoom]);
+    patchViewLive((v) => updateElement(v, state.id, next));
+  }, [others, patchViewLive, settings, view.elements, view.height, view.width, zoom]);
 
   const endDrag = useCallback(() => {
     dragRef.current = null;
@@ -233,6 +299,26 @@ export default function Studio({ initial }: Props) {
     setSelection(copies.map((c) => c.id));
   }, [patchView, selected]);
 
+  /**
+   * The one bridge between two independent views, and it is a COPY rather than a link.
+   *
+   * Ninety per cent of a phone layout is "the same things, arranged down the page", so starting from
+   * the desktop selection saves real work. What arrives on the other view are ordinary elements of
+   * that view — scaled to its width, stacked in reading order, with no memory of where they came
+   * from — so adjusting either view can never disturb the other.
+   */
+  const copyToOtherView = useCallback(() => {
+    if (!selected.length) return;
+    const target: ViewId = viewId === 'desktop' ? 'mobile' : 'desktop';
+    snapshot();
+    setDoc((d) => ({
+      ...d,
+      views: { ...d.views, [target]: copyElementsToView(d.views[viewId], d.views[target], selection) },
+      updatedAt: new Date().toISOString(),
+    }));
+    setStatus(`Copied ${selected.length} element${selected.length === 1 ? '' : 's'} to ${target}`);
+  }, [selected.length, selection, snapshot, viewId]);
+
   const save = useCallback(() => {
     const { ok, doc: saved } = saveDesign(doc, new Date().toISOString());
     if (ok) { setDoc(saved); setStatus(`Saved “${saved.name}” — v${saved.version}`); }
@@ -244,6 +330,13 @@ export default function Studio({ initial }: Props) {
       const target = e.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
 
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        // Shift+Ctrl+Z redoes, the way every editor does it.
+        if (e.shiftKey) redo(); else undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(); return; }
       if (e.key === 'Escape') { setSelection([]); return; }
@@ -271,7 +364,7 @@ export default function Studio({ initial }: Props) {
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [duplicate, patchView, save, selection, settings.size, settings.snap]);
+  }, [duplicate, patchView, redo, save, selection, settings.size, settings.snap, undo]);
 
   useEffect(() => {
     if (!status) return;
@@ -378,6 +471,8 @@ export default function Studio({ initial }: Props) {
         </div>
 
         <div className="dsx__actions">
+          <button className="dsx__tool" onClick={undo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={15} aria-hidden /></button>
+          <button className="dsx__tool" onClick={redo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo2 size={15} aria-hidden /></button>
           <button className="dsx__tool dsx__tool--primary" onClick={save}><Save size={15} aria-hidden /> Save</button>
           <div className="dsx__export">
             <button className="dsx__tool"><Download size={15} aria-hidden /> Export</button>
@@ -497,6 +592,10 @@ export default function Studio({ initial }: Props) {
         {selected.length > 0 && (
           <span className="dsx__foot-actions">
             <button className="dsx__tool" onClick={duplicate} title="Duplicate (Ctrl+D)"><Copy size={14} aria-hidden /></button>
+            <button className="dsx__tool" onClick={copyToOtherView} title={`Copy to the ${viewId === 'desktop' ? 'mobile' : 'desktop'} view — a copy, not a link`}>
+              {viewId === 'desktop' ? <Smartphone size={14} aria-hidden /> : <Monitor size={14} aria-hidden />}
+              <span>Copy to {viewId === 'desktop' ? 'mobile' : 'desktop'}</span>
+            </button>
             <button className="dsx__tool" onClick={() => patchView((v) => reorder(v, selection, 'front'))} title="Bring to front"><ArrowUp size={14} aria-hidden /></button>
             <button className="dsx__tool" onClick={() => patchView((v) => reorder(v, selection, 'back'))} title="Send to back"><ArrowDown size={14} aria-hidden /></button>
             <button className="dsx__tool" onClick={() => single && patchView((v) => updateElement(v, single.id, { hidden: !single.hidden }))} title="Hide">
@@ -511,7 +610,7 @@ export default function Studio({ initial }: Props) {
           </span>
         )}
         {status && <span className="dsx__status" role="status">{status}</span>}
-        <span className="dsx__hint">{ENTRIES.length} elements in the palette · ⌘S save · ⌘D duplicate · arrows nudge</span>
+        <span className="dsx__hint">{ENTRIES.length} elements in the palette · ⌘Z undo · ⌘S save · ⌘D duplicate · arrows nudge · / search</span>
       </footer>
     </div>
   );

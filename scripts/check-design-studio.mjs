@@ -204,6 +204,42 @@ try {
   if (listed === 1) ok('it appears in the designs list');
   else bad(`the design is not in the list (found ${listed})`);
 
+  // ── Undo, which is the feature people miss loudest when it is absent ─────────────────────────
+  //
+  // Including the property that matters most and is easiest to get wrong: a DRAG is one undo step,
+  // not sixty. An editor where Ctrl+Z rewinds a drag one pixel at a time has undo in name only.
+  const beforeUndo = await page.locator('.dsx__el').count();
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(300);
+  const afterUndo = await page.locator('.dsx__el').count();
+  if (afterUndo !== beforeUndo) ok(`undo works (${beforeUndo} → ${afterUndo} elements)`);
+  else bad('Ctrl+Z changed nothing');
+
+  await page.keyboard.press('Control+Shift+z');
+  await page.waitForTimeout(300);
+  if (await page.locator('.dsx__el').count() === beforeUndo) ok('and redo puts it back');
+  else bad('redo did not restore the element');
+
+  // One drag, then one undo, and the element must be back where it started.
+  const dragBox = await page.locator('.dsx__el').nth(1).boundingBox();
+  const posBefore = await page.evaluate(() => {
+    const el = document.querySelectorAll('.dsx__el')[1];
+    return { left: parseFloat(el.style.left), top: parseFloat(el.style.top) };
+  });
+  await dragBy(page, { x: dragBox.x + dragBox.width / 2, y: dragBox.y + dragBox.height / 2 }, 120, 80);
+  await page.waitForTimeout(250);
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(350);
+  const posAfter = await page.evaluate(() => {
+    const el = document.querySelectorAll('.dsx__el')[1];
+    return { left: parseFloat(el.style.left), top: parseFloat(el.style.top) };
+  });
+  if (posAfter.left === posBefore.left && posAfter.top === posBefore.top) {
+    ok('and one drag is ONE undo — the whole move comes back in a single step');
+  } else {
+    bad(`after one undo the element sits at ${posAfter.left},${posAfter.top}, not back at ${posBefore.left},${posBefore.top}`);
+  }
+
   // ── Export: the handoff, which is the whole point ────────────────────────────────────────────
   //
   // The owner exports these and hands them back for building. If the buttons do nothing, or the

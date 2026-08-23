@@ -151,7 +151,41 @@ export function dsPrimitiveStyles(): string {
 .ds-table th { text-align:left; padding:.6rem .75rem; background:#F7F8FC; font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; color:#8A90A2; }
 .ds-table td { padding:.6rem .75rem; border-top:1px solid #F1F2F7; }
 .ds-toolbar { display:flex; align-items:center; gap:.75rem; padding:.65rem 1rem; background:#fff; border:1px solid #E5E7EB; border-radius:10px; width:100%; height:100%; }
-.ds-missing { border:1px dashed #DC2626; color:#DC2626; display:flex; align-items:center; justify-content:center; width:100%; height:100%; font-size:20px; }`;
+.ds-missing { border:1px dashed #DC2626; color:#DC2626; display:flex; align-items:center; justify-content:center; width:100%; height:100%; font-size:20px; }
+
+/* Composed shapes the app draws per page rather than from a shared class. Each one being a studio
+ * primitive is itself a finding: four separate skeletons, a switch written twice, a banner written
+ * per page. They are catalogued here so a mockup can ask for the ONE version. */
+.ds-dialog { display:flex; flex-direction:column; gap:.6rem; width:100%; height:100%; box-shadow:0 12px 40px rgba(15,20,25,.18); }
+.ds-dialog__actions { display:flex; gap:.5rem; justify-content:flex-end; margin-top:auto; }
+.ds-dialog__actions .admin-btn { width:auto; height:auto; }
+.ds-switch { display:inline-flex; align-items:center; gap:.6rem; width:100%; height:100%; font-size:.85rem; color:#374151; cursor:pointer; }
+.ds-switch__track { position:relative; flex:none; width:40px; height:22px; border-radius:999px; background:#1D3095; }
+.ds-switch__knob { position:absolute; top:2px; left:20px; width:18px; height:18px; border-radius:50%; background:#fff; }
+.ds-avatar { display:inline-flex; align-items:center; justify-content:center; width:100%; height:100%; border-radius:50%; background:#1D3095; color:#fff; font-weight:700; font-size:.85rem; }
+.ds-file-row { display:flex; align-items:center; gap:.6rem; width:100%; height:100%; padding:0 .75rem; background:#fff; border:1px solid #E5E7EB; border-radius:8px; font-size:.85rem; }
+.ds-file-row__name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; color:#152050; }
+.ds-file-row__meta { color:#9CA3AF; font-size:.78rem; white-space:nowrap; }
+.ds-skeleton { display:flex; flex-direction:column; gap:.5rem; width:100%; height:100%; justify-content:center; }
+.ds-skeleton span { display:block; height:12px; border-radius:6px; background:linear-gradient(90deg,#EEF0F6,#F7F8FC,#EEF0F6); }
+.ds-skeleton span:nth-child(1) { width:70%; }
+.ds-skeleton span:nth-child(2) { width:92%; }
+.ds-skeleton span:nth-child(3) { width:55%; }
+.ds-banner { display:flex; align-items:center; gap:.6rem; width:100%; height:100%; padding:.75rem 1rem; background:#F7F8FC; border-left:3px solid #1D3095; border-radius:8px; font-size:.88rem; color:#374151; }
+.ds-banner__icon { font-size:1.1rem; flex:none; }
+.notif-toast { display:flex; align-items:center; width:100%; height:100%; padding:.75rem 1rem; background:#152050; color:#fff; border-radius:10px; box-shadow:0 8px 24px rgba(15,20,25,.24); font-size:.85rem; }
+.tl-tabs { display:flex; gap:.25rem; width:100%; height:100%; border-bottom:1px solid #E5E7EB; }
+.tl-tabs__btn { height:var(--button-height); padding:0 1.1rem; border:none; background:transparent; font:inherit; font-size:.9rem; font-weight:600; color:#6B7280; cursor:pointer; border-bottom:2px solid transparent; }
+.tl-tabs__btn.is-on { color:#1D3095; border-bottom-color:#1D3095; }
+.admin-page-header__crumbs { display:flex; align-items:center; gap:.35rem; width:100%; font-size:.82rem; }
+.admin-page-header__crumb { color:#1D3095; text-decoration:none; font-weight:500; }
+.admin-page-header__crumb--active { color:#6B7280; font-weight:600; }
+.admin-page-header__crumb-sep { color:#9AA1B4; }
+.job-detail__stat { display:flex; flex-direction:column; align-items:center; justify-content:center; width:100%; height:100%; text-align:center; }
+.job-detail__stat-value { font-size:1.15rem; font-weight:700; color:#1D3095; }
+.job-detail__stat-label { font-size:.7rem; color:#9CA3AF; text-transform:uppercase; letter-spacing:.03em; }
+.job-form__checkbox-label { display:flex; align-items:center; gap:.5rem; font-size:.85rem; color:#374151; }
+.job-form__section-title { margin:0 0 .75rem; font-size:.95rem; font-weight:600; color:#374151; }`;
 }
 
 /** One view as a body fragment. */
