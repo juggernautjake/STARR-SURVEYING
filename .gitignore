@@ -105,3 +105,8 @@ dev-server.log
 .audit/
 .cache/
 scripts/_tmp_map/
+
+# Design Studio raw scan output — regenerable by scripts/design-catalogue-scan.mjs (7 MB), and
+# derived from code, so it must never be the thing anybody edits or reviews. The CURATED
+# catalogue under lib/design/catalogue/curated/ is committed; this is not.
+lib/design/catalogue/raw/
