@@ -61,18 +61,21 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
     category: 'text',
     areas: ['admin'],
     label: 'Section title',
-    description: 'The heading on a card or panel. Sora, 0.9rem, navy.',
+    description: 'The heading inside a card or a form section.',
     keywords: ['section', 'title', 'heading', 'h3', 'card', 'panel'],
     synonyms: ['subheading', 'card title'],
     concepts: ['container'],
-    html: '<h3 class="pd__card-title">{{text}}</h3>',
-    classes: ['pd__card-title'],
+    html: '<h3 class="job-form__section-title">{{text}}</h3>',
+    classes: ['job-form__section-title'],
     slots: [{ name: 'text', kind: 'text', label: 'Text', default: 'Project files', stress: 'Equipment assigned to this job' }],
     props: TEXT_PROPS,
     size: { default: { w: 240, h: 22 }, resize: 'width', contentHeight: true },
     anchors: TEXT_ANCHORS,
-    source: [{ file: 'app/admin/styles/AdminProjects.css', line: 305, kind: 'css' }],
-    usage: [{ route: '/admin/projects/[id]', count: 7 }],
+    // Was cited as `.pd__card-title` — a class that does not exist. The projects card styles its
+    // heading with the descendant selector `.pd__card h3`, which is not a thing the palette can
+    // hand somebody. The drift ratchet caught it before it ever reached an export.
+    source: [{ file: 'app/admin/styles/AdminJobs.css', line: 480, kind: 'css' }],
+    usage: [{ route: '/admin/jobs/new', count: 10 }],
     contract: { minFontPx: 12 },
   }),
 
@@ -95,7 +98,9 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
     props: TEXT_PROPS,
     size: { default: { w: 420, h: 48 }, resize: 'both', contentHeight: true },
     anchors: TEXT_ANCHORS,
-    source: [{ file: 'app/styles/tokens.css', line: 1, kind: 'css', note: 'Uses the token type ramp; no component class of its own.' }],
+    // A studio primitive: the app has no reusable body-text class, so this one is defined by
+    // `dsPrimitiveStyles()` and says so rather than citing a stylesheet it is not in.
+    source: [{ file: 'lib/design/export.ts', line: 1, kind: 'tsx', note: 'dsPrimitiveStyles() — the app has no named body-text class.' }],
     contract: { minFontPx: 12 },
   }),
 
@@ -317,7 +322,7 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
     slots: [{ name: 'content', kind: 'text', label: 'Content', default: '' }],
     props: [...COMMON_PROPS, ...COLOUR_PROPS],
     size: { default: { w: 640, h: 56 }, resize: 'both' },
-    source: [{ file: 'app/admin/styles/AdminJobs.css', line: 246, kind: 'css', note: 'the pattern, generalised' }],
+    source: [{ file: 'lib/design/export.ts', line: 1, kind: 'tsx', note: 'dsPrimitiveStyles() — the toolbar pattern generalised; every page writes its own today.' }],
   }),
 
   // ── SHAPES (§4.6) ─────────────────────────────────────────────────────────────────────────────

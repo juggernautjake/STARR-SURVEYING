@@ -16,7 +16,6 @@
 //
 //   · `usageCount` is summed from `usage`, so palette ranking cannot disagree with the evidence.
 
-import { createHash } from 'node:crypto';
 import type {
   AnchorSet, AreaId, CatalogueEntry, CategoryId, PropDef, SourceRef, StateName, Slot, UsageRef,
   Variant,
@@ -91,6 +90,35 @@ export const TYPE_PROPS: PropDef[] = [
  *  disagree. */
 export const CONTROL_CONTRACT = { minTapTarget: 40, minFontPx: 12, tokenColorsOnly: true };
 
+/**
+ * A 16-character fingerprint of a string, computed in plain JavaScript.
+ *
+ * ── WHY NOT `node:crypto` ───────────────────────────────────────────────────────────────────────
+ *
+ * It was `createHash('sha256')`, and `npx tsc --noEmit` was perfectly happy with it. The PRODUCTION
+ * BUILD was not: this module reaches the browser through the palette, and webpack cannot bundle
+ * `node:crypto` — *"Reading from node:crypto is not handled by plugins"*. That is the exact shape of
+ * failure this repo has hit before (a client component pulling `@/lib/auth`, which pulls
+ * `node:async_hooks`), and the only thing that catches it is running `npm run build`.
+ *
+ * A cryptographic hash was never needed. This detects DRIFT — "the source these entries cite has
+ * changed" — where the adversary is a careless edit, not an attacker. Two FNV-1a accumulators over
+ * the same bytes give 64 bits of collision resistance, which is ample for a few hundred entries, and
+ * the function runs identically in node and in the browser.
+ */
+export function fingerprint(input: string): string {
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < input.length; i += 1) {
+    const code = input.charCodeAt(i);
+    a ^= code;
+    a = Math.imul(a, 0x01000193) >>> 0;
+    b ^= code + i;
+    b = Math.imul(b, 0x85ebca6b) >>> 0;
+  }
+  return (a.toString(16).padStart(8, '0') + b.toString(16).padStart(8, '0')).slice(0, 16);
+}
+
 export interface EntryInput {
   id: string;
   category: CategoryId;
@@ -151,6 +179,6 @@ export function defineEntry(input: EntryInput): CatalogueEntry {
     usage,
     usageCount: usage.reduce((n, u) => n + u.count, 0),
     contract: input.contract,
-    sourceHash: createHash('sha256').update(sourceKey).digest('hex').slice(0, 16),
+    sourceHash: fingerprint(sourceKey),
   };
 }
