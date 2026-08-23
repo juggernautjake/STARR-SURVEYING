@@ -25,6 +25,32 @@
 .admin-layout__main { flex:1; margin-left:260px; display:flex; flex-direction:column; min-height:100vh; transition:margin-left .3s; min-width:0; overflow-x:hidden; }
 .admin-layout__content { flex:1; padding:var(--shell-pad, 2rem); margin-top:64px; min-width:0; overflow-x:hidden; }
 
+/* ── AN ICON IN A HEADING IS PART OF THE HEADING, NOT A LINE OF ITS OWN ────────────────────────
+ *
+ * Measured on /admin/projects/[id] at 390px, 2026-08-22: the "Money" and "Project files" card
+ * headings were 32px tall instead of 17px, with the icon sitting on one line and the word on the
+ * next. Not a wrap — the icon's computed `display` is **block**.
+ *
+ * That comes from Tailwind's preflight (`app/styles/globals.css` → `@tailwind base`), which sets
+ * `svg { display: block }` on every SVG in the app. For a chart or a map that is correct. For
+ * `<h3><DollarSign /> Money</h3>` — a pattern this codebase uses in 56 places — it silently breaks
+ * the line, and it does so quietly enough that several headings carry a
+ * `style={{ verticalAlign: '-3px' }}` workaround that cannot do anything at all on a block element.
+ *
+ * Written with `:where()` so it adds NO specificity: any page rule that genuinely wants a block
+ * icon still wins without an `!important`. Scoped to `.admin-layout`, so marketing, CAD and the
+ * D&D surfaces keep whatever they do today. Restricted to text elements where an icon-only child
+ * would be strange — a heading is never just an icon, whereas a button often is, and making an
+ * icon-only button's SVG inline-block would add baseline space and change its height.
+ *
+ * `-0.14em` is the optical centre for lucide's 24px viewBox against this stack's cap height; it is
+ * what the hand-written `-3px` workarounds were reaching for at 17-22px sizes.
+ */
+:where(.admin-layout) :where(h1, h2, h3, h4, h5, h6, label, legend, summary, dt, figcaption) > svg {
+  display: inline-block;
+  vertical-align: -0.14em;
+}
+
 /* Admin sections use navy links; the global `a { color: var(--brand-red) }`
    in app/styles/globals.css is a marketing-site default that bleeds into
    admin pages otherwise. Scoped to .admin-layout so the marketing site,
@@ -518,7 +544,10 @@
  * phone: it is how a field crew opens navigation at all, and a miss costs a second tap on a screen
  * someone is holding in one hand in a truck. The icon inside stays 18px — the TARGET grows, not the
  * glyph, so nothing about the topbar's appearance changes except how easy it is to hit. */
-.admin-topbar__hamburger { display:none; align-items:center; justify-content:center; width:44px; height:44px; background:none; border:2px solid var(--theme-border, #E5E7EB); border-radius:6px; color:var(--theme-fg-secondary, #4B5563); font-size:1.25rem; cursor:pointer; }
+/* It asks for 44px and was measured at 39 wide on a phone: as a flex child it shrinks, and the
+   one control that OPENS THE NAVIGATION was the first thing squeezed when the topbar got tight.
+   `flex:none` makes the declared size the real one. */
+.admin-topbar__hamburger { display:none; flex:0 0 auto; align-items:center; justify-content:center; width:44px; height:44px; background:none; border:2px solid var(--theme-border, #E5E7EB); border-radius:6px; color:var(--theme-fg-secondary, #4B5563); font-size:1.25rem; cursor:pointer; }
 /* M1 — the hover style is now gated on a device that actually hovers.
  *
  * On iOS, a touch on an element carrying `:hover` styles can be spent APPLYING that hover rather

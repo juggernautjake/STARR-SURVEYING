@@ -502,11 +502,11 @@ export default function JobDetailPage() {
           }}
         >
           <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
-          {/* Quick jump to the consolidated per-job field captures
-              view (Batch S — points + media + notes + files in one
-              place, with bulk media-manifest download). Inline-styled
-              to avoid adding new CSS to the existing job-detail
-              stylesheet. */}
+          {/* Quick jump to the consolidated per-job field captures view (Batch S — points + media
+              + notes + files in one place, with bulk media-manifest download).
+              These were inline-styled "to avoid adding new CSS", and the cost of that was five
+              controls at five different heights in one header (35/37/37/40/29px, measured
+              2026-08-22). They share `.job-detail__action` now. */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             {/* ── FILES, WHERE SOMEBODY LOOKING FOR THEM WILL ACTUALLY LOOK (2026-08-19) ────────
                 Owner: "Please make it plain in the project/job workflow where I can quickly open up
@@ -528,18 +528,10 @@ export default function JobDetailPage() {
             </button>
             <Link
               href={`/admin/jobs/${jobId}/field`}
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--color-brand-navy)',
-                border: '1px solid var(--color-brand-navy)',
-                borderRadius: 8,
-                padding: '6px 12px',
-                textDecoration: 'none',
-              }}
+              className="job-detail__action job-detail__action--ghost"
               title="See every point + photo + voice memo + file the field crew has logged on this job, and download the media in one CSV."
             >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><MapPin size={14} strokeWidth={2} /> View field captures →</span>
+              <MapPin size={14} strokeWidth={2} aria-hidden /> View field captures →
             </Link>
             {/* job-soft-delete Slice 1 — delete with a warning; the job
                 is recoverable for 30 days from Jobs → "Deleted". */}
@@ -548,18 +540,9 @@ export default function JobDetailPage() {
               onClick={() => void handleDeleteJob()}
               disabled={deletingJob}
               title="Delete this job (recoverable for 30 days)"
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: '#B42318',
-                border: '1px solid #FCA5A5',
-                background: 'transparent',
-                borderRadius: 8,
-                padding: '6px 12px',
-                cursor: 'pointer',
-              }}
+              className="job-detail__action job-detail__action--danger"
             >
-              {deletingJob ? 'Deleting…' : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}><Trash2 size={14} strokeWidth={2} /> Delete job</span>}
+              {deletingJob ? 'Deleting…' : <><Trash2 size={14} strokeWidth={2} aria-hidden /> Delete job</>}
             </button>
           </div>
         </div>
@@ -585,7 +568,10 @@ export default function JobDetailPage() {
               {job.client_name && ` · ${job.client_name}`}
             </p>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.4rem' }}>
+          {/* Stage badge, Export PDF and the result control. A column on a laptop, a row across
+              the full width on a phone — squeezed into 115px it wrapped "Export PDF" onto two
+              lines and stood the button up 62px tall. */}
+          <div className="job-detail__header-side">
             <span className="job-detail__stage-badge" style={{ background: withAlpha(stageInfo.color, 12.55), color: stageInfo.color }}>
               {stageInfo.icon} {stageInfo.label}
             </span>
@@ -1204,18 +1190,13 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
       );
     }
     return (
+      // Was 29px tall with 11.8px type, sitting under three 35-40px controls in the same header —
+      // and under the 40px a thumb needs. The dashed border stays: it is what says "nothing has
+      // been decided yet" rather than "here is a value".
       <button
         onClick={() => setEditing(true)}
-        style={{
-          padding: '0.25rem 0.6rem',
-          background: 'transparent',
-          border: '1px dashed #D1D5DB',
-          borderRadius: 4,
-          fontSize: '0.74rem',
-          color: '#6B7280',
-          cursor: 'pointer',
-          fontFamily: 'inherit',
-        }}
+        className="job-detail__action job-detail__action--quiet"
+        style={{ borderStyle: 'dashed' }}
       >
         Mark result…
       </button>

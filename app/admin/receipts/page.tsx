@@ -747,7 +747,7 @@ export default function ReceiptsApprovalPage() {
               style={{
                 ...styles.rowViewBtn,
                 marginRight: 0,
-                height: 36,
+                height: 'var(--button-height)',
                 opacity: bulkAiBusy || receipts.length === 0 ? 0.5 : 1,
                 cursor: bulkAiBusy || receipts.length === 0 ? 'default' : 'pointer',
               }}
@@ -1988,13 +1988,22 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#666',
     gap: 4,
   },
+  /* ── THE ROW READS ONE TOKEN, NOT A HAND-PICKED 36 (2026-08-22) ─────────────────────────────
+   *
+   * Every control in this filter row carried `height: 36`, which is neither of the two heights the
+   * design system has (40 regular, 32 small). Measured against the buttons beside them the row ran
+   * 35/36/36 — close enough to look like a mistake and not close enough to look deliberate.
+   *
+   * The alignment audit of 2026-08-14 wrote down why this keeps happening: a control height that is
+   * not a token is a fix with an expiry date. Five earlier slices each wrote a literal 36 and every
+   * one of them had come apart by the time it was re-measured. */
   input: {
     padding: '8px 12px',
     borderRadius: 6,
     border: '1px solid #ccc',
     fontSize: 14,
     minWidth: 140,
-    height: 36,
+    height: 'var(--button-height)',
     boxSizing: 'border-box',
   },
   select: {
@@ -2002,7 +2011,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     border: '1px solid #ccc',
     fontSize: 14,
-    height: 36,
+    height: 'var(--button-height)',
     boxSizing: 'border-box',
   },
   // Inline checkbox + label control sized to match the buttons so
@@ -2011,7 +2020,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    height: 36,
+    height: 'var(--button-height)',
     padding: '0 4px',
     fontSize: 13,
     color: '#374151',
@@ -2023,7 +2032,12 @@ const styles: Record<string, React.CSSProperties> = {
   rowViewBtn: {
     alignSelf: 'center',
     marginRight: 12,
-    padding: '6px 12px',
+    // Measured 60×35 — the odd one out in a row that is otherwise on the 40px token.
+    height: 'var(--button-height)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    boxSizing: 'border-box',
+    padding: '0 12px',
     borderRadius: 6,
     border: '1px solid var(--color-border)',
     background: 'var(--color-surface)',
@@ -2036,7 +2050,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   refreshButton: {
     padding: '0 16px',
-    height: 36,
+    height: 'var(--button-height)',
     boxSizing: 'border-box',
     borderRadius: 6,
     border: '1px solid var(--color-brand-navy)',
@@ -2050,7 +2064,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   exportButton: {
     padding: '0 16px',
-    height: 36,
+    height: 'var(--button-height)',
     boxSizing: 'border-box',
     borderRadius: 6,
     border: '1px solid var(--color-brand-navy)',

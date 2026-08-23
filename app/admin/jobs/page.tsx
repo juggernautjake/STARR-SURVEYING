@@ -45,13 +45,17 @@ interface Job {
 // round icon-only button so it stops crashing into the stage pill.
 // Paired with `padding-right` on `.job-card__header` (AdminJobs.css)
 // that reserves room for this overlay.
+// 28×28 measured 2026-08-22, and this is the DELETE control on a job card — the one button on this
+// page where a mis-tap costs somebody thirty days of "where did that job go". 36px is the smallest
+// this can be and still be aimed at on a phone, and it stays visually quiet because it is a circle
+// on a white card rather than a filled button.
 const jobActionOverlayStyle: CSSProperties = {
   position: 'absolute',
   top: 8,
   right: 8,
   zIndex: 2,
-  width: 28,
-  height: 28,
+  width: 36,
+  height: 36,
   padding: 0,
   borderRadius: '50%',
   border: '1px solid #FCA5A5',

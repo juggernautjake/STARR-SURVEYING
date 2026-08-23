@@ -143,7 +143,8 @@
   .job-form__grid { grid-template-columns: 1fr; }
   .job-detail__overview-grid { grid-template-columns: 1fr; }
   .job-detail__financial { grid-template-columns: 1fr; }
-  .job-detail__stats { flex-wrap: wrap; gap: 0.75rem; }
+  /* Two across rather than four: at 768px four columns leave each number 40px of room. */
+  .job-detail__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
   .job-detail__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 0; }
   .job-detail__tab { white-space: nowrap; padding: 0.5rem 0.65rem; font-size: 0.8rem; }
 
@@ -571,7 +572,13 @@
   .jobs-page__list-item { grid-template-columns: 1fr; gap: 0.25rem; }
   .jobs-page__my-summary { flex-direction: column; }
   .job-detail__tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .job-detail__stats { flex-direction: column; }
+  /* Was a COLUMN here — four full-width rows, 281px of scrolling to read "1, 1, 0h, $0".
+     Two-by-two says the same thing in a quarter of the height. */
+  .job-detail__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* The header stops being two columns: the title takes the width it needs and the actions sit
+     under it in a row, rather than being crushed into a 115px gutter beside it. */
+  .job-detail__header-top { flex-wrap: wrap; gap: 0.6rem; }
+  .job-detail__header-side { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; width: 100%; }
   .job-timeline__track { gap: 0; overflow-x: auto; }
   .job-import__type-grid { grid-template-columns: repeat(2, 1fr); }
 
@@ -885,7 +892,17 @@
 @media (max-width: 480px) {
 
   /* ── Layout ── */
-  .admin-layout__content { padding: 0.5rem; }
+  /* ── ROOM TO BREATHE ON A PHONE (2026-08-22) ────────────────────────────────────────────────
+   *
+   * This was `0.5rem` — 8px between a card and the edge of the screen, at the width most of this
+   * app is actually read at (an iPhone 14/15 is 390px). Cards all but touching the bezel is what
+   * "crammed together too tightly" looks like, and it quietly overrode the density setting too:
+   * somebody who chose "spacious" still got 8px here.
+   *
+   * `--shell-pad-phone` is the density system's own answer — 12px compact, 16px comfortable, 20px
+   * spacious — so the preference now means something on a phone. The 8px it replaces bought 16px of
+   * content width, which no layout in this app was relying on. */
+  .admin-layout__content { padding: var(--shell-pad-phone, 1rem); }
 
   /* ── Dashboard ── */
   .dashboard-card__metric-value { font-size: 1rem; }
@@ -2125,12 +2142,15 @@
   }
 }
 
-/* Extra small: maximize every pixel */
+/* Extra small: maximize every pixel — but not past the point of being usable */
 @media (max-width: 380px) {
-  .admin-layout__content { padding: 0.35rem; }
+  /* 0.35rem is 5.6px: at that width the card's border and the screen edge read as the same line. */
+  .admin-layout__content { padding: 0.6rem; }
   .admin-topbar { padding: 0 0.4rem; }
   .admin-topbar__left { gap: 0.4rem; }
-  .admin-topbar__hamburger { width: 30px; height: 30px; }
+  /* 30px on the control that OPENS THE NAVIGATION, on the narrowest phones — where a mis-tap is
+     most likely and least recoverable. 40px is the floor everywhere else; it is the floor here. */
+  .admin-topbar__hamburger { width: 40px; height: 40px; }
 
   /* Card compact mode */
   .admin-card { padding: 0.75rem; border-radius: 8px; }

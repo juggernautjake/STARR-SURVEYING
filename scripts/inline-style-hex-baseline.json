@@ -94,7 +94,7 @@
   "app/admin/invoicing/page.tsx": 26,
   "app/admin/jobs/[id]/field/page.tsx": 40,
   "app/admin/jobs/[id]/JobOriginatingLead.tsx": 8,
-  "app/admin/jobs/[id]/page.tsx": 31,
+  "app/admin/jobs/[id]/page.tsx": 27,
   "app/admin/jobs/import/page.tsx": 2,
   "app/admin/jobs/new/page.tsx": 1,
   "app/admin/jobs/page.tsx": 8,

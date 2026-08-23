@@ -186,6 +186,35 @@ with the lucide line-icon nav (IconRail, sidebar, breadcrumbs, FABs).
 - Size nav/inline icons 16–18px, FAB/section icons 22–28px,
   `strokeWidth` 1.75–2.
 
+### An icon inside a heading needs no workaround (2026-08-22)
+
+`<h3><DollarSign size={15} /> Money</h3>` is the pattern this codebase uses in
+56 places, and for a long time it silently rendered the icon on its **own
+line** — the heading measured 32px tall instead of 17px. It is not a wrap:
+Tailwind's preflight (`app/styles/globals.css` → `@tailwind base`) sets
+`svg { display: block }` on every SVG in the app.
+
+That is correct for a chart or a map, and wrong for an icon sitting in a line
+of text. `AdminLayout.css` now corrects it once, for headings and the other
+text elements where an icon-only child would be strange:
+
+```css
+:where(.admin-layout) :where(h1,h2,h3,h4,h5,h6,label,legend,summary,dt,figcaption) > svg {
+  display: inline-block;
+  vertical-align: -0.14em;
+}
+```
+
+So:
+
+- **Do not** write `style={{ verticalAlign: '-3px', marginRight: '.4rem' }}`
+  on a heading icon. Several files carry that workaround; on a block element
+  it does nothing, which is why it never looked fixed.
+- **Do** use a `gap` if you make the heading a flex row — that is fine too,
+  and the rule above costs nothing when it is.
+- Outside `.admin-layout` (marketing, CAD, D&D) the preflight default still
+  applies; put the icon in a flex container there.
+
 ## Control heights — 40px is the baseline, and it is not negotiable per page
 
 > Rewritten 2026-08-14 by the admin alignment audit. **This section used to

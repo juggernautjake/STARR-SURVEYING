@@ -1,9 +1,9 @@
 {
   "_comment": [
-    "EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY used to sit here as",
-    "REPLACE_WITH_* placeholders, waiting to be filled in with real values. This repository is",
-    "PUBLIC, so filling them in would have committed them forever. EAS holds them instead — it is",
-    "also the only place a cloud build can read them from:",
+    "EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY used to sit here as placeholders,",
+    "waiting to be filled in with real values. This repository is PUBLIC, so filling them in would",
+    "have committed them forever. EAS holds them instead — it is also the only place a cloud build",
+    "can read them from:",
     "",
     "  eas env:create --name EXPO_PUBLIC_SUPABASE_URL      --value <url> --environment preview",
     "  eas env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <key> --environment preview",

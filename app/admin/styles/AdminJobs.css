@@ -123,7 +123,9 @@
   gap: 0.25rem;
 }
 .job-card__tag {
-  font-size: 0.65rem;
+  /* 0.65rem is 10.4px, under the ~12px a phone can carry at arm's length. These chips are the job's
+   * own words — "residential", "rural" — not decoration, so they are worth being able to read. */
+  font-size: 0.75rem;
   font-weight: 500;
   background: var(--color-bg-subtle);
   color: var(--color-text-tertiary);
@@ -481,14 +483,33 @@
   font-weight: 600;
   color: var(--theme-fg-secondary, #374151);
 }
+/* ── A GRID TRACK IS AS WIDE AS ITS WIDEST OPTION, UNLESS YOU SAY OTHERWISE ────────────────────
+ *
+ * Measured on a 390px phone, 2026-08-22: this grid was 332px wide and its single column computed to
+ * **551px** — the Project select and the Job Number field ran 190px off the right edge of the
+ * screen, with `.admin-layout__content` clipping them, so on a phone you could not see what project
+ * a job was going to be filed under and could not scroll to find out.
+ *
+ * The cause is not the breakpoint (that already collapses to one column). A `1fr` track is
+ * `minmax(auto, 1fr)`, and that `auto` minimum is the MIN-CONTENT of the items in it. A `<select>`
+ * reports the width of its longest `<option>` as min-content — and the options here are
+ * "P-2026-0008 — Cabaniss boundary — 41 acres…". One long project name silently sets the width of
+ * the whole form.
+ *
+ * `minmax(0, …)` on the track and `min-width: 0` on the item are the two halves of the same fix:
+ * the track stops asking the content how wide it wants to be, and the item is allowed to be
+ * narrower than its content. `min(220px, 100%)` keeps the two-column desktop layout while letting
+ * the floor collapse on a screen narrower than 220px.
+ */
 .job-form__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
   gap: 0.75rem;
 }
 .job-form__field {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .job-form__field--full {
   grid-column: 1 / -1;
@@ -509,6 +530,10 @@
   font-family: inherit;
   outline: none;
   transition: border-color 0.15s;
+  /* The second half of the fix above, and the half that survives a refactor: a control never asks
+   * for more room than the column it sits in, whatever its longest option happens to say. */
+  min-width: 0;
+  max-width: 100%;
 }
 .job-form__input:focus,
 .job-form__select:focus,
@@ -680,6 +705,13 @@
   align-items: flex-start;
   margin-top: 0.5rem;
 }
+.job-detail__header-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  min-width: 0;
+}
 .job-detail__number {
   font-size: 0.8rem;
   font-weight: 600;
@@ -704,16 +736,82 @@
   border-radius: 16px;
   white-space: nowrap;
 }
+/* ── THE STAT STRIP IS A GRID, NOT A ROW OF FLOATING NUMBERS ───────────────────────────────────
+ *
+ * Measured 2026-08-22. As a flex row these four numbers were 33px, 32px, 28px and 41px wide, all
+ * huddled against the left edge of a 1318px card — four numbers and 1200px of nothing. On a phone
+ * the same rule turned into a COLUMN: four full-width rows, 281px of scrolling for "1, 1, 0h, $0".
+ *
+ * A grid states the intent instead: equal columns, four across on a laptop and two-by-two on a
+ * phone, each number centred in its own cell. Same markup, and the reason the numbers now line up
+ * with each other is arithmetic rather than luck.
+ */
 .job-detail__stats {
-  display: flex;
-  gap: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
   margin-top: 1rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--color-bg-subtle);
 }
 .job-detail__stat {
   text-align: center;
+  min-width: 0;
 }
+
+/* ── ONE HEIGHT FOR THE HEADER'S ACTIONS ───────────────────────────────────────────────────────
+ *
+ * The three controls in this row were inline-styled — `padding: '6px 12px'` written out three
+ * times, with a comment explaining that it was done "to avoid adding new CSS". What it actually
+ * avoided was a shared height: measured at 35px, 37px and 37px next to a 40px Export PDF and a 29px
+ * result button. Five controls, five heights, in one header.
+ *
+ * So this is that CSS. `--button-height` is the token every other control in the admin uses, and
+ * with it the row lines up on both edges — and each control clears the 40px tap floor a phone
+ * needs, which the 29px one never did.
+ */
+.job-detail__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: var(--button-height, 40px);
+  padding: 0 0.9rem;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: transparent;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.job-detail__action:disabled { opacity: 0.55; cursor: not-allowed; }
+.job-detail__action--primary {
+  color: var(--color-text-on-brand, #fff);
+  background: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+}
+.job-detail__action--primary:hover:not(:disabled) { background: var(--color-brand-navy-d, #152050); }
+.job-detail__action--ghost {
+  color: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+}
+.job-detail__action--ghost:hover:not(:disabled) { background: var(--color-bg-subtle, #F3F4F6); }
+.job-detail__action--danger {
+  color: var(--color-error-text, #B42318);
+  border-color: var(--color-error-border, #FCA5A5);
+}
+.job-detail__action--danger:hover:not(:disabled) { background: var(--color-error-surface, #FEF3F2); }
+.job-detail__action--quiet {
+  color: var(--color-text-secondary, #4B5563);
+  border-color: var(--color-border, #E5E7EB);
+  background: var(--color-bg-card, #fff);
+}
+.job-detail__action--quiet:hover:not(:disabled) { border-color: var(--color-brand-navy, #1D3095); color: var(--color-brand-navy, #1D3095); }
 .job-detail__stat-value {
   display: block;
   font-size: 1.15rem;
@@ -1615,7 +1713,7 @@
   .job-detail__field-data-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .job-detail__field-data-row,
   .job-detail__field-data-row--header { min-width: 520px; }
-  .job-detail__stats { flex-wrap: wrap; gap: 1rem; }
+  .job-detail__stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
   .job-detail__tabs { gap: 0; }
   .job-detail__tab { padding: 0.5rem 0.65rem; font-size: 0.8rem; }
   .job-timeline__track { gap: 0; }
@@ -1896,9 +1994,15 @@
 .job-timeline__set {
   margin-top: 0.3rem;
   font: inherit;
-  font-size: 0.68rem;
+  /* Measured at 88×23 on 2026-08-22. Twenty-three pixels is about half of what a thumb can hit,
+   * and this is the control that MOVES A JOB TO ANOTHER STAGE — the cost of a mis-tap here is not
+   * cosmetic. `--button-height-sm` is the token for a secondary control in a dense row. */
+  min-height: var(--button-height-sm, 32px);
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
   font-weight: 600;
-  padding: 0.12rem 0.4rem;
+  padding: 0 0.55rem;
   border-radius: 999px;
   border: 1px solid var(--theme-border, #E5E7EB);
   background: var(--theme-bg-elevated, #fff);
@@ -1939,10 +2043,14 @@
 /* Files where somebody looking for them will look (2026-08-19). The Files and Photos tabs already
  * existed — as two of ten tabs, which is not the same as being findable. The count is on the button
  * because a number is what tells you whether the click is worth it. */
+/* Kept as a name because tests and markup use it; the shape now comes from `.job-detail__action`
+ * so it cannot drift away from the buttons standing next to it again. */
 .job-detail__filesbtn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
+  min-height: var(--button-height, 40px);
   font: inherit;
   font-size: 13px;
   font-weight: 600;
@@ -1950,7 +2058,7 @@
   background: var(--color-brand-navy, #1E3A5F);
   border: 1px solid var(--color-brand-navy, #1E3A5F);
   border-radius: 8px;
-  padding: 6px 12px;
+  padding: 0 0.9rem;
   cursor: pointer;
 }
 .job-detail__filesbtn:hover { background: var(--theme-brand-hover, #162470); }

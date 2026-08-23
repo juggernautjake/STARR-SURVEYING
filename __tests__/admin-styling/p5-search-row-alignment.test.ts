@@ -38,10 +38,23 @@ describe('/admin/jobs — search row width + Deleted button height', () => {
   // literal here is what let the row drift in the first place: the number changed and the intent
   // did not. The assertion is now the intent — the Deleted toggle reads the same height token as
   // the controls beside it.
+  // ── SCOPED TO THE TOGGLE'S OWN STYLE OBJECT (2026-08-22) ──────────────────────────────────────
+  //
+  // The negative assertion used to be `not.toMatch(/height:\s*36,[\s\S]*?Deleted/)` — a regex over
+  // the WHOLE FILE, which reads as "no literal 36 anywhere before the word Deleted". It went red
+  // when a different control entirely — the delete overlay on a job card — was raised from 28px to
+  // 36px to clear the tap-target floor. That is the opposite of a regression, and the test could
+  // not tell the difference because it never looked at which control it was reading.
+  //
+  // So it reads the toggle's own object now: everything between `setShowDeleted(!showDeleted)` and
+  // the end of its `style={{ … }}`. Same intent, and it can no longer be tripped by a number that
+  // belongs to something else.
   it('the Deleted toggle button takes its height from the shared token, not a literal', () => {
     const SRC = read('app/admin/jobs/page.tsx');
-    expect(SRC).toMatch(/height:\s*'var\(--button-height\)',[\s\S]*?Deleted/);
-    expect(SRC).not.toMatch(/height:\s*36,[\s\S]*?Deleted/);
+    const toggle = SRC.match(/setShowDeleted\([\s\S]{0,1500}?\}\}/);
+    expect(toggle, 'could not find the Deleted toggle button in app/admin/jobs/page.tsx').not.toBeNull();
+    expect(toggle![0]).toMatch(/height:\s*'var\(--button-height\)'/);
+    expect(toggle![0]).not.toMatch(/height:\s*\d+\s*,/);
   });
 
   it('the search row controls read the same token', () => {

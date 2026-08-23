@@ -1677,7 +1677,9 @@ const styles = `
   .fx__crumb--open:hover { text-decoration: underline; }
   .fx__crumbs { max-width: 1100px; margin: 0 auto 0.85rem; display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; font-size: 0.9rem; }
   .fx__crumb-wrap { display: inline-flex; align-items: center; gap: 0.15rem; }
-  .fx__crumb { display: inline-flex; align-items: center; gap: 0.3rem; background: none; border: none; cursor: pointer; color: #1D3095; font: inherit; font-weight: 600; padding: 0.2rem 0.35rem; border-radius: 6px; }
+  /* A breadcrumb is how you go back up, and at 29px tall it was the hardest thing on the page to
+     hit on a phone. 36px keeps the trail compact while being aimable. */
+  .fx__crumb { display: inline-flex; align-items: center; min-height: 36px; gap: 0.3rem; background: none; border: none; cursor: pointer; color: #1D3095; font: inherit; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 6px; }
   .fx__crumb:hover { background: rgba(29,48,149,0.07); }
   .fx__crumb--drop { background: rgba(29,48,149,0.16); outline: 1px dashed #1D3095; }
   .fx__crumb-sep { color: #9aa1b4; }
@@ -1707,7 +1709,9 @@ const styles = `
   .fx__col { min-width: 0; }
   .fx__check { display: inline-flex; align-items: center; }
   .fx__check input { width: 16px; height: 16px; cursor: pointer; accent-color: #1D3095; }
-  .fx__name { display: flex; align-items: center; gap: 0.6rem; min-width: 0; background: none; border: none; cursor: pointer; font: inherit; color: #152050; text-align: left; padding: 0.2rem 0; }
+  /* 257×32 measured on a phone (2026-08-22). This is the control that OPENS a file — the most
+     tapped thing on the page — and it sat under the 40px a thumb needs. The row grows with it. */
+  .fx__name { display: flex; align-items: center; gap: 0.6rem; min-width: 0; min-height: 40px; background: none; border: none; cursor: pointer; font: inherit; color: #152050; text-align: left; padding: 0.2rem 0; }
   /* F2 — was nowrap+ellipsis on one line. It now wraps a second line (the search hit path),
      so the truncation moved to the first line only via the child rule below. */
   .fx__name-text { min-width: 0; overflow: hidden; font-weight: 500; }
