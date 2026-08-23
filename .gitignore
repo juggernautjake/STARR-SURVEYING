@@ -110,3 +110,4 @@ scripts/_tmp_map/
 # derived from code, so it must never be the thing anybody edits or reviews. The CURATED
 # catalogue under lib/design/catalogue/curated/ is committed; this is not.
 lib/design/catalogue/raw/
+scripts/_tmp_*
