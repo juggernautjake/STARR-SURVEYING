@@ -169,9 +169,14 @@ export default function PageList({ onCreateFor }: Props) {
                         <Icon size={16} aria-hidden />
                       </button>
 
-                      <code className="dsx-pages__route">
+                      {/* The route text alone. A "dynamic" chip used to sit after it and escaped
+                        * the phone viewport by 27px — and it was saying twice what `[id]` in the
+                        * route already says. The tooltip carries the explanation instead. */}
+                      <code
+                        className="dsx-pages__route"
+                        title={page.dynamic ? `${page.route} — one page serving many records` : page.route}
+                      >
                         {page.route}
-                        {page.dynamic && <span className="dsx-pages__dyn" title="One page serving many records">dynamic</span>}
                       </code>
 
                       <div className="dsx-pages__actions">

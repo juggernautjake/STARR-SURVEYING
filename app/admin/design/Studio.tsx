@@ -101,6 +101,13 @@ export default function Studio({ initial }: Props) {
     return () => clearTimeout(timer);
   }, [doc]);
 
+  // Any change to the document means what is on the server is now behind.
+  const firstDoc = useRef(true);
+  useEffect(() => {
+    if (firstDoc.current) { firstDoc.current = false; return; }
+    setSaveState((s) => (s === 'saving' ? s : 'dirty'));
+  }, [doc]);
+
   // ── UNDO ─────────────────────────────────────────────────────────────────────────────────────
   //
   // Whole-document snapshots rather than a command stack with inverse operations. A design is a few
@@ -327,10 +334,12 @@ export default function Studio({ initial }: Props) {
 
   const save = useCallback(async () => {
     setStatus('Saving…');
+    setSaveState('saving');
     // Writes to the browser AND to the server, and says which of the two actually happened. A
     // studio that reports "Saved" when the upload failed is how an afternoon ends up on one laptop.
     const { value: saved, offline, message } = await pushDesign(doc);
     setDoc(saved);
+    setSaveState(offline ? 'local' : 'saved');
     setStatus(offline ? (message ?? 'Saved in this browser only.') : `Saved “${saved.name}” — v${saved.version}`);
   }, [doc]);
 
@@ -348,7 +357,22 @@ export default function Studio({ initial }: Props) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') { e.preventDefault(); duplicate(); return; }
-      if (e.key === 'Escape') { setSelection([]); return; }
+      if (e.key === 'Escape') { setSelection([]); setMode('select'); return; }
+
+      // ── Tool shortcuts ────────────────────────────────────────────────────────────────────────
+      //
+      // One key per tool, the letters every drawing program has used for thirty years. `V` and `D`
+      // switch mode; the rest pick a tool AND switch to draw mode, because reaching for a brush
+      // means you intend to draw with it.
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'v') { setMode('select'); return; }
+        const tools: Record<string, DrawTool> = {
+          d: 'freehand', p: 'freehand', l: 'line', r: 'rect', o: 'ellipse',
+          c: 'circle', g: 'fill', e: 'eraser', t: 'text',
+        };
+        if (tools[key]) { setDrawTool(tools[key]); setMode('draw'); return; }
+      }
       if (!selection.length) return;
 
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -456,6 +480,9 @@ export default function Studio({ initial }: Props) {
 
   const [showChecks, setShowChecks] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
+  /** saved | saving | dirty | local — shown next to Save, because 'did that keep?' should never
+   *  be a question somebody has to answer by reloading. */
+  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'dirty' | 'local'>('saved');
   const [dismissing, setDismissing] = useState<string | null>(null);
   const [reason, setReason] = useState('');
 
@@ -676,7 +703,22 @@ export default function Studio({ initial }: Props) {
         <div className="dsx__actions">
           <button className="dsx__tool" onClick={undo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={15} aria-hidden /></button>
           <button className="dsx__tool" onClick={redo} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Redo2 size={15} aria-hidden /></button>
-          <button className="dsx__tool dsx__tool--primary" onClick={save}><Save size={15} aria-hidden /> Save</button>
+          {/* The save state is next to the button, not in the transient status line: "did that
+            * keep?" must be answerable by looking, at any moment, not only in the two seconds
+            * after a toast. */}
+          <span className={`dsx__save-state is-${saveState}`} role="status">
+            {saveState === 'saved' && 'Saved'}
+            {saveState === 'saving' && 'Saving…'}
+            {saveState === 'dirty' && 'Unsaved changes'}
+            {saveState === 'local' && 'This browser only'}
+          </span>
+          <button
+            className="dsx__tool dsx__tool--primary"
+            onClick={save}
+            title="Save to the server (Ctrl+S) — the drawing, the notes, both views and the layer order"
+          >
+            <Save size={15} aria-hidden /> Save
+          </button>
           <div className="dsx__export">
             <button className="dsx__tool"><Download size={15} aria-hidden /> Export</button>
             <div className="dsx__menu">

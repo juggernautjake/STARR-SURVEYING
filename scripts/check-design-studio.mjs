@@ -369,8 +369,14 @@ try {
   // ── Clean up: delete it ──────────────────────────────────────────────────────────────────────
   page.once('dialog', (d) => void d.accept());
   await page.locator('.dsx-home__card', { hasText: name }).locator('button.is-danger').click();
-  await page.waitForTimeout(300);
-  if (await page.locator('.dsx-home__card', { hasText: name }).count() === 0) ok('and it can be deleted');
+  // Deleting now refreshes TWO data sources — the designs list and the page walkthrough, which
+  // shows each route's designs — so the row does not disappear within 300ms any more. Waiting for
+  // the row to go rather than for a fixed time is right regardless of how many fetches it grows to.
+  const gone = await page.locator('.dsx-home__card', { hasText: name })
+    .waitFor({ state: 'detached', timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  if (gone) ok('and it can be deleted');
   else bad('deleting the design did not remove it from the list');
 
   console.log(`\n  (editor URL was ${url})`);

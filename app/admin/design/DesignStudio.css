@@ -426,7 +426,7 @@
 .dsx-home__card-meta span { display: inline-flex; align-items: center; gap: 0.25rem; }
 .dsx-home__card-counts { display: flex; gap: 0.5rem; margin: 0; font-size: 0.75rem; color: var(--color-text-muted, #9CA3AF); }
 .dsx-home__card-actions { display: flex; flex-direction: column; justify-content: center; gap: 0.3rem; padding: 0.5rem; border-left: 1px solid #F1F2F7; }
-.dsx-home__card-actions button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; background: var(--theme-bg-surface, #fff); cursor: pointer; color: var(--color-text-secondary, #374151); }
+.dsx-home__card-actions button { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; background: var(--theme-bg-surface, #fff); cursor: pointer; color: var(--color-text-secondary, #374151); }
 .dsx-home__card-actions button.is-danger { color: var(--theme-danger, #B42318); border-color: #FCA5A5; }
 
 .dsx-home__empty { font-size: 0.85rem; color: var(--color-text-tertiary, #6B7280); }
@@ -443,11 +443,34 @@
 }
 
 @media (max-width: 860px) {
-  /* The studio is a desktop tool — designing a page on a phone is not a thing anybody does — but it
-   * must degrade to something legible rather than a broken three-column squeeze. */
+  /* ── The editor ON a phone ───────────────────────────────────────────────────────────────────
+   *
+   * Designing a page on a phone is not a thing anybody does, and pretending otherwise produces a
+   * three-column squeeze where no column is usable. So the panels stack, and — the part that
+   * matters — the CANVAS keeps the room. A stacked layout that gives the palette and the inspector
+   * 240px each leaves the artboard a letterbox, which is the one thing that must stay visible.
+   *
+   * The mobile ARTBOARD (designing a phone layout) is a different thing entirely and works at any
+   * screen size: that is `.dsx__artboard--phone` above. */
   .dsx__body { flex-direction: column; }
-  .dsx-pal, .dsx-ins { width: auto; max-height: 240px; border: none; border-bottom: 1px solid var(--color-border, #E5E7EB); }
-  .dsx__canvas { padding: 12px; }
+  .dsx-pal, .dsx-ins { width: auto; max-height: 34vh; border: none; border-bottom: 1px solid var(--color-border, #E5E7EB); }
+  .dsx__right { max-height: 34vh; }
+  .dsx-lay { max-height: none; }
+  .dsx__canvas { padding: 12px; min-height: 45vh; }
+
+  /* The toolbar is the first thing that breaks: fourteen controls do not fit 390px. Scroll it
+   * sideways rather than stacking it into six rows that push the canvas off screen. */
+  .dsx__bar { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; }
+  .dsx__bar > * { flex: none; }
+  .dsx__name { flex: 0 0 150px; }
+  .dsx__route { flex: 0 0 120px; }
+  .dsx__actions { margin-left: 0; }
+  .dsx__draw-tools { flex-wrap: nowrap; overflow-x: auto; }
+
+  /* The page walkthrough is genuinely useful on a phone — ticking pages off while looking at them
+   * on the device is the workflow — so its row keeps its shape rather than collapsing. */
+  .dsx-pages__row { grid-template-columns: 40px minmax(0, 1fr); }
+  .dsx-pages__actions { grid-column: 2; justify-content: flex-start; padding-bottom: 0.3rem; }
 }
 
 /* ── The emoji and symbol pickers ─────────────────────────────────────────────────────────────────
@@ -776,7 +799,7 @@
 .dsx-pages__list { list-style: none; margin: 0 0 0.5rem; padding: 0; }
 .dsx-pages__row {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.5rem;
   padding: 0.2rem 0;
@@ -784,25 +807,29 @@
 }
 .dsx-pages__row.is-done .dsx-pages__route { color: var(--color-text-muted, #9CA3AF); text-decoration: line-through; }
 .dsx-pages__row.is-skipped { opacity: 0.55; }
-.dsx-pages__status { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: none; cursor: pointer; color: var(--color-text-muted, #9CA3AF); border-radius: 6px; }
-.dsx-pages__row.is-in_progress .dsx-pages__status { color: #B45309; }
-.dsx-pages__row.is-done .dsx-pages__status { color: #047857; }
+/* 40px, because this is the control the whole walkthrough is clicked through and the app holds
+ * every control to that floor — including, it turns out, the ones inside the tool that enforces it.
+ * ui-fit-sweep flagged this list at 28x28 and 10.9px, which is the studio failing its own contract. */
+.dsx-pages__status { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: none; background: none; cursor: pointer; color: var(--color-text-muted, #9CA3AF); border-radius: 6px; }
+.dsx-pages__row.is-in_progress .dsx-pages__status { color: var(--theme-warning, #B45309); }
+.dsx-pages__row.is-done .dsx-pages__status { color: var(--theme-success, #047857); }
 .dsx-pages__status:hover { background: var(--theme-bg-page, #EEF0F6); }
 .dsx-pages__route { font-family: 'SF Mono', ui-monospace, monospace; font-size: 0.78rem; color: var(--color-text-secondary, #374151); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dsx-pages__dyn { margin-left: 0.4rem; padding: 1px 5px; border-radius: 4px; background: var(--theme-bg-page, #EEF0F6); font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 600; color: var(--color-text-muted, #9CA3AF); }
+.dsx-pages__dyn { margin-left: 0.4rem; padding: 2px 6px; border-radius: 4px; background: var(--theme-bg-page, #EEF0F6); font-family: 'Inter', sans-serif; font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #9CA3AF); }
 .dsx-pages__actions { display: inline-flex; align-items: center; gap: 0.3rem; }
-.dsx-pages__design { font-size: 0.75rem; font-weight: 600; color: var(--color-brand-navy, #1D3095); text-decoration: none; padding: 0.2rem 0.45rem; border-radius: 6px; background: rgba(29, 48, 149, 0.08); max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsx-pages__design { font-size: 0.78rem; min-height: 40px; display: inline-flex; align-items: center; font-weight: 600; color: var(--color-brand-navy, #1D3095); text-decoration: none; padding: 0.2rem 0.45rem; border-radius: 6px; background: rgba(29, 48, 149, 0.08); max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dsx-pages__create, .dsx-pages__note-btn, .dsx-pages__open {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 26px;
-  padding: 0 0.45rem;
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 0.7rem;
   border: 1px solid var(--color-border, #E5E7EB);
   border-radius: 6px;
   background: var(--theme-bg-surface, #fff);
   font: inherit;
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--color-text-tertiary, #6B7280);
   cursor: pointer;
@@ -818,3 +845,9 @@
 .dsx__notes-head span { color: var(--color-text-tertiary, #6B7280); font-size: 0.75rem; }
 .dsx__notes-head button { margin-left: auto; }
 .dsx__notes-body { width: calc(100% - 1.6rem); margin: 0 0.8rem 0.7rem; min-height: 92px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; padding: 0.5rem 0.65rem; font: inherit; font-size: 0.84rem; line-height: 1.5; resize: vertical; }
+
+/* The save state, beside the button rather than in the transient status line. */
+.dsx__save-state { font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #9CA3AF); padding: 0 0.2rem; white-space: nowrap; }
+.dsx__save-state.is-dirty { color: var(--theme-warning, #B45309); }
+.dsx__save-state.is-saving { color: var(--color-text-tertiary, #6B7280); }
+.dsx__save-state.is-local { color: var(--theme-danger, #B42318); }

@@ -92,24 +92,24 @@ the default must be that size.
 
 ### Phase A — Element fidelity *(complaints 1 and 3)*
 
-- [ ] **A1 — Never let an element position itself.** `position: static` on everything inside
+- [x] **A1 — Never let an element position itself.** `position: static` on everything inside
       `.dsx__el-inner`, in the studio CSS *and* in `baseStylesheet()`. Assert it: place a Toast,
       confirm its box is inside the artboard.
-- [ ] **A2 — Honour `contentHeight`.** Wrapper height auto for those entries; the inner element
+- [x] **A2 — Honour `contentHeight`.** Wrapper height auto for those entries; the inner element
       takes its natural height. `positionStyle` stops emitting a fixed height for them, so the
       export matches.
-- [ ] **A3 — Correct every default size to the measured natural size** where the element has one
+- [x] **A3 — Correct every default size to the measured natural size** where the element has one
       true size (avatar, pin, toolbar row, chip, switch, checkbox). Re-measure to prove it.
-- [ ] **A4 — Fix the real escapes** (`button.icon`, `text.caption`).
-- [ ] **A5 — Fix the measurement's own false positives** (§1e) so the check is worth running.
-- [ ] **A6 — A "100%" zoom that means actual size**, stated in the UI, plus a one-click "actual
+- [x] **A4 — Fix the real escapes** (`button.icon`, `text.caption`).
+- [x] **A5 — Fix the measurement's own false positives** (§1e) so the check is worth running.
+- [x] **A6 — A "100%" zoom that means actual size**, stated in the UI, plus a one-click "actual
       size" control. Scale fidelity nobody can verify is scale fidelity nobody trusts.
 
 ### Phase B — The catalogue is complete, named, tagged and searchable *(complaint 7)*
 
-- [ ] **B1 — Every category tab populated.** Sixteen categories exist; any tab that opens empty is
+- [x] **B1 — Every category tab populated.** Sixteen categories exist; any tab that opens empty is
       a promise the palette does not keep. Audit each, curate what is missing.
-- [ ] **B2 — Every entry has real keywords, synonyms and concepts**, asserted by a test rather
+- [x] **B2 — Every entry has real keywords, synonyms and concepts**, asserted by a test rather
       than by inspection — an entry with three keywords is unfindable and nothing currently says so.
 - [ ] **B3 — Close the top of the coverage queue.** The sweep's ranked list is the work order.
 - [ ] **B4 — Every entry is representative**: a screenshot-diff style check that an entry rendered
@@ -117,79 +117,79 @@ the default must be that size.
 
 ### Phase C — The page checklist *(complaint 2)*
 
-- [ ] **C1 — An inventory of every page, frontend and backend.** The admin registry is 133 routes;
+- [x] **C1 — An inventory of every page, frontend and backend.** The admin registry is 133 routes;
       the public site, customer portal and auth surfaces are not in it and must be enumerated too.
-- [ ] **C2 — A review status per page** — `not started` / `in progress` / `done`, with a note and
+- [x] **C2 — A review status per page** — `not started` / `in progress` / `done`, with a note and
       who changed it. Stored server-side so it is the same list on every machine.
-- [ ] **C3 — Surface it in the editor**: pick a page, see its status, open or create its design,
+- [x] **C3 — Surface it in the editor**: pick a page, see its status, open or create its design,
       tick it off. This is the owner's stated workflow, so it is the shape of the screen.
-- [ ] **C4 — Progress that is honest**: "37 of 168 done" on the designs list.
+- [x] **C4 — Progress that is honest**: "37 of 168 done" on the designs list.
 
 ### Phase D — Drawing *(complaint 4)*
 
-- [ ] **D1 — A drawing layer per view.** Raster, because a fill bucket on "closed drawings" means
+- [x] **D1 — A drawing layer per view.** Raster, because a fill bucket on "closed drawings" means
       flood fill, and flood fill is a pixel operation. Vector shapes stay as elements; this is the
       sketch layer over them. Round-trips through save, export and PNG capture.
-- [ ] **D2 — Tools**: freehand, straight line, rectangle (sharp and rounded), square, ellipse,
+- [x] **D2 — Tools**: freehand, straight line, rectangle (sharp and rounded), square, ellipse,
       circle. Shift constrains. Corner radius adjustable before and while drawing.
-- [ ] **D3 — Fill bucket** — scanline flood fill with tolerance, so an almost-closed shape still
+- [x] **D3 — Fill bucket** — scanline flood fill with tolerance, so an almost-closed shape still
       fills rather than flooding the whole canvas.
-- [ ] **D4 — Line width and colour**, plus eraser and clear.
-- [ ] **D5 — Text on the drawing layer**: click to place, type, edit, move, size, colour.
-- [ ] **D6 — Undo that includes drawing**, in the same history as everything else.
+- [x] **D4 — Line width and colour**, plus eraser and clear.
+- [x] **D5 — Text on the drawing layer**: click to place, type, edit, move, size, colour.
+- [x] **D6 — Undo that includes drawing**, in the same history as everything else.
 
 ### Phase I — Layers *(complaint 12)*
 
-- [ ] **I1 — Four moves, on everything**: forward one, back one, to front, to back. `reorder()`
+- [x] **I1 — Four moves, on everything**: forward one, back one, to front, to back. `reorder()`
       already implements all four and only two are reachable from the UI.
-- [ ] **I2 — A layers panel** listing every element top-to-bottom, showing which is selected, with
+- [x] **I2 — A layers panel** listing every element top-to-bottom, showing which is selected, with
       drag-to-reorder, hide and lock. This is also the answer to selecting something buried under a
       full-width card, which the import makes common.
-- [ ] **I3 — Drawing and text obey the same order.** The drawing layer is one entry in the layer
+- [x] **I3 — Drawing and text obey the same order.** The drawing layer is one entry in the layer
       list, not a special case pinned above or below everything.
-- [ ] **I4 — Real time**: reordering repaints as it happens, no save step.
+- [x] **I4 — Real time**: reordering repaints as it happens, no save step.
 
 ### Phase J — Nothing is ever lost *(complaint 13)*
 
-- [ ] **J1 — Everything new round-trips**: the drawing layer, page notes, layer order and flags all
+- [x] **J1 — Everything new round-trips**: the drawing layer, page notes, layer order and flags all
       save to the server and come back. Proven by opening in a second browser with empty storage,
       the way persistence was proven the first time.
-- [ ] **J2 — Autosave covers the drawing layer**, which is the easiest thing to lose and the most
+- [x] **J2 — Autosave covers the drawing layer**, which is the easiest thing to lose and the most
       annoying to redo.
 - [ ] **J3 — A visible save state**: saved / saving / saved-here-only, so "did that keep?" is never
       a question.
 
 ### Phase E — The studio's own UI *(complaint 5)*
 
-- [ ] **E1 — A toolbar that is readable.** It is one long row of equal-weight buttons; group it by
+- [x] **E1 — A toolbar that is readable.** It is one long row of equal-weight buttons; group it by
       what the groups are for, and give the primary action primacy.
-- [ ] **E2 — Alignment and rhythm** across the three panels: consistent control heights, one
+- [x] **E2 — Alignment and rhythm** across the three panels: consistent control heights, one
       spacing scale, labels that line up.
 - [ ] **E3 — Keyboard and affordances**: tool shortcuts, visible active tool, cursor per tool.
-- [ ] **E4 — Measure it with `ui-fit-sweep`** at 1440 and 390 and fix what the numbers say.
+- [x] **E4 — Measure it with `ui-fit-sweep`** at 1440 and 390 and fix what the numbers say.
 
 ### Phase F — Mobile *(complaint 6)*
 
-- [ ] **F1 — The mobile ARTBOARD is honest**: 390×844, safe areas, fold line, and elements that
+- [x] **F1 — The mobile ARTBOARD is honest**: 390×844, safe areas, fold line, and elements that
       wrap the way a phone wraps.
-- [ ] **F2 — The studio ON a phone**: the three-panel editor at 390px wide is not usable as three
+- [x] **F2 — The studio ON a phone**: the three-panel editor at 390px wide is not usable as three
       panels. Decide and build the phone layout for the editor itself.
 - [ ] **F3 — Mobile export**: the phone HTML file opens at phone width and looks like the artboard.
 
 ### Phase G — Export and capture *(complaint 7)*
 
-- [ ] **G1 — Every export path verified end to end** on a real design: PNG, SVG, both HTML forms,
+- [x] **G1 — Every export path verified end to end** on a real design: PNG, SVG, both HTML forms,
       the CSS pair, `design.json`, `PROMPT.md`, `PUNCHLIST.md`.
 - [ ] **G2 — The PNG is faithful** — the capture draws SVG primitives, so anything it cannot draw
       is a silent omission. Enumerate what is dropped and say so in the UI.
-- [ ] **G3 — The HTML file stands up alone**: opened from `file://`, no network, looks like the
+- [x] **G3 — The HTML file stands up alone**: opened from `file://`, no network, looks like the
       canvas.
 
 ### Phase H — The audit
 
-- [ ] **H1 — Drag and drop every single entry** onto both artboards and confirm each places, edits,
+- [x] **H1 — Drag and drop every single entry** onto both artboards and confirm each places, edits,
       moves, resizes, exports.
-- [ ] **H2 — Full suite, build, all five check scripts, `ui-fit-sweep`.**
+- [x] **H2 — Full suite, build, all five check scripts, `ui-fit-sweep`.**
 - [ ] **H3 — Merge to main.**
 
 ---
