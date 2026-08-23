@@ -205,3 +205,33 @@ describe('the catalogue the search runs over', () => {
     }
   });
 });
+
+// ── PRECISION, WHICH IS AS MUCH THE JOB AS RECALL (2026-08-23) ─────────────────────────────────
+//
+// A screenshot of the palette caught this: searching "sticky" returned the empty state, the card
+// and the page button. Their DESCRIPTIONS contain "border", "box" and "radius", which are all in
+// the `shape` concept — and every entry is three sentences away from every concept, so expanding
+// through prose matched nearly everything. A search that returns everything has not helped anybody.
+describe('search precision', () => {
+  it('does not drag in unrelated entries through their prose', () => {
+    const found = ids(search(index, 'sticky'));
+    expect(found).toContain('shape.sticky');
+    expect(found).not.toContain('feedback.empty');
+    expect(found).not.toContain('card.basic');
+    expect(found).not.toContain('button.page');
+  });
+
+  it('still reaches the right things through chosen keywords', () => {
+    // `deadline` is a keyword on the date field, not its label; `due` is only in the concept.
+    expect(ids(search(index, 'deadline'))).toContain('input.date');
+    expect(ids(search(index, 'due'))).toContain('input.date');
+  });
+
+  it('keeps every result explainable', () => {
+    for (const term of ['date', 'button', 'empty', 'table', 'rectangle']) {
+      for (const hit of search(index, term)) {
+        expect(hit.reasons.length, `"${term}" → ${hit.entry.id} with no reason`).toBeGreaterThan(0);
+      }
+    }
+  });
+});

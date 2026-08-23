@@ -177,12 +177,20 @@ export const CONCEPTS: Concept[] = [
     ],
   },
   {
+    // ── A CONCEPT IS WHAT A THING IS, NOT WHAT PROPERTIES IT HAS (narrowed 2026-08-23) ─────────
+    //
+    // This list used to include `box`, `border`, `fill`, `stroke`, `outline`, `corner`, `radius`
+    // and `rounded`. Every one of those is a PROPERTY that half the catalogue has — a card's
+    // keywords say "box", a button's say "border" — so searching "sticky" returned the card, the
+    // empty state and the page button, all of them through a shared word about styling rather than
+    // about what the thing is. A concept that most entries belong to cannot discriminate, and a
+    // search that returns everything has not helped anybody.
     id: 'shape',
     label: 'Shapes & annotation',
     terms: [
       'shape', 'rectangle', 'rect', 'square', 'circle', 'ellipse', 'oval', 'line', 'arrow',
-      'triangle', 'polygon', 'callout', 'bubble', 'sticky', 'annotation', 'note', 'highlight',
-      'box', 'outline', 'divider', 'corner', 'radius', 'rounded', 'fill', 'stroke', 'border',
+      'triangle', 'polygon', 'callout', 'bubble', 'sticky', 'annotation', 'highlight', 'draw',
+      'sketch', 'diagram', 'marker',
     ],
   },
 ];

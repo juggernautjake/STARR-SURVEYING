@@ -197,14 +197,26 @@ function scoreTerm(item: Indexed, term: string): { score: number; reason?: strin
       return { score: WEIGHT.concept, reason: `concept ${CONCEPT_BY_ID[conceptId]?.label ?? conceptId}` };
     }
   }
-  // Or: a word in the entry belongs to the same concept as the term. This is what makes `date` find
-  // an entry whose keywords say "calendar" without either word appearing in the other.
+  // Or: a word in the entry's OWN VOCABULARY belongs to the same concept as the term. This is what
+  // makes `date` find an entry whose keywords say "calendar" without either word appearing in the
+  // other.
+  //
+  // ── WHY THIS READS KEYWORDS AND NOT THE DESCRIPTION (fixed 2026-08-23) ──────────────────────
+  //
+  // It used to search every word anywhere in the entry, including its prose description. Searching
+  // "sticky" then returned the empty state, the card and the page button — because their
+  // descriptions happen to contain "border", "box" and "radius", which are all members of the
+  // `shape` concept, as is "sticky". Every entry is three sentences away from every concept, so
+  // that path matched almost everything and the results read as noise.
+  //
+  // Keywords and the label are chosen; a description is written. Only the chosen words expand.
   const termConcepts = new Set(conceptsForTerm(term));
   if (termConcepts.size) {
-    for (const word of item.all) {
-      if (conceptsForTerm(word).some((c) => termConcepts.has(c))) {
-        const shared = conceptsForTerm(word).find((c) => termConcepts.has(c))!;
-        return { score: WEIGHT.concept - 2, reason: `concept ${CONCEPT_BY_ID[shared]?.label ?? shared} (via "${word}")` };
+    const chosen = [...item.labelWords, ...[...item.keywords].flatMap(words), ...[...item.synonyms].flatMap(words)];
+    for (const word of chosen) {
+      const shared = conceptsForTerm(word).find((c) => termConcepts.has(c));
+      if (shared) {
+        return { score: WEIGHT.concept - 2, reason: `concept ${CONCEPT_BY_ID[shared]?.label ?? shared} (via “${word}”)` };
       }
     }
   }

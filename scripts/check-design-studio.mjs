@@ -17,6 +17,7 @@
 
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
+import { readFileSync } from 'node:fs';
 
 const arg = (f) => {
   const i = process.argv.indexOf(f);
@@ -202,6 +203,59 @@ try {
   const listed = await page.locator('.dsx-home__card', { hasText: name }).count();
   if (listed === 1) ok('it appears in the designs list');
   else bad(`the design is not in the list (found ${listed})`);
+
+  // ── Export: the handoff, which is the whole point ────────────────────────────────────────────
+  //
+  // The owner exports these and hands them back for building. If the buttons do nothing, or the
+  // spec comes out without the app's real class names in it, the tool has failed at the only job
+  // that matters — and nothing in the unit tests would notice.
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.dsx__artboard', { timeout: 30_000 });
+  await page.waitForTimeout(500);
+
+  const downloads = [];
+  page.on('download', (d) => downloads.push(d));
+
+  const exportVia = async (label) => {
+    downloads.length = 0;
+    await page.hover('.dsx__export');
+    await page.waitForTimeout(250);
+    await page.click(`text=${label}`);
+    await page.waitForTimeout(2500);
+    return downloads.map((d) => d.suggestedFilename());
+  };
+
+  const specFiles = await exportVia('Spec for Claude (JSON + brief)');
+  if (specFiles.length >= 2) ok(`the spec exports (${specFiles.join(', ')})`);
+  else bad(`exporting the spec produced ${specFiles.length} file(s), expected 2`);
+
+  const specDownload = downloads.find((d) => d.suggestedFilename().endsWith('.json'));
+  if (specDownload) {
+    const spec = JSON.parse(readFileSync(await specDownload.path(), 'utf8'));
+    const desktop = spec.views?.desktop?.elements ?? [];
+    if (desktop.length) ok(`the spec lists ${desktop.length} desktop element(s)`);
+    else bad('the spec has no desktop elements in it');
+
+    const named = desktop.filter((e) => e.classes?.length);
+    if (named.length) ok(`and ${named.length} name the app's real classes — e.g. .${named[0].classes[0]}`);
+    else bad('no element in the spec names a real class; the export cannot say what to build with');
+
+    if (spec.views?.mobile) ok('and both views are in the one file');
+    else bad('the spec is missing the mobile view');
+  }
+
+  const htmlFiles = await exportVia('HTML + CSS files');
+  const htmlCount = htmlFiles.filter((f) => f.endsWith('.html')).length;
+  const cssCount = htmlFiles.filter((f) => f.endsWith('.css')).length;
+  if (htmlCount >= 2 && cssCount >= 1) ok(`HTML exports (${htmlCount} html + ${cssCount} css)`);
+  else bad(`HTML export produced ${htmlCount} html and ${cssCount} css files`);
+
+  const pngFiles = await exportVia('Image (PNG) of this view');
+  if (pngFiles.some((f) => f.endsWith('.png'))) ok('and the canvas captures to a PNG');
+  else bad('the PNG export produced nothing — the capture is failing');
+
+  await page.goto(`${BASE}/admin/design`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(500);
 
   // ── Clean up: delete it ──────────────────────────────────────────────────────────────────────
   page.once('dialog', (d) => void d.accept());

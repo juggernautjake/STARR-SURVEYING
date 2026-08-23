@@ -897,28 +897,28 @@ palette curated without ever having used the tool would be curated wrong. So a w
 ships first: a real route, a real canvas, a small real palette, and a real export. Everything after
 it deepens something you can already open.
 
-- [ ] **W1 — The route.** `/admin/design` and `/admin/design/[id]`, admin+developer gate, registry
+- [x] **W1 — The route.** Done — /admin/design + /admin/design/[id], registry entry under Office (admin+developer), designs list with search. `/admin/design` and `/admin/design/[id]`, admin+developer gate, registry
       entry, flag. Empty state that explains the tool.
-- [ ] **W2 — The artboards.** Desktop and mobile as independent canvases (§3.2), iframe-isolated,
+- [x] **W2 — The artboards.** Done — two independent views, scrolling with fold lines, zoom 25-200%, phone safe areas. No iframe (see Studio.tsx for why). Desktop and mobile as independent canvases (§3.2), iframe-isolated,
       scrolling with fold lines, zoom and pan, safe areas on the phone.
-- [ ] **W3 — Grid, snap, drop.** Grid on/off, size control, snapping with anchors, drag from palette
+- [x] **W3 — Grid, snap, drop.** Done — grid on/off, 4-48px, snap independent of the grid being drawn, nine anchors, smart guides, drag/click to place, move, resize, nudge, delete, duplicate, z-order, lock, hide. Grid on/off, size control, snapping with anchors, drag from palette
       to artboard, select, move, resize, nudge, delete.
-- [ ] **W4 — A starter palette.** The first curated categories (buttons, text, inputs, layout,
+- [x] **W4 — A starter palette.** Done — 21 entries across buttons, text, inputs, pickers, tags, toggles, cards, tables, nav, feedback, layout and shapes, with the search over them. The first curated categories (buttons, text, inputs, layout,
       shapes) — enough to lay out a real page — with the search box working over them.
-- [ ] **W5 — Save and reopen.** Name a design, save it, list it, open it, keep working. Autosave and
+- [x] **W5 — Save and reopen.** Done — name, save, list, open, autosave draft with recovery, duplicate as a variant, delete. Name a design, save it, list it, open it, keep working. Autosave and
       crash recovery.
-- [ ] **W6 — Export.** PNG of each view, HTML per view, `design.json`. This closes the owner's loop
+- [x] **W6 — Export.** Done — PNG per view, standalone HTML per view + a combined one + an html/css pair, design.json naming real classes, PROMPT.md brief. PNG of each view, HTML per view, `design.json`. This closes the owner's loop
       end to end: design both views, export, hand back for building.
 
 ### Phase 1 — The catalogue *(the depth behind W4)*
 
-- [ ] **C1 — Scanner.** `scripts/design-catalogue-scan.mjs`: CSS rules, JSX usage, inline styles,
+- [x] **C1 — Scanner.** Done — scripts/design-catalogue-scan.mjs over the whole site: 96 stylesheets, 983 components, 18,005 CSS rules, 7,924 inline style sites. `scripts/design-catalogue-scan.mjs`: CSS rules, JSX usage, inline styles,
       styled-jsx, all with provenance. Emits `lib/design/catalogue/raw/*.json`. Unit tests for the
       parsers, including the inline-style walker (the brace-matching lesson from
       `scan-inline-style-hex.ts` applies directly).
-- [ ] **C2 — Reports.** Repetition, divergence and orphan reports (§14) from the raw scan.
+- [x] **C2 — Reports.** Done — scripts/design-catalogue-report.mjs writes the punch list: 240 repeated shapes, 189 divergences, 1,330 orphans, 59 literal control heights. Repetition, divergence and orphan reports (§14) from the raw scan.
       `npm run design:catalogue -- --report`.
-- [ ] **C3 — Schema + taxonomy.** `lib/design/catalogue/types.ts`, the fifteen categories, the
+- [x] **C3 — Schema + taxonomy.** Done — types, sixteen categories, defineEntry with computed provenance, curation exclusions with reasons. `lib/design/catalogue/types.ts`, the fifteen categories, the
       curation file layout, and the coverage reporter.
 - [ ] **C4 — Curate: Buttons, Inputs, Selects, Toggles.** The four highest-traffic categories.
 - [ ] **C5 — Curate: Text, Tags & badges, Cards & panels.**
@@ -931,10 +931,10 @@ it deepens something you can already open.
 - [ ] **C8b — Shapes & annotation primitives (§4.6).** The eleven primitives, their inspector
       sections (fill, stroke, per-corner radius, rotation, opacity, shadow, flip), labels inside
       shapes, and the annotation-layer split that keeps arrows out of the build spec.
-- [ ] **C8c — Tag vocabularies.** `keywords`, `synonyms` and `concepts` on every curated entry, and
+- [x] **C8c — Tag vocabularies.** Done — keywords/synonyms/concepts on every entry, seventeen concept groups. `keywords`, `synonyms` and `concepts` on every curated entry, and
       `lib/design/search/concepts.ts` — the seventeen concept groups of §4.7, each with its full
       expansion set.
-- [ ] **C8d — The search engine.** `lib/design/search/index.ts`: inverted index generation, the
+- [x] **C8d — The search engine.** Done — tiers, weights, usage boost, fuzzy, filters, never-a-dead-end fallback. The owner acceptance test passes, and a precision regression (searching "sticky" returning cards) was caught from a screenshot and fixed by narrowing the shape concept. `lib/design/search/index.ts`: inverted index generation, the
       match tiers, field weights, usage boost, fuzzy matching, filter syntax, and the never-a-dead-
       end fallback. Pure and unit-tested. **Acceptance: typing `date` returns the date input, the
       range picker, the calendar grid, the deadline chip, the schedule row, the timer pill and the
@@ -944,7 +944,7 @@ it deepens something you can already open.
       a catalogue entry; file the gaps. This is the "go through each and every page" pass, and it is
       done *last* so it checks the catalogue rather than building it. Output: a coverage table, one
       row per route, and a gap list.
-- [ ] **C10 — Drift ratchet.** `__tests__/design/catalogue-drift.test.ts`, plus a coverage floor so
+- [x] **C10 — Drift ratchet.** Done — citations must resolve to a real file, a real line, and the class they claim. It failed on three of its author's own entries the first time it ran. `__tests__/design/catalogue-drift.test.ts`, plus a coverage floor so
       the number of catalogued elements can never silently go down.
 
 ### Phase 2 — Canvas

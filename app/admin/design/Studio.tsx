@@ -285,9 +285,15 @@ export default function Studio({ initial }: Props) {
       setStatus('Rendering image…');
       const node = artboardRef.current;
       if (!node) return;
-      const blob = await captureArtboard(node, view.width, contentHeight(view));
-      if (blob) downloadBlob(`${slug}-${viewId}.png`, blob);
-      else setStatus('The image could not be rendered — use a screenshot instead.');
+      const { blob, error } = await captureArtboard(node, view.width, contentHeight(view));
+      if (blob) {
+        downloadBlob(`${slug}-${viewId}.png`, blob);
+      } else {
+        // Say WHY. A capture that fails silently is a bug nobody can report, and the fallback —
+        // an OS screenshot — is what the owner does today, so this is a detour rather than a wall.
+        setStatus(`The image could not be rendered (${error ?? 'unknown reason'}). Take a screenshot instead.`);
+        return;
+      }
     }
     setStatus('Exported.');
   }, [doc, exportCtx, view, viewId]);
