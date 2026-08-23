@@ -262,7 +262,7 @@ that exist in the app; the sixteenth holds free shapes that answer to nothing (�
 | 12 | **Media** | avatar, initial avatar, thumbnail, image tile, file row, video player, chart, sparkline |
 | 13 | **Layout** | page shell, content container, card grid, two-column split, stack, spacer, divider, toolbar row |
 | 14 | **Icons** | the lucide set actually used in the app, by name |
-| 15 | **Emoji** | the full picker, grouped, plus the app's own status/stage emoji in their own group |
+| 15 | **Emoji & symbols** | the full Unicode emoji set, plus arrows, maths, currency, typography and box-drawing characters |
 | 16 | **Shapes & annotation** | free primitives that belong to no component — §4.6 |
 
 ### 4.5b Scope: the whole site, tagged by area
@@ -557,6 +557,15 @@ stop trusting the moment it surprises you.
 | Desktop | 1440 × 900 | the office laptop; the width the alignment audits measure |
 | Phone | 390 × 844 | iPhone 14/15; the width the field crew actually uses |
 
+**Artboards scroll, and the fold is drawn.** A real page is not 900px tall — the job detail page is
+2,964px on a phone. So the height above is the *viewport*, not the artboard: the artboard grows as
+far down as the design needs, and a labelled **fold line** is drawn at each viewport multiple
+(900 / 1800 / 2700 on desktop, 844 / 1688 / … on phone). Almost every "why did nobody see this"
+layout problem lives just below a fold, and a fixed-height canvas is a canvas that cannot show one.
+
+**The phone artboard draws its safe areas** — the notch/dynamic-island strip at the top and the home
+indicator at the bottom — because a control placed under either is a control nobody can tap.
+
 Both sizes are editable per design (a tablet artboard at 768 is a preset), and the frame shows a
 device chrome outline so a phone mockup reads as a phone. Zoom 25–200 %, fit-to-window, and pan
 with space-drag. Rulers along both edges, in CSS pixels.
@@ -643,17 +652,38 @@ buttons the same height in one action.
 
 ## §8. The libraries
 
-- **Fonts.** The app's real stack first (Sora for headings, Inter for UI, the mono stack for
-  numbers), then a curated set of web-safe families. A font not in the app is marked as such,
-  because choosing one is a real decision with a real cost.
+> Owner: *"Please make sure we have access to all emojis, text font, symbols, etc."*
+
+Four libraries, and each is complete rather than a selection somebody made:
+
+- **Fonts.** Three tiers, in this order: the app's own stack (Sora for headings, Inter for UI, the
+  mono stack for numbers); every font already loadable in this app; then **the full Google Fonts
+  catalogue**, searchable by name and filterable by category (sans, serif, mono, display,
+  handwriting) with a live preview of your own text in each. Weights and italics per family, and
+  variable-font axes where a family has them.
+  A font outside the app's stack is **marked as off-system** in the canvas and named in the export,
+  because adding a typeface is a real decision with a real cost — but it is never blocked, since
+  "this page should feel different" is a legitimate thing for a mockup to say.
 - **Colour.** The token ramps from `tokens.css`, grouped as they are there (brand, text, surface,
   border, status, phase). A picker for custom, with a **contrast readout** against the current
   background (WCAG AA/AAA), since the app has eleven themes and white-on-white has happened before.
 - **Icons.** Every lucide icon actually imported anywhere in the app, by name, searchable — plus the
   full lucide set behind a "show all" toggle so the mockup can ask for something new.
-- **Emoji.** The complete set, grouped by the standard categories, searchable by name and keyword,
-  with skin-tone variants — and a first group, **"used in this app"**, holding the stage/status/
-  section emoji the portal already uses, because those carry meaning here.
+- **Emoji.** **The complete Unicode set** — every group (smileys, people, animals, food, travel,
+  activities, objects, symbols, flags), searchable by name, keyword and shortcode (`:calendar:`),
+  with skin-tone and gender variants where they exist, and a recents row. A first group,
+  **"used in this app"**, holds the stage/status/section emoji the portal already uses, because
+  those carry meaning here. Committed as static JSON — no runtime dependency, no network call, and
+  no picker that quietly differs from the one in the messenger.
+
+- **Symbols.** Everything that is a character but not an emoji, which is the set people give up
+  looking for and paste from a web page: arrows (→ ⇒ ↕ ➜), maths and logic (× ÷ ± ≈ ≤ ∑ √ ∞ °),
+  currency (¤ ¢ £ € ¥ ₿), punctuation and typography (— – … ‹› «» “” ‘’ † ‡ § ¶ • ·), legal
+  (© ® ™), fractions (½ ⅓ ¾), superscripts and subscripts, geometric shapes (■ ● ▲ ◆ ▸),
+  box-drawing and block elements (│ ├ ─ █ ░) — which this codebase's own comment headers use —
+  check marks and crosses (✓ ✔ ✗ ✕), stars (★ ☆ ✦), and the survey-relevant ones the field actually
+  needs: degrees, minutes and seconds (° ′ ″) for bearings, ± for tolerance, and Δ for change.
+  Searchable by name, by category, and by the character itself.
 
 ---
 
@@ -857,7 +887,30 @@ Plus a private `design-exports` bucket at 50 MB (a PNG of two artboards is not a
 
 ## §19. Phases and slices
 
-### Phase 1 — The catalogue *(the immediate priority)*
+### Phase 0 — A studio you can open *(built first, deliberately)*
+
+> Owner: *"Make sure to surface this page somewhere so that I can access it and actually start
+> editing/changing things."*
+
+Curating 7,000 classes before anything is on screen would be months of invisible work, and a
+palette curated without ever having used the tool would be curated wrong. So a walking skeleton
+ships first: a real route, a real canvas, a small real palette, and a real export. Everything after
+it deepens something you can already open.
+
+- [ ] **W1 — The route.** `/admin/design` and `/admin/design/[id]`, admin+developer gate, registry
+      entry, flag. Empty state that explains the tool.
+- [ ] **W2 — The artboards.** Desktop and mobile as independent canvases (§3.2), iframe-isolated,
+      scrolling with fold lines, zoom and pan, safe areas on the phone.
+- [ ] **W3 — Grid, snap, drop.** Grid on/off, size control, snapping with anchors, drag from palette
+      to artboard, select, move, resize, nudge, delete.
+- [ ] **W4 — A starter palette.** The first curated categories (buttons, text, inputs, layout,
+      shapes) — enough to lay out a real page — with the search box working over them.
+- [ ] **W5 — Save and reopen.** Name a design, save it, list it, open it, keep working. Autosave and
+      crash recovery.
+- [ ] **W6 — Export.** PNG of each view, HTML per view, `design.json`. This closes the owner's loop
+      end to end: design both views, export, hand back for building.
+
+### Phase 1 — The catalogue *(the depth behind W4)*
 
 - [ ] **C1 — Scanner.** `scripts/design-catalogue-scan.mjs`: CSS rules, JSX usage, inline styles,
       styled-jsx, all with provenance. Emits `lib/design/catalogue/raw/*.json`. Unit tests for the
@@ -871,7 +924,10 @@ Plus a private `design-exports` bucket at 50 MB (a PNG of two artboards is not a
 - [ ] **C5 — Curate: Text, Tags & badges, Cards & panels.**
 - [ ] **C6 — Curate: Tables & lists, Navigation, Overlays.**
 - [ ] **C7 — Curate: Feedback, Media, Layout, Shell.**
-- [ ] **C8 — Icons + emoji libraries.**
+- [ ] **C8 — The four libraries (§8): fonts, colour, icons, emoji, symbols.** Full Google Fonts
+      catalogue with live preview; the complete Unicode emoji set with skin tones and shortcodes;
+      the symbol sets (arrows, maths, currency, typography, geometric, box-drawing, survey marks);
+      lucide icons ranked by what the app already imports. All committed as static data.
 - [ ] **C8b — Shapes & annotation primitives (§4.6).** The eleven primitives, their inspector
       sections (fill, stroke, per-corner radius, rotation, opacity, shadow, flip), labels inside
       shapes, and the annotation-layer split that keeps arrows out of the build spec.
@@ -968,12 +1024,66 @@ Plus a private `design-exports` bucket at 50 MB (a PNG of two artboards is not a
 
 ---
 
-## §21. Open questions for the owner
+## §20b. Things that were not asked for, and should be there anyway
 
-1. **Tablet artboard** — worth a third breakpoint at 768, or is desktop + phone the whole job?
-2. **Who else uses it?** Admin+developer only, or should a foreman be able to sketch a request?
-3. **Print/share** — is a PDF of a design useful for showing someone who is not in the app, or is
-   the PNG enough?
-4. **The punch list (§14)** — do you want it as a report inside the studio, or written back into
-   `docs/planning/BLOCKERS.md` as work items?
-5. **Naming** — "Design Studio" is the working name. It appears in the nav.
+Each of these is small next to what it prevents.
+
+1. **Live spacing badges while dragging.** The gap between the element being moved and its
+   neighbours, shown in pixels as you drag. Every "crammed together too tightly" complaint is a
+   spacing decision made by eye; this makes it a decision made on purpose.
+2. **Theme and density preview.** The app has eleven themes and three densities. A mockup drawn in
+   one and built for another is a mockup that lies. A dropdown re-renders the artboard in any of
+   them — and *"does this still work in the dark theme"* becomes a two-second question.
+3. **Copy and paste between designs.** Including across tabs. The whole point of designing 147 pages
+   is that they share furniture.
+4. **Version diff.** "What changed between v4 and v7" as a visual overlay — old in red, new in
+   green. Version history nobody can read is a list of dates.
+5. **Print / PDF.** A design that can be printed can be marked up on paper, which is still how some
+   review happens.
+6. **A design can start from a template.** Blank, or a common shell (page header + toolbar + card
+   grid), or an import of the real page (§13). Nobody should start at a void when redesigning
+   something that already exists.
+7. **The catalogue is browsable on its own**, outside the editor: a reference page listing every
+   entry with its real classes, source and usage count. That page is also the fastest way to answer
+   *"do we already have one of these?"* — which is the question whose wrong answer created 217
+   button classes.
+8. **Escape hatches that keep the tool honest.** A "custom element" block that is explicitly *not*
+   in the design system, marked as such in the canvas and called out in the export, so proposing
+   something new is possible but never accidental.
+9. **The export tells you what it could not express.** If an element was styled outside the token
+   set, or has no class mapping, the spec says so at the top rather than leaving the builder to
+   discover it.
+
+## §21. Questions, and the answers I am proceeding on
+
+The owner went to bed with *"make all of the decisions about how to make this work"*. So these are
+decided rather than open. Each is cheap to reverse and says how.
+
+1. **A tablet artboard?** No — desktop and mobile only. Two views is what was asked for, and a third
+   would triple the design work per page for a width almost nobody in this business uses.
+   *To reverse:* `VIEW_PRESETS` in `lib/design/document.ts` is a map; adding `tablet` is one entry
+   plus a tab.
+2. **Who can use it?** Admin and developer only. It exposes the whole app's structure, it is a build
+   tool rather than a business surface, and a half-finished mockup on a foreman's screen would read
+   as a promise. *To reverse:* one `roles` array in the route registry.
+3. **Print / PDF?** Yes, but last. `jspdf` is already a dependency so it is cheap; it is also the
+   least-used export, and the PNG covers the review case.
+4. **Where does the punch list live?** Both places. It already writes
+   `docs/planning/qa-evidence/design-catalogue-report.md` — which is reviewable, diffable and
+   survives a session — and the studio will show the same data. A report only a running app can
+   display is a report nobody reads.
+5. **Naming.** The route is `/admin/design`; the nav says **Page Designer**, because that is what
+   it is for. "Design Studio" stays as the doc's title and the internal name.
+
+## §22. Decisions taken while building, that were nobody's question
+
+- **Image export is written by hand, not with a library.** `html-to-image` was the plan's choice;
+  it is one more dependency to serialise a DOM into an SVG `foreignObject` and paint it to a
+  canvas, which is forty lines. Fewer dependencies in a tool that renders arbitrary app CSS is worth
+  more than the convenience.
+- **The first storage is `localStorage`, and the database comes after.** The owner needs to open
+  the page and place things tonight, not to wait for a seed. The document shape is identical either
+  way, so the migration is a write path rather than a rewrite.
+- **The palette ships with a real starter set rather than a complete one.** Curating 7,000 classes
+  before anything is on screen would be months of invisible work, and a palette curated by somebody
+  who has never used the tool would be curated wrong.
