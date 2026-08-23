@@ -721,6 +721,21 @@ each finding can be dismissed with a reason that is carried into the export.
 `scripts/ui-fit-sweep.mjs` already implements the measurement half of this against real pages; the
 in-canvas version shares its thresholds so the tool and the audit cannot disagree.
 
+**Shipped 2026-08-23 (Q1–Q3), with two notes on what "shares its thresholds" turned out to mean.**
+
+*It was not shared, and a comment said it was.* `define.ts` carried `{ minTapTarget: 40, minFontPx:
+12 }` under a comment claiming these were "the same thresholds `scripts/ui-fit-sweep.mjs` measures
+the real app with" — while the sweep carried its own `const MIN_FONT_PX = 12` twelve directories
+away. Nothing kept them in step. They now both read `lib/design/contract.json`, and a test asserts
+it. This is the same defect shape as the middleware gate that a page comment claimed existed: **a
+sentence describing a mechanism is not the mechanism.**
+
+*One rule of the five is deliberately NOT enforced in the canvas.* "Colours that are not tokens"
+stays an export warning rather than a live finding. The checks run on every keystroke, and a colour
+override is usually mid-edit — flagging it live would mean a panel that lights up while you are
+picking a colour and goes out when you finish, which trains people to ignore the panel. It is
+reported at export, where the decision is final.
+
 ---
 
 ## §11. Saving, variants, history
@@ -1012,9 +1027,21 @@ it deepens something you can already open.
 - [x] **A3** Nothing to un-flag.
 
 ### Phase 9 — Checks
-- [ ] **Q1** In-canvas contract checks (§10) sharing thresholds with `ui-fit-sweep`.
-- [ ] **Q2** Contrast checks.
-- [ ] **Q3** Dismiss-with-reason, carried into the export.
+- [x] **Q1** In-canvas contract checks — `lib/design/checks.ts`, a panel above the footer, a count
+      on the footer button. Tap targets, type size and off-canvas elements, run on every edit.
+      **The thresholds are genuinely shared now:** `lib/design/contract.json` is read by the
+      catalogue, by the checks and by `scripts/ui-fit-sweep.mjs`. They were three separate literals,
+      and `define.ts` already *claimed* they were the same file — which is how a studio ends up
+      approving a layout the sweep would fail, with both sides sure they agreed.
+- [x] **Q2** Contrast — WCAG luminance and ratio, with the large-text allowance. It measures against
+      the element's own background when it has one, and **returns null rather than guessing** when a
+      colour is a token: guessing would put a warning on every correctly-tokenised element, which is
+      exactly how a panel teaches people to ignore it.
+- [x] **Q3** Dismiss-with-reason. A dismissal lives on the view (so it survives a save), is keyed to
+      element+check (so nudging something 8px does not resurrect it), and lands in `PROMPT.md` under
+      **"Deliberate exceptions — do NOT fix these"**. A finding you can silence without saying why
+      gets silenced every time, and then it is not a check.
+      Covered by 24 unit tests plus 5 assertions in the browser check, end to end into the brief.
 
 ### Phase 10 — Import
 - [ ] **M1** `scripts/design-import-page.mjs`.

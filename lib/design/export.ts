@@ -19,6 +19,7 @@
 import type { CatalogueEntry } from './catalogue/types';
 import type { DesignDocument, DesignElement, DesignView, ViewId } from './document';
 import { classesFor, positionStyle, renderElement, styleString, escapeHtml } from './render';
+import { runChecks, applyDismissals, type CheckContext } from './checks';
 
 export interface ExportContext {
   /** Resolves a catalogue id. Passed in rather than imported so the exporter stays pure and
@@ -293,6 +294,8 @@ export interface DesignSpec {
     annotations: { id: string; text: string; at: { x: number; y: number } }[];
   }>;
   warnings: string[];
+  /** Findings the designer answered, with the reason. A decision, not an oversight. */
+  decisions: Array<{ view: ViewId; elementId: string; check: string; finding: string; reason: string }>;
 }
 
 const TOKEN_PATTERN = /var\(--/;
@@ -306,6 +309,7 @@ function offSystemProps(style: Record<string, string>): string[] {
 
 export function exportSpec(doc: DesignDocument, ctx: ExportContext): DesignSpec {
   const warnings: string[] = [];
+  const decisions: DesignSpec['decisions'] = [];
   const views = {} as DesignSpec['views'];
 
   for (const viewId of ['desktop', 'mobile'] as ViewId[]) {
@@ -316,18 +320,6 @@ export function exportSpec(doc: DesignDocument, ctx: ExportContext): DesignSpec 
     for (const el of [...view.elements].sort((a, b) => a.z - b.z)) {
       const entry = el.catalogId ? ctx.getEntry(el.catalogId) : undefined;
       const isNote = el.annotation || (el.catalogId ? ctx.isAnnotation(el.catalogId) : false);
-
-      // Hanging an element off the edge is allowed on purpose — parking something half-off the
-      // canvas while you think is a real habit, and the drag keeps 24px grabbable so it can always
-      // come back. What is NOT acceptable is doing it silently: the PNG crops it, so the handoff
-      // would carry a table sliced down the middle with nothing to say why. Naming it costs a line.
-      if (el.x < 0 || el.x + el.w > view.width) {
-        const off = el.x < 0 ? { side: 'left', by: -el.x } : { side: 'right', by: el.x + el.w - view.width };
-        warnings.push(
-          `${viewId}: ${el.name ?? entry?.label ?? el.kind} (${el.id}) hangs ${off.by}px off the ${off.side}`
-          + ' edge, so it is cut off in the image — move it in, or say it is deliberate.',
-        );
-      }
 
       if (isNote) {
         annotations.push({
@@ -357,6 +349,25 @@ export function exportSpec(doc: DesignDocument, ctx: ExportContext): DesignSpec 
       });
     }
 
+    // ── The contract checks, carried into the handoff (§10, Q3) ────────────────────────────────
+    //
+    // Both halves go, and the DISMISSED half is the more valuable one. An open finding is a thing
+    // to fix; a dismissed finding is a DECISION — "this 24px icon sits in a 48px hit area" — and
+    // without it the person building the page re-litigates it, or worse, silently 'fixes' a choice
+    // that was made on purpose. A reason in the brief is what makes it arguable rather than lost.
+    const { open, answered } = applyDismissals(runChecks(view, checkContextFor(ctx)), view.dismissals ?? []);
+    // The id goes in HERE rather than in the message itself: on screen the element is right there
+    // and `el-7-0e07` is noise, but in a written brief it is the only way to find the thing in
+    // `design.json` without guessing which "Save button" was meant.
+    for (const f of open) warnings.push(`${viewId}: ${f.message} (${f.elementId})`);
+    decisions.push(...answered.map((f) => ({
+      view: viewId,
+      elementId: f.elementId,
+      check: f.check,
+      finding: f.message,
+      reason: f.reason,
+    })));
+
     views[viewId] = {
       size: { width: view.width, height: contentHeightOf(view) },
       grid: { size: view.settings.size, snap: view.settings.snap },
@@ -365,7 +376,29 @@ export function exportSpec(doc: DesignDocument, ctx: ExportContext): DesignSpec 
     };
   }
 
-  return { name: doc.name, route: doc.route, exportedAt: ctx.now, views, warnings };
+  return { name: doc.name, route: doc.route, exportedAt: ctx.now, views, warnings, decisions };
+}
+
+/**
+ * The exporter's answer to "is this a control, does it have text".
+ *
+ * Derived from the catalogue the export context already carries, so the checks in the brief are the
+ * same checks the canvas showed — a brief that disagreed with the studio would make both untrusted.
+ */
+function checkContextFor(ctx: ExportContext): CheckContext {
+  return {
+    isControl: (el) => {
+      const entry = el.catalogId ? ctx.getEntry(el.catalogId) : undefined;
+      return !!entry && ['button', 'input', 'select', 'toggle'].includes(entry.category);
+    },
+    hasText: (el) => {
+      if (el.kind === 'text') return true;
+      const entry = el.catalogId ? ctx.getEntry(el.catalogId) : undefined;
+      return !!entry && entry.slots.some((s) => /text|label|title|placeholder/i.test(s.name));
+    },
+    nameOf: (el) => el.name ?? (el.catalogId ? ctx.getEntry(el.catalogId)?.label : undefined) ?? el.kind,
+    pageBackground: '#F3F4F6',
+  };
 }
 
 /** The brief. The difference between a good and a bad first attempt is almost entirely here. */
@@ -406,6 +439,14 @@ export function exportPrompt(doc: DesignDocument, spec: DesignSpec): string {
     lines.push('Read these first — each is somewhere the mockup stepped outside the design system, or');
     lines.push('where it is asking for something that does not exist yet.', '');
     for (const warning of spec.warnings) lines.push(`- ${warning}`);
+    lines.push('');
+  }
+
+  if (spec.decisions.length) {
+    lines.push('## Deliberate exceptions — do NOT "fix" these', '');
+    lines.push('The designer was shown each of these and said why it is fine. Treat them as decided.');
+    lines.push('If you disagree, say so — but do not quietly change them back.', '');
+    for (const d of spec.decisions) lines.push(`- ${d.view}: ${d.finding}\n  **Why it is fine:** ${d.reason}`);
     lines.push('');
   }
 

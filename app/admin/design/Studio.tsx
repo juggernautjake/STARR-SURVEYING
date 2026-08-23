@@ -24,7 +24,7 @@
 //    against `lib/design/snap.ts`, which is tested.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft } from 'lucide-react';
+import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import {
   type DesignDocument, type DesignElement, type ViewId,
@@ -32,6 +32,7 @@ import {
   copyElementsToView,
 } from '@/lib/design/document';
 import { placeRect, clampToArtboard, spacingTo, type Guide, type Rect } from '@/lib/design/snap';
+import { runChecks, applyDismissals, CONTRACT } from '@/lib/design/checks';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
 import { saveDraft } from '@/lib/design/storage';
@@ -376,6 +377,53 @@ export default function Studio({ initial }: Props) {
     return () => clearTimeout(timer);
   }, [status]);
 
+  // ── CHECKS (§10, slices Q1–Q3) ───────────────────────────────────────────────────────────────
+  //
+  // Run on every edit, against the same `contract.json` the sweep measures the real pages with. The
+  // point of doing it HERE is that acting on a finding costs a drag, whereas the same finding after
+  // the page is built costs an argument with a layout somebody thought was finished.
+
+  const checkContext = useMemo(() => ({
+    // Whether something is a control is the CATALOGUE's answer, not a guess from its name: the
+    // catalogue is where "this is a thing a finger has to hit" is already written down.
+    isControl: (el: DesignElement) => {
+      const entry = el.catalogId ? getEntry(el.catalogId) : undefined;
+      return !!entry && ['button', 'input', 'select', 'toggle'].includes(entry.category);
+    },
+    hasText: (el: DesignElement) => {
+      if (el.kind === 'text') return true;
+      const entry = el.catalogId ? getEntry(el.catalogId) : undefined;
+      return !!entry && entry.slots.some((s) => /text|label|title|placeholder/i.test(s.name));
+    },
+    nameOf: (el: DesignElement) => el.name ?? (el.catalogId ? getEntry(el.catalogId)?.label : undefined) ?? el.kind,
+    pageBackground: '#F3F4F6',
+  }), []);
+
+  const { open, answered } = useMemo(
+    () => applyDismissals(runChecks(view, checkContext), view.dismissals ?? []),
+    [view, checkContext],
+  );
+
+  const [showChecks, setShowChecks] = useState(false);
+  const [dismissing, setDismissing] = useState<string | null>(null);
+  const [reason, setReason] = useState('');
+
+  const dismiss = useCallback((findingId: string) => {
+    const text = reason.trim();
+    if (!text) return;
+    patchView((v) => ({
+      ...v,
+      dismissals: [...(v.dismissals ?? []).filter((d) => d.findingId !== findingId),
+        { findingId, reason: text, at: new Date().toISOString() }],
+    }));
+    setDismissing(null);
+    setReason('');
+  }, [patchView, reason]);
+
+  const undismiss = useCallback((findingId: string) => {
+    patchView((v) => ({ ...v, dismissals: (v.dismissals ?? []).filter((d) => d.findingId !== findingId) }));
+  }, [patchView]);
+
   // ── EXPORT ───────────────────────────────────────────────────────────────────────────────────
 
   const exportCtx = useMemo(() => ({
@@ -590,9 +638,86 @@ export default function Studio({ initial }: Props) {
         />
       </div>
 
+      {/* ── Contract checks (§10, Q1–Q3) ─────────────────────────────────────────────────────── */}
+      {showChecks && (
+        <section className="dsx__checks" aria-label="Contract checks">
+          <header className="dsx__checks-head">
+            <strong>
+              {open.length === 0
+                ? 'Nothing to fix on this view'
+                : `${open.length} thing${open.length === 1 ? '' : 's'} to look at`}
+            </strong>
+            {answered.length > 0 && <span>{answered.length} dismissed</span>}
+            <button className="dsx__tool" onClick={() => setShowChecks(false)}>Close</button>
+          </header>
+
+          {open.length === 0 && answered.length === 0 && (
+            <p className="dsx__checks-empty">
+              Every control is at least {CONTRACT.minTapTarget}px, every label at least{' '}
+              {CONTRACT.minFontPx}px, nothing hangs off the edge, and the colours that can be read
+              have enough contrast. These are the same numbers <code>ui-fit-sweep</code> holds the
+              real pages to.
+            </p>
+          )}
+
+          <ul className="dsx__checks-list">
+            {open.map((f) => (
+              <li key={f.id} className={`dsx__check dsx__check--${f.severity}`}>
+                <button className="dsx__check-go" onClick={() => setSelection([f.elementId])}>
+                  <span className="dsx__check-msg">{f.message}</span>
+                  {f.fix && <span className="dsx__check-fix">{f.fix}</span>}
+                </button>
+                {dismissing === f.id ? (
+                  <form
+                    className="dsx__check-why"
+                    onSubmit={(e) => { e.preventDefault(); dismiss(f.id); }}
+                  >
+                    <input
+                      autoFocus
+                      value={reason}
+                      onChange={(e) => setReason(e.target.value)}
+                      placeholder="Why is this one fine?"
+                      aria-label="Reason for dismissing"
+                    />
+                    <button className="dsx__tool" type="submit" disabled={!reason.trim()}>Save</button>
+                    <button className="dsx__tool" type="button" onClick={() => setDismissing(null)}>Cancel</button>
+                  </form>
+                ) : (
+                  <button
+                    className="dsx__tool"
+                    onClick={() => { setDismissing(f.id); setReason(''); }}
+                    // A check you can silence without saying why gets silenced every time, and then
+                    // it is not a check. The reason goes into the exported brief.
+                    title="Dismiss with a reason"
+                  >
+                    Not a problem…
+                  </button>
+                )}
+              </li>
+            ))}
+
+            {answered.map((f) => (
+              <li key={f.id} className="dsx__check dsx__check--answered">
+                <span className="dsx__check-msg">{f.message}</span>
+                <span className="dsx__check-reason">“{f.reason}”</span>
+                <button className="dsx__tool" onClick={() => undismiss(f.id)}>Undo</button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {/* ── Status + layer strip ─────────────────────────────────────────────────────────────── */}
       <footer className="dsx__foot">
         <span className="dsx__count">{view.elements.length} element{view.elements.length === 1 ? '' : 's'} on {viewId}</span>
+        <button
+          className={`dsx__tool${open.length ? ' dsx__tool--warn' : ''}`}
+          onClick={() => setShowChecks((s) => !s)}
+          title="Check this view against the app's own size and contrast rules"
+        >
+          <ShieldCheck size={14} aria-hidden />
+          <span>{open.length ? `${open.length} to fix` : 'Checks'}</span>
+        </button>
         {selected.length > 0 && (
           <span className="dsx__foot-actions">
             <button className="dsx__tool" onClick={duplicate} title="Duplicate (Ctrl+D)"><Copy size={14} aria-hidden /></button>

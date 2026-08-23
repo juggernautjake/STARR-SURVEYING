@@ -48,8 +48,12 @@ const VIEWPORTS = [
   { name: 'phone', width: 390, height: 844 },
 ];
 
-const MIN_FONT_PX = 12;
-const MIN_TARGET_PX = 40;
+// The same numbers the Page Designer holds a MOCKUP to, read from the one file both sides use.
+// They were separate literals here and in lib/design/catalogue/define.ts until 2026-08-23 — which
+// is how a studio ends up approving a layout this sweep would fail, with both sides sure they agreed.
+const CONTRACT = JSON.parse(fs.readFileSync(new URL('../lib/design/contract.json', import.meta.url), 'utf8'));
+const MIN_FONT_PX = CONTRACT.minFontPx;
+const MIN_TARGET_PX = CONTRACT.minTapTarget;
 
 function routes() {
   const explicit = arg('--routes');

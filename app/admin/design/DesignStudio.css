@@ -434,3 +434,77 @@
   padding: 0;
 }
 .dsx-pal__char:hover { background: var(--theme-bg-page, #EEF0F6); transform: scale(1.25); }
+
+/* ── Contract checks (§10, Q1–Q3) ───────────────────────────────────────────────────────────────
+ *
+ * Sits above the footer rather than in the inspector: a finding is about the VIEW, and the inspector
+ * belongs to whatever is selected. Clicking a finding selects its element, which is the whole
+ * interaction — see it, click it, fix it. */
+.dsx__checks {
+  border-top: 1px solid var(--color-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  max-height: 240px;
+  overflow-y: auto;
+  flex: none;
+}
+.dsx__checks-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.8rem;
+  border-bottom: 1px solid var(--color-border, #E5E7EB);
+  font-size: 0.8rem;
+  position: sticky;
+  top: 0;
+  background: var(--theme-bg-surface, #fff);
+}
+.dsx__checks-head span { color: var(--color-text-tertiary, #6B7280); }
+.dsx__checks-head button { margin-left: auto; }
+.dsx__checks-empty { margin: 0; padding: 0.8rem; font-size: 0.8rem; line-height: 1.6; color: var(--color-text-secondary, #374151); }
+.dsx__checks-empty code { font-family: 'SF Mono', ui-monospace, monospace; font-size: 0.78rem; }
+.dsx__checks-list { list-style: none; margin: 0; padding: 0; }
+
+.dsx__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid #F1F2F7;
+  font-size: 0.8rem;
+}
+.dsx__check-go {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
+}
+.dsx__check-msg { color: var(--color-text-primary, #0F1419); line-height: 1.45; }
+.dsx__check-fix { color: var(--color-text-tertiary, #6B7280); font-size: 0.75rem; line-height: 1.45; }
+/* A red bar for what breaks a rule, amber for what is only probably wrong — so a list of twelve
+ * findings still says at a glance which two matter. */
+.dsx__check--must { border-left: 3px solid #B42318; }
+.dsx__check--should { border-left: 3px solid #B45309; }
+.dsx__check--answered { border-left: 3px solid var(--color-border-strong, #D1D5DB); color: var(--color-text-tertiary, #6B7280); }
+.dsx__check--answered .dsx__check-msg { color: var(--color-text-tertiary, #6B7280); text-decoration: line-through; }
+.dsx__check-reason { font-style: italic; color: var(--color-text-secondary, #374151); }
+.dsx__check-why { display: flex; align-items: center; gap: 0.3rem; }
+.dsx__check-why input {
+  width: 220px;
+  height: 30px;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  padding: 0 0.5rem;
+  font: inherit;
+  font-size: 0.78rem;
+}
+/* The border carries the signal, not the label. `--theme-warning` is a bright amber (#F59E0B) —
+ * correct for a 3:1 boundary, and about 2:1 as text on white, which would fail the exact contrast
+ * rule this badge exists to report. The count in the label is the message anyway. */
+.dsx__tool--warn { border-color: var(--theme-warning, #F59E0B); border-width: 2px; }

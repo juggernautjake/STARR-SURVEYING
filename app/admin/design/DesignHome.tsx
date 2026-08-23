@@ -146,7 +146,11 @@ export default function DesignHome() {
 
         {filtered.map((d) => (
           <article key={d.id} className="dsx-home__card">
-            <Link href={`/admin/design/${d.id}`} className="dsx-home__card-main">
+            {/* Not prefetched. The editor is a heavy client bundle and there will be hundreds of
+                these rows; prefetching every one on sight wastes the connection, and a prefetch
+                that is aborted when a row is deleted logs a "Failed to fetch RSC payload" error to
+                the console for what is a completely ordinary action. */}
+            <Link href={`/admin/design/${d.id}`} className="dsx-home__card-main" prefetch={false}>
               <h3>{d.name}</h3>
               <p className="dsx-home__card-meta">
                 {d.route ? <code>{d.route}</code> : <em>no page set</em>}

@@ -89,6 +89,19 @@ export interface DesignView {
   height: number;
   settings: GridSettings;
   elements: DesignElement[];
+  /** Contract findings this view has been told are wrong, each with a reason (§10, Q3). Lives on
+   *  the VIEW rather than on the document so it travels inside the `views` JSONB the server stores
+   *  — a dismissal that did not survive a save would be a dismissal you had to make every time.
+   *  Optional: designs written before this existed load without it. */
+  dismissals?: Dismissal[];
+}
+
+/** Answering a check: which finding, why, and when. The reason is required by the UI and carried
+ *  into the exported brief — see `lib/design/checks.ts`. */
+export interface Dismissal {
+  findingId: string;
+  reason: string;
+  at: string;
 }
 
 export interface DesignDocument {

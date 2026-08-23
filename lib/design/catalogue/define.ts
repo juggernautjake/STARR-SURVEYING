@@ -16,6 +16,8 @@
 //
 //   · `usageCount` is summed from `usage`, so palette ranking cannot disagree with the evidence.
 
+import contract from '../contract.json';
+
 import type {
   AnchorSet, AreaId, CatalogueEntry, CategoryId, PropDef, SourceRef, StateName, Slot, UsageRef,
   Variant,
@@ -85,10 +87,17 @@ export const TYPE_PROPS: PropDef[] = [
 ];
 
 /** The contract a tappable control is held to: 40px is the token height and the tap floor, and 12px
- *  is where text stops being readable on a phone at arm's length. Both are the same thresholds
- *  `scripts/ui-fit-sweep.mjs` measures the real app with, so the tool and the audit cannot
- *  disagree. */
-export const CONTROL_CONTRACT = { minTapTarget: 40, minFontPx: 12, tokenColorsOnly: true };
+ *  is where text stops being readable on a phone at arm's length.
+ *
+ *  This comment used to end "…the same thresholds `scripts/ui-fit-sweep.mjs` measures the real app
+ *  with, so the tool and the audit cannot disagree" — while both were separate literals that
+ *  nothing kept in step. They now come from `contract.json`, which the sweep reads too, so the
+ *  sentence is true rather than aspirational. */
+export const CONTROL_CONTRACT = {
+  minTapTarget: contract.minTapTarget,
+  minFontPx: contract.minFontPx,
+  tokenColorsOnly: contract.tokenColorsOnly,
+};
 
 /**
  * A 16-character fingerprint of a string, computed in plain JavaScript.

@@ -312,6 +312,57 @@ try {
   if (pngFiles.some((f) => f.endsWith('.png'))) ok('and the canvas captures to a PNG');
   else bad('the PNG export produced nothing — the capture is failing');
 
+  // ── The contract checks, and dismissing one (§10, Q1–Q3) ─────────────────────────────────────
+  //
+  // The rule being verified is that a dismissal is a DECISION, not a mute button: it needs a
+  // reason, it survives a save, and the reason reaches the exported brief. A checker whose
+  // dismissals evaporate is one nobody uses twice.
+  await page.locator('[data-testid="ds-palette-search"]').fill('button.admin');
+  await page.waitForTimeout(250);
+  await page.locator('[data-testid="ds-palette-item-button.admin"]').first().click();
+  await page.waitForTimeout(200);
+  const badId = await page.locator('.dsx__el').last().getAttribute('data-testid');
+  await page.locator(`[data-testid="${badId}"]`).click();
+  await page.waitForTimeout(150);
+
+  const heightField = page.locator('.dsx-ins__cell', { hasText: 'H' }).locator('input').first();
+  if (await heightField.count()) {
+    await heightField.fill('24');
+    await heightField.blur();
+    await page.waitForTimeout(350);
+  }
+
+  const warnBadge = page.locator('.dsx__foot .dsx__tool--warn');
+  if (await warnBadge.count()) ok('a control under the tap floor is reported in the footer');
+  else bad('shrinking a button below 40px produced no contract finding');
+
+  await page.locator('.dsx__foot .dsx__tool', { hasText: /to fix|Checks/ }).click();
+  await page.waitForSelector('.dsx__checks');
+  const finding = await page.locator('.dsx__check--must .dsx__check-msg').first().textContent().catch(() => '');
+  if (/40px/.test(finding ?? '')) ok('and it quotes the shared threshold from contract.json');
+  else bad(`the finding did not name the 40px rule — "${finding}"`);
+
+  await page.locator('.dsx__check .dsx__tool', { hasText: 'Not a problem' }).first().click();
+  await page.locator('.dsx__check-why input').fill('the icon sits inside a 48px hit area');
+  await page.locator('.dsx__check-why button', { hasText: 'Save' }).click();
+  await page.waitForTimeout(350);
+  if (await page.locator('.dsx__check--answered').count() === 1) ok('a finding can be dismissed, with a reason');
+  else bad('dismissing the finding did not move it to the answered list');
+
+  await page.locator('.dsx__tool--primary', { hasText: 'Save' }).first().click();
+  await page.waitForTimeout(1500);
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.dsx__artboard');
+  await page.locator('.dsx__foot .dsx__tool', { hasText: /to fix|Checks/ }).click();
+  await page.waitForSelector('.dsx__checks');
+  const keptReason = await page.locator('.dsx__check-reason').first().textContent().catch(() => '');
+  if (/48px hit area/.test(keptReason ?? '')) ok('and the dismissal survives a save and a reload');
+  else bad('the dismissal did not survive a reload — it has to live in the saved document');
+
+  const briefFiles = await exportVia('Spec for Claude (JSON + brief)');
+  if (briefFiles.includes('PROMPT.md')) ok('the brief still exports with the decision in it');
+  else bad('PROMPT.md did not export after dismissing a finding');
+
   await page.goto(`${BASE}/admin/design`, { waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(500);
 

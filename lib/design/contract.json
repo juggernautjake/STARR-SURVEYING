@@ -1,0 +1,20 @@
+{
+  "_comment": "The thresholds this app holds itself to, in ONE place. Read by lib/design/catalogue/define.ts (the palette), lib/design/checks.ts (the canvas) and scripts/ui-fit-sweep.mjs (the real pages). They were three separate literals until 2026-08-23, which is how a studio ends up approving a mockup the live page would fail. JSON rather than TS so the .mjs sweep can read it too.",
+
+  "minTapTarget": 40,
+  "_minTapTarget": "px. Apple says 44 and Google says 48; under 40 is a mis-tap, and a mis-tap on Delete is not cosmetic.",
+
+  "minFontPx": 12,
+  "_minFontPx": "Below this it stops being readable on a phone held at arm's length, whatever it looks like on a 27-inch monitor.",
+
+  "minContrastBody": 4.5,
+  "_minContrastBody": "WCAG AA for text under 18.66px (or under 14px bold).",
+
+  "minContrastLarge": 3.0,
+  "_minContrastLarge": "WCAG AA for large text, and the floor for a control's own boundary.",
+
+  "largeTextPx": 18.66,
+  "_largeTextPx": "24px at normal weight is large; so is 18.66px bold. The bold case is handled in code.",
+
+  "tokenColorsOnly": true
+}
