@@ -34,7 +34,8 @@ import {
 import { placeRect, clampToArtboard, spacingTo, type Guide, type Rect } from '@/lib/design/snap';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
-import { saveDesign, saveDraft } from '@/lib/design/storage';
+import { saveDraft } from '@/lib/design/storage';
+import { pushDesign } from '@/lib/design/client';
 import { exportHtml, exportSpec, exportPrompt, dsPrimitiveStyles } from '@/lib/design/export';
 import { artboardToSvg, captureArtboard, downloadBlob, downloadText } from '@/lib/design/capture';
 import Palette from './components/Palette';
@@ -319,10 +320,13 @@ export default function Studio({ initial }: Props) {
     setStatus(`Copied ${selected.length} element${selected.length === 1 ? '' : 's'} to ${target}`);
   }, [selected.length, selection, snapshot, viewId]);
 
-  const save = useCallback(() => {
-    const { ok, doc: saved } = saveDesign(doc, new Date().toISOString());
-    if (ok) { setDoc(saved); setStatus(`Saved “${saved.name}” — v${saved.version}`); }
-    else setStatus('Could not save — this browser is refusing to store data.');
+  const save = useCallback(async () => {
+    setStatus('Saving…');
+    // Writes to the browser AND to the server, and says which of the two actually happened. A
+    // studio that reports "Saved" when the upload failed is how an afternoon ends up on one laptop.
+    const { value: saved, offline, message } = await pushDesign(doc);
+    setDoc(saved);
+    setStatus(offline ? (message ?? 'Saved in this browser only.') : `Saved “${saved.name}” — v${saved.version}`);
   }, [doc]);
 
   useEffect(() => {

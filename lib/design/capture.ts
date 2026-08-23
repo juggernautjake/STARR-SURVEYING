@@ -90,12 +90,83 @@ function roundedRectPath(box: Box): string {
   ].filter(Boolean).join(' ');
 }
 
+/** One visual line of a text node: where it landed, and which words are on it. */
+interface LineFragment { x: number; y: number; w: number; h: number; text: string }
+
+type ToLocal = (r: DOMRect) => { x: number; y: number; w: number; h: number };
+
+/** Past this, the per-character walk below is not worth its cost — and no mockup label is a novel. */
+const MAX_MEASURED_CHARS = 4000;
+
+/**
+ * Where each line of a text node ended up, and WHICH WORDS are on it.
+ *
+ * `Range.getClientRects()` answers the first half — one rect per visual line — and the first version
+ * of this file stopped there, pairing every rect with the node's WHOLE text. A sticky note that
+ * wrapped onto two lines therefore exported its sentence twice, both copies running off the side of
+ * the note. It was invisible in the studio and obvious the moment the PNG was opened, which is the
+ * whole argument for opening the PNG: the export IS the deliverable here, so a wrong export is
+ * wrong work, not a cosmetic blemish on correct work.
+ *
+ * The offsets are recovered by measuring one character at a time and grouping by their tops — the
+ * browser is the only thing that knows where it chose to break, and it will only say so one range
+ * at a time. Geometry still comes from `getClientRects()`, whose rects are the real line boxes;
+ * the walk only decides which characters belong to each. Single-line nodes — nearly all of them —
+ * skip the walk entirely.
+ */
+function lineFragments(node: Text, toLocal: ToLocal): LineFragment[] {
+  const raw = node.textContent ?? '';
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  const rects = Array.from(range.getClientRects()).filter((r) => r.width >= 0.5);
+  const tidy = (s: string) => s.replace(/\s+/g, ' ').trim();
+
+  if (rects.length === 0) return [];
+  if (rects.length === 1 || raw.length > MAX_MEASURED_CHARS) {
+    return [{ ...toLocal(rects[0]), text: tidy(raw) }];
+  }
+
+  const groups: { top: number; left: number; right: number; bottom: number; chars: string[] }[] = [];
+  for (let i = 0; i < raw.length; i += 1) {
+    range.setStart(node, i);
+    range.setEnd(node, i + 1);
+    const r = range.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) continue;      // collapsed whitespace: no box at all
+    const last = groups[groups.length - 1];
+    if (last && Math.abs(last.top - r.top) <= 1) {
+      last.chars.push(raw[i]);
+      last.bottom = Math.max(last.bottom, r.bottom);
+      if (r.width > 0) {
+        last.left = Math.min(last.left, r.left);
+        last.right = Math.max(last.right, r.right);
+      }
+    } else {
+      groups.push({ top: r.top, left: r.left, right: r.right, bottom: r.bottom, chars: [raw[i]] });
+    }
+  }
+
+  const spoken = groups
+    .map((g) => ({ g, text: tidy(g.chars.join('')) }))
+    .filter((entry) => entry.text.length > 0);
+
+  // The happy path: one group per line box, so each line keeps the browser's own geometry.
+  if (spoken.length === rects.length) {
+    return spoken.map((entry, i) => ({ ...toLocal(rects[i]), text: entry.text }));
+  }
+  // Disagreement (bidi, ligatures, an ellipsis): trust the walk's own bounds rather than guess at a
+  // pairing. Slightly less exact, still one sentence per line instead of the sentence per line.
+  return spoken.map(({ g, text }) => ({
+    ...toLocal(new DOMRect(g.left, g.top, Math.max(0, g.right - g.left), Math.max(0, g.bottom - g.top))),
+    text,
+  }));
+}
+
 /**
  * Walk the artboard and collect what to draw.
  *
  * Boxes first, in DOM order, so later siblings paint over earlier ones exactly as the browser
- * stacks them. Text is collected per line via `Range.getClientRects()`, which is the browser's own
- * answer to "where did this text actually end up" — including wrapping, alignment and ellipsis.
+ * stacks them. Text is collected per line via `lineFragments`, which is the browser's own answer to
+ * "where did this text actually end up" — including wrapping, alignment and ellipsis.
  */
 function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
   const origin = root.getBoundingClientRect();
@@ -129,25 +200,54 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
       }
     }
 
+    // A form control keeps its words in a PROPERTY, not in a child text node, so the walk below
+    // never sees them: the first export drew the jobs search field as an empty white bar. On a
+    // mockup the placeholder is not decoration — "Search jobs, clients, addresses…" is the design
+    // decision being shown — so it is drawn, greyed the way the browser greys it.
+    if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+      const boxOnly = el instanceof HTMLInputElement
+        && /^(checkbox|radio|range|color|file|image|hidden)$/.test(el.type);
+      const placeholder = el instanceof HTMLSelectElement ? '' : el.placeholder;
+      const shown = el instanceof HTMLSelectElement
+        ? (el.selectedOptions[0]?.text ?? '')
+        : (el.value || placeholder);
+      if (!boxOnly && shown.trim()) {
+        const size = (parseFloat(style.fontSize) || 14) / scale;
+        const padLeft = (parseFloat(style.paddingLeft) || 0) / scale;
+        const padTop = (parseFloat(style.paddingTop) || 0) / scale;
+        const centred = style.textAlign === 'center';
+        lines.push({
+          x: centred ? rect.x + rect.w / 2 : rect.x + padLeft,
+          // A textarea fills from the top; everything else is one line sitting on the middle.
+          y: el instanceof HTMLTextAreaElement
+            ? rect.y + padTop + size
+            : rect.y + rect.h / 2 + size * 0.35,
+          text: shown.replace(/\s+/g, ' ').trim(),
+          font: style.fontFamily,
+          size,
+          weight: style.fontWeight,
+          colour: !el.value && placeholder ? 'rgb(148, 163, 184)' : style.color,
+          anchor: centred ? 'middle' : 'start',
+        });
+      }
+      return;   // its children are the browser's own furniture, not the mockup's
+    }
+
     for (const node of Array.from(el.childNodes)) {
       if (node.nodeType === Node.TEXT_NODE) {
-        const text = node.textContent ?? '';
-        if (!text.trim()) continue;
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        // One <text> per visual line, so wrapped copy lands where it wrapped rather than on one
-        // long line running off the edge.
-        for (const lineRect of Array.from(range.getClientRects())) {
-          if (lineRect.width < 0.5) continue;
-          const local = toLocal(lineRect);
-          const size = (parseFloat(style.fontSize) || 14) / scale;
+        const raw = node.textContent ?? '';
+        if (!raw.trim()) continue;
+        const size = (parseFloat(style.fontSize) || 14) / scale;
+        // One <text> per visual line, each carrying only ITS line, so wrapped copy lands where it
+        // wrapped rather than repeating the whole sentence on every line.
+        for (const frag of lineFragments(node as Text, toLocal)) {
           lines.push({
             // The baseline sits roughly 78% down the line box for the stacks this app uses.
-            x: style.textAlign === 'center' ? local.x + local.w / 2
-              : style.textAlign === 'right' ? local.x + local.w
-                : local.x,
-            y: local.y + local.h * 0.78,
-            text: text.replace(/\s+/g, ' ').trim(),
+            x: style.textAlign === 'center' ? frag.x + frag.w / 2
+              : style.textAlign === 'right' ? frag.x + frag.w
+                : frag.x,
+            y: frag.y + frag.h * 0.78,
+            text: frag.text,
             font: style.fontFamily,
             size,
             weight: style.fontWeight,
@@ -155,7 +255,6 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
             anchor: style.textAlign === 'center' ? 'middle' : style.textAlign === 'right' ? 'end' : 'start',
           });
         }
-        range.detach?.();
       } else if (node.nodeType === Node.ELEMENT_NODE) {
         visit(node as HTMLElement);
       }

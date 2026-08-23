@@ -317,6 +317,18 @@ export function exportSpec(doc: DesignDocument, ctx: ExportContext): DesignSpec 
       const entry = el.catalogId ? ctx.getEntry(el.catalogId) : undefined;
       const isNote = el.annotation || (el.catalogId ? ctx.isAnnotation(el.catalogId) : false);
 
+      // Hanging an element off the edge is allowed on purpose — parking something half-off the
+      // canvas while you think is a real habit, and the drag keeps 24px grabbable so it can always
+      // come back. What is NOT acceptable is doing it silently: the PNG crops it, so the handoff
+      // would carry a table sliced down the middle with nothing to say why. Naming it costs a line.
+      if (el.x < 0 || el.x + el.w > view.width) {
+        const off = el.x < 0 ? { side: 'left', by: -el.x } : { side: 'right', by: el.x + el.w - view.width };
+        warnings.push(
+          `${viewId}: ${el.name ?? entry?.label ?? el.kind} (${el.id}) hangs ${off.by}px off the ${off.side}`
+          + ' edge, so it is cut off in the image — move it in, or say it is deliberate.',
+        );
+      }
+
       if (isNote) {
         annotations.push({
           id: el.id,

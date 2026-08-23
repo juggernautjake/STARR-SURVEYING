@@ -208,17 +208,39 @@ try {
   //
   // Including the property that matters most and is easiest to get wrong: a DRAG is one undo step,
   // not sixty. An editor where Ctrl+Z rewinds a drag one pixel at a time has undo in name only.
+  //
+  // Back into the editor first. The previous step left the browser on the designs LIST, where
+  // Ctrl+Z is correctly a no-op — the first run of this reported "undo changed nothing" and was
+  // testing the wrong page.
+  await page.goto(url, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.dsx__artboard', { timeout: 30_000 });
+  await page.waitForTimeout(600);
+
+  // Do something first. A freshly opened design has an empty history and Ctrl+Z is correctly a
+  // no-op — the first version of this test pressed undo on a just-loaded page and reported a bug
+  // that was the test's own.
   const beforeUndo = await page.locator('.dsx__el').count();
+  await page.fill('[data-testid="ds-palette-search"]', 'rectangle');
+  await page.waitForTimeout(250);
+  await page.click('[data-testid="ds-palette-item-shape.rectangle"]');
+  await page.waitForTimeout(250);
+  const afterPlace = await page.locator('.dsx__el').count();
+  if (afterPlace !== beforeUndo + 1) bad(`placing before the undo test added ${afterPlace - beforeUndo} elements`);
+
   await page.keyboard.press('Control+z');
-  await page.waitForTimeout(300);
+  await page.waitForTimeout(350);
   const afterUndo = await page.locator('.dsx__el').count();
-  if (afterUndo !== beforeUndo) ok(`undo works (${beforeUndo} → ${afterUndo} elements)`);
-  else bad('Ctrl+Z changed nothing');
+  if (afterUndo === beforeUndo) ok(`undo works (${afterPlace} → ${afterUndo} elements)`);
+  else bad(`Ctrl+Z left ${afterUndo} elements, expected ${beforeUndo}`);
 
   await page.keyboard.press('Control+Shift+z');
-  await page.waitForTimeout(300);
-  if (await page.locator('.dsx__el').count() === beforeUndo) ok('and redo puts it back');
+  await page.waitForTimeout(350);
+  if (await page.locator('.dsx__el').count() === afterPlace) ok('and redo puts it back');
   else bad('redo did not restore the element');
+
+  // Leave the design as it was found, so the drag test below works on the same two elements.
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(300);
 
   // One drag, then one undo, and the element must be back where it started.
   const dragBox = await page.locator('.dsx__el').nth(1).boundingBox();

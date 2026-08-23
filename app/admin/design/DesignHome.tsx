@@ -11,12 +11,13 @@
 // is for, and it says how many elements are on each view so you can tell a real design from a
 // scratch one without opening it.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Trash2, Copy, PenTool, Clock } from 'lucide-react';
 import { createDocument, type DesignDocument } from '@/lib/design/document';
-import { listDesigns, saveDesign, deleteDesign, duplicateDesign, type DesignSummary } from '@/lib/design/storage';
+
+import { fetchDesigns, fetchDesign, pushDesign, removeDesign, type DesignSummary } from '@/lib/design/client';
 import { ENTRIES } from '@/lib/design/catalogue';
 import './DesignStudio.css';
 
@@ -31,9 +32,18 @@ export default function DesignHome() {
   const [name, setName] = useState('');
   const [route, setRoute] = useState('');
   const [ready, setReady] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  // localStorage is a client-only fact; reading it during render would break hydration.
-  useEffect(() => { setDesigns(listDesigns()); setReady(true); }, []);
+  const refresh = useCallback(async () => {
+    const { value, message } = await fetchDesigns();
+    setDesigns(value);
+    setNotice(message ?? null);
+    setReady(true);
+  }, []);
+
+  // The list is a server fact now; fetching during render would break hydration just as reading
+  // localStorage did.
+  useEffect(() => { void refresh(); }, [refresh]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -41,7 +51,7 @@ export default function DesignHome() {
     return designs.filter((d) => `${d.name} ${d.route ?? ''}`.toLowerCase().includes(q));
   }, [designs, query]);
 
-  function create() {
+  async function create() {
     const now = new Date().toISOString();
     const doc: DesignDocument = createDocument({
       id: newId(),
@@ -49,8 +59,34 @@ export default function DesignHome() {
       route: route.trim() || null,
       now,
     });
-    saveDesign(doc, now);
+    // Written before navigating, so the editor's own load finds it on the server rather than
+    // racing it. `pushDesign` writes locally too, so a failed upload still opens.
+    await pushDesign(doc, 'created');
     router.push(`/admin/design/${doc.id}`);
+  }
+
+  /** Duplicate as a variant: same lineage, its own id, saved server-side like any other design. */
+  async function duplicate(summary: DesignSummary) {
+    const { value: source } = await fetchDesign(summary.id);
+    if (!source) { setNotice('That design could not be opened to copy.'); return; }
+    const now = new Date().toISOString();
+    await pushDesign({
+      ...source,
+      id: newId(),
+      name: `${summary.name} (variant)`,
+      variantOf: source.variantOf ?? source.id,
+      createdAt: now,
+      updatedAt: now,
+      version: 1,
+    }, `variant of ${summary.name}`);
+    await refresh();
+  }
+
+  async function remove(summary: DesignSummary) {
+    if (!window.confirm(`Delete “${summary.name}”? It can be restored from the database, but not from here.`)) return;
+    const { message } = await removeDesign(summary.id);
+    if (message) setNotice(message);
+    await refresh();
   }
 
   return (
@@ -92,6 +128,8 @@ export default function DesignHome() {
           </label>
         </div>
 
+        {notice && <p className="dsx-recovered" role="status">{notice}</p>}
+
         {!ready && <p className="dsx-home__empty">Loading…</p>}
 
         {ready && filtered.length === 0 && (
@@ -101,7 +139,7 @@ export default function DesignHome() {
             <div className="admin-empty__desc">
               {designs.length
                 ? 'Try the page path instead of the name.'
-                : 'Name one above and press Create. Designs are saved in this browser; export them to keep a copy.'}
+                : 'Name one above and press Create.'}
             </div>
           </div>
         )}
@@ -121,24 +159,10 @@ export default function DesignHome() {
               </p>
             </Link>
             <div className="dsx-home__card-actions">
-              <button
-                title="Duplicate as a variant"
-                onClick={() => {
-                  const copy = duplicateDesign(d.id, newId(), `${d.name} (variant)`, new Date().toISOString());
-                  if (copy) setDesigns(listDesigns());
-                }}
-              >
+              <button title="Duplicate as a variant" onClick={() => void duplicate(d)}>
                 <Copy size={15} aria-hidden />
               </button>
-              <button
-                className="is-danger"
-                title="Delete"
-                onClick={() => {
-                  if (!window.confirm(`Delete “${d.name}”? This cannot be undone.`)) return;
-                  deleteDesign(d.id);
-                  setDesigns(listDesigns());
-                }}
-              >
+              <button className="is-danger" title="Delete" onClick={() => void remove(d)}>
                 <Trash2 size={15} aria-hidden />
               </button>
             </div>
@@ -147,7 +171,9 @@ export default function DesignHome() {
       </section>
 
       <p className="dsx-home__note">
-        Designs live in this browser’s storage for now, so they are private to this machine. Export
+        Designs are saved to the database, so they open on any machine you sign in from, and every
+        save keeps a version you can go back to. A copy is also kept in this browser, which is what
+        you carry on editing if the connection drops. Export
         anything you want to keep or hand over — the export includes the HTML, an image of each
         view, and a spec with the app’s real class names in it.
       </p>

@@ -947,53 +947,69 @@ it deepens something you can already open.
 - [x] **C10 — Drift ratchet.** Done — citations must resolve to a real file, a real line, and the class they claim. It failed on three of its author's own entries the first time it ran. `__tests__/design/catalogue-drift.test.ts`, plus a coverage floor so
       the number of catalogued elements can never silently go down.
 
+> **The ticks below were reconciled against the running app on 2026-08-23**, not against memory.
+> Everything marked `[x]` is exercised by `scripts/check-design-studio.mjs` (27 assertions),
+> `scripts/check-design-persistence.mjs` (12), or a test in `__tests__/design/`. Where a slice was
+> built in a different shape than planned, the deviation is written down rather than ticked over —
+> a ledger that quietly redefines what it promised is worse than one that is behind.
+
 ### Phase 2 — Canvas
-- [ ] **V1** Artboard shell, iframe isolation, zoom/pan/rulers.
-- [ ] **V2** Grid, snap, anchors, snap strength.
-- [ ] **V3** Selection, drag, resize, nudge.
-- [ ] **V4** Smart guides, align/distribute.
-- [ ] **V5** Z-order, group, lock, layers panel.
-- [ ] **V6** Undo/redo command stack + hotkeys.
+- [x] **V1** Artboard shell, zoom, scrollable stage. **Deviation: no iframe.** Isolation was going
+      to come from an iframe; instead the studio imports the four stylesheets its catalogue cites
+      (see the header of `Studio.tsx`). The iframe would have isolated the mockup from the studio's
+      own CSS, but it also isolates it from the app's — and an unstyled mockup is a lie about what
+      the page looks like, which is the one thing this tool must not tell. Rulers: not built.
+- [x] **V2** Grid, snap, anchors, snap strength — `lib/design/snap.ts`, 22 tests.
+- [x] **V3** Selection, drag, resize, nudge.
+- [x] **V4** Smart guides. **Align/distribute buttons: not built** — the guides do the job during a
+      drag, and multi-select align is only useful once **I7** exists.
+- [x] **V5** Z-order and lock. **Group and the layers panel: not built.**
+- [x] **V6** Undo/redo + hotkeys, one gesture = one undo (asserted in the browser check).
 
 ### Phase 3 — Palette
-- [ ] **P1** Tabs, live previews, recents, favourites.
-- [ ] **P1b** The search panel (§4.7): the box, concept pills, grouped results, keyboard
-      navigation, the "why it matched" line, and filter autocomplete.
-- [ ] **P2** Drag-to-place from palette.
+- [x] **P1** Tabs and live previews. **Recents/favourites: not built.**
+- [x] **P1b** The search panel: box, concept pills, grouped results, the "why it matched" line —
+      17 concept groups, 36 tests. **Keyboard navigation and filter autocomplete: not built.**
+- [x] **P2** Drag-to-place from the palette.
 - [ ] **P3** Custom blocks.
 
 ### Phase 4 — Inspector
-- [ ] **I1** Content, layout, type sections.
-- [ ] **I2** Colour with tokens-first + contrast readout.
-- [ ] **I3** Border, effects, opacity.
+- [x] **I1** Content, layout, type.
+- [x] **I2** Colour, tokens first. **Contrast readout: not built** (it belongs with **Q2**).
+- [x] **I3** Border, corner radius per corner, opacity.
 - [ ] **I4** States preview.
-- [ ] **I5** Placement section: view membership, copy-to-other-view (scaled + stacked).
-- [ ] **I6** Notes.
+- [x] **I5** Copy-to-other-view, scaled and stacked.
+- [x] **I6** Notes.
 - [ ] **I7** Multi-select editing.
 
 ### Phase 5 — Content realism
-- [ ] **D1** Realistic defaults per slot.
-- [ ] **D2** Stress toggle.
+- [x] **D1** Realistic defaults per slot — real job numbers, real stage names.
+- [x] **D2** Stress toggle.
 - [ ] **D3** Empty/one/many toggle.
 
 ### Phase 6 — Persistence
-- [ ] **S1** Seed 609 + API routes.
-- [ ] **S2** Designs list (searchable, filterable by route), create, name, rename, open, delete,
-      restore. Opening restores artboards, grid settings, zoom and scroll.
-- [ ] **S3** Variants + side-by-side.
-- [ ] **S4** Versions + restore + autosave.
+- [x] **S1** Seed 609 applied, `lib/design/server.ts`, and the three API routes under
+      `app/api/admin/design/`. Gated to admin + developer in the route AND in `middleware.ts` —
+      the middleware entry was missing until the route-gate ratchet caught it.
+- [x] **S2** List, create, name, open, delete, duplicate, search. **Deviation:** opening does not
+      restore zoom and scroll, only the document. **Server-backed:** proven by opening a design in a
+      second browser with empty storage; `localStorage` is now the offline draft, not the store.
+- [x] **S3** Variants (lineage via `variant_of`). **Side-by-side view: not built.**
+- [x] **S4** Versions written on every save, restore-forward, autosave to the local draft.
+      **A version-history panel in the UI: not built** — the API and the rows are there and checked.
 
 ### Phase 7 — Export
-- [ ] **E1** PNG.
-- [ ] **E2** HTML export — standalone, and the html+css pair.
-- [ ] **E3** `design.json` spec.
-- [ ] **E4** `PROMPT.md` brief.
+- [x] **E1** PNG — and the SVG beside it, since it is drawn as vector anyway.
+- [x] **E2** HTML — standalone per view, both views in one, and the html+css pair.
+- [x] **E3** `design.json` spec, with warnings for off-token colour and off-canvas elements.
+- [x] **E4** `PROMPT.md` brief.
 - [ ] **E5** Download-all as a zip; save to the exports bucket.
 
 ### Phase 8 — The page
-- [ ] **A1** `/admin/design` + `[id]`, role gate, registry entry, flag.
-- [ ] **A2** Empty states, onboarding, keyboard-shortcut help.
-- [ ] **A3** Remove the flag; announce.
+- [x] **A1** `/admin/design` + `[id]`, role gate in the middleware, registry entry. **No flag** —
+      the role gate is the gate; a second switch to forget to turn on is not more safety.
+- [x] **A2** Empty states and a hint line. **Onboarding and a shortcut-help panel: not built.**
+- [x] **A3** Nothing to un-flag.
 
 ### Phase 9 — Checks
 - [ ] **Q1** In-canvas contract checks (§10) sharing thresholds with `ui-fit-sweep`.
@@ -1006,10 +1022,17 @@ it deepens something you can already open.
 - [ ] **M3** Flagging + punch-list export (§14).
 
 ### Phase 11 — QA
-- [ ] **T1** Browser pass: build a real mockup of `/admin/jobs` end to end, export all four
-      artifacts, and hand them to a fresh agent to build from. The measure of this tool is whether
-      that agent produces the right page without asking a question.
-- [ ] **T2** Full suite + `npm run build` + the fit sweep on the new route.
+- [x] **T1** Browser pass: a real mockup built, moved, resized and exported, with the exported
+      geometry checked against the canvas element by element. Two defects came out of looking at the
+      PNG rather than at the test: wrapped text was drawn once PER LINE as the whole sentence, and a
+      field's placeholder was not drawn at all. Both fixed. The remaining half of T1 — handing the
+      artifacts to a fresh agent and seeing whether it builds the right page — is the owner's next
+      step, and is what the tool is actually for.
+- [x] **T2** Full suite, `npm run build`, and the fit sweep on `/admin/design`. The sweep found the
+      studio's own panels using sub-12px type — the same floor the studio enforces on mockups — and
+      that is fixed. What it still reports on this route is admin **shell** chrome (the rail, the
+      topbar XP pill, the sidebar labels) which is shared by every admin page and is not this
+      feature's to change.
 
 ---
 
