@@ -33,6 +33,7 @@ import {
 } from '@/lib/design/document';
 import { placeRect, clampToArtboard, spacingTo, type Guide, type Rect } from '@/lib/design/snap';
 import { runChecks, applyDismissals, CONTRACT } from '@/lib/design/checks';
+import { punchListFrom, punchListMarkdown } from '@/lib/design/punchlist';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
 import { saveDraft } from '@/lib/design/storage';
@@ -441,6 +442,11 @@ export default function Studio({ initial }: Props) {
       const spec = exportSpec(doc, exportCtx);
       downloadText(`${slug}.design.json`, JSON.stringify(spec, null, 2));
       downloadText('PROMPT.md', exportPrompt(doc, spec));
+      // Its own file, and only when there is something in it. The brief is read once when the page
+      // is built; a punch list is worked through and ticked off, which is a different life and a
+      // different document. An empty one would just be a file that means "nothing here".
+      const punch = punchListFrom(doc);
+      if (punch.length) downloadText('PUNCHLIST.md', punchListMarkdown(doc, punch));
     }
     if (what === 'png' || what === 'all') {
       setStatus('Rendering image…');

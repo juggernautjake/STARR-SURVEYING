@@ -54,7 +54,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (error) return error;
 
   const body = await req.json().catch(() => null) as {
-    name?: string; route?: string; desktop?: unknown; mobile?: unknown;
+    name?: string; route?: string; desktop?: unknown; mobile?: unknown; dryRun?: boolean;
   } | null;
   if (!body?.route) return NextResponse.json({ error: 'Which route was captured?' }, { status: 400 });
 
@@ -70,6 +70,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     mobile: sane(body.mobile),
     entries: ENTRIES,
   });
+
+  // The coverage sweep (C9) asks this question of all 147 routes. Saving each answer would leave
+  // 147 designs nobody asked for, and the sweep only wants the report — so it says so.
+  if (body.dryRun) return NextResponse.json({ coverage });
 
   const saved = await saveMockup(doc, email!, now, `imported from ${body.route}`);
   return NextResponse.json({ doc: saved, coverage });

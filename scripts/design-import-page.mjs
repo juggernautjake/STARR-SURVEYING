@@ -17,6 +17,7 @@
 
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
+import { CAPTURE } from './lib/design-capture.mjs';
 
 const arg = (f) => {
   const i = process.argv.indexOf(f);
@@ -38,90 +39,6 @@ if (!secret) { console.error('AUTH_SECRET is not set'); process.exit(2); }
 const VIEWPORTS = {
   desktop: { width: 1440, height: 900 },
   mobile: { width: 390, height: 844 },
-};
-
-/**
- * Runs INSIDE the page.
- *
- * Keeps a node if the catalogue might know it (it wears one of the catalogue's classes) or if it is
- * a leaf that carries text or takes input. Everything else is layout scaffolding, which is the part
- * a mockup is redrawing anyway — see the note at the top of lib/design/import.ts about why this
- * walk is deliberately lossy.
- */
-const CAPTURE = (known) => {
-  const knownClasses = new Set(known);
-  const LEAF = new Set(['button', 'a', 'input', 'select', 'textarea', 'label', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'td', 'th', 'li', 'strong', 'code']);
-  const out = [];
-  const scrollY = window.scrollY;
-
-  const depthOf = (el) => { let d = 0; for (let p = el.parentElement; p; p = p.parentElement) d += 1; return d; };
-
-  // ── Only the PAGE, not the shell it sits in ───────────────────────────────────────────────────
-  //
-  // The first run of this imported 17 sidebar links, the topbar title and the XP pill into a mockup
-  // of /admin/jobs. The sidebar is identical on all 147 admin routes and is not what anybody is
-  // redesigning when they redesign the jobs page — and 30 nodes of chrome buries the 34 that are
-  // actually the page. `.admin-layout__content` is the app's own name for "the page part", the
-  // same boundary `forms.css` is scoped to.
-  const root = document.querySelector('.admin-layout__content') ?? document.body;
-  const origin = root.getBoundingClientRect();
-
-  for (const el of root.querySelectorAll('*')) {
-    const style = getComputedStyle(el);
-    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-    const r = el.getBoundingClientRect();
-    if (r.width < 4 || r.height < 4) continue;
-    // Off-screen furniture — a closed drawer, a print block — is not what the page looks like.
-    if (r.bottom + scrollY < 0 || r.right < 0) continue;
-
-    const classes = (typeof el.className === 'string' ? el.className : '').split(/\s+/).filter(Boolean);
-    const tag = el.tagName.toLowerCase();
-    const ownText = [...el.childNodes]
-      .filter((n) => n.nodeType === 3)
-      .map((n) => n.textContent)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    // A visible surface — a card, a panel, a toolbar — is an element even when it is a bare div.
-    const transparent = /^(transparent|rgba\(0,\s*0,\s*0,\s*0\))$/i;
-    const paints = !transparent.test(style.backgroundColor)
-      || (parseFloat(style.borderTopWidth) > 0 && !transparent.test(style.borderTopColor));
-
-    const catalogueMightKnowIt = classes.some((c) => knownClasses.has(c));
-    const isContentLeaf = LEAF.has(tag) && (ownText.length > 0 || ['input', 'select', 'textarea'].includes(tag));
-    if (!catalogueMightKnowIt && !isContentLeaf && !paints) continue;
-
-    out.push({
-      tag,
-      classes,
-      // A placeholder is what an empty field SAYS, and an imported field with no words in it is a
-      // grey box that tells the next reader nothing.
-      text: ownText || el.getAttribute('placeholder') || '',
-      // Relative to the content root, not the window: with the sidebar included in the origin,
-      // every imported element would land 240px to the right of where it belongs, and the mobile
-      // and desktop views would not even share a coordinate space.
-      rect: {
-        x: Math.round(r.left - origin.left),
-        y: Math.round(r.top - origin.top),
-        w: Math.round(r.width),
-        h: Math.round(r.height),
-      },
-      styles: {
-        fontSize: style.fontSize,
-        fontWeight: style.fontWeight,
-        color: style.color,
-        background: style.backgroundColor,
-        radius: style.borderTopLeftRadius,
-      },
-      paints,
-      depth: depthOf(el),
-    });
-    // A hard ceiling. A page with 900 kept nodes is a page this tool cannot help with anyway, and
-    // silently truncating would be worse than saying so — the caller reports the cap.
-    if (out.length >= 600) break;
-  }
-  return out;
 };
 
 const token = await encode({

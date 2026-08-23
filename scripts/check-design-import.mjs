@@ -89,6 +89,43 @@ if (artboard) {
   await page.waitForTimeout(200);
   check(await page.locator('.dsx-ins__name').count() > 0, 'and an imported element can be selected and edited');
 
+  // ── Flag a defect on it and export the punch list (§14, M3) ─────────────────────────────────
+  //
+  // The reason this is checked HERE rather than in the studio check: a flag is only worth much when
+  // it points at a real selector, and only an imported element has one. "The third button" is not a
+  // work order; `.jobs-page__search-btn` is.
+  const traced = await page.locator('.dsx-ins__hint code').first().textContent().catch(() => '');
+  check(!!traced, 'the inspector shows what the element was traced from', traced || '(nothing)');
+
+  await page.locator('.dsx-ins__chip', { hasText: 'Does nothing' }).click();
+  await page.waitForTimeout(200);
+  const noteField = page.locator('.dsx-ins__row', { hasText: 'what is wrong' }).locator('input').first();
+  check(await noteField.count() > 0, 'flagging it asks what is wrong');
+  if (await noteField.count()) {
+    await noteField.fill('clicking it does nothing at all');
+    await page.waitForTimeout(300);
+  }
+
+  const downloads = [];
+  page.on('download', async (d) => {
+    let text = '';
+    const stream = await d.createReadStream();
+    for await (const chunk of stream) text += chunk;
+    downloads.push({ name: d.suggestedFilename(), text });
+  });
+  await page.hover('.dsx__export');
+  await page.waitForTimeout(250);
+  await page.locator('.dsx__menu button', { hasText: 'Spec for Claude' }).first().click();
+  await page.waitForTimeout(3000);
+
+  const punch = downloads.find((d) => d.name === 'PUNCHLIST.md');
+  check(!!punch, 'a punch list exports alongside the spec', downloads.map((d) => d.name).join(', ') || '(nothing downloaded)');
+  if (punch) {
+    check(/clicking it does nothing at all/.test(punch.text), 'and it carries the note');
+    check(/`\./.test(punch.text), 'and points at the selector the element was traced from');
+    check(/- \[ \]/.test(punch.text), 'and is written to be ticked off rather than read once');
+  }
+
   // Mobile is its own capture, not a squeezed copy of the desktop one.
   await page.locator('.dsx__view', { hasText: 'Mobile' }).click();
   await page.waitForTimeout(400);

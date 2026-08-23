@@ -1077,10 +1077,18 @@ it deepens something you can already open.
       relative to it, or every element would land 240px right of where it belongs.
       19 unit tests, plus `scripts/check-design-import.mjs` (10 assertions) which runs the real
       script and opens the result.
-- [ ] **M3** Flagging + punch-list export (§14) — tag an imported element `broken` / `duplicate` /
-      `non-functional` / `ugly` with a note, and export the tags as a punch list. The groundwork is
-      in: every imported element carries `importedFrom` (its class signature), so a flag points at
-      something findable rather than at "the third button".
+- [x] **M3** Flagging + punch-list export (§14). Four kinds — `broken`, `does nothing`,
+      `duplicate`, `looks wrong` — each with its own note, exported as `PUNCHLIST.md`.
+      **Why a fixed set and not free text:** a note is prose about one mockup, read by whoever opens
+      it. What the owner described is a list of defects spread across 147 pages that has to survive
+      as a list, so a flag is a structured row instead. Four kinds people will use beats twelve
+      nobody can choose between, and each maps to a different kind of fix (a bug / unfinished work /
+      a consolidation / a design pass).
+      It is written as its own file with checkboxes, not a section of the brief, because the two
+      documents have different lives: a brief is read once when the page is built, a punch list is
+      worked through. And because an imported element carries `importedFrom`, each row points at
+      `.jobs-page__search-btn` rather than at "the third button" — the difference between a work
+      order and a memory. 17 unit tests + 6 assertions in `check-design-import.mjs`.
 
 ### Phase 11 — QA
 - [x] **T1** Browser pass: a real mockup built, moved, resized and exported, with the exported

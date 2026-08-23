@@ -23,6 +23,7 @@ import { useState } from 'react';
 import { Copy, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import type { DesignElement } from '@/lib/design/document';
 import type { CatalogueEntry } from '@/lib/design/catalogue/types';
+import { FLAG_KINDS, toggleFlag, setFlagNote } from '@/lib/design/punchlist';
 
 interface Props {
   element: DesignElement | null;
@@ -301,6 +302,58 @@ export default function Inspector({ element, entry, count, onChange, onSlot, onS
           onChange={(e) => onChange({ note: e.target.value })}
         />
         <p className="dsx-ins__hint">Notes are carried into the exported spec. This is often the most useful thing on the screen.</p>
+      </section>
+
+      {/* ── Flag a defect (§14) ─────────────────────────────────────────────────────────────────
+        *
+        * Separate from the note above, and the difference is the point: a note is prose about THIS
+        * mockup, read by whoever opens it. A flag is a row in a list of defects spread across 147
+        * pages that has to survive as a list. Hence a fixed set of four kinds rather than free text
+        * — four people will actually use beats twelve nobody can choose between, and each maps to a
+        * different kind of fix.
+        */}
+      <section className="dsx-ins__section">
+        <h4>Something wrong with it?</h4>
+        <div className="dsx-ins__chips">
+          {FLAG_KINDS.map(({ kind, label, means }) => {
+            const on = (element.flags ?? []).some((f) => f.kind === kind);
+            return (
+              <button
+                key={kind}
+                type="button"
+                className={`dsx-ins__chip${on ? ' is-on' : ''}`}
+                title={means}
+                onClick={() => onChange({ flags: toggleFlag(element, kind) })}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {(element.flags ?? []).map((flag) => (
+          <label key={flag.kind} className="dsx-ins__row">
+            <span>{FLAG_KINDS.find((k) => k.kind === flag.kind)?.label ?? flag.kind} — what is wrong?</span>
+            <input
+              className="dsx-ins__note"
+              value={flag.note ?? ''}
+              placeholder="e.g. saves but never shows a confirmation"
+              onChange={(e) => onChange({ flags: setFlagNote(element, flag.kind, e.target.value) })}
+            />
+          </label>
+        ))}
+
+        {element.importedFrom ? (
+          <p className="dsx-ins__hint">
+            Traced from <code>.{element.importedFrom.split(' ').join('.')}</code> — flags on it export
+            as a punch list pointing at that selector.
+          </p>
+        ) : (
+          <p className="dsx-ins__hint">
+            Flags export as a punch list. They point at a real selector when the design was traced
+            from a live page.
+          </p>
+        )}
       </section>
 
       <footer className="dsx-ins__foot">
