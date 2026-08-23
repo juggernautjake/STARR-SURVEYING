@@ -41,7 +41,7 @@ function contentHeightOf(view: DesignView): number {
 function renderPlaced(el: DesignElement, ctx: ExportContext): string {
   const entry = el.catalogId ? ctx.getEntry(el.catalogId) : undefined;
   const inner = renderElement(entry, el);
-  const wrapper = styleString(positionStyle(el));
+  const wrapper = styleString(positionStyle(el, entry));
   const label = el.name ?? entry?.label ?? el.kind;
   return `    <div class="ds-el" data-element-id="${escapeHtml(el.id)}" data-catalog="${escapeHtml(el.catalogId ?? '')}" data-name="${escapeHtml(label)}" style="${wrapper}">${inner}</div>`;
 }
@@ -84,6 +84,12 @@ body { margin: 0; background: #EEF0F6; font-family: 'Inter', system-ui, -apple-s
 .ds-artboard { position: relative; margin: 24px auto; background: var(--color-bg-app); box-shadow: 0 8px 32px rgba(15,20,25,.16); overflow: hidden; }
 .ds-artboard__label { font: 600 12px/1 'Inter', sans-serif; color: #6B7280; text-align: center; padding-top: 20px; }
 .ds-el { position: absolute; }
+/* The sketch layer. Raster, because the fill bucket is a pixel operation — see lib/design/drawing.ts. */
+.ds-sketch { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; }
+/* The same rule the canvas uses, and for the same reason: .notif-toast and anything else the app
+ * declares position:fixed would otherwise pin itself to the viewport of whoever opens this file
+ * rather than sitting where it was placed. The wrapper owns position. */
+.ds-el > * { position: static !important; inset: auto !important; z-index: auto !important; margin: 0 !important; animation: none !important; }
 
 /* Buttons */
 .admin-btn { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; padding:.55rem 1.15rem; font-family:'Inter',sans-serif; font-size:.85rem; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid transparent; width:100%; height:100%; }
@@ -196,10 +202,18 @@ function renderViewBody(doc: DesignDocument, viewId: ViewId, ctx: ExportContext,
     .filter((el) => includeAnnotations || !(el.annotation || (el.catalogId && ctx.isAnnotation(el.catalogId))))
     .sort((a, b) => a.z - b.z);
   const height = contentHeightOf(view);
+  // The sketch, at the depth it was drawn at. `z-index` rather than document order, because the
+  // elements are absolutely positioned and their own z values are what decide the stack.
+  const sketch = view.drawing
+    ? `    <img class="ds-sketch" src="${view.drawing}" alt="" style="height:${height}px; z-index:${view.drawingBelow ? 0 : 9000};" />`
+    : null;
+
   return [
     `  <div class="ds-artboard__label">${VIEW_LABEL[viewId]} — ${view.width}×${height}</div>`,
     `  <div class="ds-artboard" style="width:${view.width}px; height:${height}px;">`,
+    ...(sketch && view.drawingBelow ? [sketch] : []),
     ...elements.map((el) => renderPlaced(el, ctx)),
+    ...(sketch && !view.drawingBelow ? [sketch] : []),
     '  </div>',
   ].join('\n');
 }
@@ -406,6 +420,12 @@ export function exportPrompt(doc: DesignDocument, spec: DesignSpec): string {
   const lines: string[] = [];
   lines.push(`# ${doc.name}`, '');
   lines.push(doc.route ? `Target page: \`${doc.route}\`` : 'Target page: not yet decided.', '');
+  // The designer's own words come FIRST. A brief that opens with a file table when somebody
+  // wrote down what the page is for buries the only part written by a person.
+  if (doc.notes?.trim()) {
+    lines.push('## What this page is for', '');
+    lines.push(doc.notes.trim(), '');
+  }
   lines.push('## What this is', '');
   lines.push('A mockup of how this page should look, made in the Page Designer. It ships as four');
   lines.push('things, and they say different parts of the same thing:', '');

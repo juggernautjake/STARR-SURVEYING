@@ -22,16 +22,29 @@
   overflow: hidden;
 }
 
+/* ── The toolbar reads left to right as a sentence ─────────────────────────────────────────────
+ *
+ * It was one wrapping row of equal-weight buttons where Save looked exactly like Guides, and at
+ * 1440px with the drawing tools open it broke into three ragged lines with Save orphaned on the
+ * last one. Now it groups: WHERE you are (back, name, route) · WHAT you are doing (select/draw,
+ * desktop/mobile) · WHAT THE CANVAS DOES (grid, snap, zoom) · WHAT YOU PRODUCE (undo, save,
+ * export), pinned right.
+ *
+ * The row gap matters as much as the order: when it does wrap, the rows have to look like rows. */
 .dsx__bar {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.9rem;
+  column-gap: 0.5rem;
+  row-gap: 0.5rem;
+  padding: 0.5rem 0.9rem;
   background: var(--color-bg-card, #fff);
   border-bottom: 1px solid var(--color-border, #E5E7EB);
   flex-wrap: wrap;
   flex: none;
 }
+/* A hairline between the groups, so the eye finds them without them being boxes. */
+.dsx__tools { padding-left: 0.5rem; border-left: 1px solid var(--color-border, #E5E7EB); }
+.dsx__actions { padding-left: 0.6rem; border-left: 1px solid var(--color-border, #E5E7EB); }
 
 .dsx__back {
   display: inline-flex;
@@ -198,7 +211,31 @@
  * the same rectangle. Without this a 160px-wide button sits inside a 160px wrapper at its own
  * natural width and every handle is in the wrong place. `.job-form__field` is excluded because a
  * label-plus-input stack has to be able to be as tall as its two rows. */
-.dsx__el-inner > *:not(.job-form__field) { width: 100%; height: 100%; box-sizing: border-box; }
+/* ── AN ELEMENT NEVER POSITIONS ITSELF ──────────────────────────────────────────────────────────
+ *
+ * `.notif-toast` is `position: fixed; top: 64px; right: 16px; z-index: 1000`. Placing a Toast on the
+ * artboard therefore pinned it over the ENTIRE EDITOR — measured at 844px taller and 1160px wider
+ * than the frame it was supposed to be in. Every catalogued element whose real CSS uses `fixed` or
+ * `sticky` does the same thing, and there is no reason to find them one at a time.
+ *
+ * The wrapper owns position. `!important` because the app's own rule is more specific than this one
+ * and there is no version of this that the element should win. The export carries the same rule, or
+ * the file and the canvas disagree about where things are. */
+.dsx__el-inner > * {
+  position: static !important;
+  inset: auto !important;
+  z-index: auto !important;
+  margin: 0 !important;
+  animation: none !important;
+}
+
+.dsx__el-inner > *:not(.job-form__field) { width: 100%; box-sizing: border-box; }
+/* Height is filled only for elements whose height is a BOX decision — a button, a card, a bar.
+ * Anything content-height (a title, a paragraph, a breadcrumb) is left to be as tall as its words,
+ * because stretching it strands the text at the top of dead space and makes the editor show
+ * something production never shows. `.dsx__el--fill` is set from the entry's own `contentHeight`
+ * flag, which the catalogue has always recorded and nothing has ever read. */
+.dsx__el--fill > .dsx__el-inner > *:not(.job-form__field) { height: 100%; }
 .dsx__el-inner > .job-form__field { width: 100%; }
 /* The mockup's own elements must never react to the pointer — clicking a button in a mockup should
  * SELECT it, not press it. The wrapper owns every event. */
@@ -508,3 +545,276 @@
  * correct for a 3:1 boundary, and about 2:1 as text on white, which would fail the exact contrast
  * rule this badge exists to report. The count in the label is the message anyway. */
 .dsx__tool--warn { border-color: var(--theme-warning, #F59E0B); border-width: 2px; }
+
+/* ── Mode switch, drawing tools, layers (Phases D, I, E) ────────────────────────────────────────
+ *
+ * Grouped rather than added to the end of the toolbar. The bar was one long row of equal-weight
+ * buttons where "Save" looked exactly like "Guides"; splitting it into what-you-are-doing (mode),
+ * what-the-canvas-does (grid, snap, zoom) and what-you-produce (save, export) is the difference
+ * between a toolbar you read and one you scan. */
+.dsx__modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--theme-bg-page, #EEF0F6);
+  border-radius: 10px;
+  flex: none;
+}
+.dsx__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 32px;
+  padding: 0 0.8rem;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary, #6B7280);
+  cursor: pointer;
+}
+.dsx__mode.is-on {
+  background: var(--theme-bg-surface, #fff);
+  color: var(--color-brand-navy, #1D3095);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* The drawing row gets its own line: eleven tools plus four controls does not belong on the same
+ * row as Save, and wrapping them into it is what made the bar unreadable at 1440px. */
+.dsx__draw-tools {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--color-border, #E5E7EB);
+  margin-top: 0.4rem;
+}
+.dsx__draw-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-text-secondary, #374151);
+}
+.dsx__draw-tool:hover { border-color: var(--color-brand-navy, #1D3095); }
+.dsx__draw-tool.is-on {
+  background: var(--color-brand-navy, #1D3095);
+  border-color: var(--color-brand-navy, #1D3095);
+  color: var(--theme-accent-fg, #fff);
+}
+.dsx__draw-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary, #6B7280);
+  padding-left: 0.4rem;
+}
+.dsx__draw-field input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--color-border, #E5E7EB); border-radius: 6px; background: none; cursor: pointer; }
+.dsx__draw-field select { height: 30px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 6px; font: inherit; font-size: 0.78rem; padding: 0 0.3rem; background: var(--theme-bg-surface, #fff); }
+.dsx__draw-field input[type="range"] { width: 90px; }
+.dsx__draw-field output { min-width: 2ch; font-variant-numeric: tabular-nums; }
+
+/* The zoom readout is a button now: 100% has to MEAN actual size, and one click has to get there. */
+.dsx__zoom-value {
+  min-width: 3.6rem;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  text-align: center;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary, #6B7280);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.dsx__zoom-value:hover { border-color: var(--color-border, #E5E7EB); color: var(--color-brand-navy, #1D3095); }
+
+/* ── The sketch layer ─────────────────────────────────────────────────────────────────────────── */
+.dsx-draw { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+/* Only takes the pointer in draw mode — in select mode it must be completely transparent to
+ * clicks, or every attempt to select an element would land on the canvas instead. */
+.dsx-draw.is-active { pointer-events: auto; cursor: crosshair; z-index: 9990; }
+.dsx-draw__canvas { position: absolute; left: 0; top: 0; }
+.dsx-draw__canvas--preview { pointer-events: none; }
+
+/* ── Layers ───────────────────────────────────────────────────────────────────────────────────── */
+.dsx__right { display: flex; flex-direction: column; min-height: 0; }
+.dsx-lay {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 42%;
+  border-top: 1px solid var(--color-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+}
+.dsx-lay__head { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.7rem 0.35rem; }
+.dsx-lay__head h4 { margin: 0; font: 700 0.75rem/1 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; color: var(--theme-fg-muted, #8A90A2); }
+.dsx-lay__count { font-size: 0.75rem; color: var(--color-text-muted, #9CA3AF); font-variant-numeric: tabular-nums; }
+.dsx-lay__moves { display: flex; gap: 0.25rem; padding: 0 0.7rem 0.5rem; }
+.dsx-lay__moves .dsx__tool { flex: 1; justify-content: center; padding: 0 0.3rem; min-height: 30px; }
+.dsx-lay__moves .dsx__tool:disabled { opacity: 0.4; cursor: not-allowed; }
+.dsx-lay__list { list-style: none; margin: 0; padding: 0 0 0.5rem; overflow-y: auto; flex: 1; min-height: 0; }
+.dsx-lay__row { display: flex; align-items: center; gap: 0.15rem; padding: 0 0.5rem 0 0.7rem; }
+.dsx-lay__row.is-on { background: rgba(29, 48, 149, 0.08); }
+.dsx-lay__row--drawing { background: rgba(245, 158, 11, 0.08); }
+.dsx-lay__pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 30px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text-primary, #0F1419);
+}
+.dsx-lay__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsx-lay__meta { flex: none; font-size: 0.72rem; color: var(--color-text-muted, #9CA3AF); font-variant-numeric: tabular-nums; }
+.dsx-lay__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text-muted, #9CA3AF);
+  flex: none;
+}
+.dsx-lay__icon:hover { background: var(--theme-bg-page, #EEF0F6); color: var(--color-brand-navy, #1D3095); }
+.dsx-lay__empty { padding: 0.6rem 0.7rem; font-size: 0.78rem; color: var(--color-text-muted, #9CA3AF); }
+
+/* ── The page walkthrough (Phase C) ─────────────────────────────────────────────────────────────
+ *
+ * 270 pages. What makes that usable is not scrolling: it is grouping by area, defaulting to "what
+ * is left", and a search that reaches any route in one gesture. */
+.dsx-pages {
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+.dsx-pages__loading { font-size: 0.85rem; color: var(--color-text-tertiary, #6B7280); }
+.dsx-pages__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.dsx-pages__head h2 { margin: 0 0 0.2rem; font-family: 'Sora', sans-serif; font-size: 1rem; }
+.dsx-pages__progress-text { margin: 0 0 0.75rem; font-size: 0.82rem; color: var(--color-text-tertiary, #6B7280); }
+.dsx-pages__progress-text strong { color: var(--color-brand-navy, #1D3095); font-size: 1rem; }
+
+.dsx-pages__bar {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 340px;
+  height: 26px;
+  background: var(--theme-bg-page, #EEF0F6);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.dsx-pages__bar span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--color-brand-navy, #1D3095); border-radius: 999px; transition: width 0.3s; }
+/* The label sits BESIDE the bar, not on it. The blend-mode trick that puts white-on-navy and
+ * dark-on-grey in one element renders as grey-on-grey at low percentages — which is exactly when
+ * you most want to read it. */
+.dsx-pages__bar em {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-style: normal;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-text-secondary, #374151);
+}
+
+.dsx-pages__controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin: 0.5rem 0 0.75rem; }
+.dsx-pages__search { display: flex; align-items: center; gap: 0.4rem; flex: 1 1 260px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; padding: 0 0.6rem; color: var(--color-text-tertiary, #6B7280); }
+.dsx-pages__search input { flex: 1; min-width: 0; height: 36px; border: none; background: none; font: inherit; font-size: 0.85rem; outline: none; }
+.dsx-pages__toggle { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--color-text-secondary, #374151); cursor: pointer; }
+.dsx-pages__empty { font-size: 0.85rem; color: var(--color-text-tertiary, #6B7280); padding: 0.5rem 0; }
+
+.dsx-pages__group { border-top: 1px solid var(--color-border, #E5E7EB); }
+.dsx-pages__group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 40px;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text-primary, #0F1419);
+  cursor: pointer;
+  text-align: left;
+  padding: 0;
+}
+.dsx-pages__group-name { flex: 1; min-width: 0; }
+.dsx-pages__group-count { font-size: 0.75rem; font-weight: 600; color: var(--color-text-muted, #9CA3AF); font-variant-numeric: tabular-nums; }
+
+.dsx-pages__list { list-style: none; margin: 0 0 0.5rem; padding: 0; }
+.dsx-pages__row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #F5F6FA;
+}
+.dsx-pages__row.is-done .dsx-pages__route { color: var(--color-text-muted, #9CA3AF); text-decoration: line-through; }
+.dsx-pages__row.is-skipped { opacity: 0.55; }
+.dsx-pages__status { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: none; cursor: pointer; color: var(--color-text-muted, #9CA3AF); border-radius: 6px; }
+.dsx-pages__row.is-in_progress .dsx-pages__status { color: #B45309; }
+.dsx-pages__row.is-done .dsx-pages__status { color: #047857; }
+.dsx-pages__status:hover { background: var(--theme-bg-page, #EEF0F6); }
+.dsx-pages__route { font-family: 'SF Mono', ui-monospace, monospace; font-size: 0.78rem; color: var(--color-text-secondary, #374151); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsx-pages__dyn { margin-left: 0.4rem; padding: 1px 5px; border-radius: 4px; background: var(--theme-bg-page, #EEF0F6); font-family: 'Inter', sans-serif; font-size: 0.68rem; font-weight: 600; color: var(--color-text-muted, #9CA3AF); }
+.dsx-pages__actions { display: inline-flex; align-items: center; gap: 0.3rem; }
+.dsx-pages__design { font-size: 0.75rem; font-weight: 600; color: var(--color-brand-navy, #1D3095); text-decoration: none; padding: 0.2rem 0.45rem; border-radius: 6px; background: rgba(29, 48, 149, 0.08); max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dsx-pages__create, .dsx-pages__note-btn, .dsx-pages__open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 0.45rem;
+  border: 1px solid var(--color-border, #E5E7EB);
+  border-radius: 6px;
+  background: var(--theme-bg-surface, #fff);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-tertiary, #6B7280);
+  cursor: pointer;
+  text-decoration: none;
+}
+.dsx-pages__create:hover, .dsx-pages__note-btn:hover, .dsx-pages__open:hover { border-color: var(--color-brand-navy, #1D3095); color: var(--color-brand-navy, #1D3095); }
+.dsx-pages__note { grid-column: 2 / -1; width: 100%; min-height: 60px; border: 1px solid var(--color-brand-navy, #1D3095); border-radius: 8px; padding: 0.45rem 0.6rem; font: inherit; font-size: 0.8rem; margin: 0.3rem 0; }
+.dsx-pages__note-text { grid-column: 2 / -1; margin: 0 0 0.35rem; font-size: 0.78rem; line-height: 1.5; color: var(--color-text-tertiary, #6B7280); }
+
+/* ── Notes on a design ─────────────────────────────────────────────────────────────────────────── */
+.dsx__notes { border-top: 1px solid var(--color-border, #E5E7EB); background: var(--theme-bg-surface, #fff); flex: none; }
+.dsx__notes-head { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.55rem 0.8rem 0.35rem; font-size: 0.82rem; }
+.dsx__notes-head span { color: var(--color-text-tertiary, #6B7280); font-size: 0.75rem; }
+.dsx__notes-head button { margin-left: auto; }
+.dsx__notes-body { width: calc(100% - 1.6rem); margin: 0 0.8rem 0.7rem; min-height: 92px; border: 1px solid var(--color-border, #E5E7EB); border-radius: 8px; padding: 0.5rem 0.65rem; font: inherit; font-size: 0.84rem; line-height: 1.5; resize: vertical; }

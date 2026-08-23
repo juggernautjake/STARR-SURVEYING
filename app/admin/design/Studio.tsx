@@ -24,7 +24,7 @@
 //    against `lib/design/snap.ts`, which is tested.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck } from 'lucide-react';
+import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote } from 'lucide-react';
 import Link from 'next/link';
 import {
   type DesignDocument, type DesignElement, type ViewId,
@@ -34,6 +34,7 @@ import {
 import { placeRect, clampToArtboard, spacingTo, type Guide, type Rect } from '@/lib/design/snap';
 import { runChecks, applyDismissals, CONTRACT } from '@/lib/design/checks';
 import { punchListFrom, punchListMarkdown } from '@/lib/design/punchlist';
+import { type DrawTool, type DrawStyle, DEFAULT_DRAW_STYLE, LINE_WIDTHS, isRounded } from '@/lib/design/drawing';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
 import { saveDraft } from '@/lib/design/storage';
@@ -42,6 +43,8 @@ import { exportHtml, exportSpec, exportPrompt, dsPrimitiveStyles } from '@/lib/d
 import { artboardToSvg, captureArtboard, downloadBlob, downloadText } from '@/lib/design/capture';
 import Palette from './components/Palette';
 import Inspector from './components/Inspector';
+import Layers from './components/Layers';
+import DrawingCanvas from './components/DrawingCanvas';
 import './DesignStudio.css';
 
 // ── THE CATALOGUE'S STYLESHEETS HAVE TO BE HERE, OR THE MOCKUP IS A LIE ─────────────────────────
@@ -378,6 +381,52 @@ export default function Studio({ initial }: Props) {
     return () => clearTimeout(timer);
   }, [status]);
 
+  // ── DRAWING (Phase D) ────────────────────────────────────────────────────────────────────────
+  //
+  // The studio has two modes and they are mutually exclusive on purpose: in `select` the pointer
+  // belongs to the elements, in `draw` it belongs to the canvas. A single mode where dragging on
+  // empty space draws and dragging on an element moves it would make every mis-click destructive,
+  // and there is no undo-shaped apology for "I meant to move that, not scribble on it".
+  const [mode, setMode] = useState<'select' | 'draw'>('select');
+  const [drawTool, setDrawTool] = useState<DrawTool>('freehand');
+  const [drawStyle, setDrawStyle] = useState<DrawStyle>(DEFAULT_DRAW_STYLE);
+
+  const commitDrawing = useCallback((dataUrl: string) => {
+    // No `snapshot()` here: the canvas calls `onGestureStart` before it touches a pixel, so one
+    // stroke is one undo step rather than one per pointermove.
+    patchViewLive((v) => ({ ...v, drawing: dataUrl }));
+  }, [patchViewLive]);
+
+  const toggleDrawingDepth = useCallback(() => {
+    patchView((v) => ({ ...v, drawingBelow: !v.drawingBelow }));
+  }, [patchView]);
+
+  const clearDrawing = useCallback(() => {
+    if (!view.drawing) return;
+    if (!window.confirm('Clear the whole sketch on this view? Ctrl+Z brings it back.')) return;
+    patchView((v) => ({ ...v, drawing: null }));
+  }, [patchView, view.drawing]);
+
+  /** Text typed onto the sketch becomes a REAL text element, not pixels — so it stays editable,
+   *  searchable and exportable as words. The drawing layer is for ink; text is text. */
+  const placeDrawnText = useCallback((at: { x: number; y: number }) => {
+    const text = window.prompt('Text');
+    if (!text?.trim()) return;
+    const element: Omit<DesignElement, 'z'> = {
+      id: newElementId(),
+      kind: 'text',
+      catalogId: 'shape.text',
+      slots: { text: text.trim() },
+      style: { fontSize: `${Math.max(12, drawStyle.width * 6)}px`, color: drawStyle.colour },
+      x: Math.round(at.x), y: Math.round(at.y),
+      w: Math.max(80, text.trim().length * 9), h: Math.max(20, drawStyle.width * 8),
+      name: text.trim().slice(0, 24),
+    };
+    patchView((v) => addElement(v, element));
+    setSelection([element.id]);
+    setMode('select');
+  }, [drawStyle, patchView]);
+
   // ── CHECKS (§10, slices Q1–Q3) ───────────────────────────────────────────────────────────────
   //
   // Run on every edit, against the same `contract.json` the sweep measures the real pages with. The
@@ -406,6 +455,7 @@ export default function Studio({ initial }: Props) {
   );
 
   const [showChecks, setShowChecks] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [dismissing, setDismissing] = useState<string | null>(null);
   const [reason, setReason] = useState('');
 
@@ -505,6 +555,26 @@ export default function Studio({ initial }: Props) {
           </button>
         </div>
 
+        {/* ── Select or draw ──────────────────────────────────────────────────────────────────
+          * Two modes, exclusive on purpose: dragging must mean one thing at a time, or every
+          * mis-click is destructive in a way undo apologises for badly. */}
+        <div className="dsx__modes" role="group" aria-label="Mode">
+          <button
+            className={`dsx__mode${mode === 'select' ? ' is-on' : ''}`}
+            onClick={() => setMode('select')}
+            title="Select, move and edit elements (V)"
+          >
+            <MousePointer2 size={15} aria-hidden /> Select
+          </button>
+          <button
+            className={`dsx__mode${mode === 'draw' ? ' is-on' : ''}`}
+            onClick={() => setMode('draw')}
+            title="Draw on the page (D)"
+          >
+            <Pencil size={15} aria-hidden /> Draw
+          </button>
+        </div>
+
         <div className="dsx__tools">
           <button className={`dsx__tool${settings.show ? ' is-on' : ''}`} onClick={() => patchSettings({ show: !settings.show })} title="Show grid">
             <Grid3x3 size={15} aria-hidden /> Grid
@@ -523,10 +593,85 @@ export default function Studio({ initial }: Props) {
           </button>
           <span className="dsx__zoom">
             <button className="dsx__tool" onClick={() => setZoom((z) => Math.max(0.25, Math.round((z - 0.1) * 100) / 100))} aria-label="Zoom out"><ZoomOut size={15} /></button>
-            <span className="dsx__zoom-value">{Math.round(zoom * 100)}%</span>
+            {/* Clicking the number returns to 1:1. "100%" has to MEAN actual size or the whole
+              * claim of production fidelity is unverifiable — so it is one click away, always. */}
+            <button
+              className="dsx__zoom-value"
+              onClick={() => setZoom(1)}
+              title="Actual size — 100% is exactly what production renders"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
             <button className="dsx__tool" onClick={() => setZoom((z) => Math.min(2, Math.round((z + 0.1) * 100) / 100))} aria-label="Zoom in"><ZoomIn size={15} /></button>
           </span>
         </div>
+
+        {/* ── The drawing tools, only while drawing ──────────────────────────────────────────── */}
+        {mode === 'draw' && (
+          <div className="dsx__draw-tools" role="group" aria-label="Drawing tools">
+            {([
+              ['freehand', '✏️', 'Freehand'],
+              ['line', '╱', 'Straight line'],
+              ['rect', '▭', 'Rectangle'],
+              ['rounded-rect', '▢', 'Rounded rectangle'],
+              ['square', '□', 'Square'],
+              ['rounded-square', '◻', 'Rounded square'],
+              ['ellipse', '⬭', 'Oval'],
+              ['circle', '○', 'Circle'],
+              ['fill', '🪣', 'Fill a closed shape'],
+              ['eraser', '🧽', 'Eraser'],
+              ['text', 'T', 'Place text'],
+            ] as Array<[DrawTool, string, string]>).map(([id, glyph, label]) => (
+              <button
+                key={id}
+                className={`dsx__draw-tool${drawTool === id ? ' is-on' : ''}`}
+                onClick={() => setDrawTool(id)}
+                title={label}
+                aria-label={label}
+                aria-pressed={drawTool === id}
+              >
+                {glyph}
+              </button>
+            ))}
+
+            <label className="dsx__draw-field" title="Line colour">
+              <span>Colour</span>
+              <input type="color" value={drawStyle.colour} onChange={(e) => setDrawStyle((s) => ({ ...s, colour: e.target.value }))} />
+            </label>
+
+            <label className="dsx__draw-field" title="Line width">
+              <span>Width</span>
+              <select value={drawStyle.width} onChange={(e) => setDrawStyle((s) => ({ ...s, width: Number(e.target.value) }))}>
+                {LINE_WIDTHS.map((w) => <option key={w} value={w}>{w}px</option>)}
+              </select>
+            </label>
+
+            <label className="dsx__draw-field" title="Fill shapes as you draw them, rather than outlining">
+              <span>Fill</span>
+              <input
+                type="checkbox"
+                checked={drawStyle.fill !== null}
+                onChange={(e) => setDrawStyle((s) => ({ ...s, fill: e.target.checked ? s.colour : null }))}
+              />
+            </label>
+
+            {isRounded(drawTool) && (
+              <label className="dsx__draw-field" title="Corner radius">
+                <span>Corners</span>
+                <input
+                  type="range" min={0} max={64} step={1}
+                  value={drawStyle.radius}
+                  onChange={(e) => setDrawStyle((s) => ({ ...s, radius: Number(e.target.value) }))}
+                />
+                <output>{drawStyle.radius}</output>
+              </label>
+            )}
+
+            <button className="dsx__tool dsx__tool--danger" onClick={clearDrawing} title="Clear the sketch on this view">
+              Clear
+            </button>
+          </div>
+        )}
 
         <div className="dsx__actions">
           <button className="dsx__tool" onClick={undo} title="Undo (Ctrl+Z)" aria-label="Undo"><Undo2 size={15} aria-hidden /></button>
@@ -574,6 +719,16 @@ export default function Studio({ initial }: Props) {
                 </div>
               ))}
 
+              {/* The sketch layer, behind the elements when it is being traced over. */}
+              {view.drawingBelow && (
+                <DrawingCanvas
+                  width={view.width} height={height}
+                  value={view.drawing ?? null}
+                  tool={drawTool} style={drawStyle} active={mode === 'draw'}
+                  onCommit={commitDrawing} onGestureStart={snapshot} onPlaceText={placeDrawnText}
+                />
+              )}
+
               {/* A control under a phone's safe area is a control nobody can tap. */}
               {viewId === 'mobile' && (
                 <>
@@ -588,8 +743,8 @@ export default function Studio({ initial }: Props) {
                 return (
                   <div
                     key={el.id}
-                    className={`dsx__el${isSelected ? ' is-selected' : ''}${el.locked ? ' is-locked' : ''}`}
-                    style={positionStyle(el)}
+                    className={`dsx__el${entry?.size.contentHeight ? '' : ' dsx__el--fill'}${isSelected ? ' is-selected' : ''}${el.locked ? ' is-locked' : ''}`}
+                    style={positionStyle(el, entry)}
                     onPointerDown={(e) => beginMove(e, el)}
                     data-testid={`ds-element-${el.id}`}
                   >
@@ -609,6 +764,16 @@ export default function Studio({ initial }: Props) {
                   </div>
                 );
               })}
+
+              {/* …or over them, when it is being used to mark them up. */}
+              {!view.drawingBelow && (
+                <DrawingCanvas
+                  width={view.width} height={height}
+                  value={view.drawing ?? null}
+                  tool={drawTool} style={drawStyle} active={mode === 'draw'}
+                  onCommit={commitDrawing} onGestureStart={snapshot} onPlaceText={placeDrawnText}
+                />
+              )}
 
               {/* Guides and spacing badges, drawn while dragging. */}
               {guides.map((g, i) => (
@@ -642,7 +807,44 @@ export default function Studio({ initial }: Props) {
           onDuplicate={duplicate}
           onOrder={(dir) => patchView((v) => reorder(v, selection, dir))}
         />
+
+        {/* The right column carries the inspector AND the layer list: the inspector edits what is
+          * selected, the layers panel is how you select something that is buried. */}
+        <div className="dsx__right">
+          <Layers
+            elements={view.elements}
+            selection={selection}
+            getEntry={getEntry}
+            onSelect={(id, additive) => setSelection(additive ? [...new Set([...selection, id])] : [id])}
+            onOrder={(dir) => patchView((v) => reorder(v, selection, dir))}
+            onPatch={(id, patch) => patchView((v) => updateElement(v, id, patch))}
+            hasDrawing={!!view.drawing}
+            drawingBelow={!!view.drawingBelow}
+            onToggleDrawingDepth={toggleDrawingDepth}
+          />
+        </div>
       </div>
+
+      {/* ── What this page is for ─────────────────────────────────────────────────────────────
+        * Owner: *"a place to write notes for each page to explain what is on the page and what the
+        * purpose for the page is."* It sits with the design rather than in a separate document
+        * because the person who needs it is whoever opens the design next, and it is the first
+        * thing the exported brief says. */}
+      {showNotes && (
+        <section className="dsx__notes" aria-label="Page notes">
+          <header className="dsx__notes-head">
+            <strong>What is this page for?</strong>
+            <span>Goes into the exported brief, above everything else.</span>
+            <button className="dsx__tool" onClick={() => setShowNotes(false)}>Close</button>
+          </header>
+          <textarea
+            className="dsx__notes-body"
+            value={doc.notes ?? ''}
+            placeholder={'What is on this page, who opens it, and what they are trying to do.\n\ne.g. "The list every job passes through. The crew opens it on a phone to find today\'s work; the office opens it to move a job to the next stage. The stage pills are the thing people actually scan for."'}
+            onChange={(e) => setDoc((d) => ({ ...d, notes: e.target.value, updatedAt: new Date().toISOString() }))}
+          />
+        </section>
+      )}
 
       {/* ── Contract checks (§10, Q1–Q3) ─────────────────────────────────────────────────────── */}
       {showChecks && (
@@ -723,6 +925,14 @@ export default function Studio({ initial }: Props) {
         >
           <ShieldCheck size={14} aria-hidden />
           <span>{open.length ? `${open.length} to fix` : 'Checks'}</span>
+        </button>
+        <button
+          className={`dsx__tool${doc.notes?.trim() ? ' is-on' : ''}`}
+          onClick={() => setShowNotes((s) => !s)}
+          title="What this page is and what it is for — carried into the exported brief"
+        >
+          <StickyNote size={14} aria-hidden />
+          <span>Notes</span>
         </button>
         {selected.length > 0 && (
           <span className="dsx__foot-actions">

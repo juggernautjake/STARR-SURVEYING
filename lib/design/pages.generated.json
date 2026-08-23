@@ -1,0 +1,1635 @@
+{
+  "generatedBy": "scripts/generate-page-inventory.mjs",
+  "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
+  "count": 270,
+  "byArea": {
+    "public": 43,
+    "admin": 176,
+    "dnd": 35,
+    "customer": 5,
+    "platform": 9,
+    "auth": 2
+  },
+  "routes": [
+    {
+      "route": "/",
+      "area": "public",
+      "dynamic": false,
+      "file": "app"
+    },
+    {
+      "route": "/about",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/about"
+    },
+    {
+      "route": "/admin",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin"
+    },
+    {
+      "route": "/admin/announcements",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/announcements"
+    },
+    {
+      "route": "/admin/assignments",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/assignments"
+    },
+    {
+      "route": "/admin/audit",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/audit"
+    },
+    {
+      "route": "/admin/availability",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/availability"
+    },
+    {
+      "route": "/admin/billing",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/billing"
+    },
+    {
+      "route": "/admin/billing/invoices",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/billing/invoices"
+    },
+    {
+      "route": "/admin/billing/plan-history",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/billing/plan-history"
+    },
+    {
+      "route": "/admin/billing/upgrade",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/billing/upgrade"
+    },
+    {
+      "route": "/admin/cad",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/cad"
+    },
+    {
+      "route": "/admin/calendar",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/calendar"
+    },
+    {
+      "route": "/admin/cards",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/cards"
+    },
+    {
+      "route": "/admin/compliance",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/compliance"
+    },
+    {
+      "route": "/admin/contacts",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/contacts"
+    },
+    {
+      "route": "/admin/contacts/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/contacts/[id]"
+    },
+    {
+      "route": "/admin/design",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/design"
+    },
+    {
+      "route": "/admin/design/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/design/[id]"
+    },
+    {
+      "route": "/admin/discussions",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/discussions"
+    },
+    {
+      "route": "/admin/discussions/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/discussions/[id]"
+    },
+    {
+      "route": "/admin/email/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/email/new"
+    },
+    {
+      "route": "/admin/email/sent",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/email/sent"
+    },
+    {
+      "route": "/admin/employees",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/employees"
+    },
+    {
+      "route": "/admin/employees/[email]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/employees/[email]"
+    },
+    {
+      "route": "/admin/employees/manage",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/employees/manage"
+    },
+    {
+      "route": "/admin/employees/manage/[email]/history",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/employees/manage/[email]/history"
+    },
+    {
+      "route": "/admin/equipment",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment"
+    },
+    {
+      "route": "/admin/equipment/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/equipment/[id]"
+    },
+    {
+      "route": "/admin/equipment/checked-out",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/checked-out"
+    },
+    {
+      "route": "/admin/equipment/consumables",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/consumables"
+    },
+    {
+      "route": "/admin/equipment/fleet-valuation",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/fleet-valuation"
+    },
+    {
+      "route": "/admin/equipment/import",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/import"
+    },
+    {
+      "route": "/admin/equipment/inventory",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/inventory"
+    },
+    {
+      "route": "/admin/equipment/maintenance",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/maintenance"
+    },
+    {
+      "route": "/admin/equipment/maintenance/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/equipment/maintenance/[id]"
+    },
+    {
+      "route": "/admin/equipment/overrides",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/overrides"
+    },
+    {
+      "route": "/admin/equipment/templates",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/templates"
+    },
+    {
+      "route": "/admin/equipment/templates/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/equipment/templates/[id]"
+    },
+    {
+      "route": "/admin/equipment/templates/cleanup-queue",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/templates/cleanup-queue"
+    },
+    {
+      "route": "/admin/equipment/templates/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/templates/new"
+    },
+    {
+      "route": "/admin/equipment/timeline",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/timeline"
+    },
+    {
+      "route": "/admin/equipment/today",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/equipment/today"
+    },
+    {
+      "route": "/admin/error-log",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/error-log"
+    },
+    {
+      "route": "/admin/field-data",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/field-data"
+    },
+    {
+      "route": "/admin/field-data/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/field-data/[id]"
+    },
+    {
+      "route": "/admin/files",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/files"
+    },
+    {
+      "route": "/admin/finances",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/finances"
+    },
+    {
+      "route": "/admin/finances/overview",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/finances/overview"
+    },
+    {
+      "route": "/admin/finances/reconcile",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/finances/reconcile"
+    },
+    {
+      "route": "/admin/hours-approval",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/hours-approval"
+    },
+    {
+      "route": "/admin/install",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/install"
+    },
+    {
+      "route": "/admin/invites",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/invites"
+    },
+    {
+      "route": "/admin/invoices/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/invoices/new"
+    },
+    {
+      "route": "/admin/invoicing",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/invoicing"
+    },
+    {
+      "route": "/admin/invoicing/categories",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/invoicing/categories"
+    },
+    {
+      "route": "/admin/jobs",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/jobs"
+    },
+    {
+      "route": "/admin/jobs/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/jobs/[id]"
+    },
+    {
+      "route": "/admin/jobs/[id]/field",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/jobs/[id]/field"
+    },
+    {
+      "route": "/admin/jobs/import",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/jobs/import"
+    },
+    {
+      "route": "/admin/jobs/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/jobs/new"
+    },
+    {
+      "route": "/admin/leads",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/leads"
+    },
+    {
+      "route": "/admin/leads/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/leads/[id]"
+    },
+    {
+      "route": "/admin/learn",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn"
+    },
+    {
+      "route": "/admin/learn/articles/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/articles/[id]"
+    },
+    {
+      "route": "/admin/learn/exam-prep",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/exam-prep"
+    },
+    {
+      "route": "/admin/learn/exam-prep/rpls",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/exam-prep/rpls"
+    },
+    {
+      "route": "/admin/learn/exam-prep/sit",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/exam-prep/sit"
+    },
+    {
+      "route": "/admin/learn/exam-prep/sit/mock-exam",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/exam-prep/sit/mock-exam"
+    },
+    {
+      "route": "/admin/learn/exam-prep/sit/module/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/exam-prep/sit/module/[id]"
+    },
+    {
+      "route": "/admin/learn/fieldbook",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/fieldbook"
+    },
+    {
+      "route": "/admin/learn/flashcard-bank",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/flashcard-bank"
+    },
+    {
+      "route": "/admin/learn/flashcards",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/flashcards"
+    },
+    {
+      "route": "/admin/learn/flashcards/[deckId]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/flashcards/[deckId]"
+    },
+    {
+      "route": "/admin/learn/flashcards/create",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/flashcards/create"
+    },
+    {
+      "route": "/admin/learn/knowledge-base",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/knowledge-base"
+    },
+    {
+      "route": "/admin/learn/knowledge-base/[slug]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/knowledge-base/[slug]"
+    },
+    {
+      "route": "/admin/learn/manage",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/manage"
+    },
+    {
+      "route": "/admin/learn/manage/article-editor/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/manage/article-editor/[id]"
+    },
+    {
+      "route": "/admin/learn/manage/lesson-builder/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/manage/lesson-builder/[id]"
+    },
+    {
+      "route": "/admin/learn/manage/media",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/manage/media"
+    },
+    {
+      "route": "/admin/learn/manage/question-builder",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/manage/question-builder"
+    },
+    {
+      "route": "/admin/learn/modules",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/modules"
+    },
+    {
+      "route": "/admin/learn/modules/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/modules/[id]"
+    },
+    {
+      "route": "/admin/learn/modules/[id]/[lessonId]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/modules/[id]/[lessonId]"
+    },
+    {
+      "route": "/admin/learn/modules/[id]/[lessonId]/quiz",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/modules/[id]/[lessonId]/quiz"
+    },
+    {
+      "route": "/admin/learn/modules/[id]/test",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/modules/[id]/test"
+    },
+    {
+      "route": "/admin/learn/practice",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/practice"
+    },
+    {
+      "route": "/admin/learn/quiz-history",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/quiz-history"
+    },
+    {
+      "route": "/admin/learn/references",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/references"
+    },
+    {
+      "route": "/admin/learn/roadmap",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/roadmap"
+    },
+    {
+      "route": "/admin/learn/search",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/search"
+    },
+    {
+      "route": "/admin/learn/students",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/learn/students"
+    },
+    {
+      "route": "/admin/learn/students/[studentEmail]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/learn/students/[studentEmail]"
+    },
+    {
+      "route": "/admin/login",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/login"
+    },
+    {
+      "route": "/admin/marketing",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/marketing"
+    },
+    {
+      "route": "/admin/marketing/exports",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/marketing/exports"
+    },
+    {
+      "route": "/admin/marketing/spend",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/marketing/spend"
+    },
+    {
+      "route": "/admin/marketing/uploads",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/marketing/uploads"
+    },
+    {
+      "route": "/admin/me",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/me"
+    },
+    {
+      "route": "/admin/me/privacy",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/me/privacy"
+    },
+    {
+      "route": "/admin/messages",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/messages"
+    },
+    {
+      "route": "/admin/messages/[conversationId]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/messages/[conversationId]"
+    },
+    {
+      "route": "/admin/messages/contacts",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/messages/contacts"
+    },
+    {
+      "route": "/admin/messages/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/messages/new"
+    },
+    {
+      "route": "/admin/messages/settings",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/messages/settings"
+    },
+    {
+      "route": "/admin/mileage",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/mileage"
+    },
+    {
+      "route": "/admin/money",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/money"
+    },
+    {
+      "route": "/admin/my-files",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/my-files"
+    },
+    {
+      "route": "/admin/my-hours",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/my-hours"
+    },
+    {
+      "route": "/admin/my-notes",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/my-notes"
+    },
+    {
+      "route": "/admin/my-pay",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/my-pay"
+    },
+    {
+      "route": "/admin/notes",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/notes"
+    },
+    {
+      "route": "/admin/notifications",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/notifications"
+    },
+    {
+      "route": "/admin/office",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/office"
+    },
+    {
+      "route": "/admin/org-settings",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/org-settings"
+    },
+    {
+      "route": "/admin/orgs",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/orgs"
+    },
+    {
+      "route": "/admin/pass-through",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/pass-through"
+    },
+    {
+      "route": "/admin/pay-progression",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/pay-progression"
+    },
+    {
+      "route": "/admin/pay-progression/[email]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/pay-progression/[email]"
+    },
+    {
+      "route": "/admin/pay-rates",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/pay-rates"
+    },
+    {
+      "route": "/admin/payments/inbox",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payments/inbox"
+    },
+    {
+      "route": "/admin/payout-log",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payout-log"
+    },
+    {
+      "route": "/admin/payouts",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts"
+    },
+    {
+      "route": "/admin/payouts/ad-hoc",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/ad-hoc"
+    },
+    {
+      "route": "/admin/payouts/runs",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/runs"
+    },
+    {
+      "route": "/admin/payouts/runs/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/payouts/runs/[id]"
+    },
+    {
+      "route": "/admin/payouts/runs/[id]/dispatch",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/payouts/runs/[id]/dispatch"
+    },
+    {
+      "route": "/admin/payouts/search",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/search"
+    },
+    {
+      "route": "/admin/payouts/tax-report",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/tax-report"
+    },
+    {
+      "route": "/admin/payouts/withdrawals",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payouts/withdrawals"
+    },
+    {
+      "route": "/admin/payroll",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/payroll"
+    },
+    {
+      "route": "/admin/payroll/[email]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/payroll/[email]"
+    },
+    {
+      "route": "/admin/people",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/people"
+    },
+    {
+      "route": "/admin/people/[email]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/people/[email]"
+    },
+    {
+      "route": "/admin/personnel/crew-calendar",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/personnel/crew-calendar"
+    },
+    {
+      "route": "/admin/profile",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/profile"
+    },
+    {
+      "route": "/admin/projects",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/projects"
+    },
+    {
+      "route": "/admin/projects/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/projects/[id]"
+    },
+    {
+      "route": "/admin/projects/[id]/edit",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/projects/[id]/edit"
+    },
+    {
+      "route": "/admin/projects/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/projects/new"
+    },
+    {
+      "route": "/admin/receipts",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/receipts"
+    },
+    {
+      "route": "/admin/receipts/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/receipts/new"
+    },
+    {
+      "route": "/admin/receivables",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/receivables"
+    },
+    {
+      "route": "/admin/reports",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/reports"
+    },
+    {
+      "route": "/admin/reports/job/[jobId]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/reports/job/[jobId]"
+    },
+    {
+      "route": "/admin/research",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research"
+    },
+    {
+      "route": "/admin/research-cad",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research-cad"
+    },
+    {
+      "route": "/admin/research/[projectId]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/research/[projectId]"
+    },
+    {
+      "route": "/admin/research/[projectId]/boundary",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/research/[projectId]/boundary"
+    },
+    {
+      "route": "/admin/research/[projectId]/documents",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/research/[projectId]/documents"
+    },
+    {
+      "route": "/admin/research/[projectId]/report",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/research/[projectId]/report"
+    },
+    {
+      "route": "/admin/research/billing",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/billing"
+    },
+    {
+      "route": "/admin/research/coverage",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/coverage"
+    },
+    {
+      "route": "/admin/research/library",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/library"
+    },
+    {
+      "route": "/admin/research/pipeline",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/pipeline"
+    },
+    {
+      "route": "/admin/research/self-heal",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/self-heal"
+    },
+    {
+      "route": "/admin/research/sites",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/sites"
+    },
+    {
+      "route": "/admin/research/testing",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/research/testing"
+    },
+    {
+      "route": "/admin/rewards",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/rewards"
+    },
+    {
+      "route": "/admin/rewards/admin",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/rewards/admin"
+    },
+    {
+      "route": "/admin/rewards/how-it-works",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/rewards/how-it-works"
+    },
+    {
+      "route": "/admin/role-requests",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/role-requests"
+    },
+    {
+      "route": "/admin/roles/custom",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/roles/custom"
+    },
+    {
+      "route": "/admin/schedule",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/schedule"
+    },
+    {
+      "route": "/admin/search",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/search"
+    },
+    {
+      "route": "/admin/settings",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/settings"
+    },
+    {
+      "route": "/admin/support",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/support"
+    },
+    {
+      "route": "/admin/support/new",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/support/new"
+    },
+    {
+      "route": "/admin/support/tickets/[id]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/support/tickets/[id]"
+    },
+    {
+      "route": "/admin/team",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/team"
+    },
+    {
+      "route": "/admin/team/[email]",
+      "area": "admin",
+      "dynamic": true,
+      "file": "app/admin/team/[email]"
+    },
+    {
+      "route": "/admin/time-off",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/time-off"
+    },
+    {
+      "route": "/admin/timeline",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/timeline"
+    },
+    {
+      "route": "/admin/users",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/users"
+    },
+    {
+      "route": "/admin/vehicles",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/vehicles"
+    },
+    {
+      "route": "/admin/weather",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/weather"
+    },
+    {
+      "route": "/admin/work",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/work"
+    },
+    {
+      "route": "/AndrewAsh",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/(site)"
+    },
+    {
+      "route": "/AndrewAsh/[slug]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/(site)/[slug]"
+    },
+    {
+      "route": "/AndrewAsh/about",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/(site)/about"
+    },
+    {
+      "route": "/AndrewAsh/client/[token]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/client/[token]"
+    },
+    {
+      "route": "/AndrewAsh/coaching",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/(site)/coaching"
+    },
+    {
+      "route": "/AndrewAsh/contact",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/(site)/contact"
+    },
+    {
+      "route": "/AndrewAsh/contract/[token]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/contract/[token]"
+    },
+    {
+      "route": "/AndrewAsh/invoice/[token]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/invoice/[token]"
+    },
+    {
+      "route": "/AndrewAsh/login",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/login"
+    },
+    {
+      "route": "/AndrewAsh/studio",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio"
+    },
+    {
+      "route": "/AndrewAsh/studio/clients",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/clients"
+    },
+    {
+      "route": "/AndrewAsh/studio/clients/[id]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/studio/clients/[id]"
+    },
+    {
+      "route": "/AndrewAsh/studio/coaching",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/coaching"
+    },
+    {
+      "route": "/AndrewAsh/studio/contracts",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/contracts"
+    },
+    {
+      "route": "/AndrewAsh/studio/contracts/[id]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/studio/contracts/[id]"
+    },
+    {
+      "route": "/AndrewAsh/studio/demos",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/demos"
+    },
+    {
+      "route": "/AndrewAsh/studio/documents",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/documents"
+    },
+    {
+      "route": "/AndrewAsh/studio/expenses",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/expenses"
+    },
+    {
+      "route": "/AndrewAsh/studio/guide",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/guide"
+    },
+    {
+      "route": "/AndrewAsh/studio/inquiries",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/inquiries"
+    },
+    {
+      "route": "/AndrewAsh/studio/inquiries/[id]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/studio/inquiries/[id]"
+    },
+    {
+      "route": "/AndrewAsh/studio/invoices",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/invoices"
+    },
+    {
+      "route": "/AndrewAsh/studio/invoices/[id]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/studio/invoices/[id]"
+    },
+    {
+      "route": "/AndrewAsh/studio/media",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/media"
+    },
+    {
+      "route": "/AndrewAsh/studio/pages",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/pages"
+    },
+    {
+      "route": "/AndrewAsh/studio/pages/[id]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/studio/pages/[id]"
+    },
+    {
+      "route": "/AndrewAsh/studio/settings",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/studio/settings"
+    },
+    {
+      "route": "/AndrewAsh/voice-over",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/(site)/voice-over"
+    },
+    {
+      "route": "/AndrewAsh/work",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/AndrewAsh/(site)/work"
+    },
+    {
+      "route": "/AndrewAsh/work/[slug]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/AndrewAsh/(site)/work/[slug]"
+    },
+    {
+      "route": "/cad-harness",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/cad-harness"
+    },
+    {
+      "route": "/change-order/[token]",
+      "area": "public",
+      "dynamic": true,
+      "file": "app/change-order/[token]"
+    },
+    {
+      "route": "/contact",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/contact"
+    },
+    {
+      "route": "/credentials",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/credentials"
+    },
+    {
+      "route": "/dnd",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd"
+    },
+    {
+      "route": "/dnd/bestiary",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/bestiary"
+    },
+    {
+      "route": "/dnd/bestiary/[slug]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/bestiary/[slug]"
+    },
+    {
+      "route": "/dnd/campaigns/[id]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]"
+    },
+    {
+      "route": "/dnd/campaigns/[id]/console",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]/console"
+    },
+    {
+      "route": "/dnd/campaigns/[id]/manage",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]/manage"
+    },
+    {
+      "route": "/dnd/campaigns/[id]/map-studio",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]/map-studio"
+    },
+    {
+      "route": "/dnd/campaigns/[id]/planet-forge",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]/planet-forge"
+    },
+    {
+      "route": "/dnd/campaigns/[id]/sessions/[sid]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]/sessions/[sid]"
+    },
+    {
+      "route": "/dnd/campaigns/[id]/world",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/campaigns/[id]/world"
+    },
+    {
+      "route": "/dnd/characters",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/characters"
+    },
+    {
+      "route": "/dnd/characters/[id]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/characters/[id]"
+    },
+    {
+      "route": "/dnd/characters/[id]/build/class",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/characters/[id]/build/class"
+    },
+    {
+      "route": "/dnd/characters/[id]/build/feat",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/characters/[id]/build/feat"
+    },
+    {
+      "route": "/dnd/characters/[id]/build/subclass",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/characters/[id]/build/subclass"
+    },
+    {
+      "route": "/dnd/characters/[id]/builder",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/characters/[id]/builder"
+    },
+    {
+      "route": "/dnd/characters/[id]/levels",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/characters/[id]/levels"
+    },
+    {
+      "route": "/dnd/characters/new",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/characters/new"
+    },
+    {
+      "route": "/dnd/content",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/content"
+    },
+    {
+      "route": "/dnd/content/[id]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/content/[id]"
+    },
+    {
+      "route": "/dnd/content/coverage",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/content/coverage"
+    },
+    {
+      "route": "/dnd/content/new",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/content/new"
+    },
+    {
+      "route": "/dnd/hextech-demo",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/hextech-demo"
+    },
+    {
+      "route": "/dnd/join/[code]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/join/[code]"
+    },
+    {
+      "route": "/dnd/Lazzuh_Gun",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/Lazzuh_Gun"
+    },
+    {
+      "route": "/dnd/library",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/library"
+    },
+    {
+      "route": "/dnd/library/[key]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/library/[key]"
+    },
+    {
+      "route": "/dnd/login",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/login"
+    },
+    {
+      "route": "/dnd/maps",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/maps"
+    },
+    {
+      "route": "/dnd/maps/studio",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/maps/studio"
+    },
+    {
+      "route": "/dnd/preview/edit-flow",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/preview/edit-flow"
+    },
+    {
+      "route": "/dnd/profile",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/profile"
+    },
+    {
+      "route": "/dnd/recover",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/recover"
+    },
+    {
+      "route": "/dnd/stream/[id]",
+      "area": "dnd",
+      "dynamic": true,
+      "file": "app/dnd/stream/[id]"
+    },
+    {
+      "route": "/dnd/suggestions",
+      "area": "dnd",
+      "dynamic": false,
+      "file": "app/dnd/suggestions"
+    },
+    {
+      "route": "/pay",
+      "area": "customer",
+      "dynamic": false,
+      "file": "app/pay"
+    },
+    {
+      "route": "/pay/[invoice]",
+      "area": "customer",
+      "dynamic": true,
+      "file": "app/pay/[invoice]"
+    },
+    {
+      "route": "/platform",
+      "area": "platform",
+      "dynamic": false,
+      "file": "app/platform"
+    },
+    {
+      "route": "/platform/audit",
+      "area": "platform",
+      "dynamic": false,
+      "file": "app/platform/audit"
+    },
+    {
+      "route": "/platform/customers",
+      "area": "platform",
+      "dynamic": false,
+      "file": "app/platform/customers"
+    },
+    {
+      "route": "/platform/customers/[orgId]",
+      "area": "platform",
+      "dynamic": true,
+      "file": "app/platform/customers/[orgId]"
+    },
+    {
+      "route": "/platform/releases",
+      "area": "platform",
+      "dynamic": false,
+      "file": "app/platform/releases"
+    },
+    {
+      "route": "/platform/releases/[id]",
+      "area": "platform",
+      "dynamic": true,
+      "file": "app/platform/releases/[id]"
+    },
+    {
+      "route": "/platform/support",
+      "area": "platform",
+      "dynamic": false,
+      "file": "app/platform/support"
+    },
+    {
+      "route": "/platform/support/tickets/[id]",
+      "area": "platform",
+      "dynamic": true,
+      "file": "app/platform/support/tickets/[id]"
+    },
+    {
+      "route": "/platform/team",
+      "area": "platform",
+      "dynamic": false,
+      "file": "app/platform/team"
+    },
+    {
+      "route": "/portal/[token]",
+      "area": "customer",
+      "dynamic": true,
+      "file": "app/portal/[token]"
+    },
+    {
+      "route": "/pricing",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/pricing"
+    },
+    {
+      "route": "/pricing/software",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/pricing/software"
+    },
+    {
+      "route": "/privacy",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/privacy"
+    },
+    {
+      "route": "/proposal/[token]",
+      "area": "customer",
+      "dynamic": true,
+      "file": "app/proposal/[token]"
+    },
+    {
+      "route": "/register",
+      "area": "auth",
+      "dynamic": false,
+      "file": "app/register"
+    },
+    {
+      "route": "/resources",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/resources"
+    },
+    {
+      "route": "/service-area",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/service-area"
+    },
+    {
+      "route": "/services",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/services"
+    },
+    {
+      "route": "/share/[token]",
+      "area": "customer",
+      "dynamic": true,
+      "file": "app/share/[token]"
+    },
+    {
+      "route": "/signup",
+      "area": "auth",
+      "dynamic": false,
+      "file": "app/signup"
+    },
+    {
+      "route": "/ux-harness",
+      "area": "public",
+      "dynamic": false,
+      "file": "app/ux-harness"
+    }
+  ]
+}

@@ -168,7 +168,9 @@ function lineFragments(node: Text, toLocal: ToLocal): LineFragment[] {
  * stacks them. Text is collected per line via `lineFragments`, which is the browser's own answer to
  * "where did this text actually end up" — including wrapping, alignment and ellipsis.
  */
-function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
+interface Embedded { x: number; y: number; w: number; h: number; href: string }
+
+function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: Embedded[]; untaintable: string[] } {
   const origin = root.getBoundingClientRect();
   // The artboard is rendered at the studio's zoom; everything is divided back to 1:1.
   const scale = origin.width / root.offsetWidth || 1;
@@ -181,12 +183,32 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
 
   const boxes: Box[] = [];
   const lines: TextLine[] = [];
+  const images: Embedded[] = [];
+  const untaintable: string[] = [];
   const SKIP = /dsx__handle|dsx__size|dsx__guide|dsx__gap|dsx__fold|dsx__safe/;
 
   const visit = (el: HTMLElement) => {
     if (SKIP.test(el.className || '')) return;
     const style = getComputedStyle(el);
     if (style.display === 'none' || style.visibility === 'hidden') return;
+
+    // ── The sketch layer is pixels, and this exporter draws vectors ────────────────────────────
+    //
+    // Everything else here is redrawn as `<rect>` and `<text>`. A canvas cannot be, so it is
+    // carried across as an embedded image. Without this the PNG silently omits every line the
+    // owner drew — the worst kind of export bug, because the file looks finished.
+    if (el instanceof HTMLCanvasElement) {
+      const rect = toLocal(el.getBoundingClientRect());
+      if (rect.w > 0 && rect.h > 0) {
+        try {
+          images.push({ ...rect, href: el.toDataURL('image/png') });
+        } catch {
+          // A tainted canvas cannot be read. Recorded rather than dropped, so the caller can say so.
+          untaintable.push('the drawing layer');
+        }
+      }
+      return;
+    }
 
     const rect = toLocal(el.getBoundingClientRect());
     if (rect.w > 0 && rect.h > 0) {
@@ -262,7 +284,7 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
   };
 
   visit(root);
-  return { boxes, lines };
+  return { boxes, lines, images, untaintable };
 }
 
 /**
@@ -272,7 +294,7 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[] } {
  * be dropped into a document. The PNG below is this, rasterised.
  */
 export function artboardToSvg(node: HTMLElement, width: number, height: number): string {
-  const { boxes, lines } = collect(node);
+  const { boxes, lines, images } = collect(node);
   const parts: string[] = [];
 
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
@@ -286,6 +308,15 @@ export function artboardToSvg(node: HTMLElement, width: number, height: number):
     parts.push(rounded
       ? `<path d="${roundedRectPath(box)}"${fill}${stroke}${opacity}/>`
       : `<rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"${fill}${stroke}${opacity}/>`);
+  }
+
+  // Between the boxes and the words: ink sits over surfaces, and text stays readable over ink.
+  for (const img of images) {
+    parts.push(
+      `<image x="${img.x.toFixed(1)}" y="${img.y.toFixed(1)}"`
+      + ` width="${img.w.toFixed(1)}" height="${img.h.toFixed(1)}"`
+      + ` href="${img.href}" preserveAspectRatio="none"/>`,
+    );
   }
 
   for (const line of lines) {

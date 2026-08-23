@@ -101,6 +101,13 @@ export interface DesignView {
    *  — a dismissal that did not survive a save would be a dismissal you had to make every time.
    *  Optional: designs written before this existed load without it. */
   dismissals?: Dismissal[];
+  /** The sketch layer, as a PNG data URL. Raster because the fill bucket is a pixel operation —
+   *  see the header of `lib/design/drawing.ts`. Lives on the view because a phone sketch and a
+   *  desktop sketch are as independent as their layouts. */
+  drawing?: string | null;
+  /** Whether the sketch sits behind the elements rather than over them. Behind is right for tracing
+   *  a layout you then build on top of; in front is right for marking one up. */
+  drawingBelow?: boolean;
 }
 
 /** Answering a check: which finding, why, and when. The reason is required by the UI and carried
@@ -118,6 +125,13 @@ export interface DesignDocument {
   route: string | null;
   /** Sibling designs of the same page: "Jobs list — A (dense)" vs "B (cards)". */
   variantOf?: string | null;
+  /** What this page is and what it is for, in the designer's own words.
+   *
+   *  Owner: *"a place to write notes for each page to explain what is on the page and what the
+   *  purpose for the page is."* On the DOCUMENT rather than per view, because the purpose of a page
+   *  does not change between desktop and mobile — and it goes into the exported brief, where it is
+   *  the first thing worth reading. */
+  notes?: string;
   views: Record<ViewId, DesignView>;
   createdAt: string;
   updatedAt: string;

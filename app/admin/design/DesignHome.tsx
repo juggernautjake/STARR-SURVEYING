@@ -19,6 +19,7 @@ import { createDocument, type DesignDocument } from '@/lib/design/document';
 
 import { fetchDesigns, fetchDesign, pushDesign, removeDesign, type DesignSummary } from '@/lib/design/client';
 import { ENTRIES } from '@/lib/design/catalogue';
+import PageList from './components/PageList';
 import './DesignStudio.css';
 
 function newId(): string {
@@ -50,6 +51,15 @@ export default function DesignHome() {
     if (!q) return designs;
     return designs.filter((d) => `${d.name} ${d.route ?? ''}`.toLowerCase().includes(q));
   }, [designs, query]);
+
+  /** Start a design for a specific route, straight from the walkthrough. The route is the point:
+   *  a design created from the list is already attached to the page it is for. */
+  async function createForRoute(forRoute: string) {
+    const now = new Date().toISOString();
+    const doc: DesignDocument = createDocument({ id: newId(), name: forRoute, route: forRoute, now });
+    await pushDesign(doc, 'created from the page list');
+    router.push(`/admin/design/${doc.id}`);
+  }
 
   async function create() {
     const now = new Date().toISOString();
@@ -118,6 +128,10 @@ export default function DesignHome() {
           </button>
         </div>
       </section>
+
+      {/* The walkthrough. Above the designs list because it is the thing being worked THROUGH —
+        * the designs are what comes out of it, not the way in. */}
+      <PageList onCreateFor={createForRoute} />
 
       <section className="dsx-home__list">
         <div className="dsx-home__list-head">

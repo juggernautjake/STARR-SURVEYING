@@ -88,7 +88,7 @@ export function renderElement(entry: CatalogueEntry | undefined, element: Design
 
 /** The wrapper that positions an element on an artboard. Shared by canvas and export so a design
  *  cannot look different in the file than it did on screen. */
-export function positionStyle(element: DesignElement): Record<string, string> {
+export function positionStyle(element: DesignElement, entry?: CatalogueEntry): Record<string, string> {
   const style: Record<string, string> = {
     position: 'absolute',
     left: `${element.x}px`,
@@ -96,9 +96,18 @@ export function positionStyle(element: DesignElement): Record<string, string> {
     width: `${element.w}px`,
     zIndex: String(element.z),
   };
-  // Content-height elements (a paragraph) must be allowed to be as tall as their text; a fixed
-  // height would clip the very thing the stress toggle exists to reveal.
-  if (element.h > 0) style.height = `${element.h}px`;
+  // ── Content-height elements are as tall as their words ──────────────────────────────────────
+  //
+  // A paragraph, a title, a breadcrumb: in production these are exactly as tall as their text, and
+  // pinning them to a frame height strands the text at the top of dead space. The catalogue has
+  // recorded `size.contentHeight` since the first curation pass and NOTHING HAS EVER READ IT —
+  // which is why the measurement found 27 entries whose editor height had no relationship to the
+  // height the same markup takes in the app.
+  //
+  // `minHeight` rather than nothing, so a resized element still holds the space it was given while
+  // being free to grow past it.
+  const contentHeight = entry?.size.contentHeight === true;
+  if (element.h > 0) style[contentHeight ? 'minHeight' : 'height'] = `${element.h}px`;
   if (element.rotation) style.transform = `rotate(${element.rotation}deg)`;
   if (element.hidden) style.display = 'none';
   return style;

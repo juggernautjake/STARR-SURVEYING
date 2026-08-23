@@ -158,6 +158,38 @@ describe('every citation resolves', () => {
   });
 });
 
+describe('every curated entry actually reaches the palette', () => {
+  // ── 2026-08-23: four entries were written, imported, and never added to the array ────────────
+  //
+  // `lib/design/catalogue/index.ts` imported BUBBLE_ENTRIES and did not spread it into `ENTRIES`.
+  // Every other check passed: the file compiled, the drift ratchet iterated ENTRIES and found
+  // nothing wrong with entries that were not in it, and 126 tests stayed green. The bug surfaced
+  // only by typing "role" into the real palette and getting nothing back.
+  //
+  // Counting the `defineEntry(` calls on disk against the array's length is crude and catches
+  // exactly this: an entry that exists in a file nobody assembled.
+  it('has as many entries as there are defineEntry calls in curated/', () => {
+    const dir = join(repoRoot, 'lib', 'design', 'catalogue', 'curated');
+    const declared = readdirSync(dir)
+      .filter((f) => f.endsWith('.ts'))
+      .reduce((total, f) => total + (readFileSync(join(dir, f), 'utf8').match(/defineEntry\(\{/g)?.length ?? 0), 0);
+
+    expect(
+      ENTRIES.length,
+      `${declared} entries are declared across curated/*.ts but only ${ENTRIES.length} reach ENTRIES. `
+      + 'An entry that is written but never spread into the array is invisible to the palette, the '
+      + 'search index, the importer and the export — and every other test still passes.',
+    ).toBe(declared);
+  });
+
+  it('has no two entries claiming the same id', () => {
+    const seen = new Map<string, number>();
+    for (const e of ENTRIES) seen.set(e.id, (seen.get(e.id) ?? 0) + 1);
+    const duplicates = [...seen.entries()].filter(([, n]) => n > 1).map(([id]) => id);
+    expect(duplicates, `Duplicate entry ids: ${duplicates.join(', ')}`).toEqual([]);
+  });
+});
+
 describe('the fingerprint', () => {
   it('is stable for the same input and different for a changed one', () => {
     expect(fingerprint('a')).toBe(fingerprint('a'));

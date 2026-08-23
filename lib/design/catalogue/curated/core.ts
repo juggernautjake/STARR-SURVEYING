@@ -49,7 +49,7 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
     classes: ['job-detail__name'],
     slots: [{ name: 'text', kind: 'text', label: 'Text', default: 'Anthony ProTech Survey', stress: 'Cabaniss Boundary & Improvement Survey — Phase 2' }],
     props: TEXT_PROPS,
-    size: { default: { w: 420, h: 34 }, resize: 'width', contentHeight: true },
+    size: { default: { w: 420, h: 26 }, resize: 'width', contentHeight: true },
     anchors: TEXT_ANCHORS,
     source: [{ file: 'app/admin/styles/AdminJobs.css', line: 712, kind: 'css' }],
     usage: [{ route: '/admin/jobs/[id]', count: 1 }],
@@ -96,7 +96,7 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
       stress: 'Find and or set all corners, shoot all improvements, locate the existing fence line, and tie to the county monument at the north-east corner of the tract.',
     }],
     props: TEXT_PROPS,
-    size: { default: { w: 420, h: 48 }, resize: 'both', contentHeight: true },
+    size: { default: { w: 420, h: 24 }, resize: 'both', contentHeight: true },
     anchors: TEXT_ANCHORS,
     // A studio primitive: the app has no reusable body-text class, so this one is defined by
     // `dsPrimitiveStyles()` and says so rather than citing a stylesheet it is not in.

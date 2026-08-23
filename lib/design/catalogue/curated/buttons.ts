@@ -142,7 +142,11 @@ export const BUTTON_ENTRIES: CatalogueEntry[] = [
     html: '<button type="button" class="fx__icon-btn" aria-label="{{label}}">{{icon}}</button>',
     classes: ['fx__icon-btn'],
     slots: [
-      { name: 'icon', kind: 'icon', label: 'Icon', default: 'Trash2' },
+      // A GLYPH, not a component name. This said 'Trash2' — the renderer is string substitution, so
+      // the button rendered the word "Trash2" and it escaped its own 40px box by 12px. The icon
+      // library is not reachable from a template, and an emoji is legible in an export that opens
+      // with no stylesheet at all.
+      { name: 'icon', kind: 'icon', label: 'Icon', default: '🗑', stress: '⚙' },
       { name: 'label', kind: 'text', label: 'Accessible name', default: 'Delete' },
     ],
     props: BUTTON_PROPS,
