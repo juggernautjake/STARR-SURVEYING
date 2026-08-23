@@ -7,7 +7,7 @@
 import { BUTTON_ENTRIES, BUTTON_EXCLUSIONS } from './curated/buttons';
 import { CORE_ENTRIES, ANNOTATION_ENTRY_IDS } from './curated/core';
 import { STATUS_ENTRIES } from './curated/status';
-import { STRUCTURE_ENTRIES } from './curated/structure';
+import { STRUCTURE_ENTRIES, STRUCTURE_EXCLUSIONS } from './curated/structure';
 import { CATEGORY_ORDER } from './categories';
 import type { AreaId, CatalogueEntry, CategoryId, CurationExclusion } from './types';
 
@@ -18,7 +18,7 @@ export const ENTRIES: CatalogueEntry[] = [
   ...STRUCTURE_ENTRIES,
 ];
 
-export const EXCLUSIONS: CurationExclusion[] = [...BUTTON_EXCLUSIONS];
+export const EXCLUSIONS: CurationExclusion[] = [...BUTTON_EXCLUSIONS, ...STRUCTURE_EXCLUSIONS];
 
 export const ENTRY_BY_ID: Map<string, CatalogueEntry> = new Map(ENTRIES.map((e) => [e.id, e]));
 

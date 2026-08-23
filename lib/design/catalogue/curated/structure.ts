@@ -17,7 +17,7 @@ import {
   defineEntry, BOX_ANCHORS, COLOUR_PROPS, COMMON_PROPS, CONTROL_CONTRACT, INTERACTIVE_STATES,
   TEXT_ANCHORS, TYPE_PROPS,
 } from '../define';
-import type { CatalogueEntry } from '../types';
+import type { CatalogueEntry, CurationExclusion } from '../types';
 
 const BASIC = [...COMMON_PROPS, ...COLOUR_PROPS];
 const WITH_TYPE = [...COMMON_PROPS, ...COLOUR_PROPS, ...TYPE_PROPS];
@@ -308,4 +308,164 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     usage: [{ route: '/admin/jobs/[id]', count: 4 }],
     contract: { minFontPx: 12 },
   }),
+
+  // ── Curated 2026-08-23, chosen BY MEASUREMENT rather than by reading the CSS ─────────────────
+  //
+  // The coverage sweep (C9) ranks uncatalogued elements by how many ROUTES wear them. These two
+  // came back at the very top — on 125 and 131 of 133 admin routes respectively — which no static
+  // scan could have told anybody, because a stylesheet does not know how many pages render it.
+  //
+  // The other page-header classes the sweep named (`__crumb`, `__crumb-item`, `__back-label`,
+  // `__sep`) are deliberately NOT entries: they are parts of the breadcrumb above and of the back
+  // link below. An entry for a piece of an entry is how a palette becomes unusable.
+  defineEntry({
+    id: 'nav.back-link',
+    category: 'nav',
+    areas: ['admin'],
+    label: 'Back to parent',
+    description: 'The one-level-up button in the page header. On 125 of 133 admin routes.',
+    keywords: ['back', 'up', 'parent', 'return', 'previous', 'navigation', 'header'],
+    synonyms: ['up link', 'return'],
+    concepts: ['navigation'],
+    html:
+      '<a class="admin-page-header__back" href="#">'
+      + '<span class="admin-page-header__back-label">{{label}}</span>'
+      + '</a>',
+    classes: ['admin-page-header__back', 'admin-page-header__back-label'],
+    slots: [{ name: 'label', kind: 'text', label: 'Parent', default: 'Work', stress: 'Equipment templates' }],
+    props: WITH_TYPE,
+    states: INTERACTIVE_STATES,
+    // 26px tall by design, and under the 40px control floor on purpose: it is a LINK, which the
+    // auditor holds to the lower 24px target, and padding it to 40 would build the whitespace wall
+    // that rule exists to avoid. The same argument the breadcrumb makes in AdminPageHeader.css.
+    size: { default: { w: 110, h: 26 }, resize: 'width', min: { w: 56, h: 24 } },
+    source: [{ file: 'app/admin/components/nav/AdminPageHeader.css', line: 36, kind: 'css' }],
+    usage: [{ route: '/admin/*', count: 125 }],
+  }),
+
+  defineEntry({
+    id: 'button.pin',
+    category: 'button',
+    areas: ['admin'],
+    label: 'Pin page',
+    description: 'The star that pins a page to the sidebar. On 131 of 133 admin routes.',
+    keywords: ['pin', 'star', 'favourite', 'favorite', 'bookmark', 'save', 'shortcut', 'header'],
+    synonyms: ['favourite', 'bookmark'],
+    concepts: ['action', 'navigation'],
+    html: '<button type="button" class="admin-page-header__star">{{icon}}</button>',
+    classes: ['admin-page-header__star'],
+    slots: [{ name: 'icon', kind: 'text', label: 'Icon', default: '☆' }],
+    props: WITH_TYPE,
+    states: [...INTERACTIVE_STATES, 'selected'],
+    size: { default: { w: 40, h: 40 }, resize: 'none', min: { w: 40, h: 40 } },
+    source: [{ file: 'app/admin/components/nav/AdminPageHeader.css', line: 109, kind: 'css' }],
+    usage: [{ route: '/admin/*', count: 131 }],
+    contract: CONTROL_CONTRACT,
+  }),
+
+  // ── The learn hub's header, and a duplication the sweep walked straight into ─────────────────
+  //
+  // `.learn__title` appeared on 12 routes and `.admin-learn__title` on 10, both uncatalogued. They
+  // are not two things: AdminLearn.css declares `.learn__title` at line 8 and `.admin-learn__title`
+  // at line 528, and the two declarations are **byte-identical**. So are all eight of their
+  // siblings — `__subtitle`, `__sections`, `__section-card`, `__section-icon`, `__section-title`,
+  // `__section-desc` and the rest. Eight of eight pairs, in one file, both live.
+  //
+  // That is the owner's *"tons of repetitive elements"* caught by measurement rather than by
+  // noticing. One entry is curated; the `admin-learn__` twins are recorded as duplicates below so
+  // the palette offers ONE of them and the consolidation is written down where somebody will
+  // find it.
+  defineEntry({
+    id: 'text.hub-title',
+    category: 'text',
+    areas: ['admin'],
+    label: 'Hub title',
+    description: 'The 1.5rem Sora heading a hub page opens with, over a muted one-line subtitle.',
+    keywords: ['title', 'heading', 'hub', 'page', 'header', 'h1', 'h2', 'learn'],
+    synonyms: ['page heading', 'hub heading'],
+    concepts: ['heading'],
+    html:
+      '<div><h2 class="learn__title">{{title}}</h2>'
+      + '<p class="learn__subtitle">{{subtitle}}</p></div>',
+    classes: ['learn__title', 'learn__subtitle'],
+    slots: [
+      { name: 'title', kind: 'text', label: 'Title', default: 'Learning' },
+      { name: 'subtitle', kind: 'text', label: 'Subtitle', default: 'Courses, flashcards and exam prep' },
+    ],
+    props: WITH_TYPE,
+    size: { default: { w: 420, h: 56 }, resize: 'width', contentHeight: true },
+    source: [{ file: 'app/admin/styles/AdminLearn.css', line: 8, kind: 'css' }],
+    usage: [{ route: '/admin/learn', count: 12 }],
+  }),
+
+  // On 6 routes, and NOT a duplicate of `text.section-title` despite the similar name: that one is
+  // `.job-form__section-title` at 0.95rem inside a form, this is the 1.25rem heading a list page
+  // opens with. Two sizes doing two jobs — worth checking, because the sweep's value depends on the
+  // difference between "the catalogue is missing this" and "the catalogue calls it something else".
+  defineEntry({
+    id: 'text.list-title',
+    category: 'text',
+    areas: ['admin'],
+    label: 'List page title',
+    description: 'The 1.25rem heading a list page opens with, usually beside a count.',
+    keywords: ['title', 'heading', 'page', 'list', 'header', 'h2', 'jobs', 'leads', 'employees'],
+    synonyms: ['page title', 'list heading'],
+    concepts: ['heading'],
+    html: '<h2 class="jobs-page__title">{{text}}</h2>',
+    classes: ['jobs-page__title'],
+    slots: [{ name: 'text', kind: 'text', label: 'Title', default: 'All Jobs', stress: 'Equipment cleanup queue' }],
+    props: WITH_TYPE,
+    size: { default: { w: 260, h: 28 }, resize: 'width', contentHeight: true },
+    anchors: TEXT_ANCHORS,
+    source: [{ file: 'app/admin/styles/AdminJobs.css', line: 164, kind: 'css' }],
+    usage: [
+      { route: '/admin/jobs', count: 1 }, { route: '/admin/leads', count: 1 },
+      { route: '/admin/employees', count: 1 }, { route: '/admin/my-files', count: 1 },
+    ],
+  }),
+
+  // The workspace landing tiles — every hub page ("Work", "Office", "Learn") is a grid of these.
+  defineEntry({
+    id: 'card.workspace-tile',
+    category: 'card',
+    areas: ['admin'],
+    label: 'Workspace tile',
+    description: 'A link tile on a hub page: a label and one line saying what is behind it.',
+    keywords: ['tile', 'card', 'link', 'hub', 'landing', 'workspace', 'shortcut', 'section'],
+    synonyms: ['link card', 'hub tile'],
+    concepts: ['container', 'navigation'],
+    html:
+      '<a class="ws-landing__card" href="#">'
+      + '<span class="ws-landing__card-label">{{label}}</span>'
+      + '<span class="ws-landing__card-meta">{{meta}}</span></a>',
+    classes: ['ws-landing__card', 'ws-landing__card-label', 'ws-landing__card-meta'],
+    slots: [
+      { name: 'label', kind: 'text', label: 'Label', default: 'All Jobs' },
+      { name: 'meta', kind: 'text', label: 'Meta', default: '2 open' },
+    ],
+    props: BASIC,
+    states: INTERACTIVE_STATES,
+    size: { default: { w: 240, h: 72 }, resize: 'both', min: { w: 140, h: 56 } },
+    source: [{ file: 'app/admin/components/nav/WorkspaceLanding.css', line: 134, kind: 'css' }],
+    usage: [{ route: '/admin/work', count: 5 }],
+  }),
+];
+
+/**
+ * Classes deliberately NOT curated, and why.
+ *
+ * The `admin-learn__*` family is the clearest case this catalogue has: eight classes whose
+ * declarations are byte-identical to a `learn__*` twin in the SAME stylesheet, with both families
+ * rendering on live routes. Cataloguing both would put two identical elements in the palette and
+ * make the person designing a page choose between them for no reason.
+ */
+export const STRUCTURE_EXCLUSIONS: CurationExclusion[] = [
+  { className: 'admin-learn__title', reason: 'duplicate-of', coveredBy: 'text.hub-title',
+    note: 'Byte-identical to .learn__title — AdminLearn.css:528 vs :8. Both are live; consolidate.' },
+  { className: 'admin-learn__subtitle', reason: 'duplicate-of', coveredBy: 'text.hub-title',
+    note: 'Byte-identical to .learn__subtitle in the same file.' },
+  { className: 'admin-learn__sections', reason: 'duplicate-of', coveredBy: 'text.hub-title',
+    note: 'Part of the same duplicated block: 8 of 8 admin-learn__* rules match a learn__* twin exactly.' },
+  { className: 'admin-learn__section-card', reason: 'duplicate-of', coveredBy: 'card.basic',
+    note: 'Byte-identical to .learn__section-card; both are a bordered 10px-radius card.' },
 ];
