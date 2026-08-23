@@ -26,6 +26,12 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/settings', roles: ['admin'] },
   { prefix: '/admin/payroll', roles: ['admin'] },
 
+  // Page Designer (2026-08-23) — a build tool, not a business surface. It puts every element of
+  // every page in one panel and lets you draw pages that do not exist yet, so a half-finished
+  // mockup on a foreman's screen would read as a promise about what the app is about to do. Same
+  // pair as the API check in app/api/admin/design/*, which is the real boundary.
+  { prefix: '/admin/design', roles: ['admin', 'developer'] },
+
   // ── People / User Management ──
   { prefix: '/admin/users', roles: ['admin', 'tech_support'] },
   // Slice W7 — role builder. Admin-only at the request level.

@@ -117,13 +117,33 @@ describe('the themes are actually consumed', () => {
     // re-tokenised: the tokens follow whichever theme is actually active, which is what the blocks
     // were badly approximating. The last two were an XP pill and the fieldbook panel from the
     // mobile-topbar work, both painting a surface with a literal next to an already-tokenised border.
+    // ── 2026-08-23: 2,297 → 2,306, and this raise is a CLASSIFICATION, not a surrender ───────────
+    //
+    // The Page Designer (`app/admin/design/DesignStudio.css`) arrived with 46. Thirty-six were an
+    // ordinary theming bug — panels, toolbars, the palette and the inspector painting themselves
+    // white on a page whose theme the user chose — and those are converted the same way as every
+    // sheet before them.
+    //
+    // The remaining ten are a category this ratchet has not had to name before: **ink drawn ON a
+    // mockup rather than on a themed surface.** The fold line, the safe-area hatching, the resize
+    // handles, the size badge and the magenta snap guides are all painted over an artboard that
+    // represents somebody else's screen. Theming them would be an actual defect in two ways: the
+    // same design would look different to two people, and the studio exports these primitives to
+    // standalone HTML (`dsPrimitiveStyles()` in lib/design/export.ts) where no `--theme-*` variable
+    // exists at all, so the file on disk would stop matching the canvas it came from.
+    //
+    // The other two of the ten are the cases this test's own note already blesses: a warning
+    // banner's amber, and white on brand navy.
+    //
+    // The rule for the next person is unchanged and worth stating plainly: a surface a USER looks
+    // at follows the theme; a surface that DEPICTS another screen does not.
     const { hardcoded } = counts();
     expect(
       hardcoded,
       `Hardcoded colours in admin CSS rose to ${hardcoded}. Every one is a surface that will NOT ` +
         `follow the user's theme. New styling should use var(--theme-*) with the literal as its ` +
         `fallback, which is how the shell and the eleven converted sheets were done.`,
-    ).toBeLessThanOrEqual(2297);
+    ).toBeLessThanOrEqual(2306);
   });
 
   it('never wraps a fallback inside another fallback', () => {

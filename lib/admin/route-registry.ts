@@ -161,6 +161,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // 2026-08-04. One page, one entry; the old label survives as a keyword so searching it still
   // finds the page.
   { href: '/admin/files',           label: 'Files',           workspace: 'office', section: 'Documents & records', iconName: 'FolderOpen',     description: 'Company file explorer — browse, upload, organize, and share files with folder permissions.', roles: ['admin', 'developer', 'field_crew', 'drawer', 'researcher', 'equipment_manager', 'tech_support'], internalOnly: true, keywords: ['files', 'explorer', 'documents', 'folders', 'storage'] },
+  // Page Designer (DESIGN_STUDIO_2026-08-23). Admin + developer only: it is a build tool that
+  // exposes the whole app's structure, and a half-finished mockup on a foreman's screen would read
+  // as a promise about what the page is going to be.
+  { href: '/admin/design',          label: 'Page Designer',   workspace: 'office', section: 'Documents & records', iconName: 'PenTool',        description: 'Mock up any page — desktop and mobile as separate designs — then export the screenshots, HTML and a build spec.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['design', 'designer', 'mockup', 'wireframe', 'layout', 'page', 'canvas', 'prototype', 'ui', 'sketch'] },
   { href: '/admin/install',         label: 'Get the App',     workspace: 'hub', iconName: 'Smartphone',     description: 'Install the Starr Field mobile app on your phone.', keywords: ['mobile', 'app', 'download', 'install', 'iphone', 'android', 'testflight', 'apk', 'starr field'] },
   { href: '/admin/learn/fieldbook', label: 'My Fieldbook',    workspace: 'hub', iconName: 'BookMarked',     description: 'Field notes + research bookmarks.', keywords: ['notes', 'research'] },
 
