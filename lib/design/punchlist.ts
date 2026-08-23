@@ -1,6 +1,6 @@
 // lib/design/punchlist.ts — the owner's actual complaint, turned into a work order.
 //
-// Slice M3 / §14 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice M3 / §14 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"I still find tons of repetitive elements and poorly formatted elements that need to be
 // fixed, or are simply non-functional at all."*

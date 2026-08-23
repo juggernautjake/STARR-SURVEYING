@@ -1,6 +1,6 @@
 // lib/design/document.ts — what a design IS.
 //
-// Slice W2 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice W2 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── THE ONE STRUCTURAL DECISION ─────────────────────────────────────────────────────────────────
 //

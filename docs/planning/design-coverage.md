@@ -6,9 +6,9 @@ Every admin route is opened signed-in at 1440px and walked with the same functio
 importer uses (`scripts/lib/design-capture.mjs`). Each element is matched against the
 catalogue. What follows is what the pages themselves say they wear.
 
-- **8 routes measured**, 40 catalogue entries
-- **205 elements** found; **127** matched no entry
-- **≈38% of rendered elements are catalogued**
+- **133 routes measured**, 46 catalogue entries
+- **10473 elements** found; **5383** matched no entry
+- **≈49% of rendered elements are catalogued**
 
 ## What to curate next
 
@@ -19,60 +19,271 @@ stylesheet does not know how many pages render it.
 
 | Routes | Instances | Element | Example content |
 |---:|---:|---|---|
-| 8 | 16 | `button.admin-page-header__star` |  |
-| 8 | 11 | `a.admin-page-header__crumb` | “Office” |
-| 8 | 8 | `a.admin-page-header__back` |  |
-| 8 | 8 | `span.admin-page-header__back-label` | “Office” |
-| 8 | 8 | `span.admin-page-header__crumb.admin-page-header__crumb--active` | “Announcements” |
-| 1 | 6 | `td.audit-when` | “8/4/2026, 1:14:34 PM” |
-| 1 | 6 | `td.audit-actor` | “jacobmaddux@starr-surveying.com” |
-| 1 | 6 | `li.avail__row` |  |
-| 1 | 6 | `span.billing-bundle-name` | “Recon” |
-| 1 | 5 | `button.assign__filter-pill` | “Pending” |
-| 1 | 3 | `section.avail__col` |  |
-| 1 | 3 | `h2.avail__col-title` | “Crew” |
-| 1 | 3 | `span.avail__col-count` | “6 of 6 free” |
-| 1 | 3 | `span.billing-label` | “Status” |
-| 1 | 2 | `span.assign__filter-label` | “Status:” |
-| 1 | 2 | `p.avail__empty` | “No equipment is in the inventory yet.” |
-| 1 | 2 | `button.billing-tab` | “Invoices” |
-| 1 | 2 | `button.billing-action.billing-action--enabled` |  |
-| 1 | 2 | `h1.jsx-undefined` | “Unknown bundle” |
-| 1 | 1 | `div.announcements-empty` | “No published releases for your bundles y” |
-| 1 | 1 | `div.assign__filters` |  |
-| 1 | 1 | `button.assign__create-btn` | “+ Assign Task” |
-| 1 | 1 | `h2.assign__title` | “My Assignments” |
-| 1 | 1 | `span.assign__count` | “0 total” |
-| 1 | 1 | `select.assign__filter-select` |  |
-| 1 | 1 | `button.assign__filter-pill.assign__filter-pill--active` | “All” |
-| 1 | 1 | `label.avail__toggle` | “Show what is committed, and why” |
-| 1 | 1 | `p.avail__window` | “Sunday, August 23 · midnight to midnight” |
-| 1 | 1 | `p.avail__caveat` | “Vehicles are checked against the fleet l” |
-| 1 | 1 | `p.avail__links` | “Planning across days instead? · · ·” |
-| 1 | 1 | `h1.avail__title` | “Availability” |
-| 1 | 1 | `p.avail__sub` | “Who and what can go out on one day — cre” |
-| 1 | 1 | `button.avail__today` | “Today” |
-| 1 | 1 | `button.billing-tab.billing-tab--active` | “Overview” |
-| 1 | 1 | `section.billing-card.billing-status` |  |
-| 1 | 1 | `section.billing-card.billing-bundles` |  |
-| 1 | 1 | `section.billing-card.billing-actions` |  |
-| 1 | 1 | `button.billing-action` |  |
-| 1 | 1 | `a.invoices-back` | “← Back to billing” |
-| 1 | 1 | `div.invoices-empty` |  |
-| 1 | 1 | `a.history-back` | “← Back to billing” |
-| 1 | 1 | `div.history-empty` |  |
-| 1 | 1 | `div.jsx-undefined.upgrade-page` |  |
-| 1 | 1 | `div.jsx-undefined.upgrade-card` |  |
+| 5 | 12 | `span.ws-landing__stat-value` | “0” |
+| 5 | 12 | `span.ws-landing__stat-label` | “Checked out” |
+| 5 | 11 | `a.ws-landing__stat` |  |
+| 5 | 5 | `p.ws-landing__subtitle` | “Every page in Equipment you can reach — ” |
+| 5 | 5 | `h1.ws-landing__title` | “Equipment” |
+| 5 | 5 | `span.ws-landing__shortcut` | “Mod+3” |
+| 4 | 5 | `a.admin-module-detail__back` | “← Back to Learning Hub” |
+| 4 | 4 | `span.jobs-page__count` | “6 team members” |
+| 3 | 21 | `span.jobs-page__pipeline-label` | “Quote” |
+| 3 | 18 | `span.jobs-page__pipeline-count` | “0” |
+| 3 | 12 | `div.tl-summary-card` |  |
+| 3 | 11 | `button.admin-kb__category-btn` | “Built-in” |
+| 3 | 6 | `span.text-white` | “—” |
+| 3 | 3 | `a.email-compose__back` | “← Messages” |
+| 3 | 3 | `h1.email-compose__title` | “New Email” |
+| 3 | 3 | `button.job-form__submit` | “Import Job” |
+| 3 | 3 | `button.admin-kb__category-btn.admin-kb__category-btn--active` | “All” |
+| 2 | 147 | `button.manage__item-btn` | “Unpublish” |
+| 2 | 96 | `button.manage__item-btn.manage__item-btn--danger` | “Delete” |
+| 2 | 84 | `div.calendar-month__cell` |  |
+| 2 | 16 | `button.invoice-btn.invoice-btn--ghost` | “Cancel” |
+| 2 | 13 | `button.jobs-page__pipeline-stage` |  |
+| 2 | 11 | `button.rewards__tab` | “Badges” |
+| 2 | 10 | `h3.admin-learn__section-title` | “My Roadmap” |
+| 2 | 10 | `p.admin-learn__section-desc` | “Track your progress through the full Tex” |
+| 2 | 10 | `span.admin-learn__section-arrow` | “View Roadmap →” |
+| 2 | 9 | `h2.ws-landing__section-title` | “Money out” |
+| 2 | 8 | `button.payroll-tabs__btn` | “Pay Stubs” |
+| 2 | 6 | `button.calendar-page__legend-chip` |  |
+| 2 | 3 | `p.invoice-page__lede` | “For anyone, with or without a job attach” |
+| 2 | 2 | `div.calendar-page__empty` |  |
+| 2 | 2 | `span.calendar-page__empty-message` | “No scheduled phases this month.” |
+| 2 | 2 | `a.calendar-page__empty-cta` | “Open a job → Schedule →” |
+| 2 | 2 | `h2.calendar-page__title` | “August 2026” |
+| 2 | 2 | `div.calendar-page__view-switcher` |  |
+| 2 | 2 | `button.email-compose__send` | “Send” |
+| 2 | 2 | `span.tl-week-nav__label` | “Mon, Aug 17 — Sun, Aug 23” |
+| 2 | 2 | `input.tl-search` | “Filter by email...” |
+| 2 | 2 | `h1.invoice-page__title` | “Create an invoice” |
+| 2 | 2 | `button.invoice-btn` | “Create + send invoice” |
+| 2 | 2 | `input.jobs-page__search` | “Search by name, job #, client, or addres” |
+| 2 | 2 | `div.job-form` |  |
+| 2 | 2 | `h2.job-form__title` | “Import Jobs & Files” |
+| 2 | 2 | `input.fc-form__input.smart-search__input` | “Search modules, lessons, topics, article” |
+| 2 | 2 | `button.fieldbook-inline-btn` | “📓 Write in Fieldbook” |
+| 2 | 2 | `div.admin-search` |  |
+| 2 | 2 | `p.tl-log-help` | “Forgot to clock in or out? Add or remove” |
+| 2 | 2 | `button.payroll-tabs__btn.payroll-tabs__btn--active` | “Balance & Transfers” |
+| 2 | 2 | `span.tl-log-header__note` | “Base pay per person is set on .” |
+| 2 | 2 | `h1.proj-page__title` | “Projects” |
+| 2 | 2 | `div.min-h-screen.bg-gray-950.text-gray-100` |  |
+| 2 | 2 | `header.bg-gray-900.border-b.border-gray-800.px-6.py-4` |  |
+| 2 | 2 | `a.text-gray-400.hover:text-white.text-sm` | “← Research” |
+| 2 | 2 | `span.text-yellow-400` | “$0.00” |
+| 2 | 2 | `button.rewards__tab.rewards__tab--active` | “Company Store” |
+| 1 | 57 | `li.adapter-health__row.adapter-health__row--unknown` |  |
+| 1 | 57 | `span.adapter-health__state` | “no_record” |
+| 1 | 57 | `span.adapter-health__when` | “never checked” |
+| 1 | 51 | `div.manage__item` |  |
+| 1 | 51 | `button.manage__item-btn.manage__item-btn--primary` | “Edit” |
+
+…and 818 more, each on fewer routes.
+
+## Already decided against
+
+These are recorded in the catalogue's exclusion list: somebody looked at them and
+said why they should not be entries. They are here so the decision is visible, not so
+it gets revisited.
+
+| Routes | Element | Why not |
+|---:|---|---|
+| 10 | `h2.admin-learn__title` | Byte-identical to .learn__title — AdminLearn.css:528 vs :8. Both are live; consolidate. |
+| 9 | `p.admin-learn__subtitle` | Byte-identical to .learn__subtitle in the same file. |
+| 3 | `button.tl-btn.tl-btn--sm` | Time-logs button — same shape, 8px radius. |
+| 2 | `a.admin-learn__section-card` | Byte-identical to .learn__section-card; both are a bordered 10px-radius card. |
+| 2 | `button.tl-btn.tl-btn--sm.tl-btn--danger` | Time-logs button — same shape, 8px radius. |
+| 2 | `a.proj-page__btn.proj-page__btn--secondary` | Identical declarations to jobs-page__btn. |
+| 2 | `button.tl-btn` | Time-logs button — same shape, 8px radius. |
+| 2 | `a.proj-page__btn.proj-page__btn--primary` | Identical declarations to jobs-page__btn. |
+| 1 | `button.um-btn.um-btn--sm.um-btn--primary` | duplicate-of — use `button.admin` |
+| 1 | `button.um-btn.um-btn--sm.um-btn--warning` | duplicate-of — use `button.admin` |
+| 1 | `button.tl-btn.tl-btn--sm.tl-btn--primary` | Time-logs button — same shape, 8px radius. |
+| 1 | `button.tl-btn.tl-btn--sm.tl-btn--primary.tl-lock-btn` | Time-logs button — same shape, 8px radius. |
+| 1 | `button.tl-btn.tl-btn--primary` | Time-logs button — same shape, 8px radius. |
+| 1 | `button.payroll-btn` | duplicate-of — use `button.page` |
+| 1 | `button.um-btn.um-btn--primary` | duplicate-of — use `button.admin` |
+
+## Parts of elements the catalogue already knows
+
+These sit INSIDE a catalogued element — a crumb inside the breadcrumb trail, an icon
+inside an empty state. They are listed for completeness and are **not** curation work:
+adding an entry for one would be adding an entry for part of an entry.
+
+| Routes | Element |
+|---:|---|
+| 125 | `a.admin-page-header__crumb` |
+| 125 | `span.admin-page-header__back-label` |
+| 125 | `span.admin-page-header__crumb.admin-page-header__crumb--active` |
+| 5 | `span.ws-landing__card-label` |
+| 5 | `span.ws-landing__card-meta` |
+| 4 | `input.job-form__input` |
+| 3 | `label.job-form__label` |
+| 3 | `select.job-form__select` |
+| 2 | `span.job-form__label-row` |
+| 2 | `span.job-form__info-icon` |
+| 2 | `button.tl-tabs__btn` |
+| 2 | `textarea.job-form__textarea` |
+| 2 | `button.tl-tabs__btn.tl-tabs__btn--active` |
+| 1 | `td.measured__county` |
+| 1 | `td.measured__level.measured__level--requested` |
+| 1 | `td.measured__when` |
+| 1 | `td.reports-right` |
+| 1 | `span.sites__status.sites__status--muted` |
+| 1 | `span.sites__status.sites__status--ok` |
+| 1 | `span.tl-status-chip__count` |
+| 1 | `span.tl-status-chip__label` |
+| 1 | `td.hiw__table-xp` |
+| 1 | `td.audit-when` |
+| 1 | `td.audit-actor` |
+| 1 | `td.reports-indent` |
+| 1 | `span.tl-tabs__count` |
+| 1 | `p.job-form__hint` |
+| 1 | `textarea.admin-textarea` |
+| 1 | `div.profile-page__avatar` |
+| 1 | `span.admin-topbar__role-badge.admin-topbar__role-badge--employee` |
+
+…and 10 more.
 
 ## Per route
 
-| Route | Elements | Unnamed |
-|---|---:|---:|
-| `/admin/availability` | 44 | 30 |
-| `/admin/billing` | 41 | 24 |
-| `/admin/assignments` | 21 | 19 |
-| `/admin/audit` | 52 | 18 |
-| `/admin/billing/upgrade` | 12 | 11 |
-| `/admin/billing/invoices` | 13 | 9 |
-| `/admin/billing/plan-history` | 13 | 9 |
-| `/admin/announcements` | 9 | 7 |
+| Route | Elements | Unnamed | |
+|---|---:|---:|---|
+| `/admin/learn/manage/question-builder` | 595 | 539 | **partial — hit the 600-element cap** |
+| `/admin/pay-progression` | 581 | 383 | **partial — hit the 600-element cap** |
+| `/admin/learn/manage` | 431 | 371 |  |
+| `/admin/research/coverage` | 595 | 325 | **partial — hit the 600-element cap** |
+| `/admin/error-log` | 302 | 266 |  |
+| `/admin/learn/modules` | 324 | 244 |  |
+| `/admin/rewards` | 159 | 153 |  |
+| `/admin/learn/exam-prep/sit` | 163 | 145 |  |
+| `/admin/leads` | 167 | 133 |  |
+| `/admin/notifications` | 148 | 115 |  |
+| `/admin/cad` | 109 | 107 |  |
+| `/admin/research/testing` | 133 | 105 |  |
+| `/admin/hours-approval` | 107 | 91 |  |
+| `/admin/reports` | 250 | 89 |  |
+| `/admin/employees` | 101 | 88 |  |
+| `/admin/users` | 106 | 87 |  |
+| `/admin/marketing` | 261 | 84 |  |
+| `/admin/jobs/new` | 120 | 78 |  |
+| `/admin/research/sites` | 245 | 64 |  |
+| `/admin/my-hours` | 89 | 59 |  |
+| `/admin/files` | 97 | 58 |  |
+| `/admin/jobs` | 75 | 58 |  |
+| `/admin/money` | 82 | 58 |  |
+| `/admin/calendar` | 72 | 53 |  |
+| `/admin/office` | 77 | 53 |  |
+| `/admin/pay-rates` | 97 | 53 |  |
+| `/admin/schedule` | 72 | 53 |  |
+| `/admin/rewards/how-it-works` | 118 | 52 |  |
+| `/admin/work` | 69 | 49 |  |
+| `/admin/messages/settings` | 53 | 48 |  |
+| `/admin/projects` | 52 | 43 |  |
+| `/admin/finances/overview` | 62 | 42 |  |
+| `/admin/jobs/import` | 61 | 41 |  |
+| `/admin/payroll` | 48 | 41 |  |
+| `/admin/my-pay` | 44 | 38 |  |
+| `/admin/install` | 65 | 35 |  |
+| `/admin/learn` | 38 | 35 |  |
+| `/admin/people` | 46 | 35 |  |
+| `/admin/learn/roadmap` | 40 | 33 |  |
+| `/admin/messages/contacts` | 39 | 32 |  |
+| `/admin/research/billing` | 35 | 31 |  |
+| `/admin/equipment` | 56 | 29 |  |
+| `/admin/notes` | 35 | 29 |  |
+| `/admin/availability` | 45 | 27 |  |
+| `/admin/learn/knowledge-base` | 34 | 27 |  |
+| `/admin/payouts/tax-report` | 44 | 27 |  |
+| `/admin/invoices/new` | 65 | 26 |  |
+| `/admin/messages/new` | 31 | 26 |  |
+| `/admin/messages` | 31 | 24 |  |
+| `/admin/research/library` | 31 | 23 |  |
+| `/admin/research` | 26 | 22 |  |
+| `/admin/billing` | 42 | 21 |  |
+| `/admin/my-notes` | 26 | 20 |  |
+| `/admin/invoicing` | 90 | 19 |  |
+| `/admin/my-files` | 30 | 19 |  |
+| `/admin/profile` | 103 | 19 |  |
+| `/admin/design` | 72 | 18 |  |
+| `/admin/learn/flashcards/create` | 28 | 18 |  |
+| `/admin/settings` | 28 | 18 |  |
+| `/admin/learn/fieldbook` | 27 | 17 |  |
+| `/admin/learn/quiz-history` | 28 | 17 |  |
+| `/admin/research-cad` | 24 | 17 |  |
+| `/admin/research/pipeline` | 29 | 17 |  |
+| `/admin/assignments` | 22 | 16 |  |
+| `/admin/learn/exam-prep` | 22 | 16 |  |
+| `/admin/rewards/admin` | 21 | 16 |  |
+| `/admin/audit` | 53 | 15 |  |
+| `/admin/me` | 165 | 15 |  |
+| `/admin/payouts/search` | 21 | 14 |  |
+| `/admin/field-data` | 31 | 13 |  |
+| `/admin/payout-log` | 17 | 13 |  |
+| `/admin/projects/new` | 48 | 13 |  |
+| `/admin/payouts/runs` | 16 | 12 |  |
+| `/admin/role-requests` | 20 | 12 |  |
+| `/admin/finances/reconcile` | 16 | 11 |  |
+| `/admin/payouts/ad-hoc` | 41 | 11 |  |
+| `/admin/support/new` | 25 | 11 |  |
+| `/admin/email/new` | 22 | 10 |  |
+| `/admin/learn/flashcards` | 24 | 10 |  |
+| `/admin/learn/manage/media` | 20 | 10 |  |
+| `/admin/learn/exam-prep/sit/mock-exam` | 40 | 9 |  |
+| `/admin/discussions` | 13 | 8 |  |
+| `/admin/payments/inbox` | 12 | 8 |  |
+| `/admin/payouts` | 18 | 8 |  |
+| `/admin/receipts/new` | 133 | 8 |  |
+| `/admin/billing/invoices` | 14 | 6 |  |
+| `/admin/billing/plan-history` | 14 | 6 |  |
+| `/admin/billing/upgrade` | 13 | 6 |  |
+| `/admin/email/sent` | 10 | 6 |  |
+| `/admin/me/privacy` | 56 | 6 |  |
+| `/admin/support` | 14 | 6 |  |
+| `/admin/learn/search` | 12 | 5 |  |
+| `/admin/learn/students` | 14 | 5 |  |
+| `/admin/announcements` | 10 | 4 |  |
+| `/admin/employees/manage` | 8 | 4 |  |
+| `/admin/equipment/templates/cleanup-queue` | 14 | 4 |  |
+| `/admin/equipment/templates/new` | 32 | 4 |  |
+| `/admin/invoicing/categories` | 98 | 4 |  |
+| `/admin/learn/exam-prep/rpls` | 10 | 4 |  |
+| `/admin/learn/flashcard-bank` | 597 | 4 | **partial — hit the 600-element cap** |
+| `/admin/learn/practice` | 24 | 4 |  |
+| `/admin/payouts/withdrawals` | 12 | 4 |  |
+| `/admin/research/self-heal` | 35 | 4 |  |
+| `/admin/weather` | 117 | 4 |  |
+| `/admin/cards` | 37 | 3 |  |
+| `/admin/compliance` | 17 | 3 |  |
+| `/admin/contacts` | 23 | 3 |  |
+| `/admin/equipment/checked-out` | 13 | 3 |  |
+| `/admin/equipment/consumables` | 18 | 3 |  |
+| `/admin/equipment/fleet-valuation` | 16 | 3 |  |
+| `/admin/equipment/import` | 30 | 3 |  |
+| `/admin/equipment/inventory` | 22 | 3 |  |
+| `/admin/equipment/maintenance` | 93 | 3 |  |
+| `/admin/equipment/overrides` | 27 | 3 |  |
+| `/admin/equipment/templates` | 20 | 3 |  |
+| `/admin/equipment/timeline` | 24 | 3 |  |
+| `/admin/equipment/today` | 25 | 3 |  |
+| `/admin/finances` | 86 | 3 |  |
+| `/admin/invites` | 16 | 3 |  |
+| `/admin/learn/references` | 254 | 3 |  |
+| `/admin/mileage` | 43 | 3 |  |
+| `/admin/org-settings` | 36 | 3 |  |
+| `/admin/orgs` | 12 | 3 |  |
+| `/admin/pass-through` | 10 | 3 |  |
+| `/admin/personnel/crew-calendar` | 106 | 3 |  |
+| `/admin/receipts` | 138 | 3 |  |
+| `/admin/receivables` | 48 | 3 |  |
+| `/admin/roles/custom` | 30 | 3 |  |
+| `/admin/search` | 26 | 3 |  |
+| `/admin/team` | 99 | 3 |  |
+| `/admin/time-off` | 17 | 3 |  |
+| `/admin/timeline` | 17 | 3 |  |
+| `/admin/vehicles` | 13 | 3 |  |
+
+Routes marked *partial* have more elements than the walk collects, so their gap counts
+are a floor rather than a total.

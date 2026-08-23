@@ -1,6 +1,6 @@
 // lib/design/catalogue/curated/buttons.ts — the Buttons tab.
 //
-// Slice W4 / C4 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice W4 / C4 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── HOW THESE WERE CHOSEN ───────────────────────────────────────────────────────────────────────
 //

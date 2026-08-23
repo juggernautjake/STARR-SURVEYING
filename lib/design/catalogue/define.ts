@@ -1,6 +1,6 @@
 // lib/design/catalogue/define.ts — the helper every curated entry is written with.
 //
-// Slice C3 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C3 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // A `CatalogueEntry` has twenty fields and most of them are the same for most entries: nine anchors,
 // the default state list, `resize: 'both'`, an empty exclusion set. Writing all of that out by hand

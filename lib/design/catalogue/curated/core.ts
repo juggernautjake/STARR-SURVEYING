@@ -1,6 +1,6 @@
 // lib/design/catalogue/curated/core.ts — text, inputs, cards, feedback, layout and shapes.
 //
-// Slice W4 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md — the starter palette: enough
+// Slice W4 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md — the starter palette: enough
 // to lay out a real page on day one. The deeper per-category curation (C4–C8) fills in around it.
 //
 // Everything here cites a real stylesheet line, except the Shapes group, which is the one part of

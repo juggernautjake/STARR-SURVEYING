@@ -1,6 +1,6 @@
 // __tests__/design/catalogue-drift.test.ts — the catalogue cannot quietly stop being true.
 //
-// Slice C10 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C10 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
 //

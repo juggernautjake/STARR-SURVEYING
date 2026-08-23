@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/Studio.tsx — the Page Designer.
 //
-// Phase 0 (W1–W6) of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Phase 0 (W1–W6) of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── HOW IT IS PUT TOGETHER ──────────────────────────────────────────────────────────────────────
 //

@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/components/Inspector.tsx — editing the thing you selected.
 //
-// Slices I1–I6 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slices I1–I6 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"if we want to make an element a certain color, or widen the element, or make it shorter,
 // or make it more transparent, or make it more bold… if I make a red square, I need to then also be

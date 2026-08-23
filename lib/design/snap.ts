@@ -1,6 +1,6 @@
 // lib/design/snap.ts — where a dragged element lands.
 //
-// Slice W3 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice W3 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── WHAT THE OWNER ASKED FOR ────────────────────────────────────────────────────────────────────
 //

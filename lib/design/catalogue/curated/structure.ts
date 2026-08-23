@@ -1,6 +1,6 @@
 // lib/design/catalogue/curated/structure.ts — navigation, overlays, toggles, media and feedback.
 //
-// Slices C6 + C7 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slices C6 + C7 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // The second curation pass, filling the categories a page needs once it is more than a form: the
 // tabs across the top, the modal over it, the switch inside it, the avatar beside a name, and the
@@ -340,7 +340,7 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     // that rule exists to avoid. The same argument the breadcrumb makes in AdminPageHeader.css.
     size: { default: { w: 110, h: 26 }, resize: 'width', min: { w: 56, h: 24 } },
     source: [{ file: 'app/admin/components/nav/AdminPageHeader.css', line: 36, kind: 'css' }],
-    usage: [{ route: '/admin/*', count: 125 }],
+    usage: [{ route: '(app-wide)', count: 125 }],
   }),
 
   defineEntry({
@@ -359,7 +359,7 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     states: [...INTERACTIVE_STATES, 'selected'],
     size: { default: { w: 40, h: 40 }, resize: 'none', min: { w: 40, h: 40 } },
     source: [{ file: 'app/admin/components/nav/AdminPageHeader.css', line: 109, kind: 'css' }],
-    usage: [{ route: '/admin/*', count: 131 }],
+    usage: [{ route: '(app-wide)', count: 131 }],
     contract: CONTROL_CONTRACT,
   }),
 
@@ -384,17 +384,37 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     keywords: ['title', 'heading', 'hub', 'page', 'header', 'h1', 'h2', 'learn'],
     synonyms: ['page heading', 'hub heading'],
     concepts: ['heading'],
-    html:
-      '<div><h2 class="learn__title">{{title}}</h2>'
-      + '<p class="learn__subtitle">{{subtitle}}</p></div>',
-    classes: ['learn__title', 'learn__subtitle'],
+    // One element, not a title-and-subtitle pair in an unclassed wrapper. The first version wrapped
+    // both in a bare `<div>`, which made the ROOT the `<h2>` and left `<p class="learn__subtitle">`
+    // a sibling that nothing could ever match — it stayed in the gap report on 12 routes after the
+    // entry was supposedly curated. A composite entry needs a root that is itself a real class.
+    html: '<h2 class="learn__title">{{title}}</h2>',
+    classes: ['learn__title'],
     slots: [
       { name: 'title', kind: 'text', label: 'Title', default: 'Learning' },
-      { name: 'subtitle', kind: 'text', label: 'Subtitle', default: 'Courses, flashcards and exam prep' },
     ],
     props: WITH_TYPE,
     size: { default: { w: 420, h: 56 }, resize: 'width', contentHeight: true },
     source: [{ file: 'app/admin/styles/AdminLearn.css', line: 8, kind: 'css' }],
+    usage: [{ route: '/admin/learn', count: 12 }],
+  }),
+
+  defineEntry({
+    id: 'text.hub-subtitle',
+    category: 'text',
+    areas: ['admin'],
+    label: 'Hub subtitle',
+    description: 'The muted line under a hub title saying what the page is for.',
+    keywords: ['subtitle', 'description', 'caption', 'hub', 'page', 'header', 'strapline'],
+    synonyms: ['strapline', 'lede'],
+    concepts: ['heading'],
+    html: '<p class="learn__subtitle">{{text}}</p>',
+    classes: ['learn__subtitle'],
+    slots: [{ name: 'text', kind: 'text', label: 'Subtitle', default: 'Courses, flashcards and exam prep' }],
+    props: WITH_TYPE,
+    size: { default: { w: 420, h: 20 }, resize: 'width', contentHeight: true },
+    anchors: TEXT_ANCHORS,
+    source: [{ file: 'app/admin/styles/AdminLearn.css', line: 9, kind: 'css' }],
     usage: [{ route: '/admin/learn', count: 12 }],
   }),
 

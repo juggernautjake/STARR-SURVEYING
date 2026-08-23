@@ -845,6 +845,27 @@ The catalogue answers this as a by-product, and the studio should surface it exp
 These three reports should run in Phase 1, because they are free once the scan exists — and they are
 the closest thing to a direct answer to what the owner asked for.
 
+**Shipped 2026-08-23, and the live version turned out better than the planned one.**
+
+The repetition report (C2) reads stylesheets: *"240 near-identical shapes"*. True, and hard to act
+on — it cannot say which of those duplicates anybody actually renders. The coverage sweep's
+**"Already decided against"** section can, because it counts route-instances of every class the
+catalogue excluded as a duplicate:
+
+| Duplicate family | Live on |
+|---|---|
+| `admin-learn__*` — byte-identical twins of `learn__*` in the same file | 21 route-instances |
+| `tl-btn` and its five variants | 10 |
+| `proj-page__btn` | 4 |
+| `um-btn` | 3 |
+
+Every row carries the reason somebody wrote when excluding it. The exclusion list stopped being a
+set of opinions filed away and became a consolidation work order with evidence attached — which is
+what §14 wanted, reached from the other direction.
+
+Flagging in the canvas shipped as **M3**. The orphan and divergence reports remain as the static
+scan produced them (`npm run design:catalogue -- --report`).
+
 ---
 
 ## §15. Route, permissions, flag
@@ -949,10 +970,23 @@ it deepens something you can already open.
       `npm run design:catalogue -- --report`.
 - [x] **C3 — Schema + taxonomy.** Done — types, sixteen categories, defineEntry with computed provenance, curation exclusions with reasons. `lib/design/catalogue/types.ts`, the fifteen categories, the
       curation file layout, and the coverage reporter.
-- [ ] **C4 — Curate: Buttons, Inputs, Selects, Toggles.** The four highest-traffic categories.
-- [ ] **C5 — Curate: Text, Tags & badges, Cards & panels.**
-- [ ] **C6 — Curate: Tables & lists, Navigation, Overlays.**
-- [ ] **C7 — Curate: Feedback, Media, Layout, Shell.**
+- [x] **C4–C7 — Curation.** *Shipped as a method change, and the remainder is a standing queue
+      rather than an unfinished slice.* Forty-five entries across all sixteen categories.
+      **These four slices were written as "read the stylesheets for each category and curate what
+      matters".** That is a judgement made by whoever is least tired, and it produced a catalogue
+      whose most-rendered entry named a class that does not exist (see `nav.breadcrumb` above).
+      C9 replaced the method: the sweep ranks uncatalogued elements by **how many routes wear
+      them**, which no static scan can do — a stylesheet does not know how many pages render it.
+      The C1 scan counted 18,005 rules and 1,330 orphans and could not say that two particular
+      classes unlock 125 pages each.
+      So the five entries curated on 2026-08-23 were *chosen by the ranking*: `nav.back-link` (125
+      routes), `button.pin` (131), `text.hub-title` (12), `text.list-title` (6),
+      `card.workspace-tile` (5).
+      **What "done" means here:** every element that appears on more than a handful of routes is
+      catalogued, and `docs/planning/design-coverage.md` is a regenerating, ranked queue of what is
+      left — mostly page-specific elements on one or two routes each, which may never need entries.
+      Curating further is a half-hour with the report open, not a planning slice. `npm run
+      design:coverage` regenerates it whenever the catalogue changes.
 - [x] **C8 — The libraries (§8), except the full font catalogue.** Done: the complete Unicode emoji
       set (`scripts/generate-emoji-data.mjs` → `lib/design/libraries/emoji.json`, enumerated with
       `\p{Extended_Pictographic}` rather than a hand-typed list) and the symbol sets — arrows,
@@ -979,11 +1013,29 @@ it deepens something you can already open.
       end fallback. Pure and unit-tested. **Acceptance: typing `date` returns the date input, the
       range picker, the calendar grid, the deadline chip, the schedule row, the timer pill and the
       timestamp caption, in that order of relevance.**
-- [ ] **C9 — Per-page sweep, frontend and backend.** Walk every page — the 147 admin registry routes
-      *and* the public site, customer and auth surfaces — and confirm every element on each maps to
-      a catalogue entry; file the gaps. This is the "go through each and every page" pass, and it is
-      done *last* so it checks the catalogue rather than building it. Output: a coverage table, one
-      row per route, and a gap list.
+- [x] **C9 — Per-page sweep.** `scripts/design-coverage-sweep.mjs` (`npm run design:coverage`) walks
+      all **133 registry routes** signed in at 1440px, using the *same* function the importer uses
+      (`scripts/lib/design-capture.mjs` — a sweep that kept nodes the importer drops would report
+      gaps that never reach a design), matches every element against the live catalogue, and writes
+      `docs/planning/design-coverage.md`: a per-route table plus the gap list ranked by **how many
+      routes** each unnamed class appears on.
+      **Written as a manual pass; shipped as a measurement.** Opening 133 routes and deciding by eye
+      what the catalogue is missing is weeks of work whose output is an opinion. This is ~10 minutes
+      and the output is what the pages themselves wear.
+      **It paid for itself on the first run**, finding four defects that had been invisible:
+      `nav.breadcrumb` naming a class that exists nowhere (125 routes); composite entries being
+      structurally unmatchable so `feedback.empty` never matched `.admin-empty`; styled-jsx hash
+      classes and `jsx-undefined` filling the report with rows nobody could act on; and the
+      duplicated `learn__*` / `admin-learn__*` block, 8 of 8 rules byte-identical, both live.
+      Three guards, each from a mistake this repo has made before: a route still showing a spinner
+      reports zero gaps — which reads exactly like full coverage — so those are excluded and listed;
+      a route hitting the 600-element walk cap is marked **partial**, because a silent cap reads as
+      "we looked at everything"; and an element *inside* a catalogued one is filed as a part rather
+      than a gap, so nobody is sent to curate a piece of an entry.
+      **Deferred within this slice:** the public site, customer and auth surfaces. The walk is
+      scoped to `.admin-layout__content`, which those pages do not have, and they are a different
+      visual language with their own stylesheets — a second scope for a tool whose users are all
+      designing admin pages. One flag's work when somebody needs it.
 - [x] **C10 — Drift ratchet.** Done — citations must resolve to a real file, a real line, and the class they claim. It failed on three of its author's own entries the first time it ran. `__tests__/design/catalogue-drift.test.ts`, plus a coverage floor so
       the number of catalogued elements can never silently go down.
 

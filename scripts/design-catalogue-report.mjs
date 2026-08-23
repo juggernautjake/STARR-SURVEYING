@@ -1,6 +1,6 @@
 // scripts/design-catalogue-report.mjs — the punch list, derived rather than noticed.
 //
-// Slice C2 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C2 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"I still find tons of repetitive elements and poorly formatted elements that need to be
 // fixed, or are simply non-functional at all."*

@@ -20,7 +20,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isDeveloper } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
-import { ENTRIES } from '@/lib/design/catalogue';
+import { ENTRIES, EXCLUSIONS } from '@/lib/design/catalogue';
 import { documentFromCapture, type CapturedNode } from '@/lib/design/import';
 import { saveMockup } from '@/lib/design/server';
 
@@ -35,7 +35,15 @@ export const GET = withErrorHandler(async () => {
   const { error } = await gate();
   if (error) return error;
   const classes = [...new Set(ENTRIES.flatMap((e) => e.classes))].sort();
-  return NextResponse.json({ classes, entries: ENTRIES.length });
+  // Exclusions travel with the index so the coverage sweep can tell a genuine gap from a class
+  // somebody already looked at and decided against. Without it the report keeps recommending the
+  // curation that an exclusion exists to prevent — `admin-learn__title` sat at the top of the gap
+  // list on 10 routes while being recorded as a byte-identical duplicate of an entry.
+  return NextResponse.json({
+    classes,
+    entries: ENTRIES.length,
+    exclusions: EXCLUSIONS.map((x) => ({ className: x.className, reason: x.reason, coveredBy: x.coveredBy, note: x.note })),
+  });
 });
 
 /** A capture is a lot of untrusted shape; anything malformed is dropped rather than trusted. */

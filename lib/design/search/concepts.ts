@@ -1,6 +1,6 @@
 // lib/design/search/concepts.ts — the graph that makes searching for "date" find a calendar.
 //
-// Slice C8c of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C8c of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── THE REQUIREMENT ─────────────────────────────────────────────────────────────────────────────
 //

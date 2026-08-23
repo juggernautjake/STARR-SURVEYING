@@ -1,6 +1,6 @@
 // lib/design/capture.ts — turning the artboard into a picture.
 //
-// Slice E1 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice E1 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"I need to be able to… just capture the canvas view as an image."*
 //

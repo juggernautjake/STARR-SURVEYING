@@ -2,7 +2,7 @@
 -- 609_design_studio.sql
 --
 -- Storage for the Page Designer (/admin/design).
--- Spec: docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md §16.
+-- Spec: docs/planning/completed/DESIGN_STUDIO_2026-08-23.md §16.
 --
 -- ── WHY THE DATABASE, WHEN localStorage ALREADY WORKS ───────────────────────
 --
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS public.design_mockups (
 );
 
 COMMENT ON TABLE public.design_mockups IS
-  'Page Designer mockups (/admin/design). `views` holds the whole document — desktop and mobile are INDEPENDENT designs sharing a name, a target route and a history. Spec: docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.';
+  'Page Designer mockups (/admin/design). `views` holds the whole document — desktop and mobile are INDEPENDENT designs sharing a name, a target route and a history. Spec: docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.';
 
 CREATE INDEX IF NOT EXISTS idx_design_mockups_owner
   ON public.design_mockups (owner_email, updated_at DESC)

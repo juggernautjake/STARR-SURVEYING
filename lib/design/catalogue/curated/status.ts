@@ -1,6 +1,6 @@
 // lib/design/catalogue/curated/status.ts — tags, badges, and the things that carry a date.
 //
-// Slice C5 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C5 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── WHY THIS FILE EXISTS AT ALL ─────────────────────────────────────────────────────────────────
 //

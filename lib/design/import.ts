@@ -1,6 +1,6 @@
 // lib/design/import.ts — turning a real page back into an editable design.
 //
-// Slices M1–M2 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md (§13).
+// Slices M1–M2 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md (§13).
 //
 // ── WHY IMPORT AT ALL ───────────────────────────────────────────────────────────────────────────
 //

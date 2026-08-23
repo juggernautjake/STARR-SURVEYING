@@ -1,6 +1,6 @@
 // lib/design/server.ts — mockups, in the database rather than in one browser.
 //
-// Slice S1 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md, and the reason seed 609 exists.
+// Slice S1 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md, and the reason seed 609 exists.
 //
 // ── WHY THIS EXISTS AT ALL, GIVEN localStorage ALREADY WORKED ───────────────────────────────────
 //

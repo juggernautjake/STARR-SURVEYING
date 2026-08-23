@@ -3,7 +3,7 @@
 //   node --env-file=.env.local scripts/design-import-page.mjs --route /admin/jobs
 //   node --env-file=.env.local scripts/design-import-page.mjs --route /admin/jobs --name "Jobs — today"
 //
-// Slice M1 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md (§13).
+// Slice M1 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md (§13).
 //
 // Drives a signed-in browser to the route at BOTH breakpoints, measures every element the catalogue
 // might recognise, and posts the result to /api/admin/design/import — which does the matching

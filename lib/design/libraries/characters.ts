@@ -1,6 +1,6 @@
 // lib/design/libraries/characters.ts — every emoji and symbol, ready to search.
 //
-// Slice C8 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C8 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"Please make sure we have access to all emojis, text font, symbols, etc."*
 //

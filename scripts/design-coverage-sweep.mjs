@@ -3,7 +3,7 @@
 //   node --env-file=.env.local scripts/design-coverage-sweep.mjs
 //   node --env-file=.env.local scripts/design-coverage-sweep.mjs --only jobs --base http://127.0.0.1:3211
 //
-// Slice C9 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C9 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"systematically go through each and every page and thoroughly catalogue each and every
 // element of every kind."*
@@ -73,7 +73,7 @@ if (!indexRes.ok()) {
   await browser.close();
   process.exit(1);
 }
-const { classes, entries } = await indexRes.json();
+const { classes, entries, exclusions } = await indexRes.json();
 
 const list = routes();
 console.log(`\n  Sweeping ${list.length} route(s) against ${entries} catalogue entries\n`);
@@ -147,8 +147,17 @@ const all = [...byClass.values()]
 // Two different questions, so two lists. An element with no catalogued ancestor is something to
 // curate; one INSIDE a catalogued element is a piece of it, and adding an entry for it would be
 // adding an entry for part of an entry.
-const ranked = all.filter((g) => !g.insideKnown);
-const parts = all.filter((g) => g.insideKnown);
+// A third bucket, and the one that keeps this report honest over time. A class recorded in
+// EXCLUSIONS has already been looked at and decided against — usually because it duplicates an
+// entry. Leaving it in the gap list means the report permanently recommends the curation that the
+// exclusion exists to prevent: `admin-learn__title` sat near the top on 10 routes while being
+// recorded as a byte-identical duplicate of `.learn__title`.
+const excludedBy = new Map((exclusions ?? []).map((x) => [x.className, x]));
+const isExcluded = (g) => g.classes.split(' ').some((c) => excludedBy.has(c));
+
+const ranked = all.filter((g) => !g.insideKnown && !isExcluded(g));
+const parts = all.filter((g) => g.insideKnown && !isExcluded(g));
+const decided = all.filter((g) => isExcluded(g));
 
 const measured = perRoute.filter((r) => !r.loading);
 const totalElements = measured.reduce((n, r) => n + r.kept, 0);
@@ -185,6 +194,21 @@ for (const g of ranked.slice(0, 60)) {
 }
 if (ranked.length > 60) lines.push('', `…and ${ranked.length - 60} more, each on fewer routes.`);
 lines.push('');
+
+if (decided.length) {
+  lines.push('## Already decided against', '');
+  lines.push('These are recorded in the catalogue\'s exclusion list: somebody looked at them and');
+  lines.push('said why they should not be entries. They are here so the decision is visible, not so');
+  lines.push('it gets revisited.', '');
+  lines.push('| Routes | Element | Why not |');
+  lines.push('|---:|---|---|');
+  for (const g of decided.slice(0, 30)) {
+    const hit = g.classes.split(' ').map((c) => excludedBy.get(c)).find(Boolean);
+    const why = hit?.note ?? `${hit?.reason ?? 'excluded'}${hit?.coveredBy ? ` — use \`${hit.coveredBy}\`` : ''}`;
+    lines.push(`| ${g.routeCount} | \`${g.tag}.${g.classes.split(' ').join('.')}\` | ${why.replace(/\|/g, '\\|')} |`);
+  }
+  lines.push('');
+}
 
 if (parts.length) {
   lines.push('## Parts of elements the catalogue already knows', '');

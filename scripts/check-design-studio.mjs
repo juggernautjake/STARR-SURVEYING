@@ -1,6 +1,6 @@
 // scripts/check-design-studio.mjs — does the Page Designer actually work?
 //
-// Slice T1 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice T1 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // The unit tests pin the maths: what snaps where, what a search returns. None of them can tell you
 // that a palette item drags onto an artboard, that the element lands where the pointer was, that

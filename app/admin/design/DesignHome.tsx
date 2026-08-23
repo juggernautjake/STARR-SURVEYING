@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/DesignHome.tsx — the list of designs.
 //
-// Slice S2 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice S2 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"I need to be able to name the design and save it and be able to open it and work on it
 // more in the future… I will go through this process with each and every page."*

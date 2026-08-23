@@ -1,6 +1,6 @@
 // lib/design/search/index.ts — finding an element among thousands.
 //
-// Slice C8d of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C8d of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"if I type 'date' into the element search bar, every element that deals with scheduling
 // and dates and calendars and maybe even clocks and timers should show up… I want to create a

@@ -2,7 +2,7 @@
 //
 //   node --env-file=.env.local scripts/check-design-import.mjs --base http://127.0.0.1:3211
 //
-// Slices M1–M2 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slices M1–M2 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // The matching logic is covered by 19 unit tests. What those cannot see is the half that only
 // exists in a browser: whether the walk still finds the page, whether the content root is still

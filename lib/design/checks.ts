@@ -1,6 +1,6 @@
 // lib/design/checks.ts — the contract, checked while you are still drawing.
 //
-// Slices Q1–Q3 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slices Q1–Q3 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── WHY THE CHECKS BELONG IN THE CANVAS AND NOT ONLY IN THE SWEEP ───────────────────────────────
 //

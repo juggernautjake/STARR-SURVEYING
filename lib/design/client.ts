@@ -1,6 +1,6 @@
 // lib/design/client.ts — the browser's side of the seam: server first, browser as the safety net.
 //
-// Slice S1/S2 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice S1/S2 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── THE RULE, IN ONE LINE ───────────────────────────────────────────────────────────────────────
 //

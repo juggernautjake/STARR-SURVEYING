@@ -1,6 +1,6 @@
 // scripts/design-catalogue-scan.mjs — what elements does the employee portal actually contain?
 //
-// Slice C1 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C1 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // ── WHY A SCANNER AND NOT A LIST ────────────────────────────────────────────────────────────────
 //

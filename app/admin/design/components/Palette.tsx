@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/components/Palette.tsx — find the element, then drop it on the page.
 //
-// Slices P1 + P1b of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slices P1 + P1b of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"Mostly the process will be, find the element you want by searching it with the search
 // feature/function, and then click, drag and drop the element onto the page."*

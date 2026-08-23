@@ -1,6 +1,6 @@
 // scripts/generate-emoji-data.mjs — every emoji, and every symbol, from Unicode itself.
 //
-// Slice C8 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C8 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Owner: *"Please make sure we have access to all emojis, text font, symbols, etc."*
 //

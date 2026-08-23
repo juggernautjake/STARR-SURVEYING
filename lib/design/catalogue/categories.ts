@@ -1,6 +1,6 @@
 // lib/design/catalogue/categories.ts — the palette's tabs.
 //
-// Slice C3 of docs/planning/in-progress/DESIGN_STUDIO_2026-08-23.md.
+// Slice C3 of docs/planning/completed/DESIGN_STUDIO_2026-08-23.md.
 //
 // Sixteen categories. Every entry belongs to exactly one, and the choice is by WHAT THE THING IS,
 // not where it appears — a status pill on the jobs list and a status pill on a receipt are one
