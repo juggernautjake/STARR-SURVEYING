@@ -2,7 +2,7 @@
 -- 610_design_page_reviews.sql
 --
 -- "Go through the pages one by one and check them off."
--- Spec: docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md §Phase C.
+-- Spec: docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md §Phase C.
 --
 -- ── WHY THIS IS NOT PART OF A DESIGN ────────────────────────────────────────
 --

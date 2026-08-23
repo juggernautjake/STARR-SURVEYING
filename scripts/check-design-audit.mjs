@@ -2,7 +2,7 @@
 //
 //   node --env-file=.env.local scripts/check-design-audit.mjs --base http://127.0.0.1:3211
 //
-// Phase H of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Phase H of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // Owner: *"do a full audit of the entire page design editor and make sure we really have all of the
 // elements available to be dragged and dropped and edited as much as we can, and so that the saving
@@ -186,6 +186,21 @@ check(htmlFiles.filter((f) => f.name.endsWith('.html')).length >= 3, 'HTML expor
 const standalone = htmlFiles.find((f) => /desktop\.html$/.test(f.name));
 check(!!standalone && standalone.text.includes('<style>') && !standalone.text.includes('<link rel="stylesheet" href="./'),
   'and the standalone file carries its own styles rather than linking a missing one');
+
+// ── The MOBILE file is a phone-width page, not a desktop one with fewer things on it ───────────
+const mobileHtml = htmlFiles.find((f) => /mobile\.html$/.test(f.name));
+check(!!mobileHtml, 'a mobile HTML file exports', htmlFiles.map((f) => f.name).join(', '));
+if (mobileHtml) {
+  const width = /class="ds-artboard" style="width:(\d+)px/.exec(mobileHtml.text)?.[1];
+  check(width === '390', 'and its artboard is 390px, the phone width it was designed at', `${width}px`);
+  check(/width=device-width/.test(mobileHtml.text),
+    'and it declares a viewport, so it opens at phone size on a phone rather than zoomed out');
+  // The two files must not be the same page twice — that is the failure the independent views exist
+  // to prevent, and it would be invisible without comparing them.
+  const desktopBody = standalone?.text.match(/<div class="ds-artboard"[\s\S]*?<\/div>\s*<\/body>/)?.[0] ?? '';
+  const mobileBody = mobileHtml.text.match(/<div class="ds-artboard"[\s\S]*?<\/div>\s*<\/body>/)?.[0] ?? '';
+  check(desktopBody !== mobileBody, 'and it is genuinely a different layout from the desktop file');
+}
 
 const pngFiles = await exportVia('Image');
 check(pngFiles.some((f) => f.name.endsWith('.png')), 'the canvas captures to a PNG', pngFiles.map((f) => f.name).join(', '));

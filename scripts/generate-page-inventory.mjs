@@ -2,7 +2,7 @@
 //
 //   node scripts/generate-page-inventory.mjs
 //
-// Slice C1 of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Slice C1 of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // Owner: *"a list of every single page on the frontend and backend that we can reference in the
 // design editor… go through them one by one and work on each one and then check it off."*

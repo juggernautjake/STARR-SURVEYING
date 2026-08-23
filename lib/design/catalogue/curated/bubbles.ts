@@ -1,6 +1,6 @@
 // lib/design/catalogue/curated/bubbles.ts — the little coloured pills that say what state a thing is in.
 //
-// Slice B1 of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Slice B1 of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // Owner: *"I want all of the little role bubbles and pending/accepted/rejected/denied/etc bubbles.
 // I want all of the tags and emojis and literally everything you can put in there."*

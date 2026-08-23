@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/components/DrawingCanvas.tsx — the sketch layer on the artboard.
 //
-// Phase D of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Phase D of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 // The geometry and the fill algorithm live in `lib/design/drawing.ts` and are tested there; this
 // file owns the canvas element, the pointer events, and nothing else worth arguing about.
 //

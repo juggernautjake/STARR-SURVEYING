@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/components/Layers.tsx — what is on top of what, and how to change it.
 //
-// Slice I2 of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Slice I2 of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // Owner: *"layer management… send things back a layer, or forward a layer, or… to the back or to
 // the front. This needs to work for all elements and drawing elements and text and everything."*

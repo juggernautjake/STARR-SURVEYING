@@ -1,6 +1,6 @@
 // lib/design/drawing.ts — the sketch layer: freehand, shapes, and a fill bucket.
 //
-// Phase D of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Phase D of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // Owner: *"a simple drawing tool that I can use to draw straight lines, free hand, circles, ovals,
 // squares with sharp and rounded corners, rectangles with sharp and rounded corners… a fill bucket

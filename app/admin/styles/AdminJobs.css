@@ -161,16 +161,17 @@
   align-items: baseline;
   gap: 0.5rem;
 }
-.jobs-page__title {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: var(--theme-fg-primary, #1F2937);
-}
-.jobs-page__count {
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
+/* .jobs-page__title and .jobs-page__count MOVED to AdminLayout.css on 2026-08-23.
+ *
+ * They are used by four routes — /admin/jobs, /admin/leads, /admin/employees and /admin/my-files —
+ * and this stylesheet is imported by app/admin/jobs/layout.tsx, so it loads on two of them. The
+ * other two rendered a bare <h2> at the browser's default 40px: a page heading at double size,
+ * live, on two pages. AdminLayout.css loads on every admin route, which is where a class four
+ * routes share belongs.
+ *
+ * Found by scripts/check-design-representative.mjs, which compares a palette element's computed
+ * style against the same class on the real page — it reported "studio 20px vs app 40px" and the
+ * studio was the one telling the truth. */
 .jobs-page__header-actions {
   display: flex;
   /* Slice button-readability-2026-06-17 — center on the cross

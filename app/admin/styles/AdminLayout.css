@@ -1512,3 +1512,25 @@
   font-size: 0.9rem;
 }
 .notif-nudge__dismiss:hover { background: var(--theme-bg-page, #F3F4F6); }
+
+/* ── A page-list heading, shared by four routes ─────────────────────────────────────────────────
+ *
+ * Moved here from AdminJobs.css on 2026-08-23. `.jobs-page__title` is used by /admin/jobs,
+ * /admin/leads, /admin/employees and /admin/my-files, while AdminJobs.css is imported by
+ * app/admin/jobs/layout.tsx and therefore loads on only two of them. The other two rendered an
+ * unstyled <h2> at the browser's default 40px — a heading at double size, on live pages, unnoticed.
+ *
+ * The name is now wrong for where it lives, and renaming it would touch four routes and the
+ * catalogue entry that cites it; that is a separate change. What matters is that the four pages
+ * using it now look the same.
+ */
+.jobs-page__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #1F2937);
+}
+.jobs-page__count {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}

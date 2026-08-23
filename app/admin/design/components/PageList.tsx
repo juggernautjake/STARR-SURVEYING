@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/components/PageList.tsx — the walkthrough: every page, and how far it has got.
 //
-// Phase C of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Phase C of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // Owner: *"I want the page list to be very well organized, formatted and made available to me
 // quickly with a drop down menu or something."*

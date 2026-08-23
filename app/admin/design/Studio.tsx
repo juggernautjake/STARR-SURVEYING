@@ -62,10 +62,26 @@ import './DesignStudio.css';
 // So the studio imports every stylesheet its entries depend on. Adding a curated entry from a new
 // stylesheet means adding that stylesheet here — and the drift ratchet names the file, so the
 // citation is where you find out which one.
+// ── 2026-08-23: this list went stale the moment five entries were curated ──────────────────────
+//
+// The note above says adding an entry from a new stylesheet means adding that stylesheet here. Five
+// entries were then added from four stylesheets that were NOT here, and the palette rendered them
+// as unstyled browser defaults while looking like legitimate mockups: the account-status pill came
+// out 16px/400/transparent instead of 10.56px/700/green with a 999px radius.
+//
+// Nothing caught it, because everything else about those entries was correct — the classes were
+// real, the drift ratchet resolved them, the audit placed them. `scripts/check-design-representative.mjs`
+// exists because of this: it compares the computed style of an element on the artboard against the
+// same class on its real page, which is the only thing that can tell "styled" from "styled by the
+// browser's defaults".
 import '../styles/AdminJobs.css';
 import '../styles/AdminProjects.css';
 import '../styles/AdminLearn.css';
 import '../styles/AdminTimeLogs.css';
+import '../styles/AdminUsers.css';
+import '../styles/EmployeePond.css';
+import '../components/nav/WorkspaceLanding.css';
+import '../components/nav/AdminPageHeader.css';
 
 interface Props {
   initial: DesignDocument;
@@ -529,11 +545,14 @@ export default function Studio({ initial }: Props) {
       setStatus('Rendering image…');
       const node = artboardRef.current;
       if (!node) return;
-      const { blob, error } = await captureArtboard(node, view.width, contentHeight(view));
+      const { blob, error, omitted } = await captureArtboard(node, view.width, contentHeight(view));
       if (blob) {
         downloadBlob(`${slug}-${viewId}.png`, blob);
         // The vector goes with it: same drawing, scales without blurring, and useful in a document.
         if (artboardRef.current) downloadText(`${slug}-${viewId}.svg`, artboardToSvg(artboardRef.current, view.width, contentHeight(view)));
+        // Say what the picture could not carry. The alternative is the owner discovering it in
+        // the file, which is the same as not knowing.
+        if (omitted?.length) setStatus(`Exported — but the image cannot draw ${omitted.join(', ')}. The HTML export keeps them.`);
       } else {
         // Say WHY. A capture that fails silently is a bug nobody can report, and the fallback —
         // an OS screenshot — is what the owner does today, so this is a detour rather than a wall.

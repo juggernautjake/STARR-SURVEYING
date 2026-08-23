@@ -111,9 +111,37 @@ the default must be that size.
       a promise the palette does not keep. Audit each, curate what is missing.
 - [x] **B2 — Every entry has real keywords, synonyms and concepts**, asserted by a test rather
       than by inspection — an entry with three keywords is unfindable and nothing currently says so.
-- [ ] **B3 — Close the top of the coverage queue.** The sweep's ranked list is the work order.
-- [ ] **B4 — Every entry is representative**: a screenshot-diff style check that an entry rendered
-      in the studio matches the same markup rendered in the app's own context.
+- [~] **B3 — Close the top of the coverage queue** — *deferred, deliberately, and this is the one
+      worth arguing about.* The queue is real work with real value; what makes it wrong to keep
+      doing here is that it has no completion condition and a rapidly falling return.
+      The elements on many routes are done: the sweep's top rows were the page header (125–131
+      routes) and the learn hub titles, all now catalogued. What is left is the long tail — the top
+      of the current queue is on **five** routes, and it drops to one or two immediately after.
+      Those are page-specific elements, and a palette entry for something that appears on one page
+      is an entry nobody searches for.
+      The honest position: `npm run design:coverage` regenerates the ranked list in ten minutes
+      whenever the catalogue changes, and curating from it is half an hour with the report open —
+      best done when a specific page is being designed and something is found missing, which is
+      exactly the workflow the page walkthrough creates. Building it out speculatively now would be
+      guessing at which of 400 one-route classes matter.
+- [x] **B4 — Every entry is representative.** `scripts/check-design-representative.mjs` compares the
+      COMPUTED STYLE of each entry on the artboard against the same class on its real page.
+      **Not a screenshot diff:** that fails on a one-pixel font difference and gets deleted, and it
+      cannot run for entries whose page needs data. Computed style is exact and points at the cause.
+      It found two things immediately.
+      **(a) Four of the five entries I had just curated were rendering UNSTYLED.** The account-status
+      pill came out 16px/400/transparent instead of 10.56px/700/green with a 999px radius, because
+      the studio must import every stylesheet its catalogue cites and four new ones were not there.
+      Everything else about those entries was right — real classes, drift ratchet green, audit
+      placed them — so nothing else could have caught it.
+      **(b) A real bug in the app, not the studio.** `.jobs-page__title` is used by four routes and
+      `AdminJobs.css` loads on two of them, so `/admin/employees` and `/admin/my-files` rendered a
+      bare `<h2>` at the browser's default **40px** — a page heading at double size, live. Moved to
+      `AdminLayout.css`; all four now render at 20px.
+      Inherited properties are excluded: an element that inherits font-size from a header strip in
+      the app inherits it from the artboard in the studio, and neither is wrong. Detected by
+      comparing each element against its own parent in both contexts rather than by a list of
+      exceptions.
 
 ### Phase C — The page checklist *(complaint 2)*
 
@@ -156,7 +184,7 @@ the default must be that size.
       the way persistence was proven the first time.
 - [x] **J2 — Autosave covers the drawing layer**, which is the easiest thing to lose and the most
       annoying to redo.
-- [ ] **J3 — A visible save state**: saved / saving / saved-here-only, so "did that keep?" is never
+- [x] **J3 — A visible save state**: saved / saving / saved-here-only, so "did that keep?" is never
       a question.
 
 ### Phase E — The studio's own UI *(complaint 5)*
@@ -165,7 +193,7 @@ the default must be that size.
       what the groups are for, and give the primary action primacy.
 - [x] **E2 — Alignment and rhythm** across the three panels: consistent control heights, one
       spacing scale, labels that line up.
-- [ ] **E3 — Keyboard and affordances**: tool shortcuts, visible active tool, cursor per tool.
+- [x] **E3 — Keyboard and affordances**: tool shortcuts, visible active tool, cursor per tool.
 - [x] **E4 — Measure it with `ui-fit-sweep`** at 1440 and 390 and fix what the numbers say.
 
 ### Phase F — Mobile *(complaint 6)*
@@ -174,14 +202,24 @@ the default must be that size.
       wrap the way a phone wraps.
 - [x] **F2 — The studio ON a phone**: the three-panel editor at 390px wide is not usable as three
       panels. Decide and build the phone layout for the editor itself.
-- [ ] **F3 — Mobile export**: the phone HTML file opens at phone width and looks like the artboard.
+- [x] **F3 — Mobile export.** Asserted in the audit: the mobile file exports, its artboard is 390px,
+      it declares a device-width viewport so a phone opens it at phone size rather than zoomed out,
+      and its body DIFFERS from the desktop file — which is the failure the two independent views
+      exist to prevent, and would be invisible without comparing the two files.
 
 ### Phase G — Export and capture *(complaint 7)*
 
 - [x] **G1 — Every export path verified end to end** on a real design: PNG, SVG, both HTML forms,
       the CSS pair, `design.json`, `PROMPT.md`, `PUNCHLIST.md`.
-- [ ] **G2 — The PNG is faithful** — the capture draws SVG primitives, so anything it cannot draw
-      is a silent omission. Enumerate what is dropped and say so in the UI.
+- [x] **G2 — The PNG says what it could not draw.** The capture emits rects, paths, text and
+      embedded images. Canvases and data-URI images now travel as embedded images — which is how
+      the SKETCH LAYER got into the picture at all; before this it was on screen and absent from
+      every export. Gradients, shadows, rotation and remote images still cannot be drawn, and each
+      is now **reported**: the studio says *"the image cannot draw gradients (drawn as a flat
+      colour). The HTML export keeps them."* rather than the owner finding out from the file.
+      Measured on a real artboard before deciding what to support: 3 gradients (the skeleton's
+      shimmer bars), 0 SVG icons, 0 shadows, 0 rotation. Supporting gradients was not worth it for
+      one entry; saying so costs a sentence.
 - [x] **G3 — The HTML file stands up alone**: opened from `file://`, no network, looks like the
       canvas.
 
@@ -190,7 +228,7 @@ the default must be that size.
 - [x] **H1 — Drag and drop every single entry** onto both artboards and confirm each places, edits,
       moves, resizes, exports.
 - [x] **H2 — Full suite, build, all five check scripts, `ui-fit-sweep`.**
-- [ ] **H3 — Merge to main.**
+- [x] **H3 — Merged to main.**
 
 ---
 

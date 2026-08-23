@@ -2,7 +2,7 @@
 //
 //   node --env-file=.env.local scripts/check-design-drawing.mjs --base http://127.0.0.1:3211
 //
-// Phase D of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Phase D of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // The geometry and the flood fill are unit-tested in `__tests__/design/drawing.test.ts`. What those
 // cannot see is the half that only exists in a browser: whether a pointer drag reaches the canvas at

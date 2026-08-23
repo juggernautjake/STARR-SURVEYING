@@ -31,9 +31,12 @@
 // border and corner radius, and a `<text>` per LINE of text, positioned from the line's own client
 // rect so wrapped text lands exactly where it wrapped.
 //
-// It is not a screenshot and does not pretend to be — gradients, shadows and images are not carried
-// — but for a mockup made of boxes, borders and words it is faithful, it is VECTOR (so the SVG is
-// worth keeping in its own right), and unlike the approach every library uses, it actually works.
+// It is not a screenshot and does not pretend to be. Canvases and data-URI images ARE carried, as
+// embedded images; gradients, shadows, rotation and remote images are not — and every one of those
+// is REPORTED back to the caller, rather than vanishing quietly, because a picture that is missing
+// something while looking finished is the worst thing this file could produce. For a mockup made of
+// boxes, borders and words it is faithful, it is VECTOR (so the SVG is worth keeping in its own
+// right), and unlike the approach every library uses, it actually works.
 
 /** A box we are going to draw, in artboard coordinates. */
 interface Box {
@@ -170,7 +173,7 @@ function lineFragments(node: Text, toLocal: ToLocal): LineFragment[] {
  */
 interface Embedded { x: number; y: number; w: number; h: number; href: string }
 
-function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: Embedded[]; untaintable: string[] } {
+function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: Embedded[]; untaintable: string[]; omitted: string[] } {
   const origin = root.getBoundingClientRect();
   // The artboard is rendered at the studio's zoom; everything is divided back to 1:1.
   const scale = origin.width / root.offsetWidth || 1;
@@ -185,6 +188,9 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: 
   const lines: TextLine[] = [];
   const images: Embedded[] = [];
   const untaintable: string[] = [];
+  /** Things this exporter cannot draw. A Set, because one gradient and forty gradients are the same
+   *  sentence to the person reading the warning. */
+  const omitted = new Set<string>();
   const SKIP = /dsx__handle|dsx__size|dsx__guide|dsx__gap|dsx__fold|dsx__safe/;
 
   const visit = (el: HTMLElement) => {
@@ -210,7 +216,37 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: 
       return;
     }
 
+    // An <img> travels the same way as the canvas — as an embedded image — because an imported page
+    // can carry photographs and logos and a mockup missing them is a mockup of a different page.
+    // A cross-origin source cannot be read back, and that is reported rather than silently skipped.
+    if (el instanceof HTMLImageElement && el.src) {
+      const rect = toLocal(el.getBoundingClientRect());
+      if (rect.w > 0 && rect.h > 0) {
+        if (el.src.startsWith('data:')) images.push({ ...rect, href: el.src });
+        else untaintable.push(`an image (${el.src.split('/').pop()?.slice(0, 30) ?? 'remote'})`);
+      }
+      return;
+    }
+
     const rect = toLocal(el.getBoundingClientRect());
+
+    // ── What this exporter cannot draw, recorded rather than dropped ────────────────────────────
+    //
+    // It emits rects, paths, text and embedded images. Three things fall outside that, and each one
+    // would otherwise vanish from the PNG with the file still looking finished — which is the
+    // failure mode this whole file exists to avoid.
+    if (rect.w > 0 && rect.h > 0) {
+      if (style.backgroundImage && style.backgroundImage !== 'none') {
+        omitted.add(/^(linear|radial|conic)-gradient/.test(style.backgroundImage)
+          ? 'gradients (drawn as a flat colour)'
+          : 'background images');
+      }
+      if (style.boxShadow && style.boxShadow !== 'none') omitted.add('shadows');
+      if (style.transform && style.transform !== 'none' && !/^matrix\(1, ?0, ?0, ?1,/.test(style.transform)) {
+        omitted.add('rotation (drawn upright)');
+      }
+    }
+
     if (rect.w > 0 && rect.h > 0) {
       const fill = TRANSPARENT.test(style.backgroundColor) ? undefined : style.backgroundColor;
       const borderWidth = parseFloat(style.borderTopWidth) || 0;
@@ -284,7 +320,7 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: 
   };
 
   visit(root);
-  return { boxes, lines, images, untaintable };
+  return { boxes, lines, images, untaintable, omitted: [...omitted] };
 }
 
 /**
@@ -294,7 +330,7 @@ function collect(root: HTMLElement): { boxes: Box[]; lines: TextLine[]; images: 
  * be dropped into a document. The PNG below is this, rasterised.
  */
 export function artboardToSvg(node: HTMLElement, width: number, height: number): string {
-  const { boxes, lines, images } = collect(node);
+  const { boxes, lines, images, untaintable, omitted } = collect(node);
   const parts: string[] = [];
 
   parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
@@ -338,6 +374,16 @@ export interface CaptureResult {
   /** Why it failed, in words a person can act on. Never swallowed: a capture that returns null with
    *  no reason is a bug report nobody can file, and that cost a debugging session once already. */
   error?: string;
+  /** What the drawing could not carry — gradients, shadows, rotation, a remote image. The PNG is
+   *  the deliverable, so a silent omission is a wrong deliverable that looks finished. Reported so
+   *  the studio can say it rather than the owner finding out from the file. */
+  omitted?: string[];
+}
+
+/** Everything the vector exporter could not draw on this artboard, without rasterising anything. */
+export function captureOmissions(node: HTMLElement, width: number, height: number): string[] {
+  const { untaintable, omitted } = collect(node);
+  return [...omitted, ...untaintable.map((what) => `${what} could not be read`)];
 }
 
 /**
@@ -354,6 +400,7 @@ export async function captureArtboard(
   try {
     if (document.fonts?.ready) await document.fonts.ready;
 
+    const omitted = captureOmissions(node, width, height);
     const svg = artboardToSvg(node, width, height);
     const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
     try {
@@ -378,7 +425,7 @@ export async function captureArtboard(
       ctx.drawImage(image, 0, 0);
 
       const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
-      return blob ? { blob } : { blob: null, error: 'the canvas produced no image data' };
+      return blob ? { blob, omitted } : { blob: null, error: 'the canvas produced no image data', omitted };
     } finally {
       URL.revokeObjectURL(url);
     }

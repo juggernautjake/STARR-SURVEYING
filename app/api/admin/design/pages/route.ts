@@ -3,7 +3,7 @@
 //   GET  /api/admin/design/pages                          → { pages, progress }
 //   POST /api/admin/design/pages { route, status?, note? } → { page }
 //
-// Phase C of docs/planning/in-progress/DESIGN_STUDIO_QUALITY_2026-08-23.md.
+// Phase C of docs/planning/completed/DESIGN_STUDIO_QUALITY_2026-08-23.md.
 //
 // The inventory is a committed JSON file generated from the filesystem; the status comes from the
 // database. Joining them here rather than in the browser means the list arrives complete and the
