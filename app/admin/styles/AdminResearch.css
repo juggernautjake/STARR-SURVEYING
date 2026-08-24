@@ -1495,7 +1495,7 @@
   height: 18px;
   padding: 0 5px;
   background: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   border-radius: 9px;
   font-size: 0.68rem;
   font-weight: 700;
@@ -1508,7 +1508,7 @@
   gap: 0.3rem;
   padding: 0.3rem 0.75rem;
   background: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   border: none;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -1749,7 +1749,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid var(--theme-border, #E5E7EB);
-  border-top-color: #9CA3AF;
+  border-top-color: var(--theme-fg-muted, #9CA3AF);
   border-radius: 50%;
   flex-shrink: 0;
   animation: research-spin 0.8s linear infinite;
@@ -2302,7 +2302,7 @@
 .run-console--running     { border-left-color: #2563EB; }
 .run-console--complete    { border-left-color: #059669; }
 .run-console--failed      { border-left-color: #DC2626; }
-.run-console--cancelled   { border-left-color: #6B7280; }
+.run-console--cancelled   { border-left-color: var(--theme-fg-muted, #6B7280); }
 /* Interrupted is not a kind of failed — the research did not fail, the process holding it stopped. */
 .run-console--interrupted { border-left-color: #B45309; }
 .run-console--bad         { border-left-color: #DC2626; background: #FEF2F2; color: #991B1B; }
@@ -9155,7 +9155,7 @@
 
 .research-tools__quick-color:hover {
   transform: scale(1.25);
-  border-color: #6B7280;
+  border-color: var(--theme-fg-muted, #6B7280);
 }
 
 .research-tools__quick-color.research-tools__quick-color--active,
@@ -11210,7 +11210,7 @@
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .research-pipeline__job-card:hover {
-  border-color: #9CA3AF;
+  border-color: var(--theme-fg-muted, #9CA3AF);
 }
 .research-pipeline__job-card--selected {
   border-color: var(--recon-brand);
@@ -11402,7 +11402,7 @@
 }
 .research-confirm__cancel:hover {
   background: var(--theme-bg-elevated, #F9FAFB);
-  border-color: #9CA3AF;
+  border-color: var(--theme-fg-muted, #9CA3AF);
 }
 
 .research-confirm__confirm {

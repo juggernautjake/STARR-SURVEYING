@@ -85,7 +85,7 @@
 .rewards__item-image { width: 100%; height: 100px; object-fit: contain; border-radius: 6px; margin: 0.5rem 0; }
 .rewards__item-name {
   font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600;
-  color: #0F1419; margin-bottom: 0.25rem;
+  color: var(--theme-fg-primary, #0F1419); margin-bottom: 0.25rem;
 }
 .rewards__item-desc {
   font-family: 'Inter', sans-serif; font-size: 0.75rem; color: var(--theme-fg-muted, #6B7280);
@@ -109,7 +109,7 @@
 /* === BADGES === */
 .rewards__section-title {
   font-family: 'Sora', sans-serif; font-size: 1rem; font-weight: 600;
-  color: #0F1419; margin-bottom: 0.75rem;
+  color: var(--theme-fg-primary, #0F1419); margin-bottom: 0.75rem;
 }
 .rewards__badges-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem;
@@ -123,7 +123,7 @@
 .rewards__badge-icon { font-size: 2rem; display: block; margin-bottom: 0.35rem; }
 .rewards__badge-name {
   font-family: 'Sora', sans-serif; font-size: 0.85rem; font-weight: 600;
-  color: #0F1419; margin-bottom: 0.2rem;
+  color: var(--theme-fg-primary, #0F1419); margin-bottom: 0.2rem;
 }
 .rewards__badge-desc {
   font-family: 'Inter', sans-serif; font-size: 0.72rem; color: var(--theme-fg-muted, #6B7280);
@@ -392,7 +392,7 @@
 }
 .pay-prog__section-title {
   font-family: 'Sora', sans-serif; font-size: 1.05rem; font-weight: 600;
-  color: #0F1419; margin-bottom: 0.25rem;
+  color: var(--theme-fg-primary, #0F1419); margin-bottom: 0.25rem;
 }
 .pay-prog__section-desc {
   font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--theme-fg-muted, #6B7280);
@@ -1643,7 +1643,7 @@
 }
 .pay-prog__xp-label {
   display: block; font-family: 'Sora', sans-serif; font-size: 0.72rem;
-  font-weight: 600; color: #0F1419; margin-bottom: 0.1rem;
+  font-weight: 600; color: var(--theme-fg-primary, #0F1419); margin-bottom: 0.1rem;
 }
 .pay-prog__xp-threshold {
   display: block; font-family: 'Inter', sans-serif; font-size: 0.68rem; color: var(--theme-fg-muted, #6B7280);
@@ -1684,7 +1684,7 @@
 .pay-prog__incentive-card--highlight { background: #EFF6FF; border-color: var(--color-brand-navy); }
 .pay-prog__incentive-card h4 {
   font-family: 'Sora', sans-serif; font-size: 0.9rem; font-weight: 600;
-  margin-bottom: 0.5rem; color: #0F1419;
+  margin-bottom: 0.5rem; color: var(--theme-fg-primary, #0F1419);
 }
 .pay-prog__incentive-card ul {
   list-style: none; padding: 0; font-family: 'Inter', sans-serif; font-size: 0.82rem; color: var(--theme-fg-secondary, #374151);
@@ -1704,7 +1704,7 @@
   font-weight: 500; color: var(--color-brand-navy); white-space: nowrap;
 }
 .pay-prog__formula-item--total {
-  background: var(--color-brand-navy); color: #FFF; border-color: var(--color-brand-navy); font-weight: 700;
+  background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border-color: var(--color-brand-navy); font-weight: 700;
 }
 .pay-prog__formula-op {
   font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 700; color: var(--theme-fg-muted, #9CA3AF);
@@ -1717,7 +1717,7 @@
 }
 .hiw__title {
   font-family: 'Sora', sans-serif; font-size: 1.1rem; font-weight: 600;
-  color: #0F1419; margin-bottom: 0.5rem;
+  color: var(--theme-fg-primary, #0F1419); margin-bottom: 0.5rem;
 }
 .hiw__text {
   font-family: 'Inter', sans-serif; font-size: 0.88rem; color: var(--theme-fg-secondary, #374151);
@@ -1820,7 +1820,7 @@
   line-height: 1.65; padding-left: 1.5rem; margin: .5rem 0 .5rem;
 }
 .pay-prog__transparency-list li { margin-bottom: .35rem; }
-.pay-prog__transparency-list li strong { color: #0F1419; }
+.pay-prog__transparency-list li strong { color: var(--theme-fg-primary, #0F1419); }
 
 /* Worked Example */
 .pay-prog__example {
@@ -1881,7 +1881,7 @@
 .mng__row-info { flex: 1; min-width: 0; }
 .mng__row-info strong {
   display: block; font-family: 'Sora', sans-serif; font-size: .88rem;
-  font-weight: 600; color: #0F1419;
+  font-weight: 600; color: var(--theme-fg-primary, #0F1419);
 }
 .mng__row-meta {
   display: block; font-family: 'Inter', sans-serif; font-size: .78rem;

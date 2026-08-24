@@ -19,7 +19,7 @@
    `--button-height-sm` is, and it keeps the strip visibly lighter than the page's real buttons. */
 .um-filter-tab { display:inline-flex; align-items:center; gap:.35rem; height:var(--button-height-sm); padding:0 .85rem; border:1px solid var(--theme-border, #E5E7EB); border-radius:6px; background:var(--theme-bg-surface, #FFF); font-family:'Inter',sans-serif; font-size:.78rem; font-weight:500; color:var(--theme-fg-muted, #6B7280); cursor:pointer; transition:all .15s; }
 .um-filter-tab:hover { border-color:var(--color-brand-navy); color:var(--color-brand-navy); }
-.um-filter-tab--active { background:var(--color-brand-navy); border-color:var(--color-brand-navy); color:#FFF; }
+.um-filter-tab--active { background:var(--color-brand-navy); border-color:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); }
 .um-filter-tab__count { font-size:.7rem; background:rgba(0,0,0,.08); border-radius:10px; padding:.1rem .4rem; min-width:1.1rem; text-align:center; }
 .um-filter-tab--active .um-filter-tab__count { background:rgba(255,255,255,.2); }
 .um-filter-tab--alert { border-color:#F59E0B; color:#D97706; }
@@ -40,8 +40,8 @@
 
 /* User cell */
 .um-cell-user { display:flex; align-items:center; gap:.65rem; min-width:200px; }
-.um-avatar { width:36px; height:36px; border-radius:50%; background:var(--color-brand-navy); color:#FFF; display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; flex-shrink:0; }
-.um-name { font-weight:600; color:#0F1419; font-size:.85rem; }
+.um-avatar { width:36px; height:36px; border-radius:50%; background:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); display:flex; align-items:center; justify-content:center; font-size:.7rem; font-weight:700; flex-shrink:0; }
+.um-name { font-weight:600; color:var(--theme-fg-primary, #0F1419); font-size:.85rem; }
 .um-email { font-size:.75rem; color:var(--theme-fg-muted, #6B7280); }
 
 /* Role badges */
@@ -81,7 +81,7 @@
 .um-btn--sm { min-height:var(--button-height-sm); padding:0 .7rem; font-size:.75rem; }
 .um-btn--xs { padding:.2rem .4rem; font-size:.75rem; background:none; color:var(--theme-fg-muted, #6B7280); }
 .um-btn--xs:hover { color:var(--color-brand-navy); }
-.um-btn--primary { background:var(--color-brand-navy); color:#FFF; }
+.um-btn--primary { background:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); }
 .um-btn--primary:hover { background:var(--color-brand-navy-d); }
 .um-btn--success { background:#059669; color:#FFF; }
 .um-btn--success:hover { background:#047857; }
@@ -109,7 +109,7 @@
 .um-modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.45); display:flex; align-items:flex-start; justify-content:center; z-index:9999; padding:1rem; overflow-y:auto; -webkit-overflow-scrolling:touch; }
 @media(min-height:720px) { .um-modal-overlay { align-items:center; } }
 .um-modal { background:var(--theme-bg-surface, #FFF); border-radius:12px; padding:1.75rem; max-width:420px; width:100%; max-height:calc(100dvh - 2rem); overflow-y:auto; overscroll-behavior:contain; box-shadow:0 16px 48px rgba(0,0,0,.2); }
-.um-modal__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:700; color:#0F1419; margin-bottom:.5rem; }
+.um-modal__title { font-family:'Sora',sans-serif; font-size:1.15rem; font-weight:700; color:var(--theme-fg-primary, #0F1419); margin-bottom:.5rem; }
 .um-modal__desc { font-family:'Inter',sans-serif; font-size:.85rem; color:var(--theme-fg-muted, #6B7280); line-height:1.5; margin-bottom:1rem; }
 .um-modal__field { margin-bottom:1rem; }
 .um-modal__actions { display:flex; justify-content:flex-end; gap:.5rem; }

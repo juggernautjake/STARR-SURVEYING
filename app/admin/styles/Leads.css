@@ -157,7 +157,7 @@
 .lead-card__btn--primary {
   background: var(--color-brand-navy);
   border-color: var(--color-brand-navy);
-  color: #ffffff;
+  color: var(--theme-accent-fg, #FFF);
 }
 .lead-card__btn--primary:hover {
   filter: brightness(1.1);

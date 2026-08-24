@@ -7,7 +7,7 @@
 .assign__header-left { display:flex; align-items:center; gap:.75rem; }
 .assign__title { margin:0; font-size:1.1rem; font-weight:700; color:var(--theme-fg-primary, #1F2937); }
 .assign__count { font-size:.75rem; color:var(--theme-fg-muted, #9CA3AF); background:var(--theme-bg-elevated, #F3F4F6); padding:.15rem .5rem; border-radius:10px; }
-.assign__create-btn { padding:.5rem 1.1rem; font-size:.85rem; font-weight:600; background:var(--color-brand-navy); color:#fff; border:none; border-radius:6px; cursor:pointer; transition:background .15s; }
+.assign__create-btn { padding:.5rem 1.1rem; font-size:.85rem; font-weight:600; background:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); border:none; border-radius:6px; cursor:pointer; transition:background .15s; }
 .assign__create-btn:hover { background:var(--color-brand-navy-d); }
 
 /* Create form */
@@ -28,9 +28,9 @@
 
 /* Buttons */
 .assign__btn { padding:.5rem 1rem; font-size:.82rem; font-weight:600; border-radius:6px; cursor:pointer; transition:all .15s; border:1px solid transparent; }
-.assign__btn--primary { background:var(--color-brand-navy); color:#fff; border-color:var(--color-brand-navy); }
+.assign__btn--primary { background:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); border-color:var(--color-brand-navy); }
 .assign__btn--primary:hover { background:var(--color-brand-navy-d); }
-.assign__btn--primary:disabled { background:#9CA3AF; border-color:#9CA3AF; cursor:not-allowed; }
+.assign__btn--primary:disabled { background:#9CA3AF; border-color:var(--theme-fg-muted, #9CA3AF); cursor:not-allowed; }
 .assign__btn--secondary { background:var(--theme-bg-surface, #fff); color:var(--theme-fg-secondary, #374151); border-color:#D1D5DB; }
 .assign__btn--secondary:hover { background:var(--theme-bg-elevated, #F3F4F6); }
 .assign__btn--success { background:#059669; color:#fff; border-color:#059669; }
@@ -73,8 +73,8 @@
   outline:none;
 }
 .assign__filter-pill { padding:0 .75rem; cursor:pointer; transition:all .15s; }
-.assign__filter-pill:hover { border-color:#9CA3AF; }
-.assign__filter-pill--active { background:var(--color-brand-navy); color:#fff; border-color:var(--color-brand-navy); }
+.assign__filter-pill:hover { border-color:var(--theme-fg-muted, #9CA3AF); }
+.assign__filter-pill--active { background:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); border-color:var(--color-brand-navy); }
 .assign__filter-select {
   /* Native arrow lives inside the right edge; leave room for it. */
   padding:0 1.6rem 0 .75rem;

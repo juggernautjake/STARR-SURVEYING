@@ -14,7 +14,7 @@
 .fw__live-dot { width: 8px; height: 8px; border-radius: 50%; background: #059669; animation: fw-pulse 1.5s infinite; }
 @keyframes fw-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 .fw__btn { padding: 0.4rem 0.85rem; font-size: 0.8rem; background: var(--theme-bg-surface, #fff); border: 1px solid #D1D5DB; border-radius: 6px; cursor: pointer; color: var(--theme-fg-secondary, #374151); font-weight: 500; transition: all 0.15s; }
-.fw__btn:hover { background: var(--theme-bg-elevated, #F3F4F6); border-color: #9CA3AF; }
+.fw__btn:hover { background: var(--theme-bg-elevated, #F3F4F6); border-color: var(--theme-fg-muted, #9CA3AF); }
 .fw__btn--sm { padding: 0.25rem 0.6rem; font-size: 0.72rem; }
 
 /* ── Label toggles ── */
@@ -132,7 +132,7 @@
 .fw__stat-lbl { font-size: 0.65rem; color: var(--theme-fg-muted, #9CA3AF); text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
 
 /* ── Button variants ── */
-.fw__btn--primary { background: var(--color-brand-navy); color: #fff; border-color: var(--color-brand-navy); }
+.fw__btn--primary { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border-color: var(--color-brand-navy); }
 .fw__btn--primary:hover { background: var(--color-brand-navy-d); border-color: var(--color-brand-navy-d); }
 .fw__btn--active { background: #EFF6FF; border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
 
@@ -160,7 +160,7 @@
 /* ── Export Dialog ── */
 .fw__export-options { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
 .fw__export-option { padding: 0.5rem 1rem; border: 1px solid #D1D5DB; border-radius: 6px; background: var(--theme-bg-surface, #fff); cursor: pointer; font-size: 0.82rem; color: var(--theme-fg-secondary, #374151); transition: all 0.15s; text-align: center; flex: 1; min-width: 100px; }
-.fw__export-option:hover { border-color: #9CA3AF; background: var(--theme-bg-elevated, #F9FAFB); }
+.fw__export-option:hover { border-color: var(--theme-fg-muted, #9CA3AF); background: var(--theme-bg-elevated, #F9FAFB); }
 .fw__export-option--active { border-color: var(--color-brand-navy); background: #EFF6FF; color: var(--color-brand-navy); font-weight: 600; box-shadow: 0 0 0 1px var(--color-brand-navy); }
 .fw__export-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--theme-border, #E5E7EB); }
 
@@ -192,7 +192,7 @@
 .fw__job-summary-val { font-size: 0.88rem; font-weight: 700; color: var(--color-brand-navy); font-family: monospace; display: block; }
 .fw__job-summary-lbl { font-size: 0.65rem; color: var(--theme-fg-muted, #9CA3AF); text-transform: uppercase; letter-spacing: 0.03em; display: block; }
 .fw__crew-toggle { margin-left: auto; background: none; border: 1px solid #D1D5DB; border-radius: 6px; padding: 0.3rem 0.75rem; font-size: 0.78rem; color: var(--theme-fg-secondary, #374151); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-.fw__crew-toggle:hover { background: var(--theme-bg-elevated, #F3F4F6); border-color: #9CA3AF; }
+.fw__crew-toggle:hover { background: var(--theme-bg-elevated, #F3F4F6); border-color: var(--theme-fg-muted, #9CA3AF); }
 
 /* ── Crew Activity Panel ── */
 .fw__crew-panel { background: var(--theme-bg-surface, #fff); border: 1px solid var(--theme-border, #E5E7EB); border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 0.75rem; }
@@ -217,7 +217,7 @@
 .fw__view-tabs { display: flex; border: 1px solid #D1D5DB; border-radius: 6px; overflow: hidden; }
 .fw__view-tab { padding: 0.3rem 0.75rem; font-size: 0.78rem; border: none; background: var(--theme-bg-surface, #fff); color: var(--theme-fg-muted, #6B7280); cursor: pointer; transition: all 0.15s; white-space: nowrap; }
 .fw__view-tab:not(:last-child) { border-right: 1px solid #D1D5DB; }
-.fw__view-tab--active { background: var(--color-brand-navy); color: #fff; }
+.fw__view-tab--active { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); }
 .fw__view-tab:hover:not(.fw__view-tab--active) { background: var(--theme-bg-elevated, #F3F4F6); }
 
 /* ── Table Filters ── */

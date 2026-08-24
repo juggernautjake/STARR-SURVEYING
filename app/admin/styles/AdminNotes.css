@@ -278,7 +278,7 @@
 .notes-page__btn-cancel:hover { background: rgba(15, 20, 25, 0.06); }
 .notes-page__btn-save {
   background: var(--color-brand-navy, #1e3a8a);
-  color: #ffffff;
+  color: var(--theme-accent-fg, #FFF);
 }
 .notes-page__btn-save:hover:not(:disabled) { filter: brightness(1.1); }
 .notes-page__btn-save:disabled { opacity: 0.55; cursor: not-allowed; }

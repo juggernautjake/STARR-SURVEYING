@@ -1,11 +1,11 @@
 {
-  "measuredAt": "2026-08-24T00:25:45.004Z",
-  "base": "http://127.0.0.1:3014",
+  "measuredAt": "2026-08-24T01:05:43.175Z",
+  "base": "http://127.0.0.1:3015",
   "routesWalked": 140,
   "tolerancePx": 3,
   "summary": {
-    "verified": 11,
-    "differs": 20,
+    "verified": 7,
+    "differs": 24,
     "notSeen": 24
   },
   "entries": {
@@ -14,34 +14,34 @@
       "route": "/admin/learn/exam-prep/sit/mock-exam",
       "status": "differs",
       "height": {
-        "editor": 40,
-        "page": 62.1
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 40,
+        "max": 62.1,
+        "median": 40,
+        "samples": 10
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 119.3,
+        "max": 223.7,
+        "median": 145.3,
+        "samples": 10
       },
       "frame": {
         "w": 160,
         "h": 40
       },
-      "widthComparable": true,
+      "editorSize": {
+        "width": 160,
+        "height": 40
+      },
       "diffs": [
         {
           "what": "fontSize",
           "editor": "13.6px",
           "page": "17.6px"
-        },
-        {
-          "what": "height",
-          "editor": 40,
-          "page": 62.1
-        },
-        {
-          "what": "width",
-          "editor": 160,
-          "page": 197.4
-        },
-        {
-          "what": "default frame height",
-          "editor": 40,
-          "page": 62.1
         }
       ]
     },
@@ -50,19 +50,35 @@
       "route": "/admin/jobs",
       "status": "differs",
       "height": {
-        "editor": 40,
-        "page": 39.8
+        "intrinsic": true,
+        "value": 39.8,
+        "min": 39.8,
+        "max": 39.8,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 107.2,
+        "min": 107.2,
+        "max": 107.2,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 140,
         "h": 40
       },
-      "widthComparable": true,
+      "editorSize": {
+        "width": 140,
+        "height": 40
+      },
       "diffs": [
         {
           "what": "width",
           "editor": 140,
-          "page": 107.2
+          "page": 107.2,
+          "lowConfidence": true
         }
       ]
     },
@@ -77,14 +93,28 @@
       "route": "/admin/jobs/new",
       "status": "differs",
       "height": {
-        "editor": 21,
-        "page": 20
+        "intrinsic": true,
+        "value": 21,
+        "min": 20,
+        "max": 21,
+        "samples": 15
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 47.6,
+        "max": 158.5,
+        "median": 151.3,
+        "samples": 15
       },
       "frame": {
         "w": 140,
         "h": 26
       },
-      "widthComparable": true,
+      "editorSize": {
+        "width": 140,
+        "height": 21
+      },
       "diffs": [
         {
           "what": "fontSize",
@@ -97,14 +127,9 @@
           "page": "600"
         },
         {
-          "what": "width",
-          "editor": 140,
-          "page": 117.1
-        },
-        {
           "what": "default frame height",
           "editor": 26,
-          "page": 20
+          "page": 21
         }
       ]
     },
@@ -113,14 +138,29 @@
       "route": "/admin/files",
       "status": "differs",
       "height": {
-        "editor": 40,
-        "page": 32
+        "intrinsic": true,
+        "value": 32,
+        "min": 32,
+        "max": 32,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 32,
+        "min": 32,
+        "max": 32,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 40,
         "h": 40
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 40,
+        "height": 40
+      },
       "diffs": [
         {
           "what": "color",
@@ -140,12 +180,20 @@
         {
           "what": "height",
           "editor": 40,
-          "page": 32
+          "page": 32,
+          "lowConfidence": true
+        },
+        {
+          "what": "width",
+          "editor": 40,
+          "page": 32,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 40,
-          "page": 32
+          "page": 32,
+          "lowConfidence": true
         }
       ]
     },
@@ -160,14 +208,29 @@
       "route": "/admin/jobs/new",
       "status": "differs",
       "height": {
-        "editor": 18.2,
-        "page": 18.2
+        "intrinsic": true,
+        "value": 18.2,
+        "min": 18.2,
+        "max": 18.2,
+        "samples": 2,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1478,
+        "min": 1478,
+        "max": 1478,
+        "samples": 2,
+        "lowConfidence": true
       },
       "frame": {
         "w": 240,
         "h": 22
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 240,
+        "height": 18.2
+      },
       "diffs": [
         {
           "what": "color",
@@ -175,9 +238,16 @@
           "page": "rgb(71, 85, 105)"
         },
         {
+          "what": "width",
+          "editor": 240,
+          "page": 1478,
+          "lowConfidence": true
+        },
+        {
           "what": "default frame height",
           "editor": 22,
-          "page": 18.2
+          "page": 18.2,
+          "lowConfidence": true
         }
       ]
     },
@@ -196,160 +266,264 @@
     "input.text": {
       "signature": "job-form__field",
       "route": "/admin/jobs/new",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 64.5,
-        "page": 64.5
+        "intrinsic": true,
+        "value": 64.5,
+        "min": 64.5,
+        "max": 74.3,
+        "samples": 3,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 236.3,
+        "min": 236.3,
+        "max": 1520,
+        "samples": 3,
+        "lowConfidence": true
       },
       "frame": {
         "w": 260,
         "h": 64
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 260,
+        "height": 64.5
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 260,
+          "page": 236.3,
+          "lowConfidence": true
+        }
+      ]
     },
     "input.date": {
       "signature": "job-form__field",
       "route": "/admin/jobs/new",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 64.5,
-        "page": 64.5
+        "intrinsic": true,
+        "value": 64.5,
+        "min": 64.5,
+        "max": 74.3,
+        "samples": 3,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 236.3,
+        "min": 236.3,
+        "max": 1520,
+        "samples": 3,
+        "lowConfidence": true
       },
       "frame": {
         "w": 260,
         "h": 64
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 260,
+        "height": 64.5
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 260,
+          "page": 236.3,
+          "lowConfidence": true
+        }
+      ]
     },
     "input.textarea": {
       "signature": "job-form__field",
       "route": "/admin/jobs/new",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 64.5,
-        "page": 64.5
+        "intrinsic": true,
+        "value": 64.5,
+        "min": 64.5,
+        "max": 74.3,
+        "samples": 3,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 236.3,
+        "min": 236.3,
+        "max": 1520,
+        "samples": 3,
+        "lowConfidence": true
       },
       "frame": {
         "w": 260,
         "h": 64
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 260,
+        "height": 64.5
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 260,
+          "page": 236.3,
+          "lowConfidence": true
+        }
+      ]
     },
     "select.dropdown": {
       "signature": "job-form__field",
       "route": "/admin/jobs/new",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 64.5,
-        "page": 64.5
+        "intrinsic": true,
+        "value": 64.5,
+        "min": 64.5,
+        "max": 74.3,
+        "samples": 3,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 236.3,
+        "min": 236.3,
+        "max": 1520,
+        "samples": 3,
+        "lowConfidence": true
       },
       "frame": {
         "w": 260,
         "h": 64
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 260,
+        "height": 64.5
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 260,
+          "page": 236.3,
+          "lowConfidence": true
+        }
+      ]
     },
     "card.basic": {
       "signature": "admin-card",
       "route": "/admin/learn/flashcards/create",
       "status": "differs",
       "height": {
-        "editor": 200,
-        "page": 598
+        "intrinsic": true,
+        "value": 598,
+        "min": 598,
+        "max": 598,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 600,
+        "min": 600,
+        "max": 600,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 400,
         "h": 200
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 400,
+        "height": 200
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 200,
-          "page": 598
+          "page": 598,
+          "lowConfidence": true
+        },
+        {
+          "what": "width",
+          "editor": 400,
+          "page": 600,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 200,
-          "page": 598
+          "page": 598,
+          "lowConfidence": true
         }
       ]
     },
     "feedback.empty": {
       "signature": "admin-empty",
-      "route": "/admin/discussions",
+      "route": "/admin/learn/exam-prep/rpls",
       "status": "differs",
       "height": {
-        "editor": 220,
-        "page": 245
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 212.6,
+        "max": 307.9,
+        "median": 268.6,
+        "samples": 4
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1520,
+        "min": 1520,
+        "max": 1520,
+        "samples": 4
       },
       "frame": {
         "w": 480,
         "h": 220
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 480,
+        "height": 220
+      },
       "diffs": [
         {
-          "what": "backgroundColor",
-          "editor": "rgb(250, 251, 255)",
-          "page": "rgb(255, 255, 255)"
-        },
-        {
-          "what": "borderTopWidth",
-          "editor": "2px",
-          "page": "1px"
-        },
-        {
-          "what": "borderTopColor",
-          "editor": "rgb(229, 231, 235)",
-          "page": "rgb(209, 213, 219)"
-        },
-        {
-          "what": "borderTopLeftRadius",
-          "editor": "12px",
-          "page": "10px"
-        },
-        {
-          "what": "height",
-          "editor": 220,
-          "page": 245
-        },
-        {
-          "what": "default frame height",
-          "editor": 220,
-          "page": 245
+          "what": "width",
+          "editor": 480,
+          "page": 1520
         }
       ]
     },
     "layout.table-wrap": {
       "signature": "admin-table-wrap",
       "route": "/admin/audit",
-      "status": "differs",
+      "status": "verified",
       "height": {
-        "editor": 160,
-        "page": 307
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 120.4,
+        "max": 2476.5,
+        "median": 310,
+        "samples": 6
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 691,
+        "max": 1486,
+        "median": 1050,
+        "samples": 6
       },
       "frame": {
         "w": 640,
         "h": 160
       },
-      "widthComparable": false,
-      "diffs": [
-        {
-          "what": "height",
-          "editor": 160,
-          "page": 307
-        },
-        {
-          "what": "default frame height",
-          "editor": 160,
-          "page": 307
-        }
-      ]
+      "editorSize": {
+        "width": 640,
+        "height": 160
+      },
+      "diffs": []
     },
     "layout.toolbar": {
       "signature": "ds-toolbar",
@@ -404,41 +578,80 @@
       "route": "/admin/jobs",
       "status": "differs",
       "height": {
-        "editor": 18.2,
-        "page": 22.4
+        "intrinsic": true,
+        "value": 22.4,
+        "min": 22.4,
+        "max": 22.4,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 72.4,
+        "min": 72.4,
+        "max": 72.4,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 88,
         "h": 26
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 72.4,
+        "height": 18.2
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 18.2,
-          "page": 22.4
+          "page": 22.4,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 26,
-          "page": 22.4
+          "page": 22.4,
+          "lowConfidence": true
         }
       ]
     },
     "tag.deadline": {
       "signature": "job-card__deadline",
       "route": "/admin/jobs",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 17.9,
-        "page": 17.9
+        "intrinsic": true,
+        "value": 17.9,
+        "min": 17.9,
+        "max": 17.9,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 337,
+        "min": 337,
+        "max": 337,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 130,
         "h": 18
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 130,
+        "height": 17.9
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 130,
+          "page": 337,
+          "lowConfidence": true
+        }
+      ]
     },
     "nav.stage-step": {
       "signature": "job-timeline__setrow",
@@ -463,24 +676,47 @@
       "route": "/admin/hours-approval",
       "status": "differs",
       "height": {
-        "editor": 44,
-        "page": 40
+        "intrinsic": true,
+        "value": 40,
+        "min": 40,
+        "max": 40,
+        "samples": 2,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1520,
+        "min": 1520,
+        "max": 1520,
+        "samples": 2,
+        "lowConfidence": true
       },
       "frame": {
         "w": 400,
         "h": 44
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 400,
+        "height": 44
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 44,
-          "page": 40
+          "page": 40,
+          "lowConfidence": true
+        },
+        {
+          "what": "width",
+          "editor": 400,
+          "page": 1520,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 44,
-          "page": 40
+          "page": 40,
+          "lowConfidence": true
         }
       ]
     },
@@ -489,14 +725,28 @@
       "route": "/admin/jobs",
       "status": "verified",
       "height": {
-        "editor": 25.6,
-        "page": 24
+        "intrinsic": true,
+        "value": 24,
+        "min": 24,
+        "max": 24,
+        "samples": 124
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 31.4,
+        "max": 363.8,
+        "median": 152.9,
+        "samples": 124
       },
       "frame": {
         "w": 340,
         "h": 26
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 340,
+        "height": 25.6
+      },
       "diffs": []
     },
     "overlay.dialog": {
@@ -504,24 +754,47 @@
       "route": "/admin/learn/flashcards/create",
       "status": "differs",
       "height": {
-        "editor": 200,
-        "page": 598
+        "intrinsic": true,
+        "value": 598,
+        "min": 598,
+        "max": 598,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 600,
+        "min": 600,
+        "max": 600,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 400,
         "h": 200
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 400,
+        "height": 200
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 200,
-          "page": 598
+          "page": 598,
+          "lowConfidence": true
+        },
+        {
+          "what": "width",
+          "editor": 400,
+          "page": 600,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 200,
-          "page": 598
+          "page": 598,
+          "lowConfidence": true
         }
       ]
     },
@@ -536,24 +809,41 @@
       "route": "/admin/jobs/new",
       "status": "differs",
       "height": {
-        "editor": 17.1,
-        "page": 17.1
+        "intrinsic": true,
+        "value": 17.1,
+        "min": 17.1,
+        "max": 17.1,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 94,
+        "min": 94,
+        "max": 94,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 220,
         "h": 26
       },
-      "widthComparable": true,
+      "editorSize": {
+        "width": 220,
+        "height": 17.1
+      },
       "diffs": [
         {
           "what": "width",
           "editor": 220,
-          "page": 94
+          "page": 94,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 26,
-          "page": 17.1
+          "page": 17.1,
+          "lowConfidence": true
         }
       ]
     },
@@ -598,14 +888,28 @@
       "route": "/admin/jobs",
       "status": "verified",
       "height": {
-        "editor": 26,
-        "page": 26
+        "intrinsic": true,
+        "value": 26,
+        "min": 26,
+        "max": 26,
+        "samples": 118
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 56.5,
+        "max": 140.2,
+        "median": 71.8,
+        "samples": 118
       },
       "frame": {
         "w": 110,
         "h": 26
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 110,
+        "height": 26
+      },
       "diffs": []
     },
     "button.pin": {
@@ -613,59 +917,124 @@
       "route": "/admin/jobs",
       "status": "verified",
       "height": {
-        "editor": 40,
-        "page": 40
+        "intrinsic": true,
+        "value": 40,
+        "min": 40,
+        "max": 40,
+        "samples": 124
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 40,
+        "min": 40,
+        "max": 40,
+        "samples": 124
       },
       "frame": {
         "w": 40,
         "h": 40
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 40,
+        "height": 40
+      },
       "diffs": []
     },
     "text.hub-title": {
       "signature": "learn__title",
       "route": "/admin/learn/fieldbook",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 28.8,
-        "page": 28.8
+        "intrinsic": true,
+        "value": 28.8,
+        "min": 28.8,
+        "max": 28.8,
+        "samples": 9
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1520,
+        "min": 1520,
+        "max": 1520,
+        "samples": 9
       },
       "frame": {
         "w": 420,
         "h": 30
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 420,
+        "height": 28.8
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 420,
+          "page": 1520
+        }
+      ]
     },
     "text.hub-subtitle": {
       "signature": "learn__subtitle",
       "route": "/admin/learn/fieldbook",
-      "status": "verified",
+      "status": "differs",
       "height": {
-        "editor": 25.9,
-        "page": 25.9
+        "intrinsic": true,
+        "value": 25.9,
+        "min": 25.9,
+        "max": 25.9,
+        "samples": 9
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1520,
+        "min": 1520,
+        "max": 1520,
+        "samples": 9
       },
       "frame": {
         "w": 420,
         "h": 26
       },
-      "widthComparable": false,
-      "diffs": []
+      "editorSize": {
+        "width": 420,
+        "height": 25.9
+      },
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 420,
+          "page": 1520
+        }
+      ]
     },
     "text.list-title": {
       "signature": "jobs-page__title",
       "route": "/admin/jobs",
       "status": "differs",
       "height": {
-        "editor": 24,
-        "page": 24
+        "intrinsic": true,
+        "value": 24,
+        "min": 24,
+        "max": 24,
+        "samples": 6
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 58.6,
+        "max": 1520,
+        "median": 1520,
+        "samples": 6
       },
       "frame": {
         "w": 260,
         "h": 28
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 260,
+        "height": 24
+      },
       "diffs": [
         {
           "what": "default frame height",
@@ -679,24 +1048,38 @@
       "route": "/admin/work",
       "status": "differs",
       "height": {
-        "editor": 72,
-        "page": 101.6
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 101.6,
+        "max": 142.6,
+        "median": 122.1,
+        "samples": 5
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 297.8,
+        "min": 297.8,
+        "max": 297.8,
+        "samples": 5
       },
       "frame": {
         "w": 240,
         "h": 72
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 240,
+        "height": 72
+      },
       "diffs": [
         {
-          "what": "height",
-          "editor": 72,
-          "page": 101.6
+          "what": "width",
+          "editor": 240,
+          "page": 297.8
         },
         {
           "what": "default frame height",
           "editor": 72,
-          "page": 101.6
+          "page": "101.6–142.6 (content-driven)"
         }
       ]
     },
@@ -711,24 +1094,41 @@
       "route": "/admin/employees",
       "status": "differs",
       "height": {
-        "editor": 17.8,
-        "page": 21.7
+        "intrinsic": true,
+        "value": 21.7,
+        "min": 21.7,
+        "max": 21.7,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 55.8,
+        "min": 55.8,
+        "max": 55.8,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 64,
         "h": 26
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 55.8,
+        "height": 17.8
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 17.8,
-          "page": 21.7
+          "page": 21.7,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 26,
-          "page": 21.7
+          "page": 21.7,
+          "lowConfidence": true
         }
       ]
     },
@@ -743,24 +1143,41 @@
       "route": "/admin/employees",
       "status": "differs",
       "height": {
-        "editor": 16.8,
-        "page": 20.7
+        "intrinsic": true,
+        "value": 20.7,
+        "min": 20.7,
+        "max": 20.7,
+        "samples": 1,
+        "lowConfidence": true
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 71.7,
+        "min": 71.7,
+        "max": 71.7,
+        "samples": 1,
+        "lowConfidence": true
       },
       "frame": {
         "w": 88,
         "h": 26
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 71.7,
+        "height": 16.8
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 16.8,
-          "page": 20.7
+          "page": 20.7,
+          "lowConfidence": true
         },
         {
           "what": "default frame height",
           "editor": 26,
-          "page": 20.7
+          "page": 20.7,
+          "lowConfidence": true
         }
       ]
     },
@@ -769,19 +1186,37 @@
       "route": "/admin/work",
       "status": "differs",
       "height": {
-        "editor": 44,
-        "page": 37.6
+        "intrinsic": true,
+        "value": 37.6,
+        "min": 37.6,
+        "max": 37.6,
+        "samples": 5
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1232,
+        "min": 1232,
+        "max": 1232,
+        "samples": 5
       },
       "frame": {
         "w": 420,
         "h": 44
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 420,
+        "height": 44
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 44,
           "page": 37.6
+        },
+        {
+          "what": "width",
+          "editor": 420,
+          "page": 1232
         },
         {
           "what": "default frame height",
@@ -795,14 +1230,28 @@
       "route": "/admin/work",
       "status": "verified",
       "height": {
-        "editor": 66,
-        "page": 68.6
+        "intrinsic": true,
+        "value": 68.6,
+        "min": 68.6,
+        "max": 68.6,
+        "samples": 5
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 120,
+        "max": 154.8,
+        "median": 120,
+        "samples": 5
       },
       "frame": {
         "w": 132,
         "h": 66
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 132,
+        "height": 66
+      },
       "diffs": []
     },
     "text.workspace-subtitle": {
@@ -810,19 +1259,37 @@
       "route": "/admin/work",
       "status": "differs",
       "height": {
-        "editor": 22,
-        "page": 25.9
+        "intrinsic": true,
+        "value": 25.9,
+        "min": 25.9,
+        "max": 25.9,
+        "samples": 5
+      },
+      "width": {
+        "intrinsic": true,
+        "value": 1232,
+        "min": 1232,
+        "max": 1232,
+        "samples": 5
       },
       "frame": {
         "w": 480,
         "h": 22
       },
-      "widthComparable": false,
+      "editorSize": {
+        "width": 480,
+        "height": 22
+      },
       "diffs": [
         {
           "what": "height",
           "editor": 22,
           "page": 25.9
+        },
+        {
+          "what": "width",
+          "editor": 480,
+          "page": 1232
         },
         {
           "what": "default frame height",
@@ -834,44 +1301,61 @@
     "text.record-count": {
       "signature": "jobs-page__count",
       "route": "/admin/jobs",
-      "status": "differs",
+      "status": "verified",
       "height": {
-        "editor": 16,
-        "page": 21.8
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 16,
+        "max": 21.8,
+        "median": 21.8,
+        "samples": 4
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 40,
+        "max": 108.3,
+        "median": 74.2,
+        "samples": 4
       },
       "frame": {
         "w": 96,
         "h": 22
       },
-      "widthComparable": false,
-      "diffs": [
-        {
-          "what": "height",
-          "editor": 16,
-          "page": 21.8
-        }
-      ]
+      "editorSize": {
+        "width": 45.6,
+        "height": 16
+      },
+      "diffs": []
     },
     "nav.back-inline": {
       "signature": "admin-module-detail__back",
       "route": "/admin/learn/exam-prep",
-      "status": "differs",
+      "status": "verified",
       "height": {
-        "editor": 24,
-        "page": 21
+        "intrinsic": true,
+        "value": 21,
+        "min": 20,
+        "max": 21,
+        "samples": 4
+      },
+      "width": {
+        "intrinsic": false,
+        "reason": "content-driven",
+        "min": 115.6,
+        "max": 151.3,
+        "median": 146.1,
+        "samples": 4
       },
       "frame": {
         "w": 200,
         "h": 24
       },
-      "widthComparable": true,
-      "diffs": [
-        {
-          "what": "width",
-          "editor": 200,
-          "page": 151.3
-        }
-      ]
+      "editorSize": {
+        "width": 200,
+        "height": 24
+      },
+      "diffs": []
     }
   }
 }

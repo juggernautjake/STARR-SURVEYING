@@ -197,7 +197,11 @@
 }
 .jobs-page__btn--primary {
   background: var(--color-brand-navy);
-  color: #fff;
+  /* Not a hard `#fff`. Under a dark theme the accent lightens so links can be READ on a dark page,
+   * which is the opposite of what white text on that same accent needs — measured 3.89:1. One
+   * colour cannot serve both, so the theme publishes the foreground that belongs on its own accent
+   * and the button uses it. On an unthemed page this still resolves to white. */
+  color: var(--theme-accent-fg, #fff);
 }
 .jobs-page__btn--primary:hover { background: #162470; }
 .jobs-page__btn--secondary {
@@ -307,7 +311,7 @@
   gap: 0.4rem;
   padding: 0 0.85rem;
   background: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -571,7 +575,7 @@
 .job-form__submit {
   padding: 0.6rem 1.5rem;
   background: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   border: none;
   border-radius: 8px;
   cursor: pointer;
@@ -906,7 +910,7 @@
 .job-timeline__stage--past .job-timeline__dot {
   background: var(--color-brand-navy);
   border-color: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
 }
 .job-timeline__stage--current .job-timeline__dot {
   background: var(--theme-bg-surface, #fff);
@@ -944,7 +948,7 @@
 }
 .job-timeline__advance-btn {
   background: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   border: none;
   border-radius: 8px;
   padding: 0.5rem 1.25rem;
@@ -1126,7 +1130,7 @@
 }
 .job-detail__quick-action:hover {
   background: var(--color-brand-navy, #1D3095);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   transform: translateY(-1px);
 }
 
@@ -1158,7 +1162,7 @@
   border: 1px solid var(--color-border, #cbd5e1); border-radius: 4px;
   background: var(--theme-bg-surface, #fff); cursor: pointer;
 }
-.inline-edit__btn--save { background: var(--color-brand-navy, #1D3095); color: #fff; border-color: var(--color-brand-navy, #1D3095); }
+.inline-edit__btn--save { background: var(--color-brand-navy, #1D3095); color: var(--theme-accent-fg, #FFF); border-color: var(--color-brand-navy, #1D3095); }
 .inline-edit__status { font-size: 0.75rem; color: var(--color-text-tertiary, #94a3b8); }
 .inline-edit__error { font-size: 0.75rem; color: #DC2626; }
 
@@ -1336,7 +1340,7 @@
 .job-team__input:focus, .job-team__select:focus { border-color: var(--color-brand-navy); }
 .job-team__submit-btn {
   background: var(--color-brand-navy);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
   border: none;
   border-radius: 6px;
   padding: 0.4rem;
@@ -1419,7 +1423,7 @@
 .job-equipment__add-form { padding: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem; border-bottom: 1px solid var(--theme-border, #E5E7EB); background: #FAFBFF; }
 .job-equipment__input, .job-equipment__select { padding: 0.4rem 0.6rem; border: var(--border-light); border-radius: 6px; font-size: 0.8rem; font-family: inherit; outline: none; }
 .job-equipment__input:focus, .job-equipment__select:focus { border-color: var(--color-brand-navy); }
-.job-equipment__submit-btn { background: var(--color-brand-navy); color: #fff; border: none; border-radius: 6px; padding: 0.4rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+.job-equipment__submit-btn { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border: none; border-radius: 6px; padding: 0.4rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
 .job-equipment__empty { padding: 1rem; text-align: center; color: var(--color-text-muted); font-size: 0.8rem; }
 .job-equipment__list { padding: 0.25rem 0; }
 .job-equipment__item { display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; }
@@ -1529,7 +1533,7 @@
 .job-research__select:focus, .job-research__input:focus { border-color: var(--color-brand-navy); }
 .job-research__textarea { padding: 0.4rem 0.6rem; border: var(--border-light); border-radius: 6px; font-size: 0.8rem; font-family: inherit; outline: none; resize: vertical; }
 .job-research__textarea:focus { border-color: var(--color-brand-navy); }
-.job-research__submit-btn { background: var(--color-brand-navy); color: #fff; border: none; border-radius: 6px; padding: 0.4rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+.job-research__submit-btn { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border: none; border-radius: 6px; padding: 0.4rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
 .job-research__categories { display: flex; gap: 0.25rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--theme-border, #E5E7EB); overflow-x: auto; flex-wrap: wrap; }
 .job-research__cat-chip { background: none; border: var(--border-light); border-radius: 16px; padding: 0.2rem 0.6rem; font-size: 0.7rem; cursor: pointer; font-family: inherit; color: var(--color-text-tertiary); white-space: nowrap; }
 .job-research__cat-chip:hover { border-color: var(--color-brand-navy); color: var(--color-brand-navy); }
@@ -1564,7 +1568,7 @@
 .job-checklist__bar-fill { height: 100%; background: var(--color-brand-navy); transition: width 0.3s; border-radius: 0 2px 2px 0; }
 .job-checklist__empty { padding: 1rem; text-align: center; color: var(--color-text-muted); font-size: 0.8rem; }
 .job-checklist__empty p { margin: 0 0 0.5rem; }
-.job-checklist__template-btn { background: var(--color-brand-navy); color: #fff; border: none; border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+.job-checklist__template-btn { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border: none; border-radius: 6px; padding: 0.4rem 0.75rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
 .job-checklist__list { padding: 0.25rem 0; }
 .job-checklist__item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; cursor: pointer; transition: background 0.15s; }
 .job-checklist__item:hover { background: var(--color-bg-app); }
@@ -1618,7 +1622,7 @@
 .job-time__input:focus { border-color: var(--color-brand-navy); }
 .job-time__input--small { width: 60px; text-align: center; }
 .job-time__input-sep { font-size: 0.8rem; color: var(--color-text-tertiary); }
-.job-time__submit-btn { background: var(--color-brand-navy); color: #fff; border: none; border-radius: 6px; padding: 0.4rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
+.job-time__submit-btn { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border: none; border-radius: 6px; padding: 0.4rem; font-size: 0.8rem; cursor: pointer; font-family: inherit; }
 .job-time__summary { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--theme-border, #E5E7EB); }
 .job-time__summary-item { display: flex; justify-content: space-between; padding: 0.25rem 0; }
 .job-time__summary-name { font-size: 0.8rem; color: var(--theme-fg-secondary, #374151); }
@@ -1835,7 +1839,7 @@
 
 .job-packet--ok     { border-left-color: #059669; }
 .job-packet--warn   { border-left-color: #B45309; background: #FFFBEB; }
-.job-packet--muted  { border-left-color: #9CA3AF; }
+.job-packet--muted  { border-left-color: var(--theme-fg-muted, #9CA3AF); }
 
 .job-packet__head {
   display: flex;

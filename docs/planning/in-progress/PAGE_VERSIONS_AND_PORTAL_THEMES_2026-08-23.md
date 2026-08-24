@@ -210,8 +210,8 @@ The default is **not drawn**. It is a **trace** of the live page, produced by th
 already exists — which is the only way "1:1" can be true rather than aspirational. Somebody
 rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 
-- [ ] **P1 — Trace every route into a default design**, desktop and mobile, from the running app.
-- [ ] **P2 — Defaults are immutable.** , rejected by the save API, and the editor
+- [x] **P1 — 130 of 138 admin pages traced**, desktop and mobile, by `scripts/trace-defaults.mjs`. Eight failed and are named in §6. Dynamic routes are skipped by design (38 of them): tracing `/admin/jobs/[id]` would make one job the specification for the page.
+- [x] **P2 — Locked, and enforced in `saveMockup`** rather than only in the UI, so a stale tab, a script or a direct API call all hit it. The refusal is a 409 carrying the reason, not a 500. The editor opens a default read-only with the reason on screen and Clone beside it, and read-only is enforced at `patchView` — the one funnel every placement, drag, nudge, reorder and delete goes through, because disabling buttons would still leave the arrow keys. , rejected by the save API, and the editor
       opens them read-only with the reason on screen and a Clone button next to it. A default that
       can be edited is no longer a record of what is served.
 - [ ] **P3 — Re-trace on demand**, because the app changes. Re-tracing replaces the default and
@@ -222,17 +222,17 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 
 ### Phase N — Every page, listed and one click from the editor
 
-- [ ] **N1 — All 270 pages listed**, grouped and searchable, each showing what exists for it:
+- [x] **N1 — All 270 pages listed**, each row now showing what exists for it: Default, Active, and counts of alternatives and drafts. Counted rather than listed for the plural kinds — nine links would push the route off the row., grouped and searchable, each showing what exists for it:
       default, active, how many alternatives, how many drafts.
-- [ ] **N2 — Click a page and land in the editor** on the right design, with desktop/mobile both
+- [x] **N2 — Each chip is a link** straight into that design; both viewports are in the document. on the right design, with desktop/mobile both
       available.
 - [ ] **N3 — The list says what is missing** — pages with no default traced yet, pages with no
       active version — so it doubles as the work queue.
 ### Phase S — Status and lifecycle
 
-- [ ] **S1 — The vocabulary.** `active | alternative | draft | archived`, defined in one place with
+- [x] **S1 — `lib/design/lifecycle.ts`** defines all five statuses, what each permits, and what activating one does — read by the API and the editor, so the UI cannot offer a Save the server will reject. Seed 612 migrated the old `ready` rows to `alternative`. `active | alternative | draft | archived`, defined in one place with
       what each means and what it permits. Migrate the existing `ready` rows.
-- [ ] **S2 — One active per route**, enforced by a partial unique index, with activation demoting the
+- [x] **S2 — Partial unique indexes** make two actives (or two defaults) for one route unrepresentable rather than merely discouraged, and activation demotes the previous holder to `alternative` in the same call., enforced by a partial unique index, with activation demoting the
       previous holder to `alternative` in one transaction rather than two writes and a prayer.
 - [ ] **S3 — Transitions in the UI**: a status control in the editor and in the page list, with the
       consequence of each choice written next to it.
@@ -241,7 +241,7 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 
 ### Phase B — Branch and copy
 
-- [ ] **B1 — Clone any design into a new editable draft** — the default included, which is the
+- [x] **B1 — `POST /api/admin/design/:id/clone`.** Carries both viewports, the theme and the lineage; never locked. Verified end to end: clone a default, activate the clone, previous holder demoted. — the default included, which is the
       primary gesture: *"we should never be able to change the default page for any page itself,
       but we should be able to clone it and change the clone."* The clone carries both viewports,
       the theme, and the checklist state, and records what it came from.
@@ -251,9 +251,11 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 
 ### Phase K — Theme links between designs
 
-- [ ] **K1 — `theme_group`**: designs that are the same layout in different themes are one group.
-      Branching *for a theme* is a distinct gesture from branching for a layout, because the two have
-      different consequences downstream.
+- [x] **K1 — `theme_group` + `asThemeSibling`** on the clone endpoint. A plain clone starts a new
+      layout lineage; a theme sibling joins the source's group, and the source joins its own group at
+      the same time so the relationship exists in both directions rather than one. The distinction
+      has to be made at clone time — a re-skin and a re-layout are indistinguishable afterwards by
+      looking at the contents.
 - [ ] **K2 — Re-theming a design does not require rebuilding it.** A design carries a theme token
       map; a theme sibling is the same elements with a different map. Changing colours must never
       mean replacing elements.
@@ -261,14 +263,14 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 
 ### Phase T — Portal themes people actually choose
 
-- [ ] **T1 — Three flagship themes, designed properly** and named for what they are, not for a
+- [x] **T1 — Eleven already existed** and were already applied shell-wide by `ShellTheme`, so the work was not designing three more — it was making the eleven actually hold up. `starr-default` (light), `starr-dark` and `ocean` are the three verified in depth; `forest-dark` is checked alongside them. and named for what they are, not for a
       colour. They must hold up on the heaviest pages, not just a card demo.
-- [ ] **T2 — Verify them by measurement across many routes**: contrast on real text, no unthemed
+- [x] **T2 — `scripts/check-portal-themes.mjs`** renders six real routes under each theme and measures contrast against what is actually painted behind each element, plus large pale surfaces in a dark app. First honest run: 18 failures on `starr-dark` alone, including a breadcrumb at **1.02:1** — invisible, not merely hard to read. See §5 for the root cause and what is left.: contrast on real text, no unthemed
       islands, no white modal in a dark app. The existing inline-hex ratchet says where the app stops
       reading its own variables; that list is the work.
 - [ ] **T3 — Designer themes become selectable** in `ThemePicker`, alongside the built-ins, when they
       belong to a theme group whose layout is active.
-- [ ] **T4 — Frontend stays untouched**, and there is a test that says so rather than a belief.
+- [x] **T4 — Asserted, not assumed.** The audit loads a public page with the theme set and fails if `data-theme` is present. The aliases in §5 live inside `[data-theme]` blocks precisely so a page with no theme resolves the original hexes., and there is a test that says so rather than a belief.
 - [ ] **T5 — Preview before choosing.** A theme is a big change to look at for the first time after
       applying it.
 
@@ -335,3 +337,105 @@ overwrite prose somebody wrote, and prose must never be mistaken for measurement
 inferred from what a person decided, or they cannot trust either.
 
 **The frontend is out of scope and is tested to stay that way.**
+
+---
+
+## §5. What the theme audit found, and why one fix covered hundreds of rules
+
+The first honest run reported **18 contrast failures on `starr-dark` alone**, on six routes. The
+worst was the active breadcrumb at **1.02:1** — near-black text on a near-black page, which is not
+"hard to read", it is invisible.
+
+**The root cause was not the themes. It was that most of the app never asked them anything.**
+
+`themes.css` publishes fourteen `--theme-*` variables per theme. But `tokens.css` declares
+`--color-text-primary`, `--color-text-secondary`, `--color-text-tertiary` and `--color-text-muted`
+as fixed hexes, `globals.css` declares a second, older set (`--text-primary`, `--brand-dark`), and
+between them **hundreds of rules read those instead**. Nothing ever re-pointed them at the theme, so
+a dark theme changed the page background and left the text where it was.
+
+Three changes, in order of leverage:
+
+1. **The static tokens follow the theme** — aliased inside each of the eleven `[data-theme]` blocks,
+   never in `tokens.css`. A page with no `data-theme` — the entire public site, and the admin
+   default — still resolves the original hexes and does not move by a pixel. This is what keeps
+   "themes are admin-only" true while fixing every rule at once.
+2. **73 colour literals** in admin stylesheets (`color: #0F1419`, `#374151`, `#6B7280`, `#9CA3AF`)
+   converted to `var(--theme-…, <same hex>)`. The artboard is exempt: a mockup must look identical
+   to everyone, so its ink does not follow the viewer's theme.
+3. **101 rules that paint the accent and hard-code white text** now take `--theme-accent-fg`. A dark
+   theme lightens its accent so links can be read on a dark page, which is exactly the wrong
+   direction for white text on that same accent — one colour cannot serve both, so the theme
+   publishes both.
+
+Plus two palette corrections found by measurement: `starr-dark`'s accent was 4.45:1 as link text
+(five hundredths under AA — close enough to look fine and still a failure), and `ocean`'s muted
+foreground was a cyan at 3.21:1.
+
+### The instrument was wrong twice before the app was wrong once
+
+- The audit set `data-theme` on `<html>` after navigating. `ShellTheme` hydrates from the hub store
+  a second later and writes **the account's own preference** over the top — so every run measured
+  `starr-default` while printing "starr-dark" as its heading. Eighteen findings about a theme that
+  was never applied. It now answers `/api/admin/me/hub-data` with the theme under test, so the app
+  applies it through its own code path and keeps it applied.
+- Two runs measured stale CSS the dev server had not recompiled yet, which made a correct fix look
+  like it had done nothing.
+
+### Still open — a named punch list, not a vague one
+
+| What | Measured | Note |
+|---|---|---|
+| `.jobs-page__btn--primary` | 2.72:1 dark, 1.74:1 forest | the rule was converted; something later still wins |
+| `.emp-card__role-chip` | 3.09–3.58:1 on **every** theme | role-coloured chips; fails on light too, so it predates themes |
+| `.worker-status__headline` / `__hint` | 1.16–1.42:1 dark | light text on a panel that is not following the theme |
+| `.job-card__stage`, `.job-card__deadline` | 2.15:1 on **every** theme | `#F59E0B` as text; a pre-existing defect the audit surfaced |
+| `.admin-learn__section-arrow` | 2.59–2.69:1 dark | brand red as an icon colour on a dark surface |
+| `.job-card__tag`, `.ws-landing__shortcut` | 4.34:1 | marginal — under AA by a rounding error |
+
+Four of the six fail on the **light** theme as well, which means they are app defects the theme
+audit found rather than theme defects. That is worth saying plainly: this pass made the portal
+themes work and, on the way, turned up a handful of contrast bugs that have been shipping all along.
+
+---
+
+## §6. Where this stands
+
+### Traced
+
+**130 of 138 non-dynamic admin pages** now have a locked default, desktop and mobile, measured from
+the running app. `/admin` came out at 165 desktop / 127 mobile elements; `/admin/jobs` at 75 / 74.
+38 dynamic routes are skipped by design.
+
+Eight did not trace, and the reason is worth keeping rather than retrying blindly:
+
+| Route | Why |
+|---|---|
+| `/admin/equipment/inventory`, `/maintenance`, `/overrides`, `/fleet-valuation`, `/import` | `api 500` from the import endpoint |
+| `/admin/pay-rates` | `api 500` |
+| `/admin/equipment/consumables` | `api 405` |
+| `/admin/pay-progression` | the page aborted the navigation |
+
+Five of the six 500s are the equipment area, which suggests one cause rather than six. Not
+diagnosed yet.
+
+`/admin/work` traced 70 desktop elements and **2 mobile**, which is not a mobile page with two
+things on it — it is a capture that did not wait long enough. Worth re-tracing with a longer settle.
+
+### Built and verified
+
+- Fidelity measurement (Phase F1/F2), the editor fit and behaviour (Phase E), the status lifecycle
+  and its two database-enforced singular kinds (Phase S), cloning including theme siblings (B, K1),
+  the traced defaults (P), the page list showing what exists per page (N), and the theme audit with
+  its systemic fixes (T).
+
+### Specified but NOT built
+
+Stated plainly so the doc is not read as a claim:
+
+- **Phase D — dossiers.** No page has a purpose, summary or element inventory yet.
+- **Phase C — checklists.** Nothing generates or tracks them.
+- **Phase V — site versions.** The tables exist (seed 612); nothing reads or writes them.
+- **Phase R — serving and conformance.** No serve route, no conformance diff.
+- **F3/F4/F5** — the fidelity differences are measured and recorded in
+  `lib/design/fidelity.generated.json`, but not yet fixed, gated, or surfaced in the editor.

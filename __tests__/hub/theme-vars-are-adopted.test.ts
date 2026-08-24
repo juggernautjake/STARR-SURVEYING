@@ -169,12 +169,36 @@ describe('the themes are actually consumed', () => {
     // no `var(--theme-…)` may carry a fallback that is anything other than a literal colour. A bare
     // `var(--theme-fg-primary)` with no fallback is what a careless conversion produces, and it
     // renders as *unstyled* wherever the variable is not set.
+    // ── ONE EXEMPTION, AND IT IS THE ONE PLACE THE RULE CANNOT APPLY ────────────────────────────
+    //
+    // Inside a `[data-theme="…"]` block in themes.css, a `var(--theme-…)` reference points at a
+    // variable the SAME block defines three lines above it. There is no state in which it is unset,
+    // and a fallback there would be a second hard-coded palette to keep in sync.
+    //
+    // This is where the static tokens are aliased to the theme — `--color-text-primary:
+    // var(--theme-fg-primary)` and its siblings — which is what makes hundreds of rules that read
+    // `--color-text-*` follow the theme instead of staying near-black under a dark one.
+    //
+    // The rule above still holds everywhere it is about: a page with no `data-theme` never enters
+    // these blocks, so it still resolves the original literals and still renders byte-identically.
+    // References in themes.css OUTSIDE a theme block — in `:root`, say — are still checked.
+    const insideThemeBlock = (src: string, at: number): boolean => {
+      const before = src.slice(0, at);
+      const open = before.lastIndexOf('[data-theme');
+      if (open === -1) return false;
+      // Still inside it only if no `}` has closed the block since it opened.
+      return !before.slice(open).includes('}');
+    };
+
     const noFallback: string[] = [];
     for (const f of files) {
       const src = code(fs.readFileSync(f, 'utf8'));
+      const isThemes = f.replace(/\\/g, '/').endsWith('app/styles/themes.css');
       for (const m of src.matchAll(/var\(--theme-[a-z-]+([^)]*)\)/g)) {
         const arg = m[1].trim();
-        if (arg === '') noFallback.push(`${path.basename(f)}: ${m[0]}`);
+        if (arg !== '') continue;
+        if (isThemes && insideThemeBlock(src, m.index ?? 0)) continue;
+        noFallback.push(`${path.basename(f)}: ${m[0]}`);
       }
     }
     expect(

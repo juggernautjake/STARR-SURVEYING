@@ -240,6 +240,11 @@ for (const route of routes) {
           style,
           height: Math.round(r.height * 10) / 10,
           width: Math.round(r.width * 10) / 10,
+          // Shrink-to-fit means the width is the element's OWN. Stretched means it is the
+          // container's — and a form field measured on six pages inside the same 236px form looks
+          // perfectly consistent while telling you nothing about the field.
+          shrinkToFit: /^inline/.test(s.display) && s.width !== '100%' && s.flexGrow === '0'
+                       && s.alignSelf !== 'stretch',
         };
       });
       return out;
@@ -249,7 +254,7 @@ for (const route of routes) {
       // the redefinition problem and a different check's job). Every sighting feeds the size
       // sample, because the spread is what says whether a dimension means anything.
       if (!inApp[sig]) { inApp[sig] = data; seenOn[sig] = route; samples[sig] = []; }
-      samples[sig].push({ route, height: data.height, width: data.width });
+      samples[sig].push({ route, height: data.height, width: data.width, shrinkToFit: data.shrinkToFit });
     }
     const nowMissing = signatures.filter((sig) => !inApp[sig]).length;
     process.stdout.write(`\r  walked ${String(visited).padStart(3)} route(s) — ${signatures.length - nowMissing}/${signatures.length} elements located   `);
@@ -289,10 +294,19 @@ for (const entry of ENTRIES) {
   const h = dimension(shots.map((s) => s.height));
   const w = dimension(shots.map((s) => s.width));
 
+  // ── WIDTH NEEDS BOTH SIGNALS, NOT EITHER ──────────────────────────────────────────────────────
+  //
+  // Consistency alone is not enough for width. Every text input on /admin/jobs/new sits in the same
+  // 236px form, so six sightings agree perfectly and the number still describes the form. The
+  // element also has to be shrink-to-fit — sizing itself rather than being sized — before its width
+  // is a fact about the element. Height needs only consistency, because a container almost never
+  // dictates it.
+  const widthIsOwn = shots.length > 0 && shots.every((s) => s.shrinkToFit);
+
   if (h.intrinsic && Math.abs(mine.height - h.value) > SIZE_TOLERANCE) {
     diffs.push({ what: 'height', editor: mine.height, page: h.value, lowConfidence: h.lowConfidence });
   }
-  if (w.intrinsic && Math.abs(mine.width - w.value) > SIZE_TOLERANCE) {
+  if (widthIsOwn && w.intrinsic && Math.abs(mine.width - w.value) > SIZE_TOLERANCE) {
     diffs.push({ what: 'width', editor: mine.width, page: w.value, lowConfidence: w.lowConfidence });
   }
   // The frame is what you get when you DRAG the thing out of the palette. If it does not match the

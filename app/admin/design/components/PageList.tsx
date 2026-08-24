@@ -179,14 +179,45 @@ export default function PageList({ onCreateFor }: Props) {
                         {page.route}
                       </code>
 
+                      {/* ── WHAT EXISTS FOR THIS PAGE ──────────────────────────────────────────
+                        * Owner: *"I will need it so that we have all of the pages listed out and so
+                        * that we can click them and be taken to the editor to change them and save
+                        * the changes, or just make up a whole new version of the page."*
+                        *
+                        * Four facts, in the order they are wanted: what the page IS today (the
+                        * default trace), what it is SUPPOSED to be (the active design), and how much
+                        * other work exists. The plural kinds are counted rather than listed — nine
+                        * links would push the route off the row, and the count is the useful part. */}
                       <div className="dsx-pages__actions">
-                        {page.designs.length > 0 ? (
-                          page.designs.slice(0, 2).map((d) => (
-                            <Link key={d.id} className="dsx-pages__design" href={`/admin/design/${d.id}`}>
-                              {d.name}
-                            </Link>
-                          ))
-                        ) : (
+                        {page.lifecycle.default && (
+                          <Link
+                            className="dsx-pages__chip dsx-pages__chip--default"
+                            href={`/admin/design/${page.lifecycle.default.id}`}
+                            title="The page as it is actually served — read-only. Clone it to make a version."
+                          >
+                            Default
+                          </Link>
+                        )}
+                        {page.lifecycle.active && (
+                          <Link
+                            className="dsx-pages__chip dsx-pages__chip--active"
+                            href={`/admin/design/${page.lifecycle.active.id}`}
+                            title={`Active: ${page.lifecycle.active.name}`}
+                          >
+                            Active
+                          </Link>
+                        )}
+                        {page.lifecycle.alternatives > 0 && (
+                          <span className="dsx-pages__chip dsx-pages__chip--alt" title="Finished designs that are not the current record">
+                            {page.lifecycle.alternatives} alt
+                          </span>
+                        )}
+                        {page.lifecycle.drafts > 0 && (
+                          <span className="dsx-pages__chip dsx-pages__chip--draft" title="Still being built">
+                            {page.lifecycle.drafts} draft
+                          </span>
+                        )}
+                        {page.designs.length === 0 && (
                           <button className="dsx-pages__create" onClick={() => onCreateFor(page.route)}>
                             Design it
                           </button>

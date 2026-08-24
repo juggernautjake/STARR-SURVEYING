@@ -113,7 +113,7 @@
  * that does not exclude the selected state will always outrank it. */
 .tl-day-btn:not(.tl-day-btn--active):hover { border-color: var(--color-brand-navy); background: #F0F4FF; }
 .tl-day-btn--active,
-.tl-day-btn--active:hover { border-color: var(--color-brand-navy); background: var(--color-brand-navy); color: white; }
+.tl-day-btn--active:hover { border-color: var(--color-brand-navy); background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); }
 .tl-day-btn--active .tl-day-btn__name,
 .tl-day-btn--active .tl-day-btn__hours { color: rgba(255,255,255,0.8); }
 .tl-day-btn--active .tl-day-btn__date { color: white; }
@@ -189,7 +189,7 @@
   font-family: inherit;
 }
 .tl-btn:hover { background: var(--theme-bg-elevated, #F3F4F6); }
-.tl-btn--primary { background: var(--color-brand-navy); color: white; border-color: var(--color-brand-navy); }
+.tl-btn--primary { background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border-color: var(--color-brand-navy); }
 .tl-btn--primary:hover { background: #162470; }
 .tl-btn--primary:disabled { opacity: 0.6; cursor: not-allowed; }
 .tl-btn--danger { background: #FEE2E2; color: #DC2626; border-color: #FECACA; }

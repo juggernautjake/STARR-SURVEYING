@@ -113,7 +113,13 @@ describe('Calendar CSS — hover-plus + action menu + modal (S1)', () => {
   });
 
   it('the button has the brand-navy fill + white "+" text per the screenshot', () => {
-    expect(CSS).toMatch(/\.calendar-month__hover-add\s*\{[\s\S]*?background:\s*var\(--color-brand-navy\)[\s\S]*?color:\s*#FFFFFF/);
+    // The white is now `var(--theme-accent-fg, #FFFFFF)` rather than a bare `#FFFFFF`, and that is
+    // the same colour on an unthemed page. It had to change: a dark theme LIGHTENS its accent so
+    // that links stay readable on a dark page, and white text on that lightened accent measured
+    // 2.72:1. One colour cannot be both, so the theme publishes the foreground that belongs on its
+    // own accent. The literal is kept as the fallback, so the screenshot this test was written
+    // from still describes what an unthemed user sees.
+    expect(CSS).toMatch(/\.calendar-month__hover-add\s*\{[\s\S]*?background:\s*var\(--color-brand-navy\)[\s\S]*?color:\s*(?:#FFFFFF|var\(--theme-accent-fg,\s*#FFF{1,4}\))/i);
   });
 
   it('the action menu pops below the cell-num with a small offset', () => {

@@ -60,6 +60,47 @@
   --theme-warning:        #F59E0B;
   --theme-danger:         #EF4444;
   --theme-info:           #3B82F6;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── starr-dark (dark, brand) — accent is lightened so it passes WCAG
@@ -71,7 +112,9 @@
   --theme-fg-primary:     #F1F5F9;
   --theme-fg-secondary:   #CBD5E1;
   --theme-fg-muted:       #94A3B8;
-  --theme-accent:         #5A7BE5;
+  /* Lifted from #5A7BE5, which measured 4.45:1 as link text on the dark surface - close enough
+   * to look fine and still a failure. */
+  --theme-accent:         #7B9AF0;
   --theme-accent-fg:      #0B1020;
   --theme-border:         #1F2A4D;
   --theme-border-strong:  #3A4A75;
@@ -79,6 +122,47 @@
   --theme-warning:        #FBBF24;
   --theme-danger:         #F87171;
   --theme-info:           #60A5FA;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── slate-light (neutral, light) — strips brand navy for max neutrality */
@@ -97,6 +181,47 @@
   --theme-warning:        #F59E0B;
   --theme-danger:         #EF4444;
   --theme-info:           #3B82F6;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── slate-dark (neutral, dark) — OLED-friendly near-black surfaces */
@@ -115,6 +240,47 @@
   --theme-warning:        #FBBF24;
   --theme-danger:         #F87171;
   --theme-info:           #60A5FA;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── forest-light (earthy, light) — surveyor outdoor identity */
@@ -133,6 +299,47 @@
   --theme-warning:        #CA8A04;
   --theme-danger:         #B91C1C;
   --theme-info:           #1D4ED8;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── forest-dark (earthy, dark) — the night half of forest-light.
@@ -162,6 +369,47 @@
   --theme-warning:        #FBBF24;
   --theme-danger:         #F87171;
   --theme-info:           #60A5FA;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── sunset (warm, light) — AM-leaning */
@@ -180,6 +428,47 @@
   --theme-warning:        #A16207;
   --theme-danger:         #B91C1C;
   --theme-info:           #1D4ED8;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── ocean (cool, light) — reading-friendly */
@@ -189,7 +478,9 @@
   --theme-bg-elevated:    #E0F2FE;
   --theme-fg-primary:     #0C4A6E;
   --theme-fg-secondary:   #075985;
-  --theme-fg-muted:       #0891B2;
+  /* #0891B2 is a lovely cyan and measured 3.21-3.68:1 as muted body text on this theme's own
+   * surfaces. Muted does not mean unreadable. */
+  --theme-fg-muted:       #0E7490;
   --theme-accent:         #0369A1;
   --theme-accent-fg:      #FFFFFF;
   --theme-border:         #BAE6FD;
@@ -198,6 +489,47 @@
   --theme-warning:        #A16207;
   --theme-danger:         #B91C1C;
   --theme-info:           #0369A1;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── plum (distinctive, light) — purple accents */
@@ -216,6 +548,47 @@
   --theme-warning:        #A16207;
   --theme-danger:         #B91C1C;
   --theme-info:           #1D4ED8;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── high-contrast-light (WCAG AAA, light) — pure white surface,
@@ -237,6 +610,47 @@
   --theme-warning:        #664D00;
   --theme-danger:         #8B0000;
   --theme-info:           #000080;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }
 
 /* ── high-contrast-dark (WCAG AAA, dark) — pure black surface, pure
@@ -256,4 +670,45 @@
   --theme-warning:        #FFA500;
   --theme-danger:         #FF6464;
   --theme-info:           #87CEEB;
+
+  /* ── THE STATIC TOKENS FOLLOW THE THEME ─────────────────────────────────────────────────
+   *
+   * `--color-text-primary` and its siblings are declared once in tokens.css as fixed hexes, and
+   * hundreds of rules across the admin use them. Nothing re-pointed them at the theme, so under
+   * a dark theme every one of those rules kept painting near-black text on a near-black page.
+   * Measured on /admin/jobs under starr-dark: the active breadcrumb came out at 1.02:1 — which
+   * is not "hard to read", it is invisible.
+   *
+   * The aliases live INSIDE each theme block rather than in tokens.css on purpose. A page with
+   * no `data-theme` — which is the entire public site, and the admin default — resolves the
+   * original hexes and does not move by a single pixel. Themes are admin-only, and this is what
+   * keeps that true while still fixing every rule at once instead of one class at a time. */
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border-strong:  var(--theme-border-strong);
+  /* The brand navy is a LINK colour in a hundred places and is unreadable on a dark surface.
+   * Each theme already publishes an accent chosen to pass against its own background. */
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  /* Status colours are tokens too, and a fixed amber on a dark surface measures 2.15:1. */
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
+   * and the global h1..h6 rule reads them. Missing these left every page heading in the app
+   * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
 }

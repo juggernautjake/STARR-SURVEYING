@@ -68,7 +68,7 @@
 .file-viewer__no-preview-icon { font-size: 3rem; display: block; margin-bottom: 1rem; }
 .file-viewer__no-preview p { margin: 0 0 0.5rem; font-size: 0.9rem; }
 .file-viewer__no-preview-sub { font-size: 0.8rem; color: var(--color-text-tertiary); }
-.file-viewer__download-link { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-brand-navy); color: #fff; border-radius: 6px; text-decoration: none; font-size: 0.85rem; }
+.file-viewer__download-link { display: inline-block; margin-top: 1rem; padding: 0.5rem 1rem; background: var(--color-brand-navy); color: var(--theme-accent-fg, #FFF); border-radius: 6px; text-decoration: none; font-size: 0.85rem; }
 .file-viewer__download-link:hover { background: #162470; }
 .file-viewer__footer { padding: 0.4rem 1rem; text-align: center; font-size: 0.72rem; color: var(--color-text-tertiary); background: var(--fv-chrome); border-top: 1px solid var(--fv-line); }
 

@@ -141,7 +141,7 @@
 
 .payroll-btn--primary {
   background: var(--color-brand-navy);
-  color: white;
+  color: var(--theme-accent-fg, #FFF);
   border-color: var(--color-brand-navy);
 }
 
@@ -1005,7 +1005,7 @@
 
 .payroll-balance__tab--active {
   background: var(--color-brand-navy);
-  color: white;
+  color: var(--theme-accent-fg, #FFF);
   border-color: var(--color-brand-navy);
 }
 

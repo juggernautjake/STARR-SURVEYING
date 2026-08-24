@@ -1069,3 +1069,43 @@
 .dsx__locked strong { font-weight: 700; color: var(--color-brand-navy, #1D3095); }
 .dsx__locked > span { flex: 1; min-width: 0; line-height: 1.45; }
 .dsx__locked svg { flex: none; color: var(--color-brand-navy, #1D3095); }
+
+/* ── WHAT EXISTS FOR A PAGE, IN FOUR CHIPS ───────────────────────────────────────────────────────
+ *
+ * The tones say what the chips mean without needing the words read: the default is quiet because it
+ * is a fact rather than a decision, the active one carries the accent because it is the answer to
+ * the question most people arrive with, and the counts are muted because they are context. */
+.dsx-pages__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 24px;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.dsx-pages__chip--default {
+  background: var(--theme-bg-elevated, #F3F4F6);
+  color: var(--theme-fg-secondary, #374151);
+  border-color: var(--theme-border, #E5E7EB);
+}
+.dsx-pages__chip--default:hover { border-color: var(--color-brand-navy, #1D3095); color: var(--color-brand-navy, #1D3095); }
+.dsx-pages__chip--active {
+  background: var(--color-success-bg, #ECFDF5);
+  color: var(--color-success-text, #047857);
+  border-color: var(--color-success-border, #A7F3D0);
+}
+.dsx-pages__chip--active:hover { border-color: var(--color-success-text, #047857); }
+.dsx-pages__chip--alt,
+.dsx-pages__chip--draft {
+  background: transparent;
+  color: var(--theme-fg-muted, #6B7280);
+  border-color: var(--theme-border, #E5E7EB);
+  font-weight: 600;
+}

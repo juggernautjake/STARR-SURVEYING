@@ -1265,7 +1265,7 @@
   padding: 0.12rem 0.45rem;
   border-radius: 5px;
   background: var(--color-brand-navy, #1d3095);
-  color: #fff;
+  color: var(--theme-accent-fg, #FFF);
 }
 .emp-card__role-chip {
   font-size: 0.66rem;

@@ -10,7 +10,7 @@
   max-width: 1280px;
   margin: 0 auto;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #0F1419;
+  color: var(--theme-fg-primary, #0F1419);
 }
 
 .ws-landing__header {

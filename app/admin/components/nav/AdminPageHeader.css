@@ -96,7 +96,7 @@
 }
 
 .admin-page-header__crumb--active {
-  color: #0F1419;
+  color: var(--theme-fg-primary, #0F1419);
   font-weight: 500;
 }
 

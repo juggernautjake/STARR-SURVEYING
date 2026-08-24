@@ -223,7 +223,7 @@
   padding: 0;
   border: 1px solid var(--color-brand-navy);
   background: var(--color-brand-navy);
-  color: #FFFFFF;
+  color: var(--theme-accent-fg, #FFF);
   border-radius: 50%;
   font-size: 0.85rem;
   font-weight: 700;

@@ -645,7 +645,7 @@
   transition: border-color 0.15s, color 0.15s;
 }
 
-.test-card__clear-btn:hover { border-color: #9CA3AF; color: var(--theme-fg-secondary, #374151); }
+.test-card__clear-btn:hover { border-color: var(--theme-fg-muted, #9CA3AF); color: var(--theme-fg-secondary, #374151); }
 
 .test-card__debugger-btn {
   padding: 0.45rem 0.75rem;
@@ -871,7 +871,7 @@
   transition: background 0.15s;
 }
 
-.execution-timeline__btn:hover { background: var(--theme-bg-elevated, #F3F4F6); border-color: #9CA3AF; }
+.execution-timeline__btn:hover { background: var(--theme-bg-elevated, #F3F4F6); border-color: var(--theme-fg-muted, #9CA3AF); }
 
 .execution-timeline__btn--play {
   background: var(--lab-accent);
@@ -1203,7 +1203,7 @@
   transition: border-color 0.15s, color 0.15s;
 }
 
-.output-viewer__tab:hover { border-color: #9CA3AF; color: var(--theme-fg-secondary, #374151); }
+.output-viewer__tab:hover { border-color: var(--theme-fg-muted, #9CA3AF); color: var(--theme-fg-secondary, #374151); }
 
 .output-viewer__tab--active {
   background: var(--lab-accent);
@@ -1764,7 +1764,7 @@
 .test-card__log-level-btn--success { color: #059669; border-color: #059669; }
 .test-card__log-level-btn--success.test-card__log-level-btn--active { background: rgba(5, 150, 105, 0.15); }
 
-.test-card__log-level-btn--debug { color: var(--theme-fg-muted, #9CA3AF); border-color: #6B7280; }
+.test-card__log-level-btn--debug { color: var(--theme-fg-muted, #9CA3AF); border-color: var(--theme-fg-muted, #6B7280); }
 .test-card__log-level-btn--debug.test-card__log-level-btn--active { background: rgba(156, 163, 175, 0.1); }
 
 /* ── Broken Image Fallback ────────────────────────────────────────────────── */

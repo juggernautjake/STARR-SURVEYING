@@ -30,7 +30,7 @@ export const GET = withErrorHandler(async () => {
 
   const [{ data: reviews }, { data: designs }] = await Promise.all([
     supabaseAdmin.from(TABLE).select('route, status, note, updated_by, updated_at'),
-    supabaseAdmin.from('design_mockups').select('id, name, route').is('deleted_at', null),
+    supabaseAdmin.from('design_mockups').select('id, name, route, status, locked').is('deleted_at', null),
   ]);
 
   const mapped: PageReview[] = ((reviews ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -41,7 +41,7 @@ export const GET = withErrorHandler(async () => {
     updatedAt: (r.updated_at as string | null) ?? null,
   }));
 
-  const pages = joinPages(mapped, (designs ?? []) as Array<{ id: string; name: string; route: string | null }>);
+  const pages = joinPages(mapped, (designs ?? []) as Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>);
   return NextResponse.json({ pages, progress: progressOf(pages) });
 });
 

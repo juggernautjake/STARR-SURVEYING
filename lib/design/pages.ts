@@ -40,7 +40,20 @@ export interface PageRow extends InventoryPage {
   updatedBy: string | null;
   updatedAt: string | null;
   /** Designs that name this route, so "open the mockup" is one click. */
-  designs: Array<{ id: string; name: string }>;
+  designs: Array<{ id: string; name: string; status: string; locked: boolean }>;
+  /** ── WHAT EXISTS FOR THIS PAGE, AT A GLANCE ──────────────────────────────────────────────────
+   *
+   * Owner: *"I will need it so that we have all of the pages listed out and so that we can click
+   * them and be taken to the editor."* A list of 270 rows is only useful if each row answers the
+   * question you came with — is there a default, is anything active, how much work is in flight —
+   * without opening it. Derived here rather than in the component so the list and any other reader
+   * agree. */
+  lifecycle: {
+    default: { id: string; name: string } | null;
+    active: { id: string; name: string } | null;
+    alternatives: number;
+    drafts: number;
+  };
 }
 
 export const PAGES: InventoryPage[] = inventory.routes as InventoryPage[];
@@ -76,14 +89,14 @@ export function isReviewStatus(value: unknown): value is ReviewStatus {
  */
 export function joinPages(
   reviews: PageReview[],
-  designs: Array<{ id: string; name: string; route: string | null }>,
+  designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>,
 ): PageRow[] {
   const byRoute = new Map(reviews.map((r) => [r.route, r]));
-  const designsByRoute = new Map<string, Array<{ id: string; name: string }>>();
+  const designsByRoute = new Map<string, Array<{ id: string; name: string; status: string; locked: boolean }>>();
   for (const d of designs) {
     if (!d.route) continue;
     const list = designsByRoute.get(d.route) ?? [];
-    list.push({ id: d.id, name: d.name });
+    list.push({ id: d.id, name: d.name, status: d.status ?? 'draft', locked: !!d.locked });
     designsByRoute.set(d.route, list);
   }
 
@@ -96,6 +109,7 @@ export function joinPages(
       updatedBy: review?.updatedBy ?? null,
       updatedAt: review?.updatedAt ?? null,
       designs: designsByRoute.get(page.route) ?? [],
+      lifecycle: lifecycleOf(designsByRoute.get(page.route) ?? []),
     };
   });
 }
@@ -147,4 +161,30 @@ export function filterPages(rows: PageRow[], query: string): PageRow[] {
     r.route.toLowerCase().includes(q)
     || (r.note ?? '').toLowerCase().includes(q)
     || r.designs.some((d) => d.name.toLowerCase().includes(q)));
+}
+
+/**
+ * Reduce a route's designs to the four facts the list needs.
+ *
+ * Phase N of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
+ *
+ * Counted rather than listed for the plural kinds: a page with nine drafts should say "9 drafts",
+ * not print nine links and push the row off the screen. The two singular kinds are named, because
+ * "which one is active" is the question the row exists to answer.
+ */
+export function lifecycleOf(
+  designs: Array<{ id: string; name: string; status: string }>,
+): PageRow['lifecycle'] {
+  const find = (status: string) => {
+    const hit = designs.find((d) => d.status === status);
+    return hit ? { id: hit.id, name: hit.name } : null;
+  };
+  return {
+    default: find('default'),
+    active: find('active'),
+    alternatives: designs.filter((d) => d.status === 'alternative').length,
+    // `archived` is deliberately not counted anywhere: it is the bucket for things nobody should be
+    // reminded of, and a row saying "3 archived" is a reminder.
+    drafts: designs.filter((d) => d.status === 'draft').length,
+  };
 }
