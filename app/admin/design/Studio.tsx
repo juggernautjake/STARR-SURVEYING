@@ -36,6 +36,7 @@ import { runChecks, applyDismissals, CONTRACT } from '@/lib/design/checks';
 import { punchListFrom, punchListMarkdown } from '@/lib/design/punchlist';
 import { type DrawTool, type DrawStyle, DEFAULT_DRAW_STYLE, LINE_WIDTHS, isRounded } from '@/lib/design/drawing';
 import { themeStyle, BUILT_IN_THEMES, type Theme } from '@/lib/design/theme';
+import { statusRule, refuseEditReason, isEditable } from '@/lib/design/lifecycle';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
 import { saveDraft } from '@/lib/design/storage';
@@ -115,6 +116,31 @@ export default function Studio({ initial }: Props) {
   const dragRef = useRef<DragState>(null);
 
   const canvasRef = useRef<HTMLElement | null>(null);
+  const [cloning, setCloning] = useState(false);
+
+  // ── IS THIS DESIGN EDITABLE? ───────────────────────────────────────────────────────────────────
+  //
+  // Read from lib/design/lifecycle.ts, which the API reads too. Answering it here independently is
+  // how a UI ends up offering a Save button the server rejects — which looks like a working save
+  // until the reload.
+  const lockRule = statusRule(doc.status);
+  const lockReason = refuseEditReason(doc);
+  const readOnly = !isEditable(doc);
+
+  const cloneThis = useCallback(async () => {
+    setCloning(true);
+    try {
+      const res = await fetch(`/api/admin/design/${doc.id}/clone`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const body = await res.json().catch(() => null);
+      if (!res.ok || !body?.design) throw new Error(body?.error ?? 'Could not clone this design.');
+      // A hard navigation, not a router push: the editor holds a whole document in state, and
+      // swapping the id underneath it would leave the old design's elements on the new one's canvas.
+      window.location.href = `/admin/design/${body.design.id}`;
+    } catch (err) {
+      setStatus(err instanceof Error ? err.message : 'Could not clone this design.');
+      setCloning(false);
+    }
+  }, [doc.id]);
 
   const view = doc.views[viewId];
   const settings = view.settings;
@@ -214,13 +240,23 @@ export default function Studio({ initial }: Props) {
   }, [doc]);
 
   const patchView = useCallback((fn: (v: DesignDocument['views'][ViewId]) => DesignDocument['views'][ViewId], options: { history?: boolean } = {}) => {
+    // ── ONE GUARD, AT THE ONE FUNNEL ─────────────────────────────────────────────────────────────
+    //
+    // Every change to a view goes through here: placing, dragging, resizing, nudging, reordering,
+    // deleting, editing a slot. Disabling the buttons instead would mean finding all of them and
+    // then finding them again next time one is added — and would still leave the keyboard, which is
+    // how you would discover that arrow keys can edit a locked default.
+    if (readOnly) {
+      setStatus(lockReason ?? 'This design is read-only.');
+      return;
+    }
     if (options.history !== false) snapshot();
     setDoc((d) => ({
       ...d,
       views: { ...d.views, [viewId]: fn(d.views[viewId]) },
       updatedAt: new Date().toISOString(),
     }));
-  }, [snapshot, viewId]);
+  }, [snapshot, viewId, readOnly, lockReason]);
 
   /** A mutation that is part of a gesture already snapshotted — a drag frame, a resize frame. */
   const patchViewLive = useCallback((fn: (v: DesignDocument['views'][ViewId]) => DesignDocument['views'][ViewId]) => {
@@ -628,6 +664,26 @@ export default function Studio({ initial }: Props) {
           a red rectangle would render as an unstyled div. Same string the export writes, so the
           canvas and the file cannot disagree about what a rectangle looks like. */}
       <style dangerouslySetInnerHTML={{ __html: dsPrimitiveStyles() }} />
+      {/* ── READ-ONLY, AND WHY, AND WHAT TO DO INSTEAD ──────────────────────────────────────────
+        * Owner: *"We should never be able to change the default page for any page itself, but we
+        * should be able to clone it and change the clone."*
+        *
+        * The save API refuses a locked design, which is the guarantee. This is the part that stops
+        * that guarantee from being a nasty surprise: a refusal at the END of an afternoon's work is
+        * technically correct and practically useless, so the state is announced at the start, with
+        * the way forward in the same sentence and the button beside it. */}
+      {readOnly && (
+        <div className="dsx__locked" role="status">
+          <ShieldCheck size={15} aria-hidden />
+          <span>
+            <strong>{lockRule.label}</strong> — {lockReason}
+          </span>
+          <button className="dsx__tool dsx__tool--primary" onClick={cloneThis} disabled={cloning}>
+            <Copy size={14} aria-hidden /> {cloning ? 'Cloning…' : 'Clone to edit'}
+          </button>
+        </div>
+      )}
+
       {/* ── Toolbar ─────────────────────────────────────────────────────────────────────────── */}
       <header className="dsx__bar">
         <Link href="/admin/design" className="dsx__back"><ChevronLeft size={16} aria-hidden /> Designs</Link>

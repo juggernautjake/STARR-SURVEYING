@@ -153,6 +153,20 @@ export interface DesignDocument {
   updatedAt: string;
   /** Bumped on every save; the version list is keyed by it. */
   version: number;
+  // ── THE LIFECYCLE TRAVELS WITH THE DOCUMENT ──────────────────────────────────────────────────
+  //
+  // Not because the editor needs to WRITE it — status changes go through their own endpoint — but
+  // because the editor has to know before the user does anything. A default opened as if it were
+  // editable lets somebody spend twenty minutes on a design the save will refuse, and finding that
+  // out at the end is the worst possible moment.
+  /** `default` | `active` | `alternative` | `draft` | `archived`. See lib/design/lifecycle.ts. */
+  status?: string;
+  /** True for defaults. The save API refuses a locked row; the editor opens it read-only. */
+  locked?: boolean;
+  /** Designs sharing this are the same layout in different themes. */
+  themeGroup?: string | null;
+  /** Which theme this design wears — a design_themes id or a built-in shell theme id. */
+  themeId?: string | null;
 }
 
 export const VIEW_PRESETS: Record<ViewId, { width: number; height: number; label: string }> = {

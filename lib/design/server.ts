@@ -22,6 +22,7 @@
 
 import { supabaseAdmin } from '@/lib/supabase';
 import type { DesignDocument } from './document';
+import { statusRule, cloneName, type DesignStatus } from './lifecycle';
 
 export interface DesignSummary {
   id: string;
@@ -31,6 +32,16 @@ export interface DesignSummary {
   version: number;
   variantOf: string | null;
   counts: { desktop: number; mobile: number };
+  // ── The lifecycle, carried on every summary ──────────────────────────────────────────────────
+  //
+  // The page list has to show, at a glance, what exists for a route: the default, the active one,
+  // how many alternatives, how many drafts. Fetching a second time per row to answer that would
+  // make the list N+1 queries deep for information the row already has.
+  status: string;
+  locked: boolean;
+  themeGroup: string | null;
+  themeId: string | null;
+  ownerEmail: string | null;
 }
 
 interface MockupRow {
@@ -41,6 +52,11 @@ interface MockupRow {
   views: DesignDocument['views'];
   owner_email: string;
   status: string;
+  locked: boolean | null;
+  theme_group: string | null;
+  theme_id: string | null;
+  activated_at: string | null;
+  traced_at: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -59,10 +75,14 @@ function toDocument(row: MockupRow): DesignDocument {
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    status: row.status ?? 'draft',
+    locked: !!row.locked,
+    themeGroup: row.theme_group ?? null,
+    themeId: row.theme_id ?? null,
   } as DesignDocument;
 }
 
-function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' | 'version' | 'variant_of' | 'views'>): DesignSummary {
+function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email'>): DesignSummary {
   return {
     id: row.id,
     name: row.name,
@@ -76,6 +96,11 @@ function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' |
       desktop: row.views?.desktop?.elements?.length ?? 0,
       mobile: row.views?.mobile?.elements?.length ?? 0,
     },
+    status: row.status ?? 'draft',
+    locked: !!row.locked,
+    themeGroup: row.theme_group ?? null,
+    themeId: row.theme_id ?? null,
+    ownerEmail: row.owner_email ?? null,
   };
 }
 
@@ -90,7 +115,7 @@ function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' |
 export async function listMockups(): Promise<DesignSummary[]> {
   const { data, error } = await supabaseAdmin
     .from(TABLE)
-    .select('id, name, route, variant_of, views, version, updated_at')
+    .select('id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email')
     .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .limit(500);
@@ -125,9 +150,25 @@ export async function saveMockup(
 ): Promise<DesignDocument> {
   const { data: existing } = await supabaseAdmin
     .from(TABLE)
-    .select('version, owner_email, created_at')
+    .select('version, owner_email, created_at, status, locked')
     .eq('id', doc.id)
     .maybeSingle();
+
+  // ── A LOCKED DESIGN IS REFUSED HERE, NOT ONLY IN THE UI ──────────────────────────────────────
+  //
+  // Owner: *"we should never be able to change the default page for any page itself, but we should
+  // be able to clone it and change the clone."*
+  //
+  // The editor opens a default read-only, which handles the honest case. This handles every other
+  // one: a stale tab opened before the trace ran, a direct API call, a script. A default is the
+  // record of what the page actually is; if it can be edited it stops being evidence and becomes
+  // just another opinion, and then nothing in the system knows what the page really looks like.
+  if (existing && (existing.locked || existing.status === 'default')) {
+    throw new Error(
+      'LOCKED: this is the default design — a trace of the page as it is served. Clone it and edit '
+      + 'the clone.',
+    );
+  }
 
   const version = ((existing?.version as number | undefined) ?? 0) + 1;
   const row = {
@@ -232,4 +273,196 @@ export async function restoreVersion(
     now,
     `restored from v${version}`,
   );
+}
+
+// ── STATUS, CLONING AND THE DEFAULT TRACE ───────────────────────────────────────────────────────
+//
+// Phases P, S and B of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
+
+
+
+/**
+ * Move a design to a status, demoting whatever held the slot.
+ *
+ * `active` and `default` are singular per route, and the database enforces that with partial unique
+ * indexes. That means the demotion has to happen BEFORE the promotion or the index rejects the
+ * write — which is a feature: the ordering is forced rather than remembered.
+ */
+export async function setDesignStatus(
+  id: string,
+  next: DesignStatus,
+  actorEmail: string,
+  now: string,
+): Promise<{ design: DesignSummary; demoted: string | null }> {
+  const { data: row, error: readError } = await supabaseAdmin
+    .from(TABLE)
+    .select('id, name, route, status, locked')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+  if (!row) throw new Error('That design does not exist.');
+
+  const rule = statusRule(row.status as string);
+  if (!rule.canBecome.includes(next)) {
+    throw new Error(`A ${rule.label.toLowerCase()} design cannot become ${next}.`);
+  }
+
+  let demoted: string | null = null;
+  if ((next === 'active' || next === 'default') && row.route) {
+    const { data: holder } = await supabaseAdmin
+      .from(TABLE)
+      .select('id')
+      .eq('route', row.route)
+      .eq('status', next)
+      .is('deleted_at', null)
+      .neq('id', id)
+      .maybeSingle();
+    if (holder?.id) {
+      // Demoted to `alternative`, never to `draft`: it was the record a moment ago, so it is by
+      // definition finished work. Sending it back to draft would lose that.
+      const { error } = await supabaseAdmin
+        .from(TABLE)
+        .update({ status: 'alternative', updated_at: now })
+        .eq('id', holder.id as string);
+      if (error) throw new Error(error.message);
+      demoted = holder.id as string;
+    }
+  }
+
+  const patch: Record<string, unknown> = { status: next, updated_at: now };
+  if (next === 'active') { patch.activated_at = now; patch.activated_by = actorEmail; }
+  const { error: writeError } = await supabaseAdmin.from(TABLE).update(patch).eq('id', id);
+  if (writeError) throw new Error(writeError.message);
+
+  const { data: after } = await supabaseAdmin
+    .from(TABLE)
+    .select('id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email')
+    .eq('id', id)
+    .maybeSingle();
+  return { design: summarise(after as unknown as MockupRow), demoted };
+}
+
+/**
+ * Copy a design into a new editable draft.
+ *
+ * The clone carries BOTH viewports, the theme and the lineage, and is never locked — cloning a
+ * default is the whole point of a default being locked. `themeGroup` is only carried when the clone
+ * is explicitly a theme sibling: an ordinary clone starts a new layout lineage, and putting it in
+ * the source's theme group would make a re-skin of one page look like a re-skin of the other.
+ */
+export async function cloneMockup(
+  sourceId: string,
+  actorEmail: string,
+  now: string,
+  options: { name?: string; asThemeSibling?: boolean; themeId?: string | null } = {},
+): Promise<{ document: DesignDocument; summary: DesignSummary }> {
+  const { data: row, error } = await supabaseAdmin
+    .from(TABLE)
+    .select('*')
+    .eq('id', sourceId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error('That design does not exist.');
+  const source = row as unknown as MockupRow;
+
+  const { data: siblings } = await supabaseAdmin
+    .from(TABLE)
+    .select('name')
+    .eq('route', source.route)
+    .is('deleted_at', null);
+  const taken = ((siblings ?? []) as Array<{ name: string }>).map((s) => s.name);
+
+  const id = `d-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const name = options.name?.trim() || cloneName({ name: source.name, status: source.status }, taken);
+
+  // A theme sibling joins (or starts) the source's theme group. The group id is the SOURCE's id
+  // when it has none yet, so the family is named after the layout it came from.
+  const themeGroup = options.asThemeSibling
+    ? (source.theme_group ?? source.id)
+    : null;
+
+  const insert = {
+    id,
+    name,
+    route: source.route,
+    variant_of: source.id,
+    views: source.views,
+    owner_email: actorEmail,
+    status: 'draft',
+    locked: false,
+    theme_group: themeGroup,
+    theme_id: options.themeId ?? source.theme_id ?? null,
+    version: 1,
+    created_at: now,
+    updated_at: now,
+  };
+  const { error: writeError } = await supabaseAdmin.from(TABLE).insert(insert);
+  if (writeError) throw new Error(writeError.message);
+
+  // If the source had no theme group and this is a theme sibling, the source joins its own family
+  // — otherwise the group would have one member and the relationship would only exist one way.
+  if (options.asThemeSibling && !source.theme_group) {
+    await supabaseAdmin.from(TABLE).update({ theme_group: source.id }).eq('id', source.id);
+  }
+
+  await supabaseAdmin.from(VERSIONS).insert({
+    mockup_id: id,
+    version: 1,
+    views: source.views,
+    summary: `Cloned from “${source.name}”`,
+    author_email: actorEmail,
+    created_at: now,
+  });
+
+  // Returned as a summary rather than a bare document: the caller's next move is to show it in the
+  // list or open it, and both need to know it is a draft and not locked. A document that omits its
+  // own status made the first clone response read `status: undefined`, which is the kind of thing a
+  // UI then renders as a blank chip.
+  return { document: toDocument({ ...source, ...insert } as unknown as MockupRow), summary: summarise(insert as unknown as MockupRow) };
+}
+
+/**
+ * Write (or replace) the DEFAULT design for a route.
+ *
+ * Called by the tracer, never by the editor. Replacing a default deletes the old row rather than
+ * updating it, so its version history does not imply somebody edited it — the whole claim of a
+ * default is that nobody did.
+ */
+export async function writeDefault(
+  route: string,
+  doc: DesignDocument,
+  actorEmail: string,
+  now: string,
+): Promise<DesignSummary> {
+  const { data: prior } = await supabaseAdmin
+    .from(TABLE)
+    .select('id')
+    .eq('route', route)
+    .eq('status', 'default')
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (prior?.id) {
+    await supabaseAdmin.from(TABLE).update({ deleted_at: now }).eq('id', prior.id as string);
+  }
+
+  const id = `d-default-${route.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
+  const insert = {
+    id,
+    name: `${route} — as served`,
+    route,
+    variant_of: null,
+    views: doc.views,
+    owner_email: actorEmail,
+    status: 'default',
+    locked: true,
+    version: 1,
+    traced_at: now,
+    created_at: now,
+    updated_at: now,
+  };
+  const { error } = await supabaseAdmin.from(TABLE).insert(insert);
+  if (error) throw new Error(error.message);
+  return summarise(insert as unknown as MockupRow);
 }

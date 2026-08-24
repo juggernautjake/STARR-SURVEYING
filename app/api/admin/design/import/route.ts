@@ -22,7 +22,7 @@ import { auth, isDeveloper } from '@/lib/auth';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { ENTRIES, EXCLUSIONS } from '@/lib/design/catalogue';
 import { documentFromCapture, type CapturedNode } from '@/lib/design/import';
-import { saveMockup } from '@/lib/design/server';
+import { saveMockup, writeDefault } from '@/lib/design/server';
 
 async function gate() {
   const session = await auth();
@@ -62,7 +62,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (error) return error;
 
   const body = await req.json().catch(() => null) as {
-    name?: string; route?: string; desktop?: unknown; mobile?: unknown; dryRun?: boolean;
+    name?: string; route?: string; desktop?: unknown; mobile?: unknown; dryRun?: boolean; asDefault?: boolean;
   } | null;
   if (!body?.route) return NextResponse.json({ error: 'Which route was captured?' }, { status: 400 });
 
@@ -82,6 +82,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // The coverage sweep (C9) asks this question of all 147 routes. Saving each answer would leave
   // 147 designs nobody asked for, and the sweep only wants the report — so it says so.
   if (body.dryRun) return NextResponse.json({ coverage });
+
+  // ── AS THE DEFAULT, OR AS A DESIGN ────────────────────────────────────────────────────────────
+  //
+  // Phase P. A trace saved with `asDefault` becomes the route's locked default — the record of what
+  // the page looks like as it is served — replacing whatever default was there. Any other trace is
+  // an ordinary draft somebody happened to start from a real page.
+  //
+  // These go through different functions on purpose. `saveMockup` refuses to write a locked row, so
+  // routing the tracer through it would either fail or require weakening the lock, and the lock is
+  // the whole reason a default can be trusted.
+  if (body.asDefault) {
+    const summary = await writeDefault(body.route, doc, email!, now);
+    return NextResponse.json({ design: summary, coverage });
+  }
 
   const saved = await saveMockup(doc, email!, now, `imported from ${body.route}`);
   return NextResponse.json({ doc: saved, coverage });

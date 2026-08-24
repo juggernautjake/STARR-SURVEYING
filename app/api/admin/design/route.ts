@@ -39,6 +39,17 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'A design needs an id and both views.' }, { status: 400 });
   }
 
-  const saved = await saveMockup(doc, email!, new Date().toISOString(), body?.summary);
-  return NextResponse.json({ doc: saved });
+  try {
+    const saved = await saveMockup(doc, email!, new Date().toISOString(), body?.summary);
+    return NextResponse.json({ doc: saved });
+  } catch (err) {
+    // A refused edit is not a server fault. `saveMockup` throws LOCKED when the target is a
+    // default — a trace of the served page, which stays as the page is — and answering that with a
+    // 500 would send whoever hit it looking for a broken database instead of reading the sentence.
+    const message = err instanceof Error ? err.message : 'Could not save that design.';
+    if (message.startsWith('LOCKED:')) {
+      return NextResponse.json({ error: message.replace(/^LOCKED:\s*/, ''), locked: true }, { status: 409 });
+    }
+    throw err;
+  }
 });

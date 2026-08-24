@@ -1048,3 +1048,24 @@
  * the layers off the bottom of the window — visible as a LAYERS heading with nothing under it. */
 .dsx__right .dsx-ins { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .dsx__right .dsx-lay { flex: 0 0 auto; min-height: 132px; max-height: 42%; }
+
+/* ── A LOCKED DESIGN SAYS SO BEFORE YOU START ────────────────────────────────────────────────────
+ *
+ * Above the toolbar rather than inside it: this is a statement about the whole document, and a chip
+ * among fourteen controls reads as one more control. The clone button lives in the same strip
+ * because "you cannot edit this" without "here is how you can" is just an obstacle. */
+.dsx__locked {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.9rem;
+  background: var(--color-info-bg, #EFF6FF);
+  border-bottom: 1px solid var(--color-border, #E5E7EB);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.82rem;
+  color: var(--theme-fg-secondary, #374151);
+  flex: none;
+}
+.dsx__locked strong { font-weight: 700; color: var(--color-brand-navy, #1D3095); }
+.dsx__locked > span { flex: 1; min-width: 0; line-height: 1.45; }
+.dsx__locked svg { flex: none; color: var(--color-brand-navy, #1D3095); }
