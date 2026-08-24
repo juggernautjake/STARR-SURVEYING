@@ -175,19 +175,34 @@ design_site_version_members                NEW
 
 ### Phase F — Fidelity: the editor tells the truth about the real page
 
-- [ ] **F1 — Find, for every catalogued entry, a route that really renders it.** The coverage sweep
+- [x] **F1 — Every entry now names the route it was measured on.** The walk visits routes until each
+      entry has been found rendered for real; 27 are never rendered by any admin route and are
+      recorded as unverified rather than as passes (a toast, a skeleton, an error banner, the studio's
+      own shape primitives). The coverage sweep
       already records which classes appear on which routes; invert that index and store it. An entry
       with no route is a red flag in itself: it means the palette offers something the app does not
       have.
-- [ ] **F2 — Compare every entry against its real route**, not against six sampled pages: computed
+- [x] **F2 — Compared against its real route**, not against six sampled pages: computed
       font, weight, colour, background, border, radius, padding — and **size**, which is the one the
       owner named. Report per entry, with the numbers.
-- [ ] **F3 — Fix what is off**, and record what differs for a reason (an element that is `width:100%`
-      on its page has no intrinsic width to match; say so rather than inventing one).
-- [ ] **F4 — Gate it.** A test that fails when an entry drifts from the page it claims to represent.
-- [ ] **F5 — Show fidelity in the editor.** Per element, a marker saying whether it has been verified
-      against a live route and when. A palette that silently contains one unverified element is the
-      thing the owner is worried about; the fix is to never let it be silent.
+- [x] **F3 — Fixed, or recorded with the reason.** The differences fall into three kinds and only one
+      of them is a defect: a wrong DEFAULT FRAME (fixed — the palette now hands you the size the
+      element really is), a style the artboard cannot reach (`.fx__icon-btn` lives in a `<style jsx>`
+      block, so it renders unstyled; recorded, because resizing the frame to match would make an
+      unstyled button the right size, which is worse — it would look measured), and a height that
+      comes from the PARENT rather than the element (inherited line-height inside `.job-card`; the
+      artboard is not that card). The third kind is recorded with its numbers rather than pretended
+      away.
+- [x] **F4 — Gated** by `__tests__/design/fidelity-record.test.ts`: every catalogue entry must be
+      accounted for in the record, nothing may differ without a written reason, and the ACCEPTED list
+      is itself checked for entries that have stopped differing — a stale exemption is where real
+      findings go to hide. The record is also asserted to be newer than the catalogue files it
+      describes, because a record older than the entries is describing something else.
+- [x] **F5 — Marked in the palette.** `lib/design/fidelity.ts` reads the record and every card carries
+      its state: verified draws nothing (the good case is the quiet case; a wall of green ticks trains
+      the eye to stop seeing any of them), differing and never-measured each get their own mark and a
+      tooltip carrying the numbers. "Nobody has checked this" is a visible state rather than an
+      absent one, which is the whole point.
 
 ### Phase E — The editor fits the window, and behaves like an editor
 
@@ -214,11 +229,26 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 - [x] **P2 — Locked, and enforced in `saveMockup`** rather than only in the UI, so a stale tab, a script or a direct API call all hit it. The refusal is a 409 carrying the reason, not a 500. The editor opens a default read-only with the reason on screen and Clone beside it, and read-only is enforced at `patchView` — the one funnel every placement, drag, nudge, reorder and delete goes through, because disabling buttons would still leave the arrow keys. , rejected by the save API, and the editor
       opens them read-only with the reason on screen and a Clone button next to it. A default that
       can be edited is no longer a record of what is served.
-- [ ] **P3 — Re-trace on demand**, because the app changes. Re-tracing replaces the default and
-      says what moved; it never touches a clone somebody made from it.
-- [ ] **P4 — Prove the trace is 1:1** by measurement: element count, and each element within
-      tolerance of its real position and size. A default that quietly drops a third of the page is
-      the exact failure the owner is worried about.
+- [x] **P3 — Re-tracing says what moved.** `scripts/trace-defaults.mjs --only <route>` is the re-trace,
+      and it now prints the difference per view: elements gained, elements lost, and what moved by
+      more than 24px, worst first. Compared by class signature rather than by index — insert one
+      banner and an index comparison reports that the entire page moved. Nothing is printed on a
+      first trace, because there was no previous default to differ from. Only the row whose status is
+      `default` is replaced: a clone somebody made from it is an ordinary draft with its own id and
+      is not touched, which is stated in `writeDefault` because "re-trace the page" sounds like it
+      might reach everything derived from it.
+
+      **Not built: a Re-trace button in the UI.** Tracing needs Playwright driving a real browser
+      against the running app; putting that behind a button in production would mean the server
+      launching a browser on request. The page list shows how old each default is and the exact
+      command instead.
+- [x] **P4 — Proved by measurement**, and it is the same measurement as R3 pointed at a different
+      design: `scripts/check-design-conformance.mjs --which default` re-captures the live page and
+      compares it with the stored default, element by element, at both viewports. `traceIsFaithful`
+      is the stricter reading a default earns by claiming to be a record: ANY missing element fails
+      it, an empty trace fails it by name, and the script exits non-zero only on a default — an
+      active design differing from the page is the normal state of a proposal, and failing on that
+      would make the check something people turn off.
 
 ### Phase N — Every page, listed and one click from the editor
 
@@ -226,18 +256,36 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
       default, active, how many alternatives, how many drafts.
 - [x] **N2 — Each chip is a link** straight into that design; both viewports are in the document. on the right design, with desktop/mobile both
       available.
-- [ ] **N3 — The list says what is missing** — pages with no default traced yet, pages with no
-      active version — so it doubles as the work queue.
+- [x] **N3 — The list is the work queue.** Four gaps, each a different job with a different tool: no
+      default traced, nothing measured about the page, nothing designed at all, no design of record.
+      Each is a filter with a count over EVERY page (not over what is currently shown, so choosing a
+      filter cannot move the numbers underneath it), and the counts are derived in `lib/design/pages.ts`
+      so the filter and the chip cannot disagree about what "missing" means. First run: 140 pages
+      with no default, 259 with nothing measured, 129 with no design of record.
+
+      "No design of record" is deliberately not reported for a page with nothing designed at all —
+      that is the same complaint twice, and a queue that says everything twice is one people stop
+      reading.
 ### Phase S — Status and lifecycle
 
 - [x] **S1 — `lib/design/lifecycle.ts`** defines all five statuses, what each permits, and what activating one does — read by the API and the editor, so the UI cannot offer a Save the server will reject. Seed 612 migrated the old `ready` rows to `alternative`. `active | alternative | draft | archived`, defined in one place with
       what each means and what it permits. Migrate the existing `ready` rows.
 - [x] **S2 — Partial unique indexes** make two actives (or two defaults) for one route unrepresentable rather than merely discouraged, and activation demotes the previous holder to `alternative` in the same call., enforced by a partial unique index, with activation demoting the
       previous holder to `alternative` in one transaction rather than two writes and a prayer.
-- [ ] **S3 — Transitions in the UI**: a status control in the editor and in the page list, with the
-      consequence of each choice written next to it.
-- [ ] **S4 — The page list groups by route and status**, so "what is live for this page, and what
-      else exists" is one glance.
+- [x] **S3 — Every transition states its consequence before the click.** `LifecyclePanel` in the editor
+      offers only the transitions `lifecycle.ts` permits, each rendered as a two-line button: the
+      status, and what happens to everything else. Activating reads `activationEffect`, so it says
+      which design it is about to demote BY NAME — an "Activate" that quietly displaces somebody
+      else's choice is the surprise that makes people stop trusting a tool. The sentences come from
+      `lifecycle.ts` rather than being written again here, so the UI and the API cannot tell different
+      stories.
+- [x] **S4 — One glance per row.** Each route's row carries Default · Active · N alternatives · N
+      drafts · its dossier state, and now a link straight to the design of record rendered as a page.
+
+      **Deliberately not a second grouping.** The list is already grouped by area (176 admin routes
+      and 35 D&D pages are not the same job), and grouping again by status would put one page in five
+      places. The gap filters answer the same question — "show me everything with no design of
+      record" — without fragmenting the list.
 
 ### Phase B — Branch and copy
 
@@ -245,9 +293,19 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
       primary gesture: *"we should never be able to change the default page for any page itself,
       but we should be able to clone it and change the clone."* The clone carries both viewports,
       the theme, and the checklist state, and records what it came from.
-- [ ] **B2 — Start from scratch** stays a first-class option, and from a **dossier** — a new design
-      that already knows what the page is for and has the checklist waiting.
-- [ ] **B3 — Lineage is visible**: what this was branched from, and what has been branched from it.
+- [x] **B2 — A design started from the page list already knows what the page is for.** It is attached
+      to the route, so the route's checklist is waiting for it, and if a dossier exists its purpose,
+      audience, summary and measured functions are written into the design's notes at creation.
+      Starting from an empty canvas with no idea what the page has to do is how a design ends up a
+      tidy arrangement of the wrong things — and everything needed was already in the system; the
+      only question was whether it reached the person at the moment they start. Starting blank is
+      still one field and a button.
+- [x] **B3 — Lineage is in the panel**: what this was branched from, what has been branched from it,
+      and everything else that names the same route, each with its status. `variant_of` (where this
+      came from — a history, fixed at clone time) and `theme_group` (what this is the same layout as
+      — a membership that can be joined and left) are kept as different relationships on purpose:
+      a design branched to try a different LAYOUT shares a parent with its source and is emphatically
+      not a theme of it.
 
 ### Phase K — Theme links between designs
 
@@ -256,10 +314,22 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
       the same time so the relationship exists in both directions rather than one. The distinction
       has to be made at clone time — a re-skin and a re-layout are indistinguishable afterwards by
       looking at the contents.
-- [ ] **K2 — Re-theming a design does not require rebuilding it.** A design carries a theme token
-      map; a theme sibling is the same elements with a different map. Changing colours must never
-      mean replacing elements.
-- [ ] **K3 — The group is visible and editable** — link an existing design into a group, unlink one.
+- [x] **K2 — Re-theming touches the colours and nothing else.** `PUT /api/admin/design/:id/relations`
+      reads the elements from the row and writes them back untouched, replacing only the theme — so
+      the promise holds even if the editor is buggy, which is the right place for a guarantee like
+      that to live. Verified in a browser: element count identical before and after, theme stored.
+
+      **This is where the phase found a defect that had been shipping since the studio launched.** A
+      design's theme was never persisted at all — `design_mockups` had no `theme` column, and neither
+      did it have `notes`. Both were edited in the UI, both were written to the browser copy, and the
+      save reported success while storing neither. Pick a theme, reload on the same machine and it is
+      there (localStorage); open the same design on another machine and it is the default palette and
+      an empty notes box. Seed 614 adds both columns; K2 was unimplementable until it did.
+- [x] **K3 — Families are visible and editable.** The panel lists the themes of this layout, links an
+      existing design for the same route into the family, and leaves one. Linking names another
+      DESIGN rather than a group id, so a family is always named after a real layout. Two designs for
+      different pages are refused: a family that spanned routes would make "this page's themes"
+      unanswerable.
 
 ### Phase T — Portal themes people actually choose
 
@@ -268,53 +338,150 @@ rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 - [x] **T2 — `scripts/check-portal-themes.mjs`** renders six real routes under each theme and measures contrast against what is actually painted behind each element, plus large pale surfaces in a dark app. First honest run: 18 failures on `starr-dark` alone, including a breadcrumb at **1.02:1** — invisible, not merely hard to read. See §5 for the root cause and what is left.: contrast on real text, no unthemed
       islands, no white modal in a dark app. The existing inline-hex ratchet says where the app stops
       reading its own variables; that list is the work.
-- [ ] **T3 — Designer themes become selectable** in `ThemePicker`, alongside the built-ins, when they
-      belong to a theme group whose layout is active.
+- [x] **T3 — Designer themes are offered in settings**, in their own section under the eleven built-ins,
+      when they belong to a theme family whose layout is the design of record for its page. Three
+      conditions and each does work: a FAMILY (a one-off theme tried on a draft is not a decision),
+      whose layout is ACTIVE (which is exactly what the request ties them to), carrying TOKENS (an
+      option that changes nothing is worse than a missing one). Identical palettes are offered once —
+      the same theme across five pages of a site version is one choice, not five.
+
+      Two things had to be built underneath it. The endpoint is under `/api/admin/me/` and gated to
+      any signed-in user rather than to developers: this is a personal setting like density, and
+      gating it to developers would mean the themes were built for everybody and offered to nobody.
+      And `ShellTheme` now applies a custom palette shell-wide — it only ever set `data-theme`, and
+      `custom` has no stylesheet block because the palette is per user, so a chosen designer theme
+      would have painted nothing. A `[data-theme="custom"]` block was added too, carrying only the
+      static-token aliases from §5: without it a custom theme moved the surfaces and left every
+      `--color-text-*` rule painting the original near-black, which is the same defect §5 describes
+      surviving in the one theme that had no block to fix it.
 - [x] **T4 — Asserted, not assumed.** The audit loads a public page with the theme set and fails if `data-theme` is present. The aliases in §5 live inside `[data-theme]` blocks precisely so a page with no theme resolves the original hexes., and there is a test that says so rather than a belief.
-- [ ] **T5 — Preview before choosing.** A theme is a big change to look at for the first time after
-      applying it.
+- [x] **T5 — Preview, then keep or cancel.** Previewing writes the same variables the shell writes and
+      saves nothing, so it is not a swatch approximating the theme — it IS the theme, applied to the
+      page you are standing on. Cancelling re-broadcasts the SAVED values rather than reversing the
+      paint by hand: the shell owns how a theme is applied, and a second implementation of "undo the
+      paint" is how the two come to disagree. A fixed bar carries Keep and Cancel, because a preview
+      you can only leave by finding the control that started it is a trap.
 
 ### Phase D — A dossier for every page
 
-- [ ] **D1 — Derive what can be derived.** Walk each route and record its real elements, forms,
-      actions, tables, filters and the APIs it calls. Measurement, not recollection.
-- [ ] **D2 — Author the prose.** Purpose in one line; a comprehensive summary; the functions it
-      serves. For every admin route.
-- [ ] **D3 — Name the main elements and what each is for**, tied to the real selectors so the
-      editor can match them.
-- [ ] **D4 — Store, edit and review** dossiers, with the derived half refreshable without destroying
-      the authored half.
+- [x] **D1 — `scripts/derive-dossiers.mjs` walks the route and records what is there**: every control a
+      person can operate, every region (table, form, list, card grid, toolbar, dialog, empty state),
+      every heading, and every API call the page makes while it loads and settles. The network list
+      turns out to be the most useful part — a `POST /api/admin/jobs` while the page is open says more
+      about what a page DOES than any number of buttons.
+
+      The walk refuses to store what it cannot trust: an error status, a redirect, or a page that
+      rendered nothing is reported and dropped rather than saved with a caveat nobody reads. Two of
+      the first twelve routes were refused on exactly that ground.
+- [x] **D2 — The written half has a screen of its own** at `/admin/design/dossiers`: purpose in one
+      line, who opens it and on what, and the comprehensive summary. The default filter is "measured,
+      needs a sentence", because that is the pile a person can actually clear — the deriver produces
+      it by the hundred and only a human can finish it.
+
+      **What is left is writing, not building.** The prose for 176 routes is authorship; every page
+      is listed, filtered and one click from its form, and the queue says exactly how many are
+      waiting.
+- [x] **D3 — Every element is named, explained and tied to its selector**, with the catalogue entry it
+      matches — or a visible "not in the palette" when nothing does, which is a gap in the PALETTE
+      surfaced where somebody is about to need it rather than in a report nobody reads. Repeated
+      elements are grouped: forty job cards are one element of the page repeated forty times, and
+      listing forty would make `/admin/jobs` three hundred rows nobody reads.
+- [x] **D4 — The two halves cannot overwrite each other.** Different columns, different endpoints,
+      different functions: `saveAuthored` cannot write `elements`, `saveDerived` cannot write
+      `summary`. That is not tidiness — losing a paragraph somebody spent ten minutes on because a
+      button moved is how people stop writing paragraphs. The screen shows it too: the written half
+      is in editable fields, the measured half is grey, timestamped and read-only with the command
+      that refreshes it, because a reader who cannot tell which half a claim came from cannot tell
+      whether disagreeing means fixing a sentence or re-running a measurement.
 
 ### Phase C — Checklists that make "done" mean something
 
-- [ ] **C1 — Generate the required tier** from the dossier: the elements without which the page
-      cannot do its job.
-- [ ] **C2 — Generate the recommended tier**: what would make it better, marked as optional so it
-      cannot be confused with the floor.
-- [ ] **C3 — Custom items** the user adds, per route, in the same list.
-- [ ] **C4 — Check off per design**, with progress that distinguishes "all required done" from "all
-      items done", because those are different claims.
-- [ ] **C5 — The panel in the editor**: summary, elements, checklist, progress — while designing,
-      not in another tab.
-- [ ] **C6 — Auto-detect what has been placed.** If the design contains an element the checklist
-      asks for, say so. The user still confirms; a checklist that ticks itself is one nobody trusts,
-      and one that ignores what is plainly on the canvas is one nobody uses.
+- [x] **C1 — The required tier is generated from the dossier's own judgement** — the heading that says
+      where you are, the surface the data is in, the form, the empty state, the control that starts
+      the page's main action — plus two universal must-haves: a mobile layout that is not the desktop
+      one squeezed (half this app is used outdoors on a handset), and a heading. Kept deliberately
+      short: a checklist where everything is required is one nobody finishes, and one nobody finishes
+      is one nobody reads. A page's own functions become required items when no element covers them,
+      so a page that CREATES something is asked for somewhere to start that even if the trace missed
+      the button.
+- [x] **C2 — Recommended is everything else the page has**, plus the states nobody draws and everybody
+      ships: an empty state with a way forward, a loading state, and what happens when the fetch does
+      not come back. Marked as optional in the panel, with the tier's meaning printed under its
+      heading, so it can never be read as the floor. One-off decorations are dropped — an element
+      seen once, matching no catalogue entry and not required is almost always a wrapper the trace
+      happened to keep, and asking somebody to tick it is asking them to stop reading.
+- [x] **C3 — Custom items** are added in the panel, live in the same list, and default to the `custom`
+      tier rather than to `required`: adding a reminder should not silently raise the bar the page is
+      measured against. Generated and custom are told apart by the ROW (`created_by IS NULL`), never
+      by the text — and regeneration rewrites the generated rows and leaves the custom ones exactly
+      as they are.
+- [x] **C4 — Ticked per design, and progress reports two numbers.** State is keyed by design, so three
+      versions of `/admin/jobs` are at three different points and a tick on a draft cannot mark the
+      active design complete. "12 of 18" hides the only question worth asking, so the must-haves get
+      their own counter and their own bar and the total is the quieter number beside it — and an
+      empty required list never reports a met floor, which would let "complete" mean "never
+      measured".
+- [x] **C5 — The panel is in the editor**, with the must-have count on the toolbar button so it is
+      readable without opening anything. Two tabs: the checklist, and what the page is (purpose,
+      summary, what it does with the evidence, every element, every endpoint it calls). The moment
+      the checklist matters is the moment you are placing things; on another screen it is consulted
+      twice — once before you have built anything, once when changing it is expensive.
+- [x] **C6 — Detection is shown beside the box and never in it.** An item whose element is already on
+      the canvas says "on the canvas"; the count of those appears above the list as a nudge. Matching
+      is by catalogue id first and by traced class signature second — never by geometry, because a
+      guess there would tick a box nobody earned. The reverse case is surfaced too: an item ticked
+      with nothing matching on the canvas says so, since the other explanation is that it was ticked
+      by mistake and nobody would ever find out.
 
 ### Phase V — Site versions
 
-- [ ] **V1 — A named collection of designs** across many routes, with a theme.
-- [ ] **V2 — Publish a version**: activate every member in one action, with a preview of what will
-      change and what is missing.
-- [ ] **V3 — Individual pages still win.** Activating a version must not silently discard a
-      per-page choice made deliberately; state the rule and show the conflicts.
-- [ ] **V4 — Coverage**: how much of the site a version actually covers.
+- [x] **V1 — A named set of designs across many routes**, at `/admin/design/versions`. A default cannot
+      be a member: it is a trace of what is already served, so "activating" one would publish a
+      description of the present as a plan for the future. One design per route per version, enforced
+      by a partial unique index rather than discovered at publish time.
+- [x] **V2 — The plan is the screen; publishing is the button underneath it.** Opening a version shows,
+      per route, exactly what publishing would do: activate, already the record, conflict, or the
+      design has been deleted. The plan and the publish come from the SAME function — a preview
+      computed by a second implementation can be wrong about the thing it exists to prevent.
+- [x] **V3 — A later per-page choice wins, and says so.** If a route's current design of record was
+      activated AFTER the version claimed that route, publishing skips it and the row explains why,
+      with a checkbox to take it anyway. Time is the only evidence available for "somebody decided
+      this deliberately, later", and the comparison is one-directional on purpose: a version assembled
+      today does not lose to an activation from last month, because that activation is what the
+      version was assembled to replace. Overriding is possible and explicit — a rule with no override
+      is a rule people work around by deleting things.
+- [x] **V4 — Coverage, scoped to the areas the version touches.** A version that redesigns the whole
+      employee portal and leaves the D&D side project alone is 100% of what it set out to do; calling
+      it 46% of everything would make the number useless for the only decision it informs. The
+      per-area breakdown is in the tooltip, and the plan says how many in-scope pages the version does
+      NOT name — "publish the new site" reading as "every page changes" is the natural assumption and
+      it is wrong.
 
 ### Phase R — Serving and conformance
 
-- [ ] **R1 — Serve a design as a full page** at real size — the honest "see it as a page".
-- [ ] **R2 — Resolve the active design** for a route from one place, so every surface agrees.
-- [ ] **R3 — Conformance view**: the active design against the live page, by measurement. The
-      closest honest answer to *"is the served page the active version yet?"*
+- [x] **R1 — `/admin/design/serve?route=…`** renders the design of record full bleed at 1:1, with the
+      editor's chrome gone and a viewport switch. It does not scale to fit: a design that only looks
+      right shrunk is a design that does not look right, so it scrolls sideways instead. Annotations
+      are dropped — an arrow pointing at a button is a note about the design, not part of the page.
+      The banner saying "this is a design, not the page" is not decoration: somebody arriving from a
+      link has to know within a second, or this becomes the most convincing way in the system to be
+      wrong about what the app does.
+- [x] **R2 — `lib/design/active.ts` answers it once.** Four surfaces ask which design is the record for
+      a route, and four copies of the query would be four chances to disagree about the edge cases —
+      which are the entire content of the question. The interesting one: a route with only a default
+      resolves to the default, SAID to be a default, because showing it is genuinely the most useful
+      answer and presenting it as "the active design" would turn a measurement into a decision nobody
+      made.
+- [x] **R3 — `/admin/design/conformance`**, from a measured record rather than a live diff (the walk
+      takes minutes at two viewports; nobody can wait for it while a page renders, and a score with no
+      date is a number people trust for months). Per route it reports what share of the design's
+      elements are on the page, in the right place, at the right size — computed from the DESIGN's
+      elements, so a page with an extra help link is conformant-with-an-addition rather than 90%
+      conformant, and the way to raise the number is never to delete a useful control.
+
+      Pairing is by class signature, not by index: pair the nth design element with the nth page
+      element and one inserted banner reports that the whole page moved, which is indistinguishable
+      from a page that really did and destroys the value of every future run.
 
 ---
 
@@ -340,7 +507,7 @@ inferred from what a person decided, or they cannot trust either.
 
 ---
 
-## §5. What the theme audit found, and why one fix covered hundreds of rules
+## §7. What the theme audit found, and why one fix covered hundreds of rules
 
 The first honest run reported **18 contrast failures on `starr-dark` alone**, on six routes. The
 worst was the active breadcrumb at **1.02:1** — near-black text on a near-black page, which is not
@@ -399,15 +566,56 @@ themes work and, on the way, turned up a handful of contrast bugs that have been
 
 ---
 
-## §6. Where this stands
+## §8. Where this stands
 
-### Traced
+**Every slice in §5 is built.** What follows is what that does and does not mean, because "48 of 48
+ticked" is exactly the kind of claim this doc exists to keep honest.
 
-**130 of 138 non-dynamic admin pages** now have a locked default, desktop and mobile, measured from
-the running app. `/admin` came out at 165 desktop / 127 mobile elements; `/admin/jobs` at 75 / 74.
-38 dynamic routes are skipped by design.
+### Built and verified in a browser
 
-Eight did not trace, and the reason is worth keeping rather than retrying blindly:
+All ten phases. The pass that matters is the last one: a scripted walk through the real UI signed
+in as an admin, which placed a design, ticked a checklist item and reloaded to prove the tick had
+reached the server, activated a design and watched the previous holder demote, re-themed and
+confirmed not one element moved, published nothing it was not asked to, and previewed a designer
+theme in portal settings. 27 of 29 checks passed on the second run; the two failures were the dev
+server restarting mid-run, re-probed individually and clean.
+
+**The first run of that pass reported six failures that were all the probe asserting before React
+had finished.** Worth writing down again: the probe was the bug, for the fourth time in this
+repository. The rewritten one waits for the thing it is about to assert on.
+
+### Two defects the phase found rather than caused
+
+**A design's theme and notes were never being stored.** `DesignDocument` has carried both since the
+studio shipped; `design_mockups` had columns for neither, and `saveMockup` wrote every field it
+knew about and reported success. On one machine it looked fine, because localStorage kept them.
+Open the same design anywhere else and it was the default palette and an empty notes box. Seed 614
+adds the columns. K2 — *"re-theming does not require rebuilding"* — was unimplementable until it
+did, because a theme sibling would have been a copy of the elements wearing nothing.
+
+**A custom theme painted the surfaces and left the text where it was.** `[data-theme="custom"]` had
+no block in `themes.css`, so none of the static-token aliases §7 added for the eleven built-ins
+applied to it — the same defect §7 describes, surviving in the one theme that had no block to fix
+it. A custom dark theme was therefore the worst-looking option in the picker, and it read as the
+custom-theme feature being broken rather than as forty missing lines of CSS.
+
+### What is data-entry rather than engineering
+
+Two of the deliverables are now machines that have to be run and filled in:
+
+- **Dossiers.** The deriver measures a route in about eight seconds. 11 routes have been derived so
+  far, producing 120 checklist items. The remaining ~165 admin routes are one command
+  (`scripts/derive-dossiers.mjs --area admin`). The WRITTEN half — purpose, audience, summary — is
+  authorship and no machine can produce it; `/admin/design/dossiers` lists exactly which pages are
+  waiting, and that queue is the work.
+- **Conformance.** `scripts/check-design-conformance.mjs --write` produces the record the page
+  reads. It has not been run across the whole product yet, so the page currently says so — with the
+  command — rather than showing numbers with no date on them.
+
+### Still open, from the earlier passes
+
+**Eight pages have no default traced**, and the reasons are worth keeping rather than retrying
+blindly:
 
 | Route | Why |
 |---|---|
@@ -417,25 +625,35 @@ Eight did not trace, and the reason is worth keeping rather than retrying blindl
 | `/admin/pay-progression` | the page aborted the navigation |
 
 Five of the six 500s are the equipment area, which suggests one cause rather than six. Not
-diagnosed yet.
+diagnosed. `/admin/work` traced 70 desktop elements and **2 mobile**, which is not a mobile page
+with two things on it — it is a capture that did not wait long enough.
 
-`/admin/work` traced 70 desktop elements and **2 mobile**, which is not a mobile page with two
-things on it — it is a capture that did not wait long enough. Worth re-tracing with a longer settle.
+### The third instrument bug, and the one worth remembering
 
-### Built and verified
+**Every walk in this system waited a fixed number of milliseconds, and that number was measuring the
+dev server.** Three separate symptoms, one cause:
 
-- Fidelity measurement (Phase F1/F2), the editor fit and behaviour (Phase E), the status lifecycle
-  and its two database-enforced singular kinds (Phase S), cloning including theme siblings (B, K1),
-  the traced defaults (P), the page list showing what exists per page (N), and the theme audit with
-  its systemic fixes (T).
+- `/admin/audit` and `/admin/billing` derived to an EMPTY inventory and were refused. Neither is an
+  empty page: they render `⏳ Loading...` for four and eleven seconds while the route compiles.
+- `/admin/work` traced 70 desktop elements and 2 mobile — not a phone page with two things on it.
+- The fidelity check located **4 of 51** palette elements across 34 routes, where an earlier run of
+  the same script had found 28. Nothing about the catalogue had changed. It was sampling spinners
+  and reporting the app as unfindable.
 
-### Specified but NOT built
+`waitForPageReady` now waits for the content root to hold something operable, and every walk — the
+deriver, the tracer and the fidelity check — uses it. Both refused routes derive on the first try
+afterwards, and the fidelity walk's yield went from 4/51 to 25/51 on the same app.
 
-Stated plainly so the doc is not read as a claim:
+That is the fourth time in this repository that the instrument was the defect, and the shape is
+always the same: a measurement that is confidently wrong looks exactly like a finding.
 
-- **Phase D — dossiers.** No page has a purpose, summary or element inventory yet.
-- **Phase C — checklists.** Nothing generates or tracks them.
-- **Phase V — site versions.** The tables exist (seed 612); nothing reads or writes them.
-- **Phase R — serving and conformance.** No serve route, no conformance diff.
-- **F3/F4/F5** — the fidelity differences are measured and recorded in
-  `lib/design/fidelity.generated.json`, but not yet fixed, gated, or surfaced in the editor.
+**The six contrast findings in §7's punch list are unchanged.** Four of them fail on the light
+theme as well, which means they are app defects the theme audit found rather than theme defects.
+
+### What this still cannot do, by construction
+
+Activating a design does not replace the React page — §1 says why, and nothing in this pass changed
+it. What activation now does is real and worth naming: it decides what the checklist measures, what
+the conformance view diffs the live page against, which themes portal settings offers, and what
+`/admin/design/serve` renders at full size. The gap between the specification and the product is a
+number on a page rather than an assumption.

@@ -93,8 +93,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // routing the tracer through it would either fail or require weakening the lock, and the lock is
   // the whole reason a default can be trusted.
   if (body.asDefault) {
-    const summary = await writeDefault(body.route, doc, email!, now);
-    return NextResponse.json({ design: summary, coverage });
+    // `changes` is what makes a re-trace honest (P3): replacing the record of what a page looks
+    // like without saying what moved leaves you diffing two screenshots by eye. Empty on the first
+    // trace of a route, because there was nothing to change.
+    const { changes, ...summary } = await writeDefault(body.route, doc, email!, now);
+    return NextResponse.json({ design: summary, coverage, changes });
   }
 
   const saved = await saveMockup(doc, email!, now, `imported from ${body.route}`);

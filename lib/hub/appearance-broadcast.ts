@@ -36,6 +36,17 @@ export interface AppearanceChange {
   theme?: string | null;
   density?: string | null;
   fontScale?: number | null;
+  /**
+   * The fourteen colours, when the theme is `custom`.
+   *
+   * A built-in theme is one attribute — `data-theme="ocean"` — and the stylesheet does the rest.
+   * A custom theme (including a theme built in the Page Designer) has no stylesheet block, because
+   * the palette is per user, so the values themselves have to travel. Without this the shell set
+   * `data-theme="custom"` and no colours, which resolves to the default palette: the picker said
+   * the theme was saved, the page did not change, and nothing was wrong except that the colours
+   * never left the picker.
+   */
+  customPalette?: Record<string, string> | null;
 }
 
 /** Announce a saved appearance change. Safe to call from anywhere, including the server (no-op). */

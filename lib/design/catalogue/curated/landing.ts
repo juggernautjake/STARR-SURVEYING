@@ -141,7 +141,7 @@ export const LANDING_ENTRIES: CatalogueEntry[] = [
     props: BASIC,
     states: INTERACTIVE_STATES,
     anchors: TEXT_ANCHORS,
-    size: { default: { w: 200, h: 24 }, resize: 'both', min: { w: 100, h: 20 } },
+    size: { default: { w: 152, h: 24 }, resize: 'both', min: { w: 100, h: 20 } },
     source: [{ file: 'app/admin/styles/AdminLearn.css', line: 536, kind: 'css' }],
     usage: [{ route: '/admin/learn/exam-prep', count: 4 }],
   }),

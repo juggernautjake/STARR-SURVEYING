@@ -42,11 +42,67 @@ import { APPEARANCE_CHANGED, type AppearanceChange } from '@/lib/hub/appearance-
 /** Same key the picker writes through the store; kept here because this component must be able to
  *  read it before any Hub code has run on the page. */
 const ECHO_KEY = 'starr-shell-theme';
+/** The custom palette echo. Same contract as the theme echo: a cache of a server-owned value that
+ *  can only ever be wrong until the next hydrate. */
+const ECHO_PALETTE_KEY = 'starr-shell-palette';
 const ECHO_DENSITY_KEY = 'starr-shell-density';
 const ECHO_FONT_KEY = 'starr-shell-font-scale';
 
+/**
+ * The fourteen variables a custom palette sets, and the shape it arrives in.
+ *
+ * Phase T3 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md. Written on
+ * `<html>` rather than on a wrapper for exactly the reason the theme attribute is: dialogs, toasts
+ * and the command palette are portalled to `document.body`, and a wrapper would leave the
+ * surfaces that float above the page wearing the default palette — a dark app with a white modal,
+ * which reads as a bug where a uniformly light app just reads as light.
+ */
+const PALETTE_VARS: Record<string, string> = {
+  bgPage: '--theme-bg-page',
+  bgSurface: '--theme-bg-surface',
+  bgElevated: '--theme-bg-elevated',
+  fgPrimary: '--theme-fg-primary',
+  fgSecondary: '--theme-fg-secondary',
+  fgMuted: '--theme-fg-muted',
+  accent: '--theme-accent',
+  accentFg: '--theme-accent-fg',
+  border: '--theme-border',
+  borderStrong: '--theme-border-strong',
+  success: '--theme-success',
+  warning: '--theme-warning',
+  danger: '--theme-danger',
+  info: '--theme-info',
+};
+
+/** A saved custom theme, flattened to the fourteen. Anchors and derived colours live in different
+ *  places on the payload; every reader of it would otherwise re-learn that. */
+function paletteOf(custom: Record<string, unknown> | null | undefined): Record<string, string> | null {
+  if (!custom) return null;
+  const derived = (custom.derived ?? {}) as Record<string, string>;
+  const flat: Record<string, string> = {
+    bgPage: custom.bgPage as string,
+    bgSurface: custom.bgSurface as string,
+    fgPrimary: custom.fgPrimary as string,
+    accent: custom.accent as string,
+    ...derived,
+  };
+  return Object.values(flat).some(Boolean) ? flat : null;
+}
+
+function writePalette(palette: Record<string, string> | null): void {
+  const el = document.documentElement;
+  for (const [key, cssVar] of Object.entries(PALETTE_VARS)) {
+    const value = palette?.[key];
+    if (value) el.style.setProperty(cssVar, value);
+    // Removed rather than left behind: switching from a custom theme back to a built-in must not
+    // leave four inline variables winning over the stylesheet the built-in relies on.
+    else el.style.removeProperty(cssVar);
+  }
+}
+
 export default function ShellTheme() {
   const theme = useHubStore((s) => s.theme);
+  const customTheme = useHubStore((s) => s.customTheme);
   const density = useHubStore((s) => s.density);
   const fontScale = useHubStore((s) => s.fontScale);
 
@@ -57,6 +113,13 @@ export default function ShellTheme() {
       const echoed = localStorage.getItem(ECHO_KEY);
       if (echoed && !document.documentElement.hasAttribute('data-theme')) {
         document.documentElement.setAttribute('data-theme', echoed);
+        // A custom theme is fourteen values, not an attribute. Painting the attribute without them
+        // is worse than painting nothing: `[data-theme="custom"]` aliases the app's static tokens
+        // to `--theme-*` variables that would not exist yet.
+        if (echoed === 'custom') {
+          const raw = localStorage.getItem(ECHO_PALETTE_KEY);
+          if (raw) { try { writePalette(JSON.parse(raw) as Record<string, string>); } catch { /* ignore */ } }
+        }
       }
       const echoedDensity = localStorage.getItem(ECHO_DENSITY_KEY);
       if (echoedDensity && !document.documentElement.hasAttribute('data-density')) {
@@ -80,7 +143,14 @@ export default function ShellTheme() {
     if (typeof document === 'undefined' || !theme) return;
     document.documentElement.setAttribute('data-theme', theme);
     try { localStorage.setItem(ECHO_KEY, theme); } catch { /* ignore */ }
-  }, [theme]);
+
+    const palette = theme === 'custom' ? paletteOf(customTheme as Record<string, unknown> | null) : null;
+    writePalette(palette);
+    try {
+      if (palette) localStorage.setItem(ECHO_PALETTE_KEY, JSON.stringify(palette));
+      else localStorage.removeItem(ECHO_PALETTE_KEY);
+    } catch { /* private mode — the palette re-arrives on the next hydrate */ }
+  }, [theme, customTheme]);
 
   useEffect(() => {
     if (typeof document === 'undefined' || !density) return;
@@ -113,6 +183,14 @@ export default function ShellTheme() {
     if (c.theme) {
       el.setAttribute('data-theme', c.theme);
       try { localStorage.setItem(ECHO_KEY, c.theme); } catch { /* ignore */ }
+      // `customPalette` is only meaningful with a theme, and a theme change without one means the
+      // person moved to a built-in — so the inline variables come off in the same breath.
+      const palette = c.theme === 'custom' ? (c.customPalette ?? null) : null;
+      writePalette(palette);
+      try {
+        if (palette) localStorage.setItem(ECHO_PALETTE_KEY, JSON.stringify(palette));
+        else localStorage.removeItem(ECHO_PALETTE_KEY);
+      } catch { /* ignore */ }
     }
     if (c.density) {
       el.setAttribute('data-density', c.density);
@@ -153,9 +231,9 @@ export default function ShellTheme() {
     let cancelled = false;
     void fetch('/api/admin/me/hub-layout', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { layout?: AppearanceChange } | null) => {
+      .then((j: { layout?: (AppearanceChange & { customTheme?: Record<string, unknown> | null }) } | null) => {
         if (cancelled || !j?.layout) return;
-        apply(j.layout);
+        apply({ ...j.layout, customPalette: paletteOf(j.layout.customTheme) });
       })
       .catch(() => { /* the default palette is fine */ });
     return () => { cancelled = true; };

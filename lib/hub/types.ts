@@ -61,6 +61,16 @@ export interface CustomThemeContrastAudit {
 export interface CustomThemePayload {
   /** Human-readable name. Optional; UI auto-generates if blank. */
   name?: string;
+  /**
+   * Set when this palette came from a theme built in the Page Designer.
+   *
+   * Phase T3 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md. Purely a
+   * provenance marker: it lets the picker show WHICH designer theme is the current one, which is
+   * otherwise unanswerable — a custom palette and a designer palette are the same fourteen
+   * colours once saved, and comparing hexes to guess would tick the wrong tile the first time two
+   * themes shared a background.
+   */
+  designThemeId?: string;
   /** User-chosen. */
   bgPage: string;
   bgSurface: string;

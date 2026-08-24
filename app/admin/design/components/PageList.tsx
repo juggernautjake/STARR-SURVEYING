@@ -24,9 +24,17 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown, ChevronRight, Search, Circle, CircleDot, CheckCircle2, MinusCircle, ExternalLink } from 'lucide-react';
 import {
-  groupByArea, filterPages, progressOf, STATUS_LABELS,
-  type PageRow, type ReviewStatus, type PageArea,
+  groupByArea, filterPages, progressOf, STATUS_LABELS, GAP_LABEL, GAP_MEANING,
+  type PageRow, type ReviewStatus, type PageArea, type PageGap,
 } from '@/lib/design/pages';
+
+// ── THE LIST DOUBLES AS THE WORK QUEUE (N3) ─────────────────────────────────────────────────────
+//
+// Four things a page can be missing, and each is a different job with a different tool: tracing a
+// default, deriving a dossier, choosing a design of record, designing anything at all. Filtering to
+// one of them turns 270 rows into the list of pages that need that specific thing done — which is
+// the only way a list this long is worked THROUGH rather than scrolled.
+const GAP_FILTERS: PageGap[] = ['no-default', 'no-dossier', 'no-design', 'no-active'];
 
 const STATUS_ICON: Record<ReviewStatus, typeof Circle> = {
   not_started: Circle,
@@ -54,6 +62,7 @@ export default function PageList({ onCreateFor }: Props) {
   const [query, setQuery] = useState('');
   const [hideDone, setHideDone] = useState(true);
   const [openAreas, setOpenAreas] = useState<Set<PageArea>>(new Set(['admin']));
+  const [gapFilter, setGapFilter] = useState<PageGap | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<string | null>(null);
 
@@ -68,12 +77,25 @@ export default function PageList({ onCreateFor }: Props) {
 
   const visible = useMemo(() => {
     if (!pages) return [];
-    const filtered = filterPages(pages, query);
+    let filtered = filterPages(pages, query);
+    // The gap filter is not overridden by a search: "find me the pages with no default, called
+    // jobs" is a real question, and the two narrow the same list rather than competing for it.
+    if (gapFilter) filtered = filtered.filter((p) => p.gaps.includes(gapFilter));
     // A search means "find me this page", so it overrides the hide-done filter — otherwise
     // searching for a page you finished yesterday returns nothing and looks broken.
     if (!hideDone || query.trim()) return filtered;
     return filtered.filter((p) => p.status !== 'done' && p.status !== 'skipped');
-  }, [pages, query, hideDone]);
+  }, [pages, query, hideDone, gapFilter]);
+
+  /** How many pages are missing each thing. The number is the point: it says which job is the big
+   *  one, and it is counted over EVERY page rather than over what is currently shown, so choosing a
+   *  filter cannot change the counts underneath it. */
+  const gapCounts = useMemo(() => {
+    const out = {} as Record<PageGap, number>;
+    for (const gap of GAP_FILTERS) out[gap] = 0;
+    for (const page of pages ?? []) for (const gap of page.gaps) out[gap] = (out[gap] ?? 0) + 1;
+    return out;
+  }, [pages]);
 
   const groups = useMemo(() => groupByArea(visible), [visible]);
 
@@ -126,6 +148,28 @@ export default function PageList({ onCreateFor }: Props) {
           <input type="checkbox" checked={hideDone} onChange={(e) => setHideDone(e.target.checked)} />
           <span>Only what is left</span>
         </label>
+      </div>
+
+      {/* ── What is missing, as a filter (N3) ─────────────────────────────────────────────────── */}
+      <div className="dsx-pages__gaps">
+        <button
+          className={gapFilter === null ? 'is-on' : ''}
+          onClick={() => setGapFilter(null)}
+          title="Every page, whatever it is missing"
+        >
+          Everything
+        </button>
+        {GAP_FILTERS.map((gap) => (
+          <button
+            key={gap}
+            className={gapFilter === gap ? 'is-on' : ''}
+            onClick={() => setGapFilter(gapFilter === gap ? null : gap)}
+            title={GAP_MEANING[gap]}
+          >
+            {GAP_LABEL[gap]}
+            <span>{gapCounts[gap] ?? 0}</span>
+          </button>
+        ))}
       </div>
 
       {groups.length === 0 && (
@@ -217,10 +261,34 @@ export default function PageList({ onCreateFor }: Props) {
                             {page.lifecycle.drafts} draft
                           </span>
                         )}
+                        {/* What the page IS, not what has been designed for it. A route with a
+                          * purpose written against it reads very differently from one nobody has
+                          * described, and that difference is what the dossier queue is made of. */}
+                        <Link
+                          className={`dsx-pages__chip dsx-pages__chip--dossier is-${page.dossier?.state ?? 'none'}`}
+                          href={`/admin/design/dossiers?route=${encodeURIComponent(page.route)}`}
+                          title={page.dossier?.purpose
+                            ? `${page.dossier.purpose} — ${page.dossier.elementCount} elements measured`
+                            : 'Nothing is recorded about what this page is for'}
+                        >
+                          {page.dossier?.state === 'complete' ? 'Dossier'
+                            : page.dossier?.elementCount ? 'Needs a sentence' : 'No dossier'}
+                        </Link>
                         {page.designs.length === 0 && (
                           <button className="dsx-pages__create" onClick={() => onCreateFor(page.route)}>
                             Design it
                           </button>
+                        )}
+                        {/* Only when something IS active: "see it as a page" pointing at nothing is
+                          * a link that teaches people the feature is broken. */}
+                        {page.lifecycle.active && (
+                          <Link
+                            className="dsx-pages__chip dsx-pages__chip--serve"
+                            href={`/admin/design/serve?route=${encodeURIComponent(page.route)}`}
+                            title="See the design of record at real size, as a page"
+                          >
+                            As a page
+                          </Link>
                         )}
                         <button
                           className="dsx-pages__note-btn"

@@ -12,6 +12,7 @@
 // a decision a person made and it has to be the same on every machine.
 
 import inventory from './pages.generated.json';
+import { dossierState, type DossierState } from './dossier';
 
 export type PageArea = 'admin' | 'public' | 'platform' | 'customer' | 'auth' | 'dnd';
 export type ReviewStatus = 'not_started' | 'in_progress' | 'done' | 'skipped';
@@ -54,6 +55,48 @@ export interface PageRow extends InventoryPage {
     alternatives: number;
     drafts: number;
   };
+  /** What is known ABOUT the page — its purpose and how much of it has been measured. */
+  dossier: { state: DossierState; elementCount: number; purpose: string | null } | null;
+  /** ── WHAT THIS PAGE IS STILL MISSING ─────────────────────────────────────────────────────────
+   *
+   * Phase N3. Owner: *"we can go through them one by one and work on each one."* A list of 270
+   * rows is a work queue only if it can be filtered to the work — so each row says which of the
+   * four things it has not got, and the list can be narrowed to any one of them. Derived here
+   * rather than in the component, so the filter and the chip cannot disagree about what "missing"
+   * means. */
+  gaps: PageGap[];
+}
+
+/** The four things a page can be missing, in the order they are usually done. */
+export type PageGap = 'no-default' | 'no-dossier' | 'no-active' | 'no-design';
+
+export const GAP_LABEL: Record<PageGap, string> = {
+  'no-default': 'No default traced',
+  'no-dossier': 'Nothing measured about it',
+  'no-active': 'No design of record',
+  'no-design': 'Nothing designed at all',
+};
+
+export const GAP_MEANING: Record<PageGap, string> = {
+  'no-default': 'Nothing records what this page looks like as it is served. Run the tracer.',
+  'no-dossier': 'Nobody has measured what is on this page or what it does. Run the deriver.',
+  'no-active': 'Designs exist, but none of them is the record for this page.',
+  'no-design': 'No design of any kind names this route.',
+};
+
+function gapsOf(
+  lifecycle: PageRow['lifecycle'],
+  designs: PageRow['designs'],
+  dossier: PageRow['dossier'],
+): PageGap[] {
+  const gaps: PageGap[] = [];
+  if (!lifecycle.default) gaps.push('no-default');
+  if (!dossier || dossier.elementCount === 0) gaps.push('no-dossier');
+  // "No design of record" is only worth saying when there is something that COULD be the record.
+  // On a page with nothing designed at all it would be the same complaint twice.
+  if (designs.length === 0) gaps.push('no-design');
+  else if (!lifecycle.active) gaps.push('no-active');
+  return gaps;
 }
 
 export const PAGES: InventoryPage[] = inventory.routes as InventoryPage[];
@@ -90,7 +133,9 @@ export function isReviewStatus(value: unknown): value is ReviewStatus {
 export function joinPages(
   reviews: PageReview[],
   designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>,
+  dossiers: Array<{ route: string; purpose: string | null; summary: string | null; elementCount: number }> = [],
 ): PageRow[] {
+  const dossierByRoute = new Map(dossiers.map((d) => [d.route, d]));
   const byRoute = new Map(reviews.map((r) => [r.route, r]));
   const designsByRoute = new Map<string, Array<{ id: string; name: string; status: string; locked: boolean }>>();
   for (const d of designs) {
@@ -102,14 +147,26 @@ export function joinPages(
 
   return PAGES.map((page) => {
     const review = byRoute.get(page.route);
+    const forRoute = designsByRoute.get(page.route) ?? [];
+    const lifecycle = lifecycleOf(forRoute);
+    const raw = dossierByRoute.get(page.route);
+    const dossier = raw
+      ? {
+        state: dossierState({ purpose: raw.purpose, summary: raw.summary, elementCount: raw.elementCount }),
+        elementCount: raw.elementCount,
+        purpose: raw.purpose,
+      }
+      : null;
     return {
       ...page,
       status: review?.status ?? 'not_started',
       note: review?.note ?? null,
       updatedBy: review?.updatedBy ?? null,
       updatedAt: review?.updatedAt ?? null,
-      designs: designsByRoute.get(page.route) ?? [],
-      lifecycle: lifecycleOf(designsByRoute.get(page.route) ?? []),
+      designs: forRoute,
+      lifecycle,
+      dossier,
+      gaps: gapsOf(lifecycle, forRoute, dossier),
     };
   });
 }

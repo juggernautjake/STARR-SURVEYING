@@ -315,11 +315,41 @@ describe('the themes are actually consumed', () => {
 
     const incomplete: string[] = [];
     for (const m of themes.matchAll(/\[data-theme="([a-z0-9-]+)"\]\s*\{([^}]*)\}/g)) {
+      // ── `custom` DEFINES NOTHING, AND THAT IS ITS DESIGN ────────────────────────────────────────
+      //
+      // A custom palette — a theme somebody built, or one from the Page Designer — varies per user,
+      // so it cannot be written into a stylesheet. Its fourteen values are set inline on `<html>` by
+      // `ShellTheme`, and this block exists only to alias the app's static tokens to them (see the
+      // next test). Requiring the fourteen here would mean writing a palette into the one theme
+      // whose whole point is not having one.
+      //
+      // The failure this test guards against is covered for `custom` elsewhere:
+      // `paletteFromTokens` fills every one of the fourteen from the theme's own colours before it
+      // is ever saved, and `__tests__/design/retrace-and-gaps.test.ts` asserts that.
+      if (m[1] === 'custom') continue;
       const have = new Set([...m[2].matchAll(/(--theme-[a-z-]+)\s*:/g)].map((x) => x[1]));
       const missing = required.filter((v) => !have.has(v));
       if (missing.length) incomplete.push(`${m[1]} (missing ${missing.join(', ')})`);
     }
     expect(incomplete, `Incomplete palettes fall back to the LIGHT defaults:\n  ${incomplete.join('\n  ')}`)
+      .toEqual([]);
+  });
+
+  it('the custom theme aliases the static tokens, or its text stays where the light theme left it', () => {
+    // Phase T3 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
+    //
+    // The eleven built-ins each alias `--color-text-*` and friends to their `--theme-*` values,
+    // which is what stopped a dark theme from leaving hundreds of rules painting near-black text on
+    // a near-black page. `custom` had no block at all, so it inherited exactly that defect — a
+    // custom dark theme moved the surfaces and left the words behind, and read as the custom-theme
+    // feature being broken rather than as a missing stylesheet block.
+    const themes = fs.readFileSync('app/styles/themes.css', 'utf8');
+    const block = /\[data-theme="custom"\]\s*\{([^}]*)\}/.exec(themes)?.[1];
+    expect(block, 'app/styles/themes.css has no [data-theme="custom"] block').toBeTruthy();
+
+    const aliases = ['--color-text-primary', '--color-bg-app', '--color-bg-card', '--color-brand-navy', '--text-primary'];
+    const missing = aliases.filter((name) => !new RegExp(`${name}\\s*:`).test(block ?? ''));
+    expect(missing, `A custom theme would leave these reading the light defaults: ${missing.join(', ')}`)
       .toEqual([]);
   });
 });

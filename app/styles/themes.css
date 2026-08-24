@@ -712,3 +712,45 @@
   --brand-dark:           var(--theme-fg-primary);
   --brand-blue:           var(--theme-accent);
 }
+
+/* ── custom — a theme somebody built, or one from the Page Designer ────────────────────────────
+ *
+ * Phase T3 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
+ *
+ * This block sets no colours of its own, and that is the point: the fourteen `--theme-*` values
+ * come from `ShellTheme`, inline on `<html>`, because a custom palette is per user and cannot be
+ * written into a stylesheet. What was MISSING was everything below — the aliases that make the
+ * app's static tokens follow the theme.
+ *
+ * Without them a custom theme moved the page background and the widget surfaces and left every
+ * `--color-text-*` rule painting the original near-black: the same defect §5 of the plan describes
+ * for the built-ins, surviving in the one theme that had no block here to fix it. A custom dark
+ * theme was therefore the worst-looking option in the picker, and it looked like the custom theme
+ * feature was broken rather than like a missing forty lines of CSS.
+ *
+ * A page with no `data-theme` still resolves the original hexes, exactly as before. */
+[data-theme="custom"] {
+  --color-text-primary:   var(--theme-fg-primary);
+  --color-text-secondary: var(--theme-fg-secondary);
+  --color-text-tertiary:  var(--theme-fg-muted);
+  --color-text-muted:     var(--theme-fg-muted);
+  --color-bg-app:         var(--theme-bg-page);
+  --color-bg-card:        var(--theme-bg-surface);
+  --color-bg-input:       var(--theme-bg-surface);
+  --color-bg-subtle:      var(--theme-bg-elevated);
+  --color-surface:        var(--theme-bg-surface);
+  --color-surface-subtle: var(--theme-bg-elevated);
+  --color-border:         var(--theme-border);
+  --color-border-strong:  var(--theme-border-strong);
+  --color-brand-navy:     var(--theme-accent);
+  --color-brand-navy-d:   var(--theme-accent);
+  --color-warning:        var(--theme-warning);
+  --color-success:        var(--theme-success);
+  --color-danger:         var(--theme-danger);
+  --color-info:           var(--theme-info);
+  --text-primary:         var(--theme-fg-primary);
+  --text-secondary:       var(--theme-fg-secondary);
+  --text-muted:           var(--theme-fg-muted);
+  --brand-dark:           var(--theme-fg-primary);
+  --brand-blue:           var(--theme-accent);
+}

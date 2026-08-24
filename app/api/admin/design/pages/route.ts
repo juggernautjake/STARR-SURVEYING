@@ -28,9 +28,14 @@ export const GET = withErrorHandler(async () => {
   const { error } = await gate();
   if (error) return error;
 
-  const [{ data: reviews }, { data: designs }] = await Promise.all([
+  // The dossier joins in here rather than being fetched per row: the list shows what each page is
+  // FOR and what is still missing about it, and 270 rows × one request each is the shape that makes
+  // a list page feel broken. `element_count` is a column for exactly this reason — the element
+  // inventory itself is never rendered here.
+  const [{ data: reviews }, { data: designs }, { data: dossiers }] = await Promise.all([
     supabaseAdmin.from(TABLE).select('route, status, note, updated_by, updated_at'),
     supabaseAdmin.from('design_mockups').select('id, name, route, status, locked').is('deleted_at', null),
+    supabaseAdmin.from('design_page_dossiers').select('route, purpose, summary, element_count'),
   ]);
 
   const mapped: PageReview[] = ((reviews ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -41,7 +46,16 @@ export const GET = withErrorHandler(async () => {
     updatedAt: (r.updated_at as string | null) ?? null,
   }));
 
-  const pages = joinPages(mapped, (designs ?? []) as Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>);
+  const pages = joinPages(
+    mapped,
+    (designs ?? []) as Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>,
+    ((dossiers ?? []) as Array<Record<string, unknown>>).map((d) => ({
+      route: d.route as string,
+      purpose: (d.purpose as string | null) ?? null,
+      summary: (d.summary as string | null) ?? null,
+      elementCount: (d.element_count as number | null) ?? 0,
+    })),
+  );
   return NextResponse.json({ pages, progress: progressOf(pages) });
 });
 

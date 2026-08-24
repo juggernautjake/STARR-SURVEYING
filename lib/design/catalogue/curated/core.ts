@@ -69,7 +69,7 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
     classes: ['job-form__section-title'],
     slots: [{ name: 'text', kind: 'text', label: 'Text', default: 'Project files', stress: 'Equipment assigned to this job' }],
     props: TEXT_PROPS,
-    size: { default: { w: 240, h: 22 }, resize: 'width', contentHeight: true },
+    size: { default: { w: 240, h: 18 }, resize: 'width', contentHeight: true },
     anchors: TEXT_ANCHORS,
     // Was cited as `.pd__card-title` — a class that does not exist. The projects card styles its
     // heading with the descendant selector `.pd__card h3`, which is not a thing the palette can
@@ -303,7 +303,7 @@ export const CORE_ENTRIES: CatalogueEntry[] = [
     ],
     props: [...COMMON_PROPS, ...COLOUR_PROPS],
     states: ['default', 'empty', 'loading'],
-    size: { default: { w: 640, h: 160 }, resize: 'both' },
+    size: { default: { w: 640, h: 244 }, resize: 'both' },
     source: [{ file: 'app/admin/styles/AdminResponsive.css', line: 11, kind: 'css' }],
     usage: [{ route: '(app-wide)', count: 48 }],
   }),

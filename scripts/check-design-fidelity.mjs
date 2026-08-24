@@ -1,6 +1,6 @@
 // scripts/check-design-fidelity.mjs — is the editor 1:1 with the page?
 //
-//   node --import tsx --env-file=.env.local scripts/check-design-fidelity.mjs --base http://127.0.0.1:3015
+//   node --import tsx --env-file=.env.local scripts/check-design-fidelity.mjs --base http://127.0.0.1:3016
 //   node --import tsx --env-file=.env.local scripts/check-design-fidelity.mjs --write   # refresh the record
 //
 // Phase F of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
@@ -51,9 +51,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
+import { waitForPageReady } from './lib/design-observe.mjs';
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
-const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
+const BASE = (arg('--base') ?? 'http://127.0.0.1:3016').replace(/\/$/, '');
 const AS = arg('--as') ?? 'jacobmaddux@starr-surveying.com';
 const WRITE = process.argv.includes('--write');
 const OUT = 'lib/design/fidelity.generated.json';
@@ -220,7 +221,14 @@ for (const route of routes) {
   visited += 1;
   try {
     await app.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
-    await app.waitForTimeout(1800);
+    // ── WAIT FOR THE PAGE, NOT FOR 1800ms ───────────────────────────────────────────────────────
+    //
+    // Measured: a run of this script located 4 of 51 elements across 34 routes, where an earlier run
+    // of the same script had found 28. Nothing about the catalogue had changed — the dev server had.
+    // A route it has not compiled yet renders a spinner for four to eleven seconds, so a fixed wait
+    // was sampling loading screens and reporting the catalogue as unfindable. Every walk in this
+    // system now waits for the content root to hold something operable instead.
+    await waitForPageReady(app);
     await app.waitForLoadState('networkidle', { timeout: 8_000 }).catch(() => {});
     const found = await app.evaluate((props) => {
       const out = {};

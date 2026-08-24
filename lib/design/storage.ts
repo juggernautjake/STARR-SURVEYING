@@ -31,6 +31,19 @@ export interface DesignSummary {
   version: number;
   /** Element counts per view, so the list can say "12 / 9" rather than making you open it. */
   counts: { desktop: number; mobile: number };
+  // ── THE LIFECYCLE, WHEN THE ROW CAME FROM THE SERVER ─────────────────────────────────────────
+  //
+  // Optional, and the reason is the merge in `client.ts`: the list a caller receives is the
+  // server's designs plus any that exist ONLY in this browser and have never been uploaded. A
+  // local-only draft has no status, is not locked and belongs to no theme family — it does not yet
+  // exist as far as the lifecycle is concerned. Marking these optional says that out loud instead
+  // of typing a browser draft as though the server had answered for it.
+  status?: string;
+  locked?: boolean;
+  themeGroup?: string | null;
+  themeId?: string | null;
+  ownerEmail?: string | null;
+  variantOf?: string | null;
 }
 
 function canStore(): boolean {

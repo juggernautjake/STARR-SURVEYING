@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Trash2, Copy, PenTool, Clock, Layers3 } from 'lucide-react';
+import { Plus, Search, Trash2, Copy, PenTool, Clock, Layers3, FileText, Rocket, Gauge } from 'lucide-react';
 import { createDocument, type DesignDocument } from '@/lib/design/document';
 
 import { fetchDesigns, fetchDesign, pushDesign, removeDesign, type DesignSummary } from '@/lib/design/client';
@@ -52,11 +52,39 @@ export default function DesignHome() {
     return designs.filter((d) => `${d.name} ${d.route ?? ''}`.toLowerCase().includes(q));
   }, [designs, query]);
 
-  /** Start a design for a specific route, straight from the walkthrough. The route is the point:
-   *  a design created from the list is already attached to the page it is for. */
+  /**
+   * Start a design for a specific route, straight from the walkthrough.
+   *
+   * Phase B2. The route is the point: a design created from the list is already attached to the
+   * page it is for — which means it already has that page's checklist, and, if a dossier exists,
+   * it opens with the purpose and summary already written into its notes.
+   *
+   * Starting from a blank canvas with no idea what the page is supposed to do is how a design ends
+   * up being a nice arrangement of the wrong things. Everything measured about the page is already
+   * in the system; the only question was whether it reached the person at the moment they start.
+   */
   async function createForRoute(forRoute: string) {
     const now = new Date().toISOString();
     const doc: DesignDocument = createDocument({ id: newId(), name: forRoute, route: forRoute, now });
+
+    // Best-effort: a design must still be creatable when nothing has been measured about the page.
+    const dossier = await fetch(`/api/admin/design/dossier?route=${encodeURIComponent(forRoute)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((b) => b?.dossier ?? null)
+      .catch(() => null);
+
+    if (dossier?.purpose || dossier?.summary) {
+      doc.notes = [
+        dossier.purpose ? `Purpose: ${dossier.purpose}` : null,
+        dossier.audience ? `Who opens it: ${dossier.audience}` : null,
+        dossier.summary,
+        dossier.functions?.length
+          ? `\nWhat it does:\n${dossier.functions.map((f: { label: string; detail: string }) => `· ${f.label} — ${f.detail}`).join('\n')}`
+          : null,
+      ].filter(Boolean).join('\n\n');
+      doc.name = dossier.purpose ? `${forRoute} — ${dossier.purpose}`.slice(0, 80) : forRoute;
+    }
+
     await pushDesign(doc, 'created from the page list');
     router.push(`/admin/design/${doc.id}`);
   }
@@ -110,9 +138,20 @@ export default function DesignHome() {
             <strong> {ENTRIES.length} elements</strong> in the palette, searchable by what they do.
           </p>
         </div>
-        <Link className="dsx-home__compare" href="/admin/design/compare">
-          <Layers3 size={15} aria-hidden /> Compare versions
-        </Link>
+        <nav className="dsx-home__links" aria-label="Design tools">
+          <Link className="dsx-home__compare" href="/admin/design/compare">
+            <Layers3 size={15} aria-hidden /> Compare versions
+          </Link>
+          <Link className="dsx-home__compare" href="/admin/design/dossiers">
+            <FileText size={15} aria-hidden /> Page dossiers
+          </Link>
+          <Link className="dsx-home__compare" href="/admin/design/versions">
+            <Rocket size={15} aria-hidden /> Site versions
+          </Link>
+          <Link className="dsx-home__compare" href="/admin/design/conformance">
+            <Gauge size={15} aria-hidden /> Conformance
+          </Link>
+        </nav>
       </header>
 
       <section className="dsx-home__new">

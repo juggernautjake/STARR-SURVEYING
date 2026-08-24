@@ -4,6 +4,11 @@
 //   node --env-file=.env.local scripts/trace-defaults.mjs --area admin        # one area
 //   node --env-file=.env.local scripts/trace-defaults.mjs --only /admin/jobs  # one route
 //   node --env-file=.env.local scripts/trace-defaults.mjs --missing           # only what has none
+//   node --env-file=.env.local scripts/trace-defaults.mjs --only /admin/jobs   # RE-TRACE one page
+//
+// Re-tracing is the same command as tracing: it replaces the route's default and prints what moved
+// (Phase P3). It never touches a design somebody cloned from that default — those are ordinary
+// drafts with their own ids, and only the row whose status is `default` is replaced.
 //
 // Phase P of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
 //
@@ -34,6 +39,7 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
+import { waitForPageReady } from './lib/design-observe.mjs';
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
@@ -108,12 +114,16 @@ for (const [i, target] of todo.entries()) {
       await page.setViewportSize(size);
       await page.goto(`${BASE}${target.route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       // Admin pages fetch after mount. Capturing the splash would trace a spinner and call it a page.
-      await page.waitForTimeout(2500);
+      //
+      // Waits for the page rather than for a fixed 2.5s: that number is why `/admin/work` traced 70
+      // desktop elements and 2 mobile — not a phone page with two things on it, a capture taken
+      // while the page was still arriving.
+      if (!await waitForPageReady(page)) stillLoading = true;
       await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
       captures[viewId] = await page.evaluate(CAPTURE, classes);
-      if (viewId === 'desktop') {
-        stillLoading = await page.locator('text=/^\\s*(Loading|Loading…)\\s*$/').count() > 0
-          && captures[viewId].length < 8;
+      if (viewId === 'desktop' && captures[viewId].length < 8) {
+        stillLoading = stillLoading
+          || await page.locator('text=/^\\s*(Loading|Loading…)\\s*$/').count() > 0;
       }
     }
 
@@ -137,9 +147,33 @@ for (const [i, target] of todo.entries()) {
     const body = await res.json().catch(() => null);
     if (!res.ok()) throw new Error(body?.error ?? `api ${res.status()}`);
 
-    const { coverage } = body;
-    done.push({ route: target.route, desktop: coverage.desktop.kept, mobile: coverage.mobile.kept });
+    const { coverage, changes } = body;
+    done.push({
+      route: target.route,
+      desktop: coverage.desktop.kept,
+      mobile: coverage.mobile.kept,
+      changes: changes ?? [],
+    });
     console.log(`✓  ${String(coverage.desktop.kept).padStart(3)} desktop · ${String(coverage.mobile.kept).padStart(3)} mobile`);
+
+    // ── WHAT MOVED (P3) ─────────────────────────────────────────────────────────────────────────
+    //
+    // A re-trace replaces the record of what a page looks like. Doing that silently is the version
+    // of this feature that helps nobody: you re-trace precisely BECAUSE the page changed, and if
+    // the tool will not say how, the only way to find out is to compare two screenshots by eye.
+    //
+    // Nothing is printed for a first trace — there was no previous default, so there is no change,
+    // and printing "0 added, 0 removed" 130 times would bury the routes that did move.
+    for (const change of changes ?? []) {
+      const moved = change.moved ?? [];
+      if (!change.added.length && !change.removed.length && !moved.length && change.before === change.after) continue;
+      const bits = [];
+      if (change.before !== change.after) bits.push(`${change.before} → ${change.after} elements`);
+      if (change.added.length) bits.push(`+${change.added.length} new: ${change.added.slice(0, 4).join(' ')}`);
+      if (change.removed.length) bits.push(`−${change.removed.length} gone: ${change.removed.slice(0, 4).join(' ')}`);
+      if (moved.length) bits.push(`${moved.length} moved (worst ${moved[0].signature} by ${moved[0].by}px)`);
+      console.log(`        ${change.view}: ${bits.join(' · ')}`);
+    }
   } catch (err) {
     failed.push({ route: target.route, why: err.message.split('\n')[0].slice(0, 70) });
     console.log(`—  ${err.message.split('\n')[0].slice(0, 50)}`);

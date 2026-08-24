@@ -24,7 +24,7 @@
 //    against `lib/design/snap.ts`, which is tested.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote, Palette as PaletteIcon, Maximize2, PanelLeft, PanelRight } from 'lucide-react';
+import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote, Palette as PaletteIcon, Maximize2, PanelLeft, PanelRight, ListChecks, GitBranch } from 'lucide-react';
 import Link from 'next/link';
 import {
   type DesignDocument, type DesignElement, type ViewId,
@@ -48,6 +48,8 @@ import Inspector from './components/Inspector';
 import Layers from './components/Layers';
 import DrawingCanvas from './components/DrawingCanvas';
 import ThemePanel from './components/ThemePanel';
+import DossierPanel from './components/DossierPanel';
+import LifecyclePanel from './components/LifecyclePanel';
 import './DesignStudio.css';
 
 // ── THE CATALOGUE'S STYLESHEETS HAVE TO BE HERE, OR THE MOCKUP IS A LIE ─────────────────────────
@@ -585,6 +587,14 @@ export default function Studio({ initial }: Props) {
   const [showChecks, setShowChecks] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showTheme, setShowTheme] = useState(false);
+  // ── The checklist and the lifecycle, as panels rather than as other screens ──────────────────
+  //
+  // Phases C5 and S3. Both answer questions you have WHILE designing — what is still missing, and
+  // what happens if I make this the record for the page — and an answer on another screen is one
+  // you consult twice: once before you have built anything, once when changing it is expensive.
+  const [showDossier, setShowDossier] = useState(false);
+  const [showLifecycle, setShowLifecycle] = useState(false);
+  const [checklist, setChecklist] = useState<{ requiredDone: number; requiredTotal: number; done: number; total: number } | null>(null);
   /** saved | saving | dirty | local — shown next to Save, because 'did that keep?' should never
    *  be a question somebody has to answer by reloading. */
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'dirty' | 'local'>('saved');
@@ -1031,6 +1041,26 @@ export default function Studio({ initial }: Props) {
         </div>
       </div>
 
+      {/* ── What this page needs, and how far this design has got (C5) ───────────────────────── */}
+      {showDossier && (
+        <DossierPanel
+          designId={doc.id}
+          route={doc.route}
+          onClose={() => setShowDossier(false)}
+          onProgress={setChecklist}
+        />
+      )}
+
+      {/* ── Status, branching, theme family and lineage (S3, B3, K2, K3) ─────────────────────── */}
+      {showLifecycle && (
+        <LifecyclePanel
+          doc={doc}
+          onClose={() => setShowLifecycle(false)}
+          onStatus={(next) => setDoc((d) => ({ ...d, status: next }))}
+          onTheme={(theme) => setDoc((d) => ({ ...d, theme, themeId: theme?.id ?? null }))}
+        />
+      )}
+
       {showTheme && (
         <ThemePanel
           theme={(doc.theme as Theme | null) ?? null}
@@ -1147,6 +1177,29 @@ export default function Studio({ initial }: Props) {
         >
           <StickyNote size={14} aria-hidden />
           <span>Notes</span>
+        </button>
+        {/* ── The checklist, with the number that is a claim ──────────────────────────────────
+          * The must-have count rather than the total: a design with every optional flourish and no
+          * data table is not two thirds finished, it has not started. */}
+        <button
+          className={`dsx__tool${checklist && checklist.requiredTotal > 0 && checklist.requiredDone < checklist.requiredTotal ? ' dsx__tool--warn' : ''}`}
+          onClick={() => setShowDossier((v) => !v)}
+          title="What this page has to have, and what is still missing"
+        >
+          <ListChecks size={14} aria-hidden />
+          <span>
+            {checklist && checklist.total > 0
+              ? `${checklist.requiredDone}/${checklist.requiredTotal} must-have`
+              : 'Checklist'}
+          </span>
+        </button>
+        <button
+          className={`dsx__tool dsx__tool--status is-${lockRule.tone}`}
+          onClick={() => setShowLifecycle((v) => !v)}
+          title="Status, branching, themes of this layout, and where this design came from"
+        >
+          <GitBranch size={14} aria-hidden />
+          <span>{lockRule.label}</span>
         </button>
         <button
           className={`dsx__tool${doc.theme ? ' is-on' : ''}`}

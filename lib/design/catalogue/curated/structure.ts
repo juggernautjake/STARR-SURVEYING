@@ -47,7 +47,10 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     ],
     props: WITH_TYPE,
     states: [...INTERACTIVE_STATES, 'selected'],
-    size: { default: { w: 400, h: 44 }, resize: 'both' },
+    // 40, not 44: measured on /admin/hours-approval, where every `.tl-tabs` row is exactly 40px
+    // tall. The 4px was a guess, and a guess in a default frame is 4px of drift in every mockup
+    // that places a tab row — see scripts/check-design-fidelity.mjs.
+    size: { default: { w: 400, h: 40 }, resize: 'both' },
     source: [{ file: 'app/admin/styles/AdminTimeLogs.css', line: 142, kind: 'css' }],
     usage: [{ route: '/admin/hours-approval', count: 9 }],
     contract: CONTROL_CONTRACT,
@@ -168,7 +171,7 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     slots: [{ name: 'label', kind: 'text', label: 'Label', default: 'Priority Job' }],
     props: WITH_TYPE,
     states: [...INTERACTIVE_STATES, 'selected'],
-    size: { default: { w: 220, h: 20 }, resize: 'width', contentHeight: true },
+    size: { default: { w: 96, h: 18 }, resize: 'width', contentHeight: true },
     source: [{ file: 'app/admin/styles/AdminJobs.css', line: 546, kind: 'css' }],
     usage: [{ route: '/admin/jobs/new', count: 2 }],
     contract: { minFontPx: 12 },
@@ -435,7 +438,7 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     classes: ['jobs-page__title'],
     slots: [{ name: 'text', kind: 'text', label: 'Title', default: 'All Jobs', stress: 'Equipment cleanup queue' }],
     props: WITH_TYPE,
-    size: { default: { w: 260, h: 28 }, resize: 'width', contentHeight: true },
+    size: { default: { w: 260, h: 24 }, resize: 'width', contentHeight: true },
     anchors: TEXT_ANCHORS,
     source: [{ file: 'app/admin/styles/AdminJobs.css', line: 164, kind: 'css' }],
     usage: [
@@ -465,7 +468,7 @@ export const STRUCTURE_ENTRIES: CatalogueEntry[] = [
     ],
     props: BASIC,
     states: INTERACTIVE_STATES,
-    size: { default: { w: 240, h: 72 }, resize: 'both', min: { w: 140, h: 56 } },
+    size: { default: { w: 240, h: 104 }, resize: 'both', min: { w: 140, h: 56 } },
     source: [{ file: 'app/admin/components/nav/WorkspaceLanding.css', line: 134, kind: 'css' }],
     usage: [{ route: '/admin/work', count: 5 }],
   }),

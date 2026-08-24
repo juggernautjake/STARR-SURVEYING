@@ -12,6 +12,7 @@
 // cannot reason about is one you stop trusting the first time it surprises you.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { fidelityOf, FIDELITY_BADGE } from '@/lib/design/fidelity';
 import { Search, X } from 'lucide-react';
 import { ENTRIES, CATEGORIES, entriesInCategory, populatedCategories } from '@/lib/design/catalogue';
 import type { CategoryId } from '@/lib/design/catalogue/types';
@@ -53,6 +54,26 @@ function Preview({ catalogId }: { catalogId: string }) {
         dangerouslySetInnerHTML={{ __html: html }}
       />
     </div>
+  );
+}
+
+/**
+ * Whether this element has been compared to the real thing, and how it went.
+ *
+ * Phase F5. Deliberately a small mark rather than a banner: it has to be visible on every one of
+ * fifty cards without becoming the loudest thing in the palette. The tooltip carries the detail,
+ * and "never measured" gets a mark of its own rather than looking like a pass — an element nobody
+ * has checked and an element that checks out are indistinguishable on a canvas, which is the whole
+ * problem this exists to solve.
+ */
+function FidelityMark({ entryId }: { entryId: string }) {
+  const note = fidelityOf(entryId);
+  if (note.status === 'verified') return null;   // the good case is the quiet case
+  const badge = FIDELITY_BADGE[note.status];
+  return (
+    <span className={`dsx-pal__fid dsx-pal__fid--${note.status}`} title={note.summary} aria-label={badge.label}>
+      {badge.mark}
+    </span>
   );
 }
 
@@ -210,6 +231,7 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
           >
             <Preview catalogId={hit.entry.id} />
             <span className="dsx-pal__label">{hit.entry.label}</span>
+            <FidelityMark entryId={hit.entry.id} />
             {hit.reasons.length > 0 && <span className="dsx-pal__why">{hit.reasons[0]}</span>}
           </button>
         ))}
@@ -224,11 +246,14 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
                 draggable
                 onDragStart={(e) => { e.dataTransfer.setData('application/x-design-entry', entry.id); e.dataTransfer.effectAllowed = 'copy'; }}
                 onClick={() => onPlace(entry.id)}
-                title={entry.description}
+                title={`${entry.description}
+
+${fidelityOf(entry.id).summary}`}
                 data-testid={`ds-palette-item-${entry.id}`}
               >
                 <Preview catalogId={entry.id} />
                 <span className="dsx-pal__label">{entry.label}</span>
+                <FidelityMark entryId={entry.id} />
                 {entry.usageCount > 0 && <span className="dsx-pal__why">used {entry.usageCount}× in the app</span>}
               </button>
             ))}

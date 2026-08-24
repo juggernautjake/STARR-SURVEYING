@@ -23,6 +23,9 @@
 import { supabaseAdmin } from '@/lib/supabase';
 import type { DesignDocument } from './document';
 import { statusRule, cloneName, type DesignStatus } from './lifecycle';
+// `diffDefaults` lives with the other measurement code rather than here: it is pure, a test has to
+// be able to reach it, and this module cannot be imported without a database client.
+import { diffDefaults, type RetraceChange } from './conformance';
 
 export interface DesignSummary {
   id: string;
@@ -55,6 +58,8 @@ interface MockupRow {
   locked: boolean | null;
   theme_group: string | null;
   theme_id: string | null;
+  theme: DesignDocument['theme'] | null;
+  notes: string | null;
   activated_at: string | null;
   traced_at: string | null;
   version: number;
@@ -79,6 +84,10 @@ function toDocument(row: MockupRow): DesignDocument {
     locked: !!row.locked,
     themeGroup: row.theme_group ?? null,
     themeId: row.theme_id ?? null,
+    // Both of these were edited in the UI and thrown away on save until seed 614 — the columns did
+    // not exist, so the row simply had nowhere to put them. See that seed for the whole story.
+    theme: row.theme ?? null,
+    notes: row.notes ?? undefined,
   } as DesignDocument;
 }
 
@@ -177,6 +186,8 @@ export async function saveMockup(
     route: doc.route,
     variant_of: doc.variantOf ?? null,
     views: doc.views,
+    theme: doc.theme ?? null,
+    notes: doc.notes ?? null,
     // The first writer owns it. A colleague opening and saving a design does not take it over.
     owner_email: (existing?.owner_email as string | undefined) ?? ownerEmail,
     version,
@@ -389,6 +400,10 @@ export async function cloneMockup(
     route: source.route,
     variant_of: source.id,
     views: source.views,
+    // The clone wears what the source wore. A copy that lost its theme would open in the default
+    // palette and read as a different design before anybody had touched it.
+    theme: source.theme ?? null,
+    notes: source.notes ?? null,
     owner_email: actorEmail,
     status: 'draft',
     locked: false,
@@ -435,15 +450,24 @@ export async function writeDefault(
   doc: DesignDocument,
   actorEmail: string,
   now: string,
-): Promise<DesignSummary> {
+): Promise<DesignSummary & { changes: RetraceChange[] }> {
+  // The whole prior row, not just its id: replacing a default is the moment to say what changed,
+  // and after the update the old elements are gone.
   const { data: prior } = await supabaseAdmin
     .from(TABLE)
-    .select('id')
+    .select('*')
     .eq('route', route)
     .eq('status', 'default')
     .is('deleted_at', null)
     .maybeSingle();
+  const previous = prior ? toDocument(prior as unknown as MockupRow) : null;
   if (prior?.id) {
+    // ── A RE-TRACE NEVER TOUCHES A CLONE ────────────────────────────────────────────────────────
+    //
+    // Only the row with `status = 'default'` is replaced. Designs branched FROM it are ordinary
+    // drafts with their own ids and their own lives; the re-trace does not know or care that they
+    // came from here. Said explicitly because "re-tracing the page" sounds like it might reach
+    // everything derived from it, and somebody's afternoon depends on it not doing that.
     await supabaseAdmin.from(TABLE).update({ deleted_at: now }).eq('id', prior.id as string);
   }
 
@@ -464,5 +488,149 @@ export async function writeDefault(
   };
   const { error } = await supabaseAdmin.from(TABLE).insert(insert);
   if (error) throw new Error(error.message);
-  return summarise(insert as unknown as MockupRow);
+  return {
+    ...summarise(insert as unknown as MockupRow),
+    changes: diffDefaults(previous, { ...doc, views: doc.views } as DesignDocument),
+  };
+}
+
+// ── LINEAGE AND THEME FAMILIES ──────────────────────────────────────────────────────────────────
+//
+// Phases B3 + K3 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
+//
+// Owner: *"we need to be able to link the page designs together to mark them as alternative themes
+// for each other"*, and — on branching — *"if we make an alternative of the page, then it will
+// create a new version that looks the same that we can then edit."*
+//
+// Two different relationships, deliberately not merged:
+//
+//   `variant_of`  WHERE THIS CAME FROM. A history. It never changes after the clone.
+//   `theme_group` WHAT THIS IS THE SAME LAYOUT AS. A membership. It can be joined and left.
+//
+// Collapsing them into one field is tempting and wrong: a design branched to try a different layout
+// shares a parent with its source but is emphatically not a theme of it, and a design linked into a
+// theme family later never came from its siblings at all.
+
+export interface DesignRelations {
+  design: DesignSummary;
+  /** The design this was branched from, if it still exists. */
+  parent: DesignSummary | null;
+  /** Designs branched from this one. */
+  children: DesignSummary[];
+  /** The same layout in other themes — this design's theme family, excluding itself. */
+  themeSiblings: DesignSummary[];
+  /** Everything else that names the same route, whatever its lineage. */
+  routeSiblings: DesignSummary[];
+}
+
+const SUMMARY_COLS = 'id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email';
+
+export async function designRelations(id: string): Promise<DesignRelations | null> {
+  const { data: row, error } = await supabaseAdmin
+    .from(TABLE).select(SUMMARY_COLS).eq('id', id).is('deleted_at', null).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) return null;
+  const self = summarise(row as unknown as MockupRow);
+
+  const [parentRes, childrenRes, familyRes, routeRes] = await Promise.all([
+    self.variantOf
+      ? supabaseAdmin.from(TABLE).select(SUMMARY_COLS).eq('id', self.variantOf).is('deleted_at', null).maybeSingle()
+      : Promise.resolve({ data: null }),
+    supabaseAdmin.from(TABLE).select(SUMMARY_COLS).eq('variant_of', id).is('deleted_at', null),
+    self.themeGroup
+      ? supabaseAdmin.from(TABLE).select(SUMMARY_COLS).eq('theme_group', self.themeGroup).is('deleted_at', null)
+      : Promise.resolve({ data: [] }),
+    self.route
+      ? supabaseAdmin.from(TABLE).select(SUMMARY_COLS).eq('route', self.route).is('deleted_at', null)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const map = (data: unknown) => ((data ?? []) as unknown as MockupRow[]).map(summarise);
+  const family = map(familyRes.data).filter((d) => d.id !== id);
+  const familyIds = new Set([id, ...family.map((d) => d.id)]);
+
+  return {
+    design: self,
+    parent: parentRes.data ? summarise(parentRes.data as unknown as MockupRow) : null,
+    children: map(childrenRes.data),
+    themeSiblings: family,
+    // The route list is what is LEFT: showing a theme sibling twice, once as family and once as
+    // "also for this page", makes two relationships look like four designs.
+    routeSiblings: map(routeRes.data).filter((d) => !familyIds.has(d.id)),
+  };
+}
+
+/**
+ * Join a design to a theme family, or take it out of one.
+ *
+ * Joining by naming ANOTHER design: `groupWith` is a design id, and the family is that design's
+ * group — created from its id if it did not have one, so the family is always named after a real
+ * layout rather than after a generated token nobody can trace back to anything.
+ *
+ * The elements are never touched. That is the whole point of a theme family: *"a theme sibling
+ * shares elements, not copies of them"* — changing colours must never mean rebuilding the page.
+ */
+export async function setThemeGroup(
+  id: string,
+  groupWith: string | null,
+  now: string,
+): Promise<{ design: DesignSummary; group: string | null }> {
+  const { data: row, error } = await supabaseAdmin
+    .from(TABLE).select('id, route, theme_group').eq('id', id).is('deleted_at', null).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!row) throw new Error('That design does not exist.');
+
+  if (!groupWith) {
+    const { error: unlinkError } = await supabaseAdmin
+      .from(TABLE).update({ theme_group: null, updated_at: now }).eq('id', id);
+    if (unlinkError) throw new Error(unlinkError.message);
+    const { data: after } = await supabaseAdmin.from(TABLE).select(SUMMARY_COLS).eq('id', id).maybeSingle();
+    return { design: summarise(after as unknown as MockupRow), group: null };
+  }
+
+  if (groupWith === id) throw new Error('A design is already the same layout as itself.');
+
+  const { data: target } = await supabaseAdmin
+    .from(TABLE).select('id, route, theme_group').eq('id', groupWith).is('deleted_at', null).maybeSingle();
+  if (!target) throw new Error('The design to link with does not exist.');
+  // Two designs for different pages are not two themes of one layout, whatever their contents look
+  // like — and a family that spans routes would make "this page's themes" unanswerable.
+  if ((target as { route: string | null }).route !== (row as { route: string | null }).route) {
+    throw new Error('Those designs are for different pages, so they cannot be themes of each other.');
+  }
+
+  const group = (target as { theme_group: string | null }).theme_group ?? (target as { id: string }).id;
+  if (!(target as { theme_group: string | null }).theme_group) {
+    await supabaseAdmin.from(TABLE).update({ theme_group: group }).eq('id', groupWith);
+  }
+  const { error: linkError } = await supabaseAdmin
+    .from(TABLE).update({ theme_group: group, updated_at: now }).eq('id', id);
+  if (linkError) throw new Error(linkError.message);
+
+  const { data: after } = await supabaseAdmin.from(TABLE).select(SUMMARY_COLS).eq('id', id).maybeSingle();
+  return { design: summarise(after as unknown as MockupRow), group };
+}
+
+/**
+ * Give a design a different theme without touching a single element.
+ *
+ * Phase K2. The elements stay exactly where they are; only `theme` — the embedded token map the
+ * artboard reads — is replaced. This is the function that makes the promise in §6 true: *"a theme
+ * sibling shares elements, not copies of them. Otherwise 'change the colours' becomes 'rebuild the
+ * page'."*
+ */
+export async function retheme(
+  id: string,
+  theme: { id: string; name: string; tokens: Record<string, string>; paletteId?: string | null } | null,
+  email: string,
+  now: string,
+): Promise<DesignDocument> {
+  const current = await getMockup(id);
+  if (!current) throw new Error('That design does not exist.');
+  return saveMockup(
+    { ...current, theme, themeId: theme?.id ?? null },
+    email,
+    now,
+    theme ? `re-themed as “${theme.name}”` : 'theme removed',
+  );
 }
