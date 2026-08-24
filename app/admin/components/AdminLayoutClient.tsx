@@ -221,6 +221,9 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   const role = session.user.role || 'employee';
   const roles = session.user.roles || [role];
+  // Only the EDITOR, not the designs list: the list is an ordinary page and the dock belongs on it.
+  // Only the EDITOR, not the designs list: the list is an ordinary page and the dock belongs on it.
+  const isPageDesigner = pathname.startsWith('/admin/design/') && pathname.split('/').length === 4;
   const pageTitle = getTitle(pathname);
 
   return (
@@ -262,13 +265,21 @@ function Inner({ children }: { children: React.ReactNode }) {
             </ErrorBoundary>
           </div>
         </div>
-        <FloatingActionMenu>
-          <FloatingMessenger />
-          <DiscussionThreadButton />
-          <Fieldbook />
-          <CalculatorFab />
-          <AssistantDock />
-        </FloatingActionMenu>
+        {/* ── THE FLOATING DOCK IS A TOOL EVERYWHERE EXCEPT ON A CANVAS ─────────────────────────
+          * It is `position: fixed` at the bottom right of every admin page, which is empty
+          * background on all of them but one. In the Page Designer that corner is the bottom of the
+          * properties column, so the dock sat on top of the Appearance swatches and the layer list
+          * — controls you cannot click rather than ones you cannot see, which is the worse kind of
+          * hidden. The designer has its own toolset and does not want a second floating one. */}
+        {!isPageDesigner && (
+          <FloatingActionMenu>
+            <FloatingMessenger />
+            <DiscussionThreadButton />
+            <Fieldbook />
+            <CalculatorFab />
+            <AssistantDock />
+          </FloatingActionMenu>
+        )}
       </div>
       </AssistantProvider>
       </CalculatorProvider>

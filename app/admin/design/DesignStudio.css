@@ -1003,3 +1003,48 @@
   font-size: 0.82rem;
   background: var(--theme-bg-surface, #fff);
 }
+
+/* ── ONE RIGHT COLUMN, AND BOTH SIDES CAN GET OUT OF THE WAY ─────────────────────────────────────
+ *
+ * Owner: *"the editor really fits in the browser window. In the right side of the page it seems
+ * like elements are going off of the screen when the window scale is just at 100%."*
+ *
+ * What was actually happening, measured at 1152px — a 1440p screen at Windows' 125% display
+ * scaling, which is what "100% zoom" means for most people:
+ *
+ *     admin rail  48   palette 268   canvas 383   inspector 288   layers 165   = 1152
+ *
+ * Nothing was past the right edge, which is why the first version of the fit check passed with a
+ * clean bill of health. The thing being cut off was the DESIGN: a 1440px artboard at 75% is 1080px
+ * wide, in a 383px canvas. The chrome fitted; the work did not.
+ *
+ * Three changes. The inspector and the layer list share one column instead of being two siblings of
+ * the canvas (+165px). Both side columns collapse. And the zoom fits the artboard to the canvas on
+ * open instead of assuming 75%. */
+.dsx__right {
+  width: 300px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--color-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+}
+/* The inspector no longer sets its own width or border: it is inside the column now, and a second
+ * border would draw a line down the middle of one panel. */
+.dsx__right .dsx-ins { width: auto; flex: 1 1 auto; border-left: none; }
+.dsx__right--closed { display: none; }
+
+.dsx__panes { display: inline-flex; align-items: center; gap: 0.3rem; margin-left: 0.5rem; padding-left: 0.6rem; border-left: 1px solid var(--color-border, #E5E7EB); }
+
+/* ── THE FLOATING DOCK COVERS THE INSPECTOR ──────────────────────────────────────────────────────
+ *
+ * The calculator/tools pill is `position: fixed` at the bottom right of every admin page. On every
+ * other page it floats over empty background; on this one it sits directly on top of the bottom of
+ * the properties panel — the Appearance swatches were underneath it, which is a control you cannot
+ * click rather than one you cannot see. The panel keeps its own clearance so the dock has somewhere
+ * to be. */
+/* The layer list keeps its own room. With the inspector on flex:1 it took everything and pushed
+ * the layers off the bottom of the window — visible as a LAYERS heading with nothing under it. */
+.dsx__right .dsx-ins { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.dsx__right .dsx-lay { flex: 0 0 auto; min-height: 132px; max-height: 42%; }

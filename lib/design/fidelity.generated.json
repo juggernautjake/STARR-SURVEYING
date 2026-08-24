@@ -1,0 +1,877 @@
+{
+  "measuredAt": "2026-08-24T00:25:45.004Z",
+  "base": "http://127.0.0.1:3014",
+  "routesWalked": 140,
+  "tolerancePx": 3,
+  "summary": {
+    "verified": 11,
+    "differs": 20,
+    "notSeen": 24
+  },
+  "entries": {
+    "button.admin": {
+      "signature": "admin-btn admin-btn--primary",
+      "route": "/admin/learn/exam-prep/sit/mock-exam",
+      "status": "differs",
+      "height": {
+        "editor": 40,
+        "page": 62.1
+      },
+      "frame": {
+        "w": 160,
+        "h": 40
+      },
+      "widthComparable": true,
+      "diffs": [
+        {
+          "what": "fontSize",
+          "editor": "13.6px",
+          "page": "17.6px"
+        },
+        {
+          "what": "height",
+          "editor": 40,
+          "page": 62.1
+        },
+        {
+          "what": "width",
+          "editor": 160,
+          "page": 197.4
+        },
+        {
+          "what": "default frame height",
+          "editor": 40,
+          "page": 62.1
+        }
+      ]
+    },
+    "button.page": {
+      "signature": "jobs-page__btn jobs-page__btn--secondary",
+      "route": "/admin/jobs",
+      "status": "differs",
+      "height": {
+        "editor": 40,
+        "page": 39.8
+      },
+      "frame": {
+        "w": 140,
+        "h": 40
+      },
+      "widthComparable": true,
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 140,
+          "page": 107.2
+        }
+      ]
+    },
+    "button.header-action": {
+      "signature": "job-detail__action job-detail__action--ghost",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "button.link": {
+      "signature": "learn__back",
+      "route": "/admin/jobs/new",
+      "status": "differs",
+      "height": {
+        "editor": 21,
+        "page": 20
+      },
+      "frame": {
+        "w": 140,
+        "h": 26
+      },
+      "widthComparable": true,
+      "diffs": [
+        {
+          "what": "fontSize",
+          "editor": "13.12px",
+          "page": "16px"
+        },
+        {
+          "what": "fontWeight",
+          "editor": "500",
+          "page": "600"
+        },
+        {
+          "what": "width",
+          "editor": 140,
+          "page": 117.1
+        },
+        {
+          "what": "default frame height",
+          "editor": 26,
+          "page": 20
+        }
+      ]
+    },
+    "button.icon": {
+      "signature": "fx__icon-btn",
+      "route": "/admin/files",
+      "status": "differs",
+      "height": {
+        "editor": 40,
+        "page": 32
+      },
+      "frame": {
+        "w": 40,
+        "h": 40
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "color",
+          "editor": "rgb(15, 20, 25)",
+          "page": "rgb(107, 114, 128)"
+        },
+        {
+          "what": "borderTopColor",
+          "editor": "rgb(229, 231, 235)",
+          "page": "rgb(107, 114, 128)"
+        },
+        {
+          "what": "borderTopLeftRadius",
+          "editor": "0px",
+          "page": "8px"
+        },
+        {
+          "what": "height",
+          "editor": 40,
+          "page": 32
+        },
+        {
+          "what": "default frame height",
+          "editor": 40,
+          "page": 32
+        }
+      ]
+    },
+    "text.page-title": {
+      "signature": "job-detail__name",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "text.section-title": {
+      "signature": "job-form__section-title",
+      "route": "/admin/jobs/new",
+      "status": "differs",
+      "height": {
+        "editor": 18.2,
+        "page": 18.2
+      },
+      "frame": {
+        "w": 240,
+        "h": 22
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "color",
+          "editor": "rgb(55, 65, 81)",
+          "page": "rgb(71, 85, 105)"
+        },
+        {
+          "what": "default frame height",
+          "editor": 22,
+          "page": 18.2
+        }
+      ]
+    },
+    "text.body": {
+      "signature": "ds-text-body",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "text.caption": {
+      "signature": "job-detail__meta",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "input.text": {
+      "signature": "job-form__field",
+      "route": "/admin/jobs/new",
+      "status": "verified",
+      "height": {
+        "editor": 64.5,
+        "page": 64.5
+      },
+      "frame": {
+        "w": 260,
+        "h": 64
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "input.date": {
+      "signature": "job-form__field",
+      "route": "/admin/jobs/new",
+      "status": "verified",
+      "height": {
+        "editor": 64.5,
+        "page": 64.5
+      },
+      "frame": {
+        "w": 260,
+        "h": 64
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "input.textarea": {
+      "signature": "job-form__field",
+      "route": "/admin/jobs/new",
+      "status": "verified",
+      "height": {
+        "editor": 64.5,
+        "page": 64.5
+      },
+      "frame": {
+        "w": 260,
+        "h": 64
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "select.dropdown": {
+      "signature": "job-form__field",
+      "route": "/admin/jobs/new",
+      "status": "verified",
+      "height": {
+        "editor": 64.5,
+        "page": 64.5
+      },
+      "frame": {
+        "w": 260,
+        "h": 64
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "card.basic": {
+      "signature": "admin-card",
+      "route": "/admin/learn/flashcards/create",
+      "status": "differs",
+      "height": {
+        "editor": 200,
+        "page": 598
+      },
+      "frame": {
+        "w": 400,
+        "h": 200
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 200,
+          "page": 598
+        },
+        {
+          "what": "default frame height",
+          "editor": 200,
+          "page": 598
+        }
+      ]
+    },
+    "feedback.empty": {
+      "signature": "admin-empty",
+      "route": "/admin/discussions",
+      "status": "differs",
+      "height": {
+        "editor": 220,
+        "page": 245
+      },
+      "frame": {
+        "w": 480,
+        "h": 220
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "backgroundColor",
+          "editor": "rgb(250, 251, 255)",
+          "page": "rgb(255, 255, 255)"
+        },
+        {
+          "what": "borderTopWidth",
+          "editor": "2px",
+          "page": "1px"
+        },
+        {
+          "what": "borderTopColor",
+          "editor": "rgb(229, 231, 235)",
+          "page": "rgb(209, 213, 219)"
+        },
+        {
+          "what": "borderTopLeftRadius",
+          "editor": "12px",
+          "page": "10px"
+        },
+        {
+          "what": "height",
+          "editor": 220,
+          "page": 245
+        },
+        {
+          "what": "default frame height",
+          "editor": 220,
+          "page": 245
+        }
+      ]
+    },
+    "layout.table-wrap": {
+      "signature": "admin-table-wrap",
+      "route": "/admin/audit",
+      "status": "differs",
+      "height": {
+        "editor": 160,
+        "page": 307
+      },
+      "frame": {
+        "w": 640,
+        "h": 160
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 160,
+          "page": 307
+        },
+        {
+          "what": "default frame height",
+          "editor": 160,
+          "page": 307
+        }
+      ]
+    },
+    "layout.toolbar": {
+      "signature": "ds-toolbar",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "shape.rectangle": {
+      "signature": "ds-shape ds-shape--rect",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "shape.ellipse": {
+      "signature": "ds-shape ds-shape--rect",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "shape.line": {
+      "signature": "ds-shape ds-shape--rect",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "shape.text": {
+      "signature": "ds-shape ds-shape--rect",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "shape.sticky": {
+      "signature": "ds-shape ds-shape--rect",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "shape.arrow": {
+      "signature": "ds-shape ds-shape--rect",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "tag.stage": {
+      "signature": "job-detail__stage-badge",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "tag.chip": {
+      "signature": "job-card__tag",
+      "route": "/admin/jobs",
+      "status": "differs",
+      "height": {
+        "editor": 18.2,
+        "page": 22.4
+      },
+      "frame": {
+        "w": 88,
+        "h": 26
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 18.2,
+          "page": 22.4
+        },
+        {
+          "what": "default frame height",
+          "editor": 26,
+          "page": 22.4
+        }
+      ]
+    },
+    "tag.deadline": {
+      "signature": "job-card__deadline",
+      "route": "/admin/jobs",
+      "status": "verified",
+      "height": {
+        "editor": 17.9,
+        "page": 17.9
+      },
+      "frame": {
+        "w": 130,
+        "h": 18
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "nav.stage-step": {
+      "signature": "job-timeline__setrow",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "text.timestamp": {
+      "signature": "job-detail__meta",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "toggle.status-chip": {
+      "signature": "tl-status-chip",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "nav.tabs": {
+      "signature": "tl-tabs",
+      "route": "/admin/hours-approval",
+      "status": "differs",
+      "height": {
+        "editor": 44,
+        "page": 40
+      },
+      "frame": {
+        "w": 400,
+        "h": 44
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 44,
+          "page": 40
+        },
+        {
+          "what": "default frame height",
+          "editor": 44,
+          "page": 40
+        }
+      ]
+    },
+    "nav.breadcrumb": {
+      "signature": "admin-page-header__trail",
+      "route": "/admin/jobs",
+      "status": "verified",
+      "height": {
+        "editor": 25.6,
+        "page": 24
+      },
+      "frame": {
+        "w": 340,
+        "h": 26
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "overlay.dialog": {
+      "signature": "admin-card",
+      "route": "/admin/learn/flashcards/create",
+      "status": "differs",
+      "height": {
+        "editor": 200,
+        "page": 598
+      },
+      "frame": {
+        "w": 400,
+        "h": 200
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 200,
+          "page": 598
+        },
+        {
+          "what": "default frame height",
+          "editor": 200,
+          "page": 598
+        }
+      ]
+    },
+    "toggle.switch": {
+      "signature": "ds-switch",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "toggle.checkbox": {
+      "signature": "job-form__checkbox-label",
+      "route": "/admin/jobs/new",
+      "status": "differs",
+      "height": {
+        "editor": 17.1,
+        "page": 17.1
+      },
+      "frame": {
+        "w": 220,
+        "h": 26
+      },
+      "widthComparable": true,
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 220,
+          "page": 94
+        },
+        {
+          "what": "default frame height",
+          "editor": 26,
+          "page": 17.1
+        }
+      ]
+    },
+    "media.avatar": {
+      "signature": "ds-avatar",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "media.file-row": {
+      "signature": "ds-file-row",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "feedback.skeleton": {
+      "signature": "ds-skeleton",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "feedback.banner": {
+      "signature": "ds-banner",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "feedback.toast": {
+      "signature": "notif-toast",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "card.stat": {
+      "signature": "job-detail__stat",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "nav.back-link": {
+      "signature": "admin-page-header__back",
+      "route": "/admin/jobs",
+      "status": "verified",
+      "height": {
+        "editor": 26,
+        "page": 26
+      },
+      "frame": {
+        "w": 110,
+        "h": 26
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "button.pin": {
+      "signature": "admin-page-header__star",
+      "route": "/admin/jobs",
+      "status": "verified",
+      "height": {
+        "editor": 40,
+        "page": 40
+      },
+      "frame": {
+        "w": 40,
+        "h": 40
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "text.hub-title": {
+      "signature": "learn__title",
+      "route": "/admin/learn/fieldbook",
+      "status": "verified",
+      "height": {
+        "editor": 28.8,
+        "page": 28.8
+      },
+      "frame": {
+        "w": 420,
+        "h": 30
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "text.hub-subtitle": {
+      "signature": "learn__subtitle",
+      "route": "/admin/learn/fieldbook",
+      "status": "verified",
+      "height": {
+        "editor": 25.9,
+        "page": 25.9
+      },
+      "frame": {
+        "w": 420,
+        "h": 26
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "text.list-title": {
+      "signature": "jobs-page__title",
+      "route": "/admin/jobs",
+      "status": "differs",
+      "height": {
+        "editor": 24,
+        "page": 24
+      },
+      "frame": {
+        "w": 260,
+        "h": 28
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "default frame height",
+          "editor": 28,
+          "page": 24
+        }
+      ]
+    },
+    "card.workspace-tile": {
+      "signature": "ws-landing__card",
+      "route": "/admin/work",
+      "status": "differs",
+      "height": {
+        "editor": 72,
+        "page": 101.6
+      },
+      "frame": {
+        "w": 240,
+        "h": 72
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 72,
+          "page": 101.6
+        },
+        {
+          "what": "default frame height",
+          "editor": 72,
+          "page": 101.6
+        }
+      ]
+    },
+    "tag.role": {
+      "signature": "um-role-badge um-role-badge--admin",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "tag.account-status": {
+      "signature": "emp-card__status emp-card__status--active",
+      "route": "/admin/employees",
+      "status": "differs",
+      "height": {
+        "editor": 17.8,
+        "page": 21.7
+      },
+      "frame": {
+        "w": 64,
+        "h": 26
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 17.8,
+          "page": 21.7
+        },
+        {
+          "what": "default frame height",
+          "editor": 26,
+          "page": 21.7
+        }
+      ]
+    },
+    "tag.progress-status": {
+      "signature": "assign__status assign__status--pending",
+      "status": "not-seen",
+      "route": null,
+      "why": "no admin route rendered this exact class signature while the check ran"
+    },
+    "tag.title-chip": {
+      "signature": "emp-card__title-chip",
+      "route": "/admin/employees",
+      "status": "differs",
+      "height": {
+        "editor": 16.8,
+        "page": 20.7
+      },
+      "frame": {
+        "w": 88,
+        "h": 26
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 16.8,
+          "page": 20.7
+        },
+        {
+          "what": "default frame height",
+          "editor": 26,
+          "page": 20.7
+        }
+      ]
+    },
+    "nav.workspace-header": {
+      "signature": "ws-landing__header",
+      "route": "/admin/work",
+      "status": "differs",
+      "height": {
+        "editor": 44,
+        "page": 37.6
+      },
+      "frame": {
+        "w": 420,
+        "h": 44
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 44,
+          "page": 37.6
+        },
+        {
+          "what": "default frame height",
+          "editor": 44,
+          "page": 37.6
+        }
+      ]
+    },
+    "nav.workspace-stat": {
+      "signature": "ws-landing__stat",
+      "route": "/admin/work",
+      "status": "verified",
+      "height": {
+        "editor": 66,
+        "page": 68.6
+      },
+      "frame": {
+        "w": 132,
+        "h": 66
+      },
+      "widthComparable": false,
+      "diffs": []
+    },
+    "text.workspace-subtitle": {
+      "signature": "ws-landing__subtitle",
+      "route": "/admin/work",
+      "status": "differs",
+      "height": {
+        "editor": 22,
+        "page": 25.9
+      },
+      "frame": {
+        "w": 480,
+        "h": 22
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 22,
+          "page": 25.9
+        },
+        {
+          "what": "default frame height",
+          "editor": 22,
+          "page": 25.9
+        }
+      ]
+    },
+    "text.record-count": {
+      "signature": "jobs-page__count",
+      "route": "/admin/jobs",
+      "status": "differs",
+      "height": {
+        "editor": 16,
+        "page": 21.8
+      },
+      "frame": {
+        "w": 96,
+        "h": 22
+      },
+      "widthComparable": false,
+      "diffs": [
+        {
+          "what": "height",
+          "editor": 16,
+          "page": 21.8
+        }
+      ]
+    },
+    "nav.back-inline": {
+      "signature": "admin-module-detail__back",
+      "route": "/admin/learn/exam-prep",
+      "status": "differs",
+      "height": {
+        "editor": 24,
+        "page": 21
+      },
+      "frame": {
+        "w": 200,
+        "h": 24
+      },
+      "widthComparable": true,
+      "diffs": [
+        {
+          "what": "width",
+          "editor": 200,
+          "page": 151.3
+        }
+      ]
+    }
+  }
+}

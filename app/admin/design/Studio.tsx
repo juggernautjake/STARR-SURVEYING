@@ -24,7 +24,7 @@
 //    against `lib/design/snap.ts`, which is tested.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote, Palette as PaletteIcon } from 'lucide-react';
+import { Save, Download, Undo2, Redo2, Grid3x3, Magnet, Ruler, Trash2, Copy, Monitor, Smartphone, ZoomIn, ZoomOut, ArrowUp, ArrowDown, Eye, EyeOff, Lock, Unlock, ChevronLeft, ShieldCheck, MousePointer2, Pencil, StickyNote, Palette as PaletteIcon, Maximize2, PanelLeft, PanelRight } from 'lucide-react';
 import Link from 'next/link';
 import {
   type DesignDocument, type DesignElement, type ViewId,
@@ -99,16 +99,66 @@ export default function Studio({ initial }: Props) {
   const [viewId, setViewId] = useState<ViewId>('desktop');
   const [selection, setSelection] = useState<string[]>([]);
   const [zoom, setZoom] = useState(0.75);
+  // ── THE TWO SIDE COLUMNS CAN GET OUT OF THE WAY ────────────────────────────────────────────────
+  //
+  // Open by default because they are how you work, collapsible because sometimes you want to LOOK
+  // at what you have made. On a narrow window the palette starts closed: at 1152px with everything
+  // open the artboard gets under 400px, and a design you cannot see is worse than a palette you
+  // have to click to open.
+  const [paletteOpen, setPaletteOpen] = useState(true);
+  const [rightOpen, setRightOpen] = useState(true);
+  const [fitNonce, setFitNonce] = useState(0);
   const [guides, setGuides] = useState<Guide[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [drag, setDrag] = useState<DragState>(null);
   const artboardRef = useRef<HTMLDivElement | null>(null);
   const dragRef = useRef<DragState>(null);
 
+  const canvasRef = useRef<HTMLElement | null>(null);
+
   const view = doc.views[viewId];
   const settings = view.settings;
   const selected = view.elements.filter((el) => selection.includes(el.id));
   const single = selected.length === 1 ? selected[0] : null;
+
+  // ── ZOOM THAT STARTS BY SHOWING YOU THE WHOLE PAGE ───────────────────────────────────────────
+  //
+  // The zoom used to open at a hard-coded 75%, which is right on one window size and wrong on every
+  // other. On a 1152px window that put a 1080px-wide artboard into a 383px canvas: the design was
+  // there, correct, and three-quarters off screen — which is what "elements are going off the
+  // screen" turned out to mean.
+  //
+  // Fitting runs on mount, when the viewport or the panels change the space available, and when the
+  // Fit button is pressed. It never zooms past 1:1 — blowing a 1440px mockup up to 160% on a wide
+  // monitor would make every measurement in the editor a lie about production.
+  const fitToWindow = useCallback(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const padding = 64;                       // the canvas's own 32px on each side
+    const available = el.clientWidth - padding;
+    if (available <= 0) return;
+    const next = Math.min(1, Math.max(0.25, Math.floor((available / view.width) * 100) / 100));
+    setZoom(next);
+  }, [view.width]);
+
+  useEffect(() => { fitToWindow(); }, [fitToWindow, fitNonce, paletteOpen, rightOpen, viewId]);
+
+  useEffect(() => {
+    // A resize handler rather than a one-off: people drag windows, open dev tools, and dock the
+    // browser to half the screen, and every one of those changes the answer.
+    const onResize = () => fitToWindow();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [fitToWindow]);
+
+  // On a narrow window the palette would leave the artboard nothing, so it starts closed there.
+  // Once only: re-deciding this on every resize would fight the user every time they dragged.
+  const decidedInitialPanes = useRef(false);
+  useEffect(() => {
+    if (decidedInitialPanes.current) return;
+    decidedInitialPanes.current = true;
+    if (typeof window !== 'undefined' && window.innerWidth < 1200) setPaletteOpen(false);
+  }, []);
 
   // ── AUTOSAVE ─────────────────────────────────────────────────────────────────────────────────
   //
@@ -652,6 +702,31 @@ export default function Studio({ initial }: Props) {
               {Math.round(zoom * 100)}%
             </button>
             <button className="dsx__tool" onClick={() => setZoom((z) => Math.min(2, Math.round((z + 0.1) * 100) / 100))} aria-label="Zoom in"><ZoomIn size={15} /></button>
+            <button className="dsx__tool" onClick={() => setFitNonce((n) => n + 1)} title="Fit the whole artboard in the window">
+              <Maximize2 size={15} aria-hidden /> Fit
+            </button>
+          </span>
+          {/* ── Get the panels out of the way ─────────────────────────────────────────────────
+            * Two toggles rather than one "focus mode", because the two sides are wanted at
+            * different times: the palette while you are placing, the inspector while you are
+            * tuning. Both closed is a perfectly good state — it is how you look at the design. */}
+          <span className="dsx__panes">
+            <button
+              className={`dsx__tool${paletteOpen ? ' is-on' : ''}`}
+              onClick={() => setPaletteOpen((v) => !v)}
+              title={paletteOpen ? 'Hide the element palette' : 'Show the element palette'}
+              aria-pressed={paletteOpen}
+            >
+              <PanelLeft size={15} aria-hidden /> Palette
+            </button>
+            <button
+              className={`dsx__tool${rightOpen ? ' is-on' : ''}`}
+              onClick={() => setRightOpen((v) => !v)}
+              title={rightOpen ? 'Hide properties and layers' : 'Show properties and layers'}
+              aria-pressed={rightOpen}
+            >
+              <PanelRight size={15} aria-hidden /> Properties
+            </button>
           </span>
         </div>
 
@@ -754,10 +829,10 @@ export default function Studio({ initial }: Props) {
       </header>
 
       <div className="dsx__body">
-        <Palette onPlace={place} onPlaceCharacter={placeCharacter} viewId={viewId} />
+        {paletteOpen && <Palette onPlace={place} onPlaceCharacter={placeCharacter} viewId={viewId} />}
 
         {/* ── Canvas ────────────────────────────────────────────────────────────────────────── */}
-        <main className="dsx__canvas" onPointerDown={() => setSelection([])}>
+        <main className="dsx__canvas" ref={canvasRef} onPointerDown={() => setSelection([])}>
           <div className="dsx__stage" style={{ width: view.width * zoom, height: height * zoom }}>
             <div
               ref={artboardRef}
@@ -866,7 +941,15 @@ export default function Studio({ initial }: Props) {
           </div>
         </main>
 
-        <Inspector
+        {/* ── ONE RIGHT COLUMN, NOT TWO ────────────────────────────────────────────────────────
+          * The inspector (288px) and the layer list (~165px) used to be siblings of the canvas, so
+          * the chrome ate 268 + 288 + 165 = 721px before the artboard got anything. Measured on a
+          * 1152px window — a 1440p screen at Windows' 125% scaling, which is what "100% zoom"
+          * actually means for most people — that left the canvas 383px to show a 1440px artboard.
+          * Nothing was off the right EDGE, which is why the first fit check passed; the design was
+          * what was cut off. They share one column now. */}
+        <div className={`dsx__right${rightOpen ? '' : ' dsx__right--closed'}`}>
+          <Inspector
           element={single}
           entry={single?.catalogId ? getEntry(single.catalogId) : undefined}
           count={selected.length}
@@ -878,9 +961,6 @@ export default function Studio({ initial }: Props) {
           onOrder={(dir) => patchView((v) => reorder(v, selection, dir))}
         />
 
-        {/* The right column carries the inspector AND the layer list: the inspector edits what is
-          * selected, the layers panel is how you select something that is buried. */}
-        <div className="dsx__right">
           <Layers
             elements={view.elements}
             selection={selection}
