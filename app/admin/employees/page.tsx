@@ -7,6 +7,7 @@ import { Search, Users } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import type { UserRole } from '@/lib/auth-roles';
 import { matchesPersonPrefix } from '@/lib/admin/employee-search';
+import { chipInk } from '@/lib/admin/color-alpha';
 // employee-pond Slice E1 — alternative viewer behind a view toggle.
 import EmployeePond from './EmployeePond';
 import '../styles/EmployeePond.css';
@@ -302,7 +303,7 @@ export default function EmployeesPage() {
                       <span
                         key={r}
                         className="emp-card__role-chip"
-                        style={{ background: (ROLE_COLORS[r] || '#6B7280') + '18', color: ROLE_COLORS[r] || '#6B7280' }}
+                        style={{ background: (ROLE_COLORS[r] || '#6B7280') + '18', color: chipInk(ROLE_COLORS[r] || '#6B7280') }}
                       >
                         {ROLE_LABELS[r as UserRole] || r}
                       </span>

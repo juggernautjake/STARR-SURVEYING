@@ -34,7 +34,7 @@ export interface ConformanceOptions {
   sizeTolerancePx?: number;
 }
 
-export type FindingKind = 'missing' | 'extra' | 'moved' | 'resized';
+export type FindingKind = 'missing' | 'extra' | 'moved' | 'resized' | 'shifted';
 
 export interface ConformanceFinding {
   kind: FindingKind;
@@ -75,16 +75,46 @@ export interface ConformanceReport {
   measuredAt: string;
 }
 
+/**
+ * The one rule both sides answer to.
+ *
+ * There used to be two, and they disagreed. The page picked the BEM child class — the one with
+ * `__` in it — while the design took whichever class happened to be written first in the markup.
+ * For `class="team-page team-page__card"` that is `.team-page__card` on one side and `.team-page`
+ * on the other: the same element, counted as one thing missing and one thing extra. Pages whose
+ * elements led with their block class scored in single digits — `/admin/team` came out at 7%
+ * minutes after being traced from the very page it was being compared against — and pages whose
+ * markup happened to put the `__` class first scored 100%. The score was measuring class-attribute
+ * ORDER.
+ *
+ * Written once, exported, and used by every caller, because two copies of a matching rule is how
+ * this happened.
+ */
+export function classSignature(classes: string[]): string | null {
+  const meaningful = classes.filter((c) => !/^(is-|has-|jsx-)/.test(c) && c.length > 2);
+  const base = meaningful.find((c) => c.includes('__')) ?? meaningful[0];
+  return base ? `.${base.split('--')[0]}` : null;
+}
+
 /** The class signature an element claims. Null when nothing on it can be matched. */
 export function signatureOfElement(el: DesignElement, entries: Map<string, CatalogueEntry>): string | null {
   if (el.importedFrom) {
-    const first = el.importedFrom.split(/\s+/).filter(Boolean)[0];
-    if (first) return `.${first.split('--')[0]}`;
+    // `importedFrom` is the node's class attribute verbatim — or its TAG when the node had no
+    // classes at all (`lib/design/import.ts`: `classes.join(' ') || tag`). Both cases go through
+    // the same two steps the page side uses, in the same order, so the two can only ever agree:
+    // a class if there is a usable one, the tag otherwise.
+    //
+    // The ambiguity that remains is a node whose only classes are one or two characters long —
+    // `classSignature` discards those as noise, and this side cannot then tell them from a tag.
+    // No class in this codebase is that short; if one ever is, that element will be reported
+    // missing, which is the safe direction to be wrong in.
+    const raw = el.importedFrom.split(/\s+/).filter(Boolean);
+    return classSignature(raw) ?? (raw.length === 1 ? `.${raw[0]}` : null);
   }
   if (el.catalogId) {
     const entry = entries.get(el.catalogId);
-    const cls = entry?.classes?.[0];
-    if (cls) return `.${cls.split('--')[0]}`;
+    const sig = classSignature(entry?.classes ?? []);
+    if (sig) return sig;
     return el.catalogId;
   }
   // Shapes and free text answer to nothing on the page — they are the designer's own marks, and
@@ -92,10 +122,20 @@ export function signatureOfElement(el: DesignElement, entries: Map<string, Catal
   return null;
 }
 
+/**
+ * Half this product's markup carries no class at all. `/admin/team` renders 92 of its 102 nodes
+ * as bare `<h1>`, `<span>`, `<button>`, `<article>` — and `lib/design/import.ts` already records
+ * those by TAG (`importedFrom: node.classes.join(' ') || node.tag`), so the design side has always
+ * called one `.span` and this side called it nothing. Ninety-two elements that could never match
+ * anything, on a page whose design had been traced from it minutes earlier: 10%.
+ *
+ * The tag is a weaker identity than a class and it is not nothing — thirty-six spans on one side
+ * and thirty-six on the other is a match, and thirty-four is two missing, which is the answer the
+ * check exists to give. Classes still win when there are any; the tag is the fallback, on both
+ * sides, spelled the same way.
+ */
 function signatureOfNode(node: CapturedNode): string | null {
-  const meaningful = node.classes.filter((c) => !/^(is-|has-|jsx-)/.test(c) && c.length > 2);
-  const base = meaningful.find((c) => c.includes('__')) ?? meaningful[0];
-  return base ? `.${base.split('--')[0]}` : null;
+  return classSignature(node.classes) ?? (node.tag ? `.${node.tag}` : null);
 }
 
 /**
@@ -141,6 +181,70 @@ export function conformanceOf(
   const findings: ConformanceFinding[] = [];
   let matched = 0;
 
+  // ── THE WHOLE PAGE MOVING IS ONE FINDING, NOT EVERY ELEMENT MOVING ───────────────────────────
+  //
+  // `/admin/me` matched 118 of 118 elements and scored 0%, on the strength of 104 "moved"
+  // findings that were every one of them `+0, +27`. Nothing had moved: the page started 27px
+  // lower than when it was traced — one banner, one scrollbar, one font that loaded a beat later.
+  //
+  // §P3 already wrote this lesson down for the re-trace diff — "insert one banner and an index
+  // comparison reports that the entire page moved" — and this check had the same disease in a
+  // different form. The shared offset is measured first, reported once if it is large enough to
+  // matter, and subtracted before anything is called displaced. What survives is the elements
+  // that moved RELATIVE TO THE PAGE, which is the only kind of movement a design can be wrong
+  // about.
+  const pairs: Array<{ sig: string; el: DesignElement; node: CapturedNode }> = [];
+  const spare = new Map<string, CapturedNode[]>();
+  for (const [sig, list] of pageBySig) spare.set(sig, [...list]);
+
+  for (const [sig, designed] of designBySig) {
+    const onPage = spare.get(sig) ?? [];
+    for (const el of designed) {
+      if (onPage.length === 0) continue;
+      let bestIndex = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      for (const [i, node] of onPage.entries()) {
+        const d = Math.hypot(node.rect.x - el.x, node.rect.y - el.y);
+        if (d < bestDistance) { bestDistance = d; bestIndex = i; }
+      }
+      pairs.push({ sig, el, node: onPage.splice(bestIndex, 1)[0] });
+    }
+  }
+
+  // The MEDIAN, not the mean: a handful of genuinely displaced elements must not drag the
+  // baseline toward themselves and hide the drift they represent.
+  const median = (xs: number[]) => {
+    if (!xs.length) return 0;
+    const sorted = [...xs].sort((a, b) => a - b);
+    const mid = sorted.length >> 1;
+    return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  };
+  let offsetX = 0;
+  let offsetY = 0;
+  if (pairs.length >= 8) {
+    const mx = median(pairs.map((pr) => Math.round(pr.node.rect.x - pr.el.x)));
+    const my = median(pairs.map((pr) => Math.round(pr.node.rect.y - pr.el.y)));
+    // Only when MOST of the page agrees. Two thirds within 8px of the same shift is a page that
+    // moved; anything looser is a page whose elements moved independently, and subtracting a
+    // number there would hide exactly what this check is for.
+    const agreeing = pairs.filter((pr) =>
+      Math.abs(Math.round(pr.node.rect.x - pr.el.x) - mx) <= 8
+      && Math.abs(Math.round(pr.node.rect.y - pr.el.y) - my) <= 8).length;
+    if (agreeing / pairs.length >= 0.66 && Math.hypot(mx, my) > tolerance / 2) {
+      offsetX = mx;
+      offsetY = my;
+      findings.push({
+        kind: 'shifted',
+        signature: '(page)',
+        label: 'the whole page',
+        delta: Math.round(Math.hypot(mx, my)),
+        note: `The page as a whole sits ${Math.round(Math.hypot(mx, my))}px from where it was traced `
+          + `(${mx >= 0 ? '+' : ''}${mx}, ${my >= 0 ? '+' : ''}${my}) — ${agreeing} of ${pairs.length} `
+          + `elements moved together. Everything below is measured against that.`,
+      });
+    }
+  }
+
   for (const [sig, designed] of designBySig) {
     const onPage = [...(pageBySig.get(sig) ?? [])];
     for (const el of designed) {
@@ -165,8 +269,8 @@ export function conformanceOf(
       const node = onPage.splice(bestIndex, 1)[0];
       matched += 1;
 
-      const dx = Math.round(node.rect.x - el.x);
-      const dy = Math.round(node.rect.y - el.y);
+      const dx = Math.round(node.rect.x - el.x) - offsetX;
+      const dy = Math.round(node.rect.y - el.y) - offsetY;
       const distance = Math.round(Math.hypot(dx, dy));
       if (distance > tolerance) {
         findings.push({
@@ -241,7 +345,7 @@ export function conformanceOf(
   };
 }
 
-const KIND_ORDER: Record<FindingKind, number> = { missing: 0, moved: 1, resized: 2, extra: 3 };
+const KIND_ORDER: Record<FindingKind, number> = { shifted: 0, missing: 1, moved: 2, resized: 3, extra: 4 };
 
 /** One line for a list. Says the number that matters first. */
 export function conformanceSummary(report: ConformanceReport): string {
@@ -312,9 +416,12 @@ export function diffDefaults(
     const sigOf = (doc: DesignDocument) => {
       const map = new Map<string, { x: number; y: number }>();
       for (const el of doc.views?.[view]?.elements ?? []) {
-        const first = (el.importedFrom ?? el.catalogId ?? '').split(/\s+/).filter(Boolean)[0];
-        if (!first) continue;
-        const key = first.startsWith('.') ? first : `.${first.split('--')[0]}`;
+        // Same rule as the conformance matcher, for the same reason — a re-trace reporting what
+        // moved by a different name than the check uses is two tools describing one page in two
+        // vocabularies.
+        const raw = (el.importedFrom ?? el.catalogId ?? '').split(/\s+/).filter(Boolean);
+        const key = raw[0]?.startsWith('.') ? raw[0] : classSignature(raw);
+        if (!key) continue;
         // First instance wins: a signature that appears forty times is one element of the page,
         // and its position is the position of the first one on both sides.
         if (!map.has(key)) map.set(key, { x: el.x, y: el.y });

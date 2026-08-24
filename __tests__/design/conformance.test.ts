@@ -161,3 +161,77 @@ describe('the summary a person reads', () => {
     expect(conformanceSummary(report)).toMatch(/^\d+% — 1 missing/);
   });
 });
+
+// ── The two ways this check quietly measured the wrong thing ────────────────────────────────────
+//
+// Both were found by running it across the product and getting numbers that could not be true:
+// pages traced from the live app minutes earlier came back at 7%, 6%, 0%. Neither was visible from
+// any single case, and 250 passing tests did not touch either, so each gets one here.
+describe('both sides answer to the same rule', () => {
+  it('does not care which order the class attribute was written in', () => {
+    // `class="team-page team-page__card"`. The page side picked the BEM child; the design side took
+    // whichever class came first. Same element, two names, and a score that was really measuring
+    // class-attribute order — /admin/team scored 7% against a trace of itself.
+    const report = conformanceOf(
+      design([{ importedFrom: 'team-page team-page__card', x: 0, y: 0, w: 300, h: 120 }]),
+      'desktop',
+      [{ tag: 'div', classes: ['team-page', 'team-page__card'], text: '', rect: { x: 0, y: 0, w: 300, h: 120 }, styles: {}, depth: 3 }],
+      ENTRIES,
+    );
+    expect(report.findings.filter((f) => f.kind !== 'extra')).toEqual([]);
+    expect(report.matched).toBe(1);
+    expect(report.score).toBe(100);
+  });
+
+  it('matches a classless element by its tag, because the importer already records it that way', () => {
+    // Half this product's markup carries no class. `import.ts` files those under their TAG, so the
+    // design said `.span` and the page said nothing — 92 of /admin/team's 102 elements could not be
+    // matched to anything, by construction.
+    const report = conformanceOf(
+      design([
+        { importedFrom: 'h1', x: 0, y: 0, w: 400, h: 30 },
+        { importedFrom: 'span', x: 0, y: 40, w: 80, h: 20 },
+      ]),
+      'desktop',
+      [
+        { tag: 'h1', classes: [], text: 'Field Team', rect: { x: 0, y: 0, w: 400, h: 30 }, styles: {}, depth: 3 },
+        { tag: 'span', classes: [], text: '4', rect: { x: 0, y: 40, w: 80, h: 20 }, styles: {}, depth: 4 },
+      ],
+      ENTRIES,
+    );
+    expect(report.findings.filter((f) => f.kind === 'missing')).toEqual([]);
+    expect(report.matched).toBe(2);
+    expect(report.score).toBe(100);
+  });
+
+  it('still counts a classless element the page has lost', () => {
+    // The fallback must not be so generous that it can never fail: three spans against two is one
+    // missing, and that is the answer this check exists to give.
+    const report = conformanceOf(
+      design([
+        { importedFrom: 'span', x: 0, y: 0, w: 80, h: 20 },
+        { importedFrom: 'span', x: 0, y: 30, w: 80, h: 20 },
+        { importedFrom: 'span', x: 0, y: 60, w: 80, h: 20 },
+      ]),
+      'desktop',
+      [
+        { tag: 'span', classes: [], text: '', rect: { x: 0, y: 0, w: 80, h: 20 }, styles: {}, depth: 3 },
+        { tag: 'span', classes: [], text: '', rect: { x: 0, y: 30, w: 80, h: 20 }, styles: {}, depth: 3 },
+      ],
+      ENTRIES,
+    );
+    expect(report.findings.filter((f) => f.kind === 'missing')).toHaveLength(1);
+  });
+
+  it('prefers a class over a tag when the element has one', () => {
+    // The tag is the fallback, not the rule: an element with classes must still be matched by them,
+    // or every `<div>` on a page would answer to every other one.
+    const report = conformanceOf(
+      design([{ importedFrom: 'jobs-page__btn', x: 0, y: 0, w: 120, h: 40 }]),
+      'desktop',
+      [{ tag: 'div', classes: [], text: '', rect: { x: 0, y: 0, w: 120, h: 40 }, styles: {}, depth: 3 }],
+      ENTRIES,
+    );
+    expect(report.findings.filter((f) => f.kind === 'missing')).toHaveLength(1);
+  });
+});

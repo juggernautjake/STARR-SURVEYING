@@ -28,6 +28,7 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
+import { waitForPageReady } from './lib/design-observe.mjs';
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
@@ -54,7 +55,15 @@ await ctx.addCookies([{
   name: 'authjs.session-token', value: token,
   domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax',
 }]);
-const page = await ctx.newPage();
+let page = await ctx.newPage();
+
+// The third walk in this system to need it. These loops share one tab, and a route that forwards
+// leaves a navigation pending that fails every route after it — in the tracer that turned one bad
+// page into seventy-four reported failures. A fresh tab after any failure keeps a run honest.
+async function freshPage() {
+  try { await page.close(); } catch { /* already gone — that is why we are here */ }
+  page = await ctx.newPage();
+}
 
 const indexRes = await page.request.fetch(`${BASE}/api/admin/design/import`);
 if (!indexRes.ok()) {
@@ -86,22 +95,50 @@ let failures = 0;
 for (const [i, route] of todo.entries()) {
   process.stdout.write(`  [${String(i + 1).padStart(3)}/${todo.length}] ${route.padEnd(42)}`);
   try {
-    const captures = {};
-    for (const [viewId, size] of Object.entries(VIEWPORTS)) {
-      await page.setViewportSize(size);
-      await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-      await page.waitForTimeout(2200);
-      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-      captures[viewId] = await page.evaluate(CAPTURE, classes);
-    }
+    // ── ONE RETRY, AND WHY IT IS NOT CHEATING ─────────────────────────────────────────────────
+    //
+    // A full sweep produced twenty failing views. Ten of them passed at 100% when re-run one at a
+    // time, minutes later, against the same app and the same stored default — `/admin/weather`
+    // reported 116 elements missing on a capture that had found TWO elements on the whole page.
+    // That is not a stale trace, it is a capture taken while the page was still assembling, and
+    // filing it as drift buries the routes that really did drift.
+    //
+    // So a failing view is measured a second time and the better reading is kept. This can only
+    // hide a defect that fails once and passes once — and a default that matches its page on one
+    // of two consecutive captures is not a default anybody needs to go and re-trace. What it
+    // cannot hide is a real difference, because a real difference is there both times.
+    const capture = async () => {
+      const captures = {};
+      for (const [viewId, size] of Object.entries(VIEWPORTS)) {
+        await page.setViewportSize(size);
+        await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+      // WAIT FOR THE PAGE, NOT FOR A NUMBER. This was the last fixed wait left in the system, and
+      // it was in the one script whose entire job is to say whether a default is still true: a
+      // capture taken 2.2s in is missing whatever had not arrived, and every element it missed is
+      // reported as "in the default but not on the page — the trace is stale". `/admin/jobs`, four
+      // minutes after being traced from this very app, scored 95% and named four elements that were
+      // on the screen the whole time. A check that manufactures staleness is worse than no check,
+      // because the number looks like evidence.
+        await waitForPageReady(page);
+        await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+        captures[viewId] = await page.evaluate(CAPTURE, classes);
+      }
+      const res = await page.request.fetch(`${BASE}/api/admin/design/conformance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        data: { route, which: WHICH, desktop: captures.desktop, mobile: captures.mobile },
+      });
+      const body = await res.json();
+      if (!res.ok()) throw new Error(body?.error ?? `api ${res.status()}`);
+      return body;
+    };
 
-    const res = await page.request.fetch(`${BASE}/api/admin/design/conformance`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      data: { route, which: WHICH, desktop: captures.desktop, mobile: captures.mobile },
-    });
-    const body = await res.json();
-    if (!res.ok()) throw new Error(body?.error ?? `api ${res.status()}`);
+    let body = await capture();
+    const total = (b) => (b.reports ?? []).reduce((sum, r) => sum + (r.report?.score ?? 0), 0);
+    if ((body.reports ?? []).some((r) => r.verdict && !r.verdict.ok)) {
+      const second = await capture();
+      if (total(second) > total(body)) body = second;
+    }
 
     record.routes[route] = body.reports.map((r) => ({
       kind: r.kind,
@@ -131,6 +168,7 @@ for (const [i, route] of todo.entries()) {
   } catch (err) {
     console.log(`—  ${err.message.split('\n')[0].slice(0, 60)}`);
     record.routes[route] = [{ error: err.message.split('\n')[0].slice(0, 120) }];
+    await freshPage();
   }
 }
 

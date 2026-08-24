@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { withAlpha } from '@/lib/admin/color-alpha';
+import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
 
 interface Payment {
   id: string;
@@ -63,7 +63,7 @@ export default function JobQuoteBuilder({ quoteAmount, finalAmount, amountPaid, 
         <h3 className="job-quote__title">Financial Summary</h3>
         <span
           className="job-quote__status"
-          style={{ background: withAlpha(statusColors[paymentStatus || 'unpaid'] || '#6B7280', 12.55), color: statusColors[paymentStatus || 'unpaid'] }}
+          style={{ background: withAlpha(statusColors[paymentStatus || 'unpaid'] || '#6B7280', 12.55), color: chipInk(statusColors[paymentStatus || 'unpaid']) }}
         >
           {paymentStatus === 'paid' ? '✅ Paid' :
            paymentStatus === 'partial' ? '⏳ Partial' :

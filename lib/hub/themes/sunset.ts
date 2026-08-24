@@ -15,7 +15,7 @@ export const SUNSET: ThemeDefinition = {
     bgElevated:   '#FFEDD5',
     fgPrimary:    '#7C2D12',
     fgSecondary:  '#9A3412',
-    fgMuted:      '#A16207',
+    fgMuted:      '#9D5C08',
     accent:       '#C2410C',
     accentFg:     '#FFFFFF',
     border:       '#FED7AA',

@@ -54,7 +54,16 @@ await ctx.addCookies([{
   name: 'authjs.session-token', value: token,
   domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax',
 }]);
-const page = await ctx.newPage();
+let page = await ctx.newPage();
+
+// The same recovery `trace-defaults.mjs` needed, for the same reason: these walks share one tab,
+// and a route that redirects itself leaves a navigation pending that fails every route after it.
+// Seventy-four consecutive "failures" in the tracer were one such event. A fresh tab after any
+// failure keeps one bad page from being reported as a bad product.
+async function freshPage() {
+  try { await page.close(); } catch { /* already gone — that is why we are here */ }
+  page = await ctx.newPage();
+}
 
 // What already has a dossier, so `--missing` is cheap and a re-run does not redo the whole product.
 const existingRes = await page.request.fetch(`${BASE}/api/admin/design/dossier`);
@@ -72,6 +81,9 @@ const wanted = PAGES.routes.filter((p) => {
   if (AREA && p.area !== AREA) return false;
   // A dynamic route has no canonical instance: whichever record you loaded would become the
   // description of the page. Same reason the tracer skips them.
+  // Signed in, these forward immediately — a dossier derived here describes the destination
+  // filed under the wrong route.
+  if (/\/(login|signin|sign-in|logout|signout)$/.test(p.route)) return false;
   if (p.dynamic) return false;
   if (MISSING_ONLY && existing.has(p.route)) return false;
   return true;
@@ -83,6 +95,7 @@ console.log(`  ${existing.size} already measured\n`);
 
 const done = [];
 const failed = [];
+const skipped = [];
 
 for (const [i, target] of todo.entries()) {
   const label = `[${String(i + 1).padStart(3)}/${todo.length}] ${target.route.padEnd(44)}`;
@@ -117,7 +130,13 @@ for (const [i, target] of todo.entries()) {
     if (status >= 400) problem = `the page answered ${status}`;
     if (!problem && !ready) problem = 'still loading after 25s — a dossier here would describe a spinner';
     const landedOn = new URL(page.url()).pathname;
-    if (!problem && landedOn !== target.route) problem = `redirected to ${landedOn}`;
+    // A forwarding stub is not a page with a missing dossier; it is not a page. Counted as a
+    // failure it left four routes permanently in the "not derived" list with nothing to do.
+    if (!problem && landedOn !== target.route) {
+      skipped.push({ route: target.route, why: `redirects to ${landedOn}` });
+      console.log(`—  redirects to ${landedOn} — not a page of its own`);
+      continue;
+    }
 
     const observed = await page.evaluate(OBSERVE);
     if (!problem && observed.controls.length === 0 && observed.headings.length === 0) {
@@ -140,16 +159,24 @@ for (const [i, target] of todo.entries()) {
   } catch (err) {
     failed.push({ route: target.route, why: err.message.split('\n')[0].slice(0, 70) });
     console.log(`—  ${err.message.split('\n')[0].slice(0, 60)}`);
+    try { page.off('request', onRequest); } catch { /* the tab is already gone */ }
+    await freshPage();
+    continue;
   } finally {
-    page.off('request', onRequest);
+    try { page.off('request', onRequest); } catch { /* replaced by freshPage() */ }
   }
 }
 
 await browser.close();
 
-console.log(`\n  ── ${done.length} derived · ${failed.length} not derived ──\n`);
+console.log(`\n  ── ${done.length} derived · ${failed.length} not derived · ${skipped.length} not a page ──\n`);
 if (failed.length) {
   for (const f of failed) console.log(`    ${f.route.padEnd(46)} ${f.why}`);
+  console.log('');
+}
+if (skipped.length) {
+  console.log('  Routes that forward somewhere else — nothing to derive, and nothing wrong:');
+  for (const sk of skipped) console.log(`    ${sk.route.padEnd(46)} ${sk.why}`);
   console.log('');
 }
 // Said out loud rather than left in the data: a dossier is only half a dossier until somebody

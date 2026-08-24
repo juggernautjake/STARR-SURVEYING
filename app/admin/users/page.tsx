@@ -8,6 +8,7 @@ import { useSession } from 'next-auth/react';
 import type { UserRole } from '@/lib/auth-roles';
 import InitialAvatar from '../components/InitialAvatar';
 import { useTenantProfile } from '@/lib/saas/use-tenant-profile';
+import { chipInk } from '@/lib/admin/color-alpha';
 
 const ALL_ROLES: UserRole[] = [
   'admin', 'developer', 'teacher', 'student', 'researcher',
@@ -278,7 +279,7 @@ export default function UsersPage() {
       <span
         key={r}
         className="um-role-badge"
-        style={{ backgroundColor: ROLE_COLORS[r] + '18', color: ROLE_COLORS[r], borderColor: ROLE_COLORS[r] + '40' }}
+        style={{ backgroundColor: ROLE_COLORS[r] + '18', color: chipInk(ROLE_COLORS[r]), borderColor: ROLE_COLORS[r] + '40' }}
         title={ROLE_DESCRIPTIONS[r]}
       >
         {ROLE_LABELS[r]}
@@ -318,7 +319,7 @@ export default function UsersPage() {
       {showAddUser && canEdit && (
         <div style={{ padding: '1rem', marginBottom: '1rem', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px' }}>
           <h3 style={{ fontSize: '.92rem', fontWeight: 700, color: '#0369A1', marginBottom: '.5rem' }}>Add or Promote User</h3>
-          <p style={{ fontSize: '.78rem', color: '#6B7280', marginBottom: '.75rem' }}>
+          <p style={{ fontSize: '.78rem', color: 'var(--theme-fg-secondary, #4B5563)', marginBottom: '.75rem' }}>
             Enter an email to create a new user or update an existing user&apos;s roles. Company employees using Google Sign-In are auto-created on first login.
           </p>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
@@ -454,7 +455,7 @@ export default function UsersPage() {
                         <span className="um-status-badge um-status-badge--active">Active</span>
                       )}
                     </td>
-                    <td style={{ fontSize: '.78rem', color: '#6B7280' }}>
+                    <td style={{ fontSize: '.78rem', color: 'var(--theme-fg-secondary, #4B5563)' }}>
                       {user.auth_provider === 'google' ? 'Google' : user.auth_provider === 'credentials' ? 'Email' : isFirmAddress(user.email) ? 'Google' : 'Email'}
                     </td>
                     <td className="um-cell-date" style={{ fontSize: '.78rem' }}>{formatDateTime(user.last_sign_in)}</td>
@@ -571,7 +572,7 @@ export default function UsersPage() {
                     <div style={{ fontWeight: 600, fontSize: '.85rem', color: editingRoles.roles.includes(r) ? ROLE_COLORS[r] : '#374151' }}>
                       {ROLE_LABELS[r]}
                     </div>
-                    <div style={{ fontSize: '.75rem', color: '#6B7280' }}>{ROLE_DESCRIPTIONS[r]}</div>
+                    <div style={{ fontSize: '.75rem', color: 'var(--theme-fg-secondary, #4B5563)' }}>{ROLE_DESCRIPTIONS[r]}</div>
                   </div>
                 </label>
               ))}

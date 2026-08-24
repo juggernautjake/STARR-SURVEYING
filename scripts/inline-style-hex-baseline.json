@@ -44,7 +44,7 @@
   "app/admin/components/FlashcardViewer.tsx": 2,
   "app/admin/components/FloatingMessenger.tsx": 3,
   "app/admin/components/InitialAvatar.tsx": 1,
-  "app/admin/components/jobs/FieldWorkView.tsx": 12,
+  "app/admin/components/jobs/FieldWorkView.tsx": 11,
   "app/admin/components/jobs/JobActivityFeed.tsx": 3,
   "app/admin/components/jobs/JobCadPanel.tsx": 1,
   "app/admin/components/jobs/JobFieldMediaPanel.tsx": 11,

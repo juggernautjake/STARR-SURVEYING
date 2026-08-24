@@ -92,10 +92,15 @@
  * chain above keeps the global red→navy a-color cascade out, but a
  * stray :hover anywhere else in the codebase could still tint these.
  * Pinning the foreground here ensures the contrast is always safe. */
+/* themed-accent-fg-2026-08-24 — this rule PINNED literal white, and it outranks the themed rule in
+ * AdminJobs.css, so the conversion done there never reached the screen: white on the lightened
+ * accent a dark theme publishes measured 2.72:1 on starr-dark and 1.07:1 on high-contrast-dark.
+ * The theme already names the foreground that belongs on its own accent; an unthemed page still
+ * resolves the original white through the fallback. */
 .admin-layout a[class*="__btn--primary"],
 .admin-layout a[class*="__btn--primary"]:hover,
 .admin-layout a[class*="-btn--primary"],
-.admin-layout a[class*="-btn--primary"]:hover { color: #FFFFFF; }
+.admin-layout a[class*="-btn--primary"]:hover { color: var(--theme-accent-fg, #FFFFFF); }
 
 /* === Form-row alignment utilities (sitewide) ============================
  * form-row-alignment-2026-06-20 — user reported "Send invite" button

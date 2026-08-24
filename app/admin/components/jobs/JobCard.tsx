@@ -1,7 +1,7 @@
 // app/admin/components/jobs/JobCard.tsx — Job summary card/widget
 'use client';
 
-import { withAlpha } from '@/lib/admin/color-alpha';
+import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
 
 interface JobTeamMember {
   user_email: string;
@@ -63,7 +63,7 @@ export default function JobCard({ job, onClick }: { job: Job; onClick?: () => vo
         <span className="job-card__number">{job.job_number}</span>
         <span
           className="job-card__stage"
-          style={{ background: withAlpha(stageInfo.color, 12.55), color: stageInfo.color }}
+          style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}
         >
           {stageInfo.icon} {stageInfo.label}
         </span>

@@ -1423,11 +1423,22 @@
   font-size: 0.7rem;
   opacity: 0.85;
 }
-.dsx-pages__chip--dossier.is-complete { background: var(--color-success-bg, #D1FAE5); color: var(--color-success-text, #065F46); }
-.dsx-pages__chip--dossier.is-derived-only { background: var(--color-warning-bg, #FEF3C7); color: var(--color-warning-text, #92400E); }
-.dsx-pages__chip--dossier.is-none,
-.dsx-pages__chip--dossier.is-authored-only { background: var(--theme-bg-elevated, #F3F4F6); color: var(--theme-fg-muted, #6B7280); }
-.dsx-pages__chip--serve { background: var(--color-info-bg, #DBEAFE); color: var(--color-info-text, #1E40AF); }
+/* Two defects in five lines, both worth naming because both are shapes that recur here.
+ *
+ * The chips are ANCHORS, and `.admin-layout a:not(…)` in AdminLayout.css sets the link colour at
+ * the same specificity (0,2,0). Same weight means source order decides, and AdminLayout.css loads
+ * after this file on this route — so the chip painted its own background and inherited the shell's
+ * accent as its ink: measured 2.62:1 on starr-dark. The `a` in the selector is the fix, and it is
+ * the third time in this repository a rule lost to a shell rule it tied with.
+ *
+ * And the pairing was mixed. `--color-*-bg` is the FILL family and `--color-*-text` is the ink
+ * family; tokens.css says to use `-text` on `-surface`, both or neither. Half of each pair meant
+ * the ink followed the theme and the paper did not. */
+a.dsx-pages__chip--dossier.is-complete { background: var(--color-success-surface); color: var(--color-success-text); }
+a.dsx-pages__chip--dossier.is-derived-only { background: var(--color-warning-surface); color: var(--color-warning-text); }
+a.dsx-pages__chip--dossier.is-none,
+a.dsx-pages__chip--dossier.is-authored-only { background: var(--theme-bg-elevated, #F3F4F6); color: var(--theme-fg-secondary, #4B5563); }
+a.dsx-pages__chip--serve { background: var(--color-info-surface); color: var(--color-info-text); }
 
 .dsx-home__links { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 

@@ -23,8 +23,12 @@
 .worker-status__icon { flex-shrink: 0; margin-top: 0.15rem; }
 .worker-status__body { flex: 1 1 auto; min-width: 0; }
 
-.worker-status__headline { margin: 0; font-weight: 600; }
-.worker-status__hint { margin: 0.2rem 0 0; opacity: 0.9; }
+/* banner-tone-inherit-2026-08-24 — `p { color: var(--text-secondary) }` in globals.css is an
+ * ELEMENT rule, so it paints these paragraphs directly and the tone set on their parent never
+ * reaches them. Under a dark theme that token is near-white while the banner surface was still
+ * amber-50: measured 1.16:1 on forest-dark. `inherit` puts the tone back in charge. */
+.worker-status__headline { margin: 0; font-weight: 600; color: inherit; }
+.worker-status__hint { margin: 0.2rem 0 0; opacity: 0.9; color: inherit; }
 
 .worker-status__warnings {
   margin: 0.3rem 0 0 1rem;

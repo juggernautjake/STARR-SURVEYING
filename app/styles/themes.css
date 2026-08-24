@@ -28,7 +28,7 @@
   --theme-bg-elevated:    #F1F5F9;
   --theme-fg-primary:     #0F172A;
   --theme-fg-secondary:   #475569;
-  --theme-fg-muted:       #64748B;
+  --theme-fg-muted:       #606F86;
   --theme-accent:         #1D3095;
   --theme-accent-fg:      #FFFFFF;
   --theme-border:         var(--theme-border, #E2E8F0);
@@ -51,7 +51,7 @@
   --theme-bg-elevated:    #F1F5F9;
   --theme-fg-primary:     #0F172A;
   --theme-fg-secondary:   #475569;
-  --theme-fg-muted:       #64748B;
+  --theme-fg-muted:       #606F86;
   --theme-accent:         #1D3095;
   --theme-accent-fg:      #FFFFFF;
   --theme-border:         var(--theme-border, #E2E8F0);
@@ -93,6 +93,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -155,6 +170,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -172,7 +202,7 @@
   --theme-bg-elevated:    #F1F1F4;
   --theme-fg-primary:     #18181B;
   --theme-fg-secondary:   #3F3F46;
-  --theme-fg-muted:       #71717A;
+  --theme-fg-muted:       #6C6C74;
   --theme-accent:         #3F3F46;
   --theme-accent-fg:      #FFFFFF;
   --theme-border:         #E4E4E7;
@@ -214,6 +244,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -273,6 +318,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -332,6 +392,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -402,6 +477,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -419,7 +509,7 @@
   --theme-bg-elevated:    #FFEDD5;
   --theme-fg-primary:     #7C2D12;
   --theme-fg-secondary:   #9A3412;
-  --theme-fg-muted:       #A16207;
+  --theme-fg-muted:       #9D5C08;
   --theme-accent:         #C2410C;
   --theme-accent-fg:      #FFFFFF;
   --theme-border:         #FED7AA;
@@ -461,6 +551,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -522,6 +627,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -581,6 +701,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -643,6 +778,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -703,6 +853,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   /* globals.css keeps a second, older set of text tokens (--text-primary, not --color-text-*)
    * and the global h1..h6 rule reads them. Missing these left every page heading in the app
    * painting near-black on a dark theme: measured 1.02:1 on /admin/work, which is invisible. */
@@ -748,6 +913,21 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
+   * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
+   * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
+   * rather than hand-picked per theme, from the same two numbers the chips use — 12% of the hue
+   * over this theme's surface, 55% of the hue toward this theme's foreground — because that pair
+   * is measured to clear 4.5:1 on every hue and every surface in the roster, and twelve
+   * hand-written quartets would drift the first time a theme's accent moved. */
+  --color-warning-surface: color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --color-warning-text:    color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --color-success-surface: color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --color-success-text:    color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  --color-error-surface:   color-mix(in srgb, var(--theme-danger)  12%, var(--theme-bg-surface));
+  --color-error-text:      color-mix(in srgb, var(--theme-danger)  55%, var(--theme-fg-primary));
+  --color-info-surface:    color-mix(in srgb, var(--theme-info)    12%, var(--theme-bg-surface));
+  --color-info-text:       color-mix(in srgb, var(--theme-info)    55%, var(--theme-fg-primary));
   --text-primary:         var(--theme-fg-primary);
   --text-secondary:       var(--theme-fg-secondary);
   --text-muted:           var(--theme-fg-muted);

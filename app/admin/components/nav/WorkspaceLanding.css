@@ -31,7 +31,9 @@
 .ws-landing__shortcut {
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   font-size: 0.78rem;
-  color: var(--theme-fg-muted, #6B7280);
+  /* Muted ON the elevated surface is 4.34:1 — the same rounding-error miss as `.job-card__tag`.
+   * A key you are being told to press is an instruction, not furniture. */
+  color: var(--theme-fg-secondary, #4B5563);
   background: var(--theme-bg-elevated, #F3F4F6);
   border: 1px solid var(--theme-border, #E5E7EB);
   border-bottom-width: 2px;

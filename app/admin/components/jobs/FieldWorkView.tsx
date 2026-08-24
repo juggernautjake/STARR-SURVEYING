@@ -25,7 +25,7 @@ import {
 import { generateDemoSurvey } from './fieldwork-demo';
 import { buildPointFileContent, downloadFile, parsePointFile } from './fieldwork-export';
 import type { ExportFormat } from './fieldwork-export';
-import { withAlpha } from '@/lib/admin/color-alpha';
+import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
 
 // Re-export FieldPoint so existing consumers (e.g. jobs/[id]/page.tsx) keep working
 export type { FieldPoint } from './fieldwork-types';
@@ -381,7 +381,7 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh, jo
             </div>
             <div className="fw__job-header-right">
               {stageInfo && (
-                <span className="fw__job-stage" style={{ background: withAlpha(stageInfo.color, 12.55), color: stageInfo.color }}>
+                <span className="fw__job-stage" style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}>
                   {stageInfo.label}
                 </span>
               )}
@@ -755,7 +755,7 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh, jo
                         <div className="fw__log-item-badges">
                           {pt.raw_data?.accuracy != null && <span className={`fw-log__acc ${accClass(pt.raw_data.accuracy)}`}>{(pt.raw_data.accuracy * 100).toFixed(1)}cm</span>}
                           {pt.raw_data?.rtk_status && (
-                            <span className="fw-log__rtk" style={{ background: withAlpha(RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280', 12.55), color: RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280' }}>
+                            <span className="fw-log__rtk" style={{ background: withAlpha(RTK_LABELS[pt.raw_data.rtk_status]?.color || '#6B7280', 12.55), color: chipInk(RTK_LABELS[pt.raw_data.rtk_status]?.color) }}>
                               {RTK_LABELS[pt.raw_data.rtk_status]?.label || pt.raw_data.rtk_status}
                             </span>
                           )}
@@ -1143,7 +1143,7 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh, jo
                     )}
                     {detailPoint.raw_data.rtk_status && (
                       <div className="fw__popup-field"><label>RTK Status</label>
-                        <span className="fw-log__rtk" style={{ background: withAlpha(RTK_LABELS[detailPoint.raw_data.rtk_status]?.color || '#6B7280', 12.55), color: RTK_LABELS[detailPoint.raw_data.rtk_status]?.color, display: 'inline-block' }}>
+                        <span className="fw-log__rtk" style={{ background: withAlpha(RTK_LABELS[detailPoint.raw_data.rtk_status]?.color || '#6B7280', 12.55), color: chipInk(RTK_LABELS[detailPoint.raw_data.rtk_status]?.color), display: 'inline-block' }}>
                           {RTK_LABELS[detailPoint.raw_data.rtk_status]?.label || detailPoint.raw_data.rtk_status}</span></div>
                     )}
                     {detailPoint.raw_data.pdop != null && <div className="fw__popup-field"><label>PDOP</label><span>{detailPoint.raw_data.pdop.toFixed(2)}</span></div>}

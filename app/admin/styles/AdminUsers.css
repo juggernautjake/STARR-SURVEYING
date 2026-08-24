@@ -83,10 +83,13 @@
 .um-btn--xs:hover { color:var(--color-brand-navy); }
 .um-btn--primary { background:var(--color-brand-navy); color:var(--theme-accent-fg, #FFF); }
 .um-btn--primary:hover { background:var(--color-brand-navy-d); }
-.um-btn--success { background:#059669; color:#FFF; }
-.um-btn--success:hover { background:#047857; }
-.um-btn--warning { background:#D97706; color:#FFF; }
-.um-btn--warning:hover { background:#B45309; }
+/* white-on-fill-2026-08-24 — #059669 and #D97706 carry white at 3.77:1 and 3.19:1, on EVERY
+ * theme, the light one included. Each fill steps down to what used to be its hover (5.48:1 and
+ * 5.02:1) and each hover steps down again, so the button still darkens under the cursor. */
+.um-btn--success { background:#047857; color:#FFF; }
+.um-btn--success:hover { background:#036049; }
+.um-btn--warning { background:#B45309; color:#FFF; }
+.um-btn--warning:hover { background:#92400E; }
 .um-btn--danger { background:var(--color-brand-red); color:#FFF; }
 .um-btn--danger:hover { background:#9B1015; }
 .um-btn--ghost { background:transparent; color:var(--theme-fg-muted, #6B7280); border:1px solid var(--theme-border, #E5E7EB); }

@@ -116,7 +116,7 @@ export default function LearnHubPage() {
             Comprehensive FS exam preparation with 8 study modules, 270+ practice questions, timed mock exams, and progress tracking.
             Complete module quizzes to unlock the next level.
           </p>
-          <span className="admin-learn__section-arrow" style={{ color: 'var(--color-brand-red)' }}>Start Exam Prep →</span>
+          <span className="admin-learn__section-arrow" style={{ color: 'var(--color-error-text)' }}>Start Exam Prep →</span>
         </Link>
 
         <Link href="/admin/learn/fieldbook" className="admin-learn__section-card">
@@ -146,7 +146,7 @@ export default function LearnHubPage() {
             <p className="admin-learn__section-desc">
               Create and edit modules, lessons, questions, flashcards, and articles.
             </p>
-            <span className="admin-learn__section-arrow" style={{ color: 'var(--color-brand-red)' }}>Manage →</span>
+            <span className="admin-learn__section-arrow" style={{ color: 'var(--color-error-text)' }}>Manage →</span>
           </Link>
         )}
       </div>

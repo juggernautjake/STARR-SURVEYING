@@ -143,7 +143,13 @@ export async function waitForPageReady(page, { timeout = 25_000 } = {}) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
     const ready = await page.evaluate(() => {
-      const root = document.querySelector('.admin-layout__content');
+      // `?? document.body` matches what the tracer and the observer use as their root, and it is
+      // not a convenience: `/admin/cad` renders a full-screen shell of its own and never mounts
+      // `.admin-layout__content` at all. Requiring that wrapper meant this returned false for the
+      // full 25s on a page that was finished in under three, and the tracer filed it as "never
+      // finished loading" — the fifth time an instrument in this system reported its own blind
+      // spot as a property of the app.
+      const root = document.querySelector('.admin-layout__content') ?? document.body;
       if (!root) return false;
       const text = (root.innerText || '').trim();
       // A root containing only a loading indicator is not a rendered page. Checked by CONTENT

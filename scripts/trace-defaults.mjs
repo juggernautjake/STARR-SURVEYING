@@ -66,6 +66,12 @@ function plan() {
   for (const page of PAGES.routes) {
     if (ONLY && page.route !== ONLY) continue;
     if (AREA && page.area !== AREA) continue;
+    if (/\/(login|signin|sign-in|logout|signout)$/.test(page.route)) {
+      // Signed in, these redirect the moment they load — a "trace" of one is a trace of whatever
+      // it forwarded to, filed under the wrong route.
+      skipped.push({ route: page.route, why: 'auth route — redirects when signed in' });
+      continue;
+    }
     if (page.dynamic) {
       // `/admin/jobs/[id]` renders one job. Whichever job you picked would become the spec.
       skipped.push({ route: page.route, why: 'dynamic — no canonical instance to trace' });
@@ -80,7 +86,22 @@ const token = await encode({ token: { email: AS, name: 'Default tracer', sub: AS
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: VIEWPORTS.desktop });
 await ctx.addCookies([{ name: 'authjs.session-token', value: token, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' }]);
-const page = await ctx.newPage();
+let page = await ctx.newPage();
+
+// ── ONE BAD ROUTE MUST NOT TAKE THE REST WITH IT ────────────────────────────────────────────────
+//
+// A full re-run reported 64 traced and 74 failed, and the 74 were one event: `/admin/login` is a
+// page that redirects itself when you are already signed in, so its navigation was still pending
+// when the next `goto` started. Playwright answers that with "Navigation is interrupted by another
+// navigation" — and it kept answering it, for every remaining route, because they all shared this
+// one tab. Seventy-four pages were reported as untraceable when nothing was wrong with any of them.
+//
+// That is the same shape as the fixed-wait bug and the two before it: the instrument failed and the
+// output looked exactly like a finding. A failed route now gets a fresh tab before the next one.
+async function freshPage() {
+  try { await page.close(); } catch { /* already gone — that is why we are here */ }
+  page = await ctx.newPage();
+}
 
 const indexRes = await page.request.fetch(`${BASE}/api/admin/design/import`);
 if (!indexRes.ok()) {
@@ -133,6 +154,16 @@ for (const [i, target] of todo.entries()) {
       continue;
     }
 
+    // A route that forwards is not a page, and tracing where it went would lock somebody else's
+    // layout in under this URL. Skipped rather than failed: there is nothing here to fix, and a
+    // queue that can never reach zero is one people stop reading.
+    const landedOn = new URL(page.url()).pathname;
+    if (landedOn !== target.route) {
+      skipped.push({ route: target.route, why: `redirects to ${landedOn} — not a page of its own` });
+      console.log(`—  redirects to ${landedOn}`);
+      continue;
+    }
+
     const res = await page.request.fetch(`${BASE}/api/admin/design/import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -177,6 +208,7 @@ for (const [i, target] of todo.entries()) {
   } catch (err) {
     failed.push({ route: target.route, why: err.message.split('\n')[0].slice(0, 70) });
     console.log(`—  ${err.message.split('\n')[0].slice(0, 50)}`);
+    await freshPage();
   }
 }
 

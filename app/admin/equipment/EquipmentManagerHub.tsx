@@ -54,9 +54,9 @@ export default function EquipmentManagerHub(): React.ReactElement {
       </div>
 
       <div style={S.stats}>
-        <StatCard href="/admin/equipment/checked-out" label="Checked out now" value={c.outNow} tone="#1D3095" />
-        <StatCard href="/admin/equipment/consumables" label="Supplies to reorder" value={c.lowStock} tone={c.lowStock ? '#B42318' : '#1B7A3D'} />
-        <StatCard href="/admin/vehicles" label="Vehicles needing attention" value={c.vehiclesAttention} tone={c.vehiclesAttention ? '#B45309' : '#1B7A3D'} />
+        <StatCard href="/admin/equipment/checked-out" label="Checked out now" value={c.outNow} tone="var(--color-brand-navy, #1D3095)" />
+        <StatCard href="/admin/equipment/consumables" label="Supplies to reorder" value={c.lowStock} tone={c.lowStock ? 'var(--color-error-text)' : 'var(--color-success-text)'} />
+        <StatCard href="/admin/vehicles" label="Vehicles needing attention" value={c.vehiclesAttention} tone={c.vehiclesAttention ? 'var(--color-warning-text)' : 'var(--color-success-text)'} />
       </div>
     </div>
   );

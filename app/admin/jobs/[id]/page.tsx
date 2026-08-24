@@ -42,7 +42,7 @@ import JobFieldMediaPanel from '../../components/jobs/JobFieldMediaPanel';
 import JobNotesPanel from '../../components/jobs/JobNotesPanel';
 import { STAGE_CONFIG, SURVEY_TYPES } from '../../components/jobs/JobCard';
 import Tooltip from '../../research/components/Tooltip';
-import { withAlpha } from '@/lib/admin/color-alpha';
+import { withAlpha, chipInk } from '@/lib/admin/color-alpha';
 
 interface Job {
   id: string;
@@ -572,7 +572,7 @@ export default function JobDetailPage() {
               the full width on a phone — squeezed into 115px it wrapped "Export PDF" onto two
               lines and stood the button up 62px tall. */}
           <div className="job-detail__header-side">
-            <span className="job-detail__stage-badge" style={{ background: withAlpha(stageInfo.color, 12.55), color: stageInfo.color }}>
+            <span className="job-detail__stage-badge" style={{ background: withAlpha(stageInfo.color, 12.55), color: chipInk(stageInfo.color) }}>
               {stageInfo.icon} {stageInfo.label}
             </span>
             <button

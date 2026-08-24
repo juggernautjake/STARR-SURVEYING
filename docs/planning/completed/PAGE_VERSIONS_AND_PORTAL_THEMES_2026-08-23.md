@@ -1,6 +1,6 @@
 # Page versions, portal themes, and a dossier for every page
 
-**Status:** in progress · started 2026-08-23 · follows `completed/DESIGN_THEMES_2026-08-23.md`
+**Status:** DONE · started 2026-08-23 · closed 2026-08-24 · follows `completed/DESIGN_THEMES_2026-08-23.md`
 
 > **How to run a slice.** Pick the top unchecked `- [ ]`. Ship it, verify it in a browser, tick it
 > with what you actually did — including what you decided *not* to do and why.
@@ -225,7 +225,18 @@ The default is **not drawn**. It is a **trace** of the live page, produced by th
 already exists — which is the only way "1:1" can be true rather than aspirational. Somebody
 rebuilding 270 pages by hand in a canvas would produce 270 approximations.
 
-- [x] **P1 — 130 of 138 admin pages traced**, desktop and mobile, by `scripts/trace-defaults.mjs`. Eight failed and are named in §6. Dynamic routes are skipped by design (38 of them): tracing `/admin/jobs/[id]` would make one job the specification for the page.
+- [x] **P1 — 138 of 138 admin pages traced**, desktop and mobile, by `scripts/trace-defaults.mjs`.
+      Dynamic routes are skipped by design (38 of them): tracing `/admin/jobs/[id]` would make one
+      job the specification for the page. So are the five routes that only `redirect()` somewhere
+      else — a default traced through a forward is a locked record of a different page, and
+      `/admin/schedule` was holding 72 elements of `/admin/calendar` until 2026-08-24.
+
+      **First read 130 of 138, with eight named as failures.** All eight traced on the first
+      attempt once re-run; nothing was wrong with any of them. §8 has the five instrument bugs
+      that a full re-trace turned up, and the one line worth keeping here is that the count in
+      this slice was never the interesting number — the CONTENT was. Most of those 130 defaults
+      held one or two elements, because they were captured before the waiter was fixed. Every one
+      has been replaced with a real trace.
 - [x] **P2 — Locked, and enforced in `saveMockup`** rather than only in the UI, so a stale tab, a script or a direct API call all hit it. The refusal is a 409 carrying the reason, not a 500. The editor opens a default read-only with the reason on screen and Clone beside it, and read-only is enforced at `patchView` — the one funnel every placement, drag, nudge, reorder and delete goes through, because disabling buttons would still leave the arrow keys. , rejected by the save API, and the editor
       opens them read-only with the reason on screen and a Clone button next to it. A default that
       can be edited is no longer a record of what is served.
@@ -564,6 +575,12 @@ Four of the six fail on the **light** theme as well, which means they are app de
 audit found rather than theme defects. That is worth saying plainly: this pass made the portal
 themes work and, on the way, turned up a handful of contrast bugs that have been shipping all along.
 
+> **Closed 2026-08-24.** All six, at their cause rather than at the sample, plus fourteen more the
+> same audit found once it was widened to all eleven themes. `check-portal-themes.mjs` passes on
+> every theme across the routes above. §8 has the table of what each one actually was — two of the
+> six turned out to be a single idiom repeated in eleven files, and one of them was a rule that had
+> been converted correctly and then overruled by a more specific rule in another stylesheet.
+
 ---
 
 ## §8. Where this stands
@@ -599,56 +616,142 @@ applied to it — the same defect §7 describes, surviving in the one theme that
 it. A custom dark theme was therefore the worst-looking option in the picker, and it read as the
 custom-theme feature being broken rather than as forty missing lines of CSS.
 
-### What is data-entry rather than engineering
+### The two machines have now been run — 2026-08-24
 
-Two of the deliverables are now machines that have to be run and filled in:
+Both deliverables that §8 left as "data-entry rather than engineering" have been run across the
+product, and running them is what found the rest of this section.
 
-- **Dossiers.** The deriver measures a route in about eight seconds. 11 routes have been derived so
-  far, producing 120 checklist items. The remaining ~165 admin routes are one command
-  (`scripts/derive-dossiers.mjs --area admin`). The WRITTEN half — purpose, audience, summary — is
-  authorship and no machine can produce it; `/admin/design/dossiers` lists exactly which pages are
-  waiting, and that queue is the work.
-- **Conformance.** `scripts/check-design-conformance.mjs --write` produces the record the page
-  reads. It has not been run across the whole product yet, so the page currently says so — with the
-  command — rather than showing numbers with no date on them.
+- **Dossiers: 132 of 137 admin routes derived.** Not 11. Every route that is a page now has a
+  measured inventory and a generated checklist. The remaining five are routes that only forward
+  somewhere else, and they are not pages — see below.
+- **Defaults: 138 of 138, all re-traced.** Not 130 with eight named exceptions. Every default in
+  the system was captured fresh, at both viewports, in one afternoon.
+- **Conformance: run across all 133 routes and recorded.** `lib/design/conformance.generated.json`
+  now holds 264 measured views. **Mean 99.0%. Ten views below the 90% bar**, all of them stable
+  across repeated runs, all on pages whose content is genuinely different from minute to minute:
+  `/admin/receipts`, `/admin/receipts/new`, `/admin/reports`, `/admin/me`, `/admin/design` (which
+  changes every time somebody saves a design) and `/admin/files`.
 
-### Still open, from the earlier passes
+The written half of a dossier — purpose, audience, summary — is still authorship, still cannot be
+produced by a machine, and `/admin/design/dossiers` still lists exactly which pages are waiting.
+That queue is unchanged and it is real work; what has changed is that the measured half beneath it
+is now complete rather than 8% complete.
 
-**Eight pages have no default traced**, and the reasons are worth keeping rather than retrying
-blindly:
+### The eight untraced pages were six instruments and no bugs
 
-| Route | Why |
+§8 named eight routes with no default and five API 500s in the equipment area, and suggested "one
+cause rather than six." There was one cause, and it was not in the equipment area: **the `api 500`
+was the DESIGN import endpoint, not the equipment one** — the doc misread its own error string.
+All eight traced on the first attempt once the fixed-wait fix that §8 describes was actually
+exercised against them. They needed re-running, not diagnosing.
+
+What running everything else found, though, was five more instruments reporting themselves as
+findings. Each is recorded because the shape keeps recurring and the cost is always the same: a
+measurement that is confidently wrong is indistinguishable from a discovery.
+
+| What it looked like | What it was |
 |---|---|
-| `/admin/equipment/inventory`, `/maintenance`, `/overrides`, `/fleet-valuation`, `/import` | `api 500` from the import endpoint |
-| `/admin/pay-rates` | `api 500` |
-| `/admin/equipment/consumables` | `api 405` |
-| `/admin/pay-progression` | the page aborted the navigation |
+| 74 admin routes "could not be traced" | `/admin/login` redirects itself when you are signed in, leaving a navigation pending that failed **every route after it**. One tab, shared by 138 routes. |
+| 16 routes "never finished loading" | The dev server compiling a route for the first time. 15 of 16 traced on a second attempt, warm. |
+| `/admin/cad` "never finished loading" | It renders a full-screen shell and never mounts `.admin-layout__content`, which is the only thing `waitForPageReady` looked for. It was ready in under three seconds and the waiter watched the wrong element for twenty-five. |
+| 220 of 266 defaults "no longer 1:1" | The conformance matcher. See below — this one is the big one. |
+| 10 of the remaining 20 failing views | Captures taken while a page was still assembling. `/admin/weather` reported 116 elements missing on a capture that had found **two elements on the entire page**. |
 
-Five of the six 500s are the equipment area, which suggests one cause rather than six. Not
-diagnosed. `/admin/work` traced 70 desktop elements and **2 mobile**, which is not a mobile page
-with two things on it — it is a capture that did not wait long enough.
+Fixed at the source in each case: both walks now replace a poisoned tab instead of carrying it,
+`waitForPageReady` falls back to `document.body` like every other root in this system, and the
+conformance sweep measures a failing view a second time before believing it.
 
-### The third instrument bug, and the one worth remembering
+### The conformance check was measuring class-attribute order
 
-**Every walk in this system waited a fixed number of milliseconds, and that number was measuring the
-dev server.** Three separate symptoms, one cause:
+This is the one worth reading. `scripts/check-design-conformance.mjs --write` had never been run
+across the product, and the first run said **220 of 266 defaults were no longer 1:1** — on pages
+traced from the running app minutes earlier. `/admin/team` scored 7%. `/admin/weather` 7%.
+`/admin/search` 0%.
 
-- `/admin/audit` and `/admin/billing` derived to an EMPTY inventory and were refused. Neither is an
-  empty page: they render `⏳ Loading...` for four and eleven seconds while the route compiles.
-- `/admin/work` traced 70 desktop elements and 2 mobile — not a phone page with two things on it.
-- The fidelity check located **4 of 51** palette elements across 34 routes, where an earlier run of
-  the same script had found 28. Nothing about the catalogue had changed. It was sampling spinners
-  and reporting the app as unfindable.
+Three defects, all of them in how the two sides named the same element:
 
-`waitForPageReady` now waits for the content root to hold something operable, and every walk — the
-deriver, the tracer and the fidelity check — uses it. Both refused routes derive on the first try
-afterwards, and the fidelity walk's yield went from 4/51 to 25/51 on the same app.
+1. **Two signature rules, one for each side.** The page picked the BEM child class — the one
+   containing `__` — and the design took whichever class happened to be written first in the
+   markup. For `class="team-page team-page__card"` that is `.team-page__card` on one side and
+   `.team-page` on the other: one element, counted as one thing missing and one thing extra. Pages
+   whose markup led with the block class scored in single digits; pages that happened to put the
+   `__` class first scored 100. **The number was measuring the order of a class attribute.**
+2. **Classless elements could never match.** Half this product's markup carries no class at all —
+   `/admin/team` renders 92 of its 102 nodes as bare `<h1>`, `<span>`, `<button>`. `import.ts`
+   already files those under their TAG, so the design said `.span` and the page said nothing. 92 of
+   102 elements unmatchable by construction.
+3. **A page that moved was every element moving.** `/admin/me` matched 118 of 118 elements and
+   scored 0%, on 104 "moved" findings that were every one of them `+0, +27`. Nothing had moved: the
+   page started 27px lower than when it was traced. §P3 had already written this lesson down for the
+   re-trace diff — *"insert one banner and an index comparison reports that the entire page moved"* —
+   and the position comparison had the same disease in a different form.
 
-That is the fourth time in this repository that the instrument was the defect, and the shape is
-always the same: a measurement that is confidently wrong looks exactly like a finding.
+One shared `classSignature()` both sides call, a tag fallback spelled identically on both sides, and
+a page-level offset measured from the median and reported once as a `shifted` finding. **220 → 10.**
+Four regression tests pin each rule, because 250 passing design tests had not touched any of it.
 
-**The six contrast findings in §7's punch list are unchanged.** Four of them fail on the light
-theme as well, which means they are app defects the theme audit found rather than theme defects.
+### A default of a redirect is a record of the wrong page
+
+`/admin/schedule` is one line: `redirect('/admin/calendar')`. The tracer followed it and stored 72
+elements of the **calendar** as the locked, "1:1 with what is served" default of the **schedule**
+route. Five routes were doing this — `/admin`, `/admin/schedule` and three under `/admin/marketing`.
+
+The dossier deriver had refused exactly this and said why. The tracer, which makes the more
+load-bearing claim, never looked. Both now check where they landed, both classify a forwarding stub
+as *not a page* rather than as a failure — a queue that can never reach zero is one people stop
+reading — and the five false defaults have been deleted.
+
+### The six contrast findings are closed, and so are fourteen more
+
+§7's punch list is empty. All six were fixed at their cause rather than at the sample, and the audit
+that produced them now passes on **all eleven themes** across the eleven routes it covers.
+
+| Finding | Cause | Fix |
+|---|---|---|
+| `.jobs-page__btn--primary` 1.07–2.72:1 dark | `AdminLayout.css` pinned literal `#FFFFFF` at a higher specificity than the themed rule in `AdminJobs.css` — the conversion had been written and never reached the screen | the rule reads `--theme-accent-fg` |
+| `.emp-card__role-chip`, `.job-card__stage` 2.15–3.58:1 on **every** theme | one idiom in eleven places: `background: withAlpha(hue, 12.55), color: hue`. A 12.5% tint of a light hue with that same hue as ink is 2.15:1 for amber, and it is inline, so no theme could reach it | `chipInk()` mixes the hue 55% toward `--theme-fg-primary`, which darkens on a light palette and lightens on a dark one. 55% is the measured floor across every chip hue and every surface in the roster: worst case 4.93:1 |
+| `.worker-status__headline` / `__hint` 1.16:1 dark | two halves. The status `-text`/`-surface` token pairs were the one family the theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` panel; and `p { color: … }` in globals.css is an ELEMENT rule, so it painted these paragraphs directly and the banner's tone never reached them | the pairs are derived per palette from the theme's own hue and surface; the paragraphs take `color: inherit` |
+| `.job-card__deadline` 2.15:1 everywhere | `--color-warning` is the FILL amber; a word needs the ink | `--color-warning-text` |
+| `.admin-learn__section-arrow` 2.59–3.76:1 | brand red as text, inline, on a card. There were **two** such arrows, not one — the second only renders for an admin | `--color-error-text` |
+| `.job-card__tag`, `.ws-landing__shortcut` 4.34:1 | `--theme-fg-muted` clears 4.5:1 on the page and loses it against an elevated surface | three palettes' muted foreground raised by the smallest step that clears 4.6:1 on their worst surface |
+
+Widening the same audit to eleven themes × eleven routes found fourteen more and they were the same
+two shapes. `/admin/payroll` had had its text converted to theme tokens in an earlier pass and its
+**backgrounds left as `background: white`** — 26 of them — which is the worst possible half of that
+job to finish: near-white text on a white card, 1.10:1. `/admin/files` is one styled-jsx block of 85
+literal colours with no theming at all. `.um-btn--success` and `--warning` carried white at 3.77:1
+and 3.19:1 on every theme including the light one. All converted; the sweep is clean on all eleven
+themes.
+
+**One test moved.** `theme-vars-are-adopted.test.ts` guarded `fg-muted` at 3.0:1, and that floor is
+precisely what let three palettes ship a muted foreground measuring 4.29–4.34:1 against their own
+elevated surface. Muted text is still text at a normal size. The floor is 4.5:1 now, and every
+palette clears it.
+
+### Still open, named and measured
+
+**Widen the theme audit past eleven routes and it is not clean.** Eleven themes × twenty-five
+routes reports **232 problems**, and they are on routes this plan never audited: Tailwind utility
+classes (`text-gray-500` on a dark surface), `/admin/reports`' styled-jsx block, the hub greeting's
+white-on-gradient. That is not this pass's punch list — it is the same conversion job as `payroll`
+and `files`, across the rest of the product, and it is a programme rather than a slice. Reproduce
+it with:
+
+```
+node --env-file=.env.local scripts/check-portal-themes.mjs --base http://127.0.0.1:3015 \
+  --themes starr-default,starr-dark,slate-light,slate-dark,forest-light,forest-dark,sunset,ocean,plum,high-contrast-light,high-contrast-dark \
+  --routes /admin,/admin/jobs,/admin/projects,…
+```
+
+**Ten conformance views sit below the bar and belong there.** They are pages whose content really
+does change between two captures — a receipts list, a report over live data, the hub, and the design
+studio's own page. A trace is a snapshot of a data-driven page, and the honest reading of an 85% on
+`/admin/reports` is "this page's content moved", not "somebody must re-trace it". The number is
+recorded with the date on it, which is what §8 said the page should show.
+
+**Nothing in the non-admin areas has a default.** 32 public pages, 17 D&D, 6 platform, 1 customer,
+2 auth. Phase P scoped itself to admin and the tracer will do the rest on request; it is listed here
+so the 138/138 above is not mistaken for 270/270.
 
 ### What this still cannot do, by construction
 
@@ -656,4 +759,5 @@ Activating a design does not replace the React page — §1 says why, and nothin
 it. What activation now does is real and worth naming: it decides what the checklist measures, what
 the conformance view diffs the live page against, which themes portal settings offers, and what
 `/admin/design/serve` renders at full size. The gap between the specification and the product is a
-number on a page rather than an assumption.
+number on a page rather than an assumption — and as of 2026-08-24 that number is 99.0%, measured
+across 264 views, rather than a command nobody had run.

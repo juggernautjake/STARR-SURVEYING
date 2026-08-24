@@ -16,7 +16,7 @@ export const SLATE_LIGHT: ThemeDefinition = {
     bgElevated:   '#F1F1F4',
     fgPrimary:    '#18181B',
     fgSecondary:  '#3F3F46',
-    fgMuted:      '#71717A',
+    fgMuted:      '#6C6C74',
     accent:       '#3F3F46',
     accentFg:     '#FFFFFF',
     border:       '#E4E4E7',

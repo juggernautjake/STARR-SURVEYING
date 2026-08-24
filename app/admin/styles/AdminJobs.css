@@ -128,7 +128,9 @@
   font-size: 0.75rem;
   font-weight: 500;
   background: var(--color-bg-subtle);
-  color: var(--color-text-tertiary);
+  /* Tertiary clears 4.5:1 on white and loses it the moment there is a panel behind it — measured
+   * 4.34:1 on this one. These are the job's own words, so they take secondary. */
+  color: var(--color-text-secondary);
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
 }
@@ -138,7 +140,9 @@
 }
 .job-card__deadline {
   font-size: 0.7rem;
-  color: var(--color-warning);
+  /* `--color-warning` is the FILL amber (#F59E0B) — 2.15:1 as 11px text on every theme, the light
+   * one included. `-text` is the same status in the weight a word needs. */
+  color: var(--color-warning-text);
   font-weight: 500;
 }
 

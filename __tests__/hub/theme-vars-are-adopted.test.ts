@@ -261,7 +261,11 @@ describe('the themes are actually consumed', () => {
       const get = (name: string) =>
         new RegExp(`--theme-${name}\\s*:\\s*(#[0-9a-fA-F]{3,8})`).exec(body)?.[1] ?? null;
 
-      for (const [fgName, min] of [['fg-primary', 4.5], ['fg-secondary', 4.5], ['fg-muted', 3.0]] as const) {
+      // `fg-muted` sat at 3.0 and that floor is what let the defect through: three palettes shipped a
+      // muted foreground measuring 4.34, 4.29 and 4.30:1 against their own elevated surface, and the
+      // guard called them fine. Muted text is still TEXT at a normal size, so it owes 4.5:1 like the
+      // rest — a table head nobody can read is not a subtle design choice.
+      for (const [fgName, min] of [['fg-primary', 4.5], ['fg-secondary', 4.5], ['fg-muted', 4.5]] as const) {
         const fg = get(fgName);
         if (!fg) continue;
         for (const bgName of ['bg-surface', 'bg-page', 'bg-elevated']) {
