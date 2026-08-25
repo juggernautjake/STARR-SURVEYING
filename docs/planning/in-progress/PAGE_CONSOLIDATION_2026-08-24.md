@@ -207,6 +207,14 @@ is **per-ITEM approval** — today the decision is per receipt.
       exactly the case that needs typing into. Mounting the editor behind the old condition would
       have looked like shipping P2.2a while leaving its motivating case unreachable.
 
+      **Checked afterwards, which is late but not too late: the editor does NOT render per row.**
+      `ReceiptLineItems` fetches its own lines on mount, so mounting it in a list of 24 receipts would
+      have been 24 requests on every page load — a regression that looks like nothing until the queue
+      is slow and nobody knows why. It sits inside the `{expanded ? … }` branch (lines 1147–1729) and
+      `expandedId` holds a single id, so exactly one is ever mounted. Verified structurally rather
+      than by eye, because "it's in the detail area" is the kind of thing that is true until a JSX
+      block moves. Nothing to fix — but this was shipped without the check, and the check is cheap.
+
       **Two things checked rather than assumed**, both because this repo has been bitten by each:
       · the `rli__`/`rcv__` classes live in `ReceiptSlideshow.css`, which `QueueTab` pulls in through
       its static import of the slideshow — so the CSS is in the same client chunk and applies. A
