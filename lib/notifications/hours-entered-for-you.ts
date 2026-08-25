@@ -77,7 +77,7 @@ export function buildHoursEnteredForYouNotification(
     // decision coming, so if it is wrong, saying so now is the only remaining step.
     body: `${hours}${when} ${count === 1 ? 'was' : 'were'} entered${who} and approved${money}. Check it and say if anything is wrong.`,
     icon: '🗒️',
-    link: '/admin/my-hours',
+    link: '/admin/hours?tab=my-time',
     source_type: 'hours_entered_for_you',
   };
 }

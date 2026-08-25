@@ -94,7 +94,12 @@ describe('widget-links — every mapped target is a real-looking route', () => {
       // consolidation Slice 2 (2026-05-30) — widget footers can now
       // route into the hub via a `?tab=…` query string after the
       // legacy `/admin/my-*` pages were collapsed into `/admin/me`.
-      expect(target.href).toMatch(/^\/admin\/[a-z0-9/-]+(\?tab=[a-z]+)?$/);
+      // C4 (2026-08-25) widened the tab value to kebab-case. The class was `[a-z]+`, which was right
+      // when the hub's tabs were single words — the portal system's ids are kebab-case everywhere
+      // (`my-time`, `check-in-out`, `time-off`), and the registry, `toggleKey` and `portalHref` all
+      // already spell them that way. A pattern that predates the convention it checks is a fossil,
+      // not a rule.
+      expect(target.href).toMatch(/^\/admin\/[a-z0-9/-]+(\?tab=[a-z0-9-]+)?$/);
       expect(target.label.trim().length).toBeGreaterThan(0);
     }
   });

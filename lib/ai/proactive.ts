@@ -69,7 +69,7 @@ async function longClockIns(): Promise<ProactiveAlert[]> {
       severity: hours >= 20 ? 'urgent' : 'warn',
       title: 'Still clocked in',
       detail: `${r.user_email} has been clocked in for ${hours} hours. If they forgot to clock out, the timesheet needs fixing before payroll.`,
-      href: '/admin/hours-approval',
+      href: '/admin/hours?tab=approvals',
       audience: [r.user_email],
     };
   });

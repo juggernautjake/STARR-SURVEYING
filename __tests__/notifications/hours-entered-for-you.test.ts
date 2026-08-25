@@ -25,7 +25,7 @@ describe('telling an employee the office entered their hours', () => {
     // Somebody to ask. A notification about money with no author is a dead end.
     expect(n!.body).toContain('jacob@x.com');
     expect(n!.body).toContain('$132.00');
-    expect(n!.link).toBe('/admin/my-hours');
+    expect(n!.link).toBe('/admin/hours?tab=my-time');
   });
 
   it('says the entry is already approved', () => {

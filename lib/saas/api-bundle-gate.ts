@@ -102,6 +102,16 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // `requiredBundle`, so it already resolved to "always-available or operator-only". Written out
   // here it no longer depends on a nav row that a later consolidation can remove.
   'vehicles': { bundle: null, reason: 'Operator-only fleet roster; the page is a tab of the Equipment portal since C3.' },
+  // Same mechanism as `vehicles` above, one slice later: C4 made `/admin/time-off` and
+  // `/admin/availability` tabs of the Hours portal and took their nav rows out, so the mirror these
+  // were classified through stopped resolving.
+  //
+  // Both answers are carried across, not invented. `time-off` was ungated because every employee may
+  // ask for leave; `availability` was `internalOnly` with no bundle. Writing them out is also the
+  // point: this is the second consolidation to break a mirror, so the next one will not be a
+  // surprise.
+  'time-off': { bundle: null, reason: 'Every employee may request leave; the approval side is role-gated in its handler.' },
+  'availability': { bundle: null, reason: 'Operator-only dispatch view; the page is a tab of the Hours portal since C4.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

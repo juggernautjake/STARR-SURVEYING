@@ -26,7 +26,9 @@ const src = (p: string) =>
     .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '')
     .replace(/^\s*\/\/[^\n]*$/gm, '');
 
-const APPROVAL = 'app/admin/hours-approval/page.tsx';
+// C4: the approvals screen is a TAB of the Hours portal now. Same component, byte for byte apart
+// from three import paths — this reads the file it moved to.
+const APPROVAL = 'app/admin/hours/_tabs/ApprovalsTab.tsx';
 const PAYROLL = 'app/admin/payroll/page.tsx';
 
 describe('effectiveHours — one definition of "the hours that count"', () => {

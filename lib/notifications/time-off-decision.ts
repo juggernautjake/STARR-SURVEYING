@@ -47,7 +47,7 @@ export function buildTimeOffDecisionNotification(
       ? `Your time-off request for ${range} was ${status}.`
       : `Your time-off request was ${status}.`,
     icon,
-    link: '/admin/time-off',
+    link: '/admin/hours?tab=time-off',
     source_type: 'time_off_decision',
   };
 }

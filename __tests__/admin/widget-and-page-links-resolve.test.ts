@@ -215,12 +215,34 @@ describe('the widget "Go to…" table', () => {
     expect(broken, `Widget footers pointing nowhere:\n  ${broken.join('\n  ')}`).toEqual([]);
   });
 
-  it('no destination carries a query string', () => {
-    // A "Go to my hours →" whose meaning lives in a query is one page pretending to be another.
+  it('no destination carries a query string the destination ignores', () => {
+    // ── THE RULE NARROWED, C4 (2026-08-25) ────────────────────────────────────────────────────
+    //
+    // This banned every query string, and the reason it gave was right: *"a 'Go to my hours →' whose
+    // meaning lives in a query is one page pretending to be another."* It was written about
+    // `/admin/me?tab=hours`, and the test above this one says exactly why — **the Hub ignores
+    // `tab`**, so those footers landed on the widget canvas instead of the page they named.
+    //
+    // The concern is unchanged; the rule was broader than the concern. A portal built on
+    // `usePortalTabs` READS `?tab=`, so `/admin/hours?tab=my-time` is the page it names — verified
+    // in a browser, not assumed. Banning it outright would force widget footers back onto the
+    // redirect stubs, which is a worse link for the same destination.
+    //
+    // So: a query string is allowed only where the destination demonstrably consumes it. Anywhere
+    // else — including the Hub — it is still the bug this test was written for.
+    const readsTab = (href: string): boolean => {
+      const p = href.split('?')[0];
+      const file = path.join(process.cwd(), 'app', p, 'page.tsx');
+      if (!fs.existsSync(file)) return false;
+      return fs.readFileSync(file, 'utf8').includes('usePortalTabs');
+    };
     const withQuery = entries
-      .filter(([, t]) => t.href.includes('?'))
+      .filter(([, t]) => t.href.includes('?') && !readsTab(t.href))
       .map(([id, t]) => `${id} → ${t.href}`);
-    expect(withQuery, `Widget footers relying on a query string:\n  ${withQuery.join('\n  ')}`).toEqual([]);
+    expect(
+      withQuery,
+      `Widget footers relying on a query string the destination does not read:\n  ${withQuery.join('\n  ')}`,
+    ).toEqual([]);
   });
 
   it('every destination is exact, never swallowed by a [param]', () => {

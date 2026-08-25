@@ -43,12 +43,21 @@ import { ADMIN_ROUTES, accessibleRoutes } from '@/lib/admin/route-registry';
  * `session.user.email` unless the caller is an admin), so widening the gate cannot widen the data.
  */
 const SELF_SERVICE = [
-  '/admin/my-hours',
+  // C4 (2026-08-25): was `/admin/my-hours`. That route still exists and forwards, but it is not a
+  // REGISTRY row any more — the Hours portal absorbed it as the `my-time` tab, and this test asks
+  // whether the nav offers a way in.
+  //
+  // The invariant is unchanged and was re-checked rather than assumed: `/admin/hours` is ungated,
+  // and its per-role default sends an `employee` and a `field_crew` member to `my-time` — asserted
+  // in `__tests__/admin/hours-portal.test.ts`. The door has a new name, not a new lock.
+  '/admin/hours',
   '/admin/schedule',
   '/admin/assignments',
   '/admin/my-pay',
   '/admin/receipts/new',
-  '/admin/time-off',
+  // C4 absorbed `/admin/time-off` as the portal's `time-off` tab, and it is the tab that keeps the
+  // portal ungated: it was the one of the four with no role list, because every employee may ask for
+  // leave. `/admin/hours` above covers it — listing it twice would assert the same row twice.
   '/admin/my-files',
   '/admin/my-notes',
 ];

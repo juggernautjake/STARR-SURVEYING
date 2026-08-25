@@ -91,7 +91,7 @@ export function buildHoursDecisionNotifications(
       title: `${icon} Hours ${statusTitle}`,
       body: `${hoursLabel} (${span}) ${agg.count === 1 ? 'has' : 'have'} been ${status}.${why}`,
       icon,
-      link: '/admin/my-hours',
+      link: '/admin/hours?tab=my-time',
       source_type: 'hours_decision',
     });
   }
@@ -127,7 +127,7 @@ export function buildHoursAdjustmentNotification(opts: {
     title: '✏️ Hours Adjusted',
     body: `A manager adjusted your hours${when} (${change}).${reason}`,
     icon: '✏️',
-    link: '/admin/my-hours',
+    link: '/admin/hours?tab=my-time',
     source_type: 'hours_decision',
   };
 }

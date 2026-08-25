@@ -23,7 +23,7 @@ describe('buildTimeOffDecisionNotification', () => {
       user_email: 'a@x.com',
       type: 'approval',
       icon: '✅',
-      link: '/admin/time-off',
+      link: '/admin/hours?tab=time-off',
       source_type: 'time_off_decision',
     });
     expect(n.title).toContain('Approved');

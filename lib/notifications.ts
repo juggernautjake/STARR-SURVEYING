@@ -181,7 +181,11 @@ export async function notifyHoursDecision(userEmail: string, approved: boolean, 
     title: `${icon} Hours ${status}`,
     body: `${hours}h for ${date} have been ${status.toLowerCase()}.`,
     icon,
-    link: '/admin/my-hours',
+    // C4: was '/admin/hours?tab=my-time', which still forwards — but a notification link is one somebody
+    // taps from a phone notification or an email, and sending them through a redirect costs a
+    // navigation and a flicker on the slowest connection any of these links is used on. Pointed at
+    // the tab directly.
+    link: '/admin/hours?tab=my-time',
     source_type: 'hours_decision',
   });
 }

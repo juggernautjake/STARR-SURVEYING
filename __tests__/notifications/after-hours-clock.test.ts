@@ -32,7 +32,7 @@ describe('buildAfterHoursClockReminders', () => {
       user_email: 'a@x.com',
       type: 'reminder',
       icon: '⏰',
-      link: '/admin/my-hours',
+      link: '/admin/hours?tab=my-time',
       source_type: 'clock_reminder',
     });
     expect(out[0].title).toContain('Still clocked in');

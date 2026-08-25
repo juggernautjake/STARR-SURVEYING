@@ -118,8 +118,8 @@ export const PAGE_TITLES: Record<string, string> = {
   '/admin/assignments': 'Assignments',
   '/admin/schedule': 'My Schedule',
   // /admin/my-hours page-title removed in consolidation Slice 2.
-  '/admin/hours-approval': 'Hours Approval',
-  '/admin/time-off': 'Time Off',
+  '/admin/hours?tab=approvals': 'Hours Approval',
+  '/admin/hours?tab=time-off': 'Time Off',
   '/admin/discussions': 'Discussion Threads',
   '/admin/learn/fieldbook': 'My Fieldbook',
   '/admin/research': 'Property Research',

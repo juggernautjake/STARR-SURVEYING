@@ -657,7 +657,84 @@ early, and the internal tooling comes last.
       is no longer one of the five routes a W4 composition can replace. That is the right trade — it
       is a real portal now rather than a card grid — but C13 should notice that consolidating a
       workspace landing removes a composition slot.
-- [ ] **C4 — P3 Hours** (4 → 1) **including the role split**. First portal to prove §5.
+- [x] **C4 — P3 Hours, including the role split.** Shipped 2026-08-25. Four nav rows became one, and
+      this is the slice that **proves §5**.
+
+      `/admin/hours` — a new canonical route — with tabs `my-time · approvals · time-off ·
+      availability`. §4's observation was right: *"the dossiers show `/admin/my-hours` and
+      `/admin/hours-approval` already call the same three APIs. They are one screen with two
+      permission levels, built twice."*
+
+      **Verified with two real accounts, same URL:**
+
+      | | tabs | lands on | `?tab=approvals` opens |
+      |---|---|---|---|
+      | admin | My time · Approvals · Time off · Availability | **Approvals** | Approvals |
+      | employee | My time · Time off | **My time** | **My time** |
+
+      That table is §5's three rules in one screenshot. The employee does not see the approval queue,
+      lands on their own week, and a link to a tab they may not open gives them their own timesheet
+      instead — *"a default is a courtesy; it is not a permission."*
+
+      ── **§5's FIRST RULE IS THE DANGEROUS ONE, AND IT NEARLY BIT** ───────────────────────────────
+
+      *"A portal reachable by six roles whose tabs are gated to one is a WIDER door than six
+      separately-gated pages, and it is the single most dangerous thing in this plan."*
+
+      The four pages had four different gates: three were open (`my-hours`, `time-off`,
+      `availability` — each shows you your own week) and `hours-approval` carried a **middleware role
+      gate**. Merging them means the portal cannot be gated to the approvers without taking every
+      employee's timesheet away, so the route is open and **the gate moved down a level rather than
+      away**:
+
+      · each tab carries the exact role list its page carried — asserted by **reading the old lists
+        out of `git show HEAD:` rather than retyping them**, because retyping would only test that I
+        typed the same thing twice, which is the mistake being guarded against;
+      · `resolveTab` refuses to open a tab the viewer may not see, browser-verified above;
+      · every time-log endpoint keeps the check it had — this slice moved components between files
+        and did not touch a handler.
+
+      The middleware guard caught the change and asked the right question — *"reachable by ANY
+      authenticated user and nobody has said whether that is intended"* — and the answer is written
+      into `INTENTIONALLY_OPEN` with all of the above, rather than silently added to a list.
+
+      §5's second rule comes free and not by luck: `/admin/time-off` was **ungated**, so the union of
+      the four role lists is everybody, and every viewer has at least that tab. The registry row is
+      therefore ungated too — which is the honest expression of the union rather than a widening. A
+      row gated tighter would have removed access while claiming to merge.
+
+      ── **NINE TEST FILES WENT RED, AND THAT WAS THE SLICE WORKING** ─────────────────────────────
+
+      Four were samples that moved with the code — the nav label, the drawer parity list, and two
+      hours tests reading the approvals file by path. Five were findings:
+
+      · **`notify-links-audit`** — the real one. **Thirteen files** sent notifications and widget
+        footers to `/admin/my-hours` and friends. They all still WORK, but each is a link somebody
+        taps from a phone notification or an email, where a redirect costs a navigation and a flicker
+        on the slowest connection any of them is used on. All repointed at the tab.
+      · **`api-bundle-gate`** — `/api/admin/time-off` and `/api/admin/availability` lost the page
+        mirror they were classified through. **Second consolidation in a row to break a mirror**, so
+        both answers are now written out explicitly rather than inherited from a nav row.
+      · **`employee-can-reach-their-own-things`** — *"My Hours is no longer in the nav at all."* The
+        invariant holds and its sample moved; re-checked rather than assumed, since the portal is
+        ungated and defaults an `employee` to `my-time`.
+      · **`widget-links`** — the tab pattern was `[a-z]+`, written when the hub's tabs were single
+        words. Portal ids are kebab-case everywhere. **A pattern that predates the convention it
+        checks is a fossil, not a rule** — widened.
+      · **`widget-and-page-links-resolve`** — banned every query string, for a right reason: *"a 'Go
+        to my hours →' whose meaning lives in a query is one page pretending to be another"*, written
+        about `/admin/me?tab=…` because **the Hub ignores `tab`**. A portal built on `usePortalTabs`
+        does not. The rule was broader than its concern, so it is narrowed to *"a query string the
+        destination does not read"* — checked by looking for `usePortalTabs` in the destination's
+        page. Still catches the Hub; no longer forces widget footers back onto redirect stubs.
+
+      And the inline-hex ratchet fired again for the same reason as C3 — two files moved, total
+      **2306 before and 2306 after**. Investigated before re-baselining, as the standing rule says.
+
+      **What this deliberately does NOT do:** merge `my-time` and `approvals` into one screen with
+      conditional bits. They are the same data at two permission levels, and §5 says to collapse the
+      pair into one portal with a role-chosen default — not to interleave two large components and
+      hope the conditionals are right. The merge that matters is the one in the sidebar.
 - [ ] **C5 — P2 Receipts** (4 → 1), tabs only. **Per-item approval is P2.2 and is blocked** on the
       owner's accounting answer.
 - [ ] **C6 — P1 Pay & Payouts** (11 → 1). The headline. Do it after Hours has proven the role split.

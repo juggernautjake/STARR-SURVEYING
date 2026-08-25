@@ -63,7 +63,7 @@ export function buildAfterHoursClockReminders(
       title: '⏰ Still clocked in',
       body: `You're still clocked in${elapsed ? ` (${elapsed} so far)` : ''}. Don't forget to clock out when you're done for the day.`,
       icon: '⏰',
-      link: '/admin/my-hours',
+      link: '/admin/hours?tab=my-time',
       source_type: 'clock_reminder',
     });
   }

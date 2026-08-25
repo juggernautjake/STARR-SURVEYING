@@ -1,0 +1,73 @@
+/* app/admin/hours/HoursPortal.css — the Hours & Time portal's chrome.
+ *
+ * C4 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+ *
+ * Deliberately a near-copy of `EquipmentPortal.css` rather than a shared `portal.css`. Two portals
+ * is not yet evidence of a pattern — C5 through C12c will say whether the strip is genuinely one
+ * component or four that look alike today, and extracting on a sample of two is how a "shared"
+ * stylesheet ends up carrying six exceptions. C13 is the right moment to decide, with all of them
+ * in front of you.
+ *
+ * Tokens throughout: this is the page every employee opens to fix a missed clock-out, so it has to
+ * hold up in whichever palette they picked. */
+
+.hrs-portal__tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin: 0 0 0.25rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  overflow-x: auto;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hrs-portal__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex: 0 0 auto;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--theme-fg-secondary, #6B7280);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.hrs-portal__tab:hover {
+  background: var(--theme-bg-elevated, #F3F4F6);
+  color: var(--theme-fg-primary, #111827);
+}
+
+/* Weight and an underline, not colour alone — a palette whose accent sits close to the body colour
+ * would otherwise leave the strip with no visible selection at all. */
+.hrs-portal__tab--active {
+  color: var(--color-accent, #2563EB);
+  border-bottom-color: var(--color-accent, #2563EB);
+  font-weight: 650;
+}
+
+.hrs-portal__tab:focus-visible {
+  outline: 2px solid var(--color-accent, #2563EB);
+  outline-offset: -2px;
+}
+
+.hrs-portal__hint {
+  margin: 0.625rem 0 1rem;
+  font-size: 0.8125rem;
+  color: var(--theme-fg-secondary, #6B7280);
+}
+
+.hrs-portal__none {
+  margin: 2rem 0;
+  padding: 1.5rem;
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  color: var(--theme-fg-secondary, #6B7280);
+  text-align: center;
+  font-size: 0.9375rem;
+}

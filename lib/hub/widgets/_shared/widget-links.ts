@@ -48,8 +48,8 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // 2026-08-04 when the nav entries were fixed, but these widget footers were never updated, so
   // "Go to my hours →" kept dropping the user on the widget canvas they were already looking at.
   'my-pay': { href: '/admin/my-pay', label: 'my pay' },
-  'hours-this-week': { href: '/admin/my-hours', label: 'my hours' },
-  'pto-balance': { href: '/admin/time-off', label: 'time off' },
+  'hours-this-week': { href: '/admin/hours?tab=my-time', label: 'my hours' },
+  'pto-balance': { href: '/admin/hours?tab=time-off', label: 'time off' },
   // financial
   'monthly-revenue': { href: '/admin/finances', label: 'finances' },
   'outstanding-invoices': { href: '/admin/billing/invoices', label: 'invoices' },
@@ -61,10 +61,10 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // /admin/hours-approval because that's the busiest queue + the only
   // approval surface admins land on regularly; the per-tab content
   // links from within the widget body.
-  'approvals': { href: '/admin/hours-approval', label: 'approvals' },
-  'pending-hours': { href: '/admin/hours-approval', label: 'hours approval' },
+  'approvals': { href: '/admin/hours?tab=approvals', label: 'approvals' },
+  'pending-hours': { href: '/admin/hours?tab=approvals', label: 'hours approval' },
   'pending-receipts': { href: '/admin/receipts', label: 'receipts' },
-  'pending-time-off': { href: '/admin/time-off', label: 'time-off approvals' },
+  'pending-time-off': { href: '/admin/hours?tab=time-off', label: 'time-off approvals' },
   // equipment
   'equipment-out-today': { href: '/admin/equipment/today', label: 'equipment' },
   'low-consumables': { href: '/admin/equipment/consumables', label: 'consumables' },

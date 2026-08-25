@@ -80,7 +80,11 @@ describe('every menu destination is a page', () => {
     // Named individually because these are the five the owner actually clicked. A generic sweep
     // passing while "My Hours" still lands on the Hub would be the guard defending the wrong thing.
     for (const [label, href] of [
-      ['My Hours', '/admin/my-hours'],
+      // C4 (2026-08-25): the Hours portal absorbed `/admin/my-hours` as its `my-time` tab, and the
+      // nav row is called 'Hours & Time' now. The thing this guard is about — the owner clicked
+      // 'My Hours' and landed on the Hub — is unchanged: there is still exactly one nav row that
+      // opens a timesheet, and 'my hours' is still one of its keywords so searching finds it.
+      ['Hours & Time', '/admin/hours'],
       ['My Pay', '/admin/my-pay'],
       ['My Notes', '/admin/my-notes'],
       // 'My Profile' and 'My Jobs' were FOLDED into entries that already served those pages rather

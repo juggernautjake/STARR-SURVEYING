@@ -42,7 +42,9 @@ const LEGACY_SIDEBAR_HREFS = [
   // conversion lost nothing"*, not *"the hrefs never change"*. Leaving the old strings here would make the
   // guard demand the registry keep pointing five menu items at a page that cannot serve them.
   '/admin/assignments',   // was ?tab=jobs — folded into the entry that already existed
-  '/admin/my-hours',      // was ?tab=hours — MyHoursPanel had lost its page.tsx, not its code
+  // C4: the old drawer's '/admin/my-hours' is the Hours portal's `my-time` tab. The route still
+  // forwards; this list is about what the DRAWER offers, and it offers one row now.
+  '/admin/hours',         // was /admin/my-hours, and before that ?tab=hours
   '/admin/my-pay',        // was ?tab=pay
   '/admin/my-notes',      // was ?tab=notes
   '/admin/profile',       // was ?tab=profile — folded into 'Profile & Settings'

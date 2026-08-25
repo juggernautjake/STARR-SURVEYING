@@ -46,6 +46,26 @@ const INTENTIONALLY_OPEN: Record<string, string> = {
   // pages came back; duplicate keys in this object silently kept the OLD reason and dropped the new
   // one, which `tsc` caught and a reader would not have.
   'my-jobs': 'redirected to /admin/assignments, which is gated on its own',
+  // ── C4 MERGED FOUR PAGES, THREE OF WHICH WERE ALREADY OPEN ─────────────────────────────────
+  //
+  // `my-hours`, `availability` and `time-off` were each open, for the reasons still listed below.
+  // `hours-approval` was NOT — it carried a middleware role gate. The portal cannot be gated to the
+  // approvers without taking every employee's own timesheet and leave request away from them, so the
+  // route is open and the gate moved DOWN a level rather than away.
+  //
+  // §5 rule 1 calls that out as the most dangerous move in the consolidation plan, so what replaces
+  // the middleware gate is written down rather than assumed:
+  //
+  //   · the approvals TAB is role-gated in the portal spec, and `resolveTab` refuses to open a tab
+  //     the viewer may not see — `/admin/hours?tab=approvals` sent to a field crew member opens
+  //     their own timesheet instead. Asserted in `__tests__/admin/hours-portal.test.ts`.
+  //   · every time-log endpoint keeps the check it had. This slice moved components between files
+  //     and did not touch a handler, which §5 names as the real boundary: *"a tab hidden in the UI
+  //     is a convenience; the route behind it must still refuse."*
+  //
+  // `/admin/hours-approval` stays in `ROUTE_ROLES` and still forwards, so the old URL keeps its own
+  // gate for anyone who has it bookmarked.
+  'hours': 'the merged Hours portal — three of its four tabs were already open; the approvals tab is gated in the spec and at every API it calls',
   'availability': 'a crew member sets their own availability',
   'time-off': 'a crew member files their own request; the approval queue is gated separately',
   // E2 (2026-08-11). Same shape as `time-off`, and open for the same reason: ASKING for a role has

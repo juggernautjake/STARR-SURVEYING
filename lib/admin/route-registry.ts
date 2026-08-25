@@ -143,6 +143,24 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // `LEGACY_REDIRECTS` sends the URL to /admin/me; it is deliberately NOT registered here, so it
   // cannot reappear in the rail, the palette or the mobile drawer — all three derive from this list.
   { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'The jobs and tasks assigned to you. Reached from the menu as both Assignments and My Jobs.', roles: [...WORK_ROLES, 'employee', 'researcher', 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks', 'my jobs', 'assigned', 'mine'] },
+  // ── C4: FOUR ROWS BECAME ONE ────────────────────────────────────────────────────────────────
+  //
+  // §4, P3: *"the dossiers show /admin/my-hours and /admin/hours-approval already call the same three
+  // APIs — time-logs, advances, lock-period. They are one screen with two permission levels, built
+  // twice."* Plus time-off and availability, which are the same subject on the same week.
+  //
+  // ── NO `roles`, AND THAT IS NOT A WIDENING ──────────────────────────────────────────────────
+  //
+  // §5's first rule is the dangerous one: *"a portal reachable by six roles whose tabs are gated to
+  // one is a WIDER door than six separately-gated pages."* The gate did not move — it went DOWN a
+  // level. Each tab carries the exact role list its page carried, and this row carries the UNION of
+  // the four, which is everybody because `/admin/time-off` was ungated: every employee may ask for
+  // leave.
+  //
+  // Which also satisfies §5's second rule for free — *"never render an empty portal"* — since every
+  // viewer has at least the time-off tab. A row gated tighter than the union would have been this
+  // slice quietly removing somebody's access while claiming to merge four pages.
+  { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book'] },
   { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
   // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-*` +
   // `/admin/profile` page files were deleted; these entries now point
@@ -152,8 +170,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // page, one entry. Its extra role (researcher) and its wording live on the entry above; two rows
   // for one href is how a menu comes to show the same destination twice under different names.
   // bookmarks at the old URLs.
-  { href: '/admin/my-hours',         label: 'My Hours',        workspace: 'hub', iconName: 'Clock',          description: 'Log, fix, or add your hours — clock-in/out log + timesheet.', roles: [...WORK_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in'] },
-  { href: '/admin/time-off',        label: 'Time Off',        workspace: 'hub', iconName: 'Palmtree',       description: 'Request time off + view your PTO balance. Managers see the approval queue here too.', internalOnly: true, keywords: ['pto', 'vacation', 'holiday', 'leave'] },
   { href: '/admin/my-pay',           label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
   { href: '/admin/my-notes',         label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
   // E2 (2026-08-11) — no `roles` key, so everyone at the firm sees it. That is the point: the
@@ -224,12 +240,10 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // §2.4's fix. Not a fifth calendar: the four that exist each answer "what is happening over a
   // period" for ONE resource type, and the dispatcher's actual question — "for Thursday, what can I
   // send" — spans crew, equipment and vehicles at once. In the rail because it is asked daily.
-  { href: '/admin/availability',    label: 'Availability',    workspace: 'work', iconName: 'CalendarClock', description: 'Who and what can go out on one day — crew, equipment and vehicles together, with the reason for anything that cannot.', roles: ['admin', 'developer', 'tech_support', 'equipment_manager'], internalOnly: true, keywords: ['dispatch', 'free', 'available', 'thursday', 'who is free', 'schedule', 'crew', 'assign', 'book'] },
   // The pay model is two screens: this one sets what each ACTIVITY pays, /admin/payroll sets what
   // each PERSON is on. Registered so it is reachable and searchable — an unlinked settings page is
   // a setting nobody can change.
   { href: '/admin/pay-rates',       label: 'Pay Rates',       workspace: 'work', iconName: 'DollarSign',    description: 'What each activity pays — the person’s base pay, or a set rate everyone gets.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['rate', 'rates', 'pay', 'hourly', 'driving', 'activity', 'work type', 'base pay', 'money'] },
-  { href: '/admin/hours-approval',  label: 'Hours Approval',  workspace: 'work', iconName: 'CheckSquare',   description: 'Approve submitted timesheets.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['timesheet', 'approve'] },
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
   { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
   { href: '/admin/timeline',        label: 'Activity Timeline', workspace: 'work', iconName: 'Activity',    description: 'What the firm did today — clock-ins, job stage changes, uploads. A working feed, not a compliance record: the Audit Log is that.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['daily', 'feed'] },

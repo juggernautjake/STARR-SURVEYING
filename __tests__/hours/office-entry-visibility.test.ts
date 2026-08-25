@@ -24,7 +24,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
-const page = strip(readFileSync(join(process.cwd(), 'app/admin/hours-approval/page.tsx'), 'utf8'));
+const page = strip(readFileSync(// C4: moved to the Hours portal's _tabs/ — same component, new path.
+  join(process.cwd(), 'app/admin/hours/_tabs/ApprovalsTab.tsx'), 'utf8'));
 const route = strip(readFileSync(join(process.cwd(), 'app/api/admin/time-logs/route.ts'), 'utf8'));
 const css = readFileSync(join(process.cwd(), 'app/admin/styles/AdminTimeLogs.css'), 'utf8');
 

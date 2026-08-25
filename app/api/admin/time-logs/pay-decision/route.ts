@@ -222,7 +222,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         type: 'hours_pay_decided',
         title: `Pay set for ${entry.log_date}`,
         body: [summary, decision.payoutNote].filter(Boolean).join(' '),
-        link: '/admin/my-hours',
+        link: '/admin/hours?tab=my-time',
         source_type: 'daily_time_logs',
         source_id: time_log_id,
       });

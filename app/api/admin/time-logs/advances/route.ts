@@ -141,7 +141,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         type: 'pay_advance_decision',
         title,
         body: message,
-        link: '/admin/my-hours',
+        link: '/admin/hours?tab=my-time',
         source_type: 'pay_advance_requests',
         source_id: id,
       });

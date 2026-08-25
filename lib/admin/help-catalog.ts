@@ -57,7 +57,7 @@ export const HELP_CATALOG: HelpCatalog = {
     resources: [
       { label: 'All jobs', href: '/admin/jobs' },
       { label: 'Field team', href: '/admin/team' },
-      { label: 'Hours approval', href: '/admin/hours-approval' },
+      { label: 'Hours approval', href: '/admin/hours?tab=approvals' },
     ],
   },
   '/admin/equipment': {

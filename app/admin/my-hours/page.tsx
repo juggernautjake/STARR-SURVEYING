@@ -1,27 +1,12 @@
-// app/admin/my-hours/page.tsx — your clock-in log and timesheet — the page you fix a missed clock-out on.
+// app/admin/my-hours/page.tsx — absorbed by the Hours portal (C4).
 //
-// ── RESTORED 2026-08-04, FOR THE SAME REASON AS /admin/profile ──────────────────────────────────
+// C4 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
 //
-// Owner: *"whenever I click on 'My Hours' in the nav menu, it takes me to the hub. It almost seems
-// like every nav menu link routes back to the hub. It seems like routing is broken."*
-//
-// Routing was not broken. **Five nav entries pointed at `/admin/me?tab=…`** — which *is* the Hub —
-// and the `tab` parameter stopped meaning anything when Slice 189 retired the Hub's tab bar. So the
-// menu offered five destinations that all landed on the same undifferentiated page.
-//
-// `MyHoursPanel` was never deleted. Consolidation Slice 2 removed this `page.tsx` and left the panel
-// behind, reachable from nothing but the UX harness — the same shape as the settings page, found the
-// same day. The component is whole; it had lost its door.
-//
-// The Hub still carries the equivalent widget, and that is not a duplicate of this page: a widget is
-// a glance on a dashboard somebody assembles, and this is the full surface with everything on it.
-// What was wrong was a menu entry that promised the second and delivered neither.
+// The route stays and forwards. Deleting it would break every bookmark, and this pair in particular
+// has been linked to from notification emails — a 404 there says the timesheet is gone.
 
-import type { Metadata } from 'next';
-import MyHoursPanel from './MyHoursPanel';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'My Hours' };
-
-export default function MyHoursPage() {
-  return <MyHoursPanel />;
+export default function Page() {
+  redirect('/admin/hours?tab=my-time');
 }
