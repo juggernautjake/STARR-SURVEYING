@@ -1464,58 +1464,57 @@ early, and the internal tooling comes last.
 
 - [x] **C13b — §4's addendum, contacts and discussions.** **DONE 2026-08-25.** Both into Messages.
 - [x] **C13c — §4's addendum, reports; and the company-notes boundary.** **DONE 2026-08-25.**
-- [ ] **C13d — §4's addendum, the last three.** `notes` · `team` · `assignments`.
+- [x] **C13d — §4's addendum, assignments.** **DONE 2026-08-25.** Rail links **44 → 43**.
+- [ ] **C13e — the last two of §4's addendum: `notes` and `team`.** Both need a decision, below.
 
-      `/admin/reports` is the Books & Tax portal's `reports` tab. Rail links **45 → 44**.
+      `/admin/assignments` is the Hours portal's `assignments` tab, second in the strip beside My
+      time — the same question asked two ways: what am I meant to be doing, and what did I do.
 
-      **The cleanest §5 match in the plan, and worth naming as the contrast.** `/admin/reports` and
-      `/admin/finances` have the SAME middleware entry — admin, developer, tech_support — and the
-      same three roles on their rows. Nothing moved in either direction. The boundary is real too,
-      checked rather than assumed: `/api/admin/reports/*` resolves the caller's org membership and
-      answers 403 unless their role on that org is `admin`. A real refusal, not a row filter and not
-      a 401-only pass — which is more than three other endpoints in this plan turned out to have.
+      **This is the merge the personal-vs-company line ALLOWS, and the contrast is the useful part.**
+      Four pages in this plan have been stopped at that line — `announcements`, `notifications`,
+      `me/privacy`, `my-files` — because folding a personal surface into a company page gated more
+      narrowly deletes it for the people it is for. Assignments is the opposite case: the API scopes
+      a non-admin to `.eq('assigned_to', session.user.email)`, so you see your own work and nobody
+      else's, and the Hours portal is already the `hub` workspace's personal surface. Personal into
+      personal. Browser-verified with a real `field_crew` account holding no admin: it sees My time,
+      **Assignments**, Time off, and `?tab=assignments` lands on it.
 
-      **C10's rule caught a third record tree.** `/admin/reports/job/[jobId]` is a report about one
-      job. The row stays registered with `showInRail: false`; measured back to `office`. Three
-      slices, three catches — the rule has now saved more gates than it cost to write.
+      ── **C10's KEEP-THE-ROW RULE IS WIDER THAN IT WAS WRITTEN** ──
 
-      ── **THE COMPANY-NOTES BOUNDARY — the third endpoint of this shape, and the worst** ──
+      C10 said: keep the row when a **dynamic child** hangs off the route, or the child loses its
+      bundle gate. `/admin/assignments` has no child — the directory held one file — so the row was
+      dropped. **Four separate guards objected at once, and not one of them was about a child:**
 
-      Checking `/admin/notes` before absorbing it found that **every method on `/api/admin/notes`
-      checked only that the caller was signed in.** Not just the read:
+      | Guard | Why it needed the row |
+      |---|---|
+      | `notify-links-audit` | assignment notifications link at this URL |
+      | `api-bundle-gate` | `/api/admin/assignments` is classified by MIRRORING the row |
+      | `sidebar-registry-parity` | the hand-written drawer showed it |
+      | `employee-can-reach-their-own-things` | it is on the self-service list |
 
-      | Method | Before | After |
-      |---|---|---|
-      | `GET` | any signed-in account | admin · developer · tech_support |
-      | `POST` | any signed-in account | ″ |
-      | `PATCH` | any signed-in account | ″ |
-      | `DELETE` | **any signed-in account** | ″ |
+      So the rule is not *"a row survives its children"*. It is: **a row survives anything that still
+      names the route** — a child, a notification, an API mirror, a frozen receipt. `showInRail:
+      false` removes the nav entry, which was always the only part a consolidation needs. Dropping
+      the row was doing more than the merge asked for, and the four guards are the reason it took
+      minutes rather than months to find out.
 
-      Research (C11b-0) and compliance (C13a) were open reads. This one was open **writes**: deleting
-      somebody else's company note needed nothing but an account. Same structural cause all three
-      times — `ROUTE_ROLES` has only ever run on PAGE paths, so the three-role gate everybody can see
-      on `/admin/notes` sat in front of the screen and never in front of the data.
+      **This supersedes C10's wording for every remaining slice, C14 included.**
 
-      Closed to the page's own middleware list, so it is the existing policy reaching the data rather
-      than a new one. Pinned by `__tests__/admin/notes-access.test.ts`, and verified from a browser:
-      admin 200, plain employee 403 on GET **and** on DELETE.
+- [ ] **C13e — `notes` and `team`.** Both are decisions rather than merges:
 
-      **`/admin/notes` itself is NOT absorbed** — that is C13d, and it needs a decision first: §4
-      sends it to `/admin/settings`, which middleware gates to `['admin']` alone, so the merge would
-      take company notes from `developer` and `tech_support`. Now that the API enforces those three,
-      that narrowing is real rather than cosmetic.
-
-- [ ] **C13d — §4's addendum, the last three.**
-
-      | Route | §4 says | The question it raises |
-      |---|---|---|
-      | `/admin/notes` (316) | → Company | `/admin/settings` is admin-only; two roles would lose it. Its API is now correctly gated to three, so this is a real narrowing — decide, do not drift into it. |
-      | `/admin/team` (659) | → Hours | `/admin/team` is gated to three roles; `/admin/hours` has NO middleware entry and no roles. Absorbing WIDENS the door. `/admin/team/[email]` is a record — keep the row. |
-      | `/admin/assignments` (376) | → Hours | six roles at the door, `hub` workspace, personal. Widens into an ungated portal; the API is `isAdmin`-gated, so check who is actually meant to see it. |
+      · **`/admin/notes` → Company.** `/admin/settings` is middleware-gated to `['admin']` and notes
+        to three roles, so the merge takes company notes from `developer` and `tech_support`. C13c
+        closed that API to exactly those three, so the narrowing is now real rather than cosmetic.
+      · **`/admin/team` → Hours.** `/admin/team` is gated to three roles; `/admin/hours` has no
+        middleware entry at all, so the merge widens the door considerably. And the boundary is
+        narrower than either: `GET /api/admin/team` admits `admin` **or** `tech_support` and answers
+        401 to everyone else — so a `developer` gets the page today and a 401 from it, which is C10's
+        door-wider-than-boundary shape a fourth time. `/admin/team/[email]` is a record, so the row
+        stays either way.
 - [ ] **C13 — the workspace decision itself.** §10 says *"Workspaces — DELEGATED to me. My answer is
       in §12"* — **and §12 was never written.** That is the open item, not a slice of code.
 
-      Measured after C3–C13c: **44 rail links across 7 workspaces**, six of which have a
+      Measured after C3–C13d: **43 rail links across 7 workspaces**, six of which have a
       landing page of their own. §6 said the 7-way split stops earning its keep at ~29 links and that
       the call should be made after a few portals ship. It is not 29 yet, and C13b is what closes
       most of the remaining gap — so the honest state is **not ready to decide**, rather than decided.

@@ -38,7 +38,15 @@ const LEGACY_SIDEBAR_HREFS = [
   // It is not one, and the claim is checked rather than asserted: `/admin/calendar` is registered in
   // the `work` workspace with `showInRail` on, so the drawer offers it; and `/admin/schedule` still
   // forwards there. This list means "must still be REACHABLE", and the page it reached is.
-  '/admin/assignments',
+  // C13d: `/admin/assignments` is the Hours portal's `assignments` tab. Its registry row survives
+  // — notifications link at it, the API gate mirrors it, and the self-service list names it — but
+  // `showInRail: false` takes it out of the drawer, which the second test below reads as a
+  // demotion. It is not one: `/admin/hours` is on this list already (below), the drawer offers it,
+  // and the assignments tab carries `employee` in its own role list, so the people this entry
+  // existed for still see it one click in.
+  //
+  // Both copies go: the href appeared twice, once from the original capture and once from the
+  // 2026-08-04 `?tab=` rewrite.
   // C11a absorbed six of the drawer's learn rows into the Knowledge portal. Three of them —
   // roadmap, quiz-history, search — have nothing beneath them and their registry rows are gone;
   // three — modules, knowledge-base, flashcards — keep a `showInRail: false` row so their record
@@ -63,7 +71,6 @@ const LEGACY_SIDEBAR_HREFS = [
   // Updated to the destinations that answer them, because the property this file defends is *"the
   // conversion lost nothing"*, not *"the hrefs never change"*. Leaving the old strings here would make the
   // guard demand the registry keep pointing five menu items at a page that cannot serve them.
-  '/admin/assignments',   // was ?tab=jobs — folded into the entry that already existed
   // C4: the old drawer's '/admin/my-hours' is the Hours portal's `my-time` tab. The route still
   // forwards; this list is about what the DRAWER offers, and it offers one row now.
   '/admin/hours',         // was /admin/my-hours, and before that ?tab=hours

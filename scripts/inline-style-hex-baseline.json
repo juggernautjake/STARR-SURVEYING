@@ -1,6 +1,5 @@
 {
   "app/admin/announcements/page.tsx": 1,
-  "app/admin/assignments/page.tsx": 3,
   "app/admin/billing/page.tsx": 3,
   "app/admin/cad/CADLayout.tsx": 1,
   "app/admin/cad/components/AIDrawingDialog.tsx": 22,
@@ -71,6 +70,7 @@
   "app/admin/finances/_tabs/ReportsTab.tsx": 1,
   "app/admin/finances/_tabs/ScheduleCTab.tsx": 34,
   "app/admin/hours/_tabs/ApprovalsTab.tsx": 2,
+  "app/admin/hours/_tabs/AssignmentsTab.tsx": 3,
   "app/admin/hours/_tabs/TimeOffTab.tsx": 12,
   "app/admin/invoices/new/page.tsx": 5,
   "app/admin/invoicing/_tabs/CategoriesTab.tsx": 34,

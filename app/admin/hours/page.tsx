@@ -38,11 +38,12 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { Clock, CheckSquare, Palmtree, CalendarClock } from 'lucide-react';
+import { Clock, CheckSquare, Palmtree, CalendarClock, ClipboardList } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import MyHoursPanel from '../my-hours/MyHoursPanel';
 import ApprovalsTab from './_tabs/ApprovalsTab';
+import AssignmentsTab from './_tabs/AssignmentsTab';
 import TimeOffTab from './_tabs/TimeOffTab';
 import AvailabilityClient from '../availability/AvailabilityClient';
 import '../availability/Availability.css';
@@ -66,6 +67,20 @@ const PORTAL: PortalSpec = {
       hint: 'Your clock-in log and timesheet — and where you fix a missed clock-out.',
       // `/admin/my-hours`, verbatim: [...WORK_ROLES, 'employee', 'tech_support'].
       roles: ['admin', 'developer', 'field_crew', 'employee', 'tech_support'],
+    },
+    {
+      // ── C13d / §4's addendum: "who is working, and on what" ─────────────────────────────────
+      //
+      // Second, beside My time, because they are the same question asked two ways: what am I meant
+      // to be doing, and what did I do. The API scopes a non-admin to their own rows, so this is a
+      // personal surface joining the personal portal — the opposite of the four merges this plan
+      // has stopped at that line.
+      id: 'assignments',
+      label: 'Assignments',
+      icon: ClipboardList,
+      hint: 'What has been given to you to do — and, if you approve hours, what you have given out.',
+      // `/admin/assignments`, verbatim: [...WORK_ROLES, 'employee', 'researcher', 'tech_support'].
+      roles: ['admin', 'developer', 'field_crew', 'employee', 'researcher', 'tech_support'],
     },
     {
       id: 'approvals',
@@ -159,6 +174,7 @@ export default function HoursPortal() {
           would make the common case pay for the rare one. */}
       <div id={`hrs-panel-${active}`} role="tabpanel" aria-labelledby={`hrs-tab-${active}`}>
         {active === 'my-time' && <MyHoursPanel />}
+        {active === 'assignments' && <AssignmentsTab />}
         {active === 'approvals' && <ApprovalsTab />}
         {active === 'time-off' && <TimeOffTab />}
         {active === 'availability' && <AvailabilityClient />}

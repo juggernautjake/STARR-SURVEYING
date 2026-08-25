@@ -71,7 +71,7 @@ const PAGES: Record<string, ComponentType> = {
   settings: nextDynamic(() => import('@/app/admin/settings/page'), { ssr: false }),
   install: nextDynamic(() => import('@/app/admin/install/page'), { ssr: false }),
   mileage: nextDynamic(() => import('@/app/admin/receipts/_tabs/MileageTab'), { ssr: false }),
-  assignments: nextDynamic(() => import('@/app/admin/assignments/page'), { ssr: false }),
+  assignments: nextDynamic(() => import('@/app/admin/hours/_tabs/AssignmentsTab'), { ssr: false }),
   reports: nextDynamic(() => import('@/app/admin/finances/_tabs/ReportsTab'), { ssr: false }),
   equipment: nextDynamic(() => import('@/app/admin/equipment/page'), { ssr: false }),
   // C9: five of these are TABS now and their routes are redirects. The harness shoots page BODIES,

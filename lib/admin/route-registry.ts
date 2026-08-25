@@ -142,7 +142,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // page claiming to be the home, and every figure on it already exists as a hub widget.
   // `LEGACY_REDIRECTS` sends the URL to /admin/me; it is deliberately NOT registered here, so it
   // cannot reappear in the rail, the palette or the mobile drawer — all three derive from this list.
-  { href: '/admin/assignments',     label: 'Assignments',     workspace: 'hub', iconName: 'ClipboardList',  description: 'The jobs and tasks assigned to you. Reached from the menu as both Assignments and My Jobs.', roles: [...WORK_ROLES, 'employee', 'researcher', 'tech_support'], internalOnly: true, keywords: ['todo', 'tasks', 'my jobs', 'assigned', 'mine'] },
   // ── C4: FOUR ROWS BECAME ONE ────────────────────────────────────────────────────────────────
   //
   // §4, P3: *"the dossiers show /admin/my-hours and /admin/hours-approval already call the same three
@@ -160,7 +159,34 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Which also satisfies §5's second rule for free — *"never render an empty portal"* — since every
   // viewer has at least the time-off tab. A row gated tighter than the union would have been this
   // slice quietly removing somebody's access while claiming to merge four pages.
-  { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book'] },
+  // ── C13d: THE KEEP-THE-ROW RULE IS WIDER THAN C10 WROTE IT ─────────────────────────────────
+  //
+  // C10 said: keep the row when a dynamic child hangs off the route, or the child loses its bundle
+  // gate. `/admin/assignments` has no child — the directory held one file — so this row was
+  // dropped. Four separate guards objected at once, and not one of them was about a child:
+  //
+  //   · `notify-links-audit` — assignment notifications link at this URL, and a link in a
+  //     notification outlives the page it was written against.
+  //   · `api-bundle-gate` — `/api/admin/assignments` is classified by MIRRORING this row; without
+  //     it the endpoint is unclassified and fails closed.
+  //   · `sidebar-registry-parity` — the hand-written drawer showed it.
+  //   · `employee-can-reach-their-own-things` — it is on the self-service list.
+  //
+  // So the rule is not "a row survives its children". It is: **a row survives anything that still
+  // names the route** — a child, a notification, an API mirror, a frozen receipt. `showInRail:
+  // false` is what removes the nav entry, and that was always the only part the consolidation
+  // needed. Dropping the row was doing more than the merge asked for.
+  { href: '/admin/assignments',      label: 'Assignments',      workspace: 'hub', iconName: 'ClipboardList', description: 'What has been given to you to do. Absorbed into Hours; the row remains because notifications, the API gate and the self-service list all still name this route.', roles: [...WORK_ROLES, 'employee', 'researcher', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['assignments', 'assigned', 'tasks', 'to do'] },
+
+  // ── C13d / §4's ADDENDUM: "who is working, and on what" ────────────────────────────────────
+  //
+  // Assignments joins the portal that already answers "what did I do", because it answers "what am
+  // I meant to be doing" — and both are personal. Its API scopes a non-admin to their own rows, so
+  // unlike the four merges this plan has stopped, this is a personal surface joining a personal
+  // portal rather than disappearing into a company one.
+  //
+  // C10's rule checked: /admin/assignments has no child — the directory held one file.
+  { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book', 'todo', 'tasks', 'my jobs', 'assigned', 'mine', 'assignments', 'to do'] },
   // ── C13a: A NAV LINK TO A REDIRECT ─────────────────────────────────────────────────────────
   //
   // `/admin/schedule/page.tsx` is fifteen lines that `redirect('/admin/calendar')`. It had a rail
