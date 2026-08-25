@@ -11,6 +11,13 @@
 // duplication seed 520's header refuses.
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
+
+/** The roles `middleware.ts` lets through the `/admin/compliance` PAGE prefix.
+ *
+ *  Pinned to that entry by `__tests__/admin/compliance-access.test.ts`, because a mirror kept in two
+ *  places has drifted in seven of the slices before this one. */
+const COMPLIANCE_READ_ROLES: UserRole[] = ['admin', 'developer', 'tech_support'];
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { assess, bySeverity, summarise, type ComplianceRow, type UnrecordedObligation } from '@/lib/compliance/register';
@@ -18,6 +25,18 @@ import { assess, bySeverity, summarise, type ComplianceRow, type UnrecordedOblig
 export const GET = withErrorHandler(async () => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // C13a: this GET answered ANY signed-in account until 2026-08-25 — the whole compliance register,
+  // which is the firm's licences, insurance and instrument calibration. Every WRITE below already
+  // called isAdmin; only the read had nothing.
+  //
+  // middleware.ts gates the /admin/compliance PAGE to these three roles and has since it was
+  // written, but ROUTE_ROLES only ever ran on page paths, so the gate everybody could see was in
+  // front of the screen and never in front of the data. Same finding as C11b-0, same argument for
+  // fixing it rather than leaving it: this is not a new policy, it is the existing policy reaching
+  // the data. Nobody who can open the page loses anything.
+  if (!COMPLIANCE_READ_ROLES.some((r) => (session.user.roles ?? []).includes(r))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   const [register, equipment, vehicles] = await Promise.all([
     supabaseAdmin.from('compliance_register').select('*'),

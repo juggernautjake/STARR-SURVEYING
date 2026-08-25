@@ -1429,8 +1429,71 @@ early, and the internal tooling comes last.
       Not deferred for cost: deferred because **the plan's own rule excludes two of the three**, and
       the third is not worth a portal by itself. Worth revisiting only if C13 gives exam prep more
       ways in than it has today.
-- [ ] **C13 — Re-examine the workspaces** with 24 links instead of 138. §6. A separate decision,
-      made with the result in front of you.
+- [x] **C13a — §4's addendum, first three.** **DONE 2026-08-25.** Weather and Compliance into the
+      Jobs portal; `/admin/schedule` demoted out of the rail.
+
+      **§6 predicted 29 nav links after the merges. Measured today: 50.** The gap is §4's addendum —
+      the table of nine routes the first draft left alone and which "do not survive the rule in §3 on
+      a second look". It was never in the C-numbered checklist, so it never got done. C13a starts it;
+      the remaining six are listed below with what each still needs.
+
+      **A read boundary closed before the merge that needed it.** `/admin/compliance` has its own
+      middleware entry — admin, developer, tech_support — and `/admin/jobs` is gated to five roles,
+      so as a tab it sits behind a **wider** door. §5 allows that only when the boundary is elsewhere
+      and holds, so it was measured: **`GET /api/admin/compliance` answered any signed-in account** —
+      the firm's whole register of licences, insurance and instrument calibration — while every write
+      on the same route already called `isAdmin`. Only the read had nothing. Same structural cause as
+      C11b-0: `ROUTE_ROLES` has only ever run on page paths, so the gate everyone can see sat in
+      front of the screen and never in front of the data. Closed, pinned by
+      `__tests__/admin/compliance-access.test.ts`, and verified from a browser: admin 200, plain
+      employee 403.
+
+      Weather went the other way and is recorded as such: it had **no** middleware entry at all, so as
+      a tab it is narrower than it was — of a path the nav never offered to the roles losing it.
+
+      **A nav link to a redirect.** `/admin/schedule/page.tsx` is fifteen lines that
+      `redirect('/admin/calendar')`, and it had a rail row in `hub` labelled "My Schedule" while
+      `/admin/calendar` had one in `work` labelled "Calendar" — one destination, two names, two
+      workspaces, nothing telling anyone they land in the same place. `showInRail: false`; the route
+      and its middleware entry stay, because the URL is live in old links.
+
+      **The API mirror broke for the EIGHTH time in eight slices** (`/api/admin/compliance`). Noted
+      in `api-bundle-gate.ts` as a missing mechanism rather than eight mistakes: the gate classifies
+      by mirroring the page registry, so deleting a page row silently unclassifies its endpoints and
+      only that one test notices.
+
+- [ ] **C13b — §4's addendum, the remaining six.** Each needs the same premise check the first three
+      got; two of them are the personal-vs-company question below.
+
+      | Route | §4 says | What still needs deciding |
+      |---|---|---|
+      | `/admin/contacts` (325) | → Messages | plain merge; check its API gate first |
+      | `/admin/discussions` (134) | → Messages | plain merge |
+      | `/admin/notes` (316) | → Company | labelled "Company Notes"; check it is not personal |
+      | `/admin/team` (659) | → Hours | check gates; 659 lines |
+      | `/admin/assignments` (376) | → Hours | it is in `hub` — personal-vs-company |
+      | `/admin/reports` (813) | → Books & Tax | check gates |
+
+- [ ] **C13 — the workspace decision itself.** §10 says *"Workspaces — DELEGATED to me. My answer is
+      in §12"* — **and §12 was never written.** That is the open item, not a slice of code.
+
+      Measured today, after C3–C13a: **50 rail links across 7 workspaces**, six of which have a
+      landing page of their own. §6 said the 7-way split stops earning its keep at ~29 links and that
+      the call should be made after a few portals ship. It is not 29 yet, and C13b is what closes
+      most of the remaining gap — so the honest state is **not ready to decide**, rather than decided.
+
+      Two things are already clear and worth writing down now:
+
+      · **`knowledge` has no landing page** while the other six do, so the workspace concept is
+        already applied inconsistently.
+      · **Four pages are stuck on the personal-vs-company axis**, and they are the same question four
+        times: `announcements`, `notifications`, `me/privacy` (from C12b) and `my-files` (from C12c).
+        Each is ungated and personal; each has a company-shaped page it "belongs" to that is gated
+        more narrowly; and folding any of them in removes it from the nav of everyone outside those
+        roles. **They should be decided once, together, as one question: does the Hub own the
+        personal view of a thing, or does the company page render a personal view of it for whoever
+        opens it?** §5.2's role-driven rendering is the second answer; the first is what the `hub`
+        workspace already is. That is the decision §12 owes.
 - [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** Every merge invalidates a dossier
       and a locked default design. `scripts/derive-dossiers.mjs --area admin` and
       `scripts/trace-defaults.mjs --area admin`, and the conformance record with them.

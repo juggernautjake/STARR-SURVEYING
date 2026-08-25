@@ -161,7 +161,16 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // viewer has at least the time-off tab. A row gated tighter than the union would have been this
   // slice quietly removing somebody's access while claiming to merge four pages.
   { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book'] },
-  { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'] },
+  // ── C13a: A NAV LINK TO A REDIRECT ─────────────────────────────────────────────────────────
+  //
+  // `/admin/schedule/page.tsx` is fifteen lines that `redirect('/admin/calendar')`. It had a rail
+  // row in `hub` labelled "My Schedule" while `/admin/calendar` had one in `work` labelled
+  // "Calendar" — the same page, offered twice, under two names, in two different workspaces, with
+  // no way for a person to know they would land in the same place.
+  //
+  // The row stays registered so the URL keeps its bundle and its middleware entry keeps working;
+  // `showInRail: false` is what removes the duplicate from the rail, the flyout and the drawer.
+  { href: '/admin/schedule',        label: 'My Schedule',     workspace: 'hub', iconName: 'Calendar',       description: 'Calendar of your shifts + appointments.', roles: [...WORK_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['calendar', 'shifts'], showInRail: false },
   // consolidation Slice 2 (2026-05-30) — the legacy `/admin/my-*` +
   // `/admin/profile` page files were deleted; these entries now point
   // at the canonical hub tabs so the nav surface keeps showing the
@@ -239,7 +248,17 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // `/admin/calendar` is deliberately NOT here — see the portal's header. It is ungated today, and
   // absorbing it would either take it away from everybody who is not on this list, or force widening
   // `/admin/jobs` — which is the middleware prefix of the job RECORDS.
-  { href: '/admin/jobs', label: 'Jobs & Projects', workspace: 'work', iconName: 'ListChecks', description: 'Every job and the projects they belong to, what the crews have sent back, and everything that happened.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job', 'jobs', 'project', 'projects', 'site', 'client', 'field', 'field data', 'collector', 'upload', 'survey', 'activity', 'timeline', 'history', 'feed', 'new job', 'import'] },
+  // ── C13a / §4's ADDENDUM: TWO MORE ROWS BECAME TABS ────────────────────────────────────────
+  //
+  // "Can we work, and may we" — the weather over the jobs and the licences that let us do them.
+  //
+  // Compliance moved behind a WIDER door (its own middleware entry is three roles, this prefix is
+  // five), which §5 allows only because the same slice closed GET /api/admin/compliance — an
+  // endpoint that had been handing the firm's whole licence and insurance register to any
+  // signed-in account. Weather moved behind a narrower one; it had no middleware entry at all.
+  //
+  // C10's rule checked: neither has a dynamic child.
+  { href: '/admin/jobs', label: 'Jobs & Projects', workspace: 'work', iconName: 'ListChecks', description: 'Every job and the projects they belong to, what the crews have sent back, and everything that happened.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job', 'jobs', 'project', 'projects', 'site', 'client', 'field', 'field data', 'collector', 'upload', 'survey', 'activity', 'timeline', 'history', 'feed', 'new job', 'import', 'rain', 'forecast', 'conditions', 'licence', 'license', 'rpls', 'certification', 'insurance', 'coi', 'expiry', 'expires', 'renewal', 'calibration', 'inspection', 'registration', 'ce hours', 'weather', 'compliance'] },
   { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Add a job to a project.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
   // ── FOUR ENTRIES BECAME ONE (A1, 2026-08-11) ──────────────────────────────────────────────────
@@ -291,7 +310,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // On the rail, not palette-only. §1.4's split says destinations somebody navigates TO get a rail
   // slot, and "what expires soon" is checked on purpose rather than arrived at from somewhere else —
   // a licence nobody thinks to look for is the whole failure mode this page exists to prevent.
-  { href: '/admin/compliance',      label: 'Compliance',      workspace: 'work', iconName: 'ShieldCheck',   description: 'Licences, certifications, insurance, vehicle registration and instrument calibration — every date that expires.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['licence', 'license', 'rpls', 'certification', 'insurance', 'coi', 'expiry', 'expires', 'renewal', 'calibration', 'inspection', 'registration', 'ce hours'] },
   // "Receivables", not "AR". §2.2 measured what happens when this app invents finance vocabulary —
   // three words that all sound like money and mean different things. AR is jargon only an accountant
   // reads; the keywords carry it so ⌘K still finds it.
@@ -627,7 +645,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
 
   // Field. `/admin/weather` was called "orphaned" by the audit — for a field business, weather is a
   // scheduling input, so it goes on the rail rather than staying a page nobody can find.
-  { href: '/admin/weather',               label: 'Weather',          workspace: 'work', iconName: 'CloudSun',      description: 'Forecast for the crew’s working area.', roles: [...WORK_ROLES, 'tech_support'], internalOnly: true, keywords: ['rain', 'forecast', 'conditions'] },
 
   // Work Mode. The DOOR is on the rail; the per-role shells are entered through it, never chosen from
   // a menu — which is also the honest answer to the audit’s "is it a mode or a view?" until the

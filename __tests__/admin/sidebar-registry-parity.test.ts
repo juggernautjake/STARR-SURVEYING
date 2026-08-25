@@ -27,7 +27,18 @@ const LEGACY_SIDEBAR_HREFS = [
   // still be REACHABLE", and a route that no longer exists cannot satisfy it. The guarantee that its
   // URL still goes somewhere sensible moved to `__tests__/middleware/legacy-redirects.test.ts`,
   // which asserts both the redirect target AND that no page file survives to shadow it.
-  '/admin/assignments', '/admin/schedule',
+
+  // C13a: `/admin/schedule` was on this list and is removed from it. The page is fifteen lines that
+  // `redirect('/admin/calendar')`, and it had a rail row of its own in `hub` labelled "My Schedule"
+  // while `/admin/calendar` had one in `work` labelled "Calendar" — the same destination offered
+  // twice, under two names, in two workspaces, with nothing telling a person they would land in the
+  // same place. The row is `showInRail: false` now, which the second test below would otherwise
+  // read as a navigation regression.
+  //
+  // It is not one, and the claim is checked rather than asserted: `/admin/calendar` is registered in
+  // the `work` workspace with `showInRail` on, so the drawer offers it; and `/admin/schedule` still
+  // forwards there. This list means "must still be REACHABLE", and the page it reached is.
+  '/admin/assignments',
   // C11a absorbed six of the drawer's learn rows into the Knowledge portal. Three of them —
   // roadmap, quiz-history, search — have nothing beneath them and their registry rows are gone;
   // three — modules, knowledge-base, flashcards — keep a `showInRail: false` row so their record

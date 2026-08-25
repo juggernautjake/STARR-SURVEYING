@@ -39,7 +39,7 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { ListChecks, FolderKanban, Activity, MapPin, FilePlus, FolderPlus, Upload } from 'lucide-react';
+import { ListChecks, FolderKanban, Activity, MapPin, FilePlus, FolderPlus, Upload, CloudSun, BadgeCheck } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 // See the header. Without this, the projects tab renders as raw browser default and says nothing.
@@ -48,6 +48,8 @@ import '../styles/AdminProjects.css';
 import JobsTab from './_tabs/JobsTab';
 import ProjectsTab from './_tabs/ProjectsTab';
 import ActivityTab from './_tabs/ActivityTab';
+import WeatherTab from './_tabs/WeatherTab';
+import ComplianceTab from './_tabs/ComplianceTab';
 import FieldDataTab from './_tabs/FieldDataTab';
 import './JobsPortal.css';
 
@@ -65,6 +67,20 @@ const PORTAL: PortalSpec = {
     // answering "what happened and who did it", and the fix was to make each one say which question
     // it answers. Losing that sentence in a consolidation would put it back to four logs and no map.
     { id: 'activity', label: 'Activity', icon: Activity, hint: 'What the firm did today — clock-ins, stage changes, uploads. A working feed, not a compliance record: the Audit Log is that.', roles: WORK_VIEW as never },
+    // ── C13a: §4's addendum — "can we work, and may we" ──────────────────────────────
+    //
+    // Weather carries its old row's four roles; compliance carries its three.
+    //
+    // Compliance's door got WIDER in this move: it had its own three-role middleware entry and
+    // /admin/jobs is gated to five. §5 allows that only when the boundary is elsewhere and holds,
+    // and it did not — GET /api/admin/compliance answered any signed-in account with the whole
+    // register of licences, insurance and instrument calibration, while every write on the same
+    // route already called isAdmin. Closed in this slice, before the move.
+    //
+    // Weather's went the other way: it had no middleware entry at all, so as a tab it is narrower
+    // than it was — of a path the nav never offered to the roles losing it.
+    { id: 'weather', label: 'Weather', icon: CloudSun, hint: 'What the sky is doing over the jobs, and whether the crews can work.', roles: [...WORK_VIEW, 'field_crew'] as never },
+    { id: 'compliance', label: 'Compliance', icon: BadgeCheck, hint: 'Licences, insurance and calibration — what is current, and what lapses next.', roles: WORK_VIEW as never },
   ],
   defaultTab: 'jobs',
 };
@@ -151,6 +167,8 @@ export default function JobsPortal() {
         {active === 'projects' && <ProjectsTab />}
         {active === 'field-data' && <FieldDataTab />}
         {active === 'activity' && <ActivityTab />}
+        {active === 'weather' && <WeatherTab />}
+        {active === 'compliance' && <ComplianceTab />}
       </div>
     </div>
   );

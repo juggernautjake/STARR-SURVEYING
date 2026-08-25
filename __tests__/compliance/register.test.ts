@@ -140,7 +140,7 @@ describe('ordering and summary', () => {
 describe('the shape of the build', () => {
   const seed = fs.readFileSync(path.join(ROOT, 'seeds/520_compliance_register.sql'), 'utf8');
   const api = fs.readFileSync(path.join(ROOT, 'app/api/admin/compliance/route.ts'), 'utf8');
-  const page = fs.readFileSync(path.join(ROOT, 'app/admin/compliance/page.tsx'), 'utf8');
+  const page = fs.readFileSync(path.join(ROOT, 'app/admin/jobs/_tabs/ComplianceTab.tsx'), 'utf8');
 
   it('unions the existing tables rather than copying their dates into a new one', () => {
     // The obvious build — one table backfilled from the others — makes two places that can disagree
@@ -191,8 +191,15 @@ describe('the shape of the build', () => {
   it('is reachable from the rail, not only by typing the URL', () => {
     // A licence nobody thinks to look for is the failure mode this page exists to prevent — §1.4's
     // "authored but not wired" with a professional registration attached.
+    //
+    // C13a (2026-08-25): compliance is the Jobs portal's `compliance` TAB now, so its own registry
+    // row is gone and the URL forwards. The property this guards is unchanged and is asserted where
+    // it now lives — the portal is in the rail, and it offers the tab.
     const registry = fs.readFileSync(path.join(ROOT, 'lib/admin/route-registry.ts'), 'utf8');
-    expect(registry).toContain("href: '/admin/compliance'");
-    expect(registry).not.toMatch(/href: '\/admin\/compliance'[^}]*showInRail: false/);
+    expect(registry).toContain("href: '/admin/jobs'");
+    expect(registry).not.toMatch(/href: '\/admin\/jobs'[^}]*showInRail: false/);
+    const portal = fs.readFileSync(path.join(ROOT, 'app/admin/jobs/page.tsx'), 'utf8');
+    expect(portal).toMatch(/id: 'compliance'/);
+    expect(portal).toMatch(/<ComplianceTab \/>/);
   });
 });

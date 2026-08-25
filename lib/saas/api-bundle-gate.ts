@@ -147,6 +147,13 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // null — asking for a role cannot require a bundle any more than it can require the role. Carried
   // across at null, which is the answer it had.
   'role-requests': { bundle: null, reason: 'Anyone may ask for a role; the approve/deny API is admin-gated server-side.' },
+  // C13a, the eighth in eight slices. `/api/admin/compliance` mirrored `/admin/compliance`, now the
+  // Jobs portal's `compliance` tab. `work` workspace → `office`, carried across unchanged.
+  //
+  // Eight for eight is not eight mistakes, it is a missing mechanism: the API gate classifies by
+  // MIRRORING the page registry, so deleting a page row silently unclassifies its endpoints, and
+  // the only thing that catches it is this test. Worth a note for whoever writes C14's sweep.
+  'compliance': { bundle: 'office', reason: 'Licences, insurance and calibration; mirrored /admin/compliance (work workspace) until C13a made it a tab.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —
