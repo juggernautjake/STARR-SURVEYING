@@ -386,3 +386,48 @@ export function visibleWidgets<T extends { type: string }>(
     return def.allowedRoles.some((r) => held.has(r.toLowerCase()));
   });
 }
+
+// ── WHAT YOU SEE IS WHERE IT SERVES — W6 ────────────────────────────────────────────────────────
+//
+// W6 asks for `GridEditor` and the design studio to converge, on the grounds that *"two editors for
+// one model is how they drift"*. The premise needs one correction before it can be acted on: they
+// are not two editors for one model. `GridEditor` edits an 8-column GRID; the studio edits a pixel
+// CANVAS. Merging them would mean one of those two models losing, and both are right for what they
+// edit — a trace genuinely is pixels, and a hub layout genuinely is cells.
+//
+// The drift that actually exists is narrower and worse than a duplicated editor. A composition is
+// drawn on the canvas in pixels and SERVED on the grid in cells, so `viewToGrid` rounds — and until
+// this function, that rounding happened invisibly, at serve time, to a layout somebody had already
+// approved. A widget nudged to x=337 sat there in the editor and moved a column on the page.
+//
+// So the studio snaps a composition's widgets to the cells they will actually land on, at the moment
+// the drag ends. Nothing rounds later because nothing is left to round. The canvas and the served
+// page agree by construction rather than by two functions being kept in step — which is the property
+// W6 was really asking for.
+//
+// A trace is untouched: it has no grid to snap to and its whole job is recording exact geometry.
+
+/**
+ * The exact pixel rect this element will occupy once it is served.
+ *
+ * A round trip — pixels → cells → pixels — so the answer is by definition reachable on the grid.
+ * Computing it any other way would be a second opinion about the same arithmetic.
+ */
+export function snapToGrid(
+  element: { catalogId?: string; x: number; y: number; w: number; h: number },
+  artboardWidth: number,
+  columns: number,
+  envelope?: { minSize: { w: number; h: number }; maxSize: { w: number; h: number } },
+): { x: number; y: number; w: number; h: number } | null {
+  const cell = elementToGrid({ id: '_', ...element }, artboardWidth, columns, envelope);
+  if (!cell) return null;
+
+  const colWidth = (artboardWidth - ARTBOARD_GUTTER_PX * (columns - 1)) / columns;
+  const size = widgetPixelSize({ w: cell.w, h: cell.h }, artboardWidth, columns);
+  return {
+    x: Math.round((colWidth + ARTBOARD_GUTTER_PX) * cell.x),
+    y: Math.round((ARTBOARD_ROW_PX + ARTBOARD_GUTTER_PX) * cell.y),
+    w: size.w,
+    h: size.h,
+  };
+}

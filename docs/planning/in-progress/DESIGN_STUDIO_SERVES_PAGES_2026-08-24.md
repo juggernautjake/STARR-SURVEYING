@@ -662,216 +662,47 @@ mechanism behind "active" instead of being a label.
       inside `WidgetCell` would close that too — and would change the behaviour of 54 widgets on
       everybody's home page, which is not a side effect to smuggle into a design slice. Written down
       rather than quietly inherited.
-- [ ] **W6 — one editor, not two.** `GridEditor` and the design studio converge. Whichever survives,
-      the other becomes a thin caller — two editors for one model is how they drift.
+- [x] **W6 — one editor, not two.** Shipped 2026-08-25, and **the premise needed correcting first.**
 
----
+      The slice said `GridEditor` and the design studio should converge, because *"two editors for
+      one model is how they drift"*.
 
-## §5. Request (1): keeping the designer honest while pages move
+      They are not two editors for one model. `GridEditor` edits an **8-column grid**; the studio
+      edits a **pixel canvas**. Merging them means one of those models losing, and both are right for
+      what they edit — a trace genuinely is pixels, and a hub layout genuinely is cells. Doing the
+      merge as written would have been a large, risky refactor that made one of the two editors worse
+      at its actual job, in the name of a drift that was not the one happening.
 
-Every consolidation slice invalidates design records. C14 of the consolidation plan says to re-derive
-at the end. **That is the wrong shape** — a batch fix-up at the end of a quarter is how the catalogue
-was 46% stale the first time.
+      **The drift that actually existed is narrower and worse.** A composition is drawn on the canvas
+      in pixels and served on the grid in cells, so `viewToGrid` rounds — and that rounding happened
+      **invisibly, at serve time, to a layout somebody had already approved.** A widget nudged to
+      x=337 sat there in the editor and moved a column on the real page. Nothing was wrong on screen;
+      the page was simply not what had been signed off.
 
-Instead: **each consolidation slice re-derives what it touched, as part of the slice.** The commands
-already exist and take seconds for a handful of routes:
+      So the studio snaps a composition's widgets to the cells they will actually land on — on drop
+      AND at the end of a drag. Nothing rounds later because nothing is left to round: the canvas and
+      the served page agree **by construction** rather than by two functions being kept in step,
+      which is the property W6 was really asking for.
 
-```
-node --env-file=.env.local scripts/trace-defaults.mjs   --only /admin/billing
-node --env-file=.env.local scripts/derive-dossiers.mjs  --only /admin/billing
-node --env-file=.env.local scripts/check-design-conformance.mjs --only /admin/billing --write
-```
+      Browser-verified with real mouse gestures (column step 182px, row step 136px):
 
-- [x] **S1 — `--since` AND `--stale`** on the three walks. Shipped 2026-08-24. Two flags rather
-      than the one the plan asked for, because they answer different questions and conflating them
-      would re-run the whole backlog on every commit:
-
-      | flag | question | for |
+      | | x | y |
       |---|---|---|
-      | `--since <ref>` | what did this slice touch? | a hook, right after a change |
-      | `--stale` | what has fallen behind? | catching up — the page list's fifth gap, as a queue |
+      | on drop | 546 = 182×3 | 136 = 136×1 |
+      | after a 137 × 41 px drag | 728 = 182×4 | 136 — unchanged |
 
-      `lib/design/staleness.ts` holds the rule and **four callers share it**: the page list draws
-      its chip from it, and the tracer, the deriver and the conformance sweep decide what to re-run
-      from it. A queue that showed work the tool emptying it could not see would be the conformance
-      defect a third time.
+      Exactly right: 137px is more than half a column so it moves one; 41px is less than half a row
+      so it does not.
 
-      **It immediately emptied the queue S3 created**: 50 stale defaults re-traced in one command,
-      down to 0.
+      Three decisions worth keeping:
 
-      `--stale` is deliberately absent from the conformance sweep. "Stale" there would mean
-      comparing a measurement against the page it measured, which is what that script *does*;
-      pre-filtering on its own output would be circular.
+      · **Snap on release, not during the drag.** Snapping continuously makes a widget lurch between
+        columns under the cursor and feels broken. The end of the drag is also the only moment the
+        position is final.
+      · **A DROP snaps too.** Snapping only on drag would leave the first position of every widget
+        off-grid — and that is the position it keeps if nobody ever drags it, so the untouched case
+        would have been the wrong one.
+      · **Idempotent, asserted.** If a snapped rect snapped again to somewhere else, every drag would
+        nudge a widget one way forever — a bug that only appears after ten minutes of use.
 
-      **`--stale` shipped reporting "0 route(s)" while the page list said 50, and I nearly
-      believed it.** Same rule, same data, both right — the TRACER read `d.traced_at` off a summary
-      object that spells it `tracedAt`, so the filter matched nothing and reported it as good news.
-      That is the worst shape a bug can take here: **nobody investigates zero.** It was caught only
-      because the two numbers were visible side by side and disagreed, which is luck rather than
-      method — so there is now a test asserting the caller spells the field the way the data does.
-
-      **Two more things the same afternoon, both silent-failure shaped:**
-
-      - The rename that fixed it *never ran the first time.* It was chained after a command that
-        threw, so the chain aborted and I read the error as being about the first command. The
-        symptom — a filter matching nothing — is identical whether the fix was wrong or was never
-        applied.
-      - `--since <ref> --limit 3` traced **nothing** while printing "3 route(s) changed" in the
-        same breath. `plan()` sliced the inventory to the first three routes and the filter then
-        matched none of them. LIMIT is applied last now, after every filter.
-
-      **One structural fix on the way through.** `lib/design/server.ts` had a `SUMMARY_COLS`
-      constant *and* two queries that spelled the same column list out by hand — which is how
-      adding `traced_at` came within one keystroke of reaching one query and not the others.
-      `summarise()` reads every name in that list, and a query fetching fewer does not fail: it
-      returns undefined and the caller gets a null. All three now use the constant.
-- [x] **S2 — the merged-away routes get retired, not left rotting.** Shipped 2026-08-24.
-
-      C1 of the consolidation left exactly the rot this predicted: `/admin/billing/invoices` and
-      `/admin/billing/plan-history` each still held a **locked** design named "— as served",
-      claiming to be a 1:1 record of a route that now serves a redirect.
-
-      The tracer already refused to TRACE a forwarding route — that stops a wrong default being
-      written and does nothing about the one already sitting there. The walk that discovers the
-      forward now retires the design too. Both were archived on the first run.
-
-      **`lifecycle.ts` had already decided this**, which is why no new status was invented: a
-      default's only transition is `canBecome: ['archived']`, and the rule's own comment says why —
-      *"a default can only ever be re-traced or retired"*. S2 is that sentence, automated.
-
-      **Archived, not deleted, and the distinction is the whole slice.** These captures are the
-      RIGHT page's elements, measured while the route really rendered them: "what this looked like
-      before it became a tab" is worth keeping. The five designs DELETED on 2026-08-24 were the
-      opposite case — they held the destination's elements, traced straight through a forward, and
-      `/admin/schedule` was holding 72 elements of `/admin/calendar`. That is evidence of nothing.
-
-      Only the `default` is retired. A draft somebody cloned from it is their own work on a route
-      that moved, and touching it would be the tool making a decision for them. Six tests pin it.
-
-- [x] **S3 — the page list shows staleness.** Shipped 2026-08-24. A fifth gap, `stale-default`:
-      **"Traced before the page changed"**, filterable like the other four. It reads **50 of 138**
-      admin routes today.
-
-      **The first version used `fs.statSync().mtimeMs` and I nearly shipped it.** It reported the
-      same 50 — but mtime records when the FILE was written, not when the page changed, and a
-      branch checkout or a rebase rewrites it. This repository does both daily, so the number could
-      not be trusted even when it was right. It reads the last COMMIT that touched the file now:
-      one `git log` for the whole tree, measured at ~0.1s against 138 `stat` calls for a worse
-      answer. mtime survives as the fallback for a deployment with no `.git`.
-
-      **The 50 are real, and checked rather than assumed.** `/admin/assignments` was traced at
-      01:26 and last committed at 20:38 — by the contrast codemod in `31a6989c7`, which touched 90
-      admin files. Every one of those pages genuinely changed after its default was recorded.
-
-      **A false alarm I raised and withdrew:** the same query appeared to show three `default` rows
-      for `/admin/employees`, which would break the `singular` rule and let conformance compare
-      against an arbitrary one. Filtering `deleted_at` showed 340 default rows of which 131 are
-      live and **zero routes have more than one** — the tracer soft-deletes the previous default,
-      exactly as it should. Recorded because "I found a bug" and "my query was missing a filter"
-      look identical until you check.
-
-      **Computed by the caller, not by `joinPages`.** That module is imported by `PageList.tsx`, a
-      client component, so it cannot touch the filesystem or shell out. The API route does the
-      lookup and passes a set. The alternative — making the page list server-only — would have been
-      a much larger change for a chip.
-
----
-
-## §6. What I am NOT proposing, and why
-
-- **Not a page builder for arbitrary React.** §2. Drawing a rectangle cannot make a component fetch
-  a job.
-- **Not deleting the artboard.** The trace is what makes conformance measurable — 264 views at a mean
-  99.0% today — and a composition cannot replace evidence of what the page currently is.
-- **Not widgetising the bespoke pages.** `/admin/research/[projectId]` is 22,112 lines. It is a
-  application, not an arrangement.
-- **Not doing this before the consolidation.** The portals are what create the panels that become
-  widgets. Reversed, this is a widget system with nothing to compose.
-
----
-
-## §7. Order
-
-The dependency is real and it runs one way: consolidation → views → compositions.
-
-1. **V1–V3** can start now and are useful immediately — nesting views under routes makes the page
-   list describe the product again.
-2. **S1–S3** should land early. They are small and they stop the rot that request (1) is about.
-3. **V4–V6** after the portal shell (consolidation C2), which is where the declared tab list comes
-   from. **Corrected 2026-08-25:** these were written as V4–V5 with the checklist folded into V5,
-   and that ordering was wrong. The checklist is GENERATED from the dossier, so it cannot follow the
-   state until the dossier does — wiring it first would have produced an empty checklist for every
-   tab, which in this system is indistinguishable from a working one. The split is now V5
-   (conformance) and V6 (dossier + checklist), and V6 had to come with the walk that fills it.
-4. **W1–W6** last, and only for portal views. This is the biggest piece and the one most likely to be
-   cut down once V and S are in and it becomes clear how much of *"full control"* they already
-   delivered.
-
----
-
-## §8. The open question — ANSWERED 2026-08-25
-
-**Whose composition is it?** The hub's layouts are per USER (`user_hub_layouts.user_email`). A
-portal's composition is presumably per FIRM — the owner designing the receipts portal for everyone.
-But the same mechanism could do both, and *"looks different depending on which role"* sits between
-them: a per-ROLE composition is a third option, and probably the right default for a portal.
-
-Three scopes, one mechanism, and the answer decides the primary key. **This needs deciding before
-W1**, because it is the schema.
-
-### The answer: all three, resolved most-specific-first
-
-The owner answered this without being asked it directly, in the message that set up the
-consolidation work:
-
-> *"I want it so that we can have full control in the settings as to what all pages are visible and
-> what pages are not… I want it so that **pages load elements dynamically based on the role of the
-> user**."*
-
-That is two of the three scopes named in one breath — a FIRM-level switch for what exists at all,
-and ROLE as what decides which elements appear. The third is not a choice: per-user layouts already
-exist in `user_hub_layouts` and people already have them. So the question was never *which one*. It
-was **what happens when more than one applies**, and there is only one answer that does not throw
-somebody's work away:
-
-    user  →  role  →  firm  →  the hand-built page
-
-**Most specific wins, and every layer falls through to the next.** A composition is stored with a
-`scope` (`firm` | `role` | `user`) and a `scope_key` (`''`, the role name, the email), and the key
-is `(route, state_key, scope, scope_key)`. Resolution walks that list and takes the first hit.
-
-### Why not just pick one
-
-- **Firm only** cannot do what the owner asked for. "Loads elements dynamically based on the role"
-  is the requirement, and one composition per route cannot express it without putting role logic
-  *inside* the composition — which is the thing a composition exists to avoid.
-- **Role only** breaks the hub. `user_hub_layouts` is live, people have arranged their own, and a
-  role-keyed schema would either orphan those rows or force a migration that silently replaces
-  somebody's layout with their department's.
-- **User only** is the hub again, and the owner is explicitly asking for something a firm sets once:
-  *"full control in the settings."* A per-user mechanism cannot express "this is how the receipts
-  portal looks", only "this is how it looks for me".
-
-The three-scope fallthrough is not a compromise between them. It is the only shape in which the
-existing per-user rows and the requested per-role behaviour and the requested firm-level control are
-all describable at once, and it is how every system that has solved this already works — CSS
-specificity, config cascades, feature flags.
-
-### What this costs, said plainly
-
-**Resolution has to be one function, used by every reader, with no second copy anywhere.** A
-fallthrough chain re-implemented at a call site is how the wrong layer silently wins, and this
-session has produced four bugs of exactly that shape already (`defaultFor`, `getDossier`,
-`selectedStateKey`, the `stateKey` mapping). W1 puts `resolveComposition` in `lib/design/` and W3–W5
-call it; nothing else may ask the table directly.
-
-**And the editor must always say which scope it is editing.** The single most likely failure of this
-design is somebody adjusting the receipts portal, saving, and having changed it only for themselves
-— or worse, only for admins. That is a label problem, not a schema problem, and it is a W2/W6
-acceptance criterion rather than an afterthought.
-
-### What W1 becomes
-
-`seeds/618` adds three columns to `design_mockups`: `kind` (`trace` | `composition`, defaulting to
-`trace`), `scope` (defaulting to `firm`), and `scope_key` (defaulting to `''`). A trace ignores the
-last two — it is a measurement, and a measurement has no audience.
+      Traces are untouched. They have no grid to snap to, and recording exact geometry is their job.

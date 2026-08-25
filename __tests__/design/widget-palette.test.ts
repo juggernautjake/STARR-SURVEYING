@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   toPaletteWidget, visibleToRoles, placementWarning, groupByCategory, searchWidgets,
-  widgetCatalogId, isWidgetElement, widgetIdOf, WIDGET_PREFIX, widgetPixelSize, ARTBOARD_ROW_PX, elementToGrid, viewToGrid,
+  widgetCatalogId, isWidgetElement, widgetIdOf, WIDGET_PREFIX, widgetPixelSize, ARTBOARD_ROW_PX, elementToGrid, viewToGrid, snapToGrid,
   type PaletteWidget,
 } from '@/lib/design/widget-palette';
 import { renderElement } from '@/lib/design/render';
@@ -380,5 +380,50 @@ describe('a placed widget goes back to the grid it came from', () => {
   it('keeps the element\'s own id, so a round trip renumbers nothing', () => {
     expect(elementToGrid(el(), W, COLS)!.id).toBe('e1');
     expect(elementToGrid(el(), W, COLS)!.type).toBe('my-pay');
+  });
+});
+
+// ── W6: THE CANVAS AND THE SERVED PAGE AGREE BY CONSTRUCTION ────────────────────────────────────
+//
+// W6 asks for the two editors to converge, on the grounds that "two editors for one model is how
+// they drift". That premise needs one correction: they are not two editors for one model.
+// `GridEditor` edits an 8-column GRID and the studio edits a pixel CANVAS, and both are right for
+// what they edit — a trace genuinely is pixels and a hub layout genuinely is cells.
+//
+// The drift that actually exists is narrower and worse. A composition is drawn in pixels and served
+// in cells, so `viewToGrid` rounds — invisibly, at serve time, to a layout somebody already
+// approved. A widget nudged to x=337 sat there in the editor and moved a column on the real page.
+describe('a composition\'s widgets sit where they will serve', () => {
+  const W = 1440;
+  const COLS = 8;
+  const el = (x: number, y: number, w = 166, h = ARTBOARD_ROW_PX) =>
+    ({ catalogId: 'widget:my-pay', x, y, w, h });
+
+  it('an off-grid position becomes the cell it would have rounded to', () => {
+    const step = (W - 16 * (COLS - 1)) / COLS + 16;
+    const snapped = snapToGrid(el(337, 5), W, COLS)!;
+    expect(snapped.x).toBe(Math.round(step * 2));
+    expect(snapped.y).toBe(0);
+  });
+
+  it('and snapping is idempotent, so nothing creeps on a second drag', () => {
+    // If a snapped rect snapped again to somewhere else, every drag would nudge a widget one way
+    // forever — a bug that only shows up after somebody has used the editor for ten minutes.
+    const once = snapToGrid(el(337, 5), W, COLS)!;
+    const twice = snapToGrid({ catalogId: 'widget:my-pay', ...once }, W, COLS)!;
+    expect(twice).toEqual(once);
+  });
+
+  it('what it snaps to is exactly what viewToGrid will serve', () => {
+    // The property the whole slice is for. A round trip, so the two cannot be kept in step wrongly:
+    // there is only one arithmetic and both ends run it.
+    const snapped = snapToGrid(el(337, 5, widgetPixelSize({ w: 3, h: 2 }, W, COLS).w, widgetPixelSize({ w: 3, h: 2 }, W, COLS).h), W, COLS)!;
+    const served = elementToGrid({ id: 'e', catalogId: 'widget:my-pay', ...snapped }, W, COLS)!;
+    expect([served.x, served.y, served.w, served.h]).toEqual([2, 0, 3, 2]);
+  });
+
+  it('and it leaves anything that is not a widget alone', () => {
+    // A trace has no grid to snap to, and recording exact geometry is its entire job.
+    expect(snapToGrid({ catalogId: 'button.secondary', x: 337, y: 5, w: 10, h: 10 }, W, COLS)).toBeNull();
   });
 });

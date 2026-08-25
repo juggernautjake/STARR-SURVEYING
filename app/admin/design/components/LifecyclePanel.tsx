@@ -233,11 +233,16 @@ export default function LifecyclePanel({ doc, onClose, onStatus, onTheme, onDoc 
               </button>
             ))}
           </div>
+          {/* No firm domain in the placeholder below. The `starr-assumptions` ratchet caught this at
+            * 161 against a ceiling of 160 the moment it was written, and it was right to: this app
+            * is multi-tenant, and a placeholder naming one firm is one more place a SECOND firm
+            * finds Starr's name inside their own admin. "Their email address" is also plainer than
+            * a fake address somebody has to read carefully to realise is not real. */}
           {(doc.scope ?? 'firm') !== 'firm' && (
             <input
               className="dsx__life-input"
               defaultValue={doc.scopeKey ?? ''}
-              placeholder={doc.scope === 'role' ? 'employee' : 'someone@starr-surveying.com'}
+              placeholder={doc.scope === 'role' ? 'employee' : 'their email address'}
               onBlur={(e) => void setScope(doc.scope!, e.target.value)}
               aria-label={doc.scope === 'role' ? 'Which role' : 'Which person'}
             />

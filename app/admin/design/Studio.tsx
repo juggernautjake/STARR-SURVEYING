@@ -39,7 +39,7 @@ import { themeStyle, BUILT_IN_THEMES, type Theme } from '@/lib/design/theme';
 import { statusRule, refuseEditReason, isEditable } from '@/lib/design/lifecycle';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
-import { isWidgetElement, widgetIdOf, widgetPixelSize } from '@/lib/design/widget-palette';
+import { isWidgetElement, widgetIdOf, widgetPixelSize, snapToGrid } from '@/lib/design/widget-palette';
 import { paletteWidgets } from '@/lib/design/widget-palette.client';
 import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import { saveDraft } from '@/lib/design/storage';
@@ -289,16 +289,21 @@ export default function Studio({ initial }: Props) {
       // Grid cells → pixels, by the one function that knows the ratio. Done here rather than in the
       // palette so the tile, the placed element and any future preview cannot each pick their own.
       const size = widgetPixelSize(w.defaultSize, view.width, HUB_GRID_COLS);
+      // W6. A drop lands on a CELL, not wherever the cursor was. Snapping only on drag would leave
+      // the very first position of every widget off-grid — and that is the one the widget keeps if
+      // nobody ever drags it, so the untouched case would be the wrong one.
+      const dropped = { x: Math.max(0, at?.x ?? Math.round(view.width / 2 - size.w / 2)), y: Math.max(0, at?.y ?? 80) };
+      const cell = snapToGrid({ catalogId, ...dropped, ...size }, view.width, HUB_GRID_COLS, w) ?? { ...dropped, ...size };
       const element: Omit<DesignElement, 'z'> = {
         id: newElementId(),
         kind: 'catalogue',
         catalogId,
         slots: {},
         style: {},
-        x: Math.max(0, at?.x ?? Math.round(view.width / 2 - size.w / 2)),
-        y: Math.max(0, at?.y ?? 80),
-        w: size.w,
-        h: size.h,
+        x: cell.x,
+        y: cell.y,
+        w: cell.w,
+        h: cell.h,
         // The label is stored on the element because `renderElement` is pure and has no registry to
         // look it up in — and an export opened next year should still say "My pay", not `my-pay`.
         name: w.label,
@@ -441,10 +446,31 @@ export default function Studio({ initial }: Props) {
   }, [others, patchViewLive, settings, view.elements, view.height, view.width, zoom]);
 
   const endDrag = useCallback(() => {
+    const state = dragRef.current;
     dragRef.current = null;
     setDrag(null);
     setGuides([]);
-  }, []);
+
+    // ── W6: A COMPOSITION'S WIDGETS LAND ON THE CELLS THEY WILL SERVE AT ─────────────────────────
+    //
+    // A composition is drawn in pixels and served in cells, so `viewToGrid` rounds. Until this,
+    // that rounding happened invisibly, at serve time, to a layout somebody had already approved: a
+    // widget nudged to x=337 sat there in the editor and moved a column on the real page.
+    //
+    // Snapping on release rather than during the drag, deliberately. Snapping continuously makes a
+    // widget lurch between columns under the cursor and feels broken; snapping at the end is what
+    // every grid editor does, and it is also the only moment the position is final.
+    //
+    // Traces are untouched — no grid to snap to, and recording exact geometry is their entire job.
+    if (!state || doc.kind !== 'composition') return;
+    const el = view.elements.find((x) => x.id === state.id);
+    if (!el || !isWidgetElement(el.catalogId)) return;
+    const w = paletteWidgets().find((pw) => pw.id === widgetIdOf(el.catalogId));
+    const snapped = snapToGrid(el, view.width, HUB_GRID_COLS, w);
+    if (!snapped) return;
+    if (snapped.x === el.x && snapped.y === el.y && snapped.w === el.w && snapped.h === el.h) return;
+    patchView((v) => updateElement(v, el.id, snapped));
+  }, [doc.kind, patchView, view.elements, view.width]);
 
   // ── KEYBOARD ─────────────────────────────────────────────────────────────────────────────────
 
