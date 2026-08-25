@@ -2759,3 +2759,41 @@ without the page moving. That is the reformat-vs-scroll rule `/admin/marketing` 
 still holding at twelve.
 
 Nothing to fix. Recorded because a check nobody knows happened is a check that gets asked for again.
+
+### 13.8 A design's state key does not round-trip to a URL — 23 of 110 tabs
+
+**Measured, not inferred:**
+
+```
+/admin/billing?tab=history        opens: Plan history    ← the tab's id
+/admin/billing?tab=plan-history   opens: Overview        ← the STORED state key
+```
+
+The design system derives a state key by **slugging the tab's visible label** (`SELECTED_STATE` in
+`scripts/lib/design-observe.mjs`). The URL accepts the tab's **id**. For most tabs those coincide.
+For **23 of 110 they do not**:
+
+| Portal | tab id | stored state key |
+|---|---|---|
+| `/admin/billing` | `history` | `plan-history` |
+| `/admin/finances` | `schedule-c` | `job-profitability` |
+| `/admin/equipment` | `audit` | `overrides` |
+| `/admin/hours` | `team` | `field-team` |
+| `/admin/learn` | `flashcard-bank` | `card-bank` |
+| …18 more | | |
+
+**Nothing is visibly broken today**, and that is why it is worth writing down. `openState` survives
+it by falling back to clicking the label when the URL does not select the state — so the traces
+succeed and the record fills up with keys that cannot be turned back into a link. Anything that
+reconstructs a URL from a stored key — a "view this tab" action, a deep link out of the designer,
+`design/serve` for a state — opens the DEFAULT tab and looks like it worked.
+
+**Two further consequences worth naming.** A key derived from a label means **renaming a tab orphans
+its design**, silently. And one label is a template literal, so its key came out as
+`recycle-bin-recyclebin-length-0` — a key that is not a slug of anything a person will ever see.
+
+**The fix is available and is a migration, so it is not being made here.** The portal buttons already
+carry the id in the DOM — `id="msg-tab-directory"`, `aria-controls="msg-panel-directory"` — so
+`SELECTED_STATE` could read the id instead of slugging the label, and the key would round-trip. Doing
+that changes the key for those 23 tabs, which orphans the designs already stored under the old ones.
+That is a data migration on the design tables, and it belongs to whoever owns that call.
