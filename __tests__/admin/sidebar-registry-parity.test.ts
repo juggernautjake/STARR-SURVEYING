@@ -28,9 +28,20 @@ const LEGACY_SIDEBAR_HREFS = [
   // URL still goes somewhere sensible moved to `__tests__/middleware/legacy-redirects.test.ts`,
   // which asserts both the redirect target AND that no page file survives to shadow it.
   '/admin/assignments', '/admin/schedule',
-  '/admin/learn', '/admin/learn/roadmap', '/admin/learn/modules', '/admin/learn/knowledge-base',
-  '/admin/learn/flashcards', '/admin/learn/exam-prep', '/admin/learn/quiz-history',
-  '/admin/learn/fieldbook', '/admin/learn/search', '/admin/learn/students', '/admin/learn/manage',
+  // C11a absorbed six of the drawer's learn rows into the Knowledge portal. Three of them —
+  // roadmap, quiz-history, search — have nothing beneath them and their registry rows are gone;
+  // three — modules, knowledge-base, flashcards — keep a `showInRail: false` row so their record
+  // children keep a bundle gate, which is exactly what the second test below calls "demoted".
+  //
+  // Both tests are right and both readings are answered the same way, the way C4, C6 and C8
+  // answered it: the drawer offers ONE row, `/admin/learn`, and every one of the six forwards to
+  // its tab. What this file defends is that nothing became unreachable, not that the hrefs never
+  // change — and each of the six is one click from the drawer, where it used to be one click from
+  // the drawer.
+  '/admin/learn',
+  '/admin/learn/exam-prep',   // still its own route: an exam sitting is not a tab
+  '/admin/learn/fieldbook',
+  '/admin/learn/students', '/admin/learn/manage',   // teacher surfaces, gated, unabsorbed
   '/admin/jobs',
   // ── The five `?tab=` hrefs became real pages on 2026-08-04 ───────────────────────────────────
   //

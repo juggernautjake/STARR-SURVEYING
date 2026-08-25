@@ -369,18 +369,26 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/payroll',     label: 'Payroll',      workspace: 'money',  section: 'Money out', iconName: 'BadgeDollarSign', description: 'Payroll records. Absorbed into Pay; the row remains so /admin/payroll/[email] keeps its bundle gate.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['paychecks', 'wages'] },
 
   // Knowledge workspace ───────────────────────────────────────────
-  { href: '/admin/learn',                label: 'Learning Hub',     workspace: 'knowledge', iconName: 'GraduationCap', description: 'Learning portal home.', keywords: ['education', 'training'] },
-  { href: '/admin/learn/roadmap',        label: 'My Roadmap',       workspace: 'knowledge', iconName: 'Route',        description: 'Personal learning roadmap.' },
-  { href: '/admin/learn/modules',        label: 'Modules',          workspace: 'knowledge', iconName: 'BookOpen',     description: 'Course modules.' },
-  { href: '/admin/learn/knowledge-base', label: 'Knowledge Base',   workspace: 'knowledge', iconName: 'BookText',     description: 'Reference articles.', keywords: ['kb', 'articles', 'docs'] },
-  { href: '/admin/learn/flashcards',     label: 'Flashcards',       workspace: 'knowledge', iconName: 'Layers',       description: 'Spaced-repetition decks.' },
+  // ── C11a / P12: NINE ROWS BECAME ONE, AND THREE OF THEM STAYED REGISTERED ──────────────────
+  //
+  // Nineteen links in one workspace, nine of them the same activity split by implementation.
+  // The nine are tabs of `/admin/learn` now and their routes forward.
+  //
+  // Three keep a row with `showInRail: false`, which is C10's rule and not a special case:
+  // `bundleForRoute` resolves an unknown path by its deepest REGISTERED prefix, so dropping a row
+  // takes the bundle gate off everything beneath it. C6–C9 did that to five record pages before
+  // anybody measured it. These three have children — a lesson, an article, a deck — so the row
+  // outlives the nav entry. The other six have nothing beneath them and are simply gone.
+  //
+  // Every harvested keyword is here, plus each absorbed row's label, so the words people actually
+  // type — "flashcards", "roadmap", "quiz history" — still find the page they now live on.
+  { href: '/admin/learn',                label: 'Learning Hub',     workspace: 'knowledge', iconName: 'GraduationCap', description: 'Study, in one place — the roadmap, the courses, the reference library, flashcards, practice and your quiz history.', keywords: ['education', 'training', 'kb', 'articles', 'docs', 'formula', 'table', 'lookup', 'constants', 'my roadmap', 'modules', 'knowledge base', 'flashcards', 'flashcard bank', 'practice', 'quiz history', 'references', 'knowledge search', 'study', 'learning', 'course', 'lesson', 'deck', 'revision'] },
+  { href: '/admin/learn/modules',        label: 'Modules',          workspace: 'knowledge', iconName: 'BookOpen',     description: 'Course modules.', showInRail: false },  // records beneath it: modules/[id] and its lessons, quizzes and tests
+  { href: '/admin/learn/knowledge-base', label: 'Knowledge Base',   workspace: 'knowledge', iconName: 'BookText',     description: 'Reference articles.', keywords: ['kb', 'articles', 'docs'], showInRail: false },  // records beneath it: knowledge-base/[slug]
+  { href: '/admin/learn/flashcards',     label: 'Flashcards',       workspace: 'knowledge', iconName: 'Layers',       description: 'Spaced-repetition decks.', showInRail: false },  // records beneath it: flashcards/[deckId] and flashcards/create
   { href: '/admin/learn/exam-prep',      label: 'Exam Prep',        workspace: 'knowledge', iconName: 'FileCheck',    description: 'Exam preparation suite.', keywords: ['fs', 'rpls', 'license'] },
-  { href: '/admin/learn/quiz-history',   label: 'Quiz History',     workspace: 'knowledge', iconName: 'History',      description: 'Past quiz attempts.' },
-  { href: '/admin/learn/search',         label: 'Knowledge Search', workspace: 'knowledge', iconName: 'Search',       description: 'Search across learning content.' },
   { href: '/admin/learn/students',       label: 'Student Progress', workspace: 'knowledge', iconName: 'UsersRound',   description: 'Student progress dashboard.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
   { href: '/admin/learn/manage',         label: 'Manage Content',   workspace: 'knowledge', iconName: 'Pencil',       description: 'Author + edit learning content.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
-  { href: '/admin/learn/flashcard-bank', label: 'Flashcard Bank',   workspace: 'knowledge', iconName: 'Layers',       description: 'Master flashcard bank.', showInRail: false },
-  { href: '/admin/learn/practice',       label: 'Practice',         workspace: 'knowledge', iconName: 'Play',         description: 'Quick-practice session.', showInRail: false },
 
   // Office workspace ──────────────────────────────────────────────
   { href: '/admin/office',                label: 'Office',           workspace: 'office', iconName: 'Building',     description: 'HR, comms, files, settings.', keywords: ['back-office', 'hr', 'admin'] },
@@ -585,7 +593,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/learn/exam-prep/sit',   label: 'SIT Exam Prep',    workspace: 'knowledge', iconName: 'FileCheck',  description: 'Surveyor-in-Training exam preparation.', keywords: ['fs', 'sit', 'fundamentals', 'license'] },
   { href: '/admin/learn/exam-prep/sit/mock-exam', label: 'SIT Mock Exam', workspace: 'knowledge', iconName: 'Timer',  description: 'Full-length timed SIT practice exam.', showInRail: false, keywords: ['practice', 'timed', 'simulator'] },
   { href: '/admin/learn/exam-prep/rpls',  label: 'RPLS Exam Prep',   workspace: 'knowledge', iconName: 'FileCheck',  description: 'Registered Professional Land Surveyor exam preparation.', keywords: ['rpls', 'license', 'professional'] },
-  { href: '/admin/learn/references',      label: 'References',       workspace: 'knowledge', iconName: 'Library',    description: 'Reference tables, formulas and constants.', keywords: ['formula', 'table', 'lookup', 'constants'] },
   { href: '/admin/learn/flashcards/create', label: 'New Flashcard Deck', workspace: 'knowledge', iconName: 'Plus',   description: 'Build a flashcard deck.', showInRail: false, keywords: ['create', 'deck'] },
   { href: '/admin/learn/manage/media',    label: 'Learning Media',   workspace: 'knowledge', iconName: 'Image',      description: 'Images and files used in lessons.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], showInRail: false, keywords: ['images', 'upload', 'assets'] },
   { href: '/admin/learn/manage/question-builder', label: 'Question Builder', workspace: 'knowledge', iconName: 'HelpCircle', description: 'Author quiz and exam questions.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], showInRail: false, keywords: ['quiz', 'exam', 'author'] },

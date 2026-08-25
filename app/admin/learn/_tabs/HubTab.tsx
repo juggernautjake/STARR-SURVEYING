@@ -1,0 +1,167 @@
+// app/admin/learn/_tabs/HubTab.tsx — a tab of the Knowledge portal.
+//
+// C11a / P12 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// `/admin/learn/page.tsx`, the hub's own card grid.
+//
+// The body is unchanged apart from two relative imports: the hub sat at the top of the tree and
+// _tabs/ is one level deeper, which the nine tabs beside it did not have to pay because each came
+// from a directory at this same depth.
+//
+// (was: The body is unchanged.) `_tabs/` sits at the same depth as the directory this came from, so
+// not even the relative imports moved — which is the point: a re-arrangement that also rewrites
+// makes a later regression impossible to attribute.
+// app/admin/learn/page.tsx
+'use client';
+
+import Link from 'next/link';
+import { useSession } from 'next-auth/react';
+import { GraduationCap, Map as MapIcon, BookOpen, Search, Layers, ClipboardCheck, Notebook, SquarePen } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { usePageError } from '../../hooks/usePageError';
+import SmartSearch from '../components/SmartSearch';
+
+interface SearchResult {
+  id: string;
+  title?: string;
+  term?: string;
+  type: string;
+  url?: string;
+  slug?: string;
+  category?: string;
+  excerpt?: string;
+  definition?: string;
+}
+
+export default function HubTab() {
+  const { data: session } = useSession();
+  const { safeFetch, safeAction } = usePageError('LearnHubPage');
+  const role = session?.user?.role || 'employee';
+  const roles = session?.user?.roles || ['employee'];
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<any>(null);
+  const [searching, setSearching] = useState(false);
+
+  const search = useCallback(async (q: string) => {
+    if (q.length < 2) { setResults(null); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/admin/learn/search?q=${encodeURIComponent(q)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data.results);
+      }
+    } catch (err) { console.error('LearnHubPage: search failed', err); }
+    setSearching(false);
+  }, []);
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    setQuery(v);
+    clearTimeout((window as any).__searchTimer);
+    (window as any).__searchTimer = setTimeout(() => search(v), 350);
+  };
+
+  const allResults: SearchResult[] = results ? [
+    ...(results.modules || []),
+    ...(results.lessons || []),
+    ...(results.topics || []),
+    ...(results.articles || []),
+    ...(results.flashcards || []),
+  ] : [];
+
+  return (
+    <>
+      <div className="admin-learn__header">
+        <h2 className="admin-learn__title"><GraduationCap size={22} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Learning Hub</h2>
+        <p className="admin-learn__subtitle">
+          Build your surveying expertise with structured courses, exam prep, flashcards, and a searchable reference library.
+        </p>
+      </div>
+
+      {/* Universal Smart Search */}
+      <div style={{ maxWidth: '100%', marginBottom: '2rem' }}>
+        <SmartSearch placeholder="Search modules, lessons, topics, articles, flashcards, questions... (Ctrl+K)" />
+      </div>
+
+      {/* Section Cards */}
+      <div className="admin-learn__sections">
+        <Link href="/admin/learn/roadmap" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)', borderWidth: '2px' }}>
+          <span className="admin-learn__section-icon"><MapIcon size={20} strokeWidth={1.75} /></span>
+          <h3 className="admin-learn__section-title">My Roadmap</h3>
+          <p className="admin-learn__section-desc">
+            Track your progress through the full Texas Land Surveying curriculum — 28 modules, 9 parts, from foundations to RPLS exam readiness.
+          </p>
+          <span className="admin-learn__section-arrow">View Roadmap →</span>
+        </Link>
+
+        <Link href="/admin/learn/modules" className="admin-learn__section-card">
+          <span className="admin-learn__section-icon"><BookOpen size={20} strokeWidth={1.75} /></span>
+          <h3 className="admin-learn__section-title">Learning Modules</h3>
+          <p className="admin-learn__section-desc">
+            Progressive courses from beginner to advanced. Each module has lessons with topics, resources, videos, and quizzes. Complete a module test at the end.
+          </p>
+          <span className="admin-learn__section-arrow">Browse Modules →</span>
+        </Link>
+
+        <Link href="/admin/learn/knowledge-base" className="admin-learn__section-card">
+          <span className="admin-learn__section-icon"><Search size={20} strokeWidth={1.75} /></span>
+          <h3 className="admin-learn__section-title">Knowledge Base</h3>
+          <p className="admin-learn__section-desc">
+            Searchable reference library covering any surveying topic. Designed for quick lookup — like a surveying encyclopedia.
+          </p>
+          <span className="admin-learn__section-arrow">Search Articles →</span>
+        </Link>
+
+        <Link href="/admin/learn/flashcards" className="admin-learn__section-card">
+          <span className="admin-learn__section-icon"><Layers size={20} strokeWidth={1.75} /></span>
+          <h3 className="admin-learn__section-title">Flashcards</h3>
+          <p className="admin-learn__section-desc">
+            Study terms and definitions with built-in flashcards. Create your own cards with up to 3 progressive hints. Link cards to modules and topics.
+          </p>
+          <span className="admin-learn__section-arrow">Study Flashcards →</span>
+        </Link>
+
+        <Link href="/admin/learn/exam-prep" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-red)', borderWidth: '2px' }}>
+          <span className="admin-learn__section-icon"><ClipboardCheck size={20} strokeWidth={1.75} /></span>
+          <h3 className="admin-learn__section-title">Exam Prep (FS / RPLS)</h3>
+          <p className="admin-learn__section-desc">
+            Comprehensive FS exam preparation with 8 study modules, 270+ practice questions, timed mock exams, and progress tracking.
+            Complete module quizzes to unlock the next level.
+          </p>
+          <span className="admin-learn__section-arrow" style={{ color: 'var(--color-error-text)' }}>Start Exam Prep →</span>
+        </Link>
+
+        <Link href="/admin/learn/fieldbook" className="admin-learn__section-card">
+          <span className="admin-learn__section-icon"><Notebook size={20} strokeWidth={1.75} /></span>
+          <h3 className="admin-learn__section-title">My Fieldbook</h3>
+          <p className="admin-learn__section-desc">
+            Keep all your study notes in one place. Notes automatically record the date, time, and what page you were on when you wrote them.
+          </p>
+          <span className="admin-learn__section-arrow">Open Fieldbook →</span>
+        </Link>
+
+        {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
+          <Link href="/admin/learn/students" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-navy)' }}>
+            <span className="admin-learn__section-icon"><GraduationCap size={20} strokeWidth={1.75} /></span>
+            <h3 className="admin-learn__section-title">Student Progress</h3>
+            <p className="admin-learn__section-desc">
+              View student learning activity, quiz scores, module completions, and XP.
+            </p>
+            <span className="admin-learn__section-arrow" style={{ color: 'var(--color-brand-navy)' }}>View Students →</span>
+          </Link>
+        )}
+
+        {(roles.includes('admin') || roles.includes('teacher') || roles.includes('developer')) && (
+          <Link href="/admin/learn/manage" className="admin-learn__section-card" style={{ borderColor: 'var(--color-brand-red)' }}>
+            <span className="admin-learn__section-icon"><SquarePen size={20} strokeWidth={1.75} /></span>
+            <h3 className="admin-learn__section-title">Manage Content</h3>
+            <p className="admin-learn__section-desc">
+              Create and edit modules, lessons, questions, flashcards, and articles.
+            </p>
+            <span className="admin-learn__section-arrow" style={{ color: 'var(--color-error-text)' }}>Manage →</span>
+          </Link>
+        )}
+      </div>
+    </>
+  );
+}

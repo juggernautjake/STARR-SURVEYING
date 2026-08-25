@@ -1101,7 +1101,55 @@ early, and the internal tooling comes last.
       broken by the slice that quotes it. Browser-verified: five tabs, 11 real leads on the tab,
       picker present on three and absent on two. Inline hexes **2306 before, 2306 after**.
       `npm run build` clean.
-- [ ] **C11 — P12 Knowledge** + **P13 Research** (13 → 2).
+- [ ] **C11 — P12 Knowledge** + **P13 Research** (13 → 2). **Split; P12 DONE 2026-08-25, P13 open.**
+      Thirteen routes across two portals was not one slice. C11a is Knowledge; C11b is Research.
+
+      **C11a — P12 Knowledge (9 → 0 new links). DONE.** `/admin/learn` has ten tabs: the hub's card
+      grid plus roadmap, modules, knowledge base, references, flashcards, card bank, practice, quiz
+      history and search. Ordered the way studying goes rather than the way the files were written.
+      Six rail links become none; nine routes forward.
+
+      **What deliberately did not come, re-read rather than assumed.** `exam-prep` and its four
+      children stay separate — an exam sitting is a timed session, and a tab strip above it is an
+      invitation to leave mid-question with no way to say what that did to the clock. `learn/manage`
+      and its two children stay separate: authoring is a different job from studying, done by a
+      different role. `students` is not on §8's list and belongs with `manage` for the same reason —
+      a teacher looking at other people, not a learner looking at themselves.
+
+      **§5 cost nothing here, and that is worth writing down rather than skipping.** All nine
+      absorbed rows were ungated, and middleware gates only `/admin/learn/manage` and
+      `/admin/learn/students`, neither of which is here. The portal opens exactly as wide as what it
+      holds. No role list moved.
+
+      **C10's rule paid for itself on its first outing.** Three of the nine — `modules`,
+      `knowledge-base`, `flashcards` — have record children: a lesson, an article, a deck. Their rows
+      stay registered with `showInRail: false`, so `/admin/learn/modules/[id]/[lessonId]` and its
+      siblings still resolve to the `academy` bundle. The other six have nothing beneath them and
+      their rows are gone. Measured after, not assumed: all nine record paths still answer `academy`.
+
+      **The back-link class, at its largest yet: nine self-links in eight of the ten bodies.** Every
+      absorbed page carried "← Back to Learning Hub", and every one of them now points at the portal
+      it renders inside. Practice carried a second on its results screen. A tenth control was a
+      different shape and worth separating: References links to `/admin/learn/exam-prep/sit`, which
+      is a real route and deliberately unabsorbed — what stopped being true there is the ARROW, since
+      nobody arrives from exam prep any more. Same fix as C9's "← New Email". **Three slices running
+      have found this; it is not a one-off but a property of absorbing a page that knew its parent.**
+
+      **The migration receipt needed a decision, not an edit.**
+      `__tests__/admin/sidebar-registry-parity.test.ts` failed twice and both readings were correct:
+      three hrefs stopped being registered, and three were "quietly demoted to palette-only" — which
+      is precisely what C10's rule requires them to be. Answered the way C4, C6 and C8 answered it:
+      the drawer offers one row and all six are one click from it, which is where they were.
+
+      Browser-verified: ten tabs render, nine redirects land on their own tab, the four unabsorbed
+      routes are untouched, no page errors. Inline hexes **2306 before, 2306 after**. `npm run build`
+      clean.
+
+- [ ] **C11b — P13 Research** (`/admin/research` absorbs coverage · library · pipeline · sites ·
+      self-heal · billing). `/admin/research/[projectId]` (22,112 lines), `/admin/research/testing`
+      and `/admin/cad` stay. Note for whoever takes it: `AdminResearch.css` is route-scoped exactly
+      like `AdminLearn.css`, and `/admin/research/[projectId]` means the parent row must stay
+      registered per C10's rule.
 - [ ] **C12 — P14 Company** + **P15 System** (8 → 2).
 - [ ] **C12b — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:
       they are the ones whose breakage costs the firm nothing.
