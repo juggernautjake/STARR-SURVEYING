@@ -1830,6 +1830,31 @@ early, and the internal tooling comes last.
       The dossiers pass is running behind it. That half cannot self-heal — no status, no
       `deleted_at`, §13.3 — so its 63 will still be 63 when it finishes, correctly derived and still
       describing pages that are now tabs.
+      ── **THE THIRD PIECE: THE CONFORMANCE RECORD, MEASURED AND STALE** ──
+
+      C14 asks for "the conformance record with them", and it had not been looked at. Measured:
+
+      | | |
+      |---|---|
+      | Last measured | **2026-08-25 07:22** — before the merges |
+      | Routes in the record | 206 |
+      | …no longer registered | **136** |
+      | Registered routes never measured | **5** |
+
+      The 136 are absorbed routes whose scores compare a live page against a design that has since
+      been **archived** — a number that looks like a measurement and is a comparison between two
+      things that no longer face each other.
+
+      The 5 never measured are more interesting, because two are portals this plan built:
+      **`/admin/hours`** (C4) and **`/admin/pay`** (C6). Both have existed for a day with no
+      conformance score at all, and neither would have been noticed by the score itself — a route
+      that is missing from a record cannot have a bad row in it. `/admin/schedule` is a redirect;
+      `design/conformance` and `design/serve` are the two the Page Designer keeps as routes.
+
+      **Not re-run yet.** It is a third browser walk over ~75 routes at two viewports and the dossiers
+      pass is still using the server. Queued behind it; the numbers above are what it will be measured
+      against.
+
 
       **Measured progress, 2026-08-25** — from the database rather than the console, because the
       console lies when a pipe buffers:
