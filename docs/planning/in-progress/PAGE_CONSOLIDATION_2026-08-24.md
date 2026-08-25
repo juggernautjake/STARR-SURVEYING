@@ -2258,9 +2258,20 @@ early, and the internal tooling comes last.
         3.8 GB working set. The next run died on ECONNREFUSED. Identify a process by its command
         line, not by which one looks expensive.
 
-      **Remaining:** finish the defaults pass; run `derive-dossiers.mjs --since` for the same set;
-      refresh the conformance record; chase the four pages that will not settle; and put the orphan
-      question to the owner.
+      **Remaining — rewritten 2026-08-25, because three of the five items had already been done or
+      answered and the list was quietly wrong about its own state:**
+
+      | the original item | where it actually stands |
+      |---|---|
+      | finish the defaults pass | **107 of 110 portal tabs**, up from 51; only `/admin/support`'s three outstanding, and it is last in the alphabetical walk |
+      | run the dossier deriver for the same set | done — the sweep runs `derive-dossiers` and `trace-defaults` per portal, in that order |
+      | refresh the conformance record | **still to do**, and now worth doing: it was deliberately held back while 59 states had no default, because scoring a fifth of the surface would have finished looking complete |
+      | chase the four pages that will not settle | **already answered, directly beneath this entry** — all four are redirect stubs this plan created, and the bug was the tracer's ordering, not the pages. The line survived the correction that refuted it |
+      | put the orphan question to the owner | **§13.3** — asked, re-measured, and the question changed in the asking |
+
+      That third row is the only real remainder. A list that outlives its own resolution is the same
+      failure as a stale comment, and it is worth noting that it sat directly above the correction
+      that made it wrong.
 
       ── **C14b — THE SIX TABS THAT "COULD NOT BE REACHED", 2026-08-25** ──
 
