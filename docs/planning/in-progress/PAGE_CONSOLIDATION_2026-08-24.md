@@ -358,6 +358,30 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14k — ALL FIVE LOPSIDED RECORDS REPAIRED, 2026-08-25** ──
+
+      **Zero lopsided defaults remain**, and every repair was reported rather than assumed:
+
+      | record | what came back |
+      |---|---|
+      | `learn · card-bank` | mobile 21 → 598 · `−1 gone: .admin-empty` |
+      | `research · data-sources` | desktop 19 → 252 |
+      | `marketing · connection-uploads` | desktop 28 → 283 · `+8 new: .mu__connect .mu__pending` |
+      | `hours · field-team` | desktop 22 → 106 · `+1 new: .article` |
+      | `finances · job-profitability` | desktop 29 → 92 · `+5 new: .section .article .header .admin-table-wrap` |
+
+      Those right-hand columns are the point. Before C14f a state's record was replaced in silence,
+      so all five of these repairs would have been indistinguishable from all five of the failures
+      that created them — a number changing, with nothing to say whether the page or the instrument
+      had moved.
+
+      **Conformance now measures something real.** Validated on `/admin/equipment` before the full
+      pass: 11 records compared, **0 defaults no longer 1:1**, every one at 100% except
+      `cleanup-queue` mobile at 94% and `schedule`, which hit the open-the-tab flake. That flake is
+      the one thing in this walk still without an established cause, and it now shows up in three
+      tools — the tracer, the dossier deriver and the conformance sweep — which is itself the
+      argument for fixing it properly rather than retrying around it.
+
       ── **C14j — SEVEN BROKEN ANCHORS IS A TOOL PROBLEM, 2026-08-25** ──
 
       Seven assertions in this plan have failed because a piece of source text moved while the rule
