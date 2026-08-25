@@ -325,6 +325,39 @@ is **per-ITEM approval** — today the decision is per receipt.
       stability rather than reachability, and it deserves its own slice rather than a guess at the
       end of this one.
 
+      ── **C14f — A STATE'S RECORD WAS REPLACED IN SILENCE, 2026-08-25** ──
+
+      Chasing that drift found why nobody could have known about it. The tracer carries an emphatic
+      note about re-tracing: replacing the record silently *"is the version of this feature that
+      helps nobody — you re-trace precisely BECAUSE the page changed, and if the tool will not say
+      how, the only way to find out is to compare two screenshots by eye."* It then prints, per
+      viewport, what was added, removed and moved.
+
+      **That rule was written for routes and never reached states.** The state branch fetched the
+      same API, received the same `changes` payload — `writeDefault` scopes its previous-record
+      lookup by `state_key`, so it has been computing them correctly all along — and threw it away.
+      Every per-state default since V4 has been overwritten without a word.
+
+      The `overrides` 50 → 42 was only noticed because both numbers happened to be on screen in one
+      session, and the earlier row was already gone when I went looking: a state re-trace REPLACES
+      rather than archives, so there is no history to reconstruct. One shared `reportChanges()` now
+      serves both, and the first run with it said:
+
+      ```
+      cleanup-queue mobile: 36 → 34 elements · −1 gone: .strong
+      ```
+
+      Which reframes the drift: a `<strong>` appearing and disappearing between runs looks like a
+      count or badge that renders only when non-zero — **the page's data changing, not the capture
+      wobbling**. That is a different and much less alarming question than "the instrument is
+      unstable", and it could not be asked at all until the tool named the element.
+
+      **And the flake is not fixed.** The same run lost `overrides` — 9 of 10, after the 10 of 10
+      that C14e deliberately declined to call proof. That restraint was right. Three fixes have made
+      it rarer without ending it, and the honest state is: one state per portal run still fails
+      intermittently, the cause of the remaining occurrences is not established, and
+      `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
+
       ── **C14d — THE STRIPPER ITSELF WAS WRONG, IN SIX PLACES, 2026-08-25** ──
 
       Acting on that last line turned up something bigger than the tidying it was meant to be.

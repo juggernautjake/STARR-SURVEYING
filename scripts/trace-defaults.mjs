@@ -117,6 +117,40 @@ let page = await ctx.newPage();
 //
 // That is the same shape as the fixed-wait bug and the two before it: the instrument failed and the
 // output looked exactly like a finding. A failed route now gets a fresh tab before the next one.
+/**
+ * What a re-trace replaced, per viewport — for a route AND for each of its states.
+ *
+ * ── WHY THIS IS A FUNCTION NOW ──────────────────────────────────────────────────────────────────
+ *
+ * The note this code carries is emphatic: a re-trace replaces the record of what a page looks like,
+ * and doing that silently *"is the version of this feature that helps nobody — you re-trace
+ * precisely BECAUSE the page changed, and if the tool will not say how, the only way to find out is
+ * to compare two screenshots by eye."*
+ *
+ * That rule was written for routes and never reached STATES, which have replaced their rows silently
+ * ever since V4 added them. It showed: `/admin/equipment · overrides` captured 50 desktop elements
+ * in one run and 42 in the next, the second overwrote the first, and nothing said a word. The only
+ * reason anyone noticed is that both numbers happened to be on screen in the same session.
+ *
+ * A state's record is a locked default exactly like a route's. If one deserves an account of what it
+ * replaced, so does the other.
+ *
+ * Nothing is printed when nothing moved — a first trace has no previous default, and "0 added, 0
+ * removed" a hundred times would bury the rows that did.
+ */
+function reportChanges(changes, indent) {
+  for (const change of changes ?? []) {
+    const moved = change.moved ?? [];
+    if (!change.added.length && !change.removed.length && !moved.length && change.before === change.after) continue;
+    const bits = [];
+    if (change.before !== change.after) bits.push(`${change.before} → ${change.after} elements`);
+    if (change.added.length) bits.push(`+${change.added.length} new: ${change.added.slice(0, 4).join(' ')}`);
+    if (change.removed.length) bits.push(`−${change.removed.length} gone: ${change.removed.slice(0, 4).join(' ')}`);
+    if (moved.length) bits.push(`${moved.length} moved (worst ${moved[0].signature} by ${moved[0].by}px)`);
+    console.log(`${indent}${change.view}: ${bits.join(' · ')}`);
+  }
+}
+
 async function freshPage() {
   try { await page.close(); } catch { /* already gone — that is why we are here */ }
   page = await ctx.newPage();
@@ -445,6 +479,9 @@ for (const [i, target] of todo.entries()) {
         if (stateRes.ok()) {
           const b = await stateRes.json();
           console.log(`        · ${st.key}: ${b.coverage.desktop.kept} desktop · ${b.coverage.mobile.kept} mobile`);
+          // A state's default is a locked record like a route's, and until now it was replaced in
+          // silence. See `reportChanges`.
+          reportChanges(b.changes, `          ${st.key} `);
         } else {
           console.log(`        · ${st.key}: api ${stateRes.status()}`);
         }
@@ -462,16 +499,7 @@ for (const [i, target] of todo.entries()) {
     //
     // Nothing is printed for a first trace — there was no previous default, so there is no change,
     // and printing "0 added, 0 removed" 130 times would bury the routes that did move.
-    for (const change of changes ?? []) {
-      const moved = change.moved ?? [];
-      if (!change.added.length && !change.removed.length && !moved.length && change.before === change.after) continue;
-      const bits = [];
-      if (change.before !== change.after) bits.push(`${change.before} → ${change.after} elements`);
-      if (change.added.length) bits.push(`+${change.added.length} new: ${change.added.slice(0, 4).join(' ')}`);
-      if (change.removed.length) bits.push(`−${change.removed.length} gone: ${change.removed.slice(0, 4).join(' ')}`);
-      if (moved.length) bits.push(`${moved.length} moved (worst ${moved[0].signature} by ${moved[0].by}px)`);
-      console.log(`        ${change.view}: ${bits.join(' · ')}`);
-    }
+    reportChanges(changes, '        ');
   } catch (err) {
     failed.push({ route: target.route, why: err.message.split('\n')[0].slice(0, 70) });
     console.log(`—  ${err.message.split('\n')[0].slice(0, 50)}`);
