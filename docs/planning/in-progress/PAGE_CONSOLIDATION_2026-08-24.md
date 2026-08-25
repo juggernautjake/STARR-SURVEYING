@@ -1808,6 +1808,29 @@ early, and the internal tooling comes last.
       rows are soft-deleted history and the retire archived the one live default, correctly. Apply
       the predicate the constraint applies before calling its absence a defect.
 
+      ── **THE DEFAULTS HALF IS DONE, AND THE PREDICTION HELD** ──
+
+      Final pass: **23 traced · 0 failed · 152 skipped**, zero hangs.
+
+      | | when C14 started | now |
+      |---|---|---|
+      | Orphaned defaults | 67 | **2** |
+      | Designs retired | — | **105** |
+
+      The two that remain are **exactly the two predicted**: `/admin/billing/upgrade` and
+      `/admin/login`. Both are live pages that were never in `ADMIN_ROUTES`, so they were never
+      orphans — they are what was left when "orphaned" stopped meaning "unregistered" and started
+      meaning "absorbed". **Zero real orphans.**
+
+      Nothing decided this. S2 retires a default the moment a walk finds its route forwarding, so
+      105 designs went as a side effect of measuring, and the only reason it took four attempts is
+      that the walk kept mistaking a slow stub for a broken page. The fix that finally worked reads
+      the file.
+
+      The dossiers pass is running behind it. That half cannot self-heal — no status, no
+      `deleted_at`, §13.3 — so its 63 will still be 63 when it finishes, correctly derived and still
+      describing pages that are now tabs.
+
       **Measured progress, 2026-08-25** — from the database rather than the console, because the
       console lies when a pipe buffers:
 
