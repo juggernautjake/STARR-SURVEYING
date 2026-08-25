@@ -55,6 +55,22 @@ export interface PageRow extends InventoryPage {
     alternatives: number;
     drafts: number;
   };
+  /** ── THE STATES THIS PAGE CAN BE IN ──────────────────────────────────────────────────────────
+   *
+   * V3. Owner: *"each page that has tabs… has its own like, sub page listed. Basically, we will
+   * have the main page, and then it will have multiple views available for each toggled option so
+   * that I can edit each one individually."*
+   *
+   * Each carries its own lifecycle, because that is the whole point: `/admin/settings` is six
+   * things to design, and until now the list showed it as one. Empty for the 122 admin routes
+   * that have no states, which is most of them. */
+  states: Array<{
+    key: string;
+    label: string;
+    kind: string;
+    lifecycle: PageRow['lifecycle'];
+    gaps: PageGap[];
+  }>;
   /** What is known ABOUT the page — its purpose and how much of it has been measured. */
   dossier: { state: DossierState; elementCount: number; purpose: string | null } | null;
   /** ── WHAT THIS PAGE IS STILL MISSING ─────────────────────────────────────────────────────────
@@ -141,8 +157,12 @@ export function isReviewStatus(value: unknown): value is ReviewStatus {
  */
 export function joinPages(
   reviews: PageReview[],
-  designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>,
-  dossiers: Array<{ route: string; purpose: string | null; summary: string | null; elementCount: number }> = [],
+  designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean; stateKey?: string }>,
+  dossiers: Array<{
+    route: string; purpose: string | null; summary: string | null; elementCount: number;
+    /** What the deriver found — V2. */
+    states?: Array<{ key: string; label: string; kind: string }>;
+  }> = [],
   /** Routes whose default was traced BEFORE the page file last changed — S3.
    *
    * Passed in rather than computed here, and that is not laziness. This module is imported by
@@ -152,17 +172,22 @@ export function joinPages(
 ): PageRow[] {
   const dossierByRoute = new Map(dossiers.map((d) => [d.route, d]));
   const byRoute = new Map(reviews.map((r) => [r.route, r]));
+  // Keyed by route AND state. A design of the invoices tab must not be counted as a design of the
+  // route — that is precisely the conflation V1 existed to end, and doing it here would put it
+  // straight back on the screen.
+  const key = (route: string, state: string) => `${route}\u0000${state}`;
   const designsByRoute = new Map<string, Array<{ id: string; name: string; status: string; locked: boolean }>>();
   for (const d of designs) {
     if (!d.route) continue;
-    const list = designsByRoute.get(d.route) ?? [];
+    const k = key(d.route, d.stateKey ?? '');
+    const list = designsByRoute.get(k) ?? [];
     list.push({ id: d.id, name: d.name, status: d.status ?? 'draft', locked: !!d.locked });
-    designsByRoute.set(d.route, list);
+    designsByRoute.set(k, list);
   }
 
   return PAGES.map((page) => {
     const review = byRoute.get(page.route);
-    const forRoute = designsByRoute.get(page.route) ?? [];
+    const forRoute = designsByRoute.get(key(page.route, '')) ?? [];
     const lifecycle = lifecycleOf(forRoute);
     const raw = dossierByRoute.get(page.route);
     const dossier = raw
@@ -180,6 +205,20 @@ export function joinPages(
       updatedAt: review?.updatedAt ?? null,
       designs: forRoute,
       lifecycle,
+      // Each state gets the same treatment the route does: its own designs, its own lifecycle,
+      // its own gaps. `no-dossier` is deliberately never reported for a state — the dossier is
+      // written per ROUTE, and asking for one per tab would be inventing a queue nobody can empty.
+      states: (raw?.states ?? []).map((st) => {
+        const forState = designsByRoute.get(key(page.route, st.key)) ?? [];
+        const stateLifecycle = lifecycleOf(forState);
+        return {
+          key: st.key,
+          label: st.label,
+          kind: st.kind,
+          lifecycle: stateLifecycle,
+          gaps: gapsOf(stateLifecycle, forState, dossier).filter((g) => g !== 'no-dossier'),
+        };
+      }),
       dossier,
       gaps: gapsOf(lifecycle, forRoute, dossier, staleDefaults.has(page.route)),
     };

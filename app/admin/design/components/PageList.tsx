@@ -319,6 +319,72 @@ export default function PageList({ onCreateFor }: Props) {
                       {page.note && editingNote !== page.route && (
                         <p className="dsx-pages__note-text">{page.note}</p>
                       )}
+
+                      {/* ── EACH TAB, AS ITS OWN THING TO DESIGN ───────────────────────────────
+                        *
+                        * V3. Owner: *"we will have the main page, and then it will have multiple
+                        * views available for each toggled option so that I can edit each one
+                        * individually if needed."*
+                        *
+                        * Indented under the route rather than promoted to sibling rows. A tab is
+                        * not a peer of a page, and turning /admin/settings into seven rows would
+                        * lengthen a 270-row list by half for no gain in what it tells you.
+                        *
+                        * Only rendered where states were FOUND — 16 of 138 admin routes. The
+                        * majority of pages are one thing and should keep looking like one thing. */}
+                      {page.states.length > 0 && (
+                        <ul className="dsx-pages__states">
+                          {page.states.map((st) => (
+                            <li key={st.key} className="dsx-pages__state">
+                              <span className="dsx-pages__state-key" title={`${st.kind} · ${st.label}`}>
+                                {st.label || st.key}
+                              </span>
+                              {st.lifecycle.default ? (
+                                <Link
+                                  className="dsx-pages__chip dsx-pages__chip--default"
+                                  href={`/admin/design/${st.lifecycle.default.id}`}
+                                  title={`This tab as it is actually served — read-only. Clone it to make a version.`}
+                                >
+                                  Default
+                                </Link>
+                              ) : (
+                                // Said out loud rather than left blank. A tab with no trace is the
+                                // work `--states` exists to do, and a silent gap is one nobody
+                                // schedules. /admin/my-pay has three, all nested inside another tab.
+                                <span className="dsx-pages__chip dsx-pages__chip--gap" title="Nothing records what this tab looks like. Run: scripts/trace-defaults.mjs --only <route> --states">
+                                  No default
+                                </span>
+                              )}
+                              {st.lifecycle.active && (
+                                <Link
+                                  className="dsx-pages__chip dsx-pages__chip--active"
+                                  href={`/admin/design/${st.lifecycle.active.id}`}
+                                  title={`Active: ${st.lifecycle.active.name}`}
+                                >
+                                  Active
+                                </Link>
+                              )}
+                              {st.lifecycle.alternatives > 0 && (
+                                <span className="dsx-pages__chip dsx-pages__chip--alt">{st.lifecycle.alternatives} alt</span>
+                              )}
+                              {st.lifecycle.drafts > 0 && (
+                                <span className="dsx-pages__chip dsx-pages__chip--draft">{st.lifecycle.drafts} draft</span>
+                              )}
+                              {!page.dynamic && (
+                                <a
+                                  className="dsx-pages__open"
+                                  href={`${page.route}?tab=${encodeURIComponent(st.key)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Open the real page on this tab. Pages that keep their tab in component state will open on their default one."
+                                >
+                                  <ExternalLink size={12} aria-hidden />
+                                </a>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     </li>
                   );
                 })}

@@ -1709,3 +1709,54 @@ body.dsx-served-body .admin-layout__content { padding: 0; }
   .dsx__dossier,
   .dsx__life { left: 8px; right: 8px; width: auto; }
 }
+
+/* ── A PAGE'S STATES, UNDER THE PAGE ─────────────────────────────────────────────────────────────
+ *
+ * V3 of docs/planning/in-progress/DESIGN_STUDIO_SERVES_PAGES_2026-08-24.md. Owner: *"we will have
+ * the main page, and then it will have multiple views available for each toggled option."*
+ *
+ * Indented and quieter than the route above them, because that is the relationship: /admin/settings
+ * is one page with six tabs, not seven things. The rule down the left is what carries that — a list
+ * of chips with no rule reads as a second list rather than as part of the first. */
+.dsx-pages__states {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0 0 0 1.4rem;
+  border-left: 2px solid var(--theme-border, #E5E7EB);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dsx-pages__state {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  /* Wraps on a phone rather than pushing the row sideways — the reformat-vs-scroll rule. */
+  flex-wrap: wrap;
+}
+
+.dsx-pages__state-key {
+  min-width: 9rem;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #4B5563);
+  /* A long tab label truncates rather than shoving the chips off the row; the title carries it. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* "No default" is a GAP, not a status, and it should read as one thing to do rather than as an
+ * error. Warning tokens, both halves of the pair, so it follows every palette. */
+.dsx-pages__chip--gap {
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  border: 1px dashed color-mix(in srgb, var(--color-warning-text) 40%, var(--color-warning-surface));
+}
+
+@media (max-width: 640px) {
+  .dsx-pages__states { padding-left: 0.75rem; }
+  .dsx-pages__state-key { min-width: 0; flex: 1 1 100%; }
+}

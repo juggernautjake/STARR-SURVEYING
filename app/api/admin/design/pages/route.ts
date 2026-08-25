@@ -50,8 +50,8 @@ export const GET = withErrorHandler(async () => {
   // inventory itself is never rendered here.
   const [{ data: reviews }, { data: designs }, { data: dossiers }] = await Promise.all([
     supabaseAdmin.from(TABLE).select('route, status, note, updated_by, updated_at'),
-    supabaseAdmin.from('design_mockups').select('id, name, route, status, locked, traced_at').is('deleted_at', null),
-    supabaseAdmin.from('design_page_dossiers').select('route, purpose, summary, element_count'),
+    supabaseAdmin.from('design_mockups').select('id, name, route, state_key, status, locked, traced_at').is('deleted_at', null),
+    supabaseAdmin.from('design_page_dossiers').select('route, purpose, summary, element_count, states'),
   ]);
 
   const mapped: PageReview[] = ((reviews ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -64,12 +64,22 @@ export const GET = withErrorHandler(async () => {
 
   const pages = joinPages(
     mapped,
-    (designs ?? []) as Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>,
+    ((designs ?? []) as Array<Record<string, unknown>>).map((d) => ({
+      id: d.id as string,
+      name: d.name as string,
+      route: (d.route as string | null) ?? null,
+      status: d.status as string | undefined,
+      locked: d.locked as boolean | undefined,
+      // snake_case column → camelCase field. The `--stale` filter matched nothing for exactly this
+      // reason three slices ago; the summary shape and the column name are not the same thing.
+      stateKey: (d.state_key as string | undefined) ?? '',
+    })),
     ((dossiers ?? []) as Array<Record<string, unknown>>).map((d) => ({
       route: d.route as string,
       purpose: (d.purpose as string | null) ?? null,
       summary: (d.summary as string | null) ?? null,
       elementCount: (d.element_count as number | null) ?? 0,
+      states: (d.states as Array<{ key: string; label: string; kind: string }> | null) ?? [],
     })),
     staleDefaultRoutes(new Map(
       ((designs ?? []) as Array<Record<string, unknown>>)

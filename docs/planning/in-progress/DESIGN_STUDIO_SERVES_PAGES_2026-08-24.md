@@ -205,8 +205,31 @@ A hand-maintained list of tabs is wrong the first time somebody adds one. Two so
       allowlist rebuilding the payload field by field, dropped them on the way past. Third time
       this session that a field added at one end of a pipeline and not the other produced an empty
       that looked entirely legitimate.
-- [ ] **V3 — the page list nests views under their route**, each with its own gap chips. This is the
-      screen the owner is asking for.
+- [x] **V3 — the page list nests states under their route.** Shipped 2026-08-25. This is the screen
+      the owner asked for, and it now shows **15 routes with 78 states, 75 of them with a default**.
+
+      Each state carries its own lifecycle — its own default, active, alternatives and drafts —
+      and its own gaps, with a link straight into the editor for that tab and an external link
+      that opens the real page on it.
+
+      **The conflation this had to avoid.** A design of the invoices TAB must not count as a
+      design of the ROUTE — that is precisely what V1 existed to end, and doing it in the list
+      would have put it straight back on screen with `/admin/billing` reporting four designs and a
+      lifecycle assembled from four different things. `joinPages` keys by `(route, state)`.
+      Verified live: `/admin/billing` reports **1** design of its own while showing three tabs
+      each with their own.
+
+      **Indented, not promoted.** A tab is not a peer of a page. Turning `/admin/settings` into
+      seven rows would lengthen a 270-row list by half and tell you nothing new; the rule down the
+      left is what says "these belong to the row above".
+
+      **A tab is never asked for its own dossier.** The dossier is written per route, so a
+      `no-dossier` chip on every tab would invent a queue of 78 items with nothing behind it. A
+      missing TRACE is reported, because that is real work with a command behind it — three of
+      them, all on `/admin/my-pay`, all nested inside another tab.
+
+      One test asserted the route reported `no-dossier` while using a fixture that had a measured
+      dossier. The assertion was wrong, not the code.
 - [x] **V4 — a default for every tab.** Shipped 2026-08-25, `--states` on the tracer.
 
       Owner: *"I need each actual page to have a default for all tabs and everything."*
