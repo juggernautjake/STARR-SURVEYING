@@ -400,6 +400,18 @@ is **per-ITEM approval** — today the decision is per receipt.
       speak; C14g is what the speaking revealed. Neither would have found this alone — the guard
       needed a number to compare against, and the reporting needed something worth reporting.
 
+      Pinned by `__tests__/design/lopsided-capture.test.ts`. The assertion worth mentioning counts
+      the CALL SITES and expects exactly two, and it only means that because it reads the source
+      through the shared `code()` stripper: there are four mentions of `recaptureIfLopsided` in the
+      file and two of them are comments. That is the first time in this plan the stripper has earned
+      its keep rather than tripping an assertion up.
+
+      **`grep` buffered again — the fourth time in this plan**, in a background command written after
+      the trap had been recorded twice. The note plainly is not working, so the rule is now
+      structural rather than remembered: **read progress from the database, never from a pipeline.**
+      The rows are the deliverable; stdout is commentary, and buffered commentary is silence that
+      looks like a hang.
+
       ── **C14d — THE STRIPPER ITSELF WAS WRONG, IN SIX PLACES, 2026-08-25** ──
 
       Acting on that last line turned up something bigger than the tidying it was meant to be.
