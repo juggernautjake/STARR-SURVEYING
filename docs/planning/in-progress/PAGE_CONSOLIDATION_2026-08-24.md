@@ -1465,7 +1465,6 @@ early, and the internal tooling comes last.
 - [x] **C13b — §4's addendum, contacts and discussions.** **DONE 2026-08-25.** Both into Messages.
 - [x] **C13c — §4's addendum, reports; and the company-notes boundary.** **DONE 2026-08-25.**
 - [x] **C13d — §4's addendum, assignments.** **DONE 2026-08-25.** Rail links **44 → 43**.
-- [ ] **C13e — the last two of §4's addendum: `notes` and `team`.** Both need a decision, below.
 
       `/admin/assignments` is the Hours portal's `assignments` tab, second in the strip beside My
       time — the same question asked two ways: what am I meant to be doing, and what did I do.
@@ -1500,21 +1499,45 @@ early, and the internal tooling comes last.
 
       **This supersedes C10's wording for every remaining slice, C14 included.**
 
-- [ ] **C13e — `notes` and `team`.** Both are decisions rather than merges:
+- [x] **C13e — §4's addendum, `team`.** **DONE 2026-08-25.** Rail links **43 → 42**.
 
-      · **`/admin/notes` → Company.** `/admin/settings` is middleware-gated to `['admin']` and notes
-        to three roles, so the merge takes company notes from `developer` and `tech_support`. C13c
-        closed that API to exactly those three, so the narrowing is now real rather than cosmetic.
-      · **`/admin/team` → Hours.** `/admin/team` is gated to three roles; `/admin/hours` has no
-        middleware entry at all, so the merge widens the door considerably. And the boundary is
-        narrower than either: `GET /api/admin/team` admits `admin` **or** `tech_support` and answers
-        401 to everyone else — so a `developer` gets the page today and a 401 from it, which is C10's
-        door-wider-than-boundary shape a fourth time. `/admin/team/[email]` is a record, so the row
-        stays either way.
+      `/admin/team` is the Hours portal's `team` tab, after Approvals — the same session: who is on
+      the clock right now, and whose timesheet is waiting on you. `/admin/team/[email]` is one
+      person's day and keeps its own route.
+
+      **The door came to the boundary, which is C10's move and takes nothing from anybody.** The row
+      and the middleware entry both said admin, developer, tech_support. The API has never agreed:
+      `GET /api/admin/team` admits `isAdmin` **or** `tech_support` and answers 401 to everyone else,
+      and `/api/admin/team/[email]/today` does the same. So a `developer` has always been offered a
+      page that refused them every fetch. Fourth time this plan has met a door wider than its
+      boundary; same answer each time — move the door, not the boundary, because who may see the crew
+      list is a product decision. Tab and middleware are both `['admin', 'tech_support']` now.
+      Browser-verified: a `field_crew` account is not offered the tab, and `GET /api/admin/team`
+      answers it 401.
+
+      **A fourth open endpoint that turned out not to be one.** `/api/admin/team/status` answers any
+      signed-in account, which matches the shape of the three real holes this plan has closed. It is
+      not one: three Hub widgets — `daily-briefing`, `field-pulse`, `team-status` — render it on
+      `/admin/me`, which everybody has. **Not every 401-only route is a hole**, and the check that
+      tells them apart is who calls it, not what it returns.
+
+- [ ] **C13f — `/admin/notes` → Company.** §4's last addendum row, and the only one left. It is a
+      decision because the merge would **remove something that works**, unlike every other narrowing
+      in this plan:
+
+      `/admin/settings` is middleware-gated to `['admin']`. `/admin/notes` is gated to admin,
+      developer and tech_support — and since C13c its API enforces exactly those three, so all three
+      have a working page today. Folding notes into Settings takes company notes from two roles that
+      can use them. That is not a door coming to a boundary; it is a boundary moving.
+
+      **Options, for the owner:** (a) leave `/admin/notes` as its own route — one rail link, and the
+      only cost is that §4's table stays one row short of done; (b) absorb it and accept that only
+      admins keep company notes; (c) absorb it and widen `/admin/settings` to the three, which means
+      deciding whether a `developer` should see the company's settings page at all.
 - [ ] **C13 — the workspace decision itself.** §10 says *"Workspaces — DELEGATED to me. My answer is
       in §12"* — **and §12 was never written.** That is the open item, not a slice of code.
 
-      Measured after C3–C13d: **43 rail links across 7 workspaces**, six of which have a
+      Measured after C3–C13e: **42 rail links across 7 workspaces**, six of which have a
       landing page of their own. §6 said the 7-way split stops earning its keep at ~29 links and that
       the call should be made after a few portals ship. It is not 29 yet, and C13b is what closes
       most of the remaining gap — so the honest state is **not ready to decide**, rather than decided.

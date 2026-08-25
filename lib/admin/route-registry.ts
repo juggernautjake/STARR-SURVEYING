@@ -186,7 +186,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // portal rather than disappearing into a company one.
   //
   // C10's rule checked: /admin/assignments has no child — the directory held one file.
-  { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book', 'todo', 'tasks', 'my jobs', 'assigned', 'mine', 'assignments', 'to do'] },
+  { href: '/admin/hours', label: 'Hours & Time', workspace: 'hub', iconName: 'Clock', description: 'Your timesheet, time off, the approval queue and who is available — all of it.', internalOnly: true, keywords: ['time', 'timesheet', 'fix hours', 'edit hours', 'correct hours', 'add hours', 'missed clock out', 'forgot to clock in', 'approve', 'approval', 'pto', 'vacation', 'holiday', 'leave', 'time off', 'availability', 'dispatch', 'free', 'available', 'who is free', 'crew', 'assign', 'book', 'todo', 'tasks', 'my jobs', 'assigned', 'mine', 'assignments', 'to do', 'roster', 'team', 'field team', 'who is working', 'on the clock'] },
   // ── C13a: A NAV LINK TO A REDIRECT ─────────────────────────────────────────────────────────
   //
   // `/admin/schedule/page.tsx` is fifteen lines that `redirect('/admin/calendar')`. It had a rail
@@ -314,7 +314,14 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // The pay model is two screens: this one sets what each ACTIVITY pays, /admin/payroll sets what
   // each PERSON is on. Registered so it is reachable and searchable — an unlinked settings page is
   // a setting nobody can change.
-  { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
+  // ── C13e: THE ROW SURVIVES, THE RAIL ENTRY GOES ────────────────────────────────────────────
+  //
+  // /admin/team is the Hours portal's `team` tab. The row stays because /admin/team/[email] is one
+  // person's day — and, per C13d's widened rule, because the API gate mirrors this row too.
+  //
+  // `developer` comes OFF the list: GET /api/admin/team admits isAdmin or tech_support and answers
+  // 401 to everyone else, so the third role was offered a page that refused it. C10's move.
+  { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'], showInRail: false },
   // ── C8 / P7: FOUR ROWS BECAME ONE ───────────────────────────────────────────────────────────
   //
   // The label had to change with the scope. "Job Profitability" was the whole page and is one tab of

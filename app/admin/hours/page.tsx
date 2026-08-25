@@ -38,12 +38,13 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { Clock, CheckSquare, Palmtree, CalendarClock, ClipboardList } from 'lucide-react';
+import { Clock, CheckSquare, Palmtree, CalendarClock, ClipboardList, Users } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import MyHoursPanel from '../my-hours/MyHoursPanel';
 import ApprovalsTab from './_tabs/ApprovalsTab';
 import AssignmentsTab from './_tabs/AssignmentsTab';
+import TeamTab from './_tabs/TeamTab';
 import TimeOffTab from './_tabs/TimeOffTab';
 import AvailabilityClient from '../availability/AvailabilityClient';
 import '../availability/Availability.css';
@@ -89,6 +90,21 @@ const PORTAL: PortalSpec = {
       hint: 'Submitted timesheets waiting on a decision.',
       // `/admin/hours-approval`, verbatim.
       roles: APPROVERS as never,
+    },
+    {
+      // ── C13e / §4's addendum: "who is working, and on what" ─────────────────────────────────
+      //
+      // After Approvals, because it is the same session: who is on the clock right now, and whose
+      // timesheet is waiting on you.
+      //
+      // [admin, tech_support] rather than the row's three. The API has always admitted exactly those
+      // two — a `developer` was offered the page and refused by every fetch on it — so this is C10's
+      // bring-the-door-to-the-boundary, not a narrowing of anything that worked.
+      id: 'team',
+      label: 'Field team',
+      icon: Users,
+      hint: 'Who is on the clock, where, and how to reach them.',
+      roles: ['admin', 'tech_support'],
     },
     {
       id: 'time-off',
@@ -176,6 +192,7 @@ export default function HoursPortal() {
         {active === 'my-time' && <MyHoursPanel />}
         {active === 'assignments' && <AssignmentsTab />}
         {active === 'approvals' && <ApprovalsTab />}
+        {active === 'team' && <TeamTab />}
         {active === 'time-off' && <TimeOffTab />}
         {active === 'availability' && <AvailabilityClient />}
       </div>

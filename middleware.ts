@@ -146,7 +146,12 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/receivables', roles: ['admin', 'developer'] },
   { prefix: '/admin/reports', roles: ['admin', 'developer', 'tech_support'] },
   { prefix: '/admin/compliance', roles: ['admin', 'developer', 'tech_support'] },
-  { prefix: '/admin/team', roles: ['admin', 'developer', 'tech_support'] },
+  // C13e (2026-08-25): was ['admin', 'developer', 'tech_support']. GET /api/admin/team admits
+  // isAdmin OR tech_support and answers 401 to everyone else, and /api/admin/team/[email]/today
+  // does the same — so a `developer` has always been let through this door onto a page that
+  // refuses them everything. C10's move: bring the door to the boundary rather than move the
+  // boundary, because who may see the crew list is a product decision. Covers /admin/team/[email].
+  { prefix: '/admin/team', roles: ['admin', 'tech_support'] },
   { prefix: '/admin/finances', roles: ['admin', 'developer', 'tech_support'] },
   //
   // NOT gated here, deliberately, and each for a different reason:
