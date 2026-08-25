@@ -2792,6 +2792,17 @@ reconstructs a URL from a stored key — a "view this tab" action, a deep link o
 its design**, silently. And one label is a template literal, so its key came out as
 `recycle-bin-recyclebin-length-0` — a key that is not a slug of anything a person will ever see.
 
+**One half of this was mine and is fixed.** The `recycle-bin-recyclebin-length-0` key came from the
+tab catalogue storing a label raw: the label is a template literal, `` `Recycle Bin${n > 0 ? …}` ``,
+and a non-greedy match to the first backtick truncates it mid-expression. `derive-portal-tabs.mjs`
+now cuts at the first `${` and keeps the fixed part — the part a person actually reads. The
+catalogue's label is `Recycle Bin`, and no label in any of the 17 portals still carries an
+interpolation.
+
+That does not fix §13.8: the key for that tab is already stored under the old garbage slug, and
+changing how keys are derived is the migration described above. What it fixes is the catalogue
+producing a new one.
+
 **The fix is available and is a migration, so it is not being made here.** The portal buttons already
 carry the id in the DOM — `id="msg-tab-directory"`, `aria-controls="msg-panel-directory"` — so
 `SELECTED_STATE` could read the id instead of slugging the label, and the key would round-trip. Doing

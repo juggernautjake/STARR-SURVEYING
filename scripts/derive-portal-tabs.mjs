@@ -39,6 +39,23 @@ import { execSync } from 'node:child_process';
 
 export const OUT = 'lib/admin/portal/tabs.generated.json';
 
+/**
+ * The human-readable half of a label, with any template interpolation removed.
+ *
+ * One label in this app is a template literal — `Recycle Bin${n > 0 ? ` (${n})` : ''}` — and taking
+ * it raw stored it as `Recycle Bin${recycleBin.length > 0 ? `. That is not merely untidy: the design
+ * system derives a state key by SLUGGING the label, so that tab's design was keyed
+ * `recycle-bin-recyclebin-length-0`, which is a slug of nothing anybody will ever see. See §13.8.
+ *
+ * A backtick label is matched non-greedily up to the first backtick, so an interpolation truncates
+ * it mid-expression rather than producing a balanced one. Cut at the first `${` and trim: what is
+ * left is the fixed part, which is the part a person reads.
+ */
+function cleanLabel(raw) {
+  const at = (raw ?? '').indexOf('${');
+  return (at === -1 ? raw : raw.slice(0, at)).trim();
+}
+
 const strip = (s) => s.split('\r\n').join('\n')
   .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
   .replace(/\/\*[\s\S]*?\*\//g, '');
@@ -62,7 +79,7 @@ export function derivePortalTabs(cwd = process.cwd()) {
     const tabs = [];
     for (const m of s.matchAll(/\b(?:id|key): '([a-z0-9_-]+)'/g)) {
       const lab = s.slice(m.index).match(/label: (?:'([^']*)'|`([^`]*)`)/);
-      if (lab) tabs.push({ id: m[1], label: lab[1] ?? lab[2] });
+      if (lab) tabs.push({ id: m[1], label: cleanLabel(lab[1] ?? lab[2]) });
     }
     const seen = new Set();
     const uniq = tabs.filter((t) => !seen.has(t.id) && seen.add(t.id));

@@ -282,7 +282,7 @@
         },
         {
           "id": "recycle_bin",
-          "label": "Recycle Bin${recycleBin.length > 0 ? "
+          "label": "Recycle Bin"
         },
         {
           "id": "media",
