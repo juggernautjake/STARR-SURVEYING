@@ -28,10 +28,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { STATUS_RULES, canTransition } from '@/lib/design/lifecycle';
 
-const TRACER = fs.readFileSync(
-  path.join(__dirname, '..', '..', 'scripts', 'trace-defaults.mjs'),
-  'utf8',
-);
+/** Source with comments stripped, line comments before block ones.
+ *
+ * ── WHY, AND IT IS NOT TIDINESS ─────────────────────────────────────────────────────────────────
+ *
+ * The ordering block below compares where two strings appear. Both are things the code does AND
+ * things the comments explaining that code say. On 2026-08-25 a comment added to `derive-dossiers`
+ * — describing the very flake being fixed, in the words `"still loading after 25s"` — appeared
+ * ABOVE the check it described, and the order assertion failed on a file that was correct.
+ *
+ * That is the third time in this plan an assertion matched prose rather than code. The other two
+ * were caught by the same fix; this file was written before it and did not get it. */
+const code = (rel: string) =>
+  fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8')
+    .split('\r\n').join('\n')
+    .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+
+const TRACER = code(path.join('scripts', 'trace-defaults.mjs'));
 
 describe('a route that forwards does not keep a design claiming to be its record', () => {
   it('the lifecycle already allowed this, so S2 invented no new status', () => {
@@ -104,10 +118,7 @@ describe('a route that forwards does not keep a design claiming to be its record
 //
 // A comment recording a fix did not prevent the same fix being needed twice. A test might.
 describe('a forward is answered before a spinner, in both walkers', () => {
-  const DOSSIERS = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'scripts', 'derive-dossiers.mjs'),
-    'utf8',
-  );
+  const DOSSIERS = code(path.join('scripts', 'derive-dossiers.mjs'));
 
   /** Assert `first` really appears before `second`, with both proven present.
    *

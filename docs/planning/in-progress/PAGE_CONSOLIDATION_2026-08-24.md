@@ -1706,6 +1706,16 @@ early, and the internal tooling comes last.
 
       **Four commits to answer one question, and the last one did not need a browser.** The first
       three were all improvements to the wrong instrument.
+      **And the sibling got it in the same slice this time.** `derive-dossiers` navigates to every
+      stub as well, so it carries the identical flake — "still loading after 25s" about a page that
+      does not exist — and it would have been found the same way: by something going wrong later.
+      The ordering bug already taught that lesson once, when fixing the tracer and then reading its
+      sibling turned up the same defect a second time. Applying it without waiting to be bitten again
+      is the whole of what that lesson is worth.
+
+      Verified on the same route: `/admin/learn/flashcard-bank` reports "redirects to /admin/learn —
+      not a page of its own", counted as *not a page* rather than a failure, with no navigation.
+
 
       ── **THE "FOUR HANGING PAGES" THREAD, CLOSED** ──
 

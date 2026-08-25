@@ -138,9 +138,42 @@ const done = [];
 const failed = [];
 const skipped = [];
 
+/**
+ * Is this route a redirect stub? Read from the file, not measured by driving a browser at it.
+ *
+ * The same helper, and the same reasoning, as `trace-defaults.mjs` — where four attempts went into
+ * detecting a forward by NAVIGATING before the obvious answer won. A stub whose destination is slow
+ * to compile reports "still loading after 25s" about a page that does not exist, and no timeout
+ * fixes that because the timeout is not the problem.
+ *
+ * This walker had the ordering bug too, found by fixing the tracer and then reading its sibling. It
+ * would have had this one as well; taking it now is the same lesson applied without waiting to be
+ * bitten a second time.
+ *
+ * Narrow on purpose: only a component whose whole body is the forward. A conditional redirect still
+ * renders something the rest of the time, and skipping a real page would be worse than the flake.
+ */
+function redirectTargetOf(page) {
+  try {
+    const src = fs.readFileSync(`${page.file}/page.tsx`, 'utf8')
+      .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    const m = src.match(/export default function [A-Za-z]*\(\)\s*(?::\s*[A-Za-z]+\s*)?\{\s*redirect\('([^']+)'\);?\s*\}/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
 for (const [i, target] of todo.entries()) {
   const label = `[${String(i + 1).padStart(3)}/${todo.length}] ${target.route.padEnd(44)}`;
   process.stdout.write(`  ${label}`);
+
+  const staticTarget = redirectTargetOf(target);
+  if (staticTarget) {
+    const to = staticTarget.split('?')[0];
+    skipped.push({ route: target.route, why: `redirects to ${to}` });
+    console.log(`—  redirects to ${to} — not a page of its own`);
+    continue;
+  }
 
   // Requests are collected per page, and only the app's own API: a font from a CDN says nothing
   // about what the page does.
