@@ -1246,8 +1246,8 @@ early, and the internal tooling comes last.
 
       Browser-verified: seven tabs render, six redirects land on their own tab, `testing` untouched,
       no page errors and no self-links left. `npm run build` clean.
-- [ ] **C12 — P14 Company** + **P15 System** (8 → 2). **Split; P15 DONE 2026-08-25, P14 open — and
-      three of its five should not be done as written.**
+- [x] **C12 — P14 Company** + **P15 System** (8 → 2). **Split; BOTH DONE 2026-08-25 — but P14 is
+      two of its five, not five. C12a is System, C12b is Company; the reasons are under each.**
 
       **C12a — P15 System (3 → 1). DONE.** `/admin/support` has three tabs: Support, Errors, Audit
       log. `/admin/support/new` keeps its route and is the New-ticket button, as §8 asks.
@@ -1284,32 +1284,48 @@ early, and the internal tooling comes last.
       page files afterwards for the same shape — every hint/label/description literal closes cleanly.
       **Run `tsc` after the last edit, not before it.**
 
-- [ ] **C12b — P14 Company** (`/admin/settings` absorbs org-settings · orgs · announcements ·
-      notifications · me/privacy). **Two of the five, not five.** Read before building:
+- [x] **C12b — P14 Company** (3 → 1). **DONE 2026-08-25. Two of §8's five, deliberately.**
 
-      `/admin/settings` is middleware-gated to `['admin']`. Of §8's five:
+      `/admin/settings` absorbs `org-settings` (tab `org-profile`) and `orgs` (tab `orgs`) — the two
+      that genuinely are the COMPANY's settings, both already admin-gated. Nine tabs now, and its own
+      sections became URL-driven tabs beside them.
 
-      | Route | Gate today | As a tab of an admin-only portal |
+      **The other three are not here and must not be.** `announcements`, `notifications` and
+      `me/privacy` are ungated and personal: the current user's alerts, the current user's privacy,
+      and the release archive the Hub's WhatsNewBanner sends every employee to with "Read full
+      notes →". `/admin/settings` is middleware-gated to `['admin']`, so absorbing any of them would
+      DELETE it for everyone who is not an admin — the banner included. §8 grouped by what sounds
+      like settings rather than by whose settings. They belong with `/admin/me`; recorded for C13,
+      because moving a page between workspaces is a decision about the product, not a tidy-up.
+
+      **The page has been rendering unstyled, and nothing would ever have said so.** Every class in
+      `settings/page.tsx` — `.jobs-page`, `.job-detail__tabs`, `.job-detail__content`,
+      `.job-form__grid`, `.job-form__submit` — is defined in `AdminJobs.css`, which
+      `app/admin/jobs/layout.tsx` imports and which therefore loads on the JOBS tree. This page never
+      imported it. Measured in a browser, before and after the one-line fix:
+
+      | | before | after |
       |---|---|---|
-      | `org-settings` | admin | fine |
-      | `orgs` | admin, tech_support | fine, tab carries the pair |
-      | `announcements` | **ungated** | **disappears for every non-admin** |
-      | `notifications` | **ungated** | **disappears for every non-admin** |
-      | `me/privacy` | **ungated**, `hub` workspace | **disappears for every non-admin** |
+      | `.job-detail__tabs` display | `block` | `flex` |
+      | `.job-detail__tabs` border-bottom | `0px` | `2px` |
+      | `.job-detail__tab` display / padding | `inline-block` / `0` | `flex` / `8px` |
+      | `.job-detail__tab--active` background | none | brand navy |
+      | `.job-form__grid` display | `block` | `grid` |
 
-      And they are not company settings. `/admin/notifications` is its own header: "a full,
-      filterable, paginated list of **the current user's** alerts". `/admin/me/privacy` is already in
-      the `hub` workspace, which is where personal things live. `/admin/announcements` is the release
-      archive the Hub's WhatsNewBanner links to with "Read full notes →" — absorbing it would land
-      most of the firm on a refusal from a banner shown to all of them.
+      A tab strip that was a column of bare words, a form that was one column, and a submit button
+      that looked like a link — **on the page the owner asked to hold the page-visibility control.**
+      This is the route-scoped-CSS trap in its other direction: not a fix written in the wrong sheet,
+      but a page written against a sheet it does not load. The import restores what the markup always
+      assumed. Unpicking the coupling — this page has no business wearing `.jobs-page` — is real work
+      and belongs in C14, not in the slice that found it.
 
-      §8 grouped these by sounding like settings rather than by **whose** settings. The two that are
-      genuinely the company's should be absorbed; the three personal ones belong with `/admin/me`,
-      which is C13's territory — noted there rather than done here, because moving a page between
-      workspaces is a decision about the shape of the product and not a tidy-up.
-- [ ] **C12b — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:
+      **The tabs are URL state now.** They were `useState`, which is why the two redirects could not
+      have worked: forwarding to `?tab=org-profile` would have landed on General. Nine tabs, both
+      redirects and the restored chrome all browser-verified, no page errors.
+
+- [ ] **C12c — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:
       they are the ones whose breakage costs the firm nothing.
-- [ ] **C12c — P18 Exam Prep** + **P19 Learning Content** (5 → 2).
+- [ ] **C12d — P18 Exam Prep** + **P19 Learning Content** (5 → 2).
 - [ ] **C13 — Re-examine the workspaces** with 24 links instead of 138. §6. A separate decision,
       made with the result in front of you.
 - [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** Every merge invalidates a dossier

@@ -488,14 +488,23 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/contacts',              label: 'Contacts',         workspace: 'office', section: 'People', iconName: 'Users',        description: 'Saved contacts — realtors, clients, students, teachers, employees.', keywords: ['address book', 'people', 'realtors', 'clients'] },
   { href: '/admin/discussions',           label: 'Discussions',      workspace: 'office', section: 'Talking to people', iconName: 'MessagesSquare', description: 'A topic thread that outlives a chat — decisions, standards, how-we-do-it. NOT a direct message, and not announcements.', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['threads', 'forum'] },
   { href: '/admin/notes',                 label: 'Company Notes',    workspace: 'office', section: 'Documents & records', iconName: 'StickyNote',   description: 'Shared notes every admin can read and edit. Your own private notes live in the Hub; a document with a filename belongs in Files.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-  { href: '/admin/settings',              label: 'Settings',         workspace: 'office', section: 'Setup & account', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'] },
+  // ── C12b / P14: TWO OF §8's FIVE, AND THE OTHER THREE DELIBERATELY LEFT ────────────────────
+  //
+  // `org-settings` and `orgs` are the COMPANY's settings, both already admin-gated, both tabs now.
+  //
+  // `announcements`, `notifications` and `me/privacy` are NOT here and must not be: all three are
+  // ungated and personal — the current user's alerts, the current user's privacy, and the release
+  // archive the Hub banner sends every employee to. This route is middleware-gated to ['admin'],
+  // so absorbing any of them would delete it for everyone who is not one. §8 grouped by what
+  // sounds like settings rather than by whose settings. They belong with /admin/me — C13's call.
+  //
+  // C10's rule checked: neither absorbed route has a dynamic child.
+  { href: '/admin/settings',              label: 'Settings',         workspace: 'office', section: 'Setup & account', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'], keywords: ['org', 'tenant', 'company', 'tenants', 'switch', 'org settings', 'organisation', 'organization', 'orgs', 'firm', 'subscription'] },
   // The queue an employee's request goes into. The API could approve, decline and send a withdrawal
   // long before any page listed one, so a person asking for their own earned money was asking into
   // a void — the same defect an unwatched hours queue has, about money already worked for.
   { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', section: 'Talking to people', iconName: 'Megaphone',    description: 'One-way broadcast to everyone at the firm — release notes and news. Nobody replies to these; use Messages or Discussions for that.', keywords: ['release', 'changelog', 'news'] },
   { href: '/admin/billing',               label: 'Software Subscription',          workspace: 'money', section: 'Company account', iconName: 'CreditCard',   description: 'What THIS FIRM pays for this software — plan, card, invoices and plan history. One page, three tabs. Nothing to do with what customers pay you.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'invoices', 'plan', 'plan history', 'saas', 'bundle', 'upgrade', 'downgrade', 'seats', 'card', 'billing'] },
-  { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', section: 'Setup & account', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
-  { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', section: 'Setup & account', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
   { href: '/admin/reports',               label: 'Reports',          workspace: 'office', section: 'Documents & records', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
   // ── C12a / P15: THREE ROWS BECAME ONE ──────────────────────────────────────────────────────
   //

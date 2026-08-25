@@ -102,7 +102,7 @@ const PAGES: Record<string, ComponentType> = {
   audit: nextDynamic(() => import('@/app/admin/support/_tabs/AuditTab'), { ssr: false }),
   'error-log': nextDynamic(() => import('@/app/admin/support/_tabs/ErrorLogTab'), { ssr: false }),
   office: nextDynamic(() => import('@/app/admin/office/page'), { ssr: false }),
-  'org-settings': nextDynamic(() => import('@/app/admin/org-settings/page'), { ssr: false }),
+  'org-settings': nextDynamic(() => import('@/app/admin/settings/_tabs/OrgProfileTab'), { ssr: false }),
   profile: nextDynamic(() => import('@/app/admin/profile/ProfilePanel'), { ssr: false }),
   timeline: nextDynamic(() => import('@/app/admin/jobs/_tabs/ActivityTab'), { ssr: false }),
   // C3: /admin/vehicles is a redirect now — it became the Equipment portal's `vehicles` tab.
@@ -117,7 +117,7 @@ const PAGES: Record<string, ComponentType> = {
   // what this entry has always been a picture of.
   finances: nextDynamic(() => import('@/app/admin/finances/_tabs/ScheduleCTab'), { ssr: false }),
   // Newly registered in route-registry Slice 56 — kept for harness parity.
-  orgs: nextDynamic(() => import('@/app/admin/orgs/page'), { ssr: false }),
+  orgs: nextDynamic(() => import('@/app/admin/settings/_tabs/OrgsTab'), { ssr: false }),
   payouts: nextDynamic(() => import('@/app/admin/pay/_tabs/LedgerTab'), { ssr: false }),
   support: nextDynamic(() => import('@/app/admin/support/_tabs/TicketsTab'), { ssr: false }),
   learn: nextDynamic(() => import('@/app/admin/learn/_tabs/HubTab'), { ssr: false }),
