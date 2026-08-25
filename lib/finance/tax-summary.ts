@@ -99,6 +99,87 @@ export function deductibleCents(
   return Math.round((totalCents ?? 0) * deductibleFraction(flag));
 }
 
+/** A line as this file needs to see it — the shape `receipt_line_items` already stores. */
+export interface DeductibleLine {
+  amount_cents: number | null;
+  /** TRUE claim it · FALSE do not · NULL follow the receipt. */
+  is_business_expense: boolean | null;
+  removed_at?: string | null;
+}
+
+/**
+ * What share of a receipt its lines say we may claim — P2.2b.
+ *
+ * `null` when the lines cannot answer: none transcribed, or they sum to nothing. A caller that gets
+ * `null` must fall back to the receipt-level answer rather than treat it as zero, because "the AI
+ * read no lines off this fuel slip" is not "none of this was business".
+ */
+export function claimableShareOfLines(
+  lines: readonly DeductibleLine[],
+  receiptIsBusiness: boolean,
+): number | null {
+  let claimable = 0;
+  let total = 0;
+  for (const li of lines) {
+    const cents = typeof li.amount_cents === 'number' ? li.amount_cents : 0;
+    if (cents <= 0) continue;
+    total += cents;
+    const removed = Boolean(li.removed_at);
+    const counts = removed ? false
+      : (li.is_business_expense ?? receiptIsBusiness);
+    if (counts) claimable += cents;
+  }
+  if (total <= 0) return null;
+  return claimable / total;
+}
+
+/**
+ * What a receipt deducts once its LINES are allowed to disagree with it — P2.2b/P2.2d.
+ *
+ * ── THE DECISION THIS ENCODES, AND THE TWO IT REJECTS ───────────────────────────────────────────
+ *
+ * When lines carry their own treatment and the transcribed lines do not add up to the printed total
+ * — which they routinely do not, because transcription is not arithmetic — three answers were
+ * possible:
+ *
+ *   (a) **Sum the lines.** Honest per line, but it quietly replaces the printed total with the AI's
+ *       transcription, and the approval queue tells the approver the opposite in as many words:
+ *       *"The receipt's own total above is what gets approved."*
+ *   (b) **Printed total × the receipt's flag**, lines informational. Safe, and it makes per-line
+ *       marking decorative — which defeats the point of having it.
+ *   (c) **Printed total, apportioned by the share the lines say is claimable.** ← this one.
+ *
+ * The printed total stays authoritative; the lines decide the SHARE, not the AMOUNT. Its strongest
+ * property is that it changes nothing until somebody deliberately marks a line: with no line
+ * overridden every line inherits the receipt, the share collapses to 1, and the figure is
+ * **byte-identical to what this system produced yesterday**. A change to a tax report that cannot
+ * alter a single existing number until a person acts is the version that ships without a
+ * reconciliation.
+ *
+ * ── AND WHY THERE IS NO NEW COLUMN ──────────────────────────────────────────────────────────────
+ *
+ * P2.2b asks for "a per-line tax treatment — deductible · partial · not deductible". The per-line
+ * control that already ships is business · personal · follow-receipt, and the two compose without
+ * inventing anything: **business-vs-personal is whether we may claim the line at all; the receipt's
+ * flag is how much of a claimable amount is deductible.** Multiplying them is the whole feature.
+ *
+ * A per-line CATEGORY (this line is meals at 50%, that one supplies at 100%) is a genuinely
+ * different capability, needs a column, and only pays for itself on a receipt that mixes categories.
+ * Deliberately not built here — see the plan's §13.4.
+ */
+export function deductibleCentsWithLines(
+  totalCents: number | null | undefined,
+  flag: string | null | undefined,
+  lines: readonly DeductibleLine[],
+  receiptIsBusiness: boolean,
+): number {
+  const share = claimableShareOfLines(lines, receiptIsBusiness);
+  const claimable = share === null ? (totalCents ?? 0) : (totalCents ?? 0) * share;
+  // One rounding, at the end, for the reason `deductibleCents` rounds inside itself: a half-cent
+  // rounded twice is a discrepancy nobody can explain at filing time.
+  return Math.round(claimable * deductibleFraction(flag));
+}
+
 export interface TaxSummaryInput {
   /** The card that paid, if one has been CONFIRMED. An unconfirmed suggestion must not be passed
    *  here — see `cardConfirmed`. */

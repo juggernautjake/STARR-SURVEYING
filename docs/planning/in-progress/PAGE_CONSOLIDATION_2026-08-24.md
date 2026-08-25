@@ -233,9 +233,46 @@ is **per-ITEM approval** — today the decision is per receipt.
       strips `var(--token, #fallback)` on purpose, so only raw literals move it. **This corrects a
       standing note of mine that said the opposite**; the scanner was changed after that note was
       written, and quoting the deletion count as the ratchet delta would have overstated the fix.
-- [ ] **P2.2b — a per-line tax treatment**, beside the per-line accept. Deductible · partial ·
+- [x] **P2.2b — a per-line tax treatment**, beside the per-line accept. Deductible · partial ·
       not deductible. `receipts.tax_deductible_flag` is the receipt-level answer and stays as the
       default a line inherits until somebody says otherwise.
+
+      **Shipped 2026-08-25. The owner delegated the decision; this is the decision and why.**
+
+      The open question was the one §13.4 had been parked on: when lines carry their own treatment
+      and the transcribed lines do not add up to the printed total — which they routinely do not,
+      because transcription is not arithmetic — what does the receipt deduct? Three answers:
+
+      | | |
+      |---|---|
+      | (a) sum the lines | honest per line, but it silently replaces the printed total with the AI's transcription — and the approval queue tells the approver the opposite in as many words: *"The receipt's own total above is what gets approved."* |
+      | (b) printed total × the receipt's flag, lines informational | safe, and it makes per-line marking decorative, which defeats the point of having it |
+      | **(c) printed total, apportioned by the share the lines say is claimable** | **chosen** |
+
+      `deductible = printed_total × claimable_share_of_lines × fraction(receipt_flag)`.
+
+      The printed total stays authoritative; **the lines decide the SHARE, not the AMOUNT.** Its
+      decisive property is that it changes nothing until somebody deliberately marks a line: with no
+      line overridden every line inherits the receipt, the share collapses to 1, and the figure is
+      identical to what this system produced yesterday. That is asserted first in the tests, across
+      every flag — *a change to a tax report that cannot move an existing number until a person acts
+      is the version that ships without a reconciliation.*
+
+      **And it needed no new column, which is the part worth reading twice.** This item asks for a
+      per-line treatment of *deductible · partial · not deductible*. The per-line control that already
+      ships is *business · personal · follow-receipt*, and the two compose without inventing anything:
+      **business-vs-personal is whether we may claim the line at all; the receipt's flag is how much
+      of a claimable amount is deductible.** Multiplying them is the whole feature. A parallel
+      per-line tax enum would have been a second axis to keep in step with the first.
+
+      What is deliberately NOT built: a per-line CATEGORY (this line is meals at 50%, that one
+      supplies at 100%). That is a genuinely different capability, needs a column and a UI, and only
+      pays for itself on a receipt that mixes Schedule-C categories. Recorded rather than half-built.
+
+      Edges pinned because a tax number has no forgiving failures: no lines at all falls back to the
+      receipt (a fuel slip has none, and "the AI read nothing" is not "none of this was business");
+      lines with no amounts do the same; a removed line is excluded from the claim but stays on the
+      record; negative amounts cannot invert the share; and the rounding happens once, at the end.
 - [x] **P2.2c — one definition of what a receipt deducts.** **Shipped 2026-08-25**, in a different
       shape from the one written below, and the difference is the finding. Originally:
       `approvedTotal()` and `deductibleTotal()`, exported, used everywhere. Once a line
@@ -981,9 +1018,25 @@ is **per-ITEM approval** — today the decision is per receipt.
       this plan has not touched, and a mechanical sweep of 30 test files inside a consolidation slice
       is how an unrelated regression arrives wearing this plan's name. Left as a follow-up with the
       hazard written down rather than done badly in passing.
-- [ ] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
+- [x] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
       receipts today. Per-line exemption changes what it is allowed to count, so P2.2 and P7 are
-      one data model seen from two ends.
+      one data model seen from two ends. **Shipped 2026-08-25 with P2.2b.**
+
+      `/api/admin/finances/tax-summary` now loads the lines for the receipts in the window and each
+      receipt deducts through `deductibleCentsWithLines`. A line marked personal in the approval
+      queue finally reaches the Schedule-C report — which is the whole point of the pair, and until
+      today marking a line changed nothing outside the receipt it was on.
+
+      Two decisions inside it:
+
+      · **The lookup is best-effort.** On failure every receipt falls back to an empty line list,
+        which reproduces the previous figures exactly. **The safe direction for a tax report to fail
+        in is the one that changes nothing** — and it must not take the bookkeeper's report down
+        because a secondary table was slow. The sibling receipts route already fails this way.
+      · **`receiptIsBusiness` is `true` by construction, not by hope.** The query filters
+        `expense_nature` to null-or-business before this loop, so the receipt half of the claim is
+        already settled and only the LINES can narrow it. Said out loud at the call site, because a
+        hardcoded `true` with no explanation is exactly the thing somebody deletes later.
 
 ### P3 — Hours & Time · `/admin/hours` (absorbs 4)
 
@@ -3684,7 +3737,18 @@ and the other cannot.**
 
 ---
 
-### 13.4 P2.2b–d — the receipt per-line accounting question
+### 13.4 P2.2b–d — ANSWERED AND SHIPPED 2026-08-25 (was: the receipt per-line accounting question)
+
+> **CLOSED.** The owner delegated the decision — *"make the decision yourself for the receipt lines
+> when they carry their own tax treatment"* — and it is made: **(c), apportion the printed total by
+> the share the lines say is claimable.** `deductible = printed_total × claimable_share ×
+> fraction(receipt_flag)`. The full reasoning, the two rejected options and the edge cases are on
+> P2.2b in §8; the property that made it safe to ship is that it reproduces every existing figure
+> exactly until somebody deliberately marks a line. P2.2b and P2.2d both shipped; P2.2c shipped
+> earlier the same day. **Nothing in this section is waiting on anyone.**
+>
+> The section below is left as written, because it is the record of what the question WAS and of
+> how much of it turned out to be already answered in code.
 
 **Narrowed 2026-08-25: P2.2a was in this group and did not belong.** It shipped. The blocker here is
 how a partly-deductible receipt should total, and P2.2a never asked that — it mounted an editor that

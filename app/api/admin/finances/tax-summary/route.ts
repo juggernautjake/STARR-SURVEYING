@@ -83,7 +83,7 @@ import {
   depreciationForYear,
   type DepreciationMethod,
 } from '@/lib/equipment/depreciation';
-import { deductibleCents } from '@/lib/finance/tax-summary';
+import { deductibleCentsWithLines, type DeductibleLine } from '@/lib/finance/tax-summary';
 
 /** IRS standard business mileage rate (cents/mile). 2025 rate is
  *  67¢; 2026 wasn't published when this was written. Override via
@@ -267,6 +267,40 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   }
 
   const receipts = (receiptsRes.data ?? []) as ReceiptRow[];
+
+  // ── P2.2d — THE LINES A PERSON MARKED PERSONAL REDUCE WHAT THIS REPORT MAY CLAIM ───────────────
+  //
+  // Until now a receipt was all-or-nothing: its `tax_deductible_flag` applied to the whole printed
+  // total, and a line somebody had marked personal in the approval queue changed nothing here. The
+  // decision is recorded in `deductibleCentsWithLines` — the printed total stays authoritative and
+  // the lines decide the SHARE of it we may claim.
+  //
+  // Best-effort, like the other line-item lookup in this system: if it fails, every receipt falls
+  // back to an empty line list, which reproduces the previous figures exactly. **The safe direction
+  // for a tax report to fail in is the one that changes nothing**, and it must never take down the
+  // bookkeeper's report because a secondary table was slow.
+  const linesByReceipt = new Map<string, DeductibleLine[]>();
+  if (receipts.length > 0) {
+    const { data: liRows, error: liErr } = await supabaseAdmin
+      .from('receipt_line_items')
+      .select('receipt_id, amount_cents, is_business_expense, removed_at')
+      .in('receipt_id', receipts.map((r) => r.id));
+    if (liErr) {
+      console.warn('[finances/tax-summary] line-item lookup failed', { error: liErr.message });
+    } else {
+      for (const raw of (liRows ?? []) as Array<Record<string, unknown>>) {
+        const rid = raw.receipt_id as string;
+        const list = linesByReceipt.get(rid) ?? [];
+        list.push({
+          amount_cents: (raw.amount_cents as number | null) ?? null,
+          is_business_expense: (raw.is_business_expense as boolean | null) ?? null,
+          removed_at: (raw.removed_at as string | null) ?? null,
+        });
+        linesByReceipt.set(rid, list);
+      }
+    }
+  }
+
   const segments = (segmentsRes.data ?? []) as SegmentRow[];
   const usersById = new Map<string, UserLite>(
     ((usersRes.data ?? []) as UserLite[]).map((u) => [u.id, u])
@@ -346,9 +380,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     receiptTotalCents += total;
 
     const cat = (r.category ?? 'other').trim() || 'other';
-    // P2.2c: the rounding is part of the definition, not this loop's business — a half-cent that
-    // rounds differently in two places is a discrepancy nobody can explain at filing time.
-    const ded = deductibleCents(total, r.tax_deductible_flag);
+    // P2.2c/P2.2d: the rounding is part of the definition, not this loop's business — a half-cent
+    // that rounds differently in two places is a discrepancy nobody can explain at filing time.
+    // Every receipt reaching this loop is business-natured (the query filters `expense_nature` to
+    // null-or-business above), so the receipt half of the claim is true by construction and only the
+    // LINES can narrow it.
+    const ded = deductibleCentsWithLines(total, r.tax_deductible_flag, linesByReceipt.get(r.id) ?? [], true);
 
     const catBucket =
       byCategory.get(cat) ?? { count: 0, total_cents: 0, deductible_cents: 0 };
