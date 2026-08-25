@@ -358,6 +358,37 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14j — SEVEN BROKEN ANCHORS IS A TOOL PROBLEM, 2026-08-25** ──
+
+      Seven assertions in this plan have failed because a piece of source text moved while the rule
+      they guard did not. That is not seven careless edits; it is the cost of a idiom, and the idiom
+      has a second problem that is worse than the inconvenience:
+
+      ```js
+      expect(src.indexOf('X')).toBeGreaterThan(src.indexOf('Y'))
+      ```
+
+      When `Y` is absent, `indexOf` returns -1, the assertion becomes `toBeGreaterThan(-1)`, and it
+      **passes for any X that exists at all** — the order never checked. A test that cannot fail
+      looks exactly like a test that is passing, which is the same shape as the comment-stripper
+      eating the evidence for a `not.toMatch`.
+
+      Measured first, as with the stripper: **24 such assertions across the suite, 0 currently dead.**
+      So `expectOrder()` prevents a class rather than repairing a hole — written while the count is
+      zero, for the same reason the deductibility guard was.
+
+      It also fixes the legibility half. Every one of those seven reported something like *"expected
+      -1 to be greater than 45"*, which says nothing about WHICH anchor went missing. `expectOrder`
+      names it.
+
+      **And the measurement produced a false positive of its own — the second this turn.** It flagged
+      `bestiary-canonical.test.ts` for an anchor `'CASE c.system'` that appears in nothing the test
+      reads. It appears in `seeds/468_dnd_creatures_canonical.sql`; my corpus regex collected
+      `.ts/.tsx/.mjs/.css` and never looked at `seeds/*.sql`. Twice in one turn a script I had just
+      written manufactured a finding out of its own blind spot — once by inheriting the tracer's stub
+      regex, once by forgetting a file extension. **The rule that keeps holding: when a measurement
+      finds exactly one anomaly, suspect the measurement before the code.**
+
       ── **C14i — THE LOPSIDED RECORDS WERE EMPTY STATES, 2026-08-25** ──
 
       C14g caught five records where one viewport held a fraction of the other and re-captured the

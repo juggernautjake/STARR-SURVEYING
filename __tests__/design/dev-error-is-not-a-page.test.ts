@@ -18,6 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { expectOrder } from '../helpers/source';
 
 const OBSERVE = fs.readFileSync(path.join(process.cwd(), 'scripts/lib/design-observe.mjs'), 'utf8');
 const TRACER = fs.readFileSync(path.join(process.cwd(), 'scripts/trace-defaults.mjs'), 'utf8');
@@ -51,10 +52,9 @@ describe('a compile error is not a design', () => {
     // Anchored on the ASSIGNMENT, not on what is assigned. Pinning the right-hand side broke the
     // moment `page.evaluate(CAPTURE, classes)` became `captureStable(page, classes)` — the seventh
     // assertion in this plan to fail because source text moved while the rule it guards did not.
-    // What this test is about is the ORDER of two statements, so it should name them and nothing else.
-    const captureAt = routeBlock.indexOf('captures[viewId] =');
-    expect(captureAt, 'the capture assignment is missing').toBeGreaterThan(-1);
-    expect(captureAt).toBeGreaterThan(routeBlock.indexOf('if (broken)'));
+    // `expectOrder` refuses a missing anchor rather than comparing against -1, and names the one
+    // that went missing.
+    expectOrder(routeBlock, 'if (broken)', 'captures[viewId] =');
   });
 
   it('catches the overlay by element, by scaffolding, and by what it says', () => {

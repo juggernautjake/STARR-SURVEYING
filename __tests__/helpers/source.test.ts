@@ -6,7 +6,32 @@
 // eaten the evidence, and a test that cannot fail is indistinguishable from a test that is passing.
 
 import { describe, it, expect } from 'vitest';
-import { stripComments, code, cssCode } from './source';
+import { stripComments, code, cssCode, expectOrder } from './source';
+
+describe('expectOrder', () => {
+  it('passes when the first really does come first', () => {
+    expect(() => expectOrder('a = 1;\nb = 2;', 'a =', 'b =')).not.toThrow();
+  });
+
+  it('fails when the order is wrong, and says where both are', () => {
+    expect(() => expectOrder('b = 2;\na = 1;', 'a =', 'b ='))
+      .toThrow(/expected "a =" \(at \d+\) to come before "b =" \(at \d+\)/);
+  });
+
+  it('REFUSES a missing anchor instead of passing on -1', () => {
+    // The whole point. `expect(src.indexOf('X')).toBeGreaterThan(src.indexOf('Y'))` with Y absent
+    // becomes toBeGreaterThan(-1) and passes for any X that exists — order never checked.
+    expect(() => expectOrder('a = 1;', 'a =', 'nowhere')).toThrow(/anchor not found.*nowhere/);
+    expect(() => expectOrder('a = 1;', 'nowhere', 'a =')).toThrow(/anchor not found.*nowhere/);
+  });
+
+  it('and names WHICH anchor went missing', () => {
+    // Seven assertions in one plan failed because an anchor moved, each reporting "expected -1 to be
+    // greater than 45". Naming the absent one turns a puzzle into a one-line fix.
+    expect(() => expectOrder('a = 1;', 'a =', 'captures[viewId] ='))
+      .toThrow(/captures\[viewId\] =/);
+  });
+});
 
 describe('stripComments', () => {
   it('removes line and block comments', () => {
