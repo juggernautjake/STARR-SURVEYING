@@ -108,7 +108,7 @@ describe('maybeWrapCamera (pure helper)', () => {
 });
 
 describe('EmployeePond — wrap wiring source-lock (W1)', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('imports maybeWrapCamera alongside the existing camera helpers', () => {
     expect(SRC).toMatch(/import \{[\s\S]*?maybeWrapCamera[\s\S]*?\} from '@\/lib\/employee-pond\/camera'/);

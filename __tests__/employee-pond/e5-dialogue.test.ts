@@ -94,7 +94,7 @@ describe('yearsWithCompany', () => {
 });
 
 describe('EmployeePond.tsx — E5 dialogue wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('imports the anchor helper + yearsWithCompany', () => {
     expect(SRC).toMatch(/import \{\s*\n\s*anchorDialogue,\s*\n\s*yearsWithCompany,/);

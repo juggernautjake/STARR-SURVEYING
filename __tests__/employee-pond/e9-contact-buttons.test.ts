@@ -13,7 +13,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('EmployeePond dialogue — E9 Email button', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('Email button is an <a> that links to the in-app email composer with recipient prefilled (E9c)', () => {
     // E9 originally shipped mailto: as a stop-gap; E9c built the
@@ -30,7 +30,7 @@ describe('EmployeePond dialogue — E9 Email button', () => {
 });
 
 describe('EmployeePond dialogue — E9 Direct Message button', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it("DM button dispatches a 'employee-pond:open-messenger' CustomEvent on click", () => {
     expect(SRC).toMatch(

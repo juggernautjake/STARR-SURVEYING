@@ -88,7 +88,7 @@ describe('pointerIsOnRing (pure helper)', () => {
 });
 
 describe('EmployeePond camera wiring source-lock (P4b)', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('imports the camera helpers', () => {
     expect(SRC).toMatch(/import \{[\s\S]*?applyCameraStep[\s\S]*?panVectorFromPointer[\s\S]*?\} from '@\/lib\/employee-pond\/camera'/);

@@ -13,7 +13,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('EmployeePond.tsx — E10 reduced-motion detection', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('subscribes to the prefers-reduced-motion media query', () => {
     expect(SRC).toMatch(/window\.matchMedia\('\(prefers-reduced-motion: reduce\)'\)/);
@@ -34,7 +34,7 @@ describe('EmployeePond.tsx — E10 reduced-motion detection', () => {
 });
 
 describe('useEmployeePondPhysics — E10 static fallback', () => {
-  const SRC = read('app/admin/employees/useEmployeePondPhysics.ts');
+  const SRC = read('app/admin/people/_tabs/useEmployeePondPhysics.ts');
 
   it('writes static transforms when enabled is false (orbs don\'t stack at center)', () => {
     expect(SRC).toMatch(/if \(args\.enabled\) return;[\s\S]*?for \(const orb of orbsRef\.current\)[\s\S]*?el\.style\.transform =/);
@@ -46,7 +46,7 @@ describe('useEmployeePondPhysics — E10 static fallback', () => {
 });
 
 describe('EmployeePond.tsx — E10 focus return on dialogue close', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('captures the opener (orb or list row) on handleOrbClick', () => {
     expect(SRC).toMatch(/dialogueOpenerRef\.current =\s*\n?\s*opener \?\?/);
@@ -74,7 +74,7 @@ describe('EmployeePond.tsx — E10 focus return on dialogue close', () => {
 });
 
 describe('EmployeePond.tsx — E10 pond surface a11y', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('pond gets role="region" + aria-roledescription so screen readers announce the interactive region', () => {
     expect(SRC).toMatch(/role="region"\s*\n\s*aria-roledescription="Interactive employee pond"/);

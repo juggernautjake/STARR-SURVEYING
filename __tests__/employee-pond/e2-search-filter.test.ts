@@ -13,7 +13,7 @@ import {
   matchesEmployee,
   type EmployeeFilter,
   type PondEmployee,
-} from '@/app/admin/employees/EmployeePond';
+} from '@/app/admin/people/_tabs/EmployeePond';
 import type { UserRole } from '@/lib/auth';
 
 const repoRoot = path.join(__dirname, '..', '..');
@@ -138,7 +138,7 @@ describe('filterEmployees — list-level helper', () => {
 });
 
 describe('EmployeePond.tsx — E2 page wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('holds the query + selectedRoles + filterOpen state', () => {
     expect(SRC).toMatch(/const \[query, setQuery\] = useState<string>/);

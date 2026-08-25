@@ -152,7 +152,7 @@ describe('stepPhysics — damping', () => {
 });
 
 describe('useEmployeePondPhysics.ts — hook contract', () => {
-  const SRC = read('app/admin/employees/useEmployeePondPhysics.ts');
+  const SRC = read('app/admin/people/_tabs/useEmployeePondPhysics.ts');
 
   it('owns the rAF lifecycle (requestAnimationFrame + cancel on unmount)', () => {
     expect(SRC).toMatch(/window\.requestAnimationFrame\(loop\)/);
@@ -185,7 +185,7 @@ describe('useEmployeePondPhysics.ts — hook contract', () => {
 });
 
 describe('EmployeePond.tsx — E3 hook wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('imports the physics hook', () => {
     expect(SRC).toMatch(/import \{ useEmployeePondPhysics \} from '\.\/useEmployeePondPhysics'/);

@@ -102,7 +102,7 @@ describe('/api/admin/email/send — POST endpoint', () => {
 });
 
 describe('EmployeePond.tsx — E9c Email button now routes to the in-app composer', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('Email button href is /admin/email/new?to=<encoded>', () => {
     expect(SRC).toMatch(/href=\{`\/admin\/email\/new\?to=\$\{encodeURIComponent\(selectedEmployee\.email\)\}`\}/);

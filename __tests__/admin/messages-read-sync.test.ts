@@ -154,7 +154,7 @@ describe('N3 — every read path announces, every unread display listens', () =>
 
   const EMITTERS: Array<[string, string]> = [
     ['app/admin/components/FloatingMessenger.tsx', 'the popup messenger'],
-    ['app/admin/messages/page.tsx', 'the messages list'],
+    ['app/admin/messages/_tabs/InboxTab.tsx', 'the messages list'],
     ['app/admin/messages/[conversationId]/page.tsx', 'a single conversation page'],
   ];
 

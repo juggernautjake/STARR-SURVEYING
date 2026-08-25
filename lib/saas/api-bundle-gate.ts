@@ -143,6 +143,10 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // C8, the sixth. `/api/admin/payments/*` mirrored `/admin/payments/inbox`, now the Customer Money
   // portal's `incoming` tab. `money` workspace → `office`, carried across.
   'payments': { bundle: 'office', reason: 'Incoming customer payments; mirrored /admin/payments/inbox (money workspace) until C8 made it a tab.' },
+  // C9, the seventh. `/admin/role-requests` was UNGATED and in the `hub` workspace, whose default is
+  // null — asking for a role cannot require a bundle any more than it can require the role. Carried
+  // across at null, which is the answer it had.
+  'role-requests': { bundle: null, reason: 'Anyone may ask for a role; the approve/deny API is admin-gated server-side.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

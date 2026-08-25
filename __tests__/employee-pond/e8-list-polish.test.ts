@@ -12,7 +12,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('EmployeePond.tsx — E8 list row markup', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('every row is a <button> for keyboard + tap targeting', () => {
     expect(SRC).toMatch(/className="employee-pond__list-row"/);

@@ -94,7 +94,7 @@ describe('computeReleaseVelocity', () => {
 });
 
 describe('EmployeePond.tsx — E6 drag wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('imports the drag helpers + types', () => {
     expect(SRC).toMatch(/from '@\/lib\/employee-pond\/drag'/);

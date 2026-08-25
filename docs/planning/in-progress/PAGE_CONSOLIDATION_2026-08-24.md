@@ -1005,7 +1005,54 @@ early, and the internal tooling comes last.
 
       The API mirror broke for the **sixth time in six slices** (`/api/admin/payments/*`), carried
       across at `office`. The inline-hex ratchet fired for the fifth — **2306 before, 2306 after**.
-- [ ] **C9 — P10 People** + **P11 Messages** (9 → 2).
+- [x] **C9 — P10 People** + **P11 Messages** (9 → 2). **DONE 2026-08-25.**
+
+      `/admin/people` gains five tabs beside its directory — Employees, Accounts, Invites, Roles,
+      Requests — and `/admin/messages` gains Directory, Email and Settings beside its Inbox. Nine
+      registry rows became two; three editors (`employees/manage`, `messages/new`, `email/new`) kept
+      their routes and became buttons on the tabs they belong to.
+
+      **§4's warning about the two nouns is in the tab labels.** `/admin/employees` is a person who
+      works here and `/admin/users` is a login; they are **Employees** and **Accounts**, and each
+      hint says which is which in its first clause, because a tab strip is read at a glance.
+
+      **§5, on the product's most sensitive surface.** `/admin/people` is ungated and cannot become
+      gated — middleware's own note says a gate here "would remove a feature rather than protect
+      one" — and `role-requests` is open for a stronger reason still: asking for a role cannot
+      require the role. So every administrative tab carries its page's exact list, and the
+      replacement was **checked rather than asserted**: `/api/admin/users` calls `isAdmin` on GET and
+      POST, `/api/admin/roles/custom` answers 403 to a non-admin, `/api/admin/invites` scopes by
+      `resolveAdminOrg`. Two signed-in accounts on one URL confirmed it: an `employee` is offered two
+      tabs of six, and `?tab=accounts` lands them on Directory rather than on a panel they may not
+      have. One narrowing is recorded in the Messages portal's header — `/admin/email/*` had **no**
+      middleware entry at all, so as a tab it is narrower at the door than it was, of a path the nav
+      never offered.
+
+      **The bug the suite could not see.** `RolesTab` arrived as an async **server** page — `auth()`,
+      a redirect, a direct `supabaseAdmin` read — and the portal is a client component, so importing
+      it put `@/lib/auth` and `node:async_hooks` into the browser bundle. 26,194 tests were green and
+      `tsc` was clean; **the page simply did not load**, and only a browser said so. The read moved
+      to `GET /api/admin/roles/custom`, which already answered 401 and 403 — the same two refusals
+      the redirect made, made by the server instead. The redirect was the third of three gates and
+      the weakest of them: a redirect is a suggestion to a browser and a 403 is an answer. Every
+      other absorbed tab across C3–C9 was checked afterwards; this was the only one.
+
+      **The C8 back-link class recurred, and one variant is new.** Contacts and Settings both linked
+      "← Back to Messages" from inside Messages. `EmailTab` carried a third shape: a **back arrow on
+      a forward link** (`← New Email` → the composer), now duplicated by the portal's own Compose
+      button. The duplicate went rather than the arrow — two controls for one action is how one of
+      them ends up stale.
+
+      **A dead parameter the merge surfaced.** `app/api/admin/learn/credits/route.ts` notified with
+      `/admin/employees?manage=<email>`, and **nothing has ever read `?manage=`** — the employees
+      page reads no query parameter; it is `/admin/employees/manage` that reads `?email=`. That
+      notification has been landing on a list rather than on the person it is about for as long as it
+      has existed. The link audit could not resolve the route any more, and that is what made
+      somebody look at the parameter. Repointed at the editor.
+
+      The API mirror broke for the **seventh time in seven slices** (`/api/admin/role-requests`).
+      The inline-hex ratchet fired for the sixth — **2306 before, 2306 after**, a pure rename. All
+      eight redirect stubs verified signed-in, each landing on its own tab. `npm run build` clean.
 - [ ] **C10 — P6 Growth** (1 → 0 new links; leads into marketing).
 - [ ] **C11 — P12 Knowledge** + **P13 Research** (13 → 2).
 - [ ] **C12 — P14 Company** + **P15 System** (8 → 2).

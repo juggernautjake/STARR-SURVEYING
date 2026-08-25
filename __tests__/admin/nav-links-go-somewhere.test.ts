@@ -28,7 +28,14 @@ const staticRoutes = ADMIN_ROUTES.filter((r) => !r.href.includes('['));
 
 describe('every menu destination is a page', () => {
   it('the registry is big enough that this is worth checking', () => {
-    expect(ADMIN_ROUTES.length).toBeGreaterThan(100);
+    // The floor was 100 and the registry has fallen through it — which is the consolidation plan
+    // WORKING, not a regression: C1–C9 turned ~45 sidebar rows into nine portals, and §6 expects the
+    // final number to be nearer 30 than 138.
+    //
+    // Kept rather than deleted, and lowered rather than removed, because the guard's real job is to
+    // notice a registry that has collapsed to nothing — an import that silently returned `[]` would
+    // make every assertion below pass while checking no routes at all.
+    expect(ADMIN_ROUTES.length).toBeGreaterThan(50);
   });
 
   it('no registered route carries a query string', () => {

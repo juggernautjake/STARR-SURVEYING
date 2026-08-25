@@ -1,0 +1,280 @@
+// app/admin/messages/settings/page.tsx — Messaging Preferences
+'use client';
+import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { usePageError } from '../../hooks/usePageError';
+
+interface Preferences {
+  notifications_enabled: boolean;
+  sound_enabled: boolean;
+  email_notifications: boolean;
+  desktop_notifications: boolean;
+  show_read_receipts: boolean;
+  show_typing_indicators: boolean;
+  message_preview_in_notification: boolean;
+  auto_archive_days: number | null;
+  theme: 'default' | 'compact' | 'comfortable';
+  enter_to_send: boolean;
+}
+
+const DEFAULT_PREFS: Preferences = {
+  notifications_enabled: true,
+  sound_enabled: true,
+  email_notifications: false,
+  desktop_notifications: true,
+  show_read_receipts: true,
+  show_typing_indicators: true,
+  message_preview_in_notification: true,
+  auto_archive_days: null,
+  theme: 'default',
+  enter_to_send: true,
+};
+
+export default function MessagingSettingsPage() {
+  const { data: session } = useSession();
+  const { safeFetch, safeAction, reportPageError } = usePageError('MessagingSettingsPage');
+  const [prefs, setPrefs] = useState<Preferences>(DEFAULT_PREFS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    async function loadPreferences() {
+      try {
+        const res = await fetch('/api/admin/messages/preferences');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.preferences) {
+            setPrefs(prev => ({ ...prev, ...data.preferences }));
+          }
+        }
+      } catch (err) {
+        reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'load preferences' });
+      }
+      setLoading(false);
+    }
+    loadPreferences();
+  }, [reportPageError]);
+
+  async function savePreferences() {
+    setSaving(true);
+    setSaved(false);
+    try {
+      const res = await fetch('/api/admin/messages/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(prefs),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch (err) {
+      reportPageError(err instanceof Error ? err : new Error(String(err)), { element: 'save preferences' });
+    }
+    setSaving(false);
+  }
+
+  function updatePref<K extends keyof Preferences>(key: K, value: Preferences[K]) {
+    setPrefs(prev => ({ ...prev, [key]: value }));
+  }
+
+  if (!session?.user) return null;
+
+  return (
+    <>
+
+      <div className="msg-settings">
+        <div className="msg-settings__header">
+          {/* C9: a "← Back to Messages" link used to sit here. This IS Messages now — the link
+            * pointed at the portal it is rendered inside, which lands you back on the Inbox tab and
+            * reads as a bug. Third portal running that an absorbed body carried a self-link; the
+            * tab strip above is the way back. */}
+          <h2 className="msg-settings__title">Messaging Settings</h2>
+        </div>
+
+        {loading ? (
+          <div className="msg-settings__loading">Loading preferences...</div>
+        ) : (
+          <div className="msg-settings__sections">
+            {/* Notifications */}
+            <div className="msg-settings__section">
+              <h3 className="msg-settings__section-title">Notifications</h3>
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Enable Notifications</span>
+                  <span className="msg-settings__option-desc">Receive notifications for new messages</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.notifications_enabled}
+                    onChange={e => updatePref('notifications_enabled', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Sound</span>
+                  <span className="msg-settings__option-desc">Play a sound for new messages</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.sound_enabled}
+                    onChange={e => updatePref('sound_enabled', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Email Notifications</span>
+                  <span className="msg-settings__option-desc">Get email alerts for messages when you are offline</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.email_notifications}
+                    onChange={e => updatePref('email_notifications', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Desktop Notifications</span>
+                  <span className="msg-settings__option-desc">Show browser push notifications</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.desktop_notifications}
+                    onChange={e => updatePref('desktop_notifications', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Message Preview in Notifications</span>
+                  <span className="msg-settings__option-desc">Show message content in notification popups</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.message_preview_in_notification}
+                    onChange={e => updatePref('message_preview_in_notification', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+            </div>
+
+            {/* Privacy */}
+            <div className="msg-settings__section">
+              <h3 className="msg-settings__section-title">Privacy</h3>
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Read Receipts</span>
+                  <span className="msg-settings__option-desc">Let others know when you have read their messages</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.show_read_receipts}
+                    onChange={e => updatePref('show_read_receipts', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Typing Indicators</span>
+                  <span className="msg-settings__option-desc">Show when you are typing a message</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.show_typing_indicators}
+                    onChange={e => updatePref('show_typing_indicators', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+            </div>
+
+            {/* Display */}
+            <div className="msg-settings__section">
+              <h3 className="msg-settings__section-title">Display</h3>
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Message Density</span>
+                  <span className="msg-settings__option-desc">Choose how messages are spaced</span>
+                </div>
+                <select
+                  className="msg-settings__select"
+                  value={prefs.theme}
+                  onChange={e => updatePref('theme', e.target.value as Preferences['theme'])}
+                >
+                  <option value="default">Default</option>
+                  <option value="compact">Compact</option>
+                  <option value="comfortable">Comfortable</option>
+                </select>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Enter to Send</span>
+                  <span className="msg-settings__option-desc">Press Enter to send messages (Shift+Enter for new line)</span>
+                </div>
+                <label className="msg-settings__toggle">
+                  <input
+                    type="checkbox"
+                    checked={prefs.enter_to_send}
+                    onChange={e => updatePref('enter_to_send', e.target.checked)}
+                  />
+                  <span className="msg-settings__toggle-slider" />
+                </label>
+              </div>
+
+              <div className="msg-settings__option">
+                <div className="msg-settings__option-info">
+                  <span className="msg-settings__option-label">Auto-Archive</span>
+                  <span className="msg-settings__option-desc">Automatically archive inactive conversations</span>
+                </div>
+                <select
+                  className="msg-settings__select"
+                  value={prefs.auto_archive_days ?? 'never'}
+                  onChange={e => updatePref('auto_archive_days', e.target.value === 'never' ? null : Number(e.target.value))}
+                >
+                  <option value="never">Never</option>
+                  <option value="30">After 30 days</option>
+                  <option value="60">After 60 days</option>
+                  <option value="90">After 90 days</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="msg-settings__actions">
+              <button
+                className="msg-settings__save"
+                onClick={savePreferences}
+                disabled={saving}
+              >
+                {saving ? 'Saving...' : saved ? 'Saved!' : 'Save Preferences'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}

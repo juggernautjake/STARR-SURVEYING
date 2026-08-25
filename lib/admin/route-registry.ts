@@ -174,7 +174,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // E2 (2026-08-11) — no `roles` key, so everyone at the firm sees it. That is the point: the
   // people who need to ASK for a role are by definition the ones who do not have it, and gating
   // the request page on roles would be a locked door with the key inside.
-  { href: '/admin/role-requests',   label: 'Access Requests', workspace: 'hub', iconName: 'ShieldQuestion', description: 'Ask for the roles your work needs. Admins decide requests here too.', internalOnly: true, keywords: ['role', 'roles', 'access', 'permission', 'permissions', 'request', 'grant', 'cad access', 'promote'] },
   { href: '/admin/my-files',        label: 'My Files',        workspace: 'hub', iconName: 'Folder',         description: 'Your file uploads.' },
   // 'My Profile' pointed at /admin/me?tab=profile and was folded into 'Profile & Settings' on
   // 2026-08-04. One page, one entry; the old label survives as a keyword so searching it still
@@ -357,14 +356,22 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Platform audit §2.3 / item 7 — the one directory. /admin/employees, /admin/team and
   // /admin/contacts are now filters on it; they keep their own pages (each does something this one
   // does not) but this is the front door, so nobody has to know which of the ten to open.
-  { href: '/admin/people',                label: 'People',           workspace: 'office', section: 'People', iconName: 'Users',        description: 'Everyone the firm deals with — staff and contacts — in one list.', keywords: ['directory', 'employees', 'staff', 'contacts', 'team', 'phone', 'who'] },
-  { href: '/admin/employees',             label: 'Employees',        workspace: 'office', section: 'People', iconName: 'UsersRound',   description: 'Employee directory.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
+  // ── C9 / P10: SIX ROWS BECAME ONE ───────────────────────────────────────────────────────────
+  //
+  // §2.3 found ten routes describing one noun and put a front door on them. This is the rest of it.
+  //
+  // UNGATED, and that is carried forward rather than chosen: the directory is open to staff by
+  // design — middleware's own note says a gate here "would remove a feature rather than protect
+  // one" — and `role-requests` is open because ASKING for a role cannot require the role. Every
+  // administrative tab keeps its page's exact list, so a field crew member sees two tabs of six.
+  //
+  // §4's warning is in the labels: Employees and Accounts are DIFFERENT NOUNS — a person who works
+  // here versus a login — and the hints say which is which in the first clause.
+  { href: '/admin/people', label: 'People', workspace: 'office', section: 'People', iconName: 'Users', description: 'Everyone at the firm — the directory, employee records, logins, invites, roles and access requests.', internalOnly: true, keywords: ['directory', 'employees', 'staff', 'contacts', 'team', 'phone', 'who', 'onboard', 'invite', 'permissions', 'roles', 'custom', 'role', 'access', 'permission', 'request', 'grant', 'cad access', 'promote'] },
   { href: '/admin/employees/manage',      label: 'Manage Employee',  workspace: 'office', section: 'People', iconName: 'UserCog',      description: 'Edit an employee record.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
-  { href: '/admin/users',                 label: 'Manage Users',     workspace: 'office', section: 'People', iconName: 'KeyRound',     description: 'User accounts + roles.', roles: ['admin', 'tech_support'] },
   // Slice W7 (hub-cad-roles-polish-2026-06-18) — role builder.
   // Admin-only; surfaces alongside Manage Users in the Office
   // workspace.
-  { href: '/admin/roles/custom',          label: 'Role Builder',     workspace: 'office', section: 'People', iconName: 'ShieldPlus',   description: 'Define new roles on top of the built-in role list.', roles: ['admin'], internalOnly: true, keywords: ['permissions', 'roles', 'custom'] },
   // PARKED 2026-08-04. The graduated model — role tiers, seniority brackets, credential bonuses,
   // XP milestones — is on hold at the owner's request in favour of base pay plus a handful of set
   // activity rates. The page and its data are intact; it is simply not offered anywhere. See
@@ -413,14 +420,21 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // F1b / F2b, registered 2026-08-04 — the orphan guard caught both the day after they shipped.
   // A page nobody can navigate to is this repo's signature defect, and building the page is the
   // half that feels like finishing.
-  { href: '/admin/messages',              label: 'Messages',         workspace: 'office', section: 'Talking to people', iconName: 'MessageSquare', description: 'Chat with a teammate, one-to-one or in a group. NOT email to a customer (Compose Email), and NOT a topic thread that outlives the day (Discussions).', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['chat', 'dm'] },
+  // ── C9 / P11: FOUR ROWS BECAME ONE ──────────────────────────────────────────────────────────
+  //
+  // Conversations, who you can talk to, what the system sends on your behalf, and the email log —
+  // one subject that had four rows. `messages/new` and `email/new` are compose BUTTONS now, on the
+  // tabs they belong to, and both keep their routes.
+  //
+  // The email tab carries admin / developer / tech_support, its row's own list. `/admin/email/*` had
+  // no middleware entry, so it is narrower at the door than it was — of a path the nav never
+  // offered. See the portal's header.
+  { href: '/admin/messages', label: 'Messages', workspace: 'office', section: 'Talking to people', iconName: 'MessageSquare', description: 'Chat with a teammate, one-to-one or in a group. NOT email to a customer (Compose Email), and NOT a topic thread that outlives the day (Discussions).', internalOnly: true, keywords: ['chat', 'dm', 'outbox', 'history'] },
   // consolidation Slice 6 (2026-05-30) — clarified description so it
   // reads distinctly from the firm-wide `/admin/contacts` CRM. This
   // surface is for picking a teammate to message; the CRM page is for
   // realtors / clients / students.
-  { href: '/admin/messages/contacts',     label: 'Team Directory',   workspace: 'office', section: 'Talking to people', iconName: 'Contact',      description: 'Internal teammate directory — pick someone to message.', roles: INTERNAL_COMM_ROLES, internalOnly: true },
   { href: '/admin/messages/new',          label: 'New Message',      workspace: 'office', section: 'Talking to people', iconName: 'MessageSquarePlus', description: 'Start a new conversation.', roles: INTERNAL_COMM_ROLES, internalOnly: true, showInRail: false },
-  { href: '/admin/messages/settings',     label: 'Message Settings', workspace: 'office', section: 'Talking to people', iconName: 'Settings',     description: 'Messaging preferences.', roles: INTERNAL_COMM_ROLES, internalOnly: true, showInRail: false },
   // contacts plan 2026-05-30 — firm-wide contacts (realtors, repeat
   // clients, students, teachers, employees). Profile per person + a
   // job ↔ contact join. See docs/planning/in-progress/contacts-…
@@ -430,7 +444,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/settings',              label: 'Settings',         workspace: 'office', section: 'Setup & account', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'] },
   { href: '/admin/error-log',             label: 'Error Log',        workspace: 'office', section: 'What happened', iconName: 'Bug',          description: 'Errors the software itself hit — stack traces and failed requests. For who-did-what, see the Audit Log; for what the crew did, the Activity Timeline.', roles: ['admin', 'developer', 'tech_support'] },
   { href: '/admin/audit',                 label: 'Audit Log',        workspace: 'office', section: 'What happened', iconName: 'ShieldCheck',  description: 'Who did what, and when — permission changes, record edits, operator access. The one to open for a compliance question.', roles: ['admin', 'developer', 'tech_support'], keywords: ['compliance', 'history', 'log'] },
-  { href: '/admin/invites',               label: 'Invites',          workspace: 'office', section: 'People', iconName: 'UserPlus',     description: 'Pending + historical org user invites.', roles: ['admin', 'tech_support'], keywords: ['onboard', 'invite'] },
   // The queue an employee's request goes into. The API could approve, decline and send a withdrawal
   // long before any page listed one, so a person asking for their own earned money was asking into
   // a void — the same defect an unwatched hours queue has, about money already worked for.
@@ -520,7 +533,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Communication.
   { href: '/admin/notifications',         label: 'Notifications',    workspace: 'office', section: 'Talking to people', iconName: 'Bell',         description: 'Everything the app has told YOU — alerts raised by the system, not messages a person sent.', keywords: ['alerts', 'bell', 'inbox'] },
   { href: '/admin/email/new',             label: 'Compose Email',    workspace: 'office', section: 'Talking to people', iconName: 'MailPlus',     description: 'Send an email to a customer or lead.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['send', 'customer', 'reply'] },
-  { href: '/admin/email/sent',            label: 'Sent Email',       workspace: 'office', section: 'Talking to people', iconName: 'MailCheck',    description: 'Outbound email history.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['outbox', 'history'] },
   { href: '/admin/support/new',           label: 'New Support Ticket', workspace: 'office', section: 'Talking to people', iconName: 'MessageSquarePlus', description: 'Raise a support ticket.', showInRail: false, keywords: ['help', 'issue', 'report'] },
   { href: '/admin/me/privacy',            label: 'Privacy Settings', workspace: 'hub', iconName: 'EyeOff',          description: 'What colleagues can see about you.', showInRail: false, keywords: ['visibility', 'hidden', 'personal'] },
 

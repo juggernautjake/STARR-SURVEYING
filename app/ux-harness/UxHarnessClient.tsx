@@ -74,7 +74,10 @@ const PAGES: Record<string, ComponentType> = {
   assignments: nextDynamic(() => import('@/app/admin/assignments/page'), { ssr: false }),
   reports: nextDynamic(() => import('@/app/admin/reports/page'), { ssr: false }),
   equipment: nextDynamic(() => import('@/app/admin/equipment/page'), { ssr: false }),
-  invites: nextDynamic(() => import('@/app/admin/invites/page'), { ssr: false }),
+  // C9: five of these are TABS now and their routes are redirects. The harness shoots page BODIES,
+  // so each points at the component — importing a redirect renders nothing and the shot would be a
+  // blank page that looked like a styling bug.
+  invites: nextDynamic(() => import('@/app/admin/people/_tabs/InvitesTab'), { ssr: false }),
   // Batch 2
   // The /admin/my-* and /admin/schedule pages are server redirects to the
   // Hub at /admin/me?tab=…; mount the actual Panel components instead so the
@@ -87,8 +90,8 @@ const PAGES: Record<string, ComponentType> = {
   schedule: nextDynamic(() => import('@/app/admin/schedule/SchedulePanel'), { ssr: false }),
   team: nextDynamic(() => import('@/app/admin/team/page'), { ssr: false }),
   work: nextDynamic(() => import('@/app/admin/work/page'), { ssr: false }),
-  users: nextDynamic(() => import('@/app/admin/users/page'), { ssr: false }),
-  employees: nextDynamic(() => import('@/app/admin/employees/page'), { ssr: false }),
+  users: nextDynamic(() => import('@/app/admin/people/_tabs/AccountsTab'), { ssr: false }),
+  employees: nextDynamic(() => import('@/app/admin/people/_tabs/EmployeesTab'), { ssr: false }),
   discussions: nextDynamic(() => import('@/app/admin/discussions/page'), { ssr: false }),
   // C4: both are TABS of the Hours portal now, and their routes are redirects. The harness shoots
   // page BODIES, so it points at the components — importing a redirect renders nothing and the shot
@@ -119,9 +122,9 @@ const PAGES: Record<string, ComponentType> = {
   support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
   learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
   'learn-modules': nextDynamic(() => import('@/app/admin/learn/modules/page'), { ssr: false }),
-  messages: nextDynamic(() => import('@/app/admin/messages/page'), { ssr: false }),
+  messages: nextDynamic(() => import('@/app/admin/messages/_tabs/InboxTab'), { ssr: false }),
   email: nextDynamic(() => import('@/app/admin/email/new/page'), { ssr: false }),
-  'email-sent': nextDynamic(() => import('@/app/admin/email/sent/page'), { ssr: false }),
+  'email-sent': nextDynamic(() => import('@/app/admin/messages/_tabs/EmailTab'), { ssr: false }),
   notifications: nextDynamic(() => import('@/app/admin/notifications/page'), { ssr: false }),
   'payout-log': nextDynamic(() => import('@/app/admin/pay/_tabs/HistoryTab'), { ssr: false }),
   // The Hub (/admin/me) is a server component behind auth; mount the real

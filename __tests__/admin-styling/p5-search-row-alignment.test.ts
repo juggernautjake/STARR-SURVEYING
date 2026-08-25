@@ -86,7 +86,7 @@ describe('/admin/contacts — search row controls share a 36px baseline', () => 
 });
 
 describe('/admin/employees — list-view selects share the 36px baseline', () => {
-  const SRC = read('app/admin/employees/page.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeesTab.tsx');
 
   it('roleFilter <select> is height: 36 box-sizing border-box', () => {
     expect(SRC).toMatch(/value=\{roleFilter\}[\s\S]{0,200}/); // sanity: tag exists

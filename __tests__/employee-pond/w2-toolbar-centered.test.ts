@@ -26,7 +26,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('EmployeePond JSX — count moves to its own row above the pond (W2)', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('renders the count chip inside .employee-pond__count-row', () => {
     expect(SRC).toMatch(/<div\s+className="employee-pond__count-row"[\s\S]*?<span\s+className="employee-pond__count"/);

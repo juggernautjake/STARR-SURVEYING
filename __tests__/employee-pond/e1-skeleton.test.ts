@@ -13,7 +13,7 @@ import {
   mulberry32,
   placeOrb,
   type PondEmployee,
-} from '@/app/admin/employees/EmployeePond';
+} from '@/app/admin/people/_tabs/EmployeePond';
 
 const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
@@ -95,7 +95,7 @@ describe('placeOrb — uniform-disc sampling', () => {
 });
 
 describe('EmployeePond.tsx — E1 skeleton render', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it("uses 'use client' so the eventual hooks land", () => {
     expect(SRC).toMatch(/'use client';/);
@@ -132,11 +132,13 @@ describe('EmployeePond.tsx — E1 skeleton render', () => {
 });
 
 describe('/admin/employees/page.tsx — E1 view toggle wiring', () => {
-  const SRC = read('app/admin/employees/page.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeesTab.tsx');
 
   it('imports the pond component + stylesheet', () => {
     expect(SRC).toMatch(/import EmployeePond from '\.\/EmployeePond';/);
-    expect(SRC).toMatch(/import '\.\.\/styles\/EmployeePond\.css';/);
+    // C9: the page became the People portal's `employees` tab, one level deeper, so the relative
+    // path gained a segment. The import is what this asserts and it is unchanged.
+    expect(SRC).toMatch(/import '\.\.\/\.\.\/styles\/EmployeePond\.css';/);
   });
 
   it('declares a localStorage key for the view preference', () => {

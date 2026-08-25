@@ -143,7 +143,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
         title: `${user_email} reached "${threshold.threshold_name}"`,
         body: `Employee has ${totalPoints} points (needed ${threshold.points_required}). Reward: ${threshold.reward_type}`,
         icon: '🏆',
-        link: `/admin/employees?manage=${encodeURIComponent(user_email)}`,
+        // C9 (2026-08-25). Two things were wrong with the old link, and only one of them was C9:
+        //
+        //   · `/admin/employees` is the People portal's `employees` tab now, so it forwarded;
+        //   · and `?manage=` was never read by anything. The employees page reads no query parameter
+        //     at all — it is `/admin/employees/manage` that reads `?email=`. So this notification has
+        //     been landing on a LIST rather than on the person it is about, for as long as it has
+        //     existed. The consolidation is what surfaced it: the link audit could not resolve the
+        //     route any more and made somebody look at the parameter.
+        //
+        // Pointed at the editor that actually opens the record. `/admin/employees/manage` kept its
+        // own route in C9 precisely because it is a record editor rather than a browsing surface.
+        link: `/admin/employees/manage?email=${encodeURIComponent(user_email)}`,
         source_type: 'learning',
       });
     }

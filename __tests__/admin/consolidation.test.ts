@@ -154,13 +154,29 @@ describe('item 7 — People is one directory and one record', () => {
     expect(findRoute('/admin/people')).toBeDefined();
   });
 
-  it('the ten routes it fronts still work', () => {
-    // §2.3's fix is a front door, not a demolition. /admin/users still owns roles and
-    // /admin/employees/manage still owns editing a record; deleting them would move the work into
-    // this page and recreate §1.3 — two surfaces rendering the same data, drifting.
-    for (const href of ['/admin/employees', '/admin/users', '/admin/team', '/admin/contacts']) {
+  it('the routes it fronts still work', () => {
+    // §2.3's fix was a front door, not a demolition: /admin/users owned roles and
+    // /admin/employees/manage owned editing a record, and deleting them would have moved the work
+    // into this page and recreated §1.3 — two surfaces rendering the same data, drifting.
+    //
+    // ── C9 (2026-08-25) ────────────────────────────────────────────────────────────────
+    //
+    // `/admin/employees` and `/admin/users` are TABS of this portal now, and that is not the
+    // demolition the paragraph above forbids — it is the same bodies, moved, with one surface
+    // rendering each. §1.3's defect is TWO surfaces drifting; a tab is one.
+    //
+    // What still has to be true is that none of it became unreachable, so that is what is asserted:
+    // the two that are still their own rows, and the two that are tabs still resolving as forwards.
+    for (const href of ['/admin/team', '/admin/contacts']) {
       expect(findRoute(href), `${href} was removed`).toBeDefined();
     }
+    for (const href of ['/admin/employees', '/admin/users']) {
+      const src = fs.readFileSync(path.join(ROOT, `app${href}/page.tsx`), 'utf8');
+      expect(src, `${href} should forward into the People portal`).toContain("redirect('/admin/people?tab=");
+    }
+    // And the editor kept its own route, which is the half of the paragraph above that C9 preserved
+    // exactly: /admin/employees/manage still owns editing a record.
+    expect(findRoute('/admin/employees/manage'), 'the employee editor lost its route').toBeDefined();
   });
 
   it('the profile is keyed by email, like every other person route in the app', () => {

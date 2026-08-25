@@ -139,7 +139,7 @@ describe('FloatingMessenger — E9b persist + hydrate wiring', () => {
 });
 
 describe('/admin/messages page — E9b persist + hydrate wiring', () => {
-  const SRC = read('app/admin/messages/page.tsx');
+  const SRC = read('app/admin/messages/_tabs/InboxTab.tsx');
 
   it('imports the shared store helpers', () => {
     expect(SRC).toMatch(/from '@\/lib\/employee-pond\/messenger-recipient'/);

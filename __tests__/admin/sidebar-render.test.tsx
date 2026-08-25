@@ -70,7 +70,8 @@ describe('the drawer renders', () => {
     for (const href of [
       '/admin/invoicing', '/admin/contacts', '/admin/files', '/admin/calendar',
       '/admin/support', '/admin/reports', '/admin/billing', '/admin/audit',
-      '/admin/invites', '/admin/announcements',
+      // C9: '/admin/invites' is the People portal's `invites` tab; the drawer offers the portal.
+      '/admin/people', '/admin/announcements',
     ]) {
       expect(html, `${href} should now appear in the drawer`).toContain(`href="${href}"`);
     }

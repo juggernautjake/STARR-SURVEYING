@@ -131,7 +131,7 @@ describe('stepPhysics — E7 onDraggedCollision callback', () => {
 });
 
 describe('useEmployeePondPhysics — E7 forwards the collision callback', () => {
-  const SRC = read('app/admin/employees/useEmployeePondPhysics.ts');
+  const SRC = read('app/admin/people/_tabs/useEmployeePondPhysics.ts');
 
   it('args.onDraggedCollision is held in a ref so the loop reads the latest', () => {
     expect(SRC).toMatch(/const collisionCbRef = useRef<UsePondPhysicsArgs\['onDraggedCollision'\]>/);
@@ -144,7 +144,7 @@ describe('useEmployeePondPhysics — E7 forwards the collision callback', () => 
 });
 
 describe('EmployeePond.tsx — E7 page wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('imports detectShake', () => {
     expect(SRC).toMatch(/detectShake/);

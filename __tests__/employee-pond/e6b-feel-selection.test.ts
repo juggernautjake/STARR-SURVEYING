@@ -129,7 +129,7 @@ describe('stepPhysics — E6b idle jitter', () => {
 });
 
 describe('useEmployeePondPhysics — E6b setCursor on the handle', () => {
-  const SRC = read('app/admin/employees/useEmployeePondPhysics.ts');
+  const SRC = read('app/admin/people/_tabs/useEmployeePondPhysics.ts');
 
   it('declares the cursorRef inside the hook', () => {
     expect(SRC).toMatch(/const cursorRef = useRef<\{ x: number; y: number \} \| null>/);
@@ -145,7 +145,7 @@ describe('useEmployeePondPhysics — E6b setCursor on the handle', () => {
 });
 
 describe('EmployeePond.tsx — E6b wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('declares SELECTION_SCALE + SELECTION_RADIUS constants + a prevSelectedRef', () => {
     expect(SRC).toMatch(/const prevSelectedRef = useRef<string \| null>/);

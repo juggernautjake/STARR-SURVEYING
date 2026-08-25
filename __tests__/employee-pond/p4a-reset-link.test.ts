@@ -24,7 +24,7 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('EmployeePond — seed bumps on Reset (P4a)', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('introduces a respawnNonce state that the user can bump', () => {
     expect(SRC).toMatch(/const \[respawnNonce, setRespawnNonce\] = useState<number>/);
@@ -46,7 +46,7 @@ describe('EmployeePond — seed bumps on Reset (P4a)', () => {
 });
 
 describe('useEmployeePondPhysics — seed change forces a full respawn (P4a)', () => {
-  const HOOK = read('app/admin/employees/useEmployeePondPhysics.ts');
+  const HOOK = read('app/admin/people/_tabs/useEmployeePondPhysics.ts');
 
   it('tracks the last seed via a ref', () => {
     expect(HOOK).toMatch(/const lastSeedRef = useRef<number \| null>\(null\)/);

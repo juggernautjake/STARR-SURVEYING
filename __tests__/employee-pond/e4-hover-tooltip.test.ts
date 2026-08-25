@@ -44,7 +44,7 @@ describe('OrbState — E4 scale field is honored end-to-end', () => {
 });
 
 describe('useEmployeePondPhysics — E4 transform includes scale', () => {
-  const SRC = read('app/admin/employees/useEmployeePondPhysics.ts');
+  const SRC = read('app/admin/people/_tabs/useEmployeePondPhysics.ts');
 
   it('reads orb.scale (default 1) and appends scale(...) to the transform write', () => {
     expect(SRC).toMatch(/const scale = orb\.scale \?\? 1;/);
@@ -58,7 +58,7 @@ describe('useEmployeePondPhysics — E4 transform includes scale', () => {
 });
 
 describe('EmployeePond.tsx — E4 hover wiring', () => {
-  const SRC = read('app/admin/employees/EmployeePond.tsx');
+  const SRC = read('app/admin/people/_tabs/EmployeePond.tsx');
 
   it('holds hoveredEmployeeId state + a prev ref to know which orb to reset', () => {
     expect(SRC).toMatch(/const \[hoveredEmployeeId, setHoveredEmployeeId\] = useState<string \| null>/);
