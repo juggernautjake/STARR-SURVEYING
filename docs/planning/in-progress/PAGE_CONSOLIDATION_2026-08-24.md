@@ -434,6 +434,37 @@ once means any complaint afterwards has two possible causes.
 
 ## §8. Slices, in the order they should be done
 
+### Where this stands — 2026-08-25
+
+**138 nav links → 42.** C0–C14 shipped; §12 answered the workspace question §10 delegated.
+What is left is four items, and three of them are decisions rather than work:
+
+| Item | State |
+|---|---|
+| **C14** | the only thing still being *built*: defaults re-traced, dossiers and conformance next |
+| **P2.2a–d** | blocked on the owner's accounting answer, and has been since before this work started |
+| **C12c-files**, **C13f** | one decision each, both written up with options — see §13 |
+| **C12d-exam** | deferred by §8's own rule: two of its three routes are the exam itself |
+
+**Four boundaries were closed on the way** — research reads, the compliance register, company
+notes (reads AND writes), and the door on `/admin/team`. Each is recorded under the slice that
+found it. One more, `/api/admin/contacts`, is deliberately NOT closed and is in §13: the client
+list is readable by any signed-in account, and closing it would be a new policy rather than an
+existing one reaching the data.
+
+**Five rules came out of this work** and are worth carrying into the next plan:
+
+  1. A registry row survives anything that still names the route — a child, a notification, an API
+     mirror, a frozen receipt. `showInRail: false` is the part a consolidation needs (C13d).
+  2. A portal must not be a wider door than the pages it absorbs, and when it is, the boundary has
+     to be checked rather than assumed (§5, and four endpoints that failed the check).
+  3. Check the premise before building on it. Four §8 items had premises that did not survive
+     measurement, and one of them was a section of this document.
+  4. A tab cannot carry its own bundle: absorbing a bundle-exempt route into a gated portal always
+     changes its packaging (C11b).
+  5. Your probe can be the bug. Four times here, each caught by reading the field the code reads
+     rather than a pattern that usually matches it.
+
 Ordered by *risk-adjusted value*: the pilot is small and reversible, the owner's named portals come
 early, and the internal tooling comes last.
 
@@ -1358,7 +1389,8 @@ early, and the internal tooling comes last.
       Fifth slice running with self-links: three boards linked back to the portal they now render
       inside. §5 cost nothing — all six rows and the middleware prefix are `['admin', 'developer']`.
 
-- [ ] **C12c-files — P16 Files** (`/admin/files` absorbs `/admin/my-files`). **Same shape as P14's
+- [~] **C12c-files — P16 Files** — **WAITING ON THE OWNER** (one of the four personal-vs-company
+      pages; see §13).  (`/admin/files` absorbs `/admin/my-files`). **Same shape as P14's
       three, and blocked on the same decision.**
 
       | | workspace | roles |
@@ -1378,7 +1410,6 @@ early, and the internal tooling comes last.
       cases are decided once and together rather than four times by whoever happens to hit them.
 
 - [x] **C12d — P19 Learning Content** (3 → 1). **DONE 2026-08-25.**
-- [ ] **C12d-exam — P18 Exam Prep.** **Two of §8's three are the exam itself** — see below.
 
       `/admin/learn/manage` holds twelve tabs now: the ten it already had, plus Media and Question
       Builder. Two routes forward.
@@ -1411,7 +1442,8 @@ early, and the internal tooling comes last.
       check the pattern before assuming rows vanished. Twelve tabs and both redirects
       browser-verified; `npm run build` clean.
 
-- [ ] **C12d-exam — P18 Exam Prep** (`/admin/learn/exam-prep` absorbs `sit` · `sit/mock-exam` ·
+- [x] **C12d-exam — P18 Exam Prep** — **DEFERRED 2026-08-25, by §8's own rule rather than by
+      cost.** (`/admin/learn/exam-prep` absorbs `sit` · `sit/mock-exam` ·
       `rpls`). **§8 contradicts itself here, and only one of the three is a way in.**
 
       §8's own prose says: *"The exam itself still opens as its own route — a sitting is not a thing
@@ -1521,7 +1553,7 @@ early, and the internal tooling comes last.
       `/admin/me`, which everybody has. **Not every 401-only route is a hole**, and the check that
       tells them apart is who calls it, not what it returns.
 
-- [ ] **C13f — `/admin/notes` → Company.** §4's last addendum row, and the only one left. It is a
+- [~] **C13f — `/admin/notes` → Company** — **WAITING ON THE OWNER.**  §4's last addendum row, and the only one left. It is a
       decision because the merge would **remove something that works**, unlike every other narrowing
       in this plan:
 
@@ -2214,5 +2246,86 @@ the nav of everyone outside those roles. The question is: **does the Hub own the
 thing, or does the company page render a personal view of it for whoever opens it?** §5.2's
 role-driven rendering is the second answer; the `hub` workspace already is the first. That is a
 product decision about the shape of the app and it is not delegated — it is in §13 for the owner.
+
+---
+
+## §13. What is waiting on the owner
+
+Four things in this plan are decisions rather than work. None is blocked on effort — each is a short
+change once decided — and each is here because deciding it is not mine to do. §12 is the one that
+WAS delegated; these are the ones that were not.
+
+---
+
+### 13.1 The four personal-vs-company pages — one question, not four
+
+`announcements` · `notifications` · `me/privacy` · `my-files`
+
+Each is **ungated and personal**. Each has a company page it looks like it belongs to, gated more
+narrowly. Folding any of them in removes it from the nav of everyone outside that page's roles:
+
+| Page | What it is | Where §8 sent it | What that costs |
+|---|---|---|---|
+| `/admin/notifications` | *"the current user's alerts"*, its own words | Settings (admin only) | every non-admin loses their alert inbox |
+| `/admin/me/privacy` | already in the `hub` workspace | Settings (admin only) | every non-admin loses their privacy settings |
+| `/admin/announcements` | the release archive the Hub's WhatsNewBanner links every employee to | Settings (admin only) | the banner lands most of the firm on a refusal |
+| `/admin/my-files` | the file tree scoped to one person | Files (7 roles) | `employee`, `teacher`, `student` lose their own files |
+
+**The question:** does the **Hub** own the personal view of a thing, or does the **company page**
+render a personal view of it for whoever opens it?
+
+- **Hub owns it** — leave all four where they are. The `hub` workspace already is this answer, and
+  the cost is four rail links that look like duplicates of company pages.
+- **The company page renders it** — absorb all four and widen each destination's roles so nobody
+  loses access. §5.2's role-driven rendering is this answer, and the cost is that a page like
+  Settings then means two different things depending on who opens it.
+
+Answer it once and all four follow. Answering it page by page is how they ended up inconsistent.
+
+---
+
+### 13.2 `/api/admin/contacts` — the client list is readable by any signed-in account
+
+Names, phones and emails of every realtor, client and repeat customer. A `student` account can read
+it. Measured, not inferred.
+
+**Deliberately not closed**, and the reason is the one thing that separates it from the four
+boundaries this plan DID close. Research, compliance, company notes and `/admin/team` each had a
+narrower statement somewhere in the product — a middleware entry, a registry row — that the API was
+not enforcing; closing those was the existing policy finally reaching the data. **Contacts had no
+such statement**: the registry row was ungated too, so closing it would be a *new* policy about who
+may read the CRM.
+
+Since C13b it sits behind `/admin/messages`, gated to eight roles — but that statement is one this
+plan's own merge created, which is not a sound basis for narrowing something on the owner's behalf.
+
+**If the answer is "close it":** gate `GET /api/admin/contacts` to the eight roles on
+`/admin/messages`. Verified safe — every caller (the CRM tab, the Hub contacts widget at
+`admin`/`developer`/`tech_support`, the job and invoice link dialogs) is used by roles inside those
+eight, so nothing that works today stops working.
+
+---
+
+### 13.3 The 67 orphaned designs
+
+67 locked defaults and 63 dossiers describe routes that no longer have a registry row, because the
+consolidation absorbed them.
+
+- **Leave them** — the page list shows them as orphans. Honest, and the count stays untidy.
+- **Re-point each at the tab that absorbed it** — the design follows the content, and the
+  before-picture survives attached to something live.
+- **Delete** — tidy, and it throws away the only remaining record of what each page looked like
+  before it became a tab.
+
+Every one of those URLs still resolves, so nothing is broken either way. My inclination is
+re-pointing; deleting is defensible if the page list mattering more than the history is the call.
+
+---
+
+### 13.4 P2.2a–d — the receipt per-line accounting question
+
+Unchanged and unstarted: it needs the answer about how a partly-deductible receipt should total.
+It has been the one blocked item since before this plan began, and it is not blocked on anything
+this plan did.
 
 ---
