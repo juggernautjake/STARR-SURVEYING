@@ -329,3 +329,84 @@ export const SELECTED_STATE = () => {
   }
   return null;
 };
+// ── OPENING A STATE, ONCE, FOR EVERYTHING THAT NEEDS TO ─────────────────────────────────────────
+//
+// V6. Three tools now have to put a page into one of its tabs before they look at it: the tracer
+// (capture the tab's default), the conformance sweep (compare the tab against that default), and
+// the deriver (inventory what is on the tab). All three were about to hold their own copy of "try
+// the URL, fall back to clicking the label, check where you landed".
+//
+// That is precisely the shape that has cost this session four separate bugs: two ends answering the
+// same question with two slightly different rules, and the disagreement showing up as an EMPTY
+// rather than an error. `selectedStateKey` already exists because the tracer and the observer had
+// drifted on "which tab is showing" and every tab came back as the breadcrumb.
+//
+// So it is one function, here, and the three callers import it.
+//
+// ── AND WHY IT RETURNS false RATHER THAN THROWING ───────────────────────────────────────────────
+//
+// Not reaching a tab is a normal outcome, not a fault. `/admin/my-pay` has three states nested
+// INSIDE another tab, and no amount of URL guessing will reach them from the outside. The caller
+// decides what that means: the tracer skips and says so, the sweep treats it as a failed check.
+// What none of them may do is proceed as though it worked — a capture of the wrong tab compared
+// against the right tab's record reports a page that has changed beyond recognition.
+
+/** Which state is showing right now, by the observer's own rule. Null if it cannot tell. */
+export async function selectedStateKey(page) {
+  return page.evaluate(SELECTED_STATE).catch(() => null);
+}
+
+/**
+ * Click the control that opens this state. Used when the URL was not read.
+ *
+ * Matches on the label when the caller has one, and on the SLUG of the label otherwise — because
+ * the two callers know different things. The tracer and the deriver hold a full state record
+ * (`{ key, label }`); the conformance sweep starts from a stored design and only has the key. Both
+ * end at the same element, since `SELECTED_STATE` derives a key by slugging exactly this text.
+ *
+ * The tracer and the sweep each had their own copy of this and they matched on different fields —
+ * `label.toLowerCase()` in one, `slug(text)` in the other. They happened to agree. Two rules that
+ * happen to agree is the setup for the bug, not the absence of it.
+ */
+export async function clickState(page, state) {
+  return page.evaluate(({ key, label }) => {
+    const root = document.querySelector('.admin-layout__content') ?? document.body;
+    const slug = (t) => (t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+    const text = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().replace(/\s*\d+$/, '');
+    for (const el of root.querySelectorAll('button, a, [role="tab"]')) {
+      const t = text(el);
+      if (label && t.toLowerCase() === String(label).toLowerCase()) { el.click(); return true; }
+      if (slug(t) === key) { el.click(); return true; }
+    }
+    return false;
+  }, { key: state.key, label: state.label ?? null }).catch(() => false);
+}
+
+/**
+ * Put the page into one of its states and CONFIRM it got there.
+ *
+ * `?tab=` first, because a page that reads the URL lands in one navigation and starts clean. Then
+ * the label click, because plenty of tab strips hold their state in a variable and are perfectly
+ * correct to — `/admin/billing` uses `router.replace`, which is right, and is indistinguishable
+ * from a variable when you are only reading the DOM.
+ *
+ * Returns true only when the observer agrees the requested state is the one showing.
+ */
+export async function openState(page, base, route, state, { param = 'tab', settle = 1200 } = {}) {
+  await page.goto(`${base}${route}?${param}=${encodeURIComponent(state.key)}`, {
+    waitUntil: 'domcontentloaded', timeout: 60_000,
+  });
+  await waitForPageReady(page);
+  await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+  let on = await selectedStateKey(page);
+  if (on !== state.key) {
+    const clicked = await clickState(page, state);
+    if (clicked) {
+      await page.waitForTimeout(settle);
+      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+      on = await selectedStateKey(page);
+    }
+  }
+  return on === state.key;
+}

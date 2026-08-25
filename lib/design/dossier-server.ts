@@ -69,11 +69,31 @@ function toDossier(row: DossierRow): PageDossier {
       derivedAt: row.derived_at ?? '',
       derivedFrom: row.derived_from ?? null,
     },
+    // V6. `?? ''` rather than trusting the column to be there: a row read by a query that forgot to
+    // select it would otherwise arrive `undefined` and generate checklist ids for a state called
+    // "undefined" — a whole parallel checklist, filed under a typo.
+    row.state_key ?? '',
   );
 }
 
-export async function getDossier(route: string): Promise<PageDossier | null> {
-  const { data, error } = await supabaseAdmin.from(DOSSIERS).select('*').eq('route', route).maybeSingle();
+/**
+ * One dossier — the route as a whole by default, or one of its states.
+ *
+ * ── THE `.maybeSingle()` TRAP, CAUGHT BEFORE IT FIRED ─────────────────────────────────────────
+ *
+ * This asked for `.eq('route', route).maybeSingle()`, which was right while `route` was the entire
+ * primary key and becomes a live fault the moment V6 writes a second row for the same route:
+ * PostgREST answers "JSON object requested, multiple rows returned" and this throws. Every tabbed
+ * page's dossier panel would have broken on the day its first tab was derived.
+ *
+ * The identical seam in the conformance endpoint shipped in V4 and was found by hand a slice later,
+ * where it did something worse than throw — it returned null and the sweep printed a tick. Third
+ * read-side function in this system to need the same fix, which is why all three now spell it the
+ * same way: `.eq('route', …).eq('state_key', …)`, never `route` alone.
+ */
+export async function getDossier(route: string, stateKey = ''): Promise<PageDossier | null> {
+  const { data, error } = await supabaseAdmin
+    .from(DOSSIERS).select('*').eq('route', route).eq('state_key', stateKey).maybeSingle();
   if (error) throw new Error(error.message);
   return data ? toDossier(data as DossierRow) : null;
 }
@@ -96,11 +116,13 @@ export async function saveAuthored(
   authored: Partial<Pick<AuthoredDossier, 'purpose' | 'summary' | 'audience'>>,
   email: string,
   now: string,
+  stateKey = '',
 ): Promise<PageDossier> {
   // `state_key` is part of the primary key since seed 615, so it has to be IN the row for the
-  // upsert to have anything to match on. Defaulting to the route-as-a-whole here rather than making
-  // every caller pass it: writing the authored half of a dossier for a specific tab is V3 work.
-  const patch: Record<string, unknown> = { route, state_key: '', authored_by: email, authored_at: now, updated_at: now };
+  // upsert to have anything to match on. V6 made it a parameter: "what the invoices tab is for" is
+  // a different sentence from "what the billing page is for", and until now there was nowhere to
+  // put the first one.
+  const patch: Record<string, unknown> = { route, state_key: stateKey, authored_by: email, authored_at: now, updated_at: now };
   if (authored.purpose !== undefined) patch.purpose = authored.purpose?.trim() || null;
   if (authored.summary !== undefined) patch.summary = authored.summary?.trim() || null;
   if (authored.audience !== undefined) patch.audience = authored.audience?.trim() || null;
@@ -120,17 +142,19 @@ export async function saveAuthored(
  */
 export async function saveDerived(
   observation: RouteObservation,
-  options: { base?: string | null; now: string },
+  options: { base?: string | null; now: string; stateKey?: string },
 ): Promise<{ dossier: PageDossier; checklist: { generated: number; custom: number } }> {
   const derived = deriveDossier(observation, ENTRIES, { now: options.now, base: options.base });
+  const stateKey = options.stateKey ?? '';
 
   const { data, error } = await supabaseAdmin
     .from(DOSSIERS)
     .upsert({
       route: observation.route,
-      // Part of the primary key since seed 615. The derived half describes the route as a whole
-      // until V4 teaches the walk to visit one tab at a time.
-      state_key: '',
+      // Part of the primary key since seed 615, and a real parameter since V6: the walk now visits
+      // one tab at a time and each visit is its own inventory. The invoices tab has 31 elements and
+      // the overview has 18; one row per route had to report one of those numbers as both.
+      state_key: stateKey,
       functions: derived.functions,
       elements: derived.elements,
       endpoints: derived.endpoints,
@@ -154,6 +178,8 @@ export async function saveDerived(
 interface ItemRow {
   id: string;
   route: string;
+  /** Which state of the route the item is about — seed 615's column, used from V6 on. */
+  state_key: string;
   tier: ChecklistItem['tier'];
   label: string;
   detail: string | null;
@@ -166,6 +192,7 @@ function toItem(row: ItemRow): ChecklistItem {
   return {
     id: row.id,
     route: row.route,
+    stateKey: row.state_key ?? '',
     tier: row.tier,
     label: row.label,
     detail: row.detail,
@@ -177,26 +204,38 @@ function toItem(row: ItemRow): ChecklistItem {
   };
 }
 
-export async function listItems(route: string): Promise<ChecklistItem[]> {
+export async function listItems(route: string, stateKey = ''): Promise<ChecklistItem[]> {
   const { data, error } = await supabaseAdmin
-    .from(ITEMS).select('*').eq('route', route).is('deleted_at', null).order('sort');
+    .from(ITEMS).select('*').eq('route', route).eq('state_key', stateKey)
+    .is('deleted_at', null).order('sort');
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as ItemRow[]).map(toItem);
 }
 
 /**
- * Rewrite the generated items for a route, leaving the custom ones exactly as they are.
+ * Rewrite the generated items for one route IN ONE STATE, leaving the custom ones exactly as they
+ * are.
  *
  * The deletion is scoped by `created_by IS NULL`, which is the same predicate that defines
  * "generated" everywhere else in this system. If that ever drifts, somebody's hand-written items
  * disappear on the next derive — so it is written once, here, and read from the row rather than
  * inferred.
+ *
+ * ── AND SCOPED BY STATE, WHICH IS THE SAME KIND OF RULE (V6) ──────────────────────────────────
+ *
+ * `stale` is "every generated row for this route that the new list does not contain". Left keyed
+ * on the route alone, deriving the invoices tab would have computed that set against the OVERVIEW
+ * tab's rows and hard-deleted them — and hard-deleted them along with their ticks, by cascade. Six
+ * tabs derived in a row would leave one checklist, the last one written, with no trace of the
+ * other five and no error anywhere.
  */
 export async function regenerateChecklist(dossier: PageDossier): Promise<{ generated: number; custom: number }> {
   const generated = generateChecklist(dossier);
 
   const { data: existing } = await supabaseAdmin
-    .from(ITEMS).select('id, created_by').eq('route', dossier.route).is('deleted_at', null);
+    .from(ITEMS).select('id, created_by')
+    .eq('route', dossier.route).eq('state_key', dossier.stateKey)
+    .is('deleted_at', null);
   const rows = (existing ?? []) as Array<{ id: string; created_by: string | null }>;
   const customCount = rows.filter((r) => r.created_by !== null).length;
   const keep = new Set(generated.map((g) => g.id));
@@ -214,6 +253,7 @@ export async function regenerateChecklist(dossier: PageDossier): Promise<{ gener
       generated.map((g) => ({
         id: g.id,
         route: g.route,
+        state_key: g.stateKey,
         tier: g.tier,
         label: g.label,
         detail: g.detail,
@@ -234,16 +274,22 @@ export async function addCustomItem(
   route: string,
   input: { label: string; detail?: string | null; tier?: ChecklistItem['tier']; elementRef?: string | null },
   email: string,
+  stateKey = '',
 ): Promise<ChecklistItem> {
   const label = input.label.trim();
   if (!label) throw new Error('A checklist item needs words.');
-  const id = `${idFor(route, label)}-${Math.random().toString(36).slice(2, 6)}`;
+  const id = `${idFor(route, label, stateKey)}-${Math.random().toString(36).slice(2, 6)}`;
+  // Scoped, so an item added to the invoices tab is numbered after the invoices tab's last item
+  // rather than after whichever tab happens to have the most rows. `sort` is per checklist and the
+  // checklist is per state now.
   const { data: last } = await supabaseAdmin
-    .from(ITEMS).select('sort').eq('route', route).order('sort', { ascending: false }).limit(1).maybeSingle();
+    .from(ITEMS).select('sort').eq('route', route).eq('state_key', stateKey)
+    .order('sort', { ascending: false }).limit(1).maybeSingle();
 
   const row = {
     id,
     route,
+    state_key: stateKey,
     // A custom item defaults to the `custom` tier rather than to `required`: somebody adding a
     // reminder should not silently raise the bar the page is measured against.
     tier: input.tier ?? 'custom',
@@ -306,10 +352,18 @@ export async function checklistFor(
   route: string,
   designId: string | null,
   doc: DesignDocument | null,
+  /**
+   * Which state the design being checked is of — V6.
+   *
+   * Taken from the DESIGN rather than from the caller's intent wherever possible: a design belongs
+   * to exactly one state (`design_mockups.state_key`), so the design id already answers this and
+   * two answers to one question is how these two ends drift apart.
+   */
+  stateKey = '',
 ): Promise<{ dossier: PageDossier | null; rows: ChecklistRow[]; progress: Progress }> {
   const [dossier, items, state] = await Promise.all([
-    getDossier(route),
-    listItems(route),
+    getDossier(route, stateKey),
+    listItems(route, stateKey),
     designId ? listState(designId) : Promise.resolve([] as ChecklistState[]),
   ]);
   const rows = joinChecklist(items, state, doc, dossier?.elements ?? []);

@@ -273,9 +273,95 @@ A hand-maintained list of tabs is wrong the first time somebody adds one. Two so
 
       Three routes failed the batch run with "never finished loading" and traced on the first
       retry. That is the dev server compiling, and it is now the expected shape of a large walk.
-- [ ] **V5 — conformance and the checklist follow the state.** They already key on route; the same
-      code keyed on `state_key` answers a much sharper question — and the conformance record grows
-      from 264 measured views to roughly one per tab.
+- [x] **V5 — conformance follows the state.** Shipped 2026-08-25. The conformance endpoint and the
+      sweep now key on `(route, state_key)` instead of on the route.
+
+      **This slice began by finding a live regression V4 had introduced and nothing had caught.**
+      `defaultFor(route)` asked PostgREST for the route's default with `.maybeSingle()`. That is
+      correct while a route has one default and errors the moment it has four — so for every tabbed
+      page it returned `null`, the endpoint produced no reports, and the sweep printed:
+
+      ```
+        [  1/1] /admin/vehicles    ✓  default/desktop 100% · default/mobile 100%
+        [  1/1] /admin/settings    ✓                                    ← nothing was checked
+        ── 1 page(s) compared · 0 default(s) no longer 1:1 ──
+      ```
+
+      A tick, an empty score, and a summary line saying nothing was wrong. **A conformance run that
+      cannot find the design reads exactly like one that found no problem** — and nobody
+      investigates a pass. Every tabbed page in the product was silently unchecked by the check that
+      exists to catch drift.
+
+      Fixed, and the sweep now walks `(route, state)` PAIRS: it navigates to `?tab=`, falls back to
+      clicking the label, and **verifies with the observer's own rule that it arrived** before
+      capturing. A capture of the wrong tab compared against the right tab's default reports a page
+      that has changed beyond recognition — a wrong score is worse than no score, because it sends
+      somebody to re-trace a page that was never wrong. `/admin/settings`'s six tabs now measure
+      six times instead of once, each keyed `route · tab` in the record.
+
+      `resolveActive` is deliberately consulted only when there is no state: it has no notion of one
+      and would answer with the ROUTE's active design while the report claimed to be about the tab.
+      That is the `defaultFor` lie again, and worse, because it produces a plausible score rather
+      than an empty one.
+
+- [x] **V6 — the dossier and its checklist follow the state.** Shipped 2026-08-25.
+      `scripts/derive-dossiers.mjs --states`.
+
+      §7 had the checklist half inside V5 and blocked on §8. It was not blocked; it was **out of
+      order**. A per-state checklist needs per-state DOSSIERS, because the checklist is generated
+      from the dossier — and the deriver wrote one row per route with `state_key: ''` hardcoded.
+      Wiring the checklist to a state first would have produced an empty checklist for every tab:
+      the failure this system keeps producing, where a field added at one end of a pipeline and not
+      the other yields an empty that looks like success.
+
+      So the walk moved first. The deriver visits each state the route walk found, verifies it got
+      there, and inventories that tab on its own — including **listening for that tab's own network
+      calls**, because `GET /api/admin/invoices` firing when you open the invoices tab is the
+      clearest single statement of what that tab is for. Collected across the whole route they would
+      be attributed to all six tabs equally, which says nothing about any of them.
+
+      Verified live on `/admin/billing`:
+
+      | `state_key` | elements | endpoints | checklist items |
+      |---|---|---|---|
+      | `''` (the route) | 11 | 9 | 14 |
+      | `overview` | 11 | 8 | 14 |
+      | `invoices` | 8 | 9 | 10 |
+      | `plan-history` | 8 | 9 | 10 |
+
+      **The checklist ID was where the damage would have been.** The id is the item's primary key
+      and the foreign key of every tick against it. Left keyed on the route alone, six tabs would
+      generate six rows called `ck-admin-settings-universal-0`, and a tick on one tab would appear,
+      already ticked, on the other five. A shared tick reads as *work already done* — the worst
+      failure a checklist has, because it does not lose the record, it manufactures a false one.
+      `idFor` takes the state now, and the empty state keeps its historic id EXACTLY, because 468
+      dossiers predate this and a new suffix would have silently reset the whole product's progress
+      to zero while looking like nobody had ever ticked anything.
+
+      **Four more instances of the same seam, found by looking for it rather than by it failing:**
+
+      · `getDossier(route)` used `.maybeSingle()` — the identical trap V5 had just fixed in
+        `defaultFor`, one table over, and it would have fired the day the first tab was derived.
+      · `regenerateChecklist` computed "stale generated rows" against the ROUTE, so deriving the
+        invoices tab would have **hard-deleted the overview tab's items and their ticks by cascade**.
+      · `cloneMockup` did not copy `state_key`. The owner's flow for a tab is "open its default,
+        clone it, edit the clone" — and the clone came out attached to the route, so an edited
+        invoices tab would have been offered as the design of record for the whole billing page.
+      · `/api/admin/design/pages` never SELECTed `state_key` on the dossiers, so all of a route's
+        rows arrived claiming to be the route's own and the `Map` kept whichever came last. The
+        designs beside them already carried a comment about this exact snake_case→camelCase seam
+        from three slices ago; this was the same line one field over.
+
+      And one gap was **deliberately un-suppressed**. V3 hid `no-dossier` on a state and said so out
+      loud: nothing could write one, so the chip would have invented a queue of 78 rows nobody could
+      empty. V6 built the thing that empties it, so the gap is real work and is reported like any
+      other. *A suppressed gap is only honest for as long as it is unfixable.*
+
+      Three tools now have to put a page into a tab and prove they got there — the tracer, the
+      sweep, and the deriver. Rather than a third copy, `openState` lives in the observer beside
+      `SELECTED_STATE`, the rule it has to agree with. The tracer and the sweep each had their own
+      click helper matching a **different field** (`label.toLowerCase()` in one, `slug(text)` in the
+      other); they happened to agree, which is the setup for the bug rather than the absence of one.
 
 ---
 
@@ -465,8 +551,12 @@ The dependency is real and it runs one way: consolidation → views → composit
 1. **V1–V3** can start now and are useful immediately — nesting views under routes makes the page
    list describe the product again.
 2. **S1–S3** should land early. They are small and they stop the rot that request (1) is about.
-3. **V4–V5** after the portal shell (consolidation C2), which is where the declared tab list comes
-   from.
+3. **V4–V6** after the portal shell (consolidation C2), which is where the declared tab list comes
+   from. **Corrected 2026-08-25:** these were written as V4–V5 with the checklist folded into V5,
+   and that ordering was wrong. The checklist is GENERATED from the dossier, so it cannot follow the
+   state until the dossier does — wiring it first would have produced an empty checklist for every
+   tab, which in this system is indistinguishable from a working one. The split is now V5
+   (conformance) and V6 (dossier + checklist), and V6 had to come with the walk that fills it.
 4. **W1–W6** last, and only for portal views. This is the biggest piece and the one most likely to be
    cut down once V and S are in and it becomes clear how much of *"full control"* they already
    delivered.

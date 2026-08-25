@@ -69,6 +69,8 @@ export interface PageRow extends InventoryPage {
     label: string;
     kind: string;
     lifecycle: PageRow['lifecycle'];
+    /** What is measured about THIS state — V6. Null until the deriver has visited the tab. */
+    dossier: PageRow['dossier'];
     gaps: PageGap[];
   }>;
   /** What is known ABOUT the page — its purpose and how much of it has been measured. */
@@ -160,6 +162,8 @@ export function joinPages(
   designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean; stateKey?: string }>,
   dossiers: Array<{
     route: string; purpose: string | null; summary: string | null; elementCount: number;
+    /** Which state this dossier is of — V6. Absent or `''` means the route as a whole. */
+    stateKey?: string;
     /** What the deriver found — V2. */
     states?: Array<{ key: string; label: string; kind: string }>;
   }> = [],
@@ -170,12 +174,19 @@ export function joinPages(
    * (the API route) does the stat and hands over the answer. */
   staleDefaults: ReadonlySet<string> = new Set(),
 ): PageRow[] {
-  const dossierByRoute = new Map(dossiers.map((d) => [d.route, d]));
   const byRoute = new Map(reviews.map((r) => [r.route, r]));
   // Keyed by route AND state. A design of the invoices tab must not be counted as a design of the
   // route — that is precisely the conflation V1 existed to end, and doing it here would put it
   // straight back on the screen.
   const key = (route: string, state: string) => `${route}\u0000${state}`;
+  // ── AND THE DOSSIERS, FOR THE SAME REASON (V6) ────────────────────────────────────────────────
+  //
+  // This was `new Map(dossiers.map((d) => [d.route, d]))`. A Map built from six rows that share a
+  // key keeps the LAST one — so the moment V6 derived a per-tab dossier, `/admin/settings`'s
+  // route-level element count and purpose would quietly have become whichever tab came last out of
+  // the database. No error and no empty; just another page's numbers under this page's name, which
+  // is the hardest kind of wrong to notice.
+  const dossierByKey = new Map(dossiers.map((d) => [key(d.route, d.stateKey ?? ''), d]));
   const designsByRoute = new Map<string, Array<{ id: string; name: string; status: string; locked: boolean }>>();
   for (const d of designs) {
     if (!d.route) continue;
@@ -189,14 +200,15 @@ export function joinPages(
     const review = byRoute.get(page.route);
     const forRoute = designsByRoute.get(key(page.route, '')) ?? [];
     const lifecycle = lifecycleOf(forRoute);
-    const raw = dossierByRoute.get(page.route);
-    const dossier = raw
+    const asDossier = (d: typeof dossiers[number] | undefined): PageRow['dossier'] => (d
       ? {
-        state: dossierState({ purpose: raw.purpose, summary: raw.summary, elementCount: raw.elementCount }),
-        elementCount: raw.elementCount,
-        purpose: raw.purpose,
+        state: dossierState({ purpose: d.purpose, summary: d.summary, elementCount: d.elementCount }),
+        elementCount: d.elementCount,
+        purpose: d.purpose,
       }
-      : null;
+      : null);
+    const raw = dossierByKey.get(key(page.route, ''));
+    const dossier = asDossier(raw);
     return {
       ...page,
       status: review?.status ?? 'not_started',
@@ -205,18 +217,25 @@ export function joinPages(
       updatedAt: review?.updatedAt ?? null,
       designs: forRoute,
       lifecycle,
-      // Each state gets the same treatment the route does: its own designs, its own lifecycle,
-      // its own gaps. `no-dossier` is deliberately never reported for a state — the dossier is
-      // written per ROUTE, and asking for one per tab would be inventing a queue nobody can empty.
+      // Each state gets the same treatment the route does: its own designs, its own lifecycle, its
+      // own dossier, its own gaps.
+      //
+      // V3 suppressed `no-dossier` on a state and said so out loud: the dossier was written per
+      // ROUTE, so a chip on every tab would have invented a queue of 78 rows nobody could empty.
+      // V6 built the thing that empties it — the deriver visits one tab at a time — so the gap is
+      // now a real piece of work and is reported like any other. A suppressed gap is only honest
+      // for as long as it is unfixable.
       states: (raw?.states ?? []).map((st) => {
         const forState = designsByRoute.get(key(page.route, st.key)) ?? [];
         const stateLifecycle = lifecycleOf(forState);
+        const stateDossier = asDossier(dossierByKey.get(key(page.route, st.key)));
         return {
           key: st.key,
           label: st.label,
           kind: st.kind,
           lifecycle: stateLifecycle,
-          gaps: gapsOf(stateLifecycle, forState, dossier).filter((g) => g !== 'no-dossier'),
+          dossier: stateDossier,
+          gaps: gapsOf(stateLifecycle, forState, stateDossier),
         };
       }),
       dossier,

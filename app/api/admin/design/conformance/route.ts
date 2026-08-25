@@ -41,11 +41,22 @@ function sane(nodes: unknown): CapturedNode[] {
  * default" and "compared against the active design" have to be different answers or the report is
  * lying about which design it measured.
  */
-async function defaultFor(route: string): Promise<DesignDocument | null> {
+/**
+ * ── AND WHY THIS TAKES A STATE — V5 ───────────────────────────────────────────────────────────
+ *
+ * V4 gave a tabbed route one default PER TAB. This query asked for the route's default with
+ * `.maybeSingle()`, which errors the moment there is more than one — so for every tabbed route it
+ * returned null, the endpoint produced no reports, and the sweep printed a tick.
+ *
+ * **A conformance run that cannot find the design reads exactly like one that found no problem.**
+ * /admin/settings and /admin/billing both came back "✓" with no score beside them, and the summary
+ * line said "0 default(s) no longer 1:1". Nobody investigates a pass.
+ */
+async function defaultFor(route: string, stateKey = ''): Promise<DesignDocument | null> {
   const { data } = await supabaseAdmin
     .from('design_mockups')
     .select('id, name, route, views, version, created_at, updated_at, status, locked, theme, notes')
-    .eq('route', route).eq('status', 'default').is('deleted_at', null)
+    .eq('route', route).eq('state_key', stateKey).eq('status', 'default').is('deleted_at', null)
     .maybeSingle();
   if (!data) return null;
   const row = data as Record<string, unknown>;
@@ -73,6 +84,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const body = await req.json().catch(() => null) as {
     route?: string; which?: 'active' | 'default' | 'both'; desktop?: unknown; mobile?: unknown;
+    /** Which state of the route was captured — V5. Absent means the route as a whole. */
+    stateKey?: string;
   } | null;
   if (!body?.route) return NextResponse.json({ error: 'Which route was captured?' }, { status: 400 });
 
@@ -81,17 +94,24 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     mobile: sane(body.mobile),
   };
   const which = body.which ?? 'both';
+  const stateKey = typeof body.stateKey === 'string' ? body.stateKey : '';
 
   const targets: Array<{ kind: 'active' | 'default'; doc: DesignDocument }> = [];
   if (which === 'active' || which === 'both') {
-    const resolved = await resolveActive(body.route);
-    // `resolveActive` falls back to the default when nothing is active — correct for showing a
-    // page, wrong here, where "compared against the active design" would then be a lie about which
-    // design was measured.
-    if (resolved.kind === 'active' && resolved.doc) targets.push({ kind: 'active', doc: resolved.doc });
+    // `resolveActive` has no notion of a state yet, so it is only asked about the route as a
+    // whole. Asking it for a tab would silently answer with the ROUTE's active design and label
+    // the report as being about the tab — the same class of lie `defaultFor` was just fixed for,
+    // and worse, because it would produce a plausible score rather than an empty one.
+    if (!stateKey) {
+      const resolved = await resolveActive(body.route);
+      // Falls back to the default when nothing is active — correct for showing a page, wrong
+      // here, where "compared against the active design" would then be a lie about which design
+      // was measured.
+      if (resolved.kind === 'active' && resolved.doc) targets.push({ kind: 'active', doc: resolved.doc });
+    }
   }
   if (which === 'default' || which === 'both') {
-    const doc = await defaultFor(body.route);
+    const doc = await defaultFor(body.route, stateKey);
     if (doc) targets.push({ kind: 'default', doc });
   }
 
@@ -99,9 +119,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({
       route: body.route,
       reports: [],
+      stateKey,
       note: which === 'active'
         ? 'No design is the record for this page yet, so there is nothing to compare the page with.'
-        : 'This page has no default traced yet.',
+        : `This page has no default traced${stateKey ? ` for the "${stateKey}" tab` : ''} yet.`,
     });
   }
 

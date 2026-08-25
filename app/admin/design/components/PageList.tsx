@@ -370,6 +370,28 @@ export default function PageList({ onCreateFor }: Props) {
                               {st.lifecycle.drafts > 0 && (
                                 <span className="dsx-pages__chip dsx-pages__chip--draft">{st.lifecycle.drafts} draft</span>
                               )}
+                              {/* ── WHAT IS MEASURED ABOUT THIS TAB — V6 ─────────────────────────
+                                *
+                                * V3 could not show this: the dossier was written per route, so a
+                                * tab had nothing of its own to report. The deriver visits one tab
+                                * at a time now, so the number here is this tab's own inventory —
+                                * and the gap, when there is one, is real work rather than a chip
+                                * with nothing behind it. */}
+                              {st.dossier && st.dossier.elementCount > 0 ? (
+                                <span
+                                  className="dsx-pages__chip dsx-pages__chip--dossier"
+                                  title={st.dossier.purpose ?? 'Measured, but nobody has written what this tab is for yet.'}
+                                >
+                                  {st.dossier.elementCount} elements
+                                </span>
+                              ) : (
+                                <span
+                                  className="dsx-pages__chip dsx-pages__chip--gap"
+                                  title="Nothing measured about this tab. Run: scripts/derive-dossiers.mjs --only <route> --states"
+                                >
+                                  Not measured
+                                </span>
+                              )}
                               {!page.dynamic && (
                                 <a
                                   className="dsx-pages__open"

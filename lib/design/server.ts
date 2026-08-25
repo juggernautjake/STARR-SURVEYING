@@ -100,6 +100,9 @@ function toDocument(row: MockupRow): DesignDocument {
     id: row.id,
     name: row.name,
     route: row.route,
+    // V6. Read here so every consumer of a document gets it for free rather than fetching the row
+    // again to find out which tab it is of.
+    stateKey: row.state_key ?? '',
     variantOf: row.variant_of,
     views: row.views,
     version: row.version,
@@ -427,6 +430,13 @@ export async function cloneMockup(
     id,
     name,
     route: source.route,
+    // ── THE CLONE IS OF THE SAME STATE AS ITS SOURCE (V6) ────────────────────────────────────────
+    //
+    // Missing, this silently undid the whole point of V1. The owner's flow for a tab is "open its
+    // default, clone it, edit the clone" — and the clone came out attached to the ROUTE, so an
+    // edited invoices tab would have been offered as the design of record for the billing page as
+    // a whole. Not an error and not an empty: a design filed one level up from where it was made.
+    state_key: source.state_key ?? '',
     variant_of: source.id,
     views: source.views,
     // The clone wears what the source wore. A copy that lost its theme would open in the default

@@ -35,6 +35,8 @@ export type ChecklistTier = 'required' | 'recommended' | 'custom';
 export interface ChecklistItem {
   id: string;
   route: string;
+  /** Which state of the route this item is about — V6. `''` is the route as a whole. */
+  stateKey: string;
   tier: ChecklistTier;
   label: string;
   detail: string | null;
@@ -93,7 +95,7 @@ export const TIER_MEANING: Record<ChecklistTier, string> = {
  * error state — except the phone layout, which is required because half this app is used outdoors
  * on a handset and a desktop-only design is not a design of this product.
  */
-const UNIVERSAL: Array<Omit<ChecklistItem, 'id' | 'route' | 'sort' | 'generated' | 'createdBy'>> = [
+const UNIVERSAL: Array<Omit<ChecklistItem, 'id' | 'route' | 'stateKey' | 'sort' | 'generated' | 'createdBy'>> = [
   {
     tier: 'required',
     label: 'A mobile layout that is not the desktop one squeezed',
@@ -147,8 +149,9 @@ export function generateChecklist(dossier: PageDossier): ChecklistItem[] {
     elementRef: string | null,
   ) => {
     items.push({
-      id: idFor(dossier.route, key),
+      id: idFor(dossier.route, key, dossier.stateKey),
       route: dossier.route,
+      stateKey: dossier.stateKey,
       tier,
       label,
       detail,
@@ -201,10 +204,33 @@ function itemLabel(el: DossierElement): string {
   return what;
 }
 
-/** Stable, readable and unique per route. Readable matters: this id shows up in an API error. */
-export function idFor(route: string, key: string): string {
+/**
+ * Stable, readable and unique per route AND STATE. Readable matters: this id shows up in an API
+ * error.
+ *
+ * ── WHY THE STATE IS IN THE ID (V6) ───────────────────────────────────────────────────────────
+ *
+ * The id is the primary key of a checklist item and the foreign key of every tick against it. Left
+ * keyed on the route alone, `/admin/settings`'s six tabs would generate SIX items called
+ * `ck-admin-settings-universal-0` — one row, six writers. Three things would follow, none of them
+ * visible:
+ *
+ *   · regenerating one tab's checklist would see the other five tabs' items as its own stale rows
+ *     and delete them;
+ *   · a tick on the invoices tab would appear, already ticked, on the overview tab;
+ *   · and the count would say the page has one checklist when it has six.
+ *
+ * A shared tick reads as work already done. That is the worst possible failure for a checklist —
+ * it does not lose the record, it produces a false one.
+ *
+ * The empty state keeps its historic id EXACTLY (`ck-admin-jobs-universal-0`, no trailing
+ * separator) so the ticks on the 468 route-level dossiers that predate V6 still point at their
+ * items. A new suffix on old ids would have silently reset the whole product's progress to zero.
+ */
+export function idFor(route: string, key: string, stateKey = ''): string {
   const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
-  return `ck-${slug(route)}-${slug(key)}`;
+  const state = slug(stateKey);
+  return state ? `ck-${slug(route)}--${state}-${slug(key)}` : `ck-${slug(route)}-${slug(key)}`;
 }
 
 // ── JOINING AND PROGRESS ────────────────────────────────────────────────────────────────────────

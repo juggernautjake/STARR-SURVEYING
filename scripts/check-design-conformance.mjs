@@ -29,7 +29,7 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
-import { waitForPageReady } from './lib/design-observe.mjs';
+import { waitForPageReady, openState } from './lib/design-observe.mjs';
 import { routesChangedSince } from '../lib/design/staleness.ts';
 
 const PAGES = JSON.parse(fs.readFileSync('lib/design/pages.generated.json', 'utf8'));
@@ -88,15 +88,26 @@ const designs = listRes.ok() ? (await listRes.json()).designs ?? [] : [];
 // a row saying nothing, 138 times.
 const wantDefault = WHICH === 'default' || WHICH === 'both';
 const wantActive = WHICH === 'active' || WHICH === 'both';
-const routes = [...new Set(designs
+// ── V5: THE UNIT IS A (ROUTE, STATE) PAIR ──────────────────────────────────────────────────────
+//
+// V4 gave a tabbed route one default per tab, and this sweep still walked routes — so it compared
+// whichever tab the page happened to open on against whichever default `.maybeSingle()` managed
+// to return, which for a tabbed route was NONE. Every tabbed page reported a tick with no score
+// beside it and the summary said "0 no longer 1:1".
+//
+// Deduped on the pair, because a route with an active design AND a default is one page to walk,
+// not two.
+const pairs = [...new Map(designs
   .filter((d) => d.route && ((wantActive && d.status === 'active') || (wantDefault && d.status === 'default')))
-  .map((d) => d.route))]
-  .filter((r) => !ONLY || r === ONLY)
-  .sort();
+  .filter((d) => !ONLY || d.route === ONLY)
+  .map((d) => [`${d.route}\u0000${d.stateKey ?? ''}`, { route: d.route, stateKey: d.stateKey ?? '' }]))
+  .values()]
+  .sort((a, b) => a.route.localeCompare(b.route) || a.stateKey.localeCompare(b.stateKey));
+const routes = pairs;
 let scoped = routes;
 if (SINCE) {
   const changed = routesChangedSince(PAGES.routes, SINCE);
-  scoped = scoped.filter((r) => changed.has(r));
+  scoped = scoped.filter((r) => changed.has(r.route));
   console.log(`\n  --since ${SINCE}: ${changed.size} route(s) changed`);
 }
 const todo = LIMIT > 0 ? scoped.slice(0, LIMIT) : scoped;
@@ -106,8 +117,11 @@ console.log(`\n  ${BASE} — comparing ${todo.length} page(s) against their ${WH
 const record = { measuredAt: new Date().toISOString(), base: BASE, which: WHICH, routes: {} };
 let failures = 0;
 
-for (const [i, route] of todo.entries()) {
-  process.stdout.write(`  [${String(i + 1).padStart(3)}/${todo.length}] ${route.padEnd(42)}`);
+for (const [i, target] of todo.entries()) {
+  const { route, stateKey } = target;
+  // The pair is the identity everywhere below: the label, the record key, and what gets posted.
+  const label = stateKey ? `${route} · ${stateKey}` : route;
+  process.stdout.write(`  [${String(i + 1).padStart(3)}/${todo.length}] ${label.padEnd(46)}`);
   try {
     // ── ONE RETRY, AND WHY IT IS NOT CHEATING ─────────────────────────────────────────────────
     //
@@ -125,6 +139,23 @@ for (const [i, route] of todo.entries()) {
       const captures = {};
       for (const [viewId, size] of Object.entries(VIEWPORTS)) {
         await page.setViewportSize(size);
+        // ── A TAB IS OPENED BY THE SHARED HELPER (V6) ─────────────────────────────────────────
+        //
+        // Try the URL, fall back to clicking, and then CHECK — because a capture of the wrong tab
+        // compared against the right tab's default reports a page that has changed beyond
+        // recognition. A wrong score is worse than no score: it sends somebody to re-trace a page
+        // that was never wrong.
+        //
+        // That dance lived here, in the tracer, and was about to live in the deriver too. It is
+        // `openState` in the observer now, next to the rule that decides which tab is showing —
+        // the two have to agree, and the surest way to make them agree is to keep them together.
+        if (stateKey) {
+          if (!await openState(page, BASE, route, { key: stateKey })) {
+            throw new Error(`could not open the "${stateKey}" tab`);
+          }
+          captures[viewId] = await page.evaluate(CAPTURE, classes);
+          continue;
+        }
         await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
       // WAIT FOR THE PAGE, NOT FOR A NUMBER. This was the last fixed wait left in the system, and
       // it was in the one script whose entire job is to say whether a default is still true: a
@@ -135,12 +166,13 @@ for (const [i, route] of todo.entries()) {
       // because the number looks like evidence.
         await waitForPageReady(page);
         await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
         captures[viewId] = await page.evaluate(CAPTURE, classes);
       }
       const res = await page.request.fetch(`${BASE}/api/admin/design/conformance`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        data: { route, which: WHICH, desktop: captures.desktop, mobile: captures.mobile },
+        data: { route, stateKey, which: WHICH, desktop: captures.desktop, mobile: captures.mobile },
       });
       const body = await res.json();
       if (!res.ok()) throw new Error(body?.error ?? `api ${res.status()}`);
@@ -154,7 +186,10 @@ for (const [i, route] of todo.entries()) {
       if (total(second) > total(body)) body = second;
     }
 
-    record.routes[route] = body.reports.map((r) => ({
+    // Keyed by the PAIR. Keyed by route alone, /admin/settings would write six times and the
+    // file would keep whichever tab finished last — a record that looks complete and describes
+    // one tab.
+    record.routes[label] = body.reports.map((r) => ({
       kind: r.kind,
       view: r.report.view,
       designId: r.report.designId,
@@ -172,16 +207,16 @@ for (const [i, route] of todo.entries()) {
       worst: r.report.findings.slice(0, 10).map((f) => ({ kind: f.kind, signature: f.signature, note: f.note })),
     }));
 
-    const lines = record.routes[route]
+    const lines = record.routes[label]
       .map((r) => `${r.kind}/${r.view} ${String(r.score).padStart(3)}%`)
       .join(' · ');
-    const failed = record.routes[route].filter((r) => r.verdict && !r.verdict.ok);
+    const failed = record.routes[label].filter((r) => r.verdict && !r.verdict.ok);
     failures += failed.length;
     console.log(`${failed.length ? '!' : '✓'}  ${lines}`);
     for (const f of failed) console.log(`        default/${f.view}: ${f.verdict.why}`);
   } catch (err) {
     console.log(`—  ${err.message.split('\n')[0].slice(0, 60)}`);
-    record.routes[route] = [{ error: err.message.split('\n')[0].slice(0, 120) }];
+    record.routes[label] = [{ error: err.message.split('\n')[0].slice(0, 120) }];
     await freshPage();
   }
 }

@@ -167,6 +167,16 @@ export interface AuthoredDossier {
 
 export interface PageDossier extends AuthoredDossier, DerivedDossier {
   route: string;
+  /**
+   * Which state of the route this dossier describes — V6. `''` is the route as a whole, which is
+   * what every dossier written before 2026-08-25 is.
+   *
+   * This is part of the row's IDENTITY, not a detail of it: `design_page_dossiers` is keyed
+   * `(route, state_key)` since seed 615, so a `PageDossier` without this field cannot say which of
+   * `/admin/settings`'s six rows it is. Everything downstream that keys off a dossier — the
+   * checklist ids especially — reads it from here.
+   */
+  stateKey: string;
 }
 
 export const EMPTY_DERIVED: DerivedDossier = {
@@ -467,9 +477,11 @@ export function mergeDossier(
   route: string,
   authored: Partial<AuthoredDossier> | null,
   derived: Partial<DerivedDossier> | null,
+  stateKey = '',
 ): PageDossier {
   return {
     route,
+    stateKey,
     purpose: authored?.purpose ?? null,
     summary: authored?.summary ?? null,
     audience: authored?.audience ?? null,

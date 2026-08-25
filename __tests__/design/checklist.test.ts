@@ -105,9 +105,9 @@ describe('generation', () => {
 
 describe('joining to a design', () => {
   const items: ChecklistItem[] = [
-    { id: 'a', route: '/admin/jobs', tier: 'required', label: 'A table', detail: null, elementRef: 'table.admin', sort: 1, generated: true, createdBy: null },
-    { id: 'b', route: '/admin/jobs', tier: 'recommended', label: 'An empty state', detail: null, elementRef: 'feedback.empty', sort: 2, generated: true, createdBy: null },
-    { id: 'c', route: '/admin/jobs', tier: 'custom', label: 'Mine', detail: null, elementRef: null, sort: 3, generated: false, createdBy: 'a@b.c' },
+    { id: 'a', route: '/admin/jobs', stateKey: '', tier: 'required', label: 'A table', detail: null, elementRef: 'table.admin', sort: 1, generated: true, createdBy: null },
+    { id: 'b', route: '/admin/jobs', stateKey: '', tier: 'recommended', label: 'An empty state', detail: null, elementRef: 'feedback.empty', sort: 2, generated: true, createdBy: null },
+    { id: 'c', route: '/admin/jobs', stateKey: '', tier: 'custom', label: 'Mine', detail: null, elementRef: null, sort: 3, generated: false, createdBy: 'a@b.c' },
   ];
 
   function docWith(catalogIds: string[]) {
@@ -142,9 +142,9 @@ describe('joining to a design', () => {
 describe('progress reports two numbers, because they are two claims', () => {
   const rows = joinChecklist(
     [
-      { id: 'a', route: '/r', tier: 'required', label: 'A', detail: null, elementRef: null, sort: 1, generated: true, createdBy: null },
-      { id: 'b', route: '/r', tier: 'required', label: 'B', detail: null, elementRef: null, sort: 2, generated: true, createdBy: null },
-      { id: 'c', route: '/r', tier: 'recommended', label: 'C', detail: null, elementRef: null, sort: 3, generated: true, createdBy: null },
+      { id: 'a', route: '/r', stateKey: '', tier: 'required', label: 'A', detail: null, elementRef: null, sort: 1, generated: true, createdBy: null },
+      { id: 'b', route: '/r', stateKey: '', tier: 'required', label: 'B', detail: null, elementRef: null, sort: 2, generated: true, createdBy: null },
+      { id: 'c', route: '/r', stateKey: '', tier: 'recommended', label: 'C', detail: null, elementRef: null, sort: 3, generated: true, createdBy: null },
     ],
     [{ itemId: 'c', checked: true, note: null, checkedBy: null, checkedAt: null }],
     null,

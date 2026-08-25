@@ -43,7 +43,10 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     });
   }
 
-  const result = await checklistFor(doc.route, designId, doc);
+  // V6. The STATE comes off the design, not off a query parameter. A design belongs to exactly
+    // one state, so asking the caller would be asking a question the data already answers — and
+    // giving the invoices tab the billing page’s checklist is exactly the conflation V1 ended.
+    const result = await checklistFor(doc.route, designId, doc, doc.stateKey ?? '');
   return NextResponse.json({ route: doc.route, ...result });
 });
 
@@ -73,14 +76,19 @@ export const PUT = withErrorHandler(async (req: NextRequest) => {
   if (error) return error;
 
   const body = await req.json().catch(() => null) as {
-    route?: string; label?: string; detail?: string; tier?: 'required' | 'recommended' | 'custom';
+    route?: string; stateKey?: string; label?: string; detail?: string; tier?: 'required' | 'recommended' | 'custom';
   } | null;
   if (!body?.route || !body.label?.trim()) {
     return NextResponse.json({ error: 'A custom item needs a page and some words.' }, { status: 400 });
   }
 
   try {
-    const item = await addCustomItem(body.route, { label: body.label, detail: body.detail, tier: body.tier }, email!);
+    const item = await addCustomItem(
+      body.route,
+      { label: body.label, detail: body.detail, tier: body.tier },
+      email!,
+      typeof body.stateKey === 'string' ? body.stateKey : '',
+    );
     return NextResponse.json({ item });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Could not add that.' }, { status: 400 });

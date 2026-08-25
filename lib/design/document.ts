@@ -133,6 +133,14 @@ export interface DesignDocument {
   name: string;
   /** The route this design is FOR, e.g. `/admin/jobs`. Null for a scratch idea. */
   route: string | null;
+  /** ── WHICH STATE OF THAT ROUTE — V6 ──────────────────────────────────────────────────────────
+   *
+   *  `''` (or absent) is the route as a whole; `'invoices'` is `/admin/billing?tab=invoices`. A
+   *  design belongs to exactly ONE state, which is why this lives on the document: everything that
+   *  needs to know — which checklist to show, which dossier to measure against, which default this
+   *  competes with — can then read the answer off the design instead of being told it separately.
+   *  Two sources for one fact is how the conformance endpoint and the sweep drifted apart in V4. */
+  stateKey?: string;
   /** Sibling designs of the same page: "Jobs list — A (dense)" vs "B (cards)". */
   variantOf?: string | null;
   /** What this page is and what it is for, in the designer's own words.

@@ -60,7 +60,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   if (!isDeveloper(session.user.roles)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-  const body = await req.json().catch(() => null) as { observation?: unknown; base?: string } | null;
+  const body = await req.json().catch(() => null) as {
+    observation?: unknown; base?: string; stateKey?: string;
+  } | null;
   const observation = sane(body?.observation);
   if (!observation) return NextResponse.json({ error: 'That observation has no route in it.' }, { status: 400 });
 
@@ -73,9 +75,20 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     );
   }
 
+  // ── V6: WHICH STATE THE WALK WAS IN ────────────────────────────────────────────────────────
+  //
+  // The observation itself cannot say. It describes what was on the screen, and the tab strip looks
+  // identical from every tab — so `observed.states` lists all six whichever one you are standing
+  // in. The walker knows because it is the one that clicked, and it VERIFIED where it landed before
+  // posting. That verification is the whole reason this can be trusted: a state key asserted by a
+  // caller that did not check would file the overview tab's inventory under the invoices tab, and
+  // nothing downstream could tell.
+  const stateKey = typeof body?.stateKey === 'string' ? body.stateKey.slice(0, 64) : '';
+
   const result = await saveDerived(observation, {
     base: body?.base ?? null,
     now: new Date().toISOString(),
+    stateKey,
   });
   return NextResponse.json(result);
 });

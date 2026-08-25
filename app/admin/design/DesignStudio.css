@@ -1756,6 +1756,22 @@ body.dsx-served-body .admin-layout__content { padding: 0; }
   border: 1px dashed color-mix(in srgb, var(--color-warning-text) 40%, var(--color-warning-surface));
 }
 
+/* A TAB'S OWN ELEMENT COUNT — V6.
+ *
+ * The `--dossier` rules above are all written `a.dsx-pages__chip--dossier`, because on a ROUTE row
+ * the chip is a link into the dossier editor. On a STATE row there is nowhere to link yet, so it is
+ * a span — and a span matches none of those selectors. Given its own rule rather than loosened out
+ * of them: the route chip's colour means "how complete is the dossier", four states of it, and a
+ * count of what is on one tab is not making that claim.
+ *
+ * Neutral tokens deliberately. A measured tab is not an achievement to celebrate or a problem to
+ * flag; it is a fact, sitting next to the gap chip that is a problem. */
+span.dsx-pages__chip--dossier {
+  background: var(--theme-bg-elevated, #F3F4F6);
+  color: var(--theme-fg-secondary, #4B5563);
+  border: 1px solid color-mix(in srgb, var(--theme-fg-secondary, #4B5563) 18%, transparent);
+}
+
 @media (max-width: 640px) {
   .dsx-pages__states { padding-left: 0.75rem; }
   .dsx-pages__state-key { min-width: 0; flex: 1 1 100%; }

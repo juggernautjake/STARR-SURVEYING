@@ -119,8 +119,12 @@ describe('tracing a state', () => {
     // the SAME tab and the product gets six identical defaults with six different names — worse than
     // none, because they look like a finished job. `/admin/settings` came back 28 / 31 / 18 / 21 /
     // 31 / 18 elements, which is what a working one looks like.
+    //
+    // The check moved into `openState` in V6, which returns false rather than throwing: not
+    // reaching a tab is a normal outcome (`/admin/my-pay` nests three states inside another tab and
+    // no URL reaches them from outside), and the caller decides what it means.
     const block = TRACER.slice(TRACER.indexOf('const states = WITH_STATES'));
-    expect(block).toMatch(/if \(on !== st\.key\) break;/);
+    expect(block).toMatch(/if \(!await openState\(page, BASE, target\.route, st\)\) break;/);
     expect(block).toMatch(/could not reach it — not stored/);
   });
 
@@ -129,9 +133,23 @@ describe('tracing a state', () => {
     // the first element in the content with `--active` in its class is the BREADCRUMB. Every state
     // was reported unreachable and none was stored. Fourth time in one session that two ends of a
     // pair answered the same question differently.
-    expect(TRACER).toMatch(/import \{ waitForPageReady, SELECTED_STATE \}/);
-    expect(TRACER).toMatch(/pg\.evaluate\(SELECTED_STATE\)/);
+    //
+    // V6 finished the job: the tracer no longer holds ANY of this, not the check and not the click.
+    // Both live beside `SELECTED_STATE`, the rule they have to agree with.
+    expect(TRACER).toMatch(/import \{ waitForPageReady, openState \}/);
+    expect(TRACER).not.toMatch(/SELECTED_STATE/);
     expect(OBSERVE_SRC).toMatch(/export const SELECTED_STATE = \(\) => \{/);
+    expect(OBSERVE_SRC).toMatch(/export async function openState\(page, base, route, state/);
+  });
+
+  it('and the opener matches a tab by label OR by slugged key, because its callers differ', () => {
+    // The tracer holds a full state record (`{ key, label }`); the conformance sweep starts from a
+    // stored design and has only the key. Each had its own click helper matching a different field
+    // — `label.toLowerCase()` in one, `slug(text)` in the other. They happened to agree, which is
+    // the setup for the bug rather than the absence of it.
+    const block = OBSERVE_SRC.slice(OBSERVE_SRC.indexOf('export async function clickState'));
+    expect(block).toMatch(/if \(label && t\.toLowerCase\(\) === String\(label\)\.toLowerCase\(\)\)/);
+    expect(block).toMatch(/if \(slug\(t\) === key\)/);
   });
 
   it('requires a tab to be BOTH tab-classed and marked active', () => {

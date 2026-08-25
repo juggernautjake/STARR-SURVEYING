@@ -51,7 +51,9 @@ export const GET = withErrorHandler(async () => {
   const [{ data: reviews }, { data: designs }, { data: dossiers }] = await Promise.all([
     supabaseAdmin.from(TABLE).select('route, status, note, updated_by, updated_at'),
     supabaseAdmin.from('design_mockups').select('id, name, route, state_key, status, locked, traced_at').is('deleted_at', null),
-    supabaseAdmin.from('design_page_dossiers').select('route, purpose, summary, element_count, states'),
+    // `state_key` is not optional here — see the mapping below. Left out of the SELECT, every one
+    // of a route's dossiers arrives claiming to be the route's own.
+    supabaseAdmin.from('design_page_dossiers').select('route, state_key, purpose, summary, element_count, states'),
   ]);
 
   const mapped: PageReview[] = ((reviews ?? []) as Array<Record<string, unknown>>).map((r) => ({
@@ -76,6 +78,14 @@ export const GET = withErrorHandler(async () => {
     })),
     ((dossiers ?? []) as Array<Record<string, unknown>>).map((d) => ({
       route: d.route as string,
+      // ── THE SAME snake_case → camelCase SEAM, FOR THE FIFTH TIME (V6) ────────────────────────
+      //
+      // The designs above already carry this comment because the `--stale` filter matched nothing
+      // for exactly this reason. This is the same line one field over, and getting it wrong here
+      // would have been quieter: every dossier of `/admin/settings` would arrive as `stateKey: ''`,
+      // the Map in `joinPages` would keep whichever came last, and the page would report one of its
+      // tabs' element counts as its own. No error, no empty — just a wrong number.
+      stateKey: (d.state_key as string | undefined) ?? '',
       purpose: (d.purpose as string | null) ?? null,
       summary: (d.summary as string | null) ?? null,
       elementCount: (d.element_count as number | null) ?? 0,
@@ -83,7 +93,11 @@ export const GET = withErrorHandler(async () => {
     })),
     staleDefaultRoutes(new Map(
       ((designs ?? []) as Array<Record<string, unknown>>)
-        .filter((d) => d.status === 'default' && typeof d.traced_at === 'string' && d.route)
+        // The ROUTE's own default, not a tab's. A tabbed route has several defaults and this Map is
+        // keyed on the route, so without the state filter the row's "traced before the page
+        // changed" chip would be computed from whichever tab came last out of the database — a
+        // stale-or-not verdict about one page, decided by a different page's timestamp.
+        .filter((d) => d.status === 'default' && !d.state_key && typeof d.traced_at === 'string' && d.route)
         .map((d) => [d.route as string, d.traced_at as string]),
     )),
   );

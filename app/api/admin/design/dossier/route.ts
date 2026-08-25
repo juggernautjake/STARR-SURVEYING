@@ -36,7 +36,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // any design for that page exists — that is the point of B2, starting a design from a dossier.
   const designId = req.nextUrl.searchParams.get('design');
   const doc = designId ? await getMockup(designId) : null;
-  const { dossier, rows, progress } = await checklistFor(route, designId, doc);
+  // V6. The design's own state wins when there is one — it is the more specific answer and it
+  // cannot disagree with itself. `?state=` is for reading a tab's dossier BEFORE any design of that
+  // tab exists, which is exactly the "start a design from a dossier" flow.
+  const stateKey = doc?.stateKey ?? req.nextUrl.searchParams.get('state') ?? '';
+  const { dossier, rows, progress } = await checklistFor(route, designId, doc, stateKey);
   return NextResponse.json({ dossier, rows, progress });
 });
 
@@ -45,7 +49,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (error) return error;
 
   const body = await req.json().catch(() => null) as {
-    route?: string; purpose?: string; summary?: string; audience?: string;
+    route?: string; stateKey?: string; purpose?: string; summary?: string; audience?: string;
   } | null;
   if (!body?.route) return NextResponse.json({ error: 'Which page?' }, { status: 400 });
 
@@ -54,6 +58,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     { purpose: body.purpose, summary: body.summary, audience: body.audience },
     email!,
     new Date().toISOString(),
+    typeof body.stateKey === 'string' ? body.stateKey : '',
   );
   return NextResponse.json({ dossier });
 });

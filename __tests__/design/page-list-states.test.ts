@@ -93,24 +93,55 @@ describe('the gaps a state can have', () => {
     expect(rowFor([], dossier(STATES)).states[0].gaps).toContain('no-default');
   });
 
-  it('never asks a tab for its own dossier', () => {
-    // The dossier is written per ROUTE. A `no-dossier` chip on every tab would invent a queue with
-    // nothing behind it — 78 rows of work that cannot be done.
+  it('now DOES ask a tab for its own dossier, because V6 built the thing that answers', () => {
+    // ── A DELIBERATE REVERSAL, AND WHY ────────────────────────────────────────────────────────
     //
-    // An UNMEASURED route, so the route itself genuinely has the gap and the contrast is real. The
-    // first version of this used the measured fixture and asserted the route had `no-dossier`
-    // anyway — the assertion was wrong, not the code.
-    const unmeasured = [{ route: ROUTE, purpose: null, summary: null, elementCount: 0, states: STATES }];
-    const row = rowFor([], unmeasured);
-    expect(row.gaps).toContain('no-dossier');
-    expect(row.states[0].gaps).not.toContain('no-dossier');
+    // V3 suppressed this gap and this test asserted the suppression. That was right at the time:
+    // the dossier was written per ROUTE, so a `no-dossier` chip on every tab would have invented a
+    // queue of 78 rows nobody could empty.
+    //
+    // V6 taught the deriver to visit one tab at a time, so the row can exist and the gap became
+    // real work. A suppressed gap is only honest for as long as it is unfixable — left in place it
+    // would now be hiding the queue instead of declining to invent one.
+    const row = rowFor([], dossier(STATES));
+    expect(row.states[0].gaps).toContain('no-dossier');
   });
 
-  it('is clean once the tab has been traced and something is active', () => {
+  it('and stops saying it once that tab has been derived', () => {
+    // The measured route-level dossier plus a measured dossier FOR THE TAB. The tab's own row is
+    // what clears the tab's own gap: a measured route with an underived tab still has the gap,
+    // which is the case the reversal above exists to surface.
+    const withTab = [
+      ...dossier(STATES),
+      { route: ROUTE, stateKey: 'invoices', purpose: 'Every invoice', summary: null, elementCount: 31, states: [] },
+    ];
+    expect(rowFor([], withTab).states[0].gaps).not.toContain('no-dossier');
+  });
+
+  it('is clean once the tab has been traced, derived, and something is active', () => {
+    const withTab = [
+      ...dossier(STATES),
+      { route: ROUTE, stateKey: 'invoices', purpose: 'Every invoice', summary: null, elementCount: 31, states: [] },
+    ];
     const row = rowFor([
       design('d-tab', 'invoices', 'default'),
       design('d-tab-live', 'invoices', 'active'),
-    ], dossier(STATES));
+    ], withTab);
     expect(row.states[0].gaps).toEqual([]);
+  });
+
+  it("a tab's dossier is never mistaken for the route's", () => {
+    // The Map that held these was keyed on `route` alone. Six rows sharing a key means the LAST one
+    // wins, so `/admin/settings`'s own element count and purpose would silently have become
+    // whichever tab came last out of the database — no error, no empty, just another page's numbers
+    // under this page's name.
+    const withTab = [
+      ...dossier(STATES),
+      { route: ROUTE, stateKey: 'invoices', purpose: 'Every invoice', summary: null, elementCount: 31, states: [] },
+    ];
+    const row = rowFor([], withTab);
+    expect(row.dossier?.elementCount).toBe(11);
+    expect(row.dossier?.purpose).toBe('Pay for the software');
+    expect(row.states[0].dossier?.elementCount).toBe(31);
   });
 });

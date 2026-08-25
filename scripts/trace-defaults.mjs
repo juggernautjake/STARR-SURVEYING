@@ -41,7 +41,7 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
-import { waitForPageReady, SELECTED_STATE } from './lib/design-observe.mjs';
+import { waitForPageReady, openState } from './lib/design-observe.mjs';
 // The SAME rule the page list draws its "Traced before the page changed" chip from. A queue that
 // showed work this tool could not see would be the conformance defect again — two copies of one
 // rule, disagreeing, with a number that looked like evidence.
@@ -117,22 +117,6 @@ let page = await ctx.newPage();
 //
 // That is the same shape as the fixed-wait bug and the two before it: the instrument failed and the
 // output looked exactly like a finding. A failed route now gets a fresh tab before the next one.
-/** Which state is showing right now — the observer's own rule, imported rather than re-guessed. */
-async function selectedStateKey(pg) {
-  return pg.evaluate(SELECTED_STATE).catch(() => null);
-}
-/** Click the control that switches to this state. Returns whether anything was clicked. */
-async function clickState(pg, st) {
-  return pg.evaluate((label) => {
-    const root = document.querySelector('.admin-layout__content') ?? document.body;
-    const text = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().replace(/\s*\d+$/, '');
-    for (const el of root.querySelectorAll('button, a, [role="tab"]')) {
-      if (text(el).toLowerCase() === label.toLowerCase()) { el.click(); return true; }
-    }
-    return false;
-  }, st.label).catch(() => false);
-}
-
 async function freshPage() {
   try { await page.close(); } catch { /* already gone — that is why we are here */ }
   page = await ctx.newPage();
@@ -306,21 +290,10 @@ for (const [i, target] of todo.entries()) {
         let reached = false;
         for (const [viewId, size] of Object.entries(VIEWPORTS)) {
           await page.setViewportSize(size);
-          const param = st.addressable === 'yes' ? 'tab' : 'tab';
-          await page.goto(`${BASE}${target.route}?${param}=${encodeURIComponent(st.key)}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-          await waitForPageReady(page);
-          await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-
-          let on = await selectedStateKey(page);
-          if (on !== st.key) {
-            // The URL was not read. Click the control whose label matches.
-            const clicked = await clickState(page, st);
-            if (clicked) {
-              await page.waitForTimeout(1200);
-              on = await selectedStateKey(page);
-            }
-          }
-          if (on !== st.key) break;
+          // V6: the try-the-URL-then-click-then-CHECK dance is `openState` in the observer now.
+          // Three tools need it and each was about to keep its own copy — which is the exact shape
+          // that made every tab of /admin/settings come back as the breadcrumb one slice ago.
+          if (!await openState(page, BASE, target.route, st)) break;
           reached = true;
           stateCaptures[viewId] = await page.evaluate(CAPTURE, classes);
         }

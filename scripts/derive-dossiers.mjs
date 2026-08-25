@@ -30,7 +30,7 @@
 import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
-import { OBSERVE, waitForPageReady } from './lib/design-observe.mjs';
+import { OBSERVE, waitForPageReady, openState } from './lib/design-observe.mjs';
 // The same rule the page list and the tracer use. One definition of "the record is behind the
 // page", so the queue and the tools that empty it cannot disagree.
 import { staleRoutes, routesChangedSince } from '../lib/design/staleness.ts';
@@ -47,6 +47,16 @@ const MISSING_ONLY = process.argv.includes('--missing');
 // the whole backlog on every commit.
 const STALE_ONLY = process.argv.includes('--stale');
 const SINCE = arg('--since');
+// ── V6: ONE DOSSIER PER TAB ─────────────────────────────────────────────────────────────────────
+//
+// Owner: *"each page that has tabs… has its own like, sub page listed… so that I can edit each one
+// individually."* V4 gave every tab its own DEFAULT DESIGN; without this, every tab still shared one
+// inventory and one checklist — so a tab could be designed but never measured, and its checklist
+// asked about elements belonging to whichever tab the walk happened to land on.
+//
+// Behind a flag, and off by default, for one reason: it multiplies the walk. `/admin/settings`
+// alone is six extra page loads, and the full admin sweep is ~78 states on top of 176 routes.
+const WITH_STATES = process.argv.includes('--states');
 
 const secret = (process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? '').replace(/^["']|["']$/g, '');
 if (!secret) { console.error('AUTH_SECRET is not set'); process.exit(2); }
@@ -187,6 +197,72 @@ for (const [i, target] of todo.entries()) {
     const { dossier, checklist } = body;
     done.push({ route: target.route, elements: dossier.elementCount, functions: dossier.functions.length });
     console.log(`✓  ${String(dossier.elementCount).padStart(3)} elements · ${dossier.functions.length} functions · ${checklist.generated} checklist items`);
+
+    // ── AND EACH OF ITS STATES (V6) ──────────────────────────────────────────────────────────────
+    //
+    // The route walk above already found them — `observed.states` is the tab strip, read from the
+    // DOM. Each one is now visited on its own and inventoried on its own.
+    //
+    // The listening is deliberately per state: the requests are the most useful half of a dossier,
+    // and `GET /api/admin/invoices` firing when you open the invoices tab is the single clearest
+    // statement of what that tab is for. Collected across the whole route they would be attributed
+    // to all six tabs equally, which says nothing about any of them.
+    if (WITH_STATES && observed.states?.length) {
+      for (const st of observed.states) {
+        const stateRequests = [];
+        const onStateRequest = (req) => {
+          try {
+            const url = new URL(req.url());
+            if (url.origin !== new URL(BASE).origin) return;
+            if (!url.pathname.startsWith('/api/')) return;
+            stateRequests.push({ method: req.method(), path: url.pathname });
+          } catch { /* a malformed URL is not evidence of anything */ }
+        };
+        page.on('request', onStateRequest);
+        try {
+          const reached = await openState(page, BASE, target.route, st, { param: observed.stateParam ?? 'tab' });
+          if (!reached) {
+            // Not stored, and said out loud. `/admin/my-pay` has states nested inside another tab
+            // that cannot be reached from the outside — a dossier written anyway would be the
+            // PARENT tab's inventory filed under the child's name, and nothing downstream could
+            // tell. A visible skip is a piece of work somebody can schedule; a wrong row is not.
+            console.log(`        · ${st.key.padEnd(20)} could not reach it — not derived`);
+            continue;
+          }
+          const stateObserved = await page.evaluate(OBSERVE);
+          if (stateObserved.controls.length === 0 && stateObserved.headings.length === 0) {
+            console.log(`        · ${st.key.padEnd(20)} nothing observable — not derived`);
+            continue;
+          }
+          const stateRes = await page.request.fetch(`${BASE}/api/admin/design/dossier/derive`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            data: {
+              base: BASE,
+              stateKey: st.key,
+              observation: {
+                route: target.route,
+                ...stateObserved,
+                // The tab strip is on screen from inside every tab, so the walk finds all six again
+                // from each of them. Stored, `/admin/settings?tab=billing` would claim to have six
+                // states of its own and the page list would draw tabs nested inside tabs, forever.
+                // A state's states are the route's states, and the route already records them.
+                states: [],
+                requests: stateRequests,
+                problem: null,
+              },
+            },
+          });
+          const stateBody = await stateRes.json().catch(() => null);
+          if (!stateRes.ok()) throw new Error(stateBody?.error ?? `api ${stateRes.status()}`);
+          console.log(`        · ${st.key.padEnd(20)} ✓ ${String(stateBody.dossier.elementCount).padStart(3)} elements · ${stateBody.checklist.generated} checklist items`);
+        } catch (stateErr) {
+          console.log(`        · ${st.key.padEnd(20)} — ${stateErr.message.split('\n')[0].slice(0, 50)}`);
+        } finally {
+          try { page.off('request', onStateRequest); } catch { /* the tab is already gone */ }
+        }
+      }
+    }
   } catch (err) {
     failed.push({ route: target.route, why: err.message.split('\n')[0].slice(0, 70) });
     console.log(`—  ${err.message.split('\n')[0].slice(0, 60)}`);
