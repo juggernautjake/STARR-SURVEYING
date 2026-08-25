@@ -16,7 +16,8 @@
 // Spec: docs/planning/in-progress/CUSTOMER_PORTAL.md §3.3.
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 interface BillingState {
@@ -116,13 +117,40 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'history',  label: 'Plan history' },
 ];
 
+const DEFAULT_TAB: Tab = 'overview';
+
 function fmtMoney(cents: number, ccy: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy.toUpperCase() })
     .format(cents / 100);
 }
 
 export default function CustomerBillingPage() {
-  const [tab, setTab] = useState<Tab>('overview');
+  // ── C1 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md ─────────────────────────
+  //
+  // The tab was `useState`. It is the URL now, which is the one property of the /admin/marketing
+  // consolidation worth copying above all the others: a reload keeps you where you were, the back
+  // button steps between tabs the way people expect, and a tab becomes a link somebody can send.
+  // "Look at the plan history" should be a URL, not three instructions.
+  //
+  // It is also what makes the redirects honest. `/admin/billing/invoices` still exists and now
+  // forwards to `?tab=invoices`, so every bookmark lands on the thing it was pointing at rather
+  // than on the overview.
+  const router = useRouter();
+  const params = useSearchParams();
+
+  // An unknown `?tab=` falls back to the overview rather than rendering nothing. A mistyped or
+  // stale link should land somewhere useful, not on a blank panel.
+  const tab: Tab = useMemo(() => {
+    const raw = params.get('tab');
+    return TABS.some((t) => t.key === raw) ? (raw as Tab) : DEFAULT_TAB;
+  }, [params]);
+
+  const setTab = useCallback((next: Tab) => {
+    // `replace`, not `push`, and scroll:false. Flicking between three tabs should not bury the
+    // page you arrived from under three history entries, and it should not jump you to the top of
+    // a page you are already reading.
+    router.replace(next === DEFAULT_TAB ? '/admin/billing' : `/admin/billing?tab=${next}`, { scroll: false });
+  }, [router]);
 
   const [state, setState] = useState<BillingState | null>(null);
   const [error, setError] = useState<string | null>(null);

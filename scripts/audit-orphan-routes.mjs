@@ -16,6 +16,7 @@
 //   · Dynamic segments (`[id]`, `[email]`) — you reach them from a list, never from a menu.
 //   · Route groups and private folders (`(group)`, `_components`).
 //   · `/admin` itself, which redirects to the hub.
+//   · Pages the CODE navigates to — see SENT_TO below.
 //
 // Run: `node scripts/audit-orphan-routes.mjs`
 
@@ -72,6 +73,31 @@ function isRedirectOnly(file) {
 
 const redirectOnly = new Set(walk(ADMIN).filter(isRedirectOnly).map(hrefOf));
 
+/**
+ * Pages reached by a redirect in application code rather than by navigation.
+ *
+ * The value is WHERE FROM, so this list can be audited rather than trusted.
+ */
+const SENT_TO = new Map([
+  ['/admin/billing/upgrade', 'lib/saas/bundle-gate.ts — upgradePromptUrl(), via middleware.ts'],
+]);
+
+// A named exemption that has gone stale is worse than no exemption: it silently keeps a genuinely
+// orphaned page off this report. Checked rather than trusted.
+for (const [href, from] of SENT_TO) {
+  const file = join(ROOT, from.split(' —')[0]);
+  const src = readFileSync(file, 'utf8');
+  // A boundary, not `includes`. `/admin/billing/upgrade` is a substring of
+  // `/admin/billing/upgrade-MOVED`, so a plain `includes` would call a renamed route present and the
+  // guard would pass on exactly the change it exists to catch. Found by trying it.
+  const mentioned = new RegExp(href.replace(/[.*+?^${}()|[]\]/g, "\$&") + "(?![A-Za-z0-9_-])").test(src);
+  if (!mentioned) {
+    console.error(`SENT_TO says ${href} is reached from ${from}, and that file no longer mentions it.`);
+    console.error('Either the redirect moved — update this list — or the page really is an orphan now.');
+    process.exit(2);
+  }
+}
+
 const pages = walk(ADMIN)
   .map(hrefOf)
   // Dynamic segments are reached from a list, never from a menu.
@@ -80,7 +106,23 @@ const pages = walk(ADMIN)
   .filter((h) => h !== '/admin')
   // `/admin/login` is the DOOR, not a room. A menu item that signs you out of the app you are
   // currently using is a bug rather than a feature, so it is excluded here rather than registered.
-  .filter((h) => h !== '/admin/login');
+  .filter((h) => h !== '/admin/login')
+  // ── PAGES THE CODE SENDS YOU TO ─────────────────────────────────────────────────────────────
+  //
+  // A third kind of reachable, added by C1 of the consolidation plan and distinct from both of the
+  // others. These are real pages with real content that nobody navigates to DELIBERATELY: the app
+  // puts you there, from anywhere, with query parameters that are the whole point of the visit.
+  //
+  // `/admin/billing/upgrade` is the case. `lib/saas/bundle-gate.ts` redirects here with
+  // `?requiredBundle=` and `?returnTo=` when somebody opens a page the firm has not paid for. It
+  // had a sidebar entry, and that entry was the accident — a menu item reading "Upgrade Plan" that
+  // renders "Unknown bundle" when you click it, because the parameters that give it meaning only
+  // exist when the gate sends you.
+  //
+  // Deliberately a NAMED LIST and not a pattern. This is the escape hatch from the repo's most
+  // common defect class — a page nobody can find — so it has to cost something to use. Each entry
+  // names the code that navigates there, and a reviewer can check that the code still does.
+  .filter((h) => !SENT_TO.has(h));
 
 // The redirect exclusion belongs HERE and only here.
 //

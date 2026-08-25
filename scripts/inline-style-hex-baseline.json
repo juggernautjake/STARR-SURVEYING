@@ -1,9 +1,7 @@
 {
   "app/admin/announcements/page.tsx": 1,
   "app/admin/assignments/page.tsx": 3,
-  "app/admin/billing/invoices/page.tsx": 1,
   "app/admin/billing/page.tsx": 3,
-  "app/admin/billing/plan-history/page.tsx": 1,
   "app/admin/cad/CADLayout.tsx": 1,
   "app/admin/cad/components/AIDrawingDialog.tsx": 22,
   "app/admin/cad/components/AISidebar.tsx": 59,

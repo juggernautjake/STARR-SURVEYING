@@ -38,7 +38,14 @@ describe('item 7 — Money is one workspace', () => {
       '/admin/invoicing', '/admin/receivables', '/admin/payments/inbox',
       '/admin/payroll', '/admin/payouts', '/admin/receipts', '/admin/mileage',
       '/admin/finances', '/admin/finances/overview',
-      '/admin/billing', '/admin/billing/upgrade',
+      // `/admin/billing/upgrade` was a sample here until C1 of the consolidation plan removed it
+      // from the registry. It is not in ANY workspace now, deliberately: it is the interstitial the
+      // bundle gate sends you to, not a place you navigate to, and a sidebar row reading "Upgrade
+      // Plan" rendered "Unknown bundle" when clicked because the parameters that give it meaning
+      // only exist when the gate sends you. The invariant this test guards — the firm's money
+      // surfaces live in ONE workspace rather than scattered across two — is untouched: the
+      // subscription is still here, as `/admin/billing`, which now carries its three tabs.
+      '/admin/billing',
     ]) {
       expect(money, `${href} is not in the Money workspace`).toContain(href);
     }

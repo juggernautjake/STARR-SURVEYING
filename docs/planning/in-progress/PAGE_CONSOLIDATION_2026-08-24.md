@@ -483,11 +483,69 @@ early, and the internal tooling comes last.
 
       **Still to do, and it is not code:** deploy, then leave it alone for two weeks. Nothing in
       this plan should be deleted on the strength of a shorter window than that.
-- [ ] **C1 — Pilot: P9 Subscription** (3 links → 1). Smallest, already tabbed, lowest traffic,
-      admin-only. Proves the mechanics end to end and produces the reusable portal shell.
-- [ ] **C2 — Extract the shell.** Whatever C1 produced, as `lib/admin/portal/` — tab set, `?tab=`
-      routing, per-role default, per-tab gating, per-tab lazy fetch. Everything after this is
-      configuration.
+- [x] **C1 — Pilot: P9 Subscription. 4 links → 1**, shipped 2026-08-24. One better than planned,
+      and smaller than planned, because the page had already done half of it.
+
+      **What was already there.** `/admin/billing` has had real in-place tabs since
+      `billing-real-tabs-2026-06-21`, and both surfaces already shared one fetcher. The missing
+      piece was not the tabs — it was the URL. `useState` became `?tab=`, which is the one property
+      of the marketing precedent worth copying above all others: a reload keeps you where you were,
+      the back button steps between tabs, and a tab becomes a link somebody can send.
+
+      **It is also what makes the redirects honest.** Without a URL for the tab, forwarding
+      `/admin/billing/invoices` could only land on the overview — which looks exactly like the
+      invoices having gone missing.
+
+      **`/admin/billing/upgrade` is removed from the nav and KEPT as a route**, and the distinction
+      is the one real judgement in this slice. It is not a view of your subscription; it is the
+      interstitial the bundle gate sends you to, from anywhere, carrying `?requiredBundle=` and
+      `?returnTo=`. The sidebar row was the accident: "Upgrade Plan" rendered **"Unknown bundle"**
+      when clicked, because the parameters that give the page meaning only exist when the gate
+      sends you. Making it a tab would have been worse than leaving it alone — somebody blocked
+      from `/admin/research` would land on a billing portal with a tab bar instead of on a sentence
+      explaining what happened. §3's "merging only helps the sidebar" rule, applied.
+
+      **Three guards fired, and all three were right.**
+
+      - `orphan-routes` — *"a page nobody can reach is a page nobody built"*, the ratchet against
+        this repo's most common defect. Removing the upgrade page's registry entry made it an
+        orphan by that test's model, and the model was incomplete rather than the change wrong:
+        it knew about pages you navigate to and pages that forward, and not about **pages the code
+        sends you to**. That third kind now exists in the sweep as a NAMED list whose value is
+        where-from, checked against the source on every run — a stale exemption would silently
+        keep a genuinely orphaned page off the report.
+      - `consolidation` — asserted `/admin/billing/upgrade` is in the Money workspace. It is in no
+        workspace now, deliberately. The invariant it guards (the firm's money surfaces live in
+        ONE workspace, not scattered across two) is untouched; the sample was updated with the
+        reason inline.
+      - `inline-style-hex-ratchet` — the two pages became stubs, so the baseline over-recorded.
+        Re-baselined DOWN: 2308 → 2306.
+
+      **Verified in a browser, 12 checks**: both old bookmarks land on the right tab with it
+      actually selected, a pasted `?tab=` opens that tab, a reload keeps it, a mistyped tab falls
+      back to the overview instead of rendering nothing, clicking a tab writes the URL, and the
+      upgrade interstitial still resolves its bundle from its query parameters.
+
+      **The first run showed 1 of 3 redirects failing and that was the dev server, not the code.**
+      A control against `/admin/marketing/spend` and `/admin/schedule` — two stubs that have been
+      in production for months — showed them behaving identically to mine, which is what proved
+      the mechanism was fine. Warm, it is 12/12. Worth writing down because every future slice in
+      this plan will make redirect stubs, and each one will look broken on its first cold compile.
+
+      **Not done here: the reusable shell.** The plan expected C1 to produce it. It did not, and
+      should not have — `/admin/billing` already had a tab implementation, so extracting a general
+      shell from a page that needed almost no change would have been designing it from one
+      example. C2 extracts it from this plus `/admin/marketing`, which is two.
+- [ ] **C2 — Extract the shell** as `lib/admin/portal/` — tab set, `?tab=` routing, per-role
+      default, per-tab gating, per-tab lazy fetch, **and the toggle read from §11.6**. Everything
+      after this is configuration.
+
+      Extract it from **`/admin/billing` and `/admin/marketing` together**, not from either alone.
+      They solved the same problem twice, three months apart, and the differences between them are
+      the interesting part: marketing keeps a date range in the URL alongside the tab and has one
+      writer for the whole query string so changing the tab cannot drop the period; billing has no
+      second parameter and does not need one. A shell derived from one example would encode that
+      example's accidents.
 - [ ] **C3 — P5 Equipment** (14 → 1). Biggest single reduction, one subject, low blast radius.
 - [ ] **C4 — P3 Hours** (4 → 1) **including the role split**. First portal to prove §5.
 - [ ] **C5 — P2 Receipts** (4 → 1), tabs only. **Per-item approval is P2.2 and is blocked** on the

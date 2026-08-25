@@ -371,7 +371,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // a void — the same defect an unwatched hours queue has, about money already worked for.
   { href: '/admin/payouts/withdrawals',   label: 'Withdrawal Requests', workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Money employees have asked to take out of the balance they have earned — approve it, decline it with a reason, or record that it has actually been sent.', roles: ['admin', 'finance'], internalOnly: true, keywords: ['withdraw', 'withdrawal', 'cash out', 'balance', 'request money', 'transfer'] },
   { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', section: 'Talking to people', iconName: 'Megaphone',    description: 'One-way broadcast to everyone at the firm — release notes and news. Nobody replies to these; use Messages or Discussions for that.', keywords: ['release', 'changelog', 'news'] },
-  { href: '/admin/billing',               label: 'Software Subscription',          workspace: 'money', section: 'Company account', iconName: 'CreditCard',   description: 'What THIS FIRM pays for this software — plan, card, invoices. Nothing to do with what customers pay you.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'plan'] },
+  { href: '/admin/billing',               label: 'Software Subscription',          workspace: 'money', section: 'Company account', iconName: 'CreditCard',   description: 'What THIS FIRM pays for this software — plan, card, invoices and plan history. One page, three tabs. Nothing to do with what customers pay you.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'invoices', 'plan', 'plan history', 'saas', 'bundle', 'upgrade', 'downgrade', 'seats', 'card', 'billing'] },
   { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', section: 'Setup & account', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
   { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', section: 'Setup & account', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
   { href: '/admin/reports',               label: 'Reports',          workspace: 'office', section: 'Documents & records', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
@@ -418,9 +418,20 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
   { href: '/admin/invoices/new',          label: 'New Customer Invoice',      workspace: 'money', section: 'Money in', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['create', 'bill', 'customer'] },
   { href: '/admin/invoicing/categories',  label: 'Invoice Line Categories', workspace: 'money', section: 'Money in', iconName: 'Tags',       description: 'Line-item categories for invoices.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['line items', 'tags'] },
-  { href: '/admin/billing/invoices',      label: 'Subscription Invoices', workspace: 'money', section: 'Company account', iconName: 'ReceiptText', description: 'Invoices for THIS app’s subscription — not customer invoices.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'saas', 'plan'] },
-  { href: '/admin/billing/plan-history',  label: 'Plan History',     workspace: 'money', section: 'Company account', iconName: 'History',      description: 'Subscription plan changes over time.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'upgrade', 'downgrade'] },
-  { href: '/admin/billing/upgrade',       label: 'Upgrade Plan',     workspace: 'money', section: 'Company account', iconName: 'ArrowUpCircle', description: 'Change the subscription bundle.', roles: ['admin', 'tech_support'], showInRail: false, keywords: ['subscription', 'bundle', 'plan'] },
+  // ── C1: three billing links became one ──────────────────────────────────────────────────────
+  //
+  // `/admin/billing/invoices` and `/admin/billing/plan-history` are tabs of `/admin/billing` and
+  // have been since `billing-real-tabs-2026-06-21` — the routes remain as redirects so no bookmark
+  // breaks, but a tab does not need its own sidebar entry. Their keywords moved up to the parent so
+  // searching "plan history" still finds it.
+  //
+  // `/admin/billing/upgrade` is REMOVED FROM THE NAV BUT KEPT AS A ROUTE, and the distinction
+  // matters. It is not a view of your subscription; it is the interstitial the bundle gate sends
+  // you to when you open something the firm has not paid for — from anywhere in the app, carrying
+  // `?requiredBundle=` and `?returnTo=`. Nobody navigates to it deliberately, so it was only ever
+  // a sidebar link by accident. Making it a TAB would have been worse than leaving it alone:
+  // somebody blocked from /admin/research would land on a billing portal with a tab bar instead of
+  // on a sentence explaining what happened.
 
   // Communication.
   { href: '/admin/notifications',         label: 'Notifications',    workspace: 'office', section: 'Talking to people', iconName: 'Bell',         description: 'Everything the app has told YOU — alerts raised by the system, not messages a person sent.', keywords: ['alerts', 'bell', 'inbox'] },
