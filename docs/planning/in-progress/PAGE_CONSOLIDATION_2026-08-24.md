@@ -1246,7 +1246,67 @@ early, and the internal tooling comes last.
 
       Browser-verified: seven tabs render, six redirects land on their own tab, `testing` untouched,
       no page errors and no self-links left. `npm run build` clean.
-- [ ] **C12 — P14 Company** + **P15 System** (8 → 2).
+- [ ] **C12 — P14 Company** + **P15 System** (8 → 2). **Split; P15 DONE 2026-08-25, P14 open — and
+      three of its five should not be done as written.**
+
+      **C12a — P15 System (3 → 1). DONE.** `/admin/support` has three tabs: Support, Errors, Audit
+      log. `/admin/support/new` keeps its route and is the New-ticket button, as §8 asks.
+      `/admin/support/tickets/[id]` is a record and stays.
+
+      **§5 goes the OTHER way here.** `/admin/error-log` has its own middleware entry — admin,
+      developer, tech_support — and `/admin/support` has none at all, so the portal is a **wider**
+      door than a page it absorbs. §5 allows that only when the boundary is elsewhere and holds, so
+      it was measured, and the measurement is more interesting than a 403 would have been:
+
+      | Endpoint | plain `employee` | what actually protects it |
+      |---|---|---|
+      | `GET /api/admin/errors` | 200 | filters rows to `user_email` unless an admin asks for the admin view |
+      | `GET /api/admin/audit` | 200 | returns `{ rows: [] }` unless you are an admin OF THE ORG |
+
+      **Both protect with a row filter, not a status code** — a legitimate pattern, and one that a
+      probe reading only status codes reports as a hole. It is not one; C11b-0 was, and the
+      difference is the handler body, not the response line. Non-admins have always been allowed to
+      read their own error reports; what they could not do is reach the page that draws them. The tab
+      list still carries both rows' three roles, because being offered an audit tab that can only
+      ever be empty is its own small lie. Browser-verified: a plain employee is offered one tab and
+      `?tab=audit` puts them back on Support.
+
+      **The IA test earned its keep.** §2.6 says five surfaces answer "what happened and who did it"
+      and each must say WHICH question it answers. Those sentences lived in the registry descriptions
+      of the two rows this slice deleted, and the portal's first draft summarised them into "what has
+      gone wrong in the app" — putting the product back to four logs and no map. Nothing else in the
+      repo would have noticed. The sentences are now the tab hints, verbatim, which is where C7 put
+      the Activity feed's and is better placed anyway: read above the log, not in a menu tooltip.
+
+      **A syntax error survived 26,209 tests.** An apostrophe in `the Jobs portal's Activity feed`
+      closed a single-quoted hint early. `tsc` would have caught it; the suite did not, because every
+      assertion on these files reads them as TEXT. Only loading the page did. Swept all 180 admin
+      page files afterwards for the same shape — every hint/label/description literal closes cleanly.
+      **Run `tsc` after the last edit, not before it.**
+
+- [ ] **C12b — P14 Company** (`/admin/settings` absorbs org-settings · orgs · announcements ·
+      notifications · me/privacy). **Two of the five, not five.** Read before building:
+
+      `/admin/settings` is middleware-gated to `['admin']`. Of §8's five:
+
+      | Route | Gate today | As a tab of an admin-only portal |
+      |---|---|---|
+      | `org-settings` | admin | fine |
+      | `orgs` | admin, tech_support | fine, tab carries the pair |
+      | `announcements` | **ungated** | **disappears for every non-admin** |
+      | `notifications` | **ungated** | **disappears for every non-admin** |
+      | `me/privacy` | **ungated**, `hub` workspace | **disappears for every non-admin** |
+
+      And they are not company settings. `/admin/notifications` is its own header: "a full,
+      filterable, paginated list of **the current user's** alerts". `/admin/me/privacy` is already in
+      the `hub` workspace, which is where personal things live. `/admin/announcements` is the release
+      archive the Hub's WhatsNewBanner links to with "Read full notes →" — absorbing it would land
+      most of the firm on a refusal from a banner shown to all of them.
+
+      §8 grouped these by sounding like settings rather than by **whose** settings. The two that are
+      genuinely the company's should be absorbed; the three personal ones belong with `/admin/me`,
+      which is C13's territory — noted there rather than done here, because moving a page between
+      workspaces is a decision about the shape of the product and not a tidy-up.
 - [ ] **C12b — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:
       they are the ones whose breakage costs the firm nothing.
 - [ ] **C12c — P18 Exam Prep** + **P19 Learning Content** (5 → 2).

@@ -489,8 +489,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/discussions',           label: 'Discussions',      workspace: 'office', section: 'Talking to people', iconName: 'MessagesSquare', description: 'A topic thread that outlives a chat — decisions, standards, how-we-do-it. NOT a direct message, and not announcements.', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['threads', 'forum'] },
   { href: '/admin/notes',                 label: 'Company Notes',    workspace: 'office', section: 'Documents & records', iconName: 'StickyNote',   description: 'Shared notes every admin can read and edit. Your own private notes live in the Hub; a document with a filename belongs in Files.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/settings',              label: 'Settings',         workspace: 'office', section: 'Setup & account', iconName: 'Settings',     description: 'Firm-wide settings.', roles: ['admin'] },
-  { href: '/admin/error-log',             label: 'Error Log',        workspace: 'office', section: 'What happened', iconName: 'Bug',          description: 'Errors the software itself hit — stack traces and failed requests. For who-did-what, see the Audit Log; for what the crew did, the Activity Timeline.', roles: ['admin', 'developer', 'tech_support'] },
-  { href: '/admin/audit',                 label: 'Audit Log',        workspace: 'office', section: 'What happened', iconName: 'ShieldCheck',  description: 'Who did what, and when — permission changes, record edits, operator access. The one to open for a compliance question.', roles: ['admin', 'developer', 'tech_support'], keywords: ['compliance', 'history', 'log'] },
   // The queue an employee's request goes into. The API could approve, decline and send a withdrawal
   // long before any page listed one, so a person asking for their own earned money was asking into
   // a void — the same defect an unwatched hours queue has, about money already worked for.
@@ -499,7 +497,20 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', section: 'Setup & account', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
   { href: '/admin/orgs',                  label: 'Organizations',    workspace: 'office', section: 'Setup & account', iconName: 'Building2',    description: 'Cross-org switcher + multi-tenant overview.', roles: ['admin', 'tech_support'], internalOnly: true, keywords: ['tenants', 'switch'] },
   { href: '/admin/reports',               label: 'Reports',          workspace: 'office', section: 'Documents & records', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
-  { href: '/admin/support',               label: 'Support',          workspace: 'office', section: 'Talking to people', iconName: 'LifeBuoy',     description: 'Raise a ticket about this software with the people who build it. NOT for talking to a customer of yours.', keywords: ['tickets', 'help', 'issues'] },
+  // ── C12a / P15: THREE ROWS BECAME ONE ──────────────────────────────────────────────────────
+  //
+  // Tickets, the error log and the audit log are one subject: the software itself.
+  // `/admin/support/new` keeps its route and is a button on the tickets tab — it was already
+  // `showInRail: false`, so the rail never offered it and nothing there changes.
+  //
+  // C10's rule checked: neither absorbed route has a dynamic child. The record in this tree is
+  // `/admin/support/tickets/[id]`, whose parent is the portal, which keeps its row because it IS
+  // the page.
+  //
+  // The error log's own middleware entry stays on `/admin/error-log` and now guards a redirect.
+  // Harmless, and left deliberately: the stub is still a real URL people paste into threads, and a
+  // gate in front of a forward costs nothing.
+  { href: '/admin/support',               label: 'Support',          workspace: 'office', section: 'Talking to people', iconName: 'LifeBuoy',     description: 'The software itself — raise a ticket about it with the people who build it, see what has gone wrong, and read who did what. NOT for talking to a customer of yours, and not the Messages page.', keywords: ['tickets', 'help', 'issues', 'compliance', 'history', 'log', 'error log', 'errors', 'audit', 'audit log', 'who did what', 'system', 'diagnostics'] },
 
   // ── §1.4 · the pages that existed and could not be reached (2026-08-01) ──────────────────────
   //

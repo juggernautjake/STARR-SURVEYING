@@ -112,7 +112,9 @@ export const HELP_CATALOG: HelpCatalog = {
     resources: [
       { label: 'Receipts', href: '/admin/receipts' },
       { label: 'Payroll', href: '/admin/pay?tab=payroll' },
-      { label: 'Audit log', href: '/admin/audit' },
+      // C12a: the audit log is a tab of the System portal. `/admin/audit` still forwards, but a
+      // help link should land in one hop on the thing it names.
+      { label: 'Audit log', href: '/admin/support?tab=audit' },
     ],
   },
 

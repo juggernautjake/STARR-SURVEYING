@@ -1,223 +1,134 @@
 'use client';
-// app/admin/support/page.tsx
+// app/admin/support/page.tsx — the System portal.
 //
-// Customer-side support ticket list. Phase E-2 of SUPPORT_DESK.md.
-// Consumes the server helpers from lib/saas/tickets.ts via a thin
-// API route at /api/admin/support/tickets.
+// C12a / P15 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
 //
-// Per SUPPORT_DESK.md §3.1 mockup.
+// Three routes about the software itself: your support tickets, what has gone wrong, and who did
+// what. §8 calls this one "developer-facing; low traffic; low risk", and the first two of those are
+// true — the third turned out to need checking rather than believing.
 //
-// Spec: docs/planning/in-progress/SUPPORT_DESK.md §3.1 + §7 E-2.
+// ── §5 GOES THE OTHER WAY HERE, AND THE ANSWER IS THE PORTAL'S TAB LIST ─────────────────────────
+//
+// `/admin/error-log` has its own middleware entry — admin, developer, tech_support — and
+// `/admin/support` has none at all. So this portal IS a wider door than one of the pages it absorbs,
+// which §5 forbids unless the boundary is elsewhere and holds. It is, and the measurement is more
+// interesting than a refusal would have been:
+//
+//   · `GET /api/admin/errors` answers 200 to anybody signed in and filters rows to `user_email`
+//     unless the caller is an admin asking for the admin view. Non-admins have always been allowed
+//     to read their own error reports; what they could not do is reach the page that draws them.
+//   · `GET /api/admin/audit` answers 200 too, then looks up the caller's org membership and returns
+//     `{ rows: [] }` unless they are an admin of that org.
+//
+// Both protect with a ROW FILTER rather than a status code, which is a legitimate pattern and one a
+// probe that only reads status codes will report as a hole. It is not one. What it does mean is that
+// the tab list is doing real work here: without it a non-admin would be offered an audit tab that
+// can only ever be empty, which is its own small lie.
+//
+// ── THE RECORD STAYS ────────────────────────────────────────────────────────────────────────────
+//
+// `/admin/support/tickets/[id]` is a ticket — a record, and §4 says a record is not a tab. It keeps
+// its route under the same prefix it always had.
 
+import { useMemo } from 'react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
+import { LifeBuoy, TriangleAlert, ScrollText, MessageSquarePlus } from 'lucide-react';
 
-interface TicketRow {
-  id: string;
-  ticketNumber: string;
-  subject: string;
-  status: 'open' | 'awaiting_reply' | 'awaiting_customer' | 'resolved' | 'closed';
-  priority: 'low' | 'normal' | 'high' | 'urgent' | 'critical';
-  createdAt: string;
-  updatedAt: string;
-}
+import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
+import TicketsTab from './_tabs/TicketsTab';
+import ErrorLogTab from './_tabs/ErrorLogTab';
+import AuditTab from './_tabs/AuditTab';
+import './SupportPortal.css';
 
-const STATUS_LABELS: Record<TicketRow['status'], string> = {
-  open: 'Open',
-  awaiting_reply: 'Awaiting reply',
-  awaiting_customer: 'Awaiting your reply',
-  resolved: 'Resolved',
-  closed: 'Closed',
+const PORTAL: PortalSpec = {
+  route: '/admin/support',
+  tabs: [
+    // Ungated, as the support page always was: asking for help cannot require a role, for the same
+    // reason C9 kept the role-request board open.
+    { id: 'tickets', label: 'Support', icon: LifeBuoy, hint: 'Ask for help, and follow what you have already asked.' },
+    // Both carry their registry row's exact list. See the header for why that list is a courtesy
+    // over a boundary rather than the boundary itself.
+    //
+    // The hints are verbatim from the rows these replace, and that is load-bearing rather than tidy.
+    // §2.6 says five surfaces answer "what happened and who did it" and each has to say WHICH
+    // question it answers; those sentences lived in the registry descriptions, and a portal that
+    // summarised them into "what went wrong" would put the product back to four logs and no map.
+    // C7 moved the Activity feed's sentence to its tab hint for the same reason. A hint is better
+    // placed than a description anyway: it is read above the thing itself, not in a menu tooltip.
+    { id: 'error-log', label: 'Errors', icon: TriangleAlert, hint: 'Errors the software itself hit — stack traces and failed requests. For who-did-what, see the Audit log; for what the crew did, the Activity feed in Jobs.', roles: ['admin', 'developer', 'tech_support'] },
+    { id: 'audit', label: 'Audit log', icon: ScrollText, hint: 'Who did what, and when — permission changes, record edits, operator access. The one to open for a compliance question.', roles: ['admin', 'developer', 'tech_support'] },
+  ],
+  defaultTab: 'tickets',
 };
 
-const STATUS_COLORS: Record<TicketRow['status'], string> = {
-  open: 'var(--color-brand-navy)',
-  awaiting_reply: '#D97706',
-  awaiting_customer: '#7C3AED',
-  resolved: '#059669',
-  closed: '#6B7280',
-};
+export default function SupportPortal() {
+  const { data: session } = useSession();
+  const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-export default function SupportPage() {
-  const [tickets, setTickets] = useState<TicketRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch('/api/admin/support/tickets', { cache: 'no-store' });
-        if (!res.ok) {
-          setError(`Couldn't load tickets (status ${res.status}).`);
-          return;
-        }
-        const data = (await res.json()) as { tickets: TicketRow[] };
-        if (!cancelled) setTickets(data.tickets ?? []);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load.');
-      }
-    }
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const openCount = tickets?.filter((t) => t.status !== 'resolved' && t.status !== 'closed').length ?? 0;
-  const closedCount = tickets?.filter((t) => t.status === 'resolved' || t.status === 'closed').length ?? 0;
+  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const activeTab = tabs.find((t) => t.id === active);
 
   return (
-    <div className="support-page">
-      <header className="support-header">
-        <div>
-          <h1>Support</h1>
-          {tickets ? (
-            <p className="support-counts">
-              {openCount} open · {closedCount} closed
-            </p>
-          ) : null}
-        </div>
-        <Link className="support-btn" href="/admin/support/new">
-          + New ticket
-        </Link>
-      </header>
+    <div className="sys-portal">
+      <nav className="sys-portal__tabs" role="tablist" aria-label="System">
+        {tabs.map((t) => {
+          const Icon = t.icon as typeof LifeBuoy;
+          const isActive = t.id === active;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              id={`sys-tab-${t.id}`}
+              aria-selected={isActive}
+              aria-controls={`sys-panel-${t.id}`}
+              tabIndex={isActive ? 0 : -1}
+              className={`sys-portal__tab${isActive ? ' sys-portal__tab--active' : ''}`}
+              onClick={() => select(t.id)}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                e.preventDefault();
+                const i = tabs.findIndex((x) => x.id === t.id);
+                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+                select(next.id);
+                document.getElementById(`sys-tab-${next.id}`)?.focus();
+              }}
+            >
+              <Icon size={15} aria-hidden />
+              <span>{t.label}</span>
+            </button>
+          );
+        })}
+      </nav>
 
-      {error ? (
-        <div className="support-error">{error}</div>
-      ) : !tickets ? (
-        <div className="support-loading">Loading tickets…</div>
-      ) : tickets.length === 0 ? (
-        <div className="support-empty">
-          <p>No tickets yet.</p>
-          <p>
-            If you run into a problem,{' '}
-            <Link href="/admin/support/new">file a ticket</Link>{' '}
-            and we&apos;ll get back to you within one business day.
-          </p>
-        </div>
-      ) : (
-        <ul className="support-list">
-          {tickets.map((t) => (
-            <li key={t.id}>
-              <Link href={`/admin/support/tickets/${t.id}`} className="support-item">
-                <span className="support-item__num">{t.ticketNumber}</span>
-                <span className="support-item__subject">{t.subject}</span>
-                <span
-                  className="support-item__status"
-                  style={{ color: STATUS_COLORS[t.status] }}
-                >
-                  {STATUS_LABELS[t.status]}
-                </span>
-                <span className="support-item__age">
-                  {formatRelative(t.updatedAt)}
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      {/* Cannot happen while `tickets` is ungated, and kept for the same reason as every other
+          portal's: "cannot happen" is a property of today's role lists, not of this component. */}
+      {!active && (
+        <p className="sys-portal__none">
+          Every part of System is switched off for this company. An admin can turn them back on in
+          Settings → Pages.
+        </p>
       )}
 
-      <style jsx>{`
-        .support-page {
-          max-width: 900px;
-          margin: 0 auto;
-          padding: 1.5rem;
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-          color: #0F1419;
-        }
-        .support-header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 1.5rem;
-        }
-        .support-header h1 {
-          font-family: 'Sora', sans-serif;
-          font-size: 1.8rem;
-          font-weight: 600;
-          margin: 0;
-        }
-        .support-counts {
-          color: #6B7280;
-          margin: 0.25rem 0 0;
-          font-size: 0.92rem;
-        }
-        .support-btn {
-          background: var(--color-brand-navy);
-          color: #FFF;
-          padding: 0.6rem 1.1rem;
-          border-radius: 8px;
-          text-decoration: none;
-          font-weight: 600;
-          font-size: 0.9rem;
-        }
-        .support-btn:hover { background: var(--color-brand-navy-d); }
-        .support-error, .support-loading, .support-empty {
-          padding: 2rem;
-          text-align: center;
-          color: #6B7280;
-          background: #F9FAFB;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-        }
-        .support-empty p:first-child {
-          font-weight: 600;
-          color: #1F2937;
-        }
-        .support-list {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          border: 1px solid #E5E7EB;
-          border-radius: 12px;
-          background: #FFF;
-        }
-        .support-list li {
-          border-bottom: 1px solid #F3F4F6;
-        }
-        .support-list li:last-child { border-bottom: 0; }
-        .support-item {
-          display: grid;
-          grid-template-columns: 80px 1fr auto auto;
-          align-items: center;
-          gap: 1rem;
-          padding: 0.85rem 1.25rem;
-          text-decoration: none;
-          color: #1F2937;
-        }
-        .support-item:hover { background: #F9FAFB; }
-        .support-item__num {
-          font-family: 'JetBrains Mono', ui-monospace, monospace;
-          font-weight: 700;
-          color: #6B7280;
-          font-size: 0.82rem;
-        }
-        .support-item__subject {
-          font-weight: 500;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-        .support-item__status {
-          font-size: 0.82rem;
-          font-weight: 600;
-        }
-        .support-item__age {
-          font-size: 0.82rem;
-          color: #9CA3AF;
-        }
-      `}</style>
+      {activeTab && (
+        <div className="sys-portal__toolbar">
+          <p className="sys-portal__hint">{activeTab.hint}</p>
+          {/* `/admin/support/new` keeps its route and becomes a button, the way §8 asks: raising a
+            * ticket is a form you start from the list, and it is 316 lines of one. */}
+          {active === 'tickets' && (
+            <Link className="sys-portal__action" href="/admin/support/new">
+              <MessageSquarePlus size={14} aria-hidden /> New ticket
+            </Link>
+          )}
+        </div>
+      )}
+
+      <div id={`sys-panel-${active}`} role="tabpanel" aria-labelledby={`sys-tab-${active}`}>
+        {active === 'tickets' && <TicketsTab />}
+        {active === 'error-log' && <ErrorLogTab />}
+        {active === 'audit' && <AuditTab />}
+      </div>
     </div>
   );
-}
-
-function formatRelative(iso: string): string {
-  const dt = new Date(iso);
-  const now = Date.now();
-  const diffMs = now - dt.getTime();
-  const mins = Math.round(diffMs / 60_000);
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return dt.toLocaleDateString();
 }

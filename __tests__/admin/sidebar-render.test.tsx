@@ -69,7 +69,9 @@ describe('the drawer renders', () => {
     // registry, reachable on desktop, and absent from the drawer.
     for (const href of [
       '/admin/invoicing', '/admin/contacts', '/admin/files', '/admin/calendar',
-      '/admin/support', '/admin/reports', '/admin/billing', '/admin/audit',
+      // C12a: '/admin/audit' is the System portal's `audit` tab; the drawer offers the portal, which
+      // is '/admin/support' — already on this list, one line up, and asserted there.
+      '/admin/support', '/admin/reports', '/admin/billing',
       // C9: '/admin/invites' is the People portal's `invites` tab; the drawer offers the portal.
       '/admin/people', '/admin/announcements',
     ]) {

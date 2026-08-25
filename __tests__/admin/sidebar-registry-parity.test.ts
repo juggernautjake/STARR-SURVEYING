@@ -65,7 +65,16 @@ const LEGACY_SIDEBAR_HREFS = [
   // C8: both are inside the Customer Money portal now — one as the `incoming` tab, one as its
   // 'New invoice' button. The drawer offers the portal.
   '/admin/invoicing',
-  '/admin/messages', '/admin/install', '/admin/settings', '/admin/error-log',
+  // C12a: the error log is the System portal's `error-log` tab and its registry row is gone, so it
+  // is removed from this frozen list rather than excused — the list means "must still be REACHABLE",
+  // and it is: the drawer offers `/admin/support`, which `sidebar-render.test.tsx` asserts renders,
+  // and `/admin/error-log` still forwards to the tab.
+  //
+  // `/admin/support` is deliberately NOT added here. This list is a historical record of what the
+  // hand-written drawer showed on the day it was converted, and the hand-written drawer did not show
+  // it — §1.3 found `/admin/support` among the 32 routes the drawer was MISSING. Adding it now would
+  // quietly rewrite what the receipt is a receipt for.
+  '/admin/messages', '/admin/install', '/admin/settings',
 ] as const;
 
 describe('the conversion lost nothing', () => {

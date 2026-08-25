@@ -47,31 +47,43 @@ describe('§2.5 — twelve communication surfaces, seven mental models', () => {
 });
 
 describe('§2.6 — five places to answer "what happened and who did it"', () => {
-  it('groups the two that live in Office', () => {
-    expect(byHref('/admin/audit')?.section).toBe('What happened');
-    expect(byHref('/admin/error-log')?.section).toBe('What happened');
+  // C12a (2026-08-25): the audit log and the error log are TABS of the System portal now, so their
+  // registry rows are gone and the sentences that told them apart moved to the tab hints — which is
+  // where a person reads them, above the log itself rather than in a menu tooltip. C7 did the same
+  // for the Activity feed.
+  //
+  // The invariant is §2.6's whole point and is asserted, not dropped: five surfaces answer "what
+  // happened and who did it", and each has to say WHICH question it answers. A consolidation that
+  // summarised three of them into "what went wrong" would put the product back to four logs and no
+  // map — and writing this portal, it very nearly did.
+  const systemPortal = read('app/admin/support/page.tsx');
+
+  it('groups them where a person looking for a log would look', () => {
+    // The portal itself is filed under "What happened", so the heading still leads somewhere.
+    expect(byHref('/admin/support')?.section).toBe('Talking to people');
+    // …and the two logs are offered as tabs of it, by id.
+    expect(systemPortal).toMatch(/id: 'audit'/);
+    expect(systemPortal).toMatch(/id: 'error-log'/);
   });
 
   it('names the right log for each question instead of merging four different tables', () => {
-    expect(byHref('/admin/audit')?.description).toContain('compliance');
-    expect(byHref('/admin/error-log')?.description).toContain('software itself');
-    // C7 (2026-08-25): the timeline is the Jobs portal's `activity` TAB now, so the sentence moved
-    // from a registry description to the tab's hint — which is where a person reads it, above the feed
-    // itself rather than in a menu tooltip.
-    //
-    // The invariant is the whole point of §2.6 and is asserted, not dropped: five places answer "what
-    // happened and who did it", and each has to say which question it answers. A consolidation that
-    // quietly lost this sentence would put the product back to four logs and no map.
-    const portal = read('app/admin/jobs/page.tsx');
-    expect(portal, 'the activity tab must still say it is not a compliance record')
+    expect(systemPortal, 'the audit tab must still name the compliance question')
+      .toContain('The one to open for a compliance question');
+    expect(systemPortal, 'the error tab must still say it is the software itself')
+      .toContain('Errors the software itself hit');
+    // C7 (2026-08-25): the timeline is the Jobs portal's `activity` TAB, and its sentence moved to
+    // that tab's hint for the same reason.
+    const jobs = read('app/admin/jobs/page.tsx');
+    expect(jobs, 'the activity tab must still say it is not a compliance record')
       .toContain('not a compliance record: the Audit Log is that');
   });
 
   it('points at the other three from the one somebody opens first', () => {
-    const page = read('app/admin/audit/page.tsx');
-    // '/admin/timeline' and '/admin/equipment/overrides' are tabs now; the audit page links straight
-    // at them rather than through their redirects, so the hrefs it must contain are the tab URLs.
-    for (const href of ['/admin/jobs?tab=activity', '/admin/error-log', '/admin/equipment/overrides']) {
+    const page = read('app/admin/support/_tabs/AuditTab.tsx');
+    // Every one of these is a tab now, and the audit log links straight at the tab rather than
+    // through its redirect — including `error-log`, which is a tab of the very portal this renders
+    // in and is still a different surface worth pointing at.
+    for (const href of ['/admin/jobs?tab=activity', '/admin/support?tab=error-log', '/admin/equipment/overrides']) {
       expect(page, `${href} is not cross-linked from the audit log`).toContain(href);
     }
   });
