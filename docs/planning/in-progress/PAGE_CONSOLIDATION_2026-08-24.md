@@ -1554,10 +1554,71 @@ early, and the internal tooling comes last.
         personal view of a thing, or does the company page render a personal view of it for whoever
         opens it?** §5.2's role-driven rendering is the second answer; the first is what the `hub`
         workspace already is. That is the decision §12 owes.
-- [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** Every merge invalidates a dossier
-      and a locked default design. `scripts/derive-dossiers.mjs --area admin` and
-      `scripts/trace-defaults.mjs --area admin`, and the conformance record with them.
+- [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** **IN PROGRESS 2026-08-25 — the
+      defaults pass is running; the dossiers pass and one decision remain.**
 
+      Every merge in this plan invalidated a dossier and a locked default. Measured against the live
+      database before starting, so the size of the job is on the record rather than estimated:
+
+      | | count |
+      |---|---|
+      | Registered admin rows | **75** |
+      | Routes with a locked default | 138 — **67 orphaned**, 4 missing |
+      | Routes with a dossier | 133 — **63 orphaned**, 5 missing |
+
+      **`--since` is the right selector here, not `--stale`.** `staleRoutes` compares each page's last
+      COMMIT time against its record's timestamp, so after a day of committing it matches nearly the
+      whole tree — the first attempt ran fourteen minutes without finishing. `routesChangedSince` is
+      the flag written for "what did this work touch": **115 routes changed since the branch point,
+      98 of them traceable**, and roughly eighty of those are redirect stubs the tracer skips in a
+      second each. The real work is the sixteen portals.
+
+      **Re-traced so far** (each writes as it goes, so this is durable progress rather than a
+      pending batch): `/admin/design` (597 elements at both viewports), `/admin/jobs`,
+      `/admin/finances`, `/admin/learn`, `/admin/learn/manage`, `/admin/equipment`,
+      `/admin/equipment/templates/new`, `/admin/files`, `/admin/invoicing`, `/admin/marketing`,
+      `/admin/billing`, `/admin/jobs/import`, `/admin/employees/manage`. The tracer reports what
+      moved: `/admin/jobs/import` shifted 2 elements, worst `.admin-page-header__trail` by 43px.
+
+      ── **FOUR PAGES THAT WILL NOT COMPLETE A WALK, WHICH IS A FINDING RATHER THAN NOISE** ──
+
+      | Route | What the tracer says |
+      |---|---|
+      | `/admin/discussions` | never finished loading |
+      | `/admin/equipment/consumables` | never finished loading |
+      | `/admin/equipment/timeline` | never finished loading |
+      | `/admin/learn/flashcard-bank` | crashed the browser context |
+
+      "Never finished loading" is expected on a redirect and unremarkable there — but these are live
+      pages. A page that never settles is a page with a request that never resolves or a spinner that
+      never clears, and the tracer is the only thing in the repo that would ever notice. Worth its
+      own slice; flashcard-bank is the 130k-character page that also timed out a browser walk during
+      C11a, so that one at least is a size problem rather than a hang.
+
+      ── **THE 67 ORPHANS ARE A DECISION, NOT A CLEANUP** ──
+
+      67 locked defaults and 63 dossiers describe routes that no longer have a registry row. It is
+      tempting to delete them and it should not be done without asking, for two reasons: **every one
+      of those URLs still resolves** — they forward to a tab — and those records are the only
+      remaining picture of what each page looked like before it was absorbed. Deleting them makes the
+      numbers tidy and throws away the before-half of every comparison this plan could ever be judged
+      by. Options for the owner: (a) leave them, and let the page list show them as orphans;
+      (b) re-point each at the tab that absorbed it, so the design follows the content; (c) delete.
+
+      ── **TWO METHOD MISTAKES, BOTH MINE, BOTH WORTH RECORDING** ──
+
+      · **`grep` buffers when its output is not a terminal.** Two background runs reported zero bytes
+        for many minutes and looked hung. They were not — the pipeline was holding the lines. The
+        fix is `--line-buffered`, and the lesson is that a silent pipe is not evidence of a silent
+        process. Progress here is measured from the DATABASE instead, which is the honest check
+        anyway: the rows are the deliverable, stdout is commentary.
+      · **I killed the dev server believing it was the runaway trace**, on nothing better than its
+        3.8 GB working set. The next run died on ECONNREFUSED. Identify a process by its command
+        line, not by which one looks expensive.
+
+      **Remaining:** finish the defaults pass; run `derive-dossiers.mjs --since` for the same set;
+      refresh the conformance record; chase the four pages that will not settle; and put the orphan
+      question to the owner.
 ---
 
 ## §9. What the usage data does and does not say
