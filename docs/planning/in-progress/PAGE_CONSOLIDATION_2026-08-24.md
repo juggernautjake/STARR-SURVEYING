@@ -448,6 +448,26 @@ is **per-ITEM approval** — today the decision is per receipt.
       The rule is not wasted: `scripts/trace-defaults.mjs` reads the same module and refuses to store
       a lopsided capture, which is where it does the most good anyway — before a bad record exists.
 
+      ── **DEFERRED, WITH A NUMBER RATHER THAN AN OPINION** ──
+
+      The obvious next move is to finish the wiring. Measured before deciding:
+
+      > **194 defaults in the table. 0 are lopsided.**
+
+      So the chip would show an **empty queue**, and buying it costs either a stored count column on
+      `design_mockups` — a schema change applied to the LIVE database — or a second aggregate query
+      on the busiest list in the studio. Meanwhile the creation path is already closed:
+      `recaptureIfLopsided` re-takes the short viewport before storing, through the same module, and
+      that is what took those five records from wrong to right today.
+
+      **Deferring on cost-versus-value, which is the only honest reason to defer.** The gap exists,
+      is typed, is tested through the real assembly, and lights up the moment anything supplies
+      counts. What it does not do is justify a live schema migration to display a zero.
+
+      Worth revisiting if either changes: a lopsided record appearing that the tracer did not catch
+      (it would be found by the same query as above), or `design_mockups` gaining count columns for
+      some other reason — at which point this is a one-line map.
+
       ── **C14o — A CLAIM OF MINE, CORRECTED BY THE NEXT RUN, 2026-08-25** ──
 
       C14i said `captureStable` lands the fix "on the FIRST capture rather than depending on a retry

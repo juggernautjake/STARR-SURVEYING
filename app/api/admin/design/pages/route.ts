@@ -90,8 +90,11 @@ export const GET = withErrorHandler(async () => {
       //   · a generated/stored count column on `design_mockups` (a seed, applied to the live DB), or
       //   · a second narrow aggregate query keyed by id, joined in like the dossiers are.
       //
-      // Left inert and SAID SO rather than left looking done. The rule itself is real and used —
-      // `scripts/trace-defaults.mjs` refuses to store a lopsided capture through the same module.
+      // Left inert and SAID SO rather than left looking done — and deferred on a measurement, not a
+      // shrug: **194 defaults in the table, 0 of them lopsided.** The chip would show an empty queue,
+      // and the creation path is already closed, because `recaptureIfLopsided` re-takes the short
+      // viewport before storing through the same module. A live schema migration to display a zero
+      // is the wrong trade. The moment anything here supplies `counts`, the gap works.
     })),
     ((dossiers ?? []) as Array<Record<string, unknown>>).map((d) => ({
       route: d.route as string,
