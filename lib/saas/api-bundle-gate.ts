@@ -140,6 +140,9 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // portals should expect it rather than rediscover it.
   'field-data': { bundle: 'office', reason: 'Crew uploads; mirrored /admin/field-data (work workspace) until C7 made it a tab.' },
   'timeline': { bundle: 'office', reason: 'The activity feed; mirrored /admin/timeline (work workspace) until C7 made it a tab.' },
+  // C8, the sixth. `/api/admin/payments/*` mirrored `/admin/payments/inbox`, now the Customer Money
+  // portal's `incoming` tab. `money` workspace → `office`, carried across.
+  'payments': { bundle: 'office', reason: 'Incoming customer payments; mirrored /admin/payments/inbox (money workspace) until C8 made it a tab.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

@@ -35,7 +35,9 @@ describe('item 7 — Money is one workspace', () => {
     // A sample from each of the four sections, and specifically ones that used to live in different
     // workspaces — /admin/finances and /admin/mileage were Work, the rest were Office.
     for (const href of [
-      '/admin/invoicing', '/admin/receivables', '/admin/payments/inbox',
+      // C8 absorbed /admin/receivables and /admin/payments/inbox into the Customer Money portal,
+      // which is itself in Money. Same invariant, one row instead of three.
+      '/admin/invoicing',
       // `/admin/mileage` was a sample here until C5 absorbed it as the Receipts portal's `mileage`
       // tab, alongside `/admin/cards` and `/admin/pass-through`. The invariant this test guards —
       // the firm's money surfaces live in ONE workspace rather than scattered across two — is
@@ -44,7 +46,8 @@ describe('item 7 — Money is one workspace', () => {
       // C6 absorbed /admin/payroll and /admin/payouts into the Pay portal, which is itself in Money.
       // The invariant — the firm's money surfaces live in ONE workspace — is stronger, not weaker.
       '/admin/pay', '/admin/receipts',
-      '/admin/finances', '/admin/finances/overview',
+      // C8 absorbed /admin/finances/overview as the Books & Tax portal's `overview` tab.
+      '/admin/finances',
       // `/admin/billing/upgrade` was a sample here until C1 of the consolidation plan removed it
       // from the registry. It is not in ANY workspace now, deliberately: it is the interstitial the
       // bundle gate sends you to, not a place you navigate to, and a sidebar row reading "Upgrade
@@ -112,9 +115,16 @@ describe('item 8 — the money words no longer collide', () => {
   it('"Billing" no longer means two opposite things', () => {
     // §2.2: "Billing" meant the subscription you pay for the software, "Invoicing" meant what your
     // customers pay you, and "Finances" meant job profitability. Nobody was going to guess that.
+    //
+    // C8 (2026-08-25) changed two of the three labels, and the invariant is the reason it HAD to:
+    // "Job Profitability" was the whole page and is one tab of four now, so leaving it would have
+    // been §2.2's defect re-made by a slice that cites §2.2 — a name describing a fraction of what the
+    // row opens. "Customer Invoices" widened the same way.
+    //
+    // The three still cannot be mistaken for each other, which is what this guards.
     expect(findRoute('/admin/billing')?.label).toBe('Software Subscription');
-    expect(findRoute('/admin/invoicing')?.label).toBe('Customer Invoices');
-    expect(findRoute('/admin/finances')?.label).toBe('Job Profitability');
+    expect(findRoute('/admin/invoicing')?.label).toBe('Customer Money');
+    expect(findRoute('/admin/finances')?.label).toBe('Books & Tax');
   });
 
   it('each of the three says out loud what it is NOT', () => {

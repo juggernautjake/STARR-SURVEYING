@@ -41,13 +41,28 @@ describe('§1.4 — every built page is reachable', () => {
   });
 
   it('the three go-live dashboards are on the RAIL, not merely registered', () => {
-    // Registering them with `showInRail: false` would satisfy the letter of the finding and none of it:
-    // being unfindable was the entire problem, and the palette only helps somebody who already knows
-    // the page exists.
+    // Registering them with `showInRail: false` would satisfy the letter of the finding and none of
+    // it: being unfindable was the entire problem, and the palette only helps somebody who already
+    // knows the page exists.
+    //
+    // ── C8 (2026-08-25) ─────────────────────────────────────────────────────────────────
+    //
+    // All three are tabs of the Books & Tax portal now. The finding this guards is the sharpest
+    // version of *authored but not wired* — three dashboards BUILT to close go-live gaps that
+    // nothing linked to — and a tab of a railed portal is more findable than a rail row of its own,
+    // not less: you reach it by opening the thing it belongs to.
+    //
+    // What is asserted is therefore the same property one level up, plus the words somebody would
+    // type. A portal that was itself palette-only would fail this exactly as a hidden page did.
+    const portal = ADMIN_ROUTES.find((r) => r.href === '/admin/finances');
+    expect(portal, 'the Books & Tax portal must be registered').toBeDefined();
+    expect(portal!.showInRail, 'the portal must appear on the rail').not.toBe(false);
+    for (const word of ['overview', 'reconcile', 'payroll tax']) {
+      expect(portal!.keywords, `somebody typing "${word}" must find it`).toContain(word);
+    }
+    // And each still resolves — a redirect, not a 404.
     for (const href of ['/admin/finances/overview', '/admin/finances/reconcile', '/admin/payouts/tax-report']) {
-      const route = ADMIN_ROUTES.find((r) => r.href === href);
-      expect(route, `${href} must be registered`).toBeDefined();
-      expect(route!.showInRail, `${href} must appear on the rail`).not.toBe(false);
+      expect(require('node:fs').existsSync(`app${href}/page.tsx`), `${href} lost its route`).toBe(true);
     }
   });
 });

@@ -254,7 +254,16 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // each PERSON is on. Registered so it is reachable and searchable — an unlinked settings page is
   // a setting nobody can change.
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
-  { href: '/admin/finances',        label: 'Job Profitability',        workspace: 'money', section: 'Profitability', iconName: 'Briefcase',     description: 'What each job cost against what it earned. NOT invoicing — this is the answer to "are we pricing right?".', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
+  // ── C8 / P7: FOUR ROWS BECAME ONE ───────────────────────────────────────────────────────────
+  //
+  // The label had to change with the scope. "Job Profitability" was the whole page and is one tab of
+  // four now — leaving it would have been §2.2's defect re-made by a slice that cites §2.2: a name
+  // that describes a fraction of what the row opens.
+  //
+  // The description keeps the "NOT invoicing" clause, which is load-bearing. §2.2 found "Billing",
+  // "Invoicing" and "Finances" meaning three different things nobody could guess between, and the
+  // fix was each row saying what it is NOT. That sentence is asserted by a test.
+  { href: '/admin/finances', label: 'Books & Tax', workspace: 'money', section: 'Profitability', iconName: 'Briefcase', description: 'Money in against money out, what each job earned, the bank queue and payroll tax. NOT invoicing — that is what your customers owe you.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['profit', 'margin', 'schedule c', 'books', 'tax', 'reconcile', 'bank', 'overview', 'totals', 'payroll tax', 'withholding'] },
   // /admin/vehicles was here. C3 made it the Equipment portal's `vehicles` tab — the plan's own
   // argument: *"it is fleet, and the dossiers show /admin/equipment already calls
   // /api/admin/vehicles"*. Two nav rows were reading the same data.
@@ -270,7 +279,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // "Receivables", not "AR". §2.2 measured what happens when this app invents finance vocabulary —
   // three words that all sound like money and mean different things. AR is jargon only an accountant
   // reads; the keywords carry it so ⌘K still finds it.
-  { href: '/admin/receivables',     label: 'Receivables',     workspace: 'money', section: 'Money in', iconName: 'Banknote',     description: 'Who owes money and how late — unpaid invoices aged from their due date.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['ar', 'aging', 'ageing', 'collections', 'overdue', 'owed', 'unpaid', 'outstanding', 'past due', 'chase'] },
 
   // Equipment workspace ───────────────────────────────────────────
   //
@@ -396,7 +404,12 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Approving receipts stays restricted — that is /admin/receipts, one line above, and it is a
   // different question from submitting one.
   { href: '/admin/receipts/new',          label: 'Capture Receipt',  workspace: 'money', section: 'Money out', iconName: 'Camera',       description: 'Upload a receipt photo for approval. Anyone at the firm can submit one.', internalOnly: true, keywords: ['upload', 'photo', 'expense', 'submit receipt', 'my receipt'] },
-  { href: '/admin/invoicing',             label: 'Customer Invoices',        workspace: 'money', section: 'Money in', iconName: 'FileText',     description: 'Bill your customers and track what they have paid. NOT the subscription you pay for this software — that is Software Subscription.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'pay', 'billing', 'customer', 'deposit'] },
+  // ── C8 / P8: FIVE ROWS BECAME ONE ───────────────────────────────────────────────────────────
+  //
+  // "Customer Invoices" was already the right name and stays; what changed is that it now covers
+  // collections, incoming payments and the line categories too. The "NOT the subscription" clause is
+  // untouched and still asserted — §2.2's whole point was that this word collides with Billing.
+  { href: '/admin/invoicing', label: 'Customer Money', workspace: 'money', section: 'Money in', iconName: 'FileText', description: 'What your customers owe you — invoices, collections, payments that arrived, and the categories lines are built from. NOT the subscription this firm pays.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'invoices', 'bill', 'billing customer', 'receivable', 'receivables', 'ar', 'aging', 'ageing', 'overdue', 'owed', 'unpaid', 'outstanding', 'past due', 'collections', 'chase', 'payment', 'payments', 'inbox', 'unmatched', 'pledge', 'venmo', 'claim', 'confirm', 'category', 'categories', 'line item'] },
   // F1b / F2b, registered 2026-08-04 — the orphan guard caught both the day after they shipped.
   // A page nobody can navigate to is this repo's signature defect, and building the page is the
   // half that feels like finishing.
@@ -454,13 +467,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Keywords carry 'ad spend' / 'advertising' since 2026-08-07: advertising became a fourth money
   // stream here, and somebody hunting for what the ads cost should reach the P&L from ⌘K, not only
   // the marketing page. Two screens now answer that question and both should be findable.
-  { href: '/admin/finances/overview',     label: 'Money Overview',   workspace: 'money', section: 'Profitability', iconName: 'PieChart',     description: 'Money in and out at a glance — payments, payouts, receipts and advertising, month by month.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['cash', 'income', 'expenses', 'overview', 'g2', 'ad spend', 'advertising', 'profit', 'p&l', 'month to month'] },
   // Labelled "Bank Reconciliation", not "Reconcile", for two reasons that point the same way. The
   // Cmd+K acceptance criterion is that typing "rec" surfaces RECEIPTS — the far more common
   // destination — and a bare "Reconcile" beat it, which the ranker test caught immediately. And §2.2 of
   // the audit is specifically about colliding money vocabulary: "reconcile" alone could mean the bank,
   // the subscription, or a payout run.
-  { href: '/admin/finances/reconcile',    label: 'Bank Reconciliation', workspace: 'money', section: 'Profitability', iconName: 'Scale',     description: 'Match recorded payments against the bank statement (G3).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['bank', 'reconcile', 'reconciliation', 'statement', 'g3'] },
   // ── C6: TEN ROWS BECAME ONE ─────────────────────────────────────────────────────────────────
   //
   // §4, P1 — the owner's headline example: *"Eleven links, one question: what is somebody owed and
@@ -477,10 +488,8 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // opening this sees four tabs and an `admin` sees ten. The row cannot be narrower than the union
   // without removing somebody's access to their own payslip.
   { href: '/admin/pay', label: 'Pay & Payouts', workspace: 'money', section: 'Money out', iconName: 'Wallet', description: 'What everyone is owed and how they get it — your pay, payroll runs, payouts, withdrawals, rates and rewards.', roles: [...PAY_ROLES, 'employee', 'tech_support', 'finance'], internalOnly: true, keywords: ['pay', 'paycheck', 'salary', 'wage', 'payroll', 'payout', 'payouts', 'withdrawal', 'withdraw', 'balance', 'owed', 'rate', 'rates', 'raise', 'reward', 'rewards', 'xp', 'store', 'redeem', 'my pay', 'ledger', 'run', 'runs'] },
-  { href: '/admin/payouts/tax-report',    label: 'Payout Tax Report', workspace: 'money', section: 'Money out', iconName: 'FileSpreadsheet', description: 'Year-end payout totals per person (G5).', roles: ['admin'], internalOnly: true, keywords: ['1099', 'tax', 'year end', 'g5'] },
 
   // Money — reached from their parent list, so searchable rather than on the rail.
-  { href: '/admin/payments/inbox',        label: 'Payments Inbox',   workspace: 'money', section: 'Money in', iconName: 'Inbox',        description: 'Customer pledges and "I sent it" claims waiting on the office.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['pledge', 'venmo', 'claim', 'confirm'] },
   // ── C6 PUT THIS BACK, OFF THE RAIL ────────────────────────────────────────────────────
   //
   // Dropped with the other nine, and that was wrong for one reason nothing about the sidebar would
@@ -492,8 +501,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // page forwards there. What it exists for is being the parent of a record.
   { href: '/admin/payouts/runs', label: 'Payout Runs', workspace: 'money', section: 'Money out', iconName: 'ListChecks', description: 'A payout batch and what came back from the bank.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['batch', 'run'] },
   { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
-  { href: '/admin/invoices/new',          label: 'New Customer Invoice',      workspace: 'money', section: 'Money in', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['create', 'bill', 'customer'] },
-  { href: '/admin/invoicing/categories',  label: 'Invoice Line Categories', workspace: 'money', section: 'Money in', iconName: 'Tags',       description: 'Line-item categories for invoices.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['line items', 'tags'] },
+  { href: '/admin/invoices/new',          label: 'New Customer Invoice',      workspace: 'money', section: 'Money in', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['create', 'bill', 'customer'] },
   // ── C1: three billing links became one ──────────────────────────────────────────────────────
   //
   // `/admin/billing/invoices` and `/admin/billing/plan-history` are tabs of `/admin/billing` and

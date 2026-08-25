@@ -87,7 +87,9 @@ describe('the drawer renders', () => {
     // What it now checks is the thing it was always protecting: the drawer offers a way to each of
     // them. For the three absorbed, that way is one row whose keywords carry their words.
     for (const href of [
-      '/admin/invoices/new', '/admin/payments/inbox', '/admin/pay',
+      // C8: '/admin/invoices/new' is the Customer Money portal's 'New invoice' BUTTON and
+      // '/admin/payments/inbox' its `incoming` tab. Both are inside the row the drawer offers.
+      '/admin/invoicing', '/admin/pay',
     ]) {
       expect(html, `${href} was in the old drawer and must still be`).toContain(`href="${href}"`);
     }

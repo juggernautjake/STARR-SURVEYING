@@ -96,7 +96,7 @@ describe('POST /api/admin/payment-attempts/[id]/clear — source-lock', () => {
 });
 
 describe('/admin/payments/inbox page — source-lock', () => {
-  const SRC = read('app/admin/payments/inbox/page.tsx');
+  const SRC = read('app/admin/invoicing/_tabs/IncomingTab.tsx');
 
   it("loads from /api/admin/payment-attempts on mount", () => {
     expect(SRC).toMatch(/fetch\('\/api\/admin\/payment-attempts'\)/);
@@ -134,11 +134,15 @@ describe('the Payments Inbox link is reachable from navigation', () => {
   // when the drawer started DERIVING its sections from the route registry (platform audit §1.3): the
   // link is still there, the string is not, and a source-text match would have reported a regression
   // where none existed. Assert reachability, which is what the slice actually promised.
-  it('is registered, and shows in the rail and drawer rather than palette-only', () => {
-    const route = ADMIN_ROUTES.find((r) => r.href === '/admin/payments/inbox');
-    expect(route, '/admin/payments/inbox must be registered').toBeDefined();
-    expect(route!.label).toBe('Payments Inbox');
+  // C8: the inbox is the Customer Money portal's `incoming` tab. The promise this guards — *a
+  // close-out queue nobody can find is one nobody works* — is unchanged and is asserted on the row
+  // that survived, including the words somebody would type to find it.
+  it('is reachable from the rail and drawer rather than palette-only', () => {
+    const route = ADMIN_ROUTES.find((r) => r.href === '/admin/invoicing');
+    expect(route, 'the Customer Money portal must be registered').toBeDefined();
+    expect(route!.label).toBe('Customer Money');
     expect(route!.showInRail, 'a close-out queue nobody can find is one nobody works').not.toBe(false);
+    expect(route!.keywords).toContain('venmo');
   });
 });
 

@@ -51,7 +51,9 @@ const LEGACY_SIDEBAR_HREFS = [
   '/admin/my-notes',      // was ?tab=notes
   '/admin/profile',       // was ?tab=profile — folded into 'Profile & Settings'
   '/admin/equipment', '/admin/research', '/admin/cad',
-  '/admin/payments/inbox', '/admin/invoices/new',
+  // C8: both are inside the Customer Money portal now — one as the `incoming` tab, one as its
+  // 'New invoice' button. The drawer offers the portal.
+  '/admin/invoicing',
   '/admin/messages', '/admin/install', '/admin/settings', '/admin/error-log',
 ] as const;
 

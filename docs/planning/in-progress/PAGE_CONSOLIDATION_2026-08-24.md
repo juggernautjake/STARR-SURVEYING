@@ -942,7 +942,69 @@ early, and the internal tooling comes last.
       `/admin/field-data`, which C7 absorbed in the same breath. Two absent routes is not an
       improvement on one. It asserts `/admin/calendar` now — a Work route this slice deliberately
       kept, so it is a real third case.)*
-- [ ] **C8 — P7 Books & Tax** + **P8 Customer Money** (7 → 2).
+- [x] **C8 — P7 Books & Tax + P8 Customer Money.** Shipped 2026-08-25. **Nine nav rows became two.**
+
+      | portal | tabs | absorbed |
+      |---|---|---|
+      | `/admin/finances` → **Books & Tax** | overview · job profitability · reconcile · payroll tax | 3 rows |
+      | `/admin/invoicing` → **Customer Money** | invoices · collections · incoming · categories | 3 rows + 1 button |
+
+      All eight tabs browser-verified with live data; all six redirects verified landing.
+
+      **Both labels had to change, and §2.2 is the reason.** "Job Profitability" was the whole page
+      and is one tab of four now; "Customer Invoices" widened the same way. Leaving either would have
+      been §2.2's own defect re-made by a slice that cites §2.2 — *a name that describes a fraction of
+      what the row opens*. The three money words still cannot be mistaken for each other, which is
+      what the test guards: **Software Subscription · Customer Money · Books & Tax**.
+
+      ── **THE ROLE MOVES, IN BOTH DIRECTIONS** ───────────────────────────────────────────────────
+
+      · **A widening, declared.** `/admin/payouts/tax-report` was admin-only under the `/admin/payouts`
+        prefix; as a tab its ROUTE gate becomes `/admin/finances`'s three roles. The tab carries
+        `roles: ['admin']`, `resolveTab` will not open it for anyone else, and the report's endpoint
+        is untouched. What a developer gains is a portal whose tax tab they cannot open.
+      · **A narrowing refused.** `/admin/receivables` was `['admin','developer']` — no `tech_support` —
+        against the other three rows' three roles. Rounding it up to the portal's list would have
+        handed somebody a list of what every customer owes as a side effect of a navigation change
+        nobody would review for that. The `collections` tab keeps the narrower list.
+
+      ── **THE ORPHAN GUARD FIRED, AND IT WAS THE RIGHT ONE TO FIRE** ─────────────────────────────
+
+      `orphan-routes` asserts the **three go-live dashboards are on the RAIL, not merely registered** —
+      they exist because three pages were BUILT to close go-live gaps and nothing linked to them, the
+      sharpest version of *authored but not wired*. All three are tabs now.
+
+      A tab of a railed portal is **more** findable than a rail row, not less: you reach it by opening
+      the thing it belongs to. So the assertion moved one level up — the portal is on the rail, its
+      keywords carry `overview`, `reconcile` and `payroll tax`, and each old route still resolves as a
+      redirect rather than a 404.
+
+      ── **AND A REAL KEYWORD LOSS, CAUGHT BY A TEST ABOUT PROPOSALS** ────────────────────────────
+
+      `proposals.test.ts` asserts the aging report is findable *by the jargon* — `keywords: ['ar',
+      'aging'…]`. The Customer Money portal's first keyword list **did not carry `ar` or `aging`**, so
+      somebody typing either would have got nothing, which reads as the feature having been deleted.
+      Every absorbed row's keywords are on the portal now, including `venmo`, `pledge` and `past due`.
+
+      That is the second time this plan's keyword-carrying has been load-bearing rather than tidy, and
+      the first time a test in an unrelated area caught it.
+
+      ── **FOUR BACK-LINKS THAT BECAME LINKS TO THEMSELVES** ──────────────────────────────────────
+
+      Three absorbed bodies carried *"← Finances"* / *"← Back to invoicing"* headers. Inside a tab OF
+      that portal, those point at the page you are standing on — **a no-op navigation that reads as
+      broken**. Removed; the tab strip is the way back.
+
+      The fourth, *"← Payouts"* on the tax report, is a genuine cross-link to a DIFFERENT portal, so
+      it is kept and repointed at `/admin/pay?tab=payout-runs` rather than left to bounce through
+      C6's redirect.
+
+      **This is a new defect class, not a one-off.** Every portal from here should check the absorbed
+      bodies for back-links to their old parent — the merge turns them into self-links silently, and
+      nothing fails.
+
+      The API mirror broke for the **sixth time in six slices** (`/api/admin/payments/*`), carried
+      across at `office`. The inline-hex ratchet fired for the fifth — **2306 before, 2306 after**.
 - [ ] **C9 — P10 People** + **P11 Messages** (9 → 2).
 - [ ] **C10 — P6 Growth** (1 → 0 new links; leads into marketing).
 - [ ] **C11 — P12 Knowledge** + **P13 Research** (13 → 2).

@@ -110,7 +110,9 @@ const PAGES: Record<string, ComponentType> = {
   rewards: nextDynamic(() => import('@/app/admin/pay/_tabs/RewardsTab'), { ssr: false }),
   billing: nextDynamic(() => import('@/app/admin/billing/page'), { ssr: false }),
   research: nextDynamic(() => import('@/app/admin/research/page'), { ssr: false }),
-  finances: nextDynamic(() => import('@/app/admin/finances/page'), { ssr: false }),
+  // C8: `/admin/finances` is a portal shell now. Pointed at the job-profitability body, which is
+  // what this entry has always been a picture of.
+  finances: nextDynamic(() => import('@/app/admin/finances/_tabs/ScheduleCTab'), { ssr: false }),
   // Newly registered in route-registry Slice 56 — kept for harness parity.
   orgs: nextDynamic(() => import('@/app/admin/orgs/page'), { ssr: false }),
   payouts: nextDynamic(() => import('@/app/admin/pay/_tabs/LedgerTab'), { ssr: false }),

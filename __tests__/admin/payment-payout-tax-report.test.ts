@@ -136,7 +136,7 @@ describe('GET /api/admin/payouts/tax-report — source-lock', () => {
 });
 
 describe('/admin/payouts/tax-report page — source-lock', () => {
-  const SRC = read('app/admin/payouts/tax-report/page.tsx');
+  const SRC = read('app/admin/finances/_tabs/PayrollTaxTab.tsx');
 
   it("renders the year + per-quarter quick-pins", () => {
     expect(SRC).toMatch(/data-testid="tax-quick-year"/);

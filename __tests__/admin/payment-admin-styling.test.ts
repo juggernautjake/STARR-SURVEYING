@@ -15,12 +15,12 @@ const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 const ADMIN_PAYMENT_PAGES = [
   'app/admin/invoices/new/page.tsx',
-  'app/admin/payments/inbox/page.tsx',
+  'app/admin/invoicing/_tabs/IncomingTab.tsx',
   'app/admin/pay/_tabs/PayoutRunsTab.tsx',
   'app/admin/payouts/runs/[id]/page.tsx',
   'app/admin/payouts/runs/[id]/dispatch/page.tsx',
   'app/admin/payouts/ad-hoc/page.tsx',
-  'app/admin/payouts/tax-report/page.tsx',
+  'app/admin/finances/_tabs/PayrollTaxTab.tsx',
 ];
 
 describe('shared admin stylesheet — payments-admin.css', () => {
@@ -77,7 +77,7 @@ describe('every visible error message uses role=alert', () => {
 });
 
 describe('loading states publish aria-busy + aria-live', () => {
-  const inbox = read('app/admin/payments/inbox/page.tsx');
+  const inbox = read('app/admin/invoicing/_tabs/IncomingTab.tsx');
   it("payments inbox loading <p> is aria-busy + role=status + polite live", () => {
     expect(inbox).toMatch(/data-testid="payments-inbox-loading"[\s\S]{0,200}role="status"/);
     expect(inbox).toMatch(/aria-busy="true"/);

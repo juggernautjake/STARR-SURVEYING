@@ -239,10 +239,11 @@ describe('the shape of the build', () => {
 
   it('is reachable from the rail', () => {
     const registry = fs.readFileSync(path.join(ROOT, 'lib/admin/route-registry.ts'), 'utf8');
-    expect(registry).toContain("href: '/admin/receivables'");
-    // Called Receivables, not AR — §2.2's lesson about inventing finance vocabulary — but findable
-    // by the jargon too.
-    expect(registry).toMatch(/label: 'Receivables'/);
-    expect(registry).toMatch(/keywords: \['ar', 'aging'/);
+    // C8 (2026-08-25): receivables is the Customer Money portal's `collections` tab. What this
+    // guards is that the aging report is REACHABLE and findable by the jargon somebody types — and
+    // it caught a real loss: the portal's first keyword list did not carry 'ar' or 'aging', so
+    // somebody typing either would have got nothing, which reads as the feature being gone.
+    expect(registry).toContain("href: '/admin/invoicing'");
+    expect(registry).toMatch(/'ar', 'aging', 'ageing'/);
   });
 });
