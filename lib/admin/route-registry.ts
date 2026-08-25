@@ -230,7 +230,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/jobs', label: 'Jobs & Projects', workspace: 'work', iconName: 'ListChecks', description: 'Every job and the projects they belong to, what the crews have sent back, and everything that happened.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job', 'jobs', 'project', 'projects', 'site', 'client', 'field', 'field data', 'collector', 'upload', 'survey', 'activity', 'timeline', 'history', 'feed', 'new job', 'import'] },
   { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Add a job to a project.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
-  { href: '/admin/leads',           label: 'Leads',           workspace: 'work', iconName: 'Inbox',         description: 'Inbound contact + lead queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['contacts', 'prospects'] },
   // ── FOUR ENTRIES BECAME ONE (A1, 2026-08-11) ──────────────────────────────────────────────────
   //
   // Marketing / Ad spend / Ad conversions / Ad upload log were four routes and four nav rows, split
@@ -245,7 +244,13 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Every keyword from the four is merged in. Losing them would mean somebody searching "upload log"
   // or "cpl" in the palette finds nothing, which is how a consolidation quietly makes a feature
   // disappear even though the page is right there.
-  { href: '/admin/marketing',       label: 'Advertising',     workspace: 'work', iconName: 'TrendingUp',    description: 'Ad performance, spend, conversions and the Google upload log — one page, four tabs.', roles: ['admin'], internalOnly: true, keywords: ['funnel', 'ads', 'google', 'cost per lead', 'cpl', 'roas', 'attribution', 'conversion', 'conversions', 'marketing', 'advertising', 'spend', 'cost', 'budget', 'upload', 'upload log', 'export', 'errors', 'impressions', 'clicks'] },
+  // ── C10 / P6: TWO ROWS BECAME ONE, AND THE PAGE OUTGREW ITS LABEL ──────────────────────────
+  //
+  // It holds the lead queue now, so "Advertising" describes four of its five tabs. §8 calls this
+  // portal GROWTH, which is the whole funnel: what the ads did, who they produced, what they cost,
+  // and what went back to Google. The keywords carry both words plus every one the leads row had,
+  // so the old name still finds it.
+  { href: '/admin/marketing',       label: 'Growth',     workspace: 'work', iconName: 'TrendingUp',    description: 'The funnel end to end — ad performance, the lead queue, spend, conversions and the Google upload log.', roles: ['admin'], internalOnly: true, keywords: ['funnel', 'ads', 'google', 'cost per lead', 'cpl', 'roas', 'attribution', 'conversion', 'conversions', 'marketing', 'advertising', 'spend', 'cost', 'budget', 'upload', 'upload log', 'export', 'errors', 'impressions', 'clicks', 'contacts', 'prospects', 'leads', 'lead', 'enquiry', 'inquiry', 'follow up', 'follow-up', 'growth'] },
   // §2.4's fix. Not a fifth calendar: the four that exist each answer "what is happening over a
   // period" for ONE resource type, and the dispatcher's actual question — "for Thursday, what can I
   // send" — spans crew, equipment and vehicles at once. In the rail because it is asked daily.
@@ -334,6 +339,34 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/research/coverage',    label: 'Coverage',         workspace: 'research-cad', iconName: 'Map',         description: 'County coverage map.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/research/library',     label: 'Library',          workspace: 'research-cad', iconName: 'Library',     description: 'Research document library.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
   { href: '/admin/research/pipeline',    label: 'Pipeline',         workspace: 'research-cad', iconName: 'Workflow',    description: 'Pipeline run dashboard.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
+
+  // ── C10: FIVE ABSORBED PARENTS COME BACK AS REGISTRATIONS, BECAUSE THEIR RECORDS NEVER LEFT ────
+  //
+  // Absorbing a page has meant dropping its row. That is right when the route becomes a redirect and
+  // nothing lives under it — and WRONG the moment it has a dynamic child, because dropping the row
+  // takes the child's bundle gate with it.
+  //
+  // `bundleForRoute` resolves an unknown path by its deepest registered prefix. With no
+  // `/admin/leads` row, `/admin/leads/[id]` — a lead record — matched nothing and answered `null`,
+  // which means NO BUNDLE GATE APPLIES. Measured across the whole tree, C6 through C9 had done this
+  // five times: employee records, lead records, field-data records, project records and one person's
+  // payroll. All five are Office- or Work-bundle pages that a firm which has not paid for the bundle
+  // could open.
+  //
+  // This is the same leak `bundle-gate.ts` already documents from 2026-08-01, arriving by a
+  // different road: there the research INDEX was gated and every research project was not. There the
+  // fix was to make overrides cover the subtree. Here it is to leave the parent REGISTERED —
+  // `showInRail: false` hides it from the rail, the flyout and the workspace landing, which is all
+  // the consolidation ever needed — instead of unregistering it.
+  //
+  // Each row keeps the bundle it had on main via its workspace. Roles are as they were, except
+  // `/admin/leads`, narrowed to the `admin` its nine API routes have always enforced (see C10 in
+  // the marketing portal's header).
+  { href: '/admin/employees',   label: 'Employees',    workspace: 'office', section: 'People', iconName: 'UsersRound',      description: 'Employee records. Absorbed into People; the row remains so /admin/employees/[email] keeps its bundle gate.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
+  { href: '/admin/leads',       label: 'Leads',        workspace: 'work',   iconName: 'Inbox',                              description: 'Lead records. Absorbed into Growth; the row remains so /admin/leads/[id] keeps its bundle gate.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['contacts', 'prospects'] },
+  { href: '/admin/field-data',  label: 'Field Data',   workspace: 'work',   iconName: 'MapPin',                             description: 'Field data records. Absorbed into Jobs; the row remains so /admin/field-data/[id] keeps its bundle gate.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['points', 'gnss'] },
+  { href: '/admin/projects',    label: 'All Projects', workspace: 'work',   iconName: 'FolderKanban',                       description: 'Project records. Absorbed into Jobs; the row remains so /admin/projects/[id] and its editor keep their bundle gate.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['project'] },
+  { href: '/admin/payroll',     label: 'Payroll',      workspace: 'money',  section: 'Money out', iconName: 'BadgeDollarSign', description: 'Payroll records. Absorbed into Pay; the row remains so /admin/payroll/[email] keeps its bundle gate.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['paychecks', 'wages'] },
 
   // Knowledge workspace ───────────────────────────────────────────
   { href: '/admin/learn',                label: 'Learning Hub',     workspace: 'knowledge', iconName: 'GraduationCap', description: 'Learning portal home.', keywords: ['education', 'training'] },

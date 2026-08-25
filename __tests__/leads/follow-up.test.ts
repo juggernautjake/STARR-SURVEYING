@@ -155,7 +155,9 @@ describe('one function, both boards', () => {
   it('the leads board and the follow-up queue call the same attribution', () => {
     // "Also G1-4 in the Google doc — do it once." Two implementations would disagree about where a lead
     // came from, on two screens, and the one the office believed would be whichever they opened second.
-    const board = readFileSync(join(process.cwd(), 'app/admin/leads/page.tsx'), 'utf8');
+  // C10 (2026-08-25): the leads board is the Growth portal's `leads` tab. Same component, one
+  // directory deeper — what these assertions check is unchanged.
+    const board = readFileSync(join(process.cwd(), 'app/admin/marketing/_tabs/LeadsTab.tsx'), 'utf8');
     const queue = readFileSync(join(process.cwd(), 'app/api/admin/leads/follow-ups/route.ts'), 'utf8');
     expect(board).toMatch(/attributionOf/);
     expect(queue).toMatch(/attributionOf/);

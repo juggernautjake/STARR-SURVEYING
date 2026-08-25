@@ -29,10 +29,29 @@
 // afterwards, nobody could tell whether the consolidation or the rewrite did it. A2–A5 change what
 // is inside them; this slice only changes where they live.
 
+// ── C10: §5's ARITHMETIC CAME OUT BACKWARDS HERE, AND THE ANSWER WAS TO FIX THE DOOR ────────────
+//
+// Every slice before this one asked "does the portal open wider than the pages it absorbs?" and
+// carried role lists onto tabs. Here the absorbed page had the WIDER door: middleware let `admin`,
+// `developer` and `tech_support` into `/admin/leads`, and the nav offered it to all three, while
+// `/admin/marketing` has always been `admin` alone.
+//
+// So the plan's move looked like a narrowing. It is not, and checking rather than assuming is what
+// showed why: **all nine `/api/admin/leads/*` endpoints call `isAdmin`, which is `admin` alone.** A
+// `developer` who followed that nav link got the page and a 403 from every fetch on it. The door has
+// been wider than the boundary for as long as both have existed, and what the two extra roles were
+// offered is an empty board.
+//
+// §5.1 says hiding an element is a courtesy and refusing the request is the boundary. The boundary
+// here says `admin`, and moving it is a product decision about who may see leads — not one a
+// consolidation slice gets to make. So the door came to the boundary: `/admin/leads` is `['admin']`
+// in middleware now, matching what its API has always enforced. Nobody loses a working page,
+// because nobody outside `admin` ever had one.
+
 import { useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { BarChart3, DollarSign, Upload, FileDown } from 'lucide-react';
+import { BarChart3, DollarSign, Upload, FileDown, Inbox } from 'lucide-react';
 
 import RangePicker from './RangePicker';
 import AdsAccessBanner from './AdsAccessBanner';
@@ -42,6 +61,7 @@ import DashboardTab from './_tabs/DashboardTab';
 import SpendTab from './_tabs/SpendTab';
 import UploadsTab from './_tabs/UploadsTab';
 import ExportsTab from './_tabs/ExportsTab';
+import LeadsTab from './_tabs/LeadsTab';
 import './Marketing.css';
 
 const TABS = [
@@ -50,6 +70,15 @@ const TABS = [
     label: 'Overview',
     icon: BarChart3,
     hint: 'Funnel, cost per stage, attribution coverage.',
+  },
+  {
+    // C10 — `/admin/leads`, absorbed. Second rather than last because the strip now reads in the
+    // funnel's order: what the ads did, who they produced, what they cost, what we sent back to
+    // Google, and whether the sending worked.
+    id: 'leads',
+    label: 'Leads',
+    icon: Inbox,
+    hint: 'Everyone who has asked us for something, and who still owes them a call.',
   },
   {
     id: 'spend',
@@ -75,7 +104,7 @@ const TABS = [
   },
 ];
 
-type TabId = 'overview' | 'spend' | 'conversions' | 'uploads';
+type TabId = 'overview' | 'leads' | 'spend' | 'conversions' | 'uploads';
 
 // ── C2 ────────────────────────────────────────────────────────────────────────────────────────
 //
@@ -148,8 +177,12 @@ export default function MarketingPage(): React.ReactElement {
         <p className="mkt-tabs__hint">{activeTab.hint}</p>
         {/* Not shown on the upload log: that tab lists cron runs, which are not a period of ad
             performance. A control that appears everywhere and silently does nothing on one tab is
-            worse than one that is honestly absent. */}
-        {active !== 'uploads' ? (
+            worse than one that is honestly absent.
+
+            C10 — and not on Leads either, for exactly that reason. The lead board filters by STATUS
+            and reads no date range, so a period control above it would have been this very rule
+            broken by the slice that quotes it. */}
+        {active !== 'uploads' && active !== 'leads' ? (
           <RangePicker value={range} onChange={(r) => navigate(active, r)} />
         ) : null}
       </div>
@@ -159,6 +192,7 @@ export default function MarketingPage(): React.ReactElement {
             mount, and mounting all four would fire every advertising query on every visit to answer
             one question. */}
         {active === 'overview' ? <DashboardTab range={range} /> : null}
+        {active === 'leads' ? <LeadsTab /> : null}
         {active === 'spend' ? <SpendTab range={range} /> : null}
         {active === 'conversions' ? <ExportsTab range={range} /> : null}
         {active === 'uploads' ? <UploadsTab /> : null}

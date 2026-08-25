@@ -1053,7 +1053,54 @@ early, and the internal tooling comes last.
       The API mirror broke for the **seventh time in seven slices** (`/api/admin/role-requests`).
       The inline-hex ratchet fired for the sixth — **2306 before, 2306 after**, a pure rename. All
       eight redirect stubs verified signed-in, each landing on its own tab. `npm run build` clean.
-- [ ] **C10 — P6 Growth** (1 → 0 new links; leads into marketing).
+- [x] **C10 — P6 Growth** (1 → 0 new links; leads into marketing). **DONE 2026-08-25.**
+
+      `/admin/leads` is the `leads` tab of `/admin/marketing`, second in the strip so it reads in the
+      funnel's order. `/admin/leads/[id]` stays a record, as §8 said. The portal is **Growth** in the
+      nav now — it holds the lead queue, so "Advertising" described four of its five tabs; both words
+      are in the keywords, so the old name still finds it.
+
+      **§5's arithmetic came out backwards here, and the answer was to fix the door.** Every slice
+      before this asked whether the portal opened wider than the pages it absorbed. Here the absorbed
+      page had the wider door: middleware let `admin`, `developer` and `tech_support` into
+      `/admin/leads`, and the nav offered it to all three, while `/admin/marketing` has always been
+      `admin` alone. So the plan's move looked like a narrowing — and checking rather than assuming
+      is what showed it was not: **all nine `/api/admin/leads/*` endpoints call `isAdmin`, which is
+      `admin` alone.** A `developer` who followed that nav link got the page and a 403 from every
+      fetch on it. The door has been wider than the boundary for as long as both have existed, and
+      what the two extra roles were offered is an empty board. §5.1 says the boundary is the
+      refusal; moving it is a product decision about who may see leads, so the door came to the
+      boundary instead: `/admin/leads` is `['admin']` in middleware. Verified with two accounts —
+      admin renders and gets 200, non-admin is sent to `/admin/me` and gets 403.
+
+      **A packaging leak this slice was about to make for the sixth time.** Absorbing a page has
+      meant dropping its registry row. `bundleForRoute` resolves an unknown path by its deepest
+      REGISTERED prefix, so dropping the row takes the bundle gate off everything beneath it.
+      Measured across all 182 admin routes, C6–C9 had already done this five times:
+
+      | Record route | Was | Had become |
+      |---|---|---|
+      | `/admin/employees/[email]` | `office` | **no gate** |
+      | `/admin/leads/[id]` | `office` | (about to be) |
+      | `/admin/field-data/[id]` | `office` | **no gate** |
+      | `/admin/projects/[id]` + `/edit` | `office` | **no gate** |
+      | `/admin/payroll/[email]` | `office` | **no gate** |
+
+      Five record pages a firm that had not paid for the bundle could open. This is the same leak
+      `bundle-gate.ts` already documents from 2026-08-01 — where the research index was gated and
+      every individual research project was not — arriving by a different road. The fix is that an
+      absorbed parent with live children stays **registered** and goes `showInRail: false`, which
+      hides it from the rail, the flyout and the workspace landing and is all the consolidation ever
+      needed. C9's own `/admin/employees/manage` was already doing this; the rule was just never
+      stated. All five restored and re-measured back to `office`.
+
+      **The rule for every remaining slice: before dropping a row, look for a dynamic child.**
+
+      The range picker is absent on Leads as well as on uploads — the board filters by STATUS and
+      reads no date range, so a period control above it would have been the honestly-absent rule
+      broken by the slice that quotes it. Browser-verified: five tabs, 11 real leads on the tab,
+      picker present on three and absent on two. Inline hexes **2306 before, 2306 after**.
+      `npm run build` clean.
 - [ ] **C11 — P12 Knowledge** + **P13 Research** (13 → 2).
 - [ ] **C12 — P14 Company** + **P15 System** (8 → 2).
 - [ ] **C12b — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:

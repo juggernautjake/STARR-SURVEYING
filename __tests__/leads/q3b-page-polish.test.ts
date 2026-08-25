@@ -13,7 +13,9 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('leads admin page — Q3b URL-persisted status filter', () => {
-  const SRC = read('app/admin/leads/page.tsx');
+  // C10 (2026-08-25): the leads board is the Growth portal's `leads` tab. Same component, one
+  // directory deeper — what these assertions check is unchanged.
+  const SRC = read('app/admin/marketing/_tabs/LeadsTab.tsx');
 
   it('imports useRouter for the replace() call', () => {
     expect(SRC).toMatch(/import \{ useRouter, useSearchParams \} from 'next\/navigation'/);
@@ -41,7 +43,7 @@ describe('leads admin page — Q3b URL-persisted status filter', () => {
 });
 
 describe('leads admin page — Q3b Mark contacted quick action', () => {
-  const SRC = read('app/admin/leads/page.tsx');
+  const SRC = read('app/admin/marketing/_tabs/LeadsTab.tsx');
 
   it('renders only for leads still in the `new` state', () => {
     expect(SRC).toMatch(/\{lead\.status === 'new' && \(/);

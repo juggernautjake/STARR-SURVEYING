@@ -13,10 +13,14 @@ const repoRoot = path.join(__dirname, '..', '..');
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 
 describe('leads list page — S1b card polish', () => {
-  const SRC = read('app/admin/leads/page.tsx');
+  // C10 (2026-08-25): the leads board is the Growth portal's `leads` tab. Same component, one
+  // directory deeper — what these assertions check is unchanged.
+  const SRC = read('app/admin/marketing/_tabs/LeadsTab.tsx');
 
   it('imports the dedicated Leads.css stylesheet', () => {
-    expect(SRC).toMatch(/import '\.\.\/styles\/Leads\.css';/);
+    // C10: one directory deeper, so the relative path gained a segment. The import is what this
+    // asserts, and which stylesheet it names has not changed.
+    expect(SRC).toMatch(/import '\.\.\/\.\.\/styles\/Leads\.css';/);
   });
 
   it('scopes the page wrapper with the .leads-page class so CSS overrides bind', () => {
@@ -59,7 +63,7 @@ describe('leads list page — S1b card polish', () => {
 });
 
 describe('formatRelativeAge — pure helper inline in page.tsx', () => {
-  const SRC = read('app/admin/leads/page.tsx');
+  const SRC = read('app/admin/marketing/_tabs/LeadsTab.tsx');
 
   it('covers minutes / hours / days / months / years', () => {
     expect(SRC).toMatch(/`\$\{min\}m ago`/);

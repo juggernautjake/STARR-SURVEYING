@@ -57,7 +57,7 @@ const PAGES: Record<string, ComponentType> = {
   // always been a picture of — shooting the shell would replace a screenshot of the jobs table with
   // one of a tab strip.
   jobs: nextDynamic(() => import('@/app/admin/jobs/_tabs/JobsTab'), { ssr: false }),
-  leads: nextDynamic(() => import('@/app/admin/leads/page'), { ssr: false }),
+  leads: nextDynamic(() => import('@/app/admin/marketing/_tabs/LeadsTab'), { ssr: false }),
   notes: nextDynamic(() => import('@/app/admin/notes/page'), { ssr: false }),
   // C5: the harness shoots page BODIES, and `/admin/receipts` is a portal shell now. Pointed at the
   // QUEUE, which is what this entry has always been a picture of — shooting the shell would replace a

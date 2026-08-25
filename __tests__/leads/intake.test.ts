@@ -293,7 +293,8 @@ describe('leads admin page — Q3 focus param', () => {
   const fs = require('node:fs') as typeof import('node:fs');
   const path = require('node:path') as typeof import('node:path');
   const PAGE_SRC = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'app', 'admin', 'leads', 'page.tsx'),
+    // C10 (2026-08-25): the leads board is the Growth portal's `leads` tab.
+    path.join(__dirname, '..', '..', 'app', 'admin', 'marketing', '_tabs', 'LeadsTab.tsx'),
     'utf8',
   );
 

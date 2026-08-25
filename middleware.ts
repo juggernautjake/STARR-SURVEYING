@@ -68,7 +68,12 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // /admin/my-jobs + /admin/my-hours role-gates removed in
   // consolidation Slice 2 — the redirect at the top of the handler
   // takes the user to /admin/me?tab=… before we reach the role check.
-  { prefix: '/admin/leads', roles: ['admin', 'developer', 'tech_support'] },
+  // C10 (2026-08-25): was ['admin', 'developer', 'tech_support'], and every one of the nine
+  // /api/admin/leads/* endpoints calls isAdmin — which is 'admin' alone. The two extra roles got the
+  // page and a 403 from every fetch on it. The door has been wider than the boundary since both were
+  // written; this brings it to the boundary rather than moving the boundary, because who may see
+  // leads is a product decision and not a consolidation slice's to make. Covers /admin/leads/[id].
+  { prefix: '/admin/leads', roles: ['admin'] },
   // A7 — admin only, and narrower than /admin/leads on purpose: this page hands out a file containing
   // customer conversion values and hashed identifiers, and it writes into the ad account's record of what
   // has been uploaded. That is a commercial control, not a work queue.
