@@ -23,7 +23,7 @@
 // a fetch failed.
 
 import { useEffect, useState } from 'react';
-import { togglesFrom, type FeatureToggles } from './feature-toggles';
+import type { FeatureToggles } from './feature-toggles';
 
 /** Resolved once per page load. `null` until the first read finishes. */
 let cache: FeatureToggles | null = null;
@@ -32,10 +32,20 @@ let inflight: Promise<FeatureToggles> | null = null;
 async function read(): Promise<FeatureToggles> {
   if (cache) return cache;
   if (!inflight) {
-    inflight = fetch('/api/admin/settings', { cache: 'no-store' })
+    // ── NOT `/api/admin/settings` ───────────────────────────────────────────────────────────────
+    //
+    // That endpoint is `isAdmin`-only, which it should be — it carries the company's details and its
+    // billing. Reading the toggle map from it meant an employee's browser got a 403, this correctly
+    // answered "everything is on", and the whole feature silently did nothing for non-admins: the
+    // nav kept every switched-off page, and the off-page notice could never appear for the people it
+    // exists for.
+    //
+    // It worked perfectly for the one account I had been testing with, which is exactly why it took
+    // a second signed-in browser to find.
+    inflight = fetch('/api/admin/feature-toggles', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
-      .then((body) => togglesFrom(body?.settings))
-      // Down, slow, 403 for a non-admin. Everything stays on, which is today's behaviour exactly.
+      .then((body) => (body?.toggles ?? {}) as FeatureToggles)
+      // Down, slow, signed out. Everything stays on, which is today's behaviour exactly.
       .catch(() => ({} as FeatureToggles))
       .then((t) => { cache = t; return t; })
       // Cleared either way so a later navigation can retry after a transient failure. Without this,

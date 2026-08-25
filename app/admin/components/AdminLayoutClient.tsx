@@ -4,6 +4,7 @@
 import { SessionProvider, useSession } from 'next-auth/react';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
+import PageOffGate from './PageOffGate';
 import AdminSidebar from './AdminSidebar';
 import AdminTopBar from './AdminTopBar';
 import Fieldbook from './Fieldbook';
@@ -261,7 +262,16 @@ function Inner({ children }: { children: React.ReactNode }) {
               userName={session.user.name || undefined}
               userRole={role}
             >
-              {children}
+              {/* T4 of §11.4. A switched-off page shows a plain notice — an ADMIN sees the page
+                * itself behind a banner, because "turn it back on and make sure it is hooked up
+                * correctly" is impossible if the only thing they can see of it is a notice.
+                *
+                * INSIDE the ErrorBoundary, so a fault in the gate is caught like any other page
+                * fault rather than taking the whole shell down — and above `children`, so the page
+                * underneath never mounts for somebody who should not see it. */}
+              <PageOffGate isAdminUser={roles.includes('admin')}>
+                {children}
+              </PageOffGate>
             </ErrorBoundary>
           </div>
         </div>

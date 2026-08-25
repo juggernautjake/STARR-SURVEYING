@@ -1,0 +1,79 @@
+/* app/admin/components/PageOffGate.css — a switched-off page, and the admin's way back in.
+ *
+ * T4 of §11.4 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+ *
+ * Tokens throughout: this renders on every admin route, so it has to hold up in all eleven palettes.
+ * A literal hex here is one the theme sweep flags and the contrast audit finds later at a worse
+ * moment — this codebase has already spent an afternoon on 232 of those. */
+
+.page-off__banner {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0 0 1rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 8px;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  border: 1px solid color-mix(in srgb, var(--color-warning-text) 25%, transparent);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.page-off__banner svg { flex: 0 0 auto; }
+.page-off__banner span { flex: 1 1 auto; }
+
+.page-off__action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  flex: 0 0 auto;
+  padding: 0.3125rem 0.625rem;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--color-warning-text) 12%, transparent);
+  color: var(--color-warning-text);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.page-off__action:hover { background: color-mix(in srgb, var(--color-warning-text) 20%, transparent); }
+
+/* The ordinary user's version. Centred and quiet: this is not an error, and styling it like one
+ * would send somebody to report a bug about a decision their own company made. */
+.page-off {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 2rem 1.5rem;
+  color: var(--theme-fg-secondary, #6B7280);
+}
+
+.page-off h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.page-off p { margin: 0; font-size: 0.9375rem; line-height: 1.55; }
+
+.page-off__home {
+  margin-top: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--color-accent, #2563EB);
+  color: #FFFFFF;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+@media (max-width: 640px) {
+  .page-off__banner { flex-wrap: wrap; }
+  .page-off { margin: 2rem auto; }
+}

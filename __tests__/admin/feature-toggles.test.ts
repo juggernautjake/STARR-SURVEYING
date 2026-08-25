@@ -25,6 +25,24 @@ import {
   type FeatureToggles,
 } from '@/lib/admin/feature-toggles';
 
+
+/**
+ * A source file with its comments removed.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────
+ *
+ * THREE assertions in this session failed against files that were correct, because the thing they
+ * asserted was ABSENT from the code and present in a comment explaining why it was absent. A file
+ * that documents its own decision is the file most likely to fail a naive .
+ *
+ * So an absence is asserted against code. A presence can still be asserted against the raw text —
+ * finding a string in a comment is a false PASS there, which is a much smaller problem than a false
+ * failure that sends somebody to fix working code.
+ */
+function code(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 describe('absent means ON', () => {
   it('a product with no settings at all is fully working', () => {
     // The load-bearing decision. A toggle system that ships with anything off is one that broke
@@ -198,8 +216,7 @@ describe('the settings endpoint accepts the key this module owns', () => {
     // as it should, it is explaining what was added — so a bare /'feature_toggles'/ matches the
     // prose and fails a file that is correct. Second time in one session an assertion caught my own
     // comment instead of the code; the fix both times was to assert on the statement, not the text.
-    const allowed = ROUTE.slice(ROUTE.indexOf('const ALLOWED_KEYS'), ROUTE.indexOf('export const GET'));
-    expect(allowed).not.toMatch(/'feature_toggles'/);
+    expect(code(ROUTE)).not.toMatch(/'feature_toggles'/);
   });
 });
 
@@ -335,5 +352,105 @@ describe('the screen that puts the switch in somebody\'s hands', () => {
     // invisibly. Shown only once the switch is OFF — a link count on all 134 rows is noise.
     expect(PANEL).toMatch(/\{!on && d\.inbound > 0 && \(/);
     expect(PANEL).toMatch(/Those links still work; they just point somewhere nobody can find/);
+  });
+});
+
+// ── T4: WHAT A SWITCHED-OFF PAGE ACTUALLY DOES ──────────────────────────────────────────────────
+//
+// Owner: *"turn it back on and **make sure it is hooked up correctly**."* That clause settles the
+// hardest question in the feature — an admin has to be able to REACH a disabled page to check it
+// before switching it back on for everybody.
+//
+// Browser-verified, one route, three states:
+//   ON  / admin      the page
+//   OFF / admin      the page, working, behind a banner saying it is off for everyone else
+//   OFF / employee   "Weather is turned off", no page data, and gone from their workspace list
+describe('a switched-off page, from both sides', () => {
+  const ROOT4 = path.join(__dirname, '..', '..');
+  const GATE = fs.readFileSync(path.join(ROOT4, 'app/admin/components/PageOffGate.tsx'), 'utf8');
+
+  it('an admin gets the working page, not a notice about it', () => {
+    // "Make sure it is hooked up correctly" is impossible if the only thing an admin can see of a
+    // disabled page is a message saying it is disabled.
+    const block = GATE.slice(GATE.indexOf('if (isAdminUser)'));
+    expect(block).toMatch(/\{children\}/);
+    expect(block).toMatch(/You are seeing it because you are an admin/);
+  });
+
+  it('everybody else gets a plain notice, and NOT a 404', () => {
+    // A 404 says the thing does not exist. It does — somebody switched it off, and the person who
+    // followed a link needs to know which of those two it is: one is a bug worth reporting and the
+    // other is a decision the company made.
+    expect(GATE).toMatch(/is turned off<\/h1>|\{route\.label\} is turned off/);
+    expect(GATE).toMatch(/It has not been deleted/);
+  });
+
+  it('resolves the ROUTE, not the raw URL', () => {
+    // `findRoute` maps `/admin/jobs/abc123` to the `/admin/jobs` entry, so switching off Jobs covers
+    // every job's detail page. Matching the pathname would leave children reachable while the parent
+    // was off — the sort of gap somebody finds by accident and then stops trusting the switch.
+    expect(GATE).toMatch(/const route = findRoute\(pathname\);/);
+    expect(GATE).toMatch(/isEnabled\(toggles, route\.href\)/);
+  });
+
+  it('and offers no "request access", because this is not a permission problem', () => {
+    // Offering a permission remedy would teach the wrong thing about what happened.
+    expect(code(GATE)).not.toMatch(/request access/i);
+  });
+});
+
+// ── T5: THE TEST §11.5 ASKS FOR BY NAME ─────────────────────────────────────────────────────────
+//
+// *"A toggle is not a permission. It is a visibility control, and the moment somebody believes
+// otherwise it becomes a security hole with a friendly name."*
+//
+// The plan asks that turning a page off change no API's answer. The way to guarantee that is
+// stronger than testing one endpoint: **no API may consult the toggle map at all**, except the one
+// whose job is to serve it. An API that never reads it cannot be changed by it, for any role.
+describe('turning a page off cannot change what any API answers', () => {
+  const ROOT5 = path.join(__dirname, '..', '..');
+
+  function apiFiles(dir: string, out: string[] = []): string[] {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) apiFiles(p, out);
+      else if (e.name === 'route.ts' || e.name === 'route.tsx') out.push(p);
+    }
+    return out;
+  }
+
+  it('no route handler imports the toggles except the one that serves them', () => {
+    const routes = apiFiles(path.join(ROOT5, 'app', 'api'));
+    // The scan has to actually be finding files, or this passes by looking at nothing — the shape
+    // of at least four bugs already recorded in this session.
+    expect(routes.length).toBeGreaterThan(100);
+
+    const readers = routes.filter((f) => /from '@\/lib\/admin\/feature-toggles'/.test(fs.readFileSync(f, 'utf8')))
+      .map((f) => path.relative(ROOT5, f).split(path.sep).join('/'));
+
+    expect(readers).toEqual([
+      // Serves the map. Reads it; never refuses on it.
+      'app/api/admin/feature-toggles/route.ts',
+      // Owns `app_settings`, and imports only TOGGLES_KEY so the writer and the reader cannot end
+      // up pointed at two different rows.
+      'app/api/admin/settings/route.ts',
+    ]);
+  });
+
+  it('and neither of those two refuses a request because of a toggle', () => {
+    for (const f of ['app/api/admin/feature-toggles/route.ts', 'app/api/admin/settings/route.ts']) {
+      const src = fs.readFileSync(path.join(ROOT5, f), 'utf8');
+      // Every 401/403 in these files comes from `auth()` and `isAdmin`, which is what they should
+      // come from. A refusal derived from `isEnabled` would be the security hole with a friendly
+      // name, arriving in the one place nobody would think to look for it.
+      expect(src).not.toMatch(/isEnabled[\s\S]{0,120}status: 40[13]/);
+    }
+  });
+
+  it('nor does the middleware', () => {
+    // The role gate is untouched — §11.5 says so explicitly. A toggle read here would apply to every
+    // request in the product at once, which is the largest possible version of this mistake.
+    const mw = fs.readFileSync(path.join(ROOT5, 'middleware.ts'), 'utf8');
+    expect(mw).not.toMatch(/feature-toggles/);
   });
 });

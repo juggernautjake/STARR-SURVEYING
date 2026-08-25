@@ -92,6 +92,12 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'roles': { bundle: null, reason: 'Identity and roles are account-level, not bundle-level.' },
   'audit': { bundle: null, reason: 'An audit trail a firm cannot read is not an audit trail.' },
   'settings': { bundle: null, reason: 'Account-level configuration.' },
+  // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
+  // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
+  // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —
+  // and it would do it silently, because an unreadable toggle map correctly means "everything is
+  // on" and a REFUSED one is indistinguishable from a firm that has switched nothing off.
+  'feature-toggles': { bundle: null, reason: 'Which pages a firm uses is account-level, and the nav reads it on every page.' },
   // The firm's own name, phone and address (audit item 8h). Every screen renders it, including the
   // ones that stay reachable on a lapsed plan — gating it would leave a firm looking at an app with
   // no name on it while trying to fix their subscription.

@@ -877,9 +877,62 @@ a link on purpose; they are not well served by doing it invisibly.
       The scan runs per request rather than from a generated file. Every other derived inventory here
       is generated, and every one of them has at some point been stale and believed; a link count is
       advisory, so being a request slower is free and being WRONG is the failure that matters.
-- [ ] **T4 — The off page**, and the admin bypass with its banner (11.4).
-- [ ] **T5 — The test that keeps 11.5 true**: with a page toggled off, its API answers exactly as
-      before, for every role.
+- [x] **T4 — The off page**, and the admin bypass with its banner (11.4). Shipped 2026-08-25 as
+      `PageOffGate`, wrapped around `children` inside the admin shell's error boundary.
+
+      Browser-verified, one route, four states:
+
+      | | what they see |
+      |---|---|
+      | ON / admin | the page |
+      | OFF / admin | **the page, working**, behind a banner saying it is off for everyone else |
+      | OFF / employee | *"Weather is turned off"* — no page data |
+      | OFF / employee, nav | gone from their workspace list |
+
+      Not a 404, deliberately. A 404 says the thing does not exist; it does, and somebody switched it
+      off. The person who followed a link here needs to know which of the two it is, because one is a
+      bug worth reporting and the other is a decision their company made. For the same reason there
+      is no *"request access"* — offering a permission remedy would teach the wrong thing about what
+      happened.
+
+      It resolves the ROUTE, not the pathname, so switching off Jobs covers `/admin/jobs/abc123` too.
+      Matching the raw URL would leave every detail page reachable while its parent was off — the
+      sort of gap somebody finds by accident and then stops trusting the switch.
+
+      ── **AND IT DID NOT WORK FOR ANYONE BUT ME** ────────────────────────────────────────────────
+
+      The first browser pass showed the admin banner correctly and showed an **employee the full
+      page**. The cause was one line: the toggle map was read from `/api/admin/settings`, which is
+      `isAdmin`-only — as it should be, it carries the company's details and its billing. So a
+      non-admin's browser got a **403**, `togglesFrom` correctly answered *"everything is on"*, and
+      **both halves of this feature silently did nothing for non-admins**: the nav kept every
+      switched-off page, and the off-page notice could never appear for the people it exists for.
+
+      It worked perfectly for the one account I had been testing with, which is exactly why it took a
+      second signed-in browser to find. Nothing errored, nothing logged, and every source-level test
+      still passed — the fetch failing was indistinguishable from a firm that had switched nothing
+      off. The values now come from `/api/admin/feature-toggles`, readable by any signed-in user
+      (which pages a firm uses is not a secret — it is visible in the menus of everybody who has
+      them); the link scan stays admin-only, because it is the settings screen's working data.
+
+- [x] **T5 — The test that keeps 11.5 true**. Shipped 2026-08-25, and stronger than the slice asked
+      for.
+
+      §11.5 asks that turning a page off change no API's answer, for every role. Testing one endpoint
+      would prove one endpoint. The guarantee is instead structural: **no route handler in the
+      product may consult the toggle map at all**, except the one whose job is to serve it. An API
+      that never reads it cannot be changed by it, for anybody.
+
+      The test walks every `route.ts` under `app/api` (200+), collects the ones importing
+      `feature-toggles`, and asserts the list is exactly two — the endpoint that serves the values,
+      and the settings endpoint that imports `TOGGLES_KEY` so the writer and the reader cannot end up
+      pointed at two different rows. Neither derives a 401 or 403 from `isEnabled`, and the
+      middleware does not mention toggles at all: a read there would apply to every request in the
+      product at once, which is the largest possible version of this mistake.
+
+      The walk asserts it found **more than 100 route files** before checking anything. A scan that
+      quietly matched nothing would pass this test forever while proving nothing — the exact shape of
+      four separate bugs already recorded in this session.
 - [ ] **T6 — Tab-level toggles**, folded into the portal shell as part of C2 rather than after it.
 
 ---

@@ -30,7 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Link2, Loader2 } from 'lucide-react';
 import { WORKSPACES, WORKSPACE_ORDER, type Workspace } from '@/lib/admin/route-registry';
 import {
-  TOGGLES_KEY, togglesFrom, isEnabled, withToggle, disabledKeys,
+  TOGGLES_KEY, isEnabled, withToggle, disabledKeys,
   type FeatureToggles,
 } from '@/lib/admin/feature-toggles';
 import { invalidateFeatureToggles } from '@/lib/admin/use-feature-toggles';
@@ -55,12 +55,14 @@ export default function PageToggles() {
 
   const load = useCallback(async () => {
     try {
-      const [settingsRes, destRes] = await Promise.all([
-        fetch('/api/admin/settings', { cache: 'no-store' }),
-        fetch('/api/admin/feature-toggles', { cache: 'no-store' }),
-      ]);
-      if (settingsRes.ok) setToggles(togglesFrom((await settingsRes.json())?.settings));
-      if (destRes.ok) setDestinations((await destRes.json())?.destinations ?? []);
+      // One endpoint, both halves. Two reads of the same fact is how a screen ends up showing
+      // switches that disagree with the rows they sit on.
+      const res = await fetch('/api/admin/feature-toggles', { cache: 'no-store' });
+      if (res.ok) {
+        const body = await res.json();
+        setToggles((body?.toggles ?? {}) as FeatureToggles);
+        setDestinations(body?.destinations ?? []);
+      }
     } finally {
       setLoading(false);
     }

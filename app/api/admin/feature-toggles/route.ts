@@ -29,6 +29,8 @@ import { NextResponse } from 'next/server';
 import fs from 'node:fs';
 import path from 'node:path';
 import { auth, isAdmin } from '@/lib/auth';
+import { supabaseAdmin } from '@/lib/supabase';
+import { togglesFrom } from '@/lib/admin/feature-toggles';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { ADMIN_ROUTES, findRoute } from '@/lib/admin/route-registry';
 
@@ -104,7 +106,24 @@ function inboundLinks(): Map<string, string[]> {
 export const GET = withErrorHandler(async () => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  if (!isAdmin(session.user.roles)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+
+  // ── THE VALUES ARE FOR EVERYONE; THE EDITOR'S DATA IS FOR ADMINS ────────────────────────
+  //
+  // Found by driving it: the map was first read from `/api/admin/settings`, which is `isAdmin`-only.
+  // So an employee's browser got a 403, `togglesFrom` correctly answered "everything is on", and
+  // BOTH halves of this feature silently did nothing for non-admins — the nav kept every switched-off
+  // page, and the off-page notice could never appear for the people it exists for. It worked
+  // perfectly for the one account I had been testing with.
+  //
+  // Which pages a firm uses is not a secret; it is visible in the menus of everybody who has them.
+  // The LINK SCAN is different — it is the settings screen's working data and costs a filesystem
+  // walk, so it stays behind the admin check and non-admins simply do not ask for it.
+  const { data } = await supabaseAdmin.from('app_settings').select('key, value');
+  const settings: Record<string, unknown> = {};
+  for (const row of data ?? []) settings[(row as { key: string }).key] = (row as { value: unknown }).value;
+  const toggles = togglesFrom(settings);
+
+  if (!isAdmin(session.user.roles)) return NextResponse.json({ toggles, destinations: [] });
 
   const links = inboundLinks();
 
@@ -127,5 +146,5 @@ export const GET = withErrorHandler(async () => {
       inbound: (links.get(r.href) ?? []).length,
     }));
 
-  return NextResponse.json({ destinations });
+  return NextResponse.json({ toggles, destinations });
 }, { routeName: 'admin/feature-toggles' });
