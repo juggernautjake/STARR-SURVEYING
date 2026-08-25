@@ -397,10 +397,18 @@ is **per-ITEM approval** — today the decision is per receipt.
       existence. Its meaning tells the reader what to do, because a chip nobody can act on is
       decoration.
 
-      **The rule lives in `lib/design/lopsided.ts` and the tracer will read the same module.** The
+      **The rule lives in `lib/design/lopsided.ts` and the tracer now reads the same module.** The
       threshold was already inline in `trace-defaults.mjs`; putting a second copy in the page list is
       the exact shape this plan has spent a day removing — two definitions that agree until somebody
       changes one. The tracer already crosses this boundary for `staleness.ts`.
+
+      **That wiring was a loose end I left, and it is worth admitting rather than quietly closing.**
+      The slice that added the gap said the tracer "will read the same module" and then did not
+      change the tracer — so for one commit there really were two copies of the threshold, shipped by
+      the change whose entire argument was that two copies are the defect. The tracer now calls
+      `isLopsided(d, m)`, its test asserts the import instead of the numbers, and asserts the numbers
+      have **not** crept back in beside it. The re-capture line also prints the ratio now, from
+      `lopsidedRatio`, so the log and the studio chip quote the same figure.
 
       No second query was needed: `DesignSummary` already carries `counts: { desktop, mobile }`, and
       `lifecycleOf` was dropping it. It now passes it through, defaulting to `0/0` for callers that

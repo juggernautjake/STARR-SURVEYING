@@ -46,6 +46,9 @@ import { waitForPageReady, openState, devErrorOn } from './lib/design-observe.mj
 // showed work this tool could not see would be the conformance defect again — two copies of one
 // rule, disagreeing, with a number that looked like evidence.
 import { staleRoutes, routesChangedSince } from '../lib/design/staleness.ts';
+// The SAME rule the studio's `lopsided-default` gap is drawn from. It was inline here first, and a
+// second copy in the page list would have been two definitions that agree until somebody changes one.
+import { isLopsided, lopsidedRatio } from '../lib/design/lopsided.ts';
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
@@ -246,13 +249,14 @@ async function captureStable(page, classes, { tries = 6, gap = 1_200, settled = 
 async function recaptureIfLopsided(captures, reopen, label) {
   const d = captures.desktop?.length ?? 0;
   const m = captures.mobile?.length ?? 0;
-  const hi = Math.max(d, m);
-  const lo = Math.min(d, m);
-  if (hi < 10 || lo === 0 || hi / lo < 3) return captures;
+  // The threshold used to be spelled out here. It is now `lib/design/lopsided.ts`, which the page
+  // list's `lopsided-default` gap reads too — so the record this tool refuses to store and the chip
+  // the studio shows a person cannot disagree about what "lopsided" means.
+  if (!isLopsided(d, m)) return captures;
 
   const short = d < m ? 'desktop' : 'mobile';
   const before = short === 'desktop' ? d : m;
-  console.log(`        ⟳ ${label}: ${d} desktop vs ${m} mobile — re-capturing ${short}`);
+  console.log(`        ⟳ ${label}: ${d} desktop vs ${m} mobile (${lopsidedRatio(d, m).toFixed(1)}x) — re-capturing ${short}`);
 
   const again = await reopen(short);
   if (!again) {

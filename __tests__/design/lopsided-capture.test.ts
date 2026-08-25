@@ -50,11 +50,16 @@ describe('a half-drawn capture is not a design', () => {
     expect(guardAt).toBeLessThan(postAt);
   });
 
-  it('keeps the threshold generous, so honest layout does not trip it', () => {
-    // 3x, and only once there are enough elements for a ratio to mean anything. Both numbers are
-    // load-bearing: at 2x a legitimately restacked page would re-capture on every run, and without
-    // the floor a 2-vs-7-element page would look like a catastrophe.
-    expect(SRC).toMatch(/if \(hi < 10 \|\| lo === 0 \|\| hi \/ lo < 3\) return captures;/);
+  it('uses the SHARED rule, not a copy of the threshold', () => {
+    // The numbers were spelled out here — `hi < 10 || lo === 0 || hi / lo < 3` — and this test
+    // pinned them. Then the studio needed the same rule for its `lopsided-default` gap, and a
+    // second copy of a threshold is the shape this plan has spent a day removing: two definitions
+    // that agree until somebody changes one. The record this tool refuses to store and the chip a
+    // person sees must not be able to disagree about what "lopsided" means.
+    expect(SRC).toMatch(/import \{[^}]*isLopsided[^}]*\} from '\.\.\/lib\/design\/lopsided\.ts'/);
+    expect(SRC).toMatch(/if \(!isLopsided\(d, m\)\) return captures;/);
+    // And the numbers must not creep back in beside it.
+    expect(SRC).not.toMatch(/hi \/ lo < 3/);
   });
 
   it('and says so when a second reading is no better, rather than swallowing it', () => {
