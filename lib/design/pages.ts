@@ -11,6 +11,7 @@
 // forgot to add is the page you never review. The STATUS lives in the database, because a review is
 // a decision a person made and it has to be the same on every machine.
 
+import { isLopsided } from './lopsided';
 import inventory from './pages.generated.json';
 import { dossierState, type DossierState } from './dossier';
 
@@ -50,8 +51,9 @@ export interface PageRow extends InventoryPage {
    * without opening it. Derived here rather than in the component so the list and any other reader
    * agree. */
   lifecycle: {
-    default: { id: string; name: string } | null;
-    active: { id: string; name: string } | null;
+    /** `counts` is the default's element count per viewport — what `lopsided-default` is judged on. */
+    default: { id: string; name: string; counts: { desktop: number; mobile: number } } | null;
+    active: { id: string; name: string; counts: { desktop: number; mobile: number } } | null;
     alternatives: number;
     drafts: number;
   };
@@ -85,8 +87,16 @@ export interface PageRow extends InventoryPage {
   gaps: PageGap[];
 }
 
-/** The five things a page can be missing, in the order they are usually done. */
-export type PageGap = 'no-default' | 'no-dossier' | 'no-active' | 'no-design' | 'stale-default';
+/**
+ * What a page can be missing — plus the one thing it can have and have WRONG.
+ *
+ * The first five are all absence. `lopsided-default` is the odd one and it is the reason it was
+ * added: a record can exist, be locked, be recent, and hold half the page. Five did — one with 21
+ * elements against 598 — and every gap filter in the studio reported them as complete, because
+ * nothing here asked whether a record that exists is any good.
+ */
+export type PageGap =
+  | 'no-default' | 'no-dossier' | 'no-active' | 'no-design' | 'stale-default' | 'lopsided-default';
 
 export const GAP_LABEL: Record<PageGap, string> = {
   'stale-default': 'Traced before the page changed',
@@ -94,6 +104,7 @@ export const GAP_LABEL: Record<PageGap, string> = {
   'no-dossier': 'Nothing measured about it',
   'no-active': 'No design of record',
   'no-design': 'Nothing designed at all',
+  'lopsided-default': 'One viewport is a fraction of the other',
 };
 
 export const GAP_MEANING: Record<PageGap, string> = {
@@ -105,6 +116,9 @@ export const GAP_MEANING: Record<PageGap, string> = {
   'no-dossier': 'Nobody has measured what is on this page or what it does. Run the deriver.',
   'no-active': 'Designs exist, but none of them is the record for this page.',
   'no-design': 'No design of any kind names this route.',
+  // The only gap about a record being WRONG rather than missing, and the one that cannot be seen by
+  // looking at the studio: the row says default, locked, recent. Re-trace it.
+  'lopsided-default': 'The default holds several times more elements at one width than the other — a viewport was almost certainly captured before the page finished arriving. Re-trace it.',
 };
 
 function gapsOf(
@@ -118,6 +132,12 @@ function gapsOf(
   // Only when there IS a default. "No default" and "stale default" are the same complaint twice
   // otherwise, and a queue that says everything twice is one people stop reading.
   else if (staleDefault) gaps.push('stale-default');
+  // Independent of staleness, and deliberately so: a record traced five minutes ago can still be
+  // half a page. Being recent is what makes this one invisible — every other signal says fine.
+  if (lifecycle.default
+    && isLopsided(lifecycle.default.counts.desktop, lifecycle.default.counts.mobile)) {
+    gaps.push('lopsided-default');
+  }
   if (!dossier || dossier.elementCount === 0) gaps.push('no-dossier');
   // "No design of record" is only worth saying when there is something that COULD be the record.
   // On a page with nothing designed at all it would be the same complaint twice.
@@ -303,11 +323,15 @@ export function filterPages(rows: PageRow[], query: string): PageRow[] {
  * "which one is active" is the question the row exists to answer.
  */
 export function lifecycleOf(
-  designs: Array<{ id: string; name: string; status: string }>,
+  designs: Array<{ id: string; name: string; status: string; counts?: { desktop: number; mobile: number } }>,
 ): PageRow['lifecycle'] {
   const find = (status: string) => {
     const hit = designs.find((d) => d.status === status);
-    return hit ? { id: hit.id, name: hit.name } : null;
+    // `counts` comes along because the lopsided gap needs it and the summary already carries it —
+    // dropping it here and fetching it back would be a second query for data the row has. Optional
+    // because hand-built callers (and the tests) pass designs without it; absent reads as 0/0,
+    // which `isLopsided` answers false for rather than guessing.
+    return hit ? { id: hit.id, name: hit.name, counts: hit.counts ?? { desktop: 0, mobile: 0 } } : null;
   };
   return {
     default: find('default'),

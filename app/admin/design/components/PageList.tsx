@@ -37,7 +37,13 @@ import {
 // `stale-default` is last deliberately: the first four are "this page has never been done", which
 // is a build queue, and this one is "the record has fallen behind the page", which is maintenance.
 // Different work, same list, and the order says which you are usually doing.
-const GAP_FILTERS: PageGap[] = ['no-default', 'no-dossier', 'no-design', 'no-active', 'stale-default'];
+// `lopsided-default` sits last on purpose: the first five are work not yet started, and this one is
+// work that was done and came out wrong. A record can be default, locked and traced minutes ago and
+// still hold a fraction of its page — five of them did, one with 21 elements against 598, and every
+// filter above reported them as complete because none of them asks whether a record is any good.
+const GAP_FILTERS: PageGap[] = [
+  'no-default', 'no-dossier', 'no-design', 'no-active', 'stale-default', 'lopsided-default',
+];
 
 const STATUS_ICON: Record<ReviewStatus, typeof Circle> = {
   not_started: Circle,

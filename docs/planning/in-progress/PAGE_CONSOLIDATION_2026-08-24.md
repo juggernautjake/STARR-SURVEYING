@@ -383,6 +383,33 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14p — THE STUDIO COULD NOT SEE A BAD RECORD, ONLY A MISSING ONE, 2026-08-25** ──
+
+      The page list reports five gaps: `no-default`, `no-dossier`, `no-design`, `no-active`,
+      `stale-default`. **Every one of them is about absence.** There was nothing for *a record exists
+      and is wrong* — so the five half-a-page records this plan found showed in the studio as
+      complete, and every signal on the row was true: default, locked, traced minutes ago.
+
+      The only thing that ever found them was an ad-hoc SQL query somebody happened to write. That is
+      not a system that can be handed over.
+
+      `lopsided-default` is now the sixth gap, and it is the first one about quality rather than
+      existence. Its meaning tells the reader what to do, because a chip nobody can act on is
+      decoration.
+
+      **The rule lives in `lib/design/lopsided.ts` and the tracer will read the same module.** The
+      threshold was already inline in `trace-defaults.mjs`; putting a second copy in the page list is
+      the exact shape this plan has spent a day removing — two definitions that agree until somebody
+      changes one. The tracer already crosses this boundary for `staleness.ts`.
+
+      No second query was needed: `DesignSummary` already carries `counts: { desktop, mobile }`, and
+      `lifecycleOf` was dropping it. It now passes it through, defaulting to `0/0` for callers that
+      have no counts — which `isLopsided` answers **false** for rather than guessing.
+
+      Pinned with the real numbers rather than invented ones: the five that were wrong (28.5x, 13.2x,
+      10.1x, 4.8x, 3.1x) must trip it, and the repaired records plus `finances · overview` — a
+      genuine 66/58 responsive difference — must not.
+
       ── **C14o — A CLAIM OF MINE, CORRECTED BY THE NEXT RUN, 2026-08-25** ──
 
       C14i said `captureStable` lands the fix "on the FIRST capture rather than depending on a retry
