@@ -1854,6 +1854,31 @@ early, and the internal tooling comes last.
       fifth of the surface and finished looking complete. Trace the states, then measure. (Checked
       before stopping: it had not written, so the existing record is intact and still the "before".)
 
+      **How `--states` actually has to be driven, because the obvious way does nothing.** The flag on
+      its own cannot reach a portal: the walk excludes routes that already have a default — the run
+      says so, *"62 already had a default"* — and a portal's route-level design is exactly what puts
+      it in that set. So `--since --states` and `--missing --states` skip the pages whose tabs are
+      the entire point.
+
+      What works is **`--only <route> --states`**, which bypasses the filter. Confirmed on one portal
+      before running seventeen:
+
+      ```
+      [ 1/1] /admin/jobs        ✓  84 desktop ·  83 mobile
+             · jobs        84 · 83      · weather     119 · 118
+             · projects    60 · 59      · compliance   24 ·  23
+             · field-data  38 · 37      · activity     could not reach it — not stored
+      ```
+
+      **The `activity` miss was chased rather than filed.** Loading `/admin/jobs?tab=activity` and
+      reading the DOM the way `SELECTED_STATE` does: the tab IS selected, its label is `Activity`,
+      and it slugs to `activity` — the key the tracer was looking for. Nothing is wrong with the tab
+      or with the matcher. It reads as a sixth timing artifact, and the sweep will say: if it traces
+      on the second attempt, it was the clock.
+
+      Testing one portal cost a minute and stopped a 144-route walk that would have produced no
+      states at all.
+
       One more instance of the same principle, and the sharpest: **a state missing from a record
       cannot have a bad row in it.** Three walks, two ratchets and a conformance score all reported
       health on a set that silently excluded 93 tabs.
