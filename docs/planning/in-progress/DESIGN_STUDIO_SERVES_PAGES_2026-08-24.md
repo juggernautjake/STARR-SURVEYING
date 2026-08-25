@@ -405,7 +405,46 @@ A view can have both: a trace of what it is today, and a composition of what it 
 is exactly what the existing `default` / `active` distinction already means, and it finally gets a
 mechanism behind "active" instead of being a label.
 
-- [ ] **W1 — `kind` on `design_mockups`** (`trace` | `composition`), defaulting to `trace`.
+- [x] **W1 — `kind` on `design_mockups`** (`trace` | `composition`), defaulting to `trace`. Shipped
+      2026-08-25 as `seeds/618_design_composition_scope.sql`, applied to the live database (234 rows,
+      all `trace` / `firm`).
+
+      It carries the §8 answer with it: `scope` (`firm` | `role` | `user`) and `scope_key`. Three
+      check constraints, and each was **exercised against the live table** rather than assumed:
+
+      | attempted | outcome |
+      |---|---|
+      | `scope='role'`, empty key | refused — `design_mockups_scope_key_check` |
+      | `scope='firm'` with a key | refused — `design_mockups_scope_key_check` |
+      | `scope='admin'` (role in the scope column) | refused — `design_mockups_scope_check` |
+      | `kind='blueprint'` | refused — `design_mockups_kind_check` |
+      | `scope='role'`, key `'employee'` | accepted |
+
+      The first probe of this **proved nothing and looked like it had.** It omitted `views` and then
+      `owner_email`, so every case came back "refused" — by a NOT NULL constraint, not by any of the
+      three being tested. Five refusals in a row, exactly the output a working constraint set
+      produces. The reason it was caught is that ALL FIVE were refused, including the one that
+      should have been accepted; a probe with no positive case would have printed a clean pass.
+
+      `resolveComposition` in `lib/design/composition.ts` is the whole cascade, pure and in one
+      place. Nothing else may query the table for a composition — a fallthrough re-implemented at a
+      call site is how the wrong layer silently wins, and this session has produced four bugs of
+      exactly that shape.
+
+      **The role hierarchy was invented on the first pass.** It said `owner`, `manager`, `marketing`
+      — and none of those roles exists. `ALL_ROLES` has twelve entries, none of them those three, so
+      the ordering would have been an opinion about an imaginary org chart while every REAL role
+      tied at "unranked" and a viewer with two roles got whichever row the database returned first.
+      Written in units nobody produces. The order is now spelled in the real vocabulary and a test
+      asserts it covers `ALL_ROLES` exactly, so a thirteenth role fails loudly rather than ranking
+      last by accident.
+
+      One thing seed 618 deliberately does NOT do: widen the one-default-per-state indexes to
+      include the scope. `default` means "a trace of what is actually served" and there is one of
+      those per state however many audiences the page has. A per-scope default would let a route
+      hold three rows each claiming to be the record — which is the same as holding none, because
+      nothing could say which was true. The cascade decides which composition APPLIES to a viewer;
+      it does not decide what the page is.
 - [ ] **W2 — the studio can place widgets**, reading `lib/hub/widget-registry` — the palette, the
       grid, `minSize`/`maxSize`, `allowedRoles` shown on each.
 - [ ] **W3 — a composition can be previewed live** at `/admin/design/serve`, rendering real widgets
@@ -563,7 +602,7 @@ The dependency is real and it runs one way: consolidation → views → composit
 
 ---
 
-## §8. The open question
+## §8. The open question — ANSWERED 2026-08-25
 
 **Whose composition is it?** The hub's layouts are per USER (`user_hub_layouts.user_email`). A
 portal's composition is presumably per FIRM — the owner designing the receipts portal for everyone.
@@ -572,3 +611,60 @@ them: a per-ROLE composition is a third option, and probably the right default f
 
 Three scopes, one mechanism, and the answer decides the primary key. **This needs deciding before
 W1**, because it is the schema.
+
+### The answer: all three, resolved most-specific-first
+
+The owner answered this without being asked it directly, in the message that set up the
+consolidation work:
+
+> *"I want it so that we can have full control in the settings as to what all pages are visible and
+> what pages are not… I want it so that **pages load elements dynamically based on the role of the
+> user**."*
+
+That is two of the three scopes named in one breath — a FIRM-level switch for what exists at all,
+and ROLE as what decides which elements appear. The third is not a choice: per-user layouts already
+exist in `user_hub_layouts` and people already have them. So the question was never *which one*. It
+was **what happens when more than one applies**, and there is only one answer that does not throw
+somebody's work away:
+
+    user  →  role  →  firm  →  the hand-built page
+
+**Most specific wins, and every layer falls through to the next.** A composition is stored with a
+`scope` (`firm` | `role` | `user`) and a `scope_key` (`''`, the role name, the email), and the key
+is `(route, state_key, scope, scope_key)`. Resolution walks that list and takes the first hit.
+
+### Why not just pick one
+
+- **Firm only** cannot do what the owner asked for. "Loads elements dynamically based on the role"
+  is the requirement, and one composition per route cannot express it without putting role logic
+  *inside* the composition — which is the thing a composition exists to avoid.
+- **Role only** breaks the hub. `user_hub_layouts` is live, people have arranged their own, and a
+  role-keyed schema would either orphan those rows or force a migration that silently replaces
+  somebody's layout with their department's.
+- **User only** is the hub again, and the owner is explicitly asking for something a firm sets once:
+  *"full control in the settings."* A per-user mechanism cannot express "this is how the receipts
+  portal looks", only "this is how it looks for me".
+
+The three-scope fallthrough is not a compromise between them. It is the only shape in which the
+existing per-user rows and the requested per-role behaviour and the requested firm-level control are
+all describable at once, and it is how every system that has solved this already works — CSS
+specificity, config cascades, feature flags.
+
+### What this costs, said plainly
+
+**Resolution has to be one function, used by every reader, with no second copy anywhere.** A
+fallthrough chain re-implemented at a call site is how the wrong layer silently wins, and this
+session has produced four bugs of exactly that shape already (`defaultFor`, `getDossier`,
+`selectedStateKey`, the `stateKey` mapping). W1 puts `resolveComposition` in `lib/design/` and W3–W5
+call it; nothing else may ask the table directly.
+
+**And the editor must always say which scope it is editing.** The single most likely failure of this
+design is somebody adjusting the receipts portal, saving, and having changed it only for themselves
+— or worse, only for admins. That is a label problem, not a schema problem, and it is a W2/W6
+acceptance criterion rather than an afterthought.
+
+### What W1 becomes
+
+`seeds/618` adds three columns to `design_mockups`: `kind` (`trace` | `composition`, defaulting to
+`trace`), `scope` (defaulting to `firm`), and `scope_key` (defaulting to `''`). A trace ignores the
+last two — it is a measurement, and a measurement has no audience.
