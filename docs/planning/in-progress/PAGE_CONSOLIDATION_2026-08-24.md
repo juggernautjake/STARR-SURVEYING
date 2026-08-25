@@ -391,6 +391,39 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14s — THE THIRD WALK, CHECKED AND LEFT ALONE, 2026-08-25** ──
+
+      Two of the three walks now share `captureStable`. The obvious next move was to give the dossier
+      deriver the same treatment: it also reads the DOM once, `await page.evaluate(OBSERVE)`, after
+      the same readiness wait that has twice proved to be a proxy.
+
+      **Measured before building.** Derived the same route twice and compared:
+
+      ```
+      /admin/billing   11 elements · 2 functions · 14 checklist items
+      /admin/billing   11 elements · 2 functions · 14 checklist items
+      /admin/learn     10 elements · 3 functions · 15 checklist items
+      /admin/learn     10 elements · 3 functions · 15 checklist items
+      ```
+
+      Identical, including on the heavier page. **No fix made.** Symmetry is an argument, not
+      evidence, and this plan has spent a day proving how expensive a fix aimed at a guess is — three
+      of them shipped against a flake whose actual cause was a discarded boolean.
+
+      Two things make this walk genuinely less exposed than the other two, which is worth writing down
+      rather than rediscovering:
+
+      · **It checks the readiness answer.** `const ready = await waitForPageReady(page)` and then
+        `if (!ready) problem = 'still loading after 25s'`. That is the exact line `openState` was
+        missing, twenty lines away in a sibling file.
+      · **It has a floor.** An observation with no controls and no headings is refused as *"nothing
+        observable — the page had not rendered"* rather than stored as a page with nothing on it.
+
+      What it does NOT have is a guard against a PARTIAL read — a page half-arrived produces a thin
+      dossier that clears the floor. That risk is real and undemonstrated. **Detecting it is one
+      command** — derive twice, compare — and that is now written here, which is cheaper than
+      machinery nobody has shown is needed.
+
       ── **C14r — THE CHECK THAT JUDGES EVERY RECORD WAS READING THE PAGE ONCE, 2026-08-25** ──
 
       Caught before running the full conformance pass, by asking how the CHECKER captures rather than
