@@ -178,6 +178,40 @@ if (LIMIT > 0) todo = todo.slice(0, LIMIT);
 console.log(`\n  ${BASE} — tracing ${todo.length} page(s) at 1440px and 390px`);
 console.log(`  ${skipped.length} skipped as dynamic · ${hasDefault.size} already had a default\n`);
 
+/**
+ * Is this route a redirect stub? Answered by READING THE FILE, not by driving a browser at it.
+ *
+ * ── WHY THE FILE AND NOT THE NAVIGATION ─────────────────────────────────────────────────────────
+ *
+ * Three fixes went into detecting forwards by navigating: ask before the readiness check, ask on the
+ * first navigation rather than after two, then wait a bounded moment because the forward is
+ * CLIENT-side and the URL has not moved yet. Each was right and the third still left a flake —
+ * `/admin/learn/flashcard-bank` forwards to the Learn portal's 130,000-character tab, which in dev
+ * does not finish compiling inside eighty seconds, so the redirect had not happened by the time both
+ * viewports gave up. The report was accurate and useless: "never finished loading" about a page that
+ * does not exist.
+ *
+ * More timeout is the wrong answer to that. The source says so with certainty and in a millisecond:
+ * a page whose body calls `redirect()` is a stub however slow its destination is. This skips the
+ * navigation entirely for roughly eighty of the ninety-eight routes in a `--since` pass, which is
+ * both the speed and the reliability.
+ *
+ * Deliberately narrow: only a `redirect(` in the page's OWN file counts. A page that redirects
+ * conditionally still renders something the rest of the time, and this must not silently stop
+ * tracing a real page — so the check is for the shape C9-C13 actually wrote, a stub whose whole body
+ * is the forward.
+ */
+function redirectTargetOf(page) {
+  try {
+    const src = fs.readFileSync(`${page.file}/page.tsx`, 'utf8')
+      .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
+      .replace(/\/\*[\s\S]*?\*\//g, '');
+    // The stub shape: a component whose body is exactly one redirect call.
+    const m = src.match(/export default function [A-Za-z]*\(\)\s*(?::\s*[A-Za-z]+\s*)?\{\s*redirect\('([^']+)'\);?\s*\}/);
+    return m ? m[1] : null;
+  } catch { return null; }
+}
+
 const done = [];
 const failed = [];
 
@@ -185,6 +219,24 @@ for (const [i, target] of todo.entries()) {
   const label = `[${String(i + 1).padStart(3)}/${todo.length}] ${target.route.padEnd(42)}`;
   process.stdout.write(`  ${label}`);
   try {
+    // ── READ THE FILE BEFORE DRIVING A BROWSER AT IT ────────────────────────────────────────────
+    const staticTarget = redirectTargetOf(target);
+    if (staticTarget) {
+      const retired = [];
+      for (const d of existing.filter((x) => x.route === target.route && x.status === 'default')) {
+        const res = await page.request.fetch(`${BASE}/api/admin/design/${d.id}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          data: { status: 'archived' },
+        });
+        retired.push(res.ok() ? d.id : `${d.id} (failed: ${res.status()})`);
+      }
+      const to = staticTarget.split('?')[0];
+      skipped.push({ route: target.route, why: `redirects to ${to} — not a page of its own${retired.length ? `, ${retired.length} design(s) retired` : ''}` });
+      console.log(`—  redirects to ${to}${retired.length ? ` · retired ${retired.length} stale design(s)` : ''}`);
+      continue;
+    }
+
     const captures = {};
     let stillLoading = false;
     // Set by the loop below the moment a navigation lands somewhere else.

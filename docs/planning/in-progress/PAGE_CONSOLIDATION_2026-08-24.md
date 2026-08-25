@@ -1679,6 +1679,34 @@ early, and the internal tooling comes last.
       pass a thing that can be run rather than a thing that gets killed.
 
       ── **AND THE SPEED FIX WAS RACY, WHICH ONE ANOMALY IN A LATER RUN EXPOSED** ──
+      ── **AND THE FOURTH FIX IS THE ONE THAT SHOULD HAVE BEEN FIRST: READ THE FILE** ──
+
+      Three fixes went into detecting a forward by NAVIGATING — ask before the readiness check, ask
+      on the first navigation, then wait a bounded moment because the redirect is client-side. Each
+      was right, and the third still left a flake: **`/admin/learn/flashcard-bank` reported a hang
+      again.** Its destination is the Learn portal's 130,000-character tab, which in dev does not
+      finish compiling inside the eighty seconds two viewports allow, so the client redirect had not
+      fired by the time the walk gave up. The report was accurate and useless — "never finished
+      loading" about a page that does not exist.
+
+      **More timeout is the wrong answer to that.** The source says so with certainty, in a
+      millisecond: a page whose body is `redirect('/admin/learn?tab=flashcard-bank')` is a stub
+      however slow its destination is. `redirectTargetOf()` reads the page file before a browser is
+      ever pointed at the route, retires the stale default, and moves on.
+
+      Deliberately narrow — it matches only the shape C9–C13 wrote, a component whose whole body is
+      the forward. A page that redirects *conditionally* still renders something the rest of the
+      time, and a check that silently stopped tracing a real page would be a worse bug than the one
+      it fixed.
+
+      Measured: 16 stubs in a 20-route slice identified from source with **no navigation at all**,
+      and `/admin/learn/flashcard-bank` now says "redirects to /admin/learn" rather than hanging. In
+      a full `--since` pass that is roughly eighty of ninety-eight routes that no longer touch a
+      browser.
+
+      **Four commits to answer one question, and the last one did not need a browser.** The first
+      three were all improvements to the wrong instrument.
+
       ── **THE "FOUR HANGING PAGES" THREAD, CLOSED** ──
 
       That claim started this whole sub-investigation and every part of it was wrong, in three
