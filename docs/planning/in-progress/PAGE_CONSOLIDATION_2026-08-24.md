@@ -1898,6 +1898,25 @@ early, and the internal tooling comes last.
       or with the matcher. It reads as a sixth timing artifact, and the sweep will say: if it traces
       on the second attempt, it was the clock.
 
+      **Progress, read from the database rather than the console** — which lags, because the sweep is
+      piped through `grep` and grep buffers. That is the third time that trap has bitten in this
+      session, twice in commands written after learning it.
+
+      **71 of 110 tabs have their own default** (17 before this sweep began). The walk is alphabetical
+      and still short of the eight portals sitting at zero, so those are ahead of it rather than
+      skipped. The informative rows are the partials, each missing exactly one tab:
+
+      | Portal | covered |
+      |---|---|
+      | `/admin/equipment` | 9 / 10 |
+      | `/admin/jobs` | 5 / 6 |
+      | `/admin/marketing` | 4 / 5 |
+
+      One unreachable tab each, which is what the running failure count says too. Whether those three
+      share a cause is worth knowing once the sweep finishes and the list is complete — two data
+      points already ruled out the obvious theory, since `cleanup-queue` is an id/label mismatch and
+      `plan-history` is one as well and captured fine.
+
       **The per-tab captures are distinct, checked rather than assumed.** The failure worth ruling
       out was `openState` clicking and the capture happening before the new tab rendered — which
       would store the DEFAULT tab's content ten times under ten different keys and look like
