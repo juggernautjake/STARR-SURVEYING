@@ -13,7 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { taxSummaryFor } from '@/lib/finance/tax-summary';
 
-const page = fs.readFileSync(path.join(process.cwd(), 'app/admin/receipts/page.tsx'), 'utf8');
+// C5: the queue is a TAB of the Receipts portal now — same component, new path.
+const page = fs.readFileSync(path.join(process.cwd(), 'app/admin/receipts/_tabs/QueueTab.tsx'), 'utf8');
 
 describe('the receipts queue shows the tax consequence', () => {
   it('calls the shared summary rather than re-deriving one inline', () => {

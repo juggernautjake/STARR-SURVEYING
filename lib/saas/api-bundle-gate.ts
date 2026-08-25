@@ -112,6 +112,14 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // surprise.
   'time-off': { bundle: null, reason: 'Every employee may request leave; the approval side is role-gated in its handler.' },
   'availability': { bundle: null, reason: 'Operator-only dispatch view; the page is a tab of the Hours portal since C4.' },
+  // Third consolidation in a row to break a page mirror (C3 vehicles, C4 time-off + availability,
+  // now this). The pattern is worth naming: a group classified BY MIRRORING a nav row loses its
+  // classification the moment that row is merged away, and this file fails closed — correctly, and
+  // noisily, every single time. Every remaining portal in §8 will do it again.
+  //
+  // `/admin/mileage` was `internalOnly` with no `requiredBundle`, so the answer is carried across
+  // rather than invented.
+  'mileage': { bundle: null, reason: 'Reimbursable trips; the page is a tab of the Receipts portal since C5.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

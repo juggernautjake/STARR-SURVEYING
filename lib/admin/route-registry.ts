@@ -247,7 +247,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
   { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
   { href: '/admin/timeline',        label: 'Activity Timeline', workspace: 'work', iconName: 'Activity',    description: 'What the firm did today — clock-ins, job stage changes, uploads. A working feed, not a compliance record: the Audit Log is that.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['daily', 'feed'] },
-  { href: '/admin/mileage',         label: 'Mileage',         workspace: 'money', section: 'Money out', iconName: 'Car',           description: 'Mileage logs + reimbursement.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/finances',        label: 'Job Profitability',        workspace: 'money', section: 'Profitability', iconName: 'Briefcase',     description: 'What each job cost against what it earned. NOT invoicing — this is the answer to "are we pricing right?".', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
   // /admin/vehicles was here. C3 made it the Equipment portal's `vehicles` tab — the plan's own
   // argument: *"it is fleet, and the dossiers show /admin/equipment already calls
@@ -363,7 +362,17 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // conclude the payment was never made. Payments live at /admin/payouts/search.
   { href: '/admin/payout-log',            label: 'Pay Change History', workspace: 'money', section: 'Money out', iconName: 'ScrollText',   description: 'When somebody’s pay rate or role changed, and who changed it. NOT a record of payments — those are on Payout Search.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raise', 'rate change', 'role change', 'history'] },
   { href: '/admin/payouts/search',        label: 'Payout Search',    workspace: 'money', section: 'Money out', iconName: 'Search',       description: 'Every payment recorded, to anyone, however it was made — searchable by person, check number, Venmo reference, method, status, date or amount.', roles: ['admin'], internalOnly: true, keywords: ['payout', 'payment', 'paid', 'check number', 'venmo', 'cash', 'find payment', 'receipt of payment', 'reconcile'] },
-  { href: '/admin/receipts',              label: 'Receipts',         workspace: 'money', section: 'Money out', iconName: 'Receipt',      description: 'Receipt approval queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['expenses', 'approvals'] },
+  // ── C5 / P2.1: FOUR ROWS BECAME ONE ────────────────────────────────────────────────────
+  //
+  // `cards`, `pass-through` and `mileage` are tabs of this portal now. The ROLES here are
+  // unchanged — the two admin-only pages carry their own gate on their own tabs, so a developer
+  // opening this sees two tabs and not four. §5 rule 1: the portal is not a wider door.
+  //
+  // `/admin/receipts/new` keeps its OWN row below, and that is the one real judgement in this
+  // slice. It is the only surface here anyone at the firm can reach — a crew member holding a fuel
+  // receipt is not an admin — so folding it into an admin-gated portal would take it away from the
+  // people who file most of them. It is the `+ Capture` button on the portal AND a nav row.
+  { href: '/admin/receipts',              label: 'Receipts & Spending', workspace: 'money', section: 'Money out', iconName: 'Receipt',      description: 'The approval queue, the card registry, rebilled costs and mileage — every way money goes out on an expense.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['expenses', 'approvals', 'card', 'credit', 'debit', 'reimburse', 'tax', 'sanitarian', 'recovery', 'reimbursable', 'pass-through', 'rebilled', 'no net gain', 'mileage', 'trips', 'miles'] },
   // ANYONE AT THE FIRM MAY SUBMIT A RECEIPT (owner, 2026-08-11: *"Anyone that is an employee or
   // field worker or admin or just about anybody needs to be able to upload receipts."*)
   //
@@ -382,8 +391,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // F1b / F2b, registered 2026-08-04 — the orphan guard caught both the day after they shipped.
   // A page nobody can navigate to is this repo's signature defect, and building the page is the
   // half that feels like finishing.
-  { href: '/admin/cards',                 label: 'Payment Cards',    workspace: 'money', section: 'Money out', iconName: 'CreditCard',   description: 'Every card the firm has seen on a receipt, whose it is, and what a charge on it means for the books — a company card is an expense, a personal card is money owed back to a person, a client\'s card is not our transaction.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['card', 'credit', 'debit', 'tax', 'reimburse'] },
-  { href: '/admin/pass-through',          label: 'Pass-Through Costs', workspace: 'money', section: 'Money out', iconName: 'ArrowLeftRight', description: 'Money paid on a customer\'s behalf — a sanitarian, a filing fee — and what was billed back. Only a wash when the two match to the cent.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['sanitarian', 'recovery', 'reimbursable', 'no net gain'] },
   { href: '/admin/rewards',               label: 'Rewards & Store',  workspace: 'money', section: 'Money out', iconName: 'Trophy',       description: 'Rewards portal + company store.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['points', 'store'] },
   { href: '/admin/rewards/admin',         label: 'Manage Rewards',   workspace: 'money', section: 'Money out', iconName: 'Settings2',    description: 'Configure rewards + store catalog.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/rewards/how-it-works',  label: 'How Rewards Work', workspace: 'money', section: 'Money out', iconName: 'HelpCircle',   description: 'Rewards program explainer.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },

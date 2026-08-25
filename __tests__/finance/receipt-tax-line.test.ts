@@ -95,7 +95,8 @@ describe('F7c — receiptTaxLine', () => {
     // The reason it was extracted. An inline IIFE here is what made F3b/F7a unverifiable, and a
     // second copy in the page would drift from the one under test above.
     const page = readFileSync(
-      join(__dirname, '..', '..', 'app', 'admin', 'receipts', 'page.tsx'),
+      // C5: the queue is a TAB of the Receipts portal now — same component, new path.
+      join(__dirname, '..', '..', 'app', 'admin', 'receipts', '_tabs', 'QueueTab.tsx'),
       'utf8',
     );
     expect(page).toContain('receiptTaxLine(row)');

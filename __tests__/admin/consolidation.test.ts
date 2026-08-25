@@ -36,7 +36,12 @@ describe('item 7 — Money is one workspace', () => {
     // workspaces — /admin/finances and /admin/mileage were Work, the rest were Office.
     for (const href of [
       '/admin/invoicing', '/admin/receivables', '/admin/payments/inbox',
-      '/admin/payroll', '/admin/payouts', '/admin/receipts', '/admin/mileage',
+      // `/admin/mileage` was a sample here until C5 absorbed it as the Receipts portal's `mileage`
+      // tab, alongside `/admin/cards` and `/admin/pass-through`. The invariant this test guards —
+      // the firm's money surfaces live in ONE workspace rather than scattered across two — is
+      // untouched and is in fact stronger: `/admin/receipts` is in Money and mileage is inside it.
+      // Listing the old href would assert a row that deliberately went away.
+      '/admin/payroll', '/admin/payouts', '/admin/receipts',
       '/admin/finances', '/admin/finances/overview',
       // `/admin/billing/upgrade` was a sample here until C1 of the consolidation plan removed it
       // from the registry. It is not in ANY workspace now, deliberately: it is the interstitial the

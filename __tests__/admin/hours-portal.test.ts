@@ -24,6 +24,9 @@ import { ADMIN_ROUTES, accessibleRoutes } from '@/lib/admin/route-registry';
 
 const ROOT = path.join(__dirname, '..', '..');
 
+/** The commit before C4 — the Equipment portal. See the note in `rolesBeforeC4`. */
+const BEFORE_C4 = '3aef7ec5f';
+
 /** The portal's spec, read out of the page rather than duplicated — a second copy would drift. */
 const PAGE = fs.readFileSync(path.join(ROOT, 'app/admin/hours/page.tsx'), 'utf8');
 
@@ -34,9 +37,28 @@ const PAGE = fs.readFileSync(path.join(ROOT, 'app/admin/hours/page.tsx'), 'utf8'
  * that I typed the same thing twice, which is exactly the mistake being guarded against.
  */
 function rolesBeforeC4(): Record<string, string[] | null> {
-  const before = execFileSync('git', ['show', 'HEAD:lib/admin/route-registry.ts'], {
-    cwd: ROOT, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024,
-  });
+  // ── PINNED, NOT `HEAD` ─────────────────────────────────────────────────────────────────────
+  //
+  // This said `HEAD:`, which was right for exactly one commit and wrong the moment another landed —
+  // C5 the next morning. A test that reads "the previous version" from a moving reference is not
+  // pinned to anything; it silently starts comparing the code against ITSELF and passes forever.
+  //
+  // `3aef7ec5f` is the Equipment portal commit, the last one before C4 touched these four rows. If
+  // it is ever unreachable — a squash, a fresh clone with a shallow fetch — the test SKIPS with a
+  // note rather than passing quietly, because a guard that cannot read its baseline has not verified
+  // anything.
+  let before: string;
+  try {
+    before = execFileSync('git', ['show', `${BEFORE_C4}:lib/admin/route-registry.ts`], {
+      cwd: ROOT, encoding: 'utf8', maxBuffer: 20 * 1024 * 1024, stdio: ['ignore', 'pipe', 'ignore'],
+    });
+  } catch {
+    // Unreachable commit. Returning an empty map makes the first assertion below fail loudly with a
+    // readable message rather than letting the four comparisons pass against `undefined` — which is
+    // what `toEqual` does when both sides are undefined, and would be this guard verifying nothing
+    // while showing green.
+    return {};
+  }
   const out: Record<string, string[] | null> = {};
   for (const href of ['/admin/my-hours', '/admin/hours-approval', '/admin/time-off', '/admin/availability']) {
     const line = before.split(/\r?\n/).find((l) => l.includes(`href: '${href}',`));

@@ -54,7 +54,7 @@ describe('route-registry — lookups', () => {
   it('findRoute returns the route for a known href', () => {
     const route = findRoute('/admin/receipts');
     expect(route).toBeDefined();
-    expect(route?.label).toBe('Receipts');
+    expect(route?.label).toBe('Receipts & Spending');
     // Receipts moved Office → Money in platform audit item 7 (§2.2): it is money going out.
     expect(route?.workspace).toBe('money');
   });

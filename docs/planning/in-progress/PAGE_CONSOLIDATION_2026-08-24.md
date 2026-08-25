@@ -186,7 +186,7 @@ is **per-ITEM approval** — today the decision is per receipt.
 | `/admin/pass-through` | tab `rebilled` — costs paid on a customer's behalf |
 | `/admin/mileage` | tab `mileage` — the other reimbursable |
 
-- [ ] **P2.1** — absorb cards, pass-through and mileage as tabs.
+- [x] **P2.1** — absorb cards, pass-through and mileage as tabs. Shipped 2026-08-25 with C5.
 - [ ] **P2.2a — surface the per-line editor on the approval queue.** It exists and works; it is
       only mounted in the slideshow. §10.1.
 - [ ] **P2.2b — a per-line tax treatment**, beside the per-line accept. Deductible · partial ·
@@ -735,8 +735,67 @@ early, and the internal tooling comes last.
       conditional bits. They are the same data at two permission levels, and §5 says to collapse the
       pair into one portal with a role-chosen default — not to interleave two large components and
       hope the conditionals are right. The merge that matters is the one in the sidebar.
-- [ ] **C5 — P2 Receipts** (4 → 1), tabs only. **Per-item approval is P2.2 and is blocked** on the
-      owner's accounting answer.
+- [x] **C5 — P2 Receipts, tabs only.** Shipped 2026-08-25 as **P2.1**. Four nav rows became one.
+      **Per-item approval is P2.2 and remains blocked** on the owner's accounting answer — see below.
+
+      `/admin/receipts` with tabs `queue · cards · rebilled · mileage`, browser-verified:
+
+      | tab | renders |
+      |---|---|
+      | queue | the approval queue, 3,366 chars, its own status filters intact |
+      | cards | the card registry |
+      | rebilled | pass-through costs |
+      | mileage | the trip log |
+
+      **Two kinds of tab, and why they do not collide.** The queue has its own strip — pending /
+      approved / rejected / exported / needs review — and it stays inside the queue, on `useState`.
+      Those are FILTERS of one list; the portal's are different subjects. Nothing collides because
+      the filter was never in the URL, so `?tab=` was free. Verified rather than assumed: the queue's
+      filters still read *"Pending 23 | Approved 0 | Rejected 0 | Exported 0 | Needs review 21"*
+      under the portal strip. **The first portal to hit a filter that also wants the query string
+      will have to name one of them, and it will not be this one.**
+
+      **The role split is narrower here than in C4 and still had to be checked.** `/admin/cards` and
+      `/admin/pass-through` were **admin-only**; the queue and mileage were admin / developer /
+      tech_support. The union is the queue's own list, so the registry row is unchanged and the two
+      admin-only tabs carry their own gate — a developer opening this portal sees two tabs, not four.
+
+      **`/admin/receipts/new` keeps its own registry row**, and that is the one real judgement in the
+      slice. It is the only surface here **anyone at the firm can reach** — a crew member holding a
+      fuel receipt is not an admin — so folding it into an admin-gated portal would have taken it
+      away from the people who file most of them. It is the `+ Capture` button AND a nav row.
+
+      ── **THE MIRROR BROKE FOR THE THIRD TIME, AND THAT IS NOW A PATTERN** ────────────────────────
+
+      `api-bundle-gate` lost `/api/admin/mileage`, exactly as it lost `vehicles` in C3 and `time-off`
+      + `availability` in C4. **A group classified BY MIRRORING a nav row loses its classification
+      the moment that row is merged away**, and the gate fails closed — correctly, and noisily, every
+      single time. Named in the file now, because every remaining portal in §8 will do it again.
+
+      ── **AND A TEST I WROTE YESTERDAY WAS TIME-BOMBED** ─────────────────────────────────────────
+
+      `hours-portal.test.ts` read the pre-C4 role lists from `git show HEAD:` — which was right for
+      exactly one commit and wrong the next morning. **A test that reads "the previous version" from
+      a moving reference is not pinned to anything**: it silently starts comparing the code against
+      itself and passes forever. Pinned to `3aef7ec5f` now, and an unreachable commit makes the first
+      assertion fail loudly rather than letting four comparisons pass against `undefined`.
+
+      Worth recording as its own lesson, separate from the slice: the clever version of that test —
+      read the old values from git rather than retyping them — was the right instinct and the wrong
+      reference. C6 onwards should pin the SHA from the start.
+
+      Six other files went red and were samples that moved: the Money-workspace list, the registry
+      label, two finance tests reading the queue by path, and the mileage form. The inline-hex
+      ratchet fired for the third consecutive slice — **2306 before and 2306 after**, investigated
+      before re-baselining.
+
+      ── **WHAT IS STILL OPEN, AND IT IS THE HALF THE OWNER NAMED FIRST** ─────────────────────────
+
+      *"…and approving and denying receipts or **specific items on receipts**."* P2.2a–d are
+      untouched: the per-line editor exists and is mounted only in the slideshow, there is no
+      per-line tax treatment, `approvedTotal()`/`deductibleTotal()` do not exist, and `/admin/finances`
+      still totals whole approved receipts. Shipping the tabs did **not** ship per-item approval, and
+      the portal's own header says so where somebody will read it.
 - [ ] **C6 — P1 Pay & Payouts** (11 → 1). The headline. Do it after Hours has proven the role split.
 - [ ] **C7 — P4 Jobs** (6 → 1).
 - [ ] **C8 — P7 Books & Tax** + **P8 Customer Money** (7 → 2).

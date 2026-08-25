@@ -8,7 +8,7 @@ const routeRaw = readFileSync(join(process.cwd(), 'app/api/admin/mileage/manual/
 // a "must not contain" assertion would read that prose as code. Same trap as C3's guard.
 const route = routeRaw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // C0g (2026-08-15) — was the Work Mode field-crew workspace. Capture now lives on /admin/mileage.
-const form = readFileSync(join(process.cwd(), 'app/admin/mileage/LogTripForm.tsx'), 'utf8');
+const form = readFileSync(join(process.cwd(), 'app/admin/receipts/_tabs/LogTripForm.tsx'), 'utf8');
 
 describe('manual-mileage POST route', () => {
   it('requires auth and resolves the caller’s org', () => {

@@ -56,12 +56,15 @@ const PAGES: Record<string, ComponentType> = {
   jobs: nextDynamic(() => import('@/app/admin/jobs/page'), { ssr: false }),
   leads: nextDynamic(() => import('@/app/admin/leads/page'), { ssr: false }),
   notes: nextDynamic(() => import('@/app/admin/notes/page'), { ssr: false }),
-  receipts: nextDynamic(() => import('@/app/admin/receipts/page'), { ssr: false }),
+  // C5: the harness shoots page BODIES, and `/admin/receipts` is a portal shell now. Pointed at the
+  // QUEUE, which is what this entry has always been a picture of — shooting the shell would replace a
+  // screenshot of the approval queue with one of a tab strip.
+  receipts: nextDynamic(() => import('@/app/admin/receipts/_tabs/QueueTab'), { ssr: false }),
   payroll: nextDynamic(() => import('@/app/admin/payroll/page'), { ssr: false }),
   'pay-progression': nextDynamic(() => import('@/app/admin/pay-progression/page'), { ssr: false }),
   settings: nextDynamic(() => import('@/app/admin/settings/page'), { ssr: false }),
   install: nextDynamic(() => import('@/app/admin/install/page'), { ssr: false }),
-  mileage: nextDynamic(() => import('@/app/admin/mileage/page'), { ssr: false }),
+  mileage: nextDynamic(() => import('@/app/admin/receipts/_tabs/MileageTab'), { ssr: false }),
   assignments: nextDynamic(() => import('@/app/admin/assignments/page'), { ssr: false }),
   reports: nextDynamic(() => import('@/app/admin/reports/page'), { ssr: false }),
   equipment: nextDynamic(() => import('@/app/admin/equipment/page'), { ssr: false }),
