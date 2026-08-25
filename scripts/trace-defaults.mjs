@@ -40,7 +40,7 @@
 import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
-import { CAPTURE } from './lib/design-capture.mjs';
+import { captureStable } from './lib/design-capture.mjs';
 import { waitForPageReady, openState, devErrorOn } from './lib/design-observe.mjs';
 // The SAME rule the page list draws its "Traced before the page changed" chip from. A queue that
 // showed work this tool could not see would be the conformance defect again — two copies of one
@@ -156,64 +156,6 @@ function reportChanges(changes, indent) {
   }
 }
 
-/**
- * Capture, then capture again, until the page stops growing.
- *
- * ── WHAT THE LOPSIDED RECORDS ACTUALLY WERE ─────────────────────────────────────────────────────
- *
- * `/admin/learn · card-bank` stored 598 desktop elements and 21 mobile ones, and the 21 are worth
- * reading: `admin-empty` — the EMPTY STATE — a search box, a title, and 617px of content against
- * desktop's 5230px. Mobile did not render a different layout. It photographed the page **before its
- * rows arrived**, and filed "nothing here" as the record of what that tab looks like.
- *
- * Everything before this waited for a PROXY and then captured once: `waitForPageReady` waits for a
- * heading or a button, `openState` waits for the right tab to be selected. Both are satisfied by a
- * shell that has not fetched anything yet. Every fixed wait in this file has been too short for
- * somebody — the route walk (4 of 51 pages), the state opener (three tabs), the re-capture — and
- * lengthening them is how you buy the same bug at a higher price.
- *
- * So stop guessing at a duration and watch the thing itself. Capture, wait, capture again; while the
- * count is still climbing the page is still arriving. Return the largest reading, because this
- * failure only ever makes a capture too small — nothing renders fewer elements by waiting.
- */
-async function captureStable(page, classes, { tries = 6, gap = 1_200, settled = 2 } = {}) {
-  // ── ONE FLAT READING IS NOT STABILITY ─────────────────────────────────────────────────────────
-  //
-  // The first version returned on the FIRST non-increase, which cannot tell "stopped growing" from
-  // "has not started". Measured on the very next sweep, after this function had supposedly fixed
-  // the class:
-  //
-  //     ⟳ job-profitability: 32 desktop vs 97 mobile — re-capturing desktop
-  //     ⟳ field-team:        25 desktop vs 108 mobile — re-capturing desktop
-  //
-  // Both had been repaired an hour earlier, to 92 and 106.
-  //
-  // Requiring the count to hold across TWO consecutive gaps is the right rule — one flat reading
-  // genuinely cannot tell the two apart — and it costs a finished page one extra 1.2s per capture.
-  //
-  // ── BUT IT DOES NOT FIX THOSE TWO PAGES, AND SAYING OTHERWISE WOULD BE THE THIRD OVERSTATEMENT ──
-  //
-  // Measured after the change: `job-profitability` still captured 32 on the first pass and was still
-  // rescued by the asymmetry guard. Probed ALONE the same tab reaches 98 within 1200ms and holds, so
-  // the reading this loop gets under a full sweep is not the reading the page gives when it is the
-  // only thing running. Load changes the answer, which is exactly why no fixed gap can be the fix.
-  //
-  // So the honest division of labour: **this makes a cheap first attempt more often correct, and
-  // `recaptureIfLopsided` is what actually rescues a slow page.** An earlier comment here claimed
-  // the fix landed "on the FIRST capture rather than depending on a retry". For these pages it
-  // depends on the retry, and a downstream guard quietly covering for an upstream one is how the
-  // upstream problem survives being noticed.
-  let best = await page.evaluate(CAPTURE, classes);
-  let flat = 0;
-  for (let i = 1; i < tries; i += 1) {
-    await page.waitForTimeout(gap);
-    const next = await page.evaluate(CAPTURE, classes);
-    if (next.length > best.length) { best = next; flat = 0; continue; }
-    flat += 1;
-    if (flat >= settled) return best;
-  }
-  return best;
-}
 
 /**
  * A capture that is a fraction of its other viewport was taken too early — so take it again.

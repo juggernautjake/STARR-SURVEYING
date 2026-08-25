@@ -28,7 +28,7 @@
 import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
-import { CAPTURE } from './lib/design-capture.mjs';
+import { captureStable } from './lib/design-capture.mjs';
 import { waitForPageReady, openState } from './lib/design-observe.mjs';
 import { routesChangedSince } from '../lib/design/staleness.ts';
 
@@ -153,7 +153,7 @@ for (const [i, target] of todo.entries()) {
           if (!await openState(page, BASE, route, { key: stateKey })) {
             throw new Error(`could not open the "${stateKey}" tab`);
           }
-          captures[viewId] = await page.evaluate(CAPTURE, classes);
+          captures[viewId] = await captureStable(page, classes);
           continue;
         }
         await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -167,7 +167,7 @@ for (const [i, target] of todo.entries()) {
         await waitForPageReady(page);
         await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-        captures[viewId] = await page.evaluate(CAPTURE, classes);
+        captures[viewId] = await captureStable(page, classes);
       }
       const res = await page.request.fetch(`${BASE}/api/admin/design/conformance`, {
         method: 'POST',

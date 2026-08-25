@@ -391,6 +391,37 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14r — THE CHECK THAT JUDGES EVERY RECORD WAS READING THE PAGE ONCE, 2026-08-25** ──
+
+      Caught before running the full conformance pass, by asking how the CHECKER captures rather than
+      how the tracer does. `check-design-conformance.mjs` called `page.evaluate(CAPTURE, classes)`
+      once, after `waitForPageReady` and networkidle — the method the tracer has now twice proved is
+      not enough under load. `job-profitability` reads **32 elements during a sweep and 98 probed
+      alone**, and this is the tool whose entire job is to say whether a default is still true.
+
+      Its own comment already described the consequence, written after an earlier version of the same
+      fault:
+
+      > *"a capture taken 2.2s in is missing whatever had not arrived, and every element it missed is
+      > reported as 'in the default but not on the page — the trace is stale'. `/admin/jobs`, four
+      > minutes after being traced from this very app, scored 95% and named four elements that were on
+      > the screen the whole time. **A check that manufactures staleness is worse than no check,
+      > because the number looks like evidence.**"*
+
+      The file carried that warning and then did the thing it warns about, because the fix at the time
+      was "wait for readiness" and readiness turned out to be a proxy. **A comment describing a defect
+      is not a guard against it.**
+
+      `captureStable` has moved out of `trace-defaults.mjs` and now lives beside `CAPTURE` in
+      `scripts/lib/design-capture.mjs`, where every walk that reads a page can reach it. Both call
+      sites in the conformance sweep use it. That is one definition rather than two — the same
+      argument as `openState`, `staleness.ts` and `lopsided.ts`, and by now the plan's most repeated
+      finding: **whenever a rule was worth writing twice, the second copy was the bug.**
+
+      Had the pass run first, its numbers would have been noise measured against repaired records —
+      and the ones that looked like drift would have sent somebody to re-trace pages that were never
+      wrong.
+
       ── **C14q — WHAT THE RE-TRACE ACTUALLY CHANGED, READ ROW BY ROW, 2026-08-25** ──
 
       The re-trace replaces records, so it is worth checking it did not make any of them worse. Every

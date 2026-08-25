@@ -115,3 +115,48 @@ export const CAPTURE = (known) => {
   }
   return out;
 };
+
+/**
+ * Capture, then capture again, until the page stops growing — the SHARED read.
+ *
+ * ── WHY EVERY WALK NEEDS THIS, NOT JUST THE TRACER ──────────────────────────────────────────────
+ *
+ * `CAPTURE` is a snapshot: it reports what is on the page at the instant it runs. Everything that
+ * calls it waits for a PROXY first — `waitForPageReady` waits for a heading or a button,
+ * `openState` waits for the right tab to be selected — and a shell that has fetched nothing
+ * satisfies both. So a single call can photograph a page that has not finished arriving.
+ *
+ * The tracer learned that the expensive way: `/admin/learn · card-bank` stored 21 mobile elements
+ * against 598 desktop, and the 21 included `admin-empty` — the EMPTY STATE, filed as the record of
+ * what that tab looks like.
+ *
+ * `check-design-conformance.mjs` had the same single call, and it is the tool whose entire job is to
+ * say whether a default is still true. Its own comment already describes the failure: *"a capture
+ * taken 2.2s in is missing whatever had not arrived, and every element it missed is reported as 'in
+ * the default but not on the page — the trace is stale'… A check that manufactures staleness is
+ * worse than no check, because the number looks like evidence."* It waited for readiness, which the
+ * tracer has since proved is not enough under load — `job-profitability` reads 32 elements during a
+ * sweep and 98 when probed alone.
+ *
+ * So the read lives here, beside `CAPTURE`, and both walks use it. Two copies of this rule would be
+ * the defect this plan has spent a day removing.
+ *
+ * ── ONE FLAT READING IS NOT STABILITY ───────────────────────────────────────────────────────────
+ *
+ * `settled: 2` because the first version returned on the FIRST non-increase, which cannot tell
+ * "stopped growing" from "has not started". Growth resets the count; a finished page pays one extra
+ * gap, and a page still arriving gets up to five to say so. The largest reading wins, because this
+ * failure only ever makes a capture too SMALL — nothing renders fewer elements by waiting.
+ */
+export async function captureStable(page, classes, { tries = 6, gap = 1_200, settled = 2 } = {}) {
+  let best = await page.evaluate(CAPTURE, classes);
+  let flat = 0;
+  for (let i = 1; i < tries; i += 1) {
+    await page.waitForTimeout(gap);
+    const next = await page.evaluate(CAPTURE, classes);
+    if (next.length > best.length) { best = next; flat = 0; continue; }
+    flat += 1;
+    if (flat >= settled) return best;
+  }
+  return best;
+}
