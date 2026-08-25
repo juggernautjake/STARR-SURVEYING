@@ -155,7 +155,10 @@ describe('a forward is answered before a spinner, in both walkers', () => {
     // routes in a `--since` pass are stubs, which is why the first full pass never finished.
     const loop = TRACER.slice(TRACER.indexOf('for (const [viewId, size] of Object.entries(VIEWPORTS))'));
     const early = loop.indexOf('forwarded = true; break;');
-    const capture = loop.indexOf('captures[viewId] = await page.evaluate(CAPTURE');
+    // The assignment, not its right-hand side: `page.evaluate(CAPTURE, classes)` became
+    // `captureStable(page, classes)` and this assertion failed for a reason that had nothing to do
+    // with the order it exists to protect.
+    const capture = loop.indexOf('captures[viewId] =');
     expect(early, 'the in-loop forward exit is missing').toBeGreaterThan(-1);
     expect(capture, 'the capture call is missing').toBeGreaterThan(-1);
     expect(early, 'the forward exit must precede the capture, or the stub is measured anyway')

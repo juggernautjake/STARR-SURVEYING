@@ -48,8 +48,13 @@ describe('a compile error is not a design', () => {
 
     // Order is the whole point. If the capture runs first, the guard is decoration.
     const routeBlock = TRACER.slice(TRACER.indexOf('const broken = await devErrorOn(page)'));
-    expect(routeBlock.indexOf('captures[viewId] = await page.evaluate(CAPTURE'))
-      .toBeGreaterThan(routeBlock.indexOf('if (broken)'));
+    // Anchored on the ASSIGNMENT, not on what is assigned. Pinning the right-hand side broke the
+    // moment `page.evaluate(CAPTURE, classes)` became `captureStable(page, classes)` — the seventh
+    // assertion in this plan to fail because source text moved while the rule it guards did not.
+    // What this test is about is the ORDER of two statements, so it should name them and nothing else.
+    const captureAt = routeBlock.indexOf('captures[viewId] =');
+    expect(captureAt, 'the capture assignment is missing').toBeGreaterThan(-1);
+    expect(captureAt).toBeGreaterThan(routeBlock.indexOf('if (broken)'));
   });
 
   it('catches the overlay by element, by scaffolding, and by what it says', () => {
