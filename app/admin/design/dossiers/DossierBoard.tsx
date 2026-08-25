@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, RefreshCw, Save, FileText } from 'lucide-react';
+import { ADMIN_ROUTES } from '@/lib/admin/route-registry';
 import { DOSSIER_STATE_LABEL, dossierState, derivedAgeDays, type PageDossier, type DossierState } from '@/lib/design/dossier';
 import type { ChecklistRow } from '@/lib/design/checklist';
 import '../DesignStudio.css';
@@ -35,6 +36,9 @@ const FILTERS: Array<{ id: DossierState | 'all'; label: string }> = [
   { id: 'authored-only', label: 'Never measured' },
   { id: 'all', label: 'Every page' },
 ];
+
+/** Every route the navigation registry knows. Built once: the board renders this per row. */
+const REGISTERED = new Set(ADMIN_ROUTES.map((r) => r.href));
 
 export default function DossierBoard({ initialRoute }: { initialRoute?: string }) {
   const [pages, setPages] = useState<PageRow[]>([]);
@@ -155,6 +159,23 @@ export default function DossierBoard({ initialRoute }: { initialRoute?: string }
                 <button className={route === r.route ? 'is-on' : ''} onClick={() => setRoute(r.route)}>
                   <code>{r.route}</code>
                   <span className={`dsx-dos__state is-${r.state}`}>{DOSSIER_STATE_LABEL[r.state]}</span>
+                  {/* ── C14: SAY WHEN A DOSSIER DESCRIBES A PAGE THE NAV NO LONGER OFFERS ────────
+                    *
+                    * The consolidation absorbed forty pages, and 63 dossiers now describe routes
+                    * with no registry row. `trace-defaults` retires a DESIGN when it finds the route
+                    * forwarding — the S2 branch — but `design_page_dossiers` has no status and no
+                    * `deleted_at`, so nothing here can be retired. Left alone, those 63 sit looking
+                    * exactly as current as a dossier for a live page.
+                    *
+                    * This does not retire anything and does not decide anything: it shows a true
+                    * fact the board already had the data for. The wording is deliberately "not in the
+                    * navigation" rather than "this forwards now", because those differ — /admin/login
+                    * is a real page that is deliberately not in the registry. */}
+                  {!REGISTERED.has(r.route) && (
+                    <span className="dsx-dos__unregistered" title="No registry row — this page is not offered in the sidebar, rail, palette or search. It may have been absorbed into a portal tab, or never have been listed.">
+                      not in the navigation
+                    </span>
+                  )}
                   {r.dossier?.purpose && <em>{r.dossier.purpose}</em>}
                 </button>
               </li>

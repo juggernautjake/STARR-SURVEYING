@@ -2423,6 +2423,23 @@ tracer answered that for its half. It is: **should a dossier be retirable at all
   worth keeping undecorated. Then the orphan count is expected rather than a defect, and should
   stop being counted as a gap.
 
+**One of the three answers is now built, because it decides nothing.** Option (b) — the board says
+so — is additive information, reverses freely, and does not foreclose (a) or (c): the dossier list
+marks any route with no registry row **"not in the navigation"**. Nothing is retired, no data
+changes, and if the answer turns out to be a `retired_at` column the badge is still true.
+
+Verified in a browser: **63 of 133 rows flagged**, which is exactly the measured orphan count, and
+the examples are the absorbed routes — `/admin/audit`, `/admin/availability`,
+`/admin/billing/invoices`, `/admin/billing/plan-history`.
+
+The wording is deliberately *"not in the navigation"* rather than *"this forwards now"*, because
+those differ: `/admin/login` is a real page that is deliberately unregistered, and a badge claiming
+it had been absorbed would be a new false statement replacing an old silent one.
+
+**(a) and (c) are still open**, and the badge does not lean on either. What it removes is the part
+that was indefensible whatever the answer: 63 dossiers sitting there looking exactly as current as a
+dossier for a live page.
+
 Whichever, the asymmetry itself is worth knowing: **one half of this tool retires its stale records
 and the other cannot.**
 
