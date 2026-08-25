@@ -933,41 +933,17 @@ a link on purpose; they are not well served by doing it invisibly.
       The walk asserts it found **more than 100 route files** before checking anything. A scan that
       quietly matched nothing would pass this test forever while proving nothing — the exact shape of
       four separate bugs already recorded in this session.
-- [ ] **T6 — Tab-level toggles**, folded into the portal shell as part of C2 rather than after it.
+- [ ] **T6 — Tab-level toggles** — **DEFERRED to C2, deliberately, by §11.3's own argument.**
 
----
+      *"Building it against 138 routes and then rebuilding it against 29 portals is the work done
+      twice."* The portal shell does not exist yet, so there are no tabs to switch off: every
+      destination in the product is still a route, and T1–T5 cover all of them.
 
-## §12. Workspaces: my answer
+      **The groundwork is done and is not speculative.** `toggleKey('/admin/pay', 'rewards')` and
+      `isDestinationEnabled` already exist and are tested, including the case that matters — a tab of
+      a switched-off portal reads as off, because asking only about the tab's own key would leave
+      every tab of a disabled portal reporting as enabled: true in the stored data and useless as an
+      answer, since nobody can reach any of them.
 
-Delegated to me in §10.4. **Drop the workspace RAIL as a navigation level; keep the groups as
-headings in one sidebar list.**
-
-The reasoning, so it can be argued with:
-
-- Workspaces exist to make 138 links navigable. At 29 they are solving a problem that no longer
-  exists, and each one costs a click and a concept.
-- The grouping itself is still useful — "money things" and "job things" are real categories, and the
-  registry already encodes them. **Keeping the labels while dropping the level** preserves
-  everything the grouping was for.
-- 29 links under 5 or 6 headings is one scan of one list. That is fewer decisions than choosing a
-  workspace and then a link within it.
-- The measured usage supports it rather than just taste: the four most-clicked things in three
-  months were workspace LANDINGS (`/admin/me` 66, `/admin/work` 47, `/admin/office` 40) — people
-  clicking through a level to get somewhere, which is what a level you do not need looks like.
-
-**Two caveats I would not want lost.** The rail carries the `Mod+1…7` shortcuts, which are real
-muscle memory for anybody who uses them — they need somewhere to go. And this is an IA change on
-top of fifteen merges: **it must be its own slice, after several portals have shipped**, or any
-complaint afterwards has two possible causes. It stays as C13.
-
----
-
-## §13. Still open
-
-1. ~~Does the receipt AI extract line items?~~ **ANSWERED 2026-08-24: yes, 93 of them, and most of
-   the feature is already built.** See §10.1. P2.2 got smaller and split into four.
-2. **Is `marketing` a role we are adding?** §10.2. It is the one role the owner named that
-   `ALL_ROLES` does not have.
-3. **Employees vs Users (P10)** — one list with a status column, or two nouns? Still unanswered, and
-   it is a data question rather than a layout one.
-4. **What to delete rather than absorb** — answerable in two weeks, from C0.
+      So C2 has to call one function, not design a mechanism. That is the difference between parking
+      work and parking a decision, and this doc has a §11.3 saying which one this is.
