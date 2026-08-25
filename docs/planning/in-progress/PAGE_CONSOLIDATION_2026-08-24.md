@@ -536,16 +536,65 @@ early, and the internal tooling comes last.
       should not have — `/admin/billing` already had a tab implementation, so extracting a general
       shell from a page that needed almost no change would have been designing it from one
       example. C2 extracts it from this plus `/admin/marketing`, which is two.
-- [ ] **C2 — Extract the shell** as `lib/admin/portal/` — tab set, `?tab=` routing, per-role
-      default, per-tab gating, per-tab lazy fetch, **and the toggle read from §11.6**. Everything
-      after this is configuration.
+- [x] **C2 — Extract the shell** as `lib/admin/portal/` — tab set, `?tab=` routing, per-role
+      default, per-tab gating, per-tab lazy fetch, and the toggle read from §11.6. Shipped
+      2026-08-25. **Everything after this is configuration.**
 
-      Extract it from **`/admin/billing` and `/admin/marketing` together**, not from either alone.
-      They solved the same problem twice, three months apart, and the differences between them are
-      the interesting part: marketing keeps a date range in the URL alongside the tab and has one
-      writer for the whole query string so changing the tab cannot drop the period; billing has no
-      second parameter and does not need one. A shell derived from one example would encode that
-      example's accidents.
+      Extracted from `/admin/billing` and `/admin/marketing` **together**, as the slice insisted.
+      Both are now callers: billing's page lost its `?tab=` reader, its unknown-value fallback, its
+      `replace`-not-`push` rule and its "default tab has no query string" rule, and kept a
+      three-entry list of tabs — the only part that was ever about billing.
+
+      **The one thing they disagreed about is the whole reason this is not a five-line helper.**
+      Marketing keeps a date range in the URL beside the tab and had one writer for the entire query
+      string, precisely because each of its four predecessor pages owned its own pair of date inputs
+      and changing the tab dropped the period. A shell that owned `?tab=` alone would have
+      re-created that bug **inside the thing extracted from the page that had it**, in every portal
+      that later grew a second parameter. So `portalHref` takes the other parameters as an argument:
+      preserving them is the caller's declaration, not the shell's guess.
+
+      Browser-verified, both pages:
+
+      | | result |
+      |---|---|
+      | `/admin/billing` default | no `?tab=` — the canonical URL |
+      | click Invoices | `?tab=invoices`, panel swaps, no navigation |
+      | `?tab=nonsense` | falls back to Overview |
+      | `/admin/billing/invoices` | still forwards to `?tab=invoices` |
+      | marketing `?preset=last-month` → Spend | `?tab=spend&preset=last-month` — **period kept** |
+      | marketing custom range → Spend | `?tab=spend&preset=custom&from=…&to=…` — **kept** |
+      | back to the DEFAULT tab | `?preset=last-month` — period kept, no `?tab=` left behind |
+
+      **The first probe reported the period being DROPPED** — the exact bug the shell exists to
+      prevent, apparently reproduced by the extraction. It was not: the probe used
+      `?preset=this-month`, and `this-month` **is** `DEFAULT_PRESET`, so `rangeToParams` correctly
+      returns `{}` and the redundant parameter is normalised away. Confirmed against `HEAD` that the
+      old code did exactly the same thing on the same input. Tenth time this session the instrument
+      was the defect, and the first one where the false alarm was about the very property the slice
+      was written to protect.
+
+      **What the shell adds that neither example had**, and each is a real case the tests pin:
+
+      · **A per-role default** (§5's *"one portal, several views"*) — a crew member lands on their own
+        hours, a manager on the approval queue. One portal with two front doors rather than two
+        portals. A default that is itself gated off falls through to the first visible tab, or the
+        portal would render empty for exactly the people it was defaulted FOR.
+      · **Per-tab gating on three independent axes** — the firm switched it off, the firm has no
+        bundle, you do not have the role. Asked separately because they have three different
+        remedies, and one boolean for all three makes *"why is this tab missing"* unanswerable. An
+        admin bypasses the role check and does NOT bypass the bundle: the firm has not paid.
+      · **Requesting a gated tab by URL lands on one you can see.** The normal way this happens is
+        somebody sending a link from an account with more access — not an edge case.
+      · **`null` when a viewer can see no tab at all**, rather than a guess. Every tab switched off is
+        a real state and the caller has to say something rather than draw an empty strip.
+
+      §11.6's toggle read comes free: `canSeeTab` calls `isDestinationEnabled`, so a tab switched off
+      in Settings → Pages leaves the strip — **including for admins**, because an easier sidebar is
+      the whole request — and switching off the portal takes its tabs with it.
+
+      The decidable half is pure and has no React, no router and no fetch in it. C3–C12c are
+      seventeen portals standing on this; a mistake here is not one wrong page, it is the same wrong
+      page seventeen times, discovered after they all exist.
 - [ ] **C3 — P5 Equipment** (14 → 1). Biggest single reduction, one subject, low blast radius.
 - [ ] **C4 — P3 Hours** (4 → 1) **including the role split**. First portal to prove §5.
 - [ ] **C5 — P2 Receipts** (4 → 1), tabs only. **Per-item approval is P2.2 and is blocked** on the

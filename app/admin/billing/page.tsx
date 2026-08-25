@@ -16,9 +16,10 @@
 // Spec: docs/planning/in-progress/CUSTOMER_PORTAL.md §3.3.
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 
 interface BillingState {
   org: { id: string; slug: string; name: string };
@@ -111,13 +112,25 @@ const EVENT_COLORS: Record<string, string> = {
 
 type Tab = 'overview' | 'invoices' | 'history';
 
-const TABS: { key: Tab; label: string }[] = [
-  { key: 'overview', label: 'Overview' },
-  { key: 'invoices', label: 'Invoices' },
-  { key: 'history',  label: 'Plan history' },
-];
-
-const DEFAULT_TAB: Tab = 'overview';
+// ── C2: THIS PAGE IS NOW CONFIGURATION ────────────────────────────────────────────────────────
+//
+// The `?tab=` reader, the fallback for an unknown value, the `replace`-not-`push` rule and the
+// "default tab has no query string" rule all moved to `lib/admin/portal`, extracted from HERE and
+// from `/admin/marketing` together. What is left is the list of tabs, which is the only part that
+// was ever about billing.
+//
+// The behaviour is unchanged on purpose. C2 is an extraction, and an extraction that also changes
+// what the page does is one where a regression cannot be attributed — the same reason
+// `/admin/marketing` moved its four page components into `_tabs/` untouched.
+const PORTAL: PortalSpec = {
+  route: '/admin/billing',
+  tabs: [
+    { id: 'overview', label: 'Overview' },
+    { id: 'invoices', label: 'Invoices' },
+    { id: 'history', label: 'Plan history' },
+  ],
+  defaultTab: 'overview',
+};
 
 function fmtMoney(cents: number, ccy: string): string {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: ccy.toUpperCase() })
@@ -135,22 +148,17 @@ export default function CustomerBillingPage() {
   // It is also what makes the redirects honest. `/admin/billing/invoices` still exists and now
   // forwards to `?tab=invoices`, so every bookmark lands on the thing it was pointing at rather
   // than on the overview.
-  const router = useRouter();
-  const params = useSearchParams();
+  const { data: session } = useSession();
+  const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-  // An unknown `?tab=` falls back to the overview rather than rendering nothing. A mistyped or
-  // stale link should land somewhere useful, not on a blank panel.
-  const tab: Tab = useMemo(() => {
-    const raw = params.get('tab');
-    return TABS.some((t) => t.key === raw) ? (raw as Tab) : DEFAULT_TAB;
-  }, [params]);
+  // Billing has no second query parameter, so nothing is passed through. `/admin/marketing` passes
+  // its date range in that argument, and that one difference is the entire reason the shell takes it.
+  const { active, tabs: TABS, select: setTab } = usePortalTabs(PORTAL, viewer);
 
-  const setTab = useCallback((next: Tab) => {
-    // `replace`, not `push`, and scroll:false. Flicking between three tabs should not bury the
-    // page you arrived from under three history entries, and it should not jump you to the top of
-    // a page you are already reading.
-    router.replace(next === DEFAULT_TAB ? '/admin/billing' : `/admin/billing?tab=${next}`, { scroll: false });
-  }, [router]);
+  // `active` is null only when a viewer can see no tab at all — every tab switched off in Settings.
+  // The overview is the honest fallback for the panel body; the strip below renders empty and says
+  // so on its own, which is better than this page inventing a message about a state it cannot see.
+  const tab = (active ?? 'overview') as Tab;
 
   const [state, setState] = useState<BillingState | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -284,22 +292,22 @@ export default function CustomerBillingPage() {
       <div className="billing-tabs" role="tablist" aria-label="Billing sections">
         {TABS.map((t, i) => (
           <button
-            key={t.key}
+            key={t.id}
             type="button"
             role="tab"
-            id={`billing-tab-${t.key}`}
-            aria-selected={tab === t.key}
-            aria-controls={`billing-panel-${t.key}`}
-            tabIndex={tab === t.key ? 0 : -1}
-            className={`billing-tab ${tab === t.key ? 'billing-tab--active' : ''}`}
-            onClick={() => setTab(t.key)}
+            id={`billing-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`billing-panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            className={`billing-tab ${tab === t.id ? 'billing-tab--active' : ''}`}
+            onClick={() => setTab(t.id)}
             onKeyDown={(e) => {
               if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
               e.preventDefault();
               const dir = e.key === 'ArrowRight' ? 1 : -1;
               const next = TABS[(i + dir + TABS.length) % TABS.length];
-              setTab(next.key);
-              const el = document.getElementById(`billing-tab-${next.key}`);
+              setTab(next.id);
+              const el = document.getElementById(`billing-tab-${next.id}`);
               el?.focus();
             }}
           >

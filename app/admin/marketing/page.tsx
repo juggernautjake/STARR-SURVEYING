@@ -30,12 +30,14 @@
 // is inside them; this slice only changes where they live.
 
 import { useCallback, useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { BarChart3, DollarSign, Upload, FileDown } from 'lucide-react';
 
 import RangePicker from './RangePicker';
 import AdsAccessBanner from './AdsAccessBanner';
 import { rangeFromParams, rangeToParams, type DateRange } from '@/lib/marketing/date-range';
+import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import DashboardTab from './_tabs/DashboardTab';
 import SpendTab from './_tabs/SpendTab';
 import UploadsTab from './_tabs/UploadsTab';
@@ -71,48 +73,45 @@ const TABS = [
     icon: Upload,
     hint: 'Connect or reconnect Google Ads, and see what the nightly upload sent or Google rejected.',
   },
-] as const;
+];
 
-type TabId = (typeof TABS)[number]['id'];
+type TabId = 'overview' | 'spend' | 'conversions' | 'uploads';
 
-const DEFAULT_TAB: TabId = 'overview';
+// ── C2 ────────────────────────────────────────────────────────────────────────────────────────
+//
+// This page is the reason the shell's URL writer takes an argument at all. It keeps a DATE RANGE in
+// the query string beside the tab, and it had one writer for the whole string precisely because
+// each of its four predecessor pages owned its own pair of date inputs — so changing the tab
+// dropped the period. `portalHref` takes those other parameters, so that bug cannot come back
+// inside the thing extracted from the page that had it.
+const PORTAL: PortalSpec = { route: '/admin/marketing', tabs: TABS, defaultTab: 'overview' };
 
 export default function MarketingPage(): React.ReactElement {
-  const router = useRouter();
   const params = useSearchParams();
-
-  // An unknown `?tab=` falls back to the overview rather than rendering nothing. A mistyped or
-  // stale link should land somewhere useful, not on a blank page.
-  const active: TabId = useMemo(() => {
-    const raw = params.get('tab');
-    return TABS.some((t) => t.id === raw) ? (raw as TabId) : DEFAULT_TAB;
-  }, [params]);
+  const { data: session } = useSession();
+  const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
   // A2 — the period, also from the URL. Resolved on every render against a fresh clock, which is
   // what makes `?preset=this-month` show September in September rather than freezing on the month
   // the link was made. See lib/marketing/date-range.ts.
   const range = useMemo(() => rangeFromParams(params, new Date()), [params]);
 
-  /** One writer for the whole query string, so changing the tab cannot drop the period and changing
-   *  the period cannot drop the tab — which is exactly what happened when each page owned its own
-   *  pair of date inputs. */
+  // The period, as query parameters, handed to the shell so a tab change carries it. This is the
+  // "one writer for the whole query string" property, now enforced by the shell rather than by this
+  // page remembering to do it — which is what makes it hold for the sixteen portals after this one.
+  const rangeParams = useMemo(() => rangeToParams(range), [range]);
+
+  const { active: rawActive, tabs: VISIBLE, select, navigate: go } = usePortalTabs(PORTAL, viewer, rangeParams);
+  const active = (rawActive ?? 'overview') as TabId;
+
   const navigate = useCallback(
-    (nextTab: TabId, nextRange: DateRange) => {
-      const q = new URLSearchParams();
-      if (nextTab !== DEFAULT_TAB) q.set('tab', nextTab);
-      for (const [k, v] of Object.entries(rangeToParams(nextRange))) q.set(k, v);
-      const qs = q.toString();
-      // `replace`, not `push`, and scroll:false. Flicking between four tabs should not bury the
-      // page you arrived from under four history entries, and it should not jump you to the top of
-      // a page you are already reading.
-      router.replace(`/admin/marketing${qs ? `?${qs}` : ''}`, { scroll: false });
-    },
-    [router],
+    (nextTab: TabId, nextRange: DateRange) => go(nextTab, rangeToParams(nextRange)),
+    [go],
   );
 
-  const select = useCallback((id: TabId) => navigate(id, range), [navigate, range]);
-
-  const activeTab = TABS.find((t) => t.id === active)!;
+  // `!` was safe while TABS was the whole list. It is not now that the strip is filtered, and a
+  // viewer who can see no tab would have crashed the page here rather than rendering an empty strip.
+  const activeTab = TABS.find((t) => t.id === active) ?? TABS[0];
 
   return (
     <div className="mkt-shell">
@@ -120,8 +119,8 @@ export default function MarketingPage(): React.ReactElement {
           predictable strip, and the scroll is the reformat-vs-scroll rule from M4 applied to a
           control that genuinely is a single row. */}
       <nav className="mkt-tabs" role="tablist" aria-label="Advertising sections">
-        {TABS.map((t) => {
-          const Icon = t.icon;
+        {VISIBLE.map((t) => {
+          const Icon = t.icon as typeof BarChart3;
           const isActive = t.id === active;
           return (
             <button
