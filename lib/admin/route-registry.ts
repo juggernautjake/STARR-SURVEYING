@@ -235,7 +235,14 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/timeline',        label: 'Activity Timeline', workspace: 'work', iconName: 'Activity',    description: 'What the firm did today — clock-ins, job stage changes, uploads. A working feed, not a compliance record: the Audit Log is that.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['daily', 'feed'] },
   { href: '/admin/mileage',         label: 'Mileage',         workspace: 'money', section: 'Money out', iconName: 'Car',           description: 'Mileage logs + reimbursement.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   { href: '/admin/finances',        label: 'Job Profitability',        workspace: 'money', section: 'Profitability', iconName: 'Briefcase',     description: 'What each job cost against what it earned. NOT invoicing — this is the answer to "are we pricing right?".', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
-  { href: '/admin/vehicles',        label: 'Vehicles',        workspace: 'work', iconName: 'Truck',         description: 'Vehicle fleet roster.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['fleet', 'trucks'] },
+  // /admin/vehicles was here. C3 made it the Equipment portal's `vehicles` tab — the plan's own
+  // argument: *"it is fleet, and the dossiers show /admin/equipment already calls
+  // /api/admin/vehicles"*. Two nav rows were reading the same data.
+  //
+  // The ROUTE still exists and forwards; it is out of the registry because a nav entry that lands on
+  // a redirect is a row that flickers. Its 'fleet' and 'trucks' keywords moved to the portal, so the
+  // palette still finds it — dropping them would make somebody typing "trucks" get nothing, which
+  // reads as the feature having been deleted.
   // On the rail, not palette-only. §1.4's split says destinations somebody navigates TO get a rail
   // slot, and "what expires soon" is checked on purpose rather than arrived at from somewhere else —
   // a licence nobody thinks to look for is the whole failure mode this page exists to prevent.
@@ -246,17 +253,32 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/receivables',     label: 'Receivables',     workspace: 'money', section: 'Money in', iconName: 'Banknote',     description: 'Who owes money and how late — unpaid invoices aged from their due date.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['ar', 'aging', 'ageing', 'collections', 'overdue', 'owed', 'unpaid', 'outstanding', 'past due', 'chase'] },
 
   // Equipment workspace ───────────────────────────────────────────
-  { href: '/admin/equipment',                          label: 'Catalogue',         workspace: 'equipment', iconName: 'Package',       description: 'All firm equipment.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['gear', 'inventory'] },
-  { href: '/admin/equipment/today',                    label: 'Equipment Today',   workspace: 'equipment', iconName: 'CalendarClock', description: 'Today\'s checkouts + returns.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/checked-out',              label: 'Check In / Out',    workspace: 'equipment', iconName: 'ArrowLeftRight', description: 'Check equipment out to crews / vehicles / maintenance and back in.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['checkout', 'check out', 'check in', 'lend', 'assign', 'return', 'borrow'] },
-  { href: '/admin/equipment/timeline',                 label: 'Equipment Timeline', workspace: 'equipment', iconName: 'GanttChart',   description: 'Gantt view of equipment over time.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/maintenance',              label: 'Maintenance',       workspace: 'equipment', iconName: 'Wrench',        description: 'Maintenance schedule + history.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/consumables',              label: 'Consumables',       workspace: 'equipment', iconName: 'Boxes',         description: 'Consumable inventory.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/templates',                label: 'Templates',         workspace: 'equipment', iconName: 'Files',         description: 'Equipment templates.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/templates/cleanup-queue',  label: 'Cleanup Queue',     workspace: 'equipment', iconName: 'Sparkles',      description: 'Templates pending cleanup.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/overrides',                label: 'Overrides Audit',   workspace: 'equipment', iconName: 'AlertTriangle', description: 'Equipment override audit log.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/equipment/fleet-valuation',          label: 'Fleet Valuation',   workspace: 'equipment', iconName: 'TrendingUp',    description: 'Fleet asset valuation.', roles: EQUIPMENT_ROLES, internalOnly: true },
-  { href: '/admin/personnel/crew-calendar',            label: 'Crew Calendar',     workspace: 'equipment', iconName: 'Users',         description: 'Crew availability calendar.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['schedule', 'roster'] },
+  //
+  // ── C3: TWELVE ENTRIES BECAME THREE ──────────────────────────────────────────────────────────
+  //
+  // §4, P5 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md: *"The most mechanical
+  // merge in the document — fourteen links about one cage."*
+  //
+  // `today`, `checked-out`, `timeline`, `maintenance`, `consumables`, `templates`,
+  // `templates/cleanup-queue`, `overrides`, `fleet-valuation` and `/admin/vehicles` are tabs of the
+  // portal now. Their ROUTES all still exist and forward to their tab, so every bookmark and every
+  // link in an old email keeps working — see the redirect stubs for why that is not optional.
+  //
+  // What is left in the nav is one destination, plus the two editors that were already
+  // `showInRail: false` because you arrive at them from the thing you are editing.
+  //
+  // ── AND WHY THE KEYWORDS MOVED HERE RATHER THAN BEING DELETED ────────────────────────────────
+  //
+  // The command palette matched "checkout", "lend", "borrow", "gantt", "depreciation" against nine
+  // separate rows. Dropping those rows would have made all of it unsearchable — somebody typing
+  // "borrow" would get nothing, which reads as the feature having been removed. They are one row's
+  // keywords now, and the row they open is the portal.
+  { href: '/admin/equipment', label: 'Equipment', workspace: 'equipment', iconName: 'Package', description: 'Check gear in and out, maintenance, supplies, templates and the fleet — all of it.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['gear', 'inventory', 'checkout', 'check out', 'check in', 'lend', 'assign', 'return', 'borrow', 'maintenance', 'consumables', 'supplies', 'templates', 'gantt', 'timeline', 'schedule', 'overrides', 'audit', 'valuation', 'depreciation', 'fleet', 'trucks', 'vehicles', 'cleanup'] },
+  // Moved to the Work workspace by C3, and this is the interesting half of the slice. It was filed
+  // under Equipment, which §4 flagged as *"evidence that the current grouping is not load-bearing"*:
+  // a crew calendar is about PEOPLE, and it sat in the cage because that is where somebody put it.
+  // C4 takes it into the Hours portal; until then it is at least in the right workspace.
+  { href: '/admin/personnel/crew-calendar',            label: 'Crew Calendar',     workspace: 'work',      iconName: 'Users',         description: 'Crew availability calendar.', roles: EQUIPMENT_ROLES, internalOnly: true, keywords: ['schedule', 'roster'] },
   { href: '/admin/equipment/inventory',                label: 'Inventory Edit',    workspace: 'equipment', iconName: 'PackageOpen',   description: 'Equipment inventory editor.', roles: EQUIPMENT_ROLES, internalOnly: true, showInRail: false },
   { href: '/admin/equipment/import',                   label: 'Import Equipment',  workspace: 'equipment', iconName: 'Upload',        description: 'Bulk import equipment.', roles: ['admin'], internalOnly: true, showInRail: false },
 

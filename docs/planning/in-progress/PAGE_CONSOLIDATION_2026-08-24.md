@@ -595,7 +595,68 @@ early, and the internal tooling comes last.
       The decidable half is pure and has no React, no router and no fetch in it. C3–C12c are
       seventeen portals standing on this; a mistake here is not one wrong page, it is the same wrong
       page seventeen times, discovered after they all exist.
-- [ ] **C3 — P5 Equipment** (14 → 1). Biggest single reduction, one subject, low blast radius.
+- [x] **C3 — P5 Equipment.** Shipped 2026-08-25. **Thirteen nav destinations became one**, which is
+      the biggest single reduction in the plan and the first portal built entirely as C2 configuration.
+
+      | | before | after |
+      |---|---|---|
+      | Equipment workspace rows in the registry | 12 | **4** (three are `showInRail: false`) |
+      | in the sidebar / rail | 11 | **1** |
+      | plus `/admin/vehicles` in Work | 1 | 0 — it is a tab |
+
+      Ten tabs: `today · check-in-out · schedule · maintenance · supplies · templates · cleanup ·
+      valuation · vehicles · audit`. Ordered operationally rather than alphabetically — somebody
+      opening this at 6am is answering *"what goes out today"*, and somebody opening it in the office
+      is answering *"what did that cost"*. The first is the default; the second is three tabs along.
+
+      **The components moved untouched** — nine `page.tsx` files and `/admin/vehicles`, ~7,400 lines,
+      byte for byte apart from one import path in `CleanupTab`. `/admin/marketing` set that precedent
+      and gave the reason: *"Rewriting them in the same slice that re-arranged them would have made a
+      regression impossible to attribute."* Each still fetches on mount, and only the active panel is
+      mounted — which is C2's per-tab lazy fetch with no coordination at all.
+
+      **All ten old routes still exist and forward to their tab.** Verified in a browser, every one.
+      Deleting them would break every bookmark and every link in an old email; a 404 says the page is
+      gone and it is not.
+
+      **`inventory` and `import` stay routes and became buttons**, as §4 says. Both were already
+      `showInRail: false` — editors you arrive at from the thing you are editing — and `inventory`
+      imports three sibling modules relatively, so moving it would have been the one move in this
+      slice that was not mechanical.
+
+      **`/admin/personnel/crew-calendar` moved out of the Equipment workspace.** §4 called it
+      *"evidence that the current grouping is not load-bearing"*, and it was: a crew calendar is
+      about PEOPLE and it sat in the cage because that is where somebody filed it. It is in Work
+      until C4 takes it into the Hours portal.
+
+      ── **THREE GUARDS FIRED, AND ALL THREE WERE RIGHT** ──────────────────────────────────────────
+
+      · **`api-bundle-gate`** — three `/api/admin/vehicles/*` routes became unclassified. They had
+        been classified by MIRRORING `/admin/vehicles` in the page registry, and removing that nav
+        row broke the mirror. The gate fails closed on unclassified, correctly. The answer is written
+        out rather than invented: that page was `internalOnly` with no `requiredBundle`, so it
+        already resolved to *"always-available or operator-only"* — it just no longer depends on a
+        nav row a later consolidation can remove.
+      · **`route-registry`** — a test asserted `equipment_manager` can reach
+        `/admin/equipment/maintenance`. The invariant holds and its SAMPLE moved; re-pointed at the
+        portal rather than deleted, because what is being guarded is that the role reaches the
+        workspace at all.
+      · **`inline-style-hex`** — ten files "got worse" and ten "improved". Investigated before
+        touching the ceiling, per the standing rule, and it was a pure rename: every new count equals
+        its old one, and the repository total is **2306 before and 2306 after**. Nothing was added;
+        285 hexes changed path. Re-baselined, and the old paths are gone from the file.
+
+      **The first redirect probe reported all ten FAILING.** They were all fine: `redirect()` in
+      these pages resolves as a client navigation after hydration, and the probe's fixed 1,500 ms
+      wait was shorter than a cold dev compile. Waiting for the destination instead of for a number
+      turned ten red lines green without a line of product code changing. Eleventh time this session
+      the instrument was the defect — and the same fixed-wait mistake the design walks made, in a
+      different tool.
+
+      One consequence worth recording: `/admin/equipment` no longer renders `WorkspaceLanding`, so it
+      is no longer one of the five routes a W4 composition can replace. That is the right trade — it
+      is a real portal now rather than a card grid — but C13 should notice that consolidating a
+      workspace landing removes a composition slot.
 - [ ] **C4 — P3 Hours** (4 → 1) **including the role split**. First portal to prove §5.
 - [ ] **C5 — P2 Receipts** (4 → 1), tabs only. **Per-item approval is P2.2 and is blocked** on the
       owner's accounting answer.

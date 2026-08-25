@@ -90,7 +90,11 @@ const PAGES: Record<string, ComponentType> = {
   'org-settings': nextDynamic(() => import('@/app/admin/org-settings/page'), { ssr: false }),
   profile: nextDynamic(() => import('@/app/admin/profile/ProfilePanel'), { ssr: false }),
   timeline: nextDynamic(() => import('@/app/admin/timeline/page'), { ssr: false }),
-  vehicles: nextDynamic(() => import('@/app/admin/vehicles/page'), { ssr: false }),
+  // C3: /admin/vehicles is a redirect now — it became the Equipment portal's `vehicles` tab.
+  // The harness screenshots page BODIES, so it points at the component rather than at the route that
+  // forwards to it; importing the redirect would render nothing and the shot would be of an empty
+  // page that looked like a styling bug.
+  vehicles: nextDynamic(() => import('@/app/admin/equipment/_tabs/VehiclesTab'), { ssr: false }),
   rewards: nextDynamic(() => import('@/app/admin/rewards/page'), { ssr: false }),
   billing: nextDynamic(() => import('@/app/admin/billing/page'), { ssr: false }),
   research: nextDynamic(() => import('@/app/admin/research/page'), { ssr: false }),

@@ -203,8 +203,14 @@ describe('route-registry — access filtering', () => {
 
   it('equipment_manager hat unlocks the Equipment workspace gates', () => {
     const visible = accessibleRoutes({ roles: ['equipment_manager'], isCompanyUser: true });
-    const maintenance = visible.find((r) => r.href === '/admin/equipment/maintenance');
-    expect(maintenance).toBeDefined();
+    // C3 (2026-08-25): the sample moved, the invariant did not. This asserted
+    // `/admin/equipment/maintenance`, which is a TAB of the Equipment portal now and no longer a
+    // registry row — the consolidation is the change, not a regression in who may see what.
+    //
+    // Deliberately re-pointed at the portal rather than deleted: the thing being guarded is that an
+    // `equipment_manager` reaches the Equipment workspace at all, and after C3 that is one route.
+    const equipment = visible.find((r) => r.href === '/admin/equipment');
+    expect(equipment).toBeDefined();
     // …without leaking admin-only routes like Settings.
     expect(visible.find((r) => r.href === '/admin/settings')).toBeUndefined();
   });

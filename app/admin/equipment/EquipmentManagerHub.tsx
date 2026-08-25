@@ -6,7 +6,17 @@
 // of the Equipment landing for the day-to-day equipment manager: big quick
 // actions + at-a-glance counts (out now / low stock / vehicles needing
 // attention), each linking straight to where the work happens. The full route
-// card grid (WorkspaceLanding) still renders below it.
+// card grid used to render below it — C3 replaced that with the portal's tab strip.
+//
+// ── C3: THESE POINT AT TABS NOW ──────────────────────────────────────────────────────────────
+//
+// This hub sits INSIDE the Equipment portal, and four of its links used to go to sibling routes that
+// are tabs of that portal today. Those routes still exist and still forward — but a link that leaves
+// the page, hits a redirect and comes back to the same page is a visible flicker and a wasted round
+// trip, and it would have looked like a bug rather than like a redirect working.
+//
+// `inventory` is deliberately unchanged: C3 keeps it a real route, because it is an editor you
+// arrive at from what you are editing rather than a place you browse to.
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -36,27 +46,27 @@ export default function EquipmentManagerHub(): React.ReactElement {
   return (
     <div style={S.wrap}>
       <div style={S.actions}>
-        <Link href="/admin/equipment/checked-out" style={{ ...S.action, ...S.actionPrimary }}>
+        <Link href="/admin/equipment?tab=check-in-out" style={{ ...S.action, ...S.actionPrimary }}>
           <RouteIcon name="ArrowLeftRight" size={18} /> Check out / in
         </Link>
         <Link href="/admin/equipment/inventory" style={S.action}>
           <RouteIcon name="Package" size={18} /> Add / edit equipment
         </Link>
-        <Link href="/admin/equipment/consumables" style={S.action}>
+        <Link href="/admin/equipment?tab=supplies" style={S.action}>
           <RouteIcon name="Boxes" size={18} /> Supplies & usage
         </Link>
-        <Link href="/admin/equipment/maintenance" style={S.action}>
+        <Link href="/admin/equipment?tab=maintenance" style={S.action}>
           <RouteIcon name="Wrench" size={18} /> Maintenance
         </Link>
-        <Link href="/admin/vehicles" style={S.action}>
+        <Link href="/admin/equipment?tab=vehicles" style={S.action}>
           <RouteIcon name="Truck" size={18} /> Vehicles
         </Link>
       </div>
 
       <div style={S.stats}>
-        <StatCard href="/admin/equipment/checked-out" label="Checked out now" value={c.outNow} tone="var(--color-brand-navy, #1D3095)" />
-        <StatCard href="/admin/equipment/consumables" label="Supplies to reorder" value={c.lowStock} tone={c.lowStock ? 'var(--color-error-text)' : 'var(--color-success-text)'} />
-        <StatCard href="/admin/vehicles" label="Vehicles needing attention" value={c.vehiclesAttention} tone={c.vehiclesAttention ? 'var(--color-warning-text)' : 'var(--color-success-text)'} />
+        <StatCard href="/admin/equipment?tab=check-in-out" label="Checked out now" value={c.outNow} tone="var(--color-brand-navy, #1D3095)" />
+        <StatCard href="/admin/equipment?tab=supplies" label="Supplies to reorder" value={c.lowStock} tone={c.lowStock ? 'var(--color-error-text)' : 'var(--color-success-text)'} />
+        <StatCard href="/admin/equipment?tab=vehicles" label="Vehicles needing attention" value={c.vehiclesAttention} tone={c.vehiclesAttention ? 'var(--color-warning-text)' : 'var(--color-success-text)'} />
       </div>
     </div>
   );

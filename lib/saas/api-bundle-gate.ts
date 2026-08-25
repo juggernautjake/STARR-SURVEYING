@@ -92,6 +92,16 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   'roles': { bundle: null, reason: 'Identity and roles are account-level, not bundle-level.' },
   'audit': { bundle: null, reason: 'An audit trail a firm cannot read is not an audit trail.' },
   'settings': { bundle: null, reason: 'Account-level configuration.' },
+  // ── C3 MADE THIS EXPLICIT, AND THE RATCHET IS WHY ───────────────────────────────────────────
+  //
+  // These were classified by MIRRORING `/admin/vehicles` in the page registry. C3 turned that page
+  // into a tab of the Equipment portal and took its nav row out, so the mirror stopped resolving and
+  // three routes became unclassified — which this file fails closed on, correctly.
+  //
+  // The answer is unchanged, not invented: `/admin/vehicles` was `internalOnly` with no
+  // `requiredBundle`, so it already resolved to "always-available or operator-only". Written out
+  // here it no longer depends on a nav row that a later consolidation can remove.
+  'vehicles': { bundle: null, reason: 'Operator-only fleet roster; the page is a tab of the Equipment portal since C3.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —
