@@ -1679,6 +1679,29 @@ early, and the internal tooling comes last.
       pass a thing that can be run rather than a thing that gets killed.
 
       ── **AND THE SPEED FIX WAS RACY, WHICH ONE ANOMALY IN A LATER RUN EXPOSED** ──
+      ── **THE "FOUR HANGING PAGES" THREAD, CLOSED** ──
+
+      That claim started this whole sub-investigation and every part of it was wrong, in three
+      different ways. For the record, because the wrong version is above and a reader deserves the
+      end of the story:
+
+      | Route | Reported as | Actually |
+      |---|---|---|
+      | `/admin/discussions` | a live page that hangs | a stub — the ordering bug |
+      | `/admin/equipment/consumables` | a live page that hangs | a stub — the ordering bug |
+      | `/admin/equipment/timeline` | a live page that hangs | a stub — the ordering bug |
+      | `/admin/learn/flashcard-bank` | crashed the browser | a stub — the ordering bug |
+      | `/admin/billing` | a hang, in a later run | traces fine warm: **42 desktop · 41 mobile** |
+      | `/admin/finances` | a hang, in a later run | traces fine warm: **66 desktop · 58 mobile** |
+
+      **Not one of the six is a defective page.** Four were the tracer asking the wrong question
+      first, and two were a cold dev-server compile exceeding the readiness budget — `/admin/billing`
+      renders a spinner for eleven seconds by its own code comment.
+
+      What the thread produced instead was three real fixes to the tooling — the ordering, its cost,
+      and a race in the fix for the cost — plus the test that now pins all three. The original claim
+      was worth nothing; chasing why one route disagreed with the others was worth all of it.
+
 
       The short-circuit read `page.url()` immediately after `goto`. A later pass reported four hangs;
       two of them — `/admin/invites` and `/admin/equipment/templates/cleanup-queue` — are **stubs**,
