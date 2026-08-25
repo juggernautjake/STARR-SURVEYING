@@ -6,6 +6,7 @@
 
 import type { CatalogueEntry } from './catalogue/types';
 import type { DesignElement } from './document';
+import { isWidgetElement, widgetIdOf } from './widget-palette';
 
 /** Escape for text that lands inside markup. Slot values are typed by a person, and a person will
  *  eventually type `<`. */
@@ -63,6 +64,24 @@ export function classesFor(entry: CatalogueEntry, element: DesignElement): strin
  * says "this is a `.admin-btn--primary`" — is identical in both.
  */
 export function renderElement(entry: CatalogueEntry | undefined, element: DesignElement): string {
+  // ── A PLACED WIDGET IS A NAMED BOX, DELIBERATELY — W2 ────────────────────────────────────────
+  //
+  // A widget has no catalogue entry and never will: it is a live React component that fetches its
+  // own data. Rendering the real one here would give the editor a second way of drawing a widget
+  // beside the page's, and two renderers of one thing drifting apart is the defect this entire plan
+  // exists to close.
+  //
+  // A named box is also the honest picture of what was recorded. Placing a widget stores a CHOICE —
+  // "this widget, this size, here" — and that is exactly what the box shows. What it must NOT do is
+  // fall through to the `ds-missing` "?" below: a deliberate placement and an unknown element would
+  // then look identical on the canvas, and the widget would read as a mistake.
+  if (isWidgetElement(element.catalogId)) {
+    const id = widgetIdOf(element.catalogId)!;
+    const label = element.name?.trim() || id;
+    return `<div class="ds-widget" title="${escapeHtml(label)} — a live widget. The page renders the real one."`
+      + `><span class="ds-widget__label">${escapeHtml(label)}</span>`
+      + `<span class="ds-widget__id">${escapeHtml(id)}</span></div>`;
+  }
   if (!entry) {
     return `<div class="ds-missing" title="Unknown element: ${escapeHtml(element.catalogId ?? '')}">?</div>`;
   }

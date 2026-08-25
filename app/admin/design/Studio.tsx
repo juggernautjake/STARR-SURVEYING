@@ -39,6 +39,9 @@ import { themeStyle, BUILT_IN_THEMES, type Theme } from '@/lib/design/theme';
 import { statusRule, refuseEditReason, isEditable } from '@/lib/design/lifecycle';
 import { ENTRIES, getEntry, isAnnotationEntry } from '@/lib/design/catalogue';
 import { renderElement, positionStyle } from '@/lib/design/render';
+import { isWidgetElement, widgetIdOf, widgetPixelSize } from '@/lib/design/widget-palette';
+import { paletteWidgets } from '@/lib/design/widget-palette.client';
+import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import { saveDraft } from '@/lib/design/storage';
 import { pushDesign } from '@/lib/design/client';
 import { exportHtml, exportSpec, exportPrompt, dsPrimitiveStyles } from '@/lib/design/export';
@@ -272,6 +275,40 @@ export default function Studio({ initial }: Props) {
   // ── PLACING ──────────────────────────────────────────────────────────────────────────────────
 
   const place = useCallback((catalogId: string, at?: { x: number; y: number }) => {
+    // ── A WIDGET HAS NO CATALOGUE ENTRY — W2 ─────────────────────────────────────────────────────
+    //
+    // It never will: a widget is a live React component that fetches its own data, and the whole
+    // reason a composition can be SERVED and a drawing cannot is that its parts are real. So it
+    // takes this branch, and the `if (!entry) return` below — correct for everything else — would
+    // otherwise have swallowed every widget placement silently. The palette would have looked
+    // broken, and nothing would have said why.
+    if (isWidgetElement(catalogId)) {
+      const id = widgetIdOf(catalogId)!;
+      const w = paletteWidgets().find((pw) => pw.id === id);
+      if (!w) { setStatus(`No widget called “${id}”`); return; }
+      // Grid cells → pixels, by the one function that knows the ratio. Done here rather than in the
+      // palette so the tile, the placed element and any future preview cannot each pick their own.
+      const size = widgetPixelSize(w.defaultSize, view.width, HUB_GRID_COLS);
+      const element: Omit<DesignElement, 'z'> = {
+        id: newElementId(),
+        kind: 'catalogue',
+        catalogId,
+        slots: {},
+        style: {},
+        x: Math.max(0, at?.x ?? Math.round(view.width / 2 - size.w / 2)),
+        y: Math.max(0, at?.y ?? 80),
+        w: size.w,
+        h: size.h,
+        // The label is stored on the element because `renderElement` is pure and has no registry to
+        // look it up in — and an export opened next year should still say "My pay", not `my-pay`.
+        name: w.label,
+      };
+      patchView((v) => addElement(v, element));
+      setSelection([element.id]);
+      setStatus(`Placed ${w.label}`);
+      return;
+    }
+
     const entry = getEntry(catalogId);
     if (!entry) return;
     const x = at?.x ?? Math.round(view.width / 2 - entry.size.default.w / 2);

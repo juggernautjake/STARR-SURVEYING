@@ -1776,3 +1776,70 @@ span.dsx-pages__chip--dossier {
   .dsx-pages__states { padding-left: 0.75rem; }
   .dsx-pages__state-key { min-width: 0; flex: 1 1 100%; }
 }
+
+/* ── A PLACED WIDGET, ON THE CANVAS AND IN AN EXPORT — W2 ──────────────────────────────────────
+ *
+ * A widget has no catalogue entry and never will: it is a live React component that fetches its own
+ * data. The editor draws a NAMED BOX instead — see `renderElement` for why it must not render the
+ * real one, and why it must not fall through to the `?` an unknown element gets.
+ *
+ * Dashed, and in the accent rather than the warning colour. Dashed says "this is a placeholder for
+ * something the page supplies"; the accent says it is a deliberate choice rather than a problem. A
+ * warning-coloured box would read as a defect on every composition, which is every composition. */
+.ds-widget {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 0.25rem;
+  width: 100%;
+  height: 100%;
+  padding: 0.75rem;
+  box-sizing: border-box;
+  border: 2px dashed color-mix(in srgb, var(--color-accent, #2563EB) 45%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent, #2563EB) 6%, var(--theme-bg-elevated, #F9FAFB));
+  text-align: center;
+  overflow: hidden;
+}
+
+.ds-widget__label {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--theme-fg-primary, #111827);
+  /* One line, clipped. A widget can be one grid cell wide and a long label must not push the id out
+   * of the box — the id is what identifies it when two widgets have similar names. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ds-widget__id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.6875rem;
+  color: var(--theme-fg-secondary, #6B7280);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The palette tile. Same card as an element tile, with the box standing in for the live preview. */
+.dsx-pal__widget-preview {
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+}
+
+.dsx-pal__widget-roles {
+  display: block;
+  font-size: 0.6875rem;
+  color: var(--color-warning-text, #92400E);
+  background: var(--color-warning-surface, #FEF3C7);
+  border-radius: 4px;
+  padding: 0.0625rem 0.375rem;
+  margin-top: 0.25rem;
+}

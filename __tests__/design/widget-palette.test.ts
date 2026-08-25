@@ -21,9 +21,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   toPaletteWidget, visibleToRoles, placementWarning, groupByCategory, searchWidgets,
-  widgetCatalogId, isWidgetElement, widgetIdOf, WIDGET_PREFIX,
+  widgetCatalogId, isWidgetElement, widgetIdOf, WIDGET_PREFIX, widgetPixelSize, ARTBOARD_ROW_PX,
   type PaletteWidget,
 } from '@/lib/design/widget-palette';
+import { renderElement } from '@/lib/design/render';
 
 const widget = (over: Partial<PaletteWidget> & { id: string }): PaletteWidget => ({
   label: over.id, description: '', category: 'work', iconName: 'Square',
@@ -45,7 +46,7 @@ describe('a palette entry is data, never a component', () => {
       maxSize: { w: 6, h: 4 }, allowedRoles: ['employee'] as const,
       Widget: () => null, SettingsForm: () => null, Skeleton: () => null,
     };
-    const got = toPaletteWidget(def) as Record<string, unknown>;
+    const got = toPaletteWidget(def) as unknown as Record<string, unknown>;
     expect(Object.keys(got).sort()).toEqual([
       'allowedRoles', 'category', 'defaultSize', 'description', 'iconName', 'id', 'label',
       'maxSize', 'minSize', 'requiresBundle',
@@ -209,5 +210,91 @@ describe('the palette is read on the client, because that is where the registry 
     const pure = fs.readFileSync(path.join(ROOT, 'lib/design/widget-palette.ts'), 'utf8');
     expect(pure).not.toMatch(/^import /m);
     expect(pure).not.toMatch(/'use client'/);
+  });
+});
+
+// ── GRID CELLS → ARTBOARD PIXELS ────────────────────────────────────────────────────────────────
+//
+// A widget's size is in HUB GRID CELLS: `{ w: 3, h: 2 }` is three columns of eight and two rows. An
+// artboard is measured in pixels. The two have to be reconciled in exactly one place, or the palette
+// tile, the placed element and any future preview each pick their own ratio and a 3-cell widget is
+// three different widths depending on where you look at it.
+describe('a widget\'s size on an artboard', () => {
+  // 8 columns, 16px gutters. One column of a 1440px artboard is (1440 - 16×7) / 8 = 166.
+  const W = 1440;
+  const COLS = 8;
+
+  it('one cell is one column', () => {
+    expect(widgetPixelSize({ w: 1, h: 1 }, W, COLS).w).toBe(166);
+  });
+
+  it('and n cells span the gutters between them', () => {
+    // Not n × colWidth: three columns side by side also swallow the two gutters they sit across.
+    // Getting this wrong makes every multi-cell widget narrower than the space it occupies on the
+    // real hub, which is the kind of error that only shows up when a design is compared to a page.
+    expect(widgetPixelSize({ w: 3, h: 1 }, W, COLS).w).toBe(166 * 3 + 16 * 2);
+  });
+
+  it('a full-width widget is exactly the artboard', () => {
+    // The arithmetic has to close: 8 columns plus 7 gutters is the whole width, or a widget somebody
+    // sized to span the page hangs a few pixels off the edge of it.
+    expect(widgetPixelSize({ w: COLS, h: 1 }, W, COLS).w).toBe(W);
+  });
+
+  it('rows use the stated row height and its gutters', () => {
+    expect(widgetPixelSize({ w: 1, h: 1 }, W, COLS).h).toBe(ARTBOARD_ROW_PX);
+    expect(widgetPixelSize({ w: 1, h: 2 }, W, COLS).h).toBe(ARTBOARD_ROW_PX * 2 + 16);
+  });
+
+  it('and nothing ever rounds to zero', () => {
+    // A widget with no width is invisible on the canvas and indistinguishable from one that failed
+    // to place — the palette would look broken with nothing saying why.
+    const tiny = widgetPixelSize({ w: 1, h: 1 }, 10, 8);
+    expect(tiny.w).toBeGreaterThan(0);
+    expect(tiny.h).toBeGreaterThan(0);
+  });
+});
+
+describe('the canvas draws a placed widget as a named box', () => {
+  it('never as the "unknown element" mark', () => {
+    // `renderElement` returns `<div class="ds-missing">?</div>` for anything with no catalogue entry,
+    // and a widget has none by design. Without its own branch, a deliberate placement and a broken
+    // one would look identical on the canvas and the widget would read as a mistake.
+    const html = renderElement(undefined, {
+      id: 'e1', kind: 'catalogue', catalogId: 'widget:my-pay', name: 'My pay',
+      slots: {}, style: {}, x: 0, y: 0, w: 300, h: 120, z: 1,
+    });
+    expect(html).toContain('ds-widget');
+    expect(html).not.toContain('ds-missing');
+    expect(html).toContain('My pay');
+    expect(html).toContain('my-pay');
+  });
+
+  it('and never the live widget itself', () => {
+    // Rendering the real component here would give the editor a second way of drawing a widget
+    // beside the page's, and two renderers of one thing drifting apart is the defect this whole
+    // plan exists to close. The box says what was recorded: this widget, this size, here.
+    const html = renderElement(undefined, {
+      id: 'e1', kind: 'catalogue', catalogId: 'widget:my-pay', name: 'My pay',
+      slots: {}, style: {}, x: 0, y: 0, w: 300, h: 120, z: 1,
+    });
+    expect(html).toMatch(/^<div class="ds-widget"/);
+    expect(html).toContain('The page renders the real one');
+  });
+
+  it('falls back to the id when the label was never stored', () => {
+    const html = renderElement(undefined, {
+      id: 'e1', kind: 'catalogue', catalogId: 'widget:my-pay',
+      slots: {}, style: {}, x: 0, y: 0, w: 300, h: 120, z: 1,
+    });
+    expect(html).toContain('my-pay');
+  });
+
+  it('and an element that really is unknown still says so', () => {
+    const html = renderElement(undefined, {
+      id: 'e1', kind: 'catalogue', catalogId: 'button.nonexistent',
+      slots: {}, style: {}, x: 0, y: 0, w: 10, h: 10, z: 1,
+    });
+    expect(html).toContain('ds-missing');
   });
 });

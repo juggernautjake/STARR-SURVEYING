@@ -467,12 +467,12 @@ mechanism behind "active" instead of being a label.
         a role. `saveMockup` says *"Which role is this version for? A role version with no role
         reaches nobody."* — checked there because every write goes through it and only one of them
         is an HTTP request.
-- [ ] **W2 — the studio can place widgets**, reading `lib/hub/widget-registry` — the palette, the
+- [x] **W2 — the studio can place widgets**, reading `lib/hub/widget-registry` — the palette, the
       placement, the sizing envelope.
 
       **The palette half shipped 2026-08-25** (`lib/design/widget-palette.ts` + `.client.ts`); the
-      canvas half — dragging one onto an artboard and honouring `minSize`/`maxSize` — is what
-      remains.
+      canvas half shipped with it; honouring `minSize`/`maxSize` on RESIZE is the one piece left,
+      and is folded into W6.
 
       **A correction worth keeping, because the first version was wrong for an interesting reason.**
       This was built as `GET /api/admin/design/widgets`, on the reasoning that importing the registry
@@ -520,6 +520,34 @@ mechanism behind "active" instead of being a label.
       it. The editor must not forbid it — a firm composition legitimately holds widgets only some
       viewers see — so it says so instead, and says *nothing* for the ordinary case, because a
       warning on every placement is one nobody reads.
+      **The canvas half shipped the same day.** A Widgets tab sits beside Emoji and Symbols — the
+      three things that are not catalogue entries — and browser-verified on `/admin/design/<id>`:
+      **54 cards, role chips on the gated ones** (*"only admin, developer, field_crew, drawer,
+      tech_support"*), click-to-place and drag both working, and a placed box measuring 449×161 on
+      the artboard against a 214×56 palette tile.
+
+      Two things had to be true for that to work, and each would have failed silently:
+
+      · **`place()` bailed on anything with no catalogue entry** — `if (!entry) return`, correct for
+        everything else, and it would have swallowed every widget placement without a word. The
+        palette would have looked broken with nothing saying why.
+      · **`renderElement` returns `<div class="ds-missing">?</div>`** for an id it does not know, and
+        a widget has no entry by design. A deliberate placement and a broken one would have looked
+        identical on the canvas, so a widget would have read as a mistake.
+
+      A placed widget draws as a **named box**, never the live component. Rendering the real one here
+      would give the editor a second way of drawing a widget beside the page's, and two renderers of
+      one thing drifting apart is the defect this whole plan exists to close. The box is also the
+      honest picture of what was stored: *this widget, this size, here*. Its label lives on the
+      element because `renderElement` is pure and has no registry to look one up in — an export
+      opened next year should still say "My pay", not `my-pay`.
+
+      Grid cells become pixels in **one function**, `widgetPixelSize`, so the tile, the placement and
+      any future preview cannot each pick their own ratio. Its arithmetic is pinned by tests rather
+      than eyeballed from a screenshot: an n-cell widget spans the gutters BETWEEN its columns, and
+      a full-width one comes out exactly the artboard width — otherwise a widget sized to span the
+      page hangs a few pixels off the edge of it.
+
 - [ ] **W3 — a composition can be previewed live** at `/admin/design/serve`, rendering real widgets
       with real data rather than an artboard.
 - [ ] **W4 — a portal view renders its composition when one is active**, falling back to its hand-built

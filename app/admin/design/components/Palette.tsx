@@ -21,6 +21,11 @@ import { CONCEPTS } from '@/lib/design/search/concepts';
 import { renderElement } from '@/lib/design/render';
 import type { ViewId } from '@/lib/design/document';
 import { EMOJI_GROUPS, SYMBOL_GROUPS, CHARACTER_COUNTS, searchCharacters } from '@/lib/design/libraries/characters';
+// W2. The palette is read on the CLIENT because the widget registry only exists there — every
+// widget module is `'use client'`, so a Route Handler gets a proxy and `defineWidget()` never runs.
+// See `widget-palette.client.ts` for the endpoint this replaced and why.
+import { paletteWidgets } from '@/lib/design/widget-palette.client';
+import { searchWidgets, widgetCatalogId, type PaletteWidget } from '@/lib/design/widget-palette';
 
 interface Props {
   onPlace: (catalogId: string) => void;
@@ -81,7 +86,9 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
   const [query, setQuery] = useState('');
   // 'symbol' is not a catalogue category — symbols are characters, not components — so the tab
   // state is a superset of the category ids rather than pretending otherwise.
-  type Tab = CategoryId | 'all' | 'symbol';
+  // 'widget' joins them for the same reason: a widget is not a catalogue entry either. It is a live
+  // component the page renders, and the palette records only the choice to place one.
+  type Tab = CategoryId | 'all' | 'symbol' | 'widget';
   const [category, setCategory] = useState<Tab>('all');
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -114,6 +121,22 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
     if (!characterTab) return [];
     return searchCharacters(category === 'emoji' ? EMOJI_GROUPS : SYMBOL_GROUPS, query);
   }, [category, characterTab, query]);
+
+  // ── THE WIDGETS ───────────────────────────────────────────────────────────────────────────────
+  //
+  // `paletteWidgets()` THROWS on an empty registry rather than returning `[]`. Caught here and shown
+  // as a sentence, because a palette with nothing in it reads as 'this product has no widgets' and
+  // the component showing it is the last place anybody would look for the cause. The same refusal,
+  // in an endpoint, is what caught the client-reference bug on the first request.
+  const widgetTab = category === 'widget';
+  const { widgets, widgetError } = useMemo(() => {
+    if (!widgetTab) return { widgets: [] as PaletteWidget[], widgetError: null as string | null };
+    try {
+      return { widgets: searchWidgets(paletteWidgets(), query), widgetError: null };
+    } catch (err) {
+      return { widgets: [] as PaletteWidget[], widgetError: err instanceof Error ? err.message : 'The widget palette could not be read.' };
+    }
+  }, [widgetTab, query]);
 
   const showingSearch = query.trim().length > 0;
   const grouped = useMemo(() => {
@@ -157,7 +180,7 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
 
       <div className="dsx-pal__tabs" role="tablist" aria-label="Categories">
         <button role="tab" aria-selected={category === 'all'} className={`dsx-pal__tab${category === 'all' ? ' is-on' : ''}`} onClick={() => setCategory('all')}>All</button>
-        {(['emoji', 'symbol'] as const).map((id) => (
+        {(['emoji', 'symbol', 'widget'] as const).map((id) => (
           <button
             key={id}
             role="tab"
@@ -165,7 +188,7 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
             className={`dsx-pal__tab${category === id ? ' is-on' : ''}`}
             onClick={() => setCategory(id)}
           >
-            {id === 'emoji' ? 'Emoji' : 'Symbols'}
+            {id === 'emoji' ? 'Emoji' : id === 'symbol' ? 'Symbols' : 'Widgets'}
           </button>
         ))}
         {categories.map((id) => {
@@ -186,6 +209,47 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
       </div>
 
       <div className="dsx-pal__list">
+        {widgetTab && (
+          <>
+            <p className="dsx-pal__note">
+              Live widgets. These are the only elements a design can actually SERVE — a drawn page is
+              a picture, and a widget fetches its own data and knows who may see it.
+            </p>
+            {widgetError && <p className="dsx-pal__note">{widgetError}</p>}
+            {widgets.map((w) => (
+              <button
+                key={w.id}
+                className="dsx-pal__item"
+                draggable
+                onDragStart={(e) => { e.dataTransfer.setData('application/x-design-entry', widgetCatalogId(w.id)); e.dataTransfer.effectAllowed = 'copy'; }}
+                onClick={() => onPlace(widgetCatalogId(w.id))}
+                title={`${w.description}
+
+${w.defaultSize.w}×${w.defaultSize.h} cells`}
+                data-testid={`ds-palette-widget-${w.id}`}
+              >
+                <span className="dsx-pal__widget-preview" aria-hidden>
+                  <span className="ds-widget">
+                    <span className="ds-widget__label">{w.label}</span>
+                    <span className="ds-widget__id">{w.id}</span>
+                  </span>
+                </span>
+                <span className="dsx-pal__label">{w.label}</span>
+                {/* Said on the TILE, not only on hover: 'only admins see this' is the fact that
+                  * decides whether placing it here is a mistake, and it has to be visible before
+                  * the click rather than after it. */}
+                {w.allowedRoles.length > 0 && (
+                  <span className="dsx-pal__widget-roles">only {w.allowedRoles.join(', ')}</span>
+                )}
+                <span className="dsx-pal__why">{w.category} · {w.defaultSize.w}×{w.defaultSize.h}</span>
+              </button>
+            ))}
+            {!widgetError && widgets.length === 0 && (
+              <p className="dsx-pal__note">Nothing matched. Try “pay”, “jobs”, “schedule”.</p>
+            )}
+          </>
+        )}
+
         {characterTab && (
           <>
             <p className="dsx-pal__note">
@@ -217,9 +281,9 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
           </>
         )}
 
-        {!characterTab && note && <p className="dsx-pal__note">{note}</p>}
+        {!characterTab && !widgetTab && note && <p className="dsx-pal__note">{note}</p>}
 
-        {!characterTab && showingSearch && hits.map((hit) => (
+        {!characterTab && !widgetTab && showingSearch && hits.map((hit) => (
           <button
             key={hit.entry.id}
             className="dsx-pal__item"
@@ -236,7 +300,7 @@ export default function Palette({ onPlace, onPlaceCharacter, viewId }: Props) {
           </button>
         ))}
 
-        {!characterTab && !showingSearch && grouped?.map((group) => (
+        {!characterTab && !widgetTab && !showingSearch && grouped?.map((group) => (
           <section key={group.id} className="dsx-pal__group">
             <h3 className="dsx-pal__group-title">{group.meta.label}<span>{group.entries.length}</span></h3>
             {group.entries.map((entry) => (
@@ -260,7 +324,7 @@ ${fidelityOf(entry.id).summary}`}
           </section>
         ))}
 
-        {!characterTab && showingSearch && hits.length === 0 && !note && (
+        {!characterTab && !widgetTab && showingSearch && hits.length === 0 && !note && (
           <p className="dsx-pal__note">Nothing matched. Try what the thing does — “save”, “empty”, “date”.</p>
         )}
       </div>

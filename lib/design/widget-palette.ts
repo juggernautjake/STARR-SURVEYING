@@ -57,7 +57,10 @@ interface RegistryLike {
   minSize: { w: number; h: number };
   maxSize: { w: number; h: number };
   allowedRoles: readonly string[];
-  requiresBundle?: string;
+  /** `| null` as well as optional, so a `PaletteWidget` can be fed back through `toPaletteWidget`.
+   *  It projects `undefined` to `null`, so without this the output of the projection is not valid
+   *  input to it — which a test found on the first run. */
+  requiresBundle?: string | null;
 }
 
 /**
@@ -208,4 +211,37 @@ export function isWidgetElement(catalogId: string | undefined): boolean {
 /** The widget id back out of an element, or null if this element is not a widget. */
 export function widgetIdOf(catalogId: string | undefined): string | null {
   return isWidgetElement(catalogId) ? catalogId!.slice(WIDGET_PREFIX.length) : null;
+}
+
+// ── HOW BIG A WIDGET IS ON AN ARTBOARD ──────────────────────────────────────────────────────────
+//
+// A widget's `defaultSize` is in HUB GRID CELLS — `{ w: 3, h: 2 }` means three columns of eight and
+// two rows. An artboard is measured in pixels. The two have to be reconciled somewhere, and doing
+// it at the call site would mean the palette's preview, the placed element and the served page each
+// picking their own ratio.
+//
+// The desktop hub is 8 columns across the content area. `HUB_GRID_COLS` is the real constant and is
+// imported by the caller rather than duplicated here — this module stays import-free so it can be
+// tested and serialised, which is the same reason `RegistryLike` is structural.
+//
+// The row height is the honest approximation. `MOBILE_BASE_ROW_PX` is 88 and the desktop rows are
+// taller; 120 is what a two-row widget needs to not look squashed beside a real one. A design is a
+// drawing of a page, and being 10px out on a row is not the failure this system exists to prevent —
+// serving the wrong widget to the wrong role is.
+export const ARTBOARD_ROW_PX = 120;
+export const ARTBOARD_GUTTER_PX = 16;
+
+/** A widget's grid size in artboard pixels, given how wide the artboard is and how many columns. */
+export function widgetPixelSize(
+  size: { w: number; h: number },
+  artboardWidth: number,
+  columns: number,
+): { w: number; h: number } {
+  const colWidth = (artboardWidth - ARTBOARD_GUTTER_PX * (columns - 1)) / columns;
+  return {
+    // `Math.max(1, …)` because a widget that rounds to zero width is invisible on the canvas and
+    // indistinguishable from one that failed to place.
+    w: Math.max(1, Math.round(colWidth * size.w + ARTBOARD_GUTTER_PX * (size.w - 1))),
+    h: Math.max(1, Math.round(ARTBOARD_ROW_PX * size.h + ARTBOARD_GUTTER_PX * (size.h - 1))),
+  };
 }
