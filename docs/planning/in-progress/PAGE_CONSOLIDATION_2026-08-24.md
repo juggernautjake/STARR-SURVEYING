@@ -1732,6 +1732,23 @@ early, and the internal tooling comes last.
       rows are soft-deleted history and the retire archived the one live default, correctly. Apply
       the predicate the constraint applies before calling its absence a defect.
 
+      **Measured progress, 2026-08-25** — from the database rather than the console, because the
+      console lies when a pipe buffers:
+
+      | | count |
+      |---|---|
+      | routes re-traced today | **81** |
+      | designs retired as their route now forwards | **59** |
+      | dossiers re-derived today | **127** |
+      | orphaned defaults | **67 → 28** |
+      | orphaned dossiers | 63 → **63** |
+
+      The defaults half is largely self-healing: S2 retires a stale default whenever the walk finds
+      the route forwarding, so 59 went without anybody deciding anything, and the remaining 28 are
+      routes the pass has not reached. The dossiers half cannot do this — `design_page_dossiers` has
+      no status and no `deleted_at`, so nothing in the schema can express "retired". That asymmetry
+      is now §13.3, and it is a smaller and sharper question than the one §13 first asked.
+
       ── **THE 67 ORPHANS ARE A DECISION, NOT A CLEANUP** ──
 
       67 locked defaults and 63 dossiers describe routes that no longer have a registry row. It is
@@ -2359,19 +2376,41 @@ eight, so nothing that works today stops working.
 
 ---
 
-### 13.3 The 67 orphaned designs
+### 13.3 The orphaned designs — RE-MEASURED, and the question changed
 
-67 locked defaults and 63 dossiers describe routes that no longer have a registry row, because the
-consolidation absorbed them.
+When this was written it was "67 locked defaults and 63 dossiers describe routes that no longer have
+a registry row". Both halves have moved, and only one of them moved on its own:
 
-- **Leave them** — the page list shows them as orphans. Honest, and the count stays untidy.
-- **Re-point each at the tab that absorbed it** — the design follows the content, and the
-  before-picture survives attached to something live.
-- **Delete** — tidy, and it throws away the only remaining record of what each page looked like
-  before it became a tab.
+| | when §13 was written | after today's walks |
+|---|---|---|
+| Orphaned **defaults** | 67 | **28** |
+| Orphaned **dossiers** | 63 | **63** |
 
-Every one of those URLs still resolves, so nothing is broken either way. My inclination is
-re-pointing; deleting is defensible if the page list mattering more than the history is the call.
+**The defaults are fixing themselves and nothing had to decide anything.** `trace-defaults` retires a
+default when it finds the route forwarding — the S2 branch — so walking the tree archived **59
+designs** today without being asked. The remaining 28 are simply routes the pass has not reached yet;
+finishing it should take most of them.
+
+**The dossiers cannot fix themselves, because there is no mechanism.** `derive-dossiers` skips a
+forwarding route — it does not record that the dossier it left behind now describes a redirect — and
+`design_page_dossiers` has **no status and no `deleted_at`**: nothing in the schema can express
+"retired". So a dossier for an absorbed page sits there looking exactly as current as one for a live
+page, which is the rot S2 exists to prevent, on the other half of the same tool.
+
+**So the decision is narrower than §13 first put it.** Not "what do we do about 130 orphans" — the
+tracer answered that for its half. It is: **should a dossier be retirable at all?**
+
+- **Yes, by schema** — a `retired_at` column and the same S2 treatment in `derive-dossiers`. Costs a
+  migration; makes the two halves of the tool behave alike.
+- **Yes, by derivation** — no migration; the dossier board marks any route that is no longer in
+  `ADMIN_ROUTES`. Cheaper and cannot go stale, but it says "not in the navigation registry" rather
+  than "this forwards now", and those differ for a few routes such as `/admin/login`.
+- **No** — a dossier is a description of a page that existed, and an archive of descriptions is
+  worth keeping undecorated. Then the orphan count is expected rather than a defect, and should
+  stop being counted as a gap.
+
+Whichever, the asymmetry itself is worth knowing: **one half of this tool retires its stale records
+and the other cannot.**
 
 ---
 
