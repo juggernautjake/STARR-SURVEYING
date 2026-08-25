@@ -1377,7 +1377,58 @@ early, and the internal tooling comes last.
       a consolidation step. Grouped with C13 alongside P14's three, so the four personal-vs-company
       cases are decided once and together rather than four times by whoever happens to hit them.
 
-- [ ] **C12d — P18 Exam Prep** + **P19 Learning Content** (5 → 2).
+- [x] **C12d — P19 Learning Content** (3 → 1). **DONE 2026-08-25.**
+- [ ] **C12d-exam — P18 Exam Prep.** **Two of §8's three are the exam itself** — see below.
+
+      `/admin/learn/manage` holds twelve tabs now: the ten it already had, plus Media and Question
+      Builder. Two routes forward.
+
+      **§8 asked for a portal above this page, and that was the wrong shape.** The page has read
+      `?tab=` for its own ten-tab bar since it was written. A portal would have put a second strip
+      above the first AND a second claim on the same parameter — and `?tab=questions` already means
+      "the question LIST", while `?tab=articles` and `?tab=lessons` are live links from the article
+      editor and the lesson builder. One URL would have meant two things. So the two absorbed
+      surfaces are two more entries in the bar that was already there: the result §8 wanted, one
+      strip instead of two, and every existing link still meaning what it meant.
+
+      **A link that would have silently done nothing.** The Question Builder's "← Back to Questions"
+      pointed at `/admin/learn/manage?tab=questions`. That was a DIFFERENT route until this slice, so
+      the page remounted and re-read `?tab=` in `useState(initialTab)`. Same route now: Next soft-
+      navigates, nothing remounts, the initialiser never runs again, and the link would have changed
+      the URL while the screen stayed on the builder. A working link with broken behaviour, and
+      nothing in a test would see it. It is a callback the page owns now — browser-verified to move
+      the strip from Question Builder to Questions. `MediaTab` uses `router.back()`, which walks real
+      history and is correct either way; left alone deliberately rather than converted for symmetry.
+
+      §5 cost nothing: all three rows carried `CONTENT_MGMT_ROLES` + `tech_support`, middleware gates
+      the whole `/admin/learn/manage` prefix to the same four, and both absorbed rows were already
+      `showInRail: false`. C10's rule checked — neither has a dynamic child, and the records
+      (`lesson-builder/[id]` at 1,978 lines, `article-editor/[id]`) hang off the row that stays.
+
+      **One ratchet re-based with its reason.** `admin-route-gates` guards "did my regex match
+      nothing?" with a floor of 40 registered gated rows, and the registry reached **exactly 40** —
+      C3–C12d have folded about fifty gated rows into tabs. Lowered to 15, with a note saying to
+      check the pattern before assuming rows vanished. Twelve tabs and both redirects
+      browser-verified; `npm run build` clean.
+
+- [ ] **C12d-exam — P18 Exam Prep** (`/admin/learn/exam-prep` absorbs `sit` · `sit/mock-exam` ·
+      `rpls`). **§8 contradicts itself here, and only one of the three is a way in.**
+
+      §8's own prose says: *"The exam itself still opens as its own route — a sitting is not a thing
+      to put a tab bar in. What is being merged is the four ways IN to it, not the exam."* Its table
+      then lists two sittings among the three:
+
+      | Route | What it actually is |
+      |---|---|
+      | `exam-prep/sit` | the FS study landing — **a way in**, and absorbable |
+      | `exam-prep/sit/mock-exam` | a **timed sitting**, 439 lines with a clock |
+      | `exam-prep/rpls` | a `QuizRunner` that **starts a 10-question test on load** — also a sitting |
+
+      So what remains is `exam-prep` + `sit` — a two-tab portal, which is most of a slice's cost for
+      almost none of its benefit, and `sit` is the landing people reach from the hub card anyway.
+      Not deferred for cost: deferred because **the plan's own rule excludes two of the three**, and
+      the third is not worth a portal by itself. Worth revisiting only if C13 gives exam prep more
+      ways in than it has today.
 - [ ] **C13 — Re-examine the workspaces** with 24 links instead of 138. §6. A separate decision,
       made with the result in front of you.
 - [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** Every merge invalidates a dossier

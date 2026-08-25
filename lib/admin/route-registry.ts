@@ -406,7 +406,17 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/learn/flashcards',     label: 'Flashcards',       workspace: 'knowledge', iconName: 'Layers',       description: 'Spaced-repetition decks.', showInRail: false },  // records beneath it: flashcards/[deckId] and flashcards/create
   { href: '/admin/learn/exam-prep',      label: 'Exam Prep',        workspace: 'knowledge', iconName: 'FileCheck',    description: 'Exam preparation suite.', keywords: ['fs', 'rpls', 'license'] },
   { href: '/admin/learn/students',       label: 'Student Progress', workspace: 'knowledge', iconName: 'UsersRound',   description: 'Student progress dashboard.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
-  { href: '/admin/learn/manage',         label: 'Manage Content',   workspace: 'knowledge', iconName: 'Pencil',       description: 'Author + edit learning content.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'] },
+  // ── C12d / P19: TWO ROWS BECAME TWO TABS OF THE BAR THAT WAS ALREADY THERE ─────────────────
+  //
+  // §8 asked for a portal above this page. It already had a ten-tab bar reading `?tab=`, so a
+  // portal would have meant two strips and two claims on one parameter — and `?tab=questions`
+  // already means the question LIST. Media and the Question Builder are two more entries in the
+  // existing bar instead. Both rows were `showInRail: false`, so the rail loses nothing.
+  //
+  // C10's rule checked: neither absorbed route has a dynamic child. The records in this tree —
+  // `manage/lesson-builder/[id]` and `manage/article-editor/[id]` — hang off this row, which stays
+  // because it IS the page.
+  { href: '/admin/learn/manage',         label: 'Manage Content',   workspace: 'knowledge', iconName: 'Pencil',       description: 'Author + edit learning content.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], keywords: ['images', 'upload', 'assets', 'quiz', 'exam', 'author', 'media', 'question builder', 'questions', 'authoring', 'course content'] },
 
   // Office workspace ──────────────────────────────────────────────
   { href: '/admin/office',                label: 'Office',           workspace: 'office', iconName: 'Building',     description: 'HR, comms, files, settings.', keywords: ['back-office', 'hr', 'admin'] },
@@ -632,8 +642,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/learn/exam-prep/sit/mock-exam', label: 'SIT Mock Exam', workspace: 'knowledge', iconName: 'Timer',  description: 'Full-length timed SIT practice exam.', showInRail: false, keywords: ['practice', 'timed', 'simulator'] },
   { href: '/admin/learn/exam-prep/rpls',  label: 'RPLS Exam Prep',   workspace: 'knowledge', iconName: 'FileCheck',  description: 'Registered Professional Land Surveyor exam preparation.', keywords: ['rpls', 'license', 'professional'] },
   { href: '/admin/learn/flashcards/create', label: 'New Flashcard Deck', workspace: 'knowledge', iconName: 'Plus',   description: 'Build a flashcard deck.', showInRail: false, keywords: ['create', 'deck'] },
-  { href: '/admin/learn/manage/media',    label: 'Learning Media',   workspace: 'knowledge', iconName: 'Image',      description: 'Images and files used in lessons.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], showInRail: false, keywords: ['images', 'upload', 'assets'] },
-  { href: '/admin/learn/manage/question-builder', label: 'Question Builder', workspace: 'knowledge', iconName: 'HelpCircle', description: 'Author quiz and exam questions.', roles: [...CONTENT_MGMT_ROLES, 'tech_support'], showInRail: false, keywords: ['quiz', 'exam', 'author'] },
 
 ];
 

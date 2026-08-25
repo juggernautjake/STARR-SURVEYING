@@ -232,7 +232,12 @@ describe('admin route gates', () => {
     const navEntries = [...registry.matchAll(/href:\s*'(\/admin\/[^']+)'[^\n]*?roles:\s*\[([^\]]*)\]/g)]
       .map((m) => ({ href: m[1], roles: parseRoles(m[2]) }));
 
-    expect(navEntries.length, 'nav registry scan found nothing — the instrument is broken').toBeGreaterThan(40);
+    // The floor is an INSTRUMENT check — "did the regex match nothing?" — not a statement about how
+    // big the registry ought to be. It was 40 and the registry has just reached exactly 40, because
+    // C3–C12d folded roughly fifty gated rows into portal tabs; C13 will remove more. Lowered to 15,
+    // which still catches a regex that has stopped matching while leaving room for the consolidation
+    // to finish. If this ever fails, check whether the pattern broke BEFORE assuming rows vanished.
+    expect(navEntries.length, 'nav registry scan found nothing — the instrument is broken').toBeGreaterThan(15);
     // An unresolved `...SPREAD` would silently look like a missing role and fail the wrong way.
     const unresolved = [...gates, ...navEntries].flatMap((e) =>
       ('roles' in e ? e.roles : []).filter((r) => r.startsWith('UNRESOLVED:')),

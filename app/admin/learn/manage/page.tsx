@@ -1,4 +1,23 @@
-// app/admin/learn/manage/page.tsx — Content management with Assignments and Activity Monitor
+// app/admin/learn/manage/page.tsx — Learning Content: everything that authors a course.
+//
+// C12d / P19 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+//
+// §8 asked for a PORTAL above this page, with `media` and `question-builder` as its tabs. That is
+// the wrong shape here, and the page itself is why: it has had a ten-tab bar reading `?tab=` since
+// it was written. A portal would have put a second strip above the first and a second claim on the
+// same parameter — and `?tab=questions` already means "the question LIST", while `?tab=articles`
+// and `?tab=lessons` are live links from the article editor and the lesson builder. One URL would
+// have meant two things.
+//
+// So the two absorbed surfaces are two more entries in the bar that was already here. Same result
+// §8 wanted — the authoring surfaces in one place — with one strip instead of two, no ambiguous
+// parameter, and every existing `?tab=` link still meaning what it meant.
+//
+// Authoring stays separate from studying: C11a deliberately left this page and `students` out of
+// the Knowledge portal, and this slice merges only the authoring surfaces with each other. The
+// records under this prefix — `lesson-builder/[id]` at 1,978 lines and `article-editor/[id]` —
+// are untouched.
+
 'use client';
 import { useState, useEffect } from 'react';
 import { Lock, ClipboardList, ChevronRight, FolderOpen, RefreshCw, BarChart3, HelpCircle, Trash2 } from 'lucide-react';
@@ -10,8 +29,12 @@ import SmartSearch from '../components/SmartSearch';
 import { useToast } from '../../components/Toast';
 import SmallScreenBanner from '../../components/SmallScreenBanner';
 import StudentOverridePanel from '../../components/StudentOverridePanel';
-
-type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'student_overrides' | 'activity' | 'recycle_bin';
+// C12d: the two absorbed authoring surfaces, rendered by two of this page's own tabs.
+import MediaTab from './_tabs/MediaTab';
+import QuestionBuilderTab from './_tabs/QuestionBuilderTab';
+// C12d / P19 — 'media' and 'question_builder' join the ten this page already had. See the note
+// above `allTabs`: they are whole surfaces rather than lists, which is why the body branches on them.
+type Tab = 'modules' | 'lessons' | 'articles' | 'questions' | 'flashcards' | 'xp_config' | 'assignments' | 'student_overrides' | 'activity' | 'recycle_bin' | 'media' | 'question_builder';
 
 interface Module { id: string; title: string; status: string; order_index: number; description: string; difficulty: string; estimated_hours: number; lesson_count?: number; xp_value?: number; expiry_months?: number; }
 interface XPModuleConfig { id: string; title: string; difficulty?: string; order_index?: number; module_number?: number; module_type: string; xp_value: number; expiry_months: number; difficulty_rating: number; has_custom_xp: boolean; config_id: string | null; }
@@ -570,8 +593,22 @@ export default function ManageContentPage() {
     { key: 'student_overrides', label: 'Student Overrides', icon: '\u{1F6E0}', adminOnly: true },
     { key: 'activity', label: 'Activity', icon: '\u{1F4CA}', adminOnly: true },
     { key: 'recycle_bin', label: `Recycle Bin${recycleBin.length > 0 ? ` (${recycleBin.length})` : ''}`, icon: '\u{1F5D1}', adminOnly: true },
+    // ── C12d / P19: THE TWO ABSORBED AUTHORING SURFACES ─────────────────────────────────────────
+    //
+    // §8 asked for a portal above this page with `media` and `question-builder` as tabs. Building
+    // one would have put a SECOND tab bar over the ten-tab bar already here — and, worse, a second
+    // claim on `?tab=`, which this page has read since it was written. `?tab=questions` already
+    // means "the question LIST"; a portal reading the same parameter would have made that URL mean
+    // two things at once, and `?tab=articles` and `?tab=lessons` are live links from the article
+    // editor and the lesson builder.
+    //
+    // So the merge is two more entries in the bar this page already has. Same result §8 wanted —
+    // the authoring surfaces in one place — with one strip instead of two and no ambiguous URL.
+    { key: 'media', label: 'Media', icon: '\u{1F5BC}' },
+    { key: 'question_builder', label: 'Question Builder', icon: '\u{1F6E0}' },
   ];
   const tabs = allTabs.filter(t => !t.adminOnly || isAdmin);
+  const isWholeSurface = tab === 'media' || tab === 'question_builder';
 
   return (
     <>
@@ -599,6 +636,15 @@ export default function ManageContentPage() {
         ))}
       </div>
 
+      {/* ── C12d: two of the tabs are WHOLE SURFACES rather than lists ──────────────────────────
+        *
+        * Everything below the strip — the toolbar's item count, the create form, the list — exists
+        * for the ten list tabs. Media and the Question Builder bring their own, so the rest of this
+        * component is skipped rather than rendered around them. */}
+      {tab === 'media' && <MediaTab />}
+      {tab === 'question_builder' && <QuestionBuilderTab onBack={() => setTab('questions')} />}
+
+      {!isWholeSurface && (<>
       {/* Toolbar */}
       <div className="manage__toolbar">
         <span style={{ fontSize: '.85rem', color: 'var(--color-text-tertiary)' }}>
@@ -606,9 +652,12 @@ export default function ManageContentPage() {
         </span>
         {tab === 'questions' ? (
           <div style={{ display: 'flex', gap: '.5rem' }}>
-            <Link href="/admin/learn/manage/question-builder" className="admin-btn admin-btn--primary admin-btn--sm">
+            {/* C12d: was a link to `/admin/learn/manage/question-builder`, which is a redirect back
+              * into this page now. One click instead of two, and it stays where it was: on the
+              * Questions toolbar, which is where somebody realises they need the builder. */}
+            <button className="admin-btn admin-btn--primary admin-btn--sm" onClick={() => { setTab('question_builder'); setShowForm(false); }}>
               Question Builder
-            </Link>
+            </button>
             <button className="admin-btn admin-btn--ghost admin-btn--sm" onClick={handleToggleForm}>
               {showForm ? '\u2715 Cancel' : '+ Quick Add'}
             </button>
@@ -1482,6 +1531,7 @@ export default function ManageContentPage() {
           ))}
         </div>
       )}
+      </>)}
     </>
   );
 }
