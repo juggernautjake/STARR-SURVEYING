@@ -332,3 +332,57 @@ export function viewToGrid(
     .filter((p): p is PlacedWidget => p !== null)
     .sort((a, b) => a.y - b.y || a.x - b.x);
 }
+
+// ── WHAT THIS VIEWER ACTUALLY GETS — W5 ─────────────────────────────────────────────────────────
+//
+// ── THE PLAN SAID THIS CAME FREE. IT DOES NOT. ──────────────────────────────────────────────────
+//
+// W5 in DESIGN_STUDIO_SERVES_PAGES_2026-08-24.md reads:
+//
+//     "A composition stores widgets; each widget already declares `allowedRoles`; the served page
+//      renders the intersection. … it comes free."
+//
+// The first half is true and the conclusion is false. `allowedRoles` is consulted in exactly one
+// place in the hub — `widgetsForRoles()`, which filters the **Add Widget modal**. `WidgetCell`
+// renders whatever instance it is handed and never looks at the definition's roles at all.
+//
+// That is correct for the hub, and only for the hub: a personal layout can only contain widgets you
+// were allowed to add, so the modal IS the gate. A composition breaks that assumption completely —
+// it is authored by one person and served to many, so nothing about what the AUTHOR could add says
+// anything about what the VIEWER may see.
+//
+// Found by building it and looking: a firm composition carrying the admin-only pending-receipts
+// widget rendered it in full for an account with no roles at all. Fifth premise in this project's
+// planning docs to be false when checked rather than assumed.
+//
+// ── AND WHY THE FIX IS HERE AND NOT IN `WidgetCell` ─────────────────────────────────────────────
+//
+// Filtering inside `WidgetCell` would be more universally correct — a hub user whose role is revoked
+// keeps rendering the widget they added while they had it. But it would change the behaviour of the
+// personal hub, which is not what this plan is for, and a silent change to what 54 widgets do on
+// somebody's home page is not a side effect to smuggle into a design slice.
+//
+// So the composition path filters what it PASSES IN. The hub keeps its own behaviour, and the gap in
+// it is written down rather than quietly inherited.
+
+/**
+ * The subset of a composition this viewer may actually see.
+ *
+ * A widget the definitions do not know is KEPT: `WidgetCell` already renders a clear "no longer in
+ * the catalog" frame for it, and dropping it here would turn a removed widget into a silent hole
+ * that nobody could diagnose. Unknown is a different thing from forbidden, and they must not look
+ * the same.
+ */
+export function visibleWidgets<T extends { type: string }>(
+  placed: T[],
+  viewerRoles: readonly string[],
+  definitions: Map<string, { allowedRoles: readonly string[] }>,
+): T[] {
+  return placed.filter((p) => {
+    const def = definitions.get(p.type);
+    if (!def) return true;
+    if (def.allowedRoles.length === 0) return true;
+    const held = new Set(viewerRoles.map((r) => r.toLowerCase()));
+    return def.allowedRoles.some((r) => held.has(r.toLowerCase()));
+  });
+}

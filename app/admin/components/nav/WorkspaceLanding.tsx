@@ -31,6 +31,7 @@ import {
 } from '@/lib/admin/route-registry';
 import { isInternalUser } from '@/lib/saas/internal-user';
 import type { UserRole } from '@/lib/auth-roles';
+import CompositionSlot from '@/lib/design/CompositionSlot';
 
 import './WorkspaceLanding.css';
 
@@ -86,12 +87,34 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
   }
   const grouped = sections.some((s) => s.title !== null);
 
+  // ── W4: A WORKSPACE LANDING IS THE FIRST PORTAL A COMPOSITION CAN REPLACE ─────────────────────
+  //
+  // Five routes go through this one component — /admin/money, /admin/office, /admin/equipment,
+  // /admin/research-cad and /admin/knowledge — so wiring it here gives all five the ability at once,
+  // each keyed on its own route.
+  //
+  // And it is the RIGHT first one, not merely the cheapest. A landing page is a DIRECTORY of a
+  // workspace: nothing on it is unique behaviour, everything on it is "show me what is going on
+  // here", and that is exactly what a widget does better than a link. Wrapping something like
+  // /admin/receipts instead would let a composition replace a page whose entire value IS its bespoke
+  // behaviour — the thing §2 says a composition cannot do.
+  //
+  // ── AND WHAT IS DELIBERATELY OUTSIDE THE SLOT ─────────────────────────────────────────────────
+  //
+  // The header stays. A composition replaces the CONTENT of a landing page, not the page: somebody
+  // arriving from a link still has to be told which workspace they are in, and a layout that could
+  // drop its own title is one where a mis-scoped composition leaves people lost rather than merely
+  // looking at the wrong cards.
+  //
+  // The children of the slot are this component's own output — the card grid people use today,
+  // rendered first and replaced only if a composition actually arrives.
   return (
     <div className="ws-landing">
       <header className="ws-landing__header">
         <h1 className="ws-landing__title">{meta.label}</h1>
         <span className="ws-landing__shortcut">{meta.shortcut}</span>
       </header>
+      <CompositionSlot route={`/admin/${workspace}`}>
       {stats.length > 0 ? (
         <ul className="ws-landing__stats" aria-label={`${meta.label} at a glance`}>
           {stats.map((s) => (
@@ -134,6 +157,7 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
           </section>
         ))
       )}
+      </CompositionSlot>
     </div>
   );
 }

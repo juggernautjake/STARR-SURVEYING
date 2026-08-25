@@ -19,6 +19,7 @@
 // the session, because a person who already knows should be able to see the design unobstructed.
 
 import { useEffect, useMemo, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { Monitor, Smartphone, PenTool, X, ExternalLink } from 'lucide-react';
 import type { DesignDocument, ViewId } from '@/lib/design/document';
@@ -35,7 +36,7 @@ import type { ActiveKind } from '@/lib/design/active';
 import '@/lib/hub/widgets/register-all';
 import WidgetGrid from '@/lib/hub/components/WidgetGrid';
 import { allWidgets } from '@/lib/hub/widget-registry';
-import { viewToGrid } from '@/lib/design/widget-palette';
+import { viewToGrid, visibleWidgets } from '@/lib/design/widget-palette';
 import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import '../DesignStudio.css';
 
@@ -50,6 +51,7 @@ interface Props {
 
 export default function ServedDesign({ doc, kind, explanation, route }: Props) {
   const [viewId, setViewId] = useState<ViewId>('desktop');
+  const { data: session } = useSession();
   const [showBanner, setShowBanner] = useState(true);
   const view = doc.views[viewId];
 
@@ -66,9 +68,26 @@ export default function ServedDesign({ doc, kind, explanation, route }: Props) {
     () => new Map(allWidgets().map((w) => [w.id, { minSize: w.minSize, maxSize: w.maxSize }])),
     [],
   );
+  // ── W5: FILTERED THE SAME WAY THE REAL PAGE FILTERS ──────────────────────────────────────────
+  //
+  // A preview that showed MORE than the page does would be worse than no preview: it would tell a
+  // designer their layout is fine when a third of it is invisible to the people it was built for.
+  // So the same function, against the same roles, in both places — the whole reason `visibleWidgets`
+  // is a shared export rather than four lines inlined into each.
+  //
+  // Note this is the DESIGNER's roles, which is the honest thing a preview can say: "here is what
+  // YOU would see". Previewing as somebody else is a different feature, and pretending to do it by
+  // guessing would be worse than not offering it.
+  const roles = (session?.user?.roles ?? []) as string[];
+  const roleDefs = useMemo(
+    () => new Map(allWidgets().map((w) => [w.id, { allowedRoles: w.allowedRoles }])),
+    [],
+  );
   const instances = useMemo(
-    () => (isComposition ? viewToGrid(view.elements, view.width, HUB_GRID_COLS, envelopes) : []),
-    [isComposition, view.elements, view.width, envelopes],
+    () => (isComposition
+      ? visibleWidgets(viewToGrid(view.elements, view.width, HUB_GRID_COLS, envelopes), roles, roleDefs)
+      : []),
+    [isComposition, view.elements, view.width, envelopes, roles, roleDefs],
   );
 
   // ── Real size means real size ───────────────────────────────────────────────────────────────
@@ -121,10 +140,17 @@ export default function ServedDesign({ doc, kind, explanation, route }: Props) {
         {isComposition ? (
           // ── THE REAL THING, NOT A PICTURE OF IT ────────────────────────────────────────────────
           //
-          // Every widget here fetches its own data against the SIGNED-IN viewer and hides itself if
-          // they may not see it. That is why a composition can be served and a trace cannot, and it
-          // is also why this preview is worth having: what you are looking at is what the page does,
-          // not a drawing of what somebody hopes it will do.
+          // Every widget here fetches its own data against the SIGNED-IN viewer. That is why a
+          // composition can be served and a trace cannot, and why this preview is worth having:
+          // what you are looking at is what the page does, not a drawing of what somebody hopes it
+          // will do.
+          //
+          // ── CORRECTED, W5 ──────────────────────────────────────────────────────────────────────
+          //
+          // This comment used to add "…and hides itself if they may not see it". That was false, and
+          // it was the same false belief the plan's W5 was written on. A widget declares
+          // `allowedRoles` and NOTHING reads it at render — the hub consults it only in the Add
+          // Widget modal. `instances` above is filtered by `visibleWidgets` for exactly that reason.
           //
           // Which means the preview is honest about the thing people get wrong — a role-gated widget
           // simply is not here when you are not that role. Seeing the gap in the preview is the

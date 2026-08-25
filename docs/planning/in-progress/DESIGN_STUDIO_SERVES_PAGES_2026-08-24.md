@@ -594,12 +594,74 @@ mechanism behind "active" instead of being a label.
       'size')"*. I read the 120-second selector timeout as server load — both walks were running —
       and only found it by loading an EXISTING design and watching it work. Eighth time this session
       that a throwaway script's own malformed input looked like a defect in the thing it was testing.
-- [ ] **W4 — a portal view renders its composition when one is active**, falling back to its hand-built
+- [x] **W4 — a portal view renders its composition when one is active**, falling back to its hand-built
       panel when none is. **The fallback is the safety property**: a composition that fails to load
-      must leave the page working.
-- [ ] **W5 — role-aware by construction.** A composition stores widgets; each widget already declares
-      `allowedRoles`; the served page renders the intersection. This is the consolidation plan's §5
-      and the owner's *"load elements dynamically based on the role of the user"*, and it comes free.
+      must leave the page working. Shipped 2026-08-25.
+
+      `CompositionSlot` wraps the content of `WorkspaceLanding`, which is **five portal routes at
+      once** — `/admin/money`, `/admin/office`, `/admin/equipment`, `/admin/research-cad`,
+      `/admin/knowledge` — each keyed on its own route.
+
+      It is the right first portal, not merely the cheapest. A landing page is a DIRECTORY of a
+      workspace: nothing on it is unique behaviour, everything on it is *"show me what is going on
+      here"*, which is what a widget does better than a link. Wrapping `/admin/receipts` instead
+      would let a composition replace a page whose entire value IS its bespoke behaviour — the thing
+      §2 says a composition cannot do. The **header stays outside the slot**: somebody arriving from
+      a link still has to be told which workspace they are in.
+
+      Browser-verified, one route, three states:
+
+      | | cards | widgets |
+      |---|---|---|
+      | before anything exists | **21** | — |
+      | composition active | 0 | Weather (81° Clear night) + My Pay ($25.00/hr), live |
+      | composition archived | **21** | — |
+
+      The fallback is not a catch-all bolted on afterwards; it is the DEFAULT branch. The children
+      are the page, rendered first and always, and a composition replaces them only once one has
+      arrived and parsed. Written the other way round — a spinner first, children as the error case —
+      every portal in the product would flash empty on a slow connection and go blank on a bad row.
+      `compositionFor` has exactly one failure mode, and it is *"the page stays as it was"*.
+
+- [x] **W5 — role-aware.** ~~by construction~~ Shipped 2026-08-25, and **the premise was false.**
+
+      The slice as written said: *"each widget already declares `allowedRoles`; the served page
+      renders the intersection … it comes free."*
+
+      The first half is true. The conclusion is not. `allowedRoles` is read in exactly ONE place in
+      the hub — `widgetsForRoles()`, which filters the **Add Widget modal**. `WidgetCell` renders
+      whatever instance it is handed and never consults the definition's roles at all.
+
+      That is correct for the hub, and only for the hub: a personal layout can only contain widgets
+      you were allowed to add, so the modal IS the gate. A composition breaks that assumption
+      completely — it is authored by one person and served to many, so nothing about what the AUTHOR
+      could add says anything about what the VIEWER may see.
+
+      **Found by building it and looking.** A firm composition carrying the admin-only
+      `pending-receipts` widget rendered it in full for an account without the admin role. Fifth
+      premise in this project's planning docs to be false when checked rather than assumed — and the
+      first four are already recorded in `feedback_check_the_premise_before_building`.
+
+      `visibleWidgets` is the fix, shared by the served page AND the studio's preview: a preview that
+      showed MORE than the page does would be worse than none, because it tells a designer their
+      layout is fine when a third of it is invisible to the people it was built for. Verified after
+      the fix, two accounts against one live composition:
+
+      | | weather | pending-receipts |
+      |---|---|---|
+      | admin | ✓ | ✓ |
+      | employee | ✓ | **✗** |
+
+      An UNKNOWN widget is deliberately kept rather than filtered: `WidgetCell` already renders a
+      clear *"no longer in the catalog"* frame for one, and dropping it here would turn a removed
+      widget into a silent hole nobody could diagnose. Unknown is not the same as forbidden and the
+      two must not look alike.
+
+      **A note left for the hub, not fixed here.** `WidgetCell` still does not check roles, so a hub
+      user whose role is revoked keeps rendering the widget they added while they had it. Filtering
+      inside `WidgetCell` would close that too — and would change the behaviour of 54 widgets on
+      everybody's home page, which is not a side effect to smuggle into a design slice. Written down
+      rather than quietly inherited.
 - [ ] **W6 — one editor, not two.** `GridEditor` and the design studio converge. Whichever survives,
       the other becomes a thin caller — two editors for one model is how they drift.
 
