@@ -2435,3 +2435,29 @@ It has been the one blocked item since before this plan began, and it is not blo
 this plan did.
 
 ---
+
+### 13.5 Checked and clean: nothing was stranded by the consolidation
+
+Two sweeps were run over the finished state, because absorbing forty pages is exactly how a page
+stops being reachable without anybody noticing.
+
+**Every `/admin` link still resolves.** 183 routes on disk, and zero `href=` / `router.push` targets
+that go nowhere. The first version of this scan reported **17 broken links and every one was a false
+positive** — twelve were API paths (`hub-data` maps a widget id to a `path` and fetches
+`${origin}/api${path}`, so `/admin/pto` is really `/api/admin/pto`), two were legacy-redirect
+SOURCES, one a service-worker scope. A fetch target is not a link.
+
+**Every page can still be got to.** Of 182 admin pages — 75 registered, 106 linked to, the rest
+records or stubs — exactly one is neither registered nor linked: `/admin/billing/upgrade`.
+
+It is not stranded. `middleware.ts` sends people there through `upgradePromptUrl()` when a firm hits
+a page whose bundle it has not bought, and a constructed URL is invisible to a scan for string
+literals. **The check that mattered was the next one:** if that page were itself bundle-gated, a firm
+without the bundle would be redirected to it and refused — a loop, and the worst kind, because it
+only happens to a customer who is trying to give you money. Measured: `/admin/billing/upgrade`
+resolves to `null` and is reachable with no bundles at all.
+
+**One wrinkle in §8 worth recording.** P9 called `billing/upgrade` one of "three sidebar links" and
+asked for it to be absorbed. It had a registry row, but functionally it is a destination you are SENT
+to rather than one you browse to, and C1 removed the row without making it a tab. That was the right
+call for the wrong-looking reason, and it is why this page is the only unregistered one in the tree.
