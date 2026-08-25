@@ -88,3 +88,66 @@ describe('a route that forwards does not keep a design claiming to be its record
     expect(branch).toMatch(/retired/);
   });
 });
+
+// ── C14: THE ORDER OF THE TWO QUESTIONS, IN BOTH WALKERS ─────────────────────────────────────────
+//
+// The S2 branch above is only reachable if the walker asks "did this route forward?" BEFORE it
+// decides the page never loaded. Both walkers asked the wrong one first, and both were fixed on
+// 2026-08-25 — the second only because fixing the first prompted somebody to read its sibling.
+//
+// What it cost: a stub whose DESTINATION is slow trips the readiness check, so the forward branch
+// never ran. After the consolidation that is most stubs — they land on a portal that has not gone
+// quiet inside the budget. `trace-defaults` reported four of them as hangs and left their stale
+// defaults in place, which is precisely the rot S2 exists to stop. `derive-dossiers` did the same
+// and put them in the "not derived" queue as failures — **the exact outcome the comment sitting
+// above its own forward check records being fixed once already.**
+//
+// A comment recording a fix did not prevent the same fix being needed twice. A test might.
+describe('a forward is answered before a spinner, in both walkers', () => {
+  const DOSSIERS = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'scripts', 'derive-dossiers.mjs'),
+    'utf8',
+  );
+
+  /** Assert `first` really appears before `second`, with both proven present.
+   *
+   *  `indexOf` returns -1 when the needle is absent, and -1 is less than every real index — so a
+   *  bare `a < b` PASSES HARDEST at the moment one side stops existing. The file this block is
+   *  appended to already carries that lesson; repeating the shape here would be ignoring it. */
+  const assertOrder = (src: string, first: string, second: string, what: string) => {
+    const a = src.indexOf(first);
+    const b = src.indexOf(second);
+    expect(a, `${what}: "${first.slice(0, 40)}" is missing`).toBeGreaterThan(-1);
+    expect(b, `${what}: "${second.slice(0, 40)}" is missing`).toBeGreaterThan(-1);
+    expect(a, `${what}: the forward check must come first`).toBeLessThan(b);
+  };
+
+  it('trace-defaults asks about the forward before it asks about loading', () => {
+    assertOrder(TRACER, 'landedOn !== target.route', 'if (stillLoading)', 'trace-defaults');
+  });
+
+  it('derive-dossiers asks about the forward before it sets a loading problem', () => {
+    assertOrder(DOSSIERS, 'landedOn !== target.route', 'still loading after 25s', 'derive-dossiers');
+  });
+
+  it('neither forward check is gated on there being no problem', () => {
+    // `derive-dossiers` did not merely ask second — it asked `if (!problem && landedOn !== ...)`,
+    // so even in the right order a loading problem would have suppressed it. The guard has to be
+    // unconditional, because whether the route forwards is not a matter of how the page went.
+    expect(DOSSIERS).not.toMatch(/!problem && landedOn !== target\.route/);
+    expect(TRACER).not.toMatch(/!stillLoading && landedOn !== target\.route/);
+  });
+
+  it('trace-defaults short-circuits the walk instead of measuring a redirect twice', () => {
+    // The correctness fix left the cost: the check sat below the viewport loop, so every stub paid
+    // two page loads and four waits before anything read the URL. Roughly eighty of the ninety-eight
+    // routes in a `--since` pass are stubs, which is why the first full pass never finished.
+    const loop = TRACER.slice(TRACER.indexOf('for (const [viewId, size] of Object.entries(VIEWPORTS))'));
+    const early = loop.indexOf('forwarded = true; break;');
+    const capture = loop.indexOf('captures[viewId] = await page.evaluate(CAPTURE');
+    expect(early, 'the in-loop forward exit is missing').toBeGreaterThan(-1);
+    expect(capture, 'the capture call is missing').toBeGreaterThan(-1);
+    expect(early, 'the forward exit must precede the capture, or the stub is measured anyway')
+      .toBeLessThan(capture);
+  });
+});

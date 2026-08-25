@@ -1657,6 +1657,16 @@ early, and the internal tooling comes last.
 
       A 4xx is still checked below rather than above, deliberately: that is a real answer from a real
       request, and a stub forwarding to a page that answers 500 should say so.
+      **A test now pins the order, because a comment did not.** The dossier walker re-created a
+      failure recorded as fixed in the comment directly above the check that had it — so
+      `__tests__/design/retire-forwarded-routes.test.ts` gained four assertions: the forward is asked
+      before the readiness question in BOTH walkers, neither forward check is gated on there being no
+      problem, and the tracer's in-loop exit precedes the capture so a stub is not measured anyway.
+
+      Proved to fail, not assumed to: the `!problem &&` guard was reintroduced, the suite went red on
+      exactly that assertion, and the file was restored to a clean diff. A green test nobody has seen
+      fail is a green test that might be asserting nothing — this plan has caught three of those.
+
 
       **And a third probe that was the bug.** The retire left three rows per route still marked
       `default`, which looked like duplicate defaults — 163 route/state combinations holding 578 rows
