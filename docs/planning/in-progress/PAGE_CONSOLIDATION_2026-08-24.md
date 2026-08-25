@@ -1698,6 +1698,21 @@ early, and the internal tooling comes last.
       the forward. A page that redirects *conditionally* still renders something the rest of the
       time, and a check that silently stopped tracing a real page would be a worse bug than the one
       it fixed.
+      **The narrowness was measured rather than trusted.** Of 182 admin pages, 84 contain a
+      `redirect(` call. The fast path matches **81** and declines 3 — and all three are the case it
+      was deliberately written to decline:
+
+      | Page | Why it correctly falls back |
+      |---|---|
+      | `app/admin/me/page.tsx` | the Hub. A real page that redirects **conditionally** — matching it would have silently stopped tracing the busiest page in the product |
+      | `app/admin/people/[email]/page.tsx` | a record with a conditional redirect (and dynamic routes are skipped anyway) |
+      | `app/admin/design/dossiers/page.tsx` | a stub, but one that forwards `?route=` and therefore has two branches |
+
+      Those three fall through to the navigation path, which still works — slower, and correct. The
+      danger in this optimisation was never missing a stub; it was matching a real page and quietly
+      dropping it from the walk. **81 of 84, with the 3 misses being the 3 that should miss**, is the
+      shape that says the rule is drawn in the right place.
+
 
       Measured: 16 stubs in a 20-route slice identified from source with **no navigation at all**,
       and `/admin/learn/flashcard-bank` now says "redirects to /admin/learn" rather than hanging. In
