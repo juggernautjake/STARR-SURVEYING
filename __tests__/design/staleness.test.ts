@@ -16,6 +16,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync } from 'node:child_process';
 import { staleRoutes, routesChangedSince, pageChangedAt, lastCommitByFile } from '@/lib/design/staleness';
 
 const ROOT = path.join(__dirname, '..', '..');
@@ -75,9 +76,24 @@ describe('the signal is git, not mtime', () => {
 
 describe('routesChangedSince', () => {
   it('finds the routes a commit touched', () => {
-    // C1 changed app/admin/billing/page.tsx and turned two siblings into redirect stubs.
-    const changed = routesChangedSince(PAGES.routes, 'HEAD~40', ROOT);
+    // ── WHY THIS NO LONGER SAYS `HEAD~40` ────────────────────────────────────────────────────────
+    //
+    // It did, with the note "C1 changed app/admin/billing/page.tsx". That was true on the day it was
+    // written and decayed quietly afterwards: `HEAD~40` is a MOVING TARGET, so every commit that
+    // does not touch a route pushes the window further from the change the assertion depends on.
+    // Five docs-and-tests commits later it reached back to nothing and the test failed — reporting a
+    // property of recent history as a fault in `routesChangedSince`.
+    //
+    // Anchored on the file instead: whatever commit last changed this page, ask what changed since
+    // its parent. That is a fixed point no amount of later history can slide past, and it tests the
+    // function rather than the shape of the log.
+    const page = 'app/admin/billing/page.tsx';
+    const sha = execSync(`git log -1 --format=%H -- ${page}`, { cwd: ROOT }).toString().trim();
+    expect(sha, `no commit in history touches ${page}`).not.toBe('');
+
+    const changed = routesChangedSince(PAGES.routes, `${sha}~1`, ROOT);
     expect(changed.size).toBeGreaterThan(0);
+    expect([...changed]).toContain('/admin/billing');
   });
 
   it('refuses an unknown ref instead of quietly returning nothing', () => {

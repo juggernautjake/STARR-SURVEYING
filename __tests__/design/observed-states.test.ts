@@ -150,7 +150,13 @@ describe('tracing a state', () => {
     //
     // V6 finished the job: the tracer no longer holds ANY of this, not the check and not the click.
     // Both live beside `SELECTED_STATE`, the rule they have to agree with.
-    expect(TRACER).toMatch(/import \{ waitForPageReady, openState \}/);
+    // Matched by NAME rather than by the whole import line. The line was pinned verbatim and broke
+    // the moment `devErrorOn` joined it — the fifth assertion in this plan to fail because the
+    // source text moved while the thing it asserts did not. What matters is that both helpers come
+    // from the observer, not the order or the length of the list they arrive in.
+    const importLine = (TRACER.match(/import \{[^}]*\} from '\.\/lib\/design-observe\.mjs';/) ?? [''])[0];
+    expect(importLine).toMatch(/\bwaitForPageReady\b/);
+    expect(importLine).toMatch(/\bopenState\b/);
     expect(TRACER).not.toMatch(/SELECTED_STATE/);
     expect(OBSERVE_SRC).toMatch(/export const SELECTED_STATE = \(\) => \{/);
     expect(OBSERVE_SRC).toMatch(/export async function openState\(page, base, route, state/);

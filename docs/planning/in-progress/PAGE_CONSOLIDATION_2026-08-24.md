@@ -2167,6 +2167,47 @@ early, and the internal tooling comes last.
       was re-running the three ALONE before believing the batch. **A failure that disappears when you
       isolate it was never a property of the thing you isolated.**
 
+      ── **C14c — A COMPILE ERROR IS NOT A DESIGN, 2026-08-25** ──
+
+      `waitForPageReady` asks whether something rendered. A Next dev error overlay renders — heading,
+      buttons, links — so it answers yes, the capture proceeds, and the route's **locked default**
+      holds a stack trace. Nothing downstream could tell: the element count is plausible and the page
+      "loaded". A default is supposed to be evidence; this is the one way it could quietly become the
+      opposite.
+
+      The existing answer was a rule for people — *never edit files mid-run, the dev server
+      recompiles and the sweep sees 500s and 404s*. That rule has shaped three days of sequencing in
+      this plan: slices held back, a sweep stopped and restarted twice, and a docs-only slice chosen
+      over a code one purely to keep out of the compile graph. It treats the instrument as something
+      to tiptoe around. `devErrorOn()` is the version a machine can enforce — the overlay is detected
+      by its custom element, by its dialog scaffolding, and by the four phrases a build failure puts
+      on screen, and the capture is refused rather than stored.
+
+      Asked at **both** capture sites, and before the capture at each: the route, and every state.
+      A tab's default is exactly as wrong to fill with a stack trace as a page's.
+
+      **The two failures are also no longer allowed to wear the same words.** "Could not reach it"
+      says the TAB is the problem — the sentence that sent an afternoon looking for a structural
+      cause behind three tabs that were merely cold. A broken server now says so in its own words.
+
+      Guarded by `__tests__/design/dev-error-is-not-a-page.test.ts`, whose real work is the negative
+      case: the failure mode of a check like this is not missing an overlay, it is firing on a
+      healthy screen and quietly refusing good captures. Five sentences a working admin page says
+      about errors — a column header, an empty state, a validation hint, a log page, a retry — are
+      asserted NOT to trip it.
+
+      **Two tests broke, and only one of them was mine to expect.**
+      · The tracer's import line was pinned verbatim and broke when `devErrorOn` joined it. Fifth
+        assertion in this plan to fail because source text moved while the thing it asserts did not.
+        Now matched by name.
+      · `staleness.test.ts` asserted `routesChangedSince(..., 'HEAD~40')` finds something. **`HEAD~40`
+        is a moving target.** It was true when written and decayed silently afterwards; five
+        docs-and-tests commits pushed the window past the route change it depended on, and the test
+        then reported a property of recent history as a fault in the function. Re-anchored on the
+        commit that last touched `app/admin/billing/page.tsx` — a fixed point later history cannot
+        slide past. Worth naming as its own defect class: **a test whose fixture is "N commits ago"
+        has an expiry date nobody wrote down.**
+
       And one number in the previous entry was wrong: "71 of 110 tabs" compared every per-state
       default in the table (73, of which 22 are on non-portal routes) against the portal-tab
       denominator. The real figure at that moment was **51 of 110**. Same shape as the 163 phantom

@@ -273,6 +273,45 @@ export const OBSERVE = () => {
  * loudly rather than quietly recording the spinner. The caller decides what to do with `false` —
  * for the deriver and the tracer alike, the answer is "report it and store nothing".
  */
+/**
+ * Is this a DEV ERROR rather than a page? — V7.
+ *
+ * `waitForPageReady` asks whether something rendered. A Next.js dev error overlay renders: it has a
+ * heading, buttons and links, so it answers yes, and the capture that follows stores the OVERLAY as
+ * a page's locked default. Nothing in this walk would notice — the element count is plausible, the
+ * page "loaded", and the record would say `/admin/x` while holding a screenshot of a stack trace.
+ *
+ * That is not a hypothetical. Editing any file under `app/` or `lib/` while a sweep is running makes
+ * the dev server recompile, and this repo already carries a note earned the hard way: never edit
+ * files mid-run, because the recompiles show up as 500s and 404s. The note treats the sweep as
+ * fragile. The honest fix is for the sweep to KNOW a compile error when it sees one, rather than
+ * asking a person to keep still for an hour.
+ *
+ * Detected three ways, because any one of them alone is brittle:
+ *   · `<nextjs-portal>` — the custom element the 14.x overlay mounts itself into
+ *   · `[data-nextjs-dialog]` / `[data-nextjs-error]` — its inner scaffolding
+ *   · the words a compile failure puts on screen, for when the markup changes under us
+ *
+ * Returns the reason it is broken, or null. A reason rather than a boolean so the caller can say
+ * WHICH page failed and why, which is the difference between a fixable report and a mystery.
+ */
+export async function devErrorOn(page) {
+  return page.evaluate(() => {
+    if (document.querySelector('nextjs-portal')) return 'next dev error overlay (nextjs-portal)';
+    if (document.querySelector('[data-nextjs-dialog], [data-nextjs-error], [data-nextjs-error-overlay]')) {
+      return 'next dev error overlay (dialog)';
+    }
+    // Text is the fallback, and is deliberately narrow: "error" alone appears on healthy pages all
+    // over this app — an error column, an empty state, a validation hint. These four phrases are
+    // the build's own, and none of them is something a working admin screen says about itself.
+    const t = (document.body.innerText || '').slice(0, 4000);
+    for (const phrase of ['Failed to compile', 'Unhandled Runtime Error', 'Module not found', 'Build Error']) {
+      if (t.includes(phrase)) return `dev build failure: "${phrase}"`;
+    }
+    return null;
+  }).catch(() => null);
+}
+
 export async function waitForPageReady(page, { timeout = 25_000 } = {}) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {

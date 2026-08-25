@@ -41,7 +41,7 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
-import { waitForPageReady, openState } from './lib/design-observe.mjs';
+import { waitForPageReady, openState, devErrorOn } from './lib/design-observe.mjs';
 // The SAME rule the page list draws its "Traced before the page changed" chip from. A queue that
 // showed work this tool could not see would be the conformance defect again — two copies of one
 // rule, disagreeing, with a number that looked like evidence.
@@ -239,6 +239,8 @@ for (const [i, target] of todo.entries()) {
 
     const captures = {};
     let stillLoading = false;
+    // Set when the dev server answered with a compile error instead of the page.
+    let devError = null;
     // Set by the loop below the moment a navigation lands somewhere else.
     let forwarded = false;
     for (const [viewId, size] of Object.entries(VIEWPORTS)) {
@@ -278,6 +280,11 @@ for (const [i, target] of todo.entries()) {
       // while the page was still arriving.
       if (!await waitForPageReady(page)) stillLoading = true;
       await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+      // A dev error overlay passes `waitForPageReady` — it has a heading, buttons and links — and a
+      // capture taken over it stores a stack trace as this route's locked default. Asked BEFORE the
+      // capture, because afterwards there is nothing to distinguish it from a page.
+      const broken = await devErrorOn(page);
+      if (broken) { devError = broken; break; }
       captures[viewId] = await page.evaluate(CAPTURE, classes);
       if (viewId === 'desktop' && captures[viewId].length < 8) {
         stillLoading = stillLoading
@@ -341,6 +348,16 @@ for (const [i, target] of todo.entries()) {
     }
 
     // Only now, for a route that really is trying to be a page of its own.
+    // Asked before `stillLoading`, for the same reason the forward check is: a compile error is a
+    // MORE specific answer than "it did not settle", and reporting the vaguer one first is how the
+    // stub bug hid for a week. This one is also not the app's fault, and saying so matters — the
+    // route is fine, the server was mid-rebuild, and the fix is to re-run it, not to open the page.
+    if (devError) {
+      failed.push({ route: target.route, why: `dev server was broken — ${devError}` });
+      console.log(`—  ${devError} · NOT stored`);
+      continue;
+    }
+
     if (stillLoading) {
       failed.push({ route: target.route, why: 'never finished loading — a trace here would be a spinner' });
       console.log('—  never finished loading');
@@ -388,18 +405,29 @@ for (const [i, target] of todo.entries()) {
       try {
         const stateCaptures = {};
         let reached = false;
+        let stDevError = null;
         for (const [viewId, size] of Object.entries(VIEWPORTS)) {
           await page.setViewportSize(size);
           // V6: the try-the-URL-then-click-then-CHECK dance is `openState` in the observer now.
           // Three tools need it and each was about to keep its own copy — which is the exact shape
           // that made every tab of /admin/settings come back as the breadcrumb one slice ago.
           if (!await openState(page, BASE, target.route, st)) break;
+          // Same guard as the route capture above. A state is a second navigation, so the server can
+          // break between the page and the tab — and a tab's default is exactly as wrong to fill
+          // with a stack trace as a page's.
+          stDevError = await devErrorOn(page);
+          if (stDevError) break;
           reached = true;
           stateCaptures[viewId] = await page.evaluate(CAPTURE, classes);
         }
 
         if (!reached || !stateCaptures.desktop) {
-          console.log(`        · ${st.key}: could not reach it — not stored`);
+          // Two different failures, and they must not wear the same words. "Could not reach it" says
+          // the tab is the problem — which is what sent an afternoon looking for a structural cause
+          // behind three tabs that were merely cold. A broken server is not an unreachable tab.
+          console.log(stDevError
+            ? `        · ${st.key}: ${stDevError} — not stored`
+            : `        · ${st.key}: could not reach it — not stored`);
           continue;
         }
         const stateRes = await page.request.fetch(`${BASE}/api/admin/design/import`, {
