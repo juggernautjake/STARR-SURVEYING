@@ -358,6 +358,39 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14l — THE FLAKE, DIAGNOSED: THE PAGE NEVER ARRIVED, 2026-08-25** ──
+
+      Four fixes had been aimed at this and it kept moving. The instrument settled it in one run:
+
+      ```
+      !! openState(/admin/equipment · templates) failed — showing "null"
+         {"tabCount":0,"keys":[],"selected":[],"url":"?tab=templates","bodyChars":13}
+      ```
+
+      **Thirteen characters of text in the content root, and not one tab.** The URL had been applied.
+      Nothing was wrong with the tab, the strip, the click or the navigation — **the page had not
+      rendered.**
+
+      The cause is one discarded return value. `openState` called `await waitForPageReady(page);` and
+      threw the boolean away, while the route walk twenty lines further on does
+      `if (!await waitForPageReady(page)) stillLoading = true`. So a page that never arrived was
+      treated as ready, and the code went looking for a tab on it — then reported *"could not reach
+      it"*, which says the tab is the problem.
+
+      **Every earlier fix aimed at the last step of a sequence whose first step had silently failed.**
+      A fixed wait replaced by polling, one click attempt replaced by three, a navigation retried on
+      timeout — all real gaps, all downstream of this. And each one looked correct afterwards,
+      because an intermittent fault confirms whatever ships the moment it lands elsewhere.
+
+      Fixed by reading the answer: a page that does not render is a failed attempt and is retried
+      like one, and it now says so in **its own words** rather than borrowing the tab's. That
+      mislabelling is not cosmetic — "could not reach the tab" is exactly what sent an afternoon
+      looking for a structural cause behind three tabs that were merely cold.
+
+      **The lesson, stated once and plainly:** *when a diagnosis keeps needing another fix, stop
+      fixing and start reading.* Four attempts cost more than the instrument would have, and the
+      instrument was fifteen lines.
+
       ── **C14k — ALL FIVE LOPSIDED RECORDS REPAIRED, 2026-08-25** ──
 
       **Zero lopsided defaults remain**, and every repair was reported rather than assumed:

@@ -22,6 +22,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { code } from '../helpers/source';
 import { generateChecklist, idFor } from '@/lib/design/checklist';
 import { mergeDossier } from '@/lib/design/dossier';
 
@@ -226,5 +227,24 @@ describe('opening a state is one function', () => {
     expect(block).toMatch(/for \(let attempt = 0; attempt < 3 && on !== state\.key; attempt \+= 1\)/);
     // The short-circuit must not come back: a failed click has to continue the loop, not end it.
     expect(block).not.toMatch(/on !== state\.key && await clickState/);
+  });
+
+  it('and reads the readiness answer instead of throwing it away', () => {
+    // The residual flake, diagnosed by instrument rather than argument:
+    //
+    //   !! openState(/admin/equipment · templates) failed — showing "null"
+    //      {"tabCount":0,"keys":[],"selected":[],"url":"?tab=templates","bodyChars":13}
+    //
+    // Thirteen characters of text in the content root and not one tab. The page had not arrived.
+    // `openState` called `waitForPageReady` and DISCARDED its boolean, while the route walk twenty
+    // lines away checks it — so a page that never rendered was treated as ready and the code went
+    // hunting for a tab on it. Three earlier fixes all aimed at the last step of a sequence whose
+    // first step had silently failed, and each looked like it worked because an intermittent fault
+    // confirms whatever ships the moment it moves.
+    const block = code(OBSERVE).slice(code(OBSERVE).indexOf('export async function openState'));
+    expect(block).toMatch(/ready = await waitForPageReady\(page\)/);
+    expect(block).toMatch(/if \(!ready\)/);
+    // And it must not be able to go back to discarding it.
+    expect(block).not.toMatch(/^\s*await waitForPageReady\(page\);\s*$/m);
   });
 });

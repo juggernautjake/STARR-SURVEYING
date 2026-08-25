@@ -491,25 +491,58 @@ export async function openState(page, base, route, state, { param = 'tab', settl
   // Two attempts, with a pause between. A stall of this kind is over in seconds; a genuinely
   // unreachable page still fails, just twice as slowly, and that is the right trade for a walk whose
   // whole output is a record somebody will trust.
+  // ── AND THE READINESS RESULT IS READ, WHICH IT WAS NOT ────────────────────────────────────────
+  //
+  // `waitForPageReady` returns false when a page never renders, and this function used to CALL IT
+  // AND DISCARD THE ANSWER — while the route walk twenty lines away does `if (!await
+  // waitForPageReady(page)) stillLoading = true`. So a page that never arrived was treated as ready,
+  // and the code went looking for a tab on it.
+  //
+  // That is the residual flake, and the instrument finally said so rather than a theory:
+  //
+  //     !! openState(/admin/equipment · templates) failed — showing "null"
+  //        {"tabCount":0,"keys":[],"selected":[],"url":"?tab=templates","bodyChars":13}
+  //
+  // Thirteen characters of text in the content root and not one tab. Nothing was wrong with the
+  // tab; the page was not there. Every earlier explanation — a stale window, a single click attempt,
+  // a stalled navigation — was a guess about the last step of a sequence whose FIRST step had
+  // silently failed. Three fixes aimed at the wrong end, and each looked like it worked because an
+  // intermittent fault confirms anything the moment it moves.
+  //
+  // So: a page that does not render is a failed attempt, retried like one. And it is reported in its
+  // own words, because "could not reach the tab" said the tab was the problem for a page that never
+  // arrived — the same mislabelling that cost an afternoon earlier in this plan.
   let navError = null;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  let ready = false;
+  for (let attempt = 0; attempt < 2 && !ready; attempt += 1) {
     try {
       await page.goto(`${base}${route}?${param}=${encodeURIComponent(state.key)}`, {
         waitUntil: 'domcontentloaded', timeout: 60_000,
       });
       navError = null;
-      break;
     } catch (err) {
       navError = err;
       if (process.env.DESIGN_TRACE_DEBUG) {
         console.log(`      !! goto(${route}?${param}=${state.key}) attempt ${attempt + 1} — ${String(err.message).split('\n')[0]}`);
       }
       await page.waitForTimeout(3_000);
+      continue;
+    }
+    ready = await waitForPageReady(page);
+    if (!ready) {
+      if (process.env.DESIGN_TRACE_DEBUG) {
+        console.log(`      !! ${route}?${param}=${state.key} rendered nothing on attempt ${attempt + 1} — re-navigating`);
+      }
+      await page.waitForTimeout(3_000);
     }
   }
   if (navError) throw navError;
-
-  await waitForPageReady(page);
+  if (!ready) {
+    if (process.env.DESIGN_TRACE_DEBUG) {
+      console.log(`      !! ${route} · ${state.key}: the PAGE never rendered — not a tab problem`);
+    }
+    return false;
+  }
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
   // The URL may be read, ignored, or read slowly. Only the third case needs the wait, and only the
