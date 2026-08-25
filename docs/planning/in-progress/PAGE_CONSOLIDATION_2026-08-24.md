@@ -1876,6 +1876,23 @@ early, and the internal tooling comes last.
       or with the matcher. It reads as a sixth timing artifact, and the sweep will say: if it traces
       on the second attempt, it was the clock.
 
+      **The per-tab captures are distinct, checked rather than assumed.** The failure worth ruling
+      out was `openState` clicking and the capture happening before the new tab rendered — which
+      would store the DEFAULT tab's content ten times under ten different keys and look like
+      complete coverage.
+
+      | `/admin/design` | desktop | | `/admin/billing` | desktop |
+      |---|---|---|---|---|
+      | (route) | 597 | | (route) | 42 |
+      | `pages` | 597 | | `overview` | 42 |
+      | `compare` | 543 | | `invoices` | 17 |
+      | `dossiers` | 364 | | `plan-history` | 15 |
+      | `site-versions` | 18 | | | |
+
+      The route-level capture equalling the default tab's is correct, not a duplicate: the route
+      opens on that tab. Every other tab differs, which is what says the click landed and the capture
+      waited.
+
       Testing one portal cost a minute and stopped a 144-route walk that would have produced no
       states at all.
 
