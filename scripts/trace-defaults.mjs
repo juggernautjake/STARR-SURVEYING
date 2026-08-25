@@ -173,13 +173,41 @@ function reportChanges(changes, indent) {
  * count is still climbing the page is still arriving. Return the largest reading, because this
  * failure only ever makes a capture too small — nothing renders fewer elements by waiting.
  */
-async function captureStable(page, classes, { tries = 4, gap = 1_200 } = {}) {
+async function captureStable(page, classes, { tries = 6, gap = 1_200, settled = 2 } = {}) {
+  // ── ONE FLAT READING IS NOT STABILITY ─────────────────────────────────────────────────────────
+  //
+  // The first version returned on the FIRST non-increase, which cannot tell "stopped growing" from
+  // "has not started". Measured on the very next sweep, after this function had supposedly fixed
+  // the class:
+  //
+  //     ⟳ job-profitability: 32 desktop vs 97 mobile — re-capturing desktop
+  //     ⟳ field-team:        25 desktop vs 108 mobile — re-capturing desktop
+  //
+  // Both had been repaired an hour earlier, to 92 and 106.
+  //
+  // Requiring the count to hold across TWO consecutive gaps is the right rule — one flat reading
+  // genuinely cannot tell the two apart — and it costs a finished page one extra 1.2s per capture.
+  //
+  // ── BUT IT DOES NOT FIX THOSE TWO PAGES, AND SAYING OTHERWISE WOULD BE THE THIRD OVERSTATEMENT ──
+  //
+  // Measured after the change: `job-profitability` still captured 32 on the first pass and was still
+  // rescued by the asymmetry guard. Probed ALONE the same tab reaches 98 within 1200ms and holds, so
+  // the reading this loop gets under a full sweep is not the reading the page gives when it is the
+  // only thing running. Load changes the answer, which is exactly why no fixed gap can be the fix.
+  //
+  // So the honest division of labour: **this makes a cheap first attempt more often correct, and
+  // `recaptureIfLopsided` is what actually rescues a slow page.** An earlier comment here claimed
+  // the fix landed "on the FIRST capture rather than depending on a retry". For these pages it
+  // depends on the retry, and a downstream guard quietly covering for an upstream one is how the
+  // upstream problem survives being noticed.
   let best = await page.evaluate(CAPTURE, classes);
+  let flat = 0;
   for (let i = 1; i < tries; i += 1) {
     await page.waitForTimeout(gap);
     const next = await page.evaluate(CAPTURE, classes);
-    if (next.length <= best.length) return best;   // stopped growing — this is the page
-    best = next;
+    if (next.length > best.length) { best = next; flat = 0; continue; }
+    flat += 1;
+    if (flat >= settled) return best;
   }
   return best;
 }

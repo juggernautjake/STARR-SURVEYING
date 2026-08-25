@@ -383,6 +383,37 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14o — A CLAIM OF MINE, CORRECTED BY THE NEXT RUN, 2026-08-25** ──
+
+      C14i said `captureStable` lands the fix "on the FIRST capture rather than depending on a retry
+      that may not get a turn". The re-trace it was written for says otherwise:
+
+      ```
+      ⟳ compare:            26 desktop vs 600 mobile — re-capturing desktop  →  600
+      ⟳ job-profitability:  32 desktop vs  97 mobile — re-capturing desktop  →   98
+      ⟳ field-team:         25 desktop vs 108 mobile — re-capturing desktop  →  109
+      ```
+
+      `compare` is the record conformance had measured at **4%**, and it repaired to 600 — that part
+      of the diagnosis was right, and it was a premature capture rather than page drift. But
+      `job-profitability` and `field-team` had been repaired an hour earlier, to 92 and 106, and came
+      back at 32 and 25. **The first capture is still wrong; the asymmetry guard is what rescues it.**
+
+      One real weakness did turn up in the reading: `captureStable` returned on the FIRST non-increase,
+      which cannot tell "stopped growing" from "has not started". Now it requires the count to hold
+      across two consecutive gaps. That is a sound rule and it costs a finished page 1.2s per capture.
+
+      **It also did not fix those pages, and the measurement says why no timing rule will.** Probed
+      alone, `job-profitability` reaches 98 elements within 1200ms and holds — the same tab that
+      reads 32 under a full sweep. Load changes the answer. A fixed gap cannot be the fix when the
+      thing being waited for takes a different length of time depending on what else is running.
+
+      So the honest division of labour, recorded because the code now says it too: **the stability
+      check makes a cheap first attempt more often correct, and `recaptureIfLopsided` is what
+      actually rescues a slow page.** A downstream guard quietly covering for an upstream one is how
+      the upstream problem survives being noticed — which is precisely what happened here, twice,
+      before the numbers were read side by side.
+
       ── **C14n — THE RATCHETS ONLY FIRE WHEN SOMEBODY REMEMBERS THEM, 2026-08-25** ──
 
       `package.json` has six `verify:*` scripts. **CI runs `type-check`, `lint`, `test` and `build`,
