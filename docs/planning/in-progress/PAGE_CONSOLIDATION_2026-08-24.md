@@ -493,6 +493,13 @@ is **per-ITEM approval** — today the decision is per receipt.
       media-query probe on top would be the fourth guess-shaped fix in a plan that has already
       learned what those cost.
 
+      ── **C14p — THE STUDIO COULD NOT SEE A BAD RECORD, ONLY A MISSING ONE, 2026-08-25** ──
+
+      *(This heading was deleted and restored. Inserting C14q anchored on it and replaced it, so for
+      several commits the entry below ran on from the one above with no title — the content intact
+      and the seam invisible. An edit that anchors on a heading consumes the heading; noticed only
+      because a later summary listed the entries and this one was missing from the list.)*
+
       The page list reports five gaps: `no-default`, `no-dossier`, `no-design`, `no-active`,
       `stale-default`. **Every one of them is about absence.** There was nothing for *a record exists
       and is wrong* — so the five half-a-page records this plan found showed in the studio as
@@ -2336,6 +2343,39 @@ early, and the internal tooling comes last.
         workspace already is. That is the decision §12 owes.
 - [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** **IN PROGRESS 2026-08-25 — the
       defaults pass is running; the dossiers pass and one decision remain.**
+
+      ── **THE ENTRIES BELOW, IN THE ORDER THEY HAPPENED** ──
+
+      Nineteen of them, written by prepending, so they sit in the file in roughly the reverse of this
+      order and two (C14b, C14c) are in a different section entirely. Reordering them would break
+      references from commits that quote them, so here is the map instead. **The one-line findings
+      are the point; the entries are the evidence.**
+
+      | | finding |
+      |---|---|
+      | *(unlettered)* | the states sweep itself — per-tab defaults from 17 → **107 of 110** — recorded in this item's own body above, before the entries were lettered. Listed as `C14a` in the first draft of this table, which cited an entry that does not exist; caught by grepping the letters instead of trusting the index that had just been written |
+      | **C14b** | six "unreachable" tabs — five were the ruler, not the wall |
+      | **C14c** | a dev error overlay passed as a page; it could have become a locked default |
+      | **C14d** | 32 test files strip comments, with six implementations; five ate URLs |
+      | **C14e** | three fixes for one flake, two of them aimed at guesses |
+      | **C14f** | a state's record was replaced in **silence** — no account of what it overwrote |
+      | **C14g** | five records held half a page, and the bias was systematic (desktop is captured first) |
+      | **C14h** | "139 routes have no default" decomposes to **zero** real gaps |
+      | **C14i** | the lopsided records were **empty states**, photographed before their rows arrived |
+      | **C14j** | seven broken source anchors is a tool problem, not seven careless edits |
+      | **C14k** | all five lopsided records repaired, each repair reported rather than assumed |
+      | **C14l** | the flake diagnosed: `openState` discarded the readiness answer. The page had not rendered |
+      | **C14m** | measure AFTER the repair — conformance stopped at 20 of 194 on purpose |
+      | **C14n** | CI runs none of the six `verify:*` scripts; three are now inside `npm test` |
+      | **C14o** | a claim of mine, corrected by the next run |
+      | **C14p** | the studio could see a record that is MISSING, never one that is WRONG |
+      | **C14q** | what the re-trace changed, row by row — including mobile records that were desktop-STYLED |
+      | **C14r** | the check that judges every record was reading each page **once** |
+      | **C14s** | the third walk checked for the same fault and deliberately left alone |
+
+      **If only one thing survives from this list:** every entry above except C14h and C14s is a
+      defect in an instrument, not in the product. The pages were mostly fine. What was wrong was
+      what measured them — and each failure produced a number that looked exactly like a finding.
 
       Every merge in this plan invalidated a dossier and a locked default. Measured against the live
       database before starting, so the size of the job is on the record rather than estimated:
