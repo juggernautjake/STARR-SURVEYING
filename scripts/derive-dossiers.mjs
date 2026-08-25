@@ -4,6 +4,8 @@
 //   node --env-file=.env.local scripts/derive-dossiers.mjs --only /admin/jobs
 //   node --env-file=.env.local scripts/derive-dossiers.mjs --area admin --limit 20
 //   node --env-file=.env.local scripts/derive-dossiers.mjs --missing     # only pages with none
+//   node --env-file=.env.local scripts/derive-dossiers.mjs --stale       # dossiers behind their page
+//   node --env-file=.env.local scripts/derive-dossiers.mjs --since HEAD~1  # what a slice touched
 //
 // Phase D1 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
 //
@@ -29,6 +31,9 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { OBSERVE, waitForPageReady } from './lib/design-observe.mjs';
+// The same rule the page list and the tracer use. One definition of "the record is behind the
+// page", so the queue and the tools that empty it cannot disagree.
+import { staleRoutes, routesChangedSince } from '../lib/design/staleness.ts';
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
@@ -37,6 +42,11 @@ const AREA = arg('--area') ?? 'admin';
 const ONLY = arg('--only');
 const LIMIT = Number(arg('--limit') ?? 0);
 const MISSING_ONLY = process.argv.includes('--missing');
+// S1. Same two questions as the tracer, same two flags, same shared rule — "what has fallen
+// behind" and "what did this slice touch" are different queues and conflating them would re-run
+// the whole backlog on every commit.
+const STALE_ONLY = process.argv.includes('--stale');
+const SINCE = arg('--since');
 
 const secret = (process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? '').replace(/^["']|["']$/g, '');
 if (!secret) { console.error('AUTH_SECRET is not set'); process.exit(2); }
@@ -72,9 +82,11 @@ if (!existingRes.ok()) {
   await browser.close();
   process.exit(1);
 }
-const existing = new Set(((await existingRes.json()).dossiers ?? [])
-  .filter((d) => d.elementCount > 0)
-  .map((d) => d.route));
+// Kept as ROWS rather than collapsed straight into a Set: `--stale` needs `derivedAt` off the
+// same fetch, and asking for the list twice to get one more field is how a script ends up with two
+// slightly different pictures of the same table.
+const dossierRows = (await existingRes.json()).dossiers ?? [];
+const existing = new Set(dossierRows.filter((d) => d.elementCount > 0).map((d) => d.route));
 
 const wanted = PAGES.routes.filter((p) => {
   if (ONLY) return p.route === ONLY;
@@ -88,7 +100,26 @@ const wanted = PAGES.routes.filter((p) => {
   if (MISSING_ONLY && existing.has(p.route)) return false;
   return true;
 });
-const todo = LIMIT > 0 ? wanted.slice(0, LIMIT) : wanted;
+let scoped = wanted;
+
+if (STALE_ONLY) {
+  // `existing` is a Set of routes that HAVE a dossier; the derived_at timestamp comes from the
+  // dossier list endpoint. Both are already fetched above.
+  const derivedAt = new Map(dossierRows
+    .filter((d) => d.route && d.derivedAt)
+    .map((d) => [d.route, d.derivedAt]));
+  const stale = staleRoutes(PAGES.routes, derivedAt);
+  scoped = scoped.filter((p) => stale.has(p.route));
+  console.log(`\n  --stale: ${stale.size} route(s) have a dossier older than their page`);
+}
+
+if (SINCE) {
+  const changed = routesChangedSince(PAGES.routes, SINCE);
+  scoped = scoped.filter((p) => changed.has(p.route));
+  console.log(`\n  --since ${SINCE}: ${changed.size} route(s) changed`);
+}
+
+const todo = LIMIT > 0 ? scoped.slice(0, LIMIT) : scoped;
 
 console.log(`\n  ${BASE} — deriving ${todo.length} dossier(s)`);
 console.log(`  ${existing.size} already measured\n`);

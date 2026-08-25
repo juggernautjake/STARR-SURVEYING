@@ -4,6 +4,8 @@
 //   node --env-file=.env.local scripts/trace-defaults.mjs --area admin        # one area
 //   node --env-file=.env.local scripts/trace-defaults.mjs --only /admin/jobs  # one route
 //   node --env-file=.env.local scripts/trace-defaults.mjs --missing           # only what has none
+//   node --env-file=.env.local scripts/trace-defaults.mjs --stale             # records behind their page
+//   node --env-file=.env.local scripts/trace-defaults.mjs --since HEAD~1      # what a slice just touched
 //   node --env-file=.env.local scripts/trace-defaults.mjs --only /admin/jobs   # RE-TRACE one page
 //
 // Re-tracing is the same command as tracing: it replaces the route's default and prints what moved
@@ -40,6 +42,10 @@ import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
 import { waitForPageReady } from './lib/design-observe.mjs';
+// The SAME rule the page list draws its "Traced before the page changed" chip from. A queue that
+// showed work this tool could not see would be the conformance defect again — two copies of one
+// rule, disagreeing, with a number that looked like evidence.
+import { staleRoutes, routesChangedSince } from '../lib/design/staleness.ts';
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
@@ -47,6 +53,12 @@ const AS = arg('--as') ?? 'jacobmaddux@starr-surveying.com';
 const AREA = arg('--area');
 const ONLY = arg('--only');
 const MISSING_ONLY = process.argv.includes('--missing');
+// S1 of DESIGN_STUDIO_SERVES_PAGES_2026-08-24.md. Two different questions, deliberately two flags:
+//   --stale   what has fallen behind — the catch-up queue, and what the page list's fifth gap counts
+//   --since   what a slice just touched — for a hook, right after the change
+// Conflating them would re-run the whole backlog on every commit.
+const STALE_ONLY = process.argv.includes('--stale');
+const SINCE = arg('--since');
 const LIMIT = Number(arg('--limit') ?? 0);
 
 const secret = (process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? '').replace(/^["']|["']$/g, '');
@@ -79,7 +91,11 @@ function plan() {
     }
     wanted.push(page);
   }
-  return { wanted: LIMIT > 0 ? wanted.slice(0, LIMIT) : wanted, skipped };
+  // LIMIT is applied by the CALLER, after --missing/--stale/--since have narrowed the list.
+  // Slicing here took the first N routes in the INVENTORY and then filtered them, so
+  // `--since <ref> --limit 3` traced nothing while reporting "3 route(s) changed" — the two numbers
+  // it printed in the same breath disagreed with each other.
+  return { wanted, skipped };
 }
 
 const token = await encode({ token: { email: AS, name: 'Default tracer', sub: AS }, secret, salt: 'authjs.session-token', maxAge: 4 * 60 * 60 });
@@ -117,7 +133,28 @@ const existing = listRes.ok() ? (await listRes.json()).designs ?? [] : [];
 const hasDefault = new Set(existing.filter((d) => d.status === 'default').map((d) => d.route));
 
 const { wanted, skipped } = plan();
-const todo = MISSING_ONLY ? wanted.filter((p) => !hasDefault.has(p.route)) : wanted;
+let todo = MISSING_ONLY ? wanted.filter((p) => !hasDefault.has(p.route)) : wanted;
+
+if (STALE_ONLY) {
+  const tracedAt = new Map(existing
+    // The list API returns SUMMARIES, which are camelCase — `traced_at` is the column name and
+    // reads as undefined here. It did: `--stale` matched nothing and reported "0 route(s)" as a
+    // success, while the page list drawn from the same rule said 50. A filter that silently matches
+    // nothing is the worst kind of wrong, because it looks like good news.
+    .filter((d) => d.status === 'default' && d.tracedAt && d.route)
+    .map((d) => [d.route, d.tracedAt]));
+  const stale = staleRoutes(PAGES.routes, tracedAt);
+  todo = todo.filter((p) => stale.has(p.route));
+  console.log(`\n  --stale: ${stale.size} route(s) have a default older than their page`);
+}
+
+if (SINCE) {
+  const changed = routesChangedSince(PAGES.routes, SINCE);
+  todo = todo.filter((p) => changed.has(p.route));
+  console.log(`\n  --since ${SINCE}: ${changed.size} route(s) changed`);
+}
+
+if (LIMIT > 0) todo = todo.slice(0, LIMIT);
 
 console.log(`\n  ${BASE} — tracing ${todo.length} page(s) at 1440px and 390px`);
 console.log(`  ${skipped.length} skipped as dynamic · ${hasDefault.size} already had a default\n`);

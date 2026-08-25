@@ -4,6 +4,7 @@
 //   node --env-file=.env.local scripts/check-design-conformance.mjs --only /admin/jobs
 //   node --env-file=.env.local scripts/check-design-conformance.mjs --which default   # the P4 proof
 //   node --env-file=.env.local scripts/check-design-conformance.mjs --write           # record it
+//   node --env-file=.env.local scripts/check-design-conformance.mjs --since HEAD~1    # what a slice touched
 //
 // Phases R3 + P4 of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
 //
@@ -29,6 +30,9 @@ import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
 import { waitForPageReady } from './lib/design-observe.mjs';
+import { routesChangedSince } from '../lib/design/staleness.ts';
+
+const PAGES = JSON.parse(fs.readFileSync('lib/design/pages.generated.json', 'utf8'));
 
 const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefined : process.argv[i + 1]; };
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
@@ -36,6 +40,10 @@ const AS = arg('--as') ?? 'jacobmaddux@starr-surveying.com';
 const ONLY = arg('--only');
 const WHICH = arg('--which') ?? 'both';
 const LIMIT = Number(arg('--limit') ?? 0);
+// S1. Only `--since` here, and the omission is deliberate: "stale" for conformance would mean
+// comparing a measurement against the page it measured, which is what this script DOES. Asking it
+// to pre-filter on its own output would be circular.
+const SINCE = arg('--since');
 const WRITE = process.argv.includes('--write');
 const RECORD_PATH = 'lib/design/conformance.generated.json';
 
@@ -85,7 +93,13 @@ const routes = [...new Set(designs
   .map((d) => d.route))]
   .filter((r) => !ONLY || r === ONLY)
   .sort();
-const todo = LIMIT > 0 ? routes.slice(0, LIMIT) : routes;
+let scoped = routes;
+if (SINCE) {
+  const changed = routesChangedSince(PAGES.routes, SINCE);
+  scoped = scoped.filter((r) => changed.has(r));
+  console.log(`\n  --since ${SINCE}: ${changed.size} route(s) changed`);
+}
+const todo = LIMIT > 0 ? scoped.slice(0, LIMIT) : scoped;
 
 console.log(`\n  ${BASE} — comparing ${todo.length} page(s) against their ${WHICH} design(s)\n`);
 

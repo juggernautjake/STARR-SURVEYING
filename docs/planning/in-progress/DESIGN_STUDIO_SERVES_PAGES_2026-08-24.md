@@ -228,8 +228,49 @@ node --env-file=.env.local scripts/derive-dossiers.mjs  --only /admin/billing
 node --env-file=.env.local scripts/check-design-conformance.mjs --only /admin/billing --write
 ```
 
-- [ ] **S1 — a `--since` mode** on the three walks: re-derive every route whose page file changed
-      since a given commit. Turns "remember to re-derive" into one command a hook can run.
+- [x] **S1 — `--since` AND `--stale`** on the three walks. Shipped 2026-08-24. Two flags rather
+      than the one the plan asked for, because they answer different questions and conflating them
+      would re-run the whole backlog on every commit:
+
+      | flag | question | for |
+      |---|---|---|
+      | `--since <ref>` | what did this slice touch? | a hook, right after a change |
+      | `--stale` | what has fallen behind? | catching up — the page list's fifth gap, as a queue |
+
+      `lib/design/staleness.ts` holds the rule and **four callers share it**: the page list draws
+      its chip from it, and the tracer, the deriver and the conformance sweep decide what to re-run
+      from it. A queue that showed work the tool emptying it could not see would be the conformance
+      defect a third time.
+
+      **It immediately emptied the queue S3 created**: 50 stale defaults re-traced in one command,
+      down to 0.
+
+      `--stale` is deliberately absent from the conformance sweep. "Stale" there would mean
+      comparing a measurement against the page it measured, which is what that script *does*;
+      pre-filtering on its own output would be circular.
+
+      **`--stale` shipped reporting "0 route(s)" while the page list said 50, and I nearly
+      believed it.** Same rule, same data, both right — the TRACER read `d.traced_at` off a summary
+      object that spells it `tracedAt`, so the filter matched nothing and reported it as good news.
+      That is the worst shape a bug can take here: **nobody investigates zero.** It was caught only
+      because the two numbers were visible side by side and disagreed, which is luck rather than
+      method — so there is now a test asserting the caller spells the field the way the data does.
+
+      **Two more things the same afternoon, both silent-failure shaped:**
+
+      - The rename that fixed it *never ran the first time.* It was chained after a command that
+        threw, so the chain aborted and I read the error as being about the first command. The
+        symptom — a filter matching nothing — is identical whether the fix was wrong or was never
+        applied.
+      - `--since <ref> --limit 3` traced **nothing** while printing "3 route(s) changed" in the
+        same breath. `plan()` sliced the inventory to the first three routes and the filter then
+        matched none of them. LIMIT is applied last now, after every filter.
+
+      **One structural fix on the way through.** `lib/design/server.ts` had a `SUMMARY_COLS`
+      constant *and* two queries that spelled the same column list out by hand — which is how
+      adding `traced_at` came within one keystroke of reaching one query and not the others.
+      `summarise()` reads every name in that list, and a query fetching fewer does not fail: it
+      returns undefined and the caller gets a null. All three now use the constant.
 - [x] **S2 — the merged-away routes get retired, not left rotting.** Shipped 2026-08-24.
 
       C1 of the consolidation left exactly the rot this predicted: `/admin/billing/invoices` and

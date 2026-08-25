@@ -27,6 +27,17 @@ import { statusRule, cloneName, type DesignStatus } from './lifecycle';
 // be able to reach it, and this module cannot be imported without a database client.
 import { diffDefaults, type RetraceChange } from './conformance';
 
+/**
+ * The columns a `DesignSummary` is built from.
+ *
+ * This constant existed and TWO call sites still spelled the list out by hand — which is how
+ * adding `traced_at` for S1 came within one keystroke of being added to one query and not the
+ * others, producing a `--stale` filter that silently matched nothing. `summarise()` reads every
+ * name in here, so a query that fetches fewer does not fail; it returns undefined and the caller
+ * gets a null. Both copies now use this.
+ */
+const SUMMARY_COLS = 'id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email, traced_at';
+
 export interface DesignSummary {
   id: string;
   name: string;
@@ -44,6 +55,12 @@ export interface DesignSummary {
   locked: boolean;
   themeGroup: string | null;
   themeId: string | null;
+  /** When the tracer measured this, for a `default`. Null on anything hand-built.
+   *
+   * On the summary because the question it answers — "is this record older than the page it
+   * records?" — has four callers (the page list's fifth gap, and `--stale` on the tracer, the
+   * deriver and the conformance sweep) and none of them wants a second query per row. */
+  tracedAt: string | null;
   ownerEmail: string | null;
 }
 
@@ -91,7 +108,7 @@ function toDocument(row: MockupRow): DesignDocument {
   } as DesignDocument;
 }
 
-function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email'>): DesignSummary {
+function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email' | 'traced_at'>): DesignSummary {
   return {
     id: row.id,
     name: row.name,
@@ -109,6 +126,7 @@ function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' |
     locked: !!row.locked,
     themeGroup: row.theme_group ?? null,
     themeId: row.theme_id ?? null,
+    tracedAt: row.traced_at ?? null,
     ownerEmail: row.owner_email ?? null,
   };
 }
@@ -124,7 +142,7 @@ function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' |
 export async function listMockups(): Promise<DesignSummary[]> {
   const { data, error } = await supabaseAdmin
     .from(TABLE)
-    .select('id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email')
+    .select(SUMMARY_COLS)
     .is('deleted_at', null)
     .order('updated_at', { ascending: false })
     .limit(500);
@@ -348,7 +366,7 @@ export async function setDesignStatus(
 
   const { data: after } = await supabaseAdmin
     .from(TABLE)
-    .select('id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email')
+    .select(SUMMARY_COLS)
     .eq('id', id)
     .maybeSingle();
   return { design: summarise(after as unknown as MockupRow), demoted };
@@ -523,7 +541,6 @@ export interface DesignRelations {
   routeSiblings: DesignSummary[];
 }
 
-const SUMMARY_COLS = 'id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email';
 
 export async function designRelations(id: string): Promise<DesignRelations | null> {
   const { data: row, error } = await supabaseAdmin
