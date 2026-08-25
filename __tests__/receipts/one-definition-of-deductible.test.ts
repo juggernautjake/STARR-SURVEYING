@@ -24,6 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { deductibleFraction, DEDUCTIBLE_FRACTION } from '@/lib/finance/tax-summary';
 
 const ROOT = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -44,28 +45,62 @@ const SOURCES = [...walk('app'), ...walk('lib')];
 /** Comments stripped: this file is about code, and prose about the rule must not read as the rule. */
 const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
+describe('the move changed nothing about the numbers', () => {
+  // P2.2c relocated a function; a relocation that alters a tax figure is not a relocation. The old
+  // form was a `switch` whose `default:` arm caught `review` and everything else. The new form is a
+  // map plus `?? 0`, and the two must agree on every input the old one could receive — including the
+  // ones nobody writes down: an unknown string, null, undefined, and the empty string.
+  it('gives the same fraction the switch did, for every flag and every non-flag', () => {
+    expect(deductibleFraction('full')).toBe(1.0);
+    expect(deductibleFraction('partial_50')).toBe(0.5);
+    expect(deductibleFraction('none')).toBe(0.0);
+    expect(deductibleFraction('review')).toBe(0.0);
+
+    for (const notAFlag of ['', 'FULL', 'partial', 'deductible', null, undefined]) {
+      expect(deductibleFraction(notAFlag), `unknown flag ${JSON.stringify(notAFlag)}`).toBe(0);
+    }
+  });
+
+  it('and nothing deducts more than the receipt', () => {
+    // A fraction above 1 would claim more than was spent. Cheap to assert, and the kind of thing a
+    // future "120% for X" would sail past review on.
+    for (const [flag, f] of Object.entries(DEDUCTIBLE_FRACTION)) {
+      expect(f, flag).toBeGreaterThanOrEqual(0);
+      expect(f, flag).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
 describe('deductibility has one definition', () => {
   it('and exactly one place turns the flag into a number', () => {
-    // The signature of a converter: it names the flag AND returns a fraction for it. A <select>
+    // The signature of a converter: it names the flag AND pairs it with a fraction. A <select>
     // option, a type union and a prose summary all mention `partial_50` and none of them is a
     // definition — so the match is on the pairing, not on the word.
     const converters = SOURCES.filter((f) => {
       const c = code(read(f));
-      if (!c.includes("'partial_50'")) return false;
-      return /case\s+'partial_50':[\s\S]{0,120}?return\s+0?\.\d/.test(c);
+      if (!c.includes('partial_50')) return false;
+      return /case\s+'partial_50':[\s\S]{0,120}?return\s+0?\.\d/.test(c)   // the old switch form
+        || /partial_50:\s*0?\.\d/.test(c);                                  // the map form it became
     });
 
-    expect(converters).toEqual(['app/api/admin/finances/tax-summary/route.ts']);
+    // P2.2c moved it out of the route handler. A definition inside a route is one nobody else can
+    // import, so the second author writes their own — which is the whole defect this guards.
+    expect(converters).toEqual(['lib/finance/tax-summary.ts']);
   });
 
-  it('and the fraction and the sentence still agree', () => {
-    // If these two ever disagree, a report and the sentence explaining it are telling a person two
-    // different things about the same receipt — and the sentence is the one nobody will re-check.
-    const fraction = code(read('app/api/admin/finances/tax-summary/route.ts'));
-    expect(fraction).toMatch(/case\s+'partial_50':\s*return\s+0\.5;/);
-
-    const prose = read('lib/finance/tax-summary.ts');
-    expect(prose).toMatch(/Deductible at 50%/);
+  it('and the sentence a person reads is DERIVED from that number, not typed again', () => {
+    // This is the half that nearly got away. The arithmetic had one home; the CONSTANT did not —
+    // `summarise()` separately told a person "Deductible at 50%", and prose is invisible to any
+    // search for a computation. Two copies of one number, one of which nobody would think to check.
+    // Read as CODE. The first version of this assertion checked the raw file and failed on the
+    // comment two lines above it, which quotes the old sentence to explain why it is gone — the
+    // sixth time in this plan that prose about a rule was read as the rule. `code()` exists here for
+    // exactly that, and the earlier assertions already use it.
+    const lib = code(read('lib/finance/tax-summary.ts'));
+    expect(lib).toMatch(/partial_50:\s*0\.5,/);
+    expect(lib).toMatch(/Deductible at \$\{asPercent\(DEDUCTIBLE_FRACTION\.partial_50\)\}%/);
+    // And no literal survives in the code, so changing the fraction cannot leave the sentence behind.
+    expect(lib).not.toMatch(/Deductible at 50%/);
   });
 
   it('and every file that knows the flag at all is one somebody chose', () => {
@@ -74,11 +109,12 @@ describe('deductibility has one definition', () => {
     const knows = SOURCES.filter((f) => read(f).includes('partial_50')).sort();
     expect(knows).toEqual([
       'app/admin/receipts/_tabs/QueueTab.tsx',            // the control a person sets it with
-      'app/api/admin/finances/tax-summary/route.ts',      // the one converter
       'app/api/admin/receipts/[id]/route.ts',             // the write path's documented enum
-      'lib/finance/tax-summary.ts',                       // the sentence, and the type
+      'lib/finance/tax-summary.ts',                       // the type, the fraction, and the sentence
       'lib/receipts/deep-read.ts',                        // what the AI may propose
       'lib/receipts/edit.ts',                             // what an edit may set
     ]);
+    // Six before P2.2c. The tax-summary ROUTE dropped off the list entirely: it now imports the
+    // fraction instead of holding one, which is the whole point of the move.
   });
 });

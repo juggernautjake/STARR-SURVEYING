@@ -247,8 +247,28 @@ is **per-ITEM approval** — today the decision is per receipt.
       never find. Writing the guard while the count is one is worth more than the reconciliation
       would be once it is two.
 
-      **Still open (small):** move the definition into `lib/receipts/` so a second author finds it
-      before writing their own. Ergonomics, not correctness, now that the tripwire is in place.
+      **Move shipped 2026-08-25 — and it went to `lib/finance/`, not `lib/receipts/`.** The reason is
+      the thing the guard had just found: `lib/finance/tax-summary.ts` already owned the
+      `DeductibleFlag` type AND the sentence stating the same 50% to a person. Sending the fraction
+      to `lib/receipts/` would have put the two copies of one number in two different libraries.
+
+      So `DEDUCTIBLE_FRACTION` lives beside the sentence, as a map rather than a switch **so the
+      sentence can read it** — `Deductible at ${asPercent(DEDUCTIBLE_FRACTION.partial_50)}%`. The two
+      copies are now one. The route imports the function and no longer contains the flag at all,
+      which is why the allowlist went from six files to five.
+
+      A relocation that alters a tax figure is not a relocation, so the behaviour is asserted rather
+      than assumed: the old `switch` had a `default:` arm catching `review` and everything else, the
+      new form is a map plus `?? 0`, and both are checked against every flag **and** every non-flag —
+      `''`, `'FULL'`, `'partial'`, `null`, `undefined`. Plus a bound nobody had written down: no
+      fraction may exceed 1, because a rate above 100% claims more than was spent.
+
+      **Sixth comment-broke-my-own-assertion.** The new assertion checked that the literal
+      `Deductible at 50%` is gone — and failed on the comment two lines above it, which quotes the
+      old sentence to explain why it went. The file already had a `code()` helper for exactly this.
+      Six times in one plan is not carelessness about one comment; it is a property of writing tests
+      that read source. **Any assertion over source text should strip comments by default**, and the
+      helper should be reached for first rather than after the failure.
 - [ ] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
       receipts today. Per-line exemption changes what it is allowed to count, so P2.2 and P7 are
       one data model seen from two ends.

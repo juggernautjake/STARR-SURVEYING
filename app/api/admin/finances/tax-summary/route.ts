@@ -83,6 +83,7 @@ import {
   depreciationForYear,
   type DepreciationMethod,
 } from '@/lib/equipment/depreciation';
+import { deductibleFraction } from '@/lib/finance/tax-summary';
 
 /** IRS standard business mileage rate (cents/mile). 2025 rate is
  *  67¢; 2026 wasn't published when this was written. Override via
@@ -108,24 +109,12 @@ const SCHEDULE_C_LINE: Record<string, string> = {
   other: '27a — Other expenses',
 };
 
-/** Fraction of `total_cents` that's deductible per the IRS
- *  tax_deductible_flag. Mirrors the schema's CHECK enum. */
-function deductibleFraction(flag: string | null | undefined): number {
-  switch (flag) {
-    case 'full':
-      return 1.0;
-    case 'partial_50':
-      return 0.5;
-    case 'none':
-      return 0.0;
-    case 'review':
-    default:
-      // 'review' rows aren't booked yet — treat as 0 toward the
-      // deduction summary so the bookkeeper sees a conservative
-      // total. The CPA can re-classify after review.
-      return 0.0;
-  }
-}
+// `deductibleFraction` used to be defined here, privately. P2.2c moved it to
+// `lib/finance/tax-summary.ts`, beside the `DeductibleFlag` type and beside the SENTENCE that states
+// the same 50% to a person — which now reads the constant instead of repeating it. A definition
+// inside a route handler is one nobody else can import, so the second author writes their own; that
+// is the `effectiveHours` defect, and this file was one import away from being its first half.
+// Pinned by __tests__/receipts/one-definition-of-deductible.test.ts.
 
 interface ReceiptRow {
   id: string;

@@ -33,6 +33,44 @@ import { computeRecovery, type CostRecovery } from './cost-recovery';
 /** `tax_deductible_flag` as stored on the receipt (seed 220). */
 export type DeductibleFlag = 'full' | 'partial_50' | 'none' | 'review' | null;
 
+/**
+ * How much of a receipt's total each flag actually deducts — P2.2c.
+ *
+ * ── WHY THIS MOVED HERE, AND WHY IT IS A CONSTANT AND NOT A SWITCH ──────────────────────────────
+ *
+ * It lived inside `app/api/admin/finances/tax-summary/route.ts` as a private function. That was the
+ * only place in the tree converting a flag into a number, so nothing was WRONG — but a definition
+ * inside a route handler is one a second author cannot import and will therefore write again, which
+ * is precisely the `effectiveHours` defect P2.2c exists to prevent.
+ *
+ * It comes here rather than to `lib/receipts/` for a reason worth stating: **this file already
+ * describes the same fact in a sentence.** `summarise()` below tells a person "Deductible at 50% —
+ * meals and entertainment limit", and its note explains why the number is spelled out — *"partial
+ * without the number is the kind of thing that gets re-derived wrongly at filing time."* So the 50
+ * was written down twice, once as arithmetic and once as prose, and the prose copy is invisible to
+ * any search for a computation. Splitting them across two libraries would have made that worse.
+ *
+ * A map rather than a `switch` so the sentence can READ it. There is now one place the number
+ * exists, and the summary derives its percentage from it — see `summarise()`.
+ *
+ * `review` is 0, deliberately and not as a fallthrough: those rows are not booked yet, and a
+ * conservative total is the honest one to show a bookkeeper before a CPA has re-classified them.
+ */
+export const DEDUCTIBLE_FRACTION: Record<Exclude<DeductibleFlag, null>, number> = {
+  full: 1.0,
+  partial_50: 0.5,
+  none: 0.0,
+  review: 0.0,
+};
+
+/** Fraction of `total_cents` that is deductible. Unknown or absent flags deduct nothing. */
+export function deductibleFraction(flag: string | null | undefined): number {
+  return DEDUCTIBLE_FRACTION[flag as Exclude<DeductibleFlag, null>] ?? 0;
+}
+
+/** `0.5` → `50`. The sentence and the arithmetic must not be able to disagree. */
+const asPercent = (fraction: number) => Math.round(fraction * 100);
+
 export interface TaxSummaryInput {
   /** The card that paid, if one has been CONFIRMED. An unconfirmed suggestion must not be passed
    *  here — see `cardConfirmed`. */
@@ -150,8 +188,14 @@ export function taxSummaryFor(input: TaxSummaryInput): TaxSummary {
       return { summary: `Deductible business expense${tail}.`, needsAttention: false, basis: 'deductible-flag' };
     case 'partial_50':
       // Named explicitly, because "partial" without the number is the kind of thing that gets
-      // re-derived wrongly at filing time.
-      return { summary: `Deductible at 50%${tail} — meals and entertainment limit.`, needsAttention: false, basis: 'deductible-flag' };
+      // re-derived wrongly at filing time. READ from `DEDUCTIBLE_FRACTION` rather than typed again:
+      // the sentence and the arithmetic were two copies of one number, and the copy a person reads
+      // is the one no search for a computation would ever have found.
+      return {
+        summary: `Deductible at ${asPercent(DEDUCTIBLE_FRACTION.partial_50)}%${tail} — meals and entertainment limit.`,
+        needsAttention: false,
+        basis: 'deductible-flag',
+      };
     case 'none':
       return { summary: `Not deductible${tail}.`, needsAttention: false, basis: 'deductible-flag' };
     case 'review':
