@@ -30,7 +30,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
-import { togglesFrom } from '@/lib/admin/feature-toggles';
+import { togglesFrom, toggleKey } from '@/lib/admin/feature-toggles';
+import PORTAL_TABS from '@/lib/admin/portal/tabs.generated.json';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { ADMIN_ROUTES, findRoute } from '@/lib/admin/route-registry';
 
@@ -136,7 +137,7 @@ export const GET = withErrorHandler(async () => {
   //
   // `parked` routes ARE excluded: those are hidden from everybody by the registry already, so a
   // switch for one would do nothing and say nothing about why.
-  const destinations = ADMIN_ROUTES
+  const routeDestinations = ADMIN_ROUTES
     .filter((r) => !r.parked)
     .map((r) => ({
       key: r.href,
@@ -146,5 +147,42 @@ export const GET = withErrorHandler(async () => {
       inbound: (links.get(r.href) ?? []).length,
     }));
 
-  return NextResponse.json({ toggles, destinations });
+  // ── T6: A SWITCH PER TAB, NOT ONLY PER PAGE ────────────────────────────────────────────────────
+  //
+  // §11.3 parked this until the portals existed, because "building it against 138 routes and then
+  // rebuilding it against 29 portals is the work done twice". The portals exist: seventeen of them,
+  // holding a hundred and ten tabs, and every one of those tabs is a destination a firm might not
+  // use. Switching off Growth to hide the lead queue is the page-level switch answering a question
+  // nobody asked.
+  //
+  // The READ half was already here and already tested — `canSeeTab` calls
+  // `isDestinationEnabled(toggles, spec.route, tab.id)`, and `toggleKey` builds `route#tab`. What was
+  // missing is that nothing ever PRODUCED such a key: this endpoint listed routes only, so the
+  // control could not be reached and the mechanism sat there answering a question never put to it.
+  // The repository's most common defect, in its own settings page.
+  //
+  // The tab list is READ FROM A GENERATED FILE rather than imported. Portal specs live in
+  // `'use client'` pages, and a Route Handler that imports one gets a client-reference proxy — the
+  // object is not there and nothing throws. `scripts/derive-portal-tabs.mjs --check` keeps the file
+  // honest, and a test runs it.
+  const portalRoutes = new Map(ADMIN_ROUTES.map((r) => [r.href, r]));
+  const tabDestinations = PORTAL_TABS.portals.flatMap((portal) => {
+    const row = portalRoutes.get(portal.route);
+    // A portal whose own row is parked or absent offers no tabs: the page cannot be reached, so a
+    // switch for one of its tabs would be a control for something invisible.
+    if (!row || row.parked) return [];
+    return portal.tabs.map((tab) => ({
+      key: toggleKey(portal.route, tab.id),
+      // "Growth → Leads" rather than "Leads": the settings list groups by workspace, and a bare tab
+      // label there would sit beside its own portal's row saying almost the same word.
+      label: `${row.label} → ${tab.label}`,
+      workspace: row.workspace,
+      // Inbound links are counted per ROUTE. A tab has no separate inbound count, and reusing the
+      // portal's would tell somebody that switching off one tab breaks N links, which is false.
+      inboundFrom: [],
+      inbound: 0,
+    }));
+  });
+
+  return NextResponse.json({ toggles, destinations: [...routeDestinations, ...tabDestinations] });
 }, { routeName: 'admin/feature-toggles' });

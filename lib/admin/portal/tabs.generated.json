@@ -1,0 +1,546 @@
+{
+  "portals": [
+    {
+      "route": "/admin/billing",
+      "file": "app/admin/billing/page.tsx",
+      "tabs": [
+        {
+          "id": "overview",
+          "label": "Overview"
+        },
+        {
+          "id": "invoices",
+          "label": "Invoices"
+        },
+        {
+          "id": "history",
+          "label": "Plan history"
+        }
+      ]
+    },
+    {
+      "route": "/admin/design",
+      "file": "app/admin/design/page.tsx",
+      "tabs": [
+        {
+          "id": "pages",
+          "label": "Pages"
+        },
+        {
+          "id": "compare",
+          "label": "Compare"
+        },
+        {
+          "id": "dossiers",
+          "label": "Dossiers"
+        },
+        {
+          "id": "versions",
+          "label": "Site versions"
+        }
+      ]
+    },
+    {
+      "route": "/admin/equipment",
+      "file": "app/admin/equipment/page.tsx",
+      "tabs": [
+        {
+          "id": "today",
+          "label": "Today"
+        },
+        {
+          "id": "check-in-out",
+          "label": "Check in / out"
+        },
+        {
+          "id": "schedule",
+          "label": "Schedule"
+        },
+        {
+          "id": "maintenance",
+          "label": "Maintenance"
+        },
+        {
+          "id": "supplies",
+          "label": "Supplies"
+        },
+        {
+          "id": "templates",
+          "label": "Templates"
+        },
+        {
+          "id": "cleanup",
+          "label": "Cleanup queue"
+        },
+        {
+          "id": "valuation",
+          "label": "Valuation"
+        },
+        {
+          "id": "vehicles",
+          "label": "Vehicles"
+        },
+        {
+          "id": "audit",
+          "label": "Overrides"
+        }
+      ]
+    },
+    {
+      "route": "/admin/finances",
+      "file": "app/admin/finances/page.tsx",
+      "tabs": [
+        {
+          "id": "overview",
+          "label": "Overview"
+        },
+        {
+          "id": "schedule-c",
+          "label": "Job profitability"
+        },
+        {
+          "id": "reconcile",
+          "label": "Reconcile"
+        },
+        {
+          "id": "payroll-tax",
+          "label": "Payroll tax"
+        },
+        {
+          "id": "reports",
+          "label": "Reports"
+        }
+      ]
+    },
+    {
+      "route": "/admin/hours",
+      "file": "app/admin/hours/page.tsx",
+      "tabs": [
+        {
+          "id": "my-time",
+          "label": "My time"
+        },
+        {
+          "id": "assignments",
+          "label": "Assignments"
+        },
+        {
+          "id": "approvals",
+          "label": "Approvals"
+        },
+        {
+          "id": "team",
+          "label": "Field team"
+        },
+        {
+          "id": "time-off",
+          "label": "Time off"
+        },
+        {
+          "id": "availability",
+          "label": "Availability"
+        }
+      ]
+    },
+    {
+      "route": "/admin/invoicing",
+      "file": "app/admin/invoicing/page.tsx",
+      "tabs": [
+        {
+          "id": "invoices",
+          "label": "Invoices"
+        },
+        {
+          "id": "collections",
+          "label": "Collections"
+        },
+        {
+          "id": "incoming",
+          "label": "Incoming"
+        },
+        {
+          "id": "categories",
+          "label": "Categories"
+        }
+      ]
+    },
+    {
+      "route": "/admin/jobs",
+      "file": "app/admin/jobs/page.tsx",
+      "tabs": [
+        {
+          "id": "jobs",
+          "label": "Jobs"
+        },
+        {
+          "id": "projects",
+          "label": "Projects"
+        },
+        {
+          "id": "field-data",
+          "label": "Field data"
+        },
+        {
+          "id": "activity",
+          "label": "Activity"
+        },
+        {
+          "id": "weather",
+          "label": "Weather"
+        },
+        {
+          "id": "compliance",
+          "label": "Compliance"
+        }
+      ]
+    },
+    {
+      "route": "/admin/learn",
+      "file": "app/admin/learn/page.tsx",
+      "tabs": [
+        {
+          "id": "hub",
+          "label": "Hub"
+        },
+        {
+          "id": "roadmap",
+          "label": "Roadmap"
+        },
+        {
+          "id": "modules",
+          "label": "Modules"
+        },
+        {
+          "id": "knowledge-base",
+          "label": "Knowledge base"
+        },
+        {
+          "id": "references",
+          "label": "References"
+        },
+        {
+          "id": "flashcards",
+          "label": "Flashcards"
+        },
+        {
+          "id": "flashcard-bank",
+          "label": "Card bank"
+        },
+        {
+          "id": "practice",
+          "label": "Practice"
+        },
+        {
+          "id": "quiz-history",
+          "label": "Quiz history"
+        },
+        {
+          "id": "search",
+          "label": "Search"
+        }
+      ]
+    },
+    {
+      "route": "/admin/learn/manage",
+      "file": "app/admin/learn/manage/page.tsx",
+      "tabs": [
+        {
+          "id": "modules",
+          "label": "Modules"
+        },
+        {
+          "id": "lessons",
+          "label": "Lessons"
+        },
+        {
+          "id": "articles",
+          "label": "Articles"
+        },
+        {
+          "id": "questions",
+          "label": "Questions"
+        },
+        {
+          "id": "flashcards",
+          "label": "Flashcards"
+        },
+        {
+          "id": "xp_config",
+          "label": "XP Config"
+        },
+        {
+          "id": "assignments",
+          "label": "Assignments"
+        },
+        {
+          "id": "student_overrides",
+          "label": "Student Overrides"
+        },
+        {
+          "id": "activity",
+          "label": "Activity"
+        },
+        {
+          "id": "recycle_bin",
+          "label": "Recycle Bin${recycleBin.length > 0 ? "
+        },
+        {
+          "id": "media",
+          "label": "Media"
+        },
+        {
+          "id": "question_builder",
+          "label": "Question Builder"
+        }
+      ]
+    },
+    {
+      "route": "/admin/marketing",
+      "file": "app/admin/marketing/page.tsx",
+      "tabs": [
+        {
+          "id": "overview",
+          "label": "Overview"
+        },
+        {
+          "id": "leads",
+          "label": "Leads"
+        },
+        {
+          "id": "spend",
+          "label": "Spend"
+        },
+        {
+          "id": "conversions",
+          "label": "Conversions"
+        },
+        {
+          "id": "uploads",
+          "label": "Connection & uploads"
+        }
+      ]
+    },
+    {
+      "route": "/admin/messages",
+      "file": "app/admin/messages/page.tsx",
+      "tabs": [
+        {
+          "id": "inbox",
+          "label": "Inbox"
+        },
+        {
+          "id": "directory",
+          "label": "Team directory"
+        },
+        {
+          "id": "contacts",
+          "label": "Contacts"
+        },
+        {
+          "id": "discussions",
+          "label": "Discussions"
+        },
+        {
+          "id": "email",
+          "label": "Email"
+        },
+        {
+          "id": "settings",
+          "label": "Settings"
+        }
+      ]
+    },
+    {
+      "route": "/admin/pay",
+      "file": "app/admin/pay/page.tsx",
+      "tabs": [
+        {
+          "id": "my-pay",
+          "label": "My pay"
+        },
+        {
+          "id": "payroll",
+          "label": "Payroll"
+        },
+        {
+          "id": "ledger",
+          "label": "Payouts"
+        },
+        {
+          "id": "payout-runs",
+          "label": "Payout runs"
+        },
+        {
+          "id": "withdrawals",
+          "label": "Withdrawals"
+        },
+        {
+          "id": "history",
+          "label": "Pay changes"
+        },
+        {
+          "id": "rates",
+          "label": "Rates"
+        },
+        {
+          "id": "rewards",
+          "label": "Rewards"
+        },
+        {
+          "id": "rewards-admin",
+          "label": "Manage rewards"
+        },
+        {
+          "id": "how-rewards-work",
+          "label": "How rewards work"
+        }
+      ]
+    },
+    {
+      "route": "/admin/people",
+      "file": "app/admin/people/page.tsx",
+      "tabs": [
+        {
+          "id": "directory",
+          "label": "Directory"
+        },
+        {
+          "id": "employees",
+          "label": "Employees"
+        },
+        {
+          "id": "accounts",
+          "label": "Accounts"
+        },
+        {
+          "id": "invites",
+          "label": "Invites"
+        },
+        {
+          "id": "roles",
+          "label": "Roles"
+        },
+        {
+          "id": "requests",
+          "label": "Requests"
+        }
+      ]
+    },
+    {
+      "route": "/admin/receipts",
+      "file": "app/admin/receipts/page.tsx",
+      "tabs": [
+        {
+          "id": "queue",
+          "label": "Queue"
+        },
+        {
+          "id": "cards",
+          "label": "Cards"
+        },
+        {
+          "id": "rebilled",
+          "label": "Rebilled"
+        },
+        {
+          "id": "mileage",
+          "label": "Mileage"
+        }
+      ]
+    },
+    {
+      "route": "/admin/research",
+      "file": "app/admin/research/page.tsx",
+      "tabs": [
+        {
+          "id": "projects",
+          "label": "Projects"
+        },
+        {
+          "id": "coverage",
+          "label": "Coverage"
+        },
+        {
+          "id": "library",
+          "label": "Library"
+        },
+        {
+          "id": "sites",
+          "label": "Data sources"
+        },
+        {
+          "id": "self-heal",
+          "label": "Site health"
+        },
+        {
+          "id": "pipeline",
+          "label": "Pipeline"
+        },
+        {
+          "id": "billing",
+          "label": "Billing"
+        }
+      ]
+    },
+    {
+      "route": "/admin/settings",
+      "file": "app/admin/settings/page.tsx",
+      "tabs": [
+        {
+          "id": "general",
+          "label": "General"
+        },
+        {
+          "id": "company",
+          "label": "Company"
+        },
+        {
+          "id": "pages",
+          "label": "Pages"
+        },
+        {
+          "id": "org-profile",
+          "label": "Org profile"
+        },
+        {
+          "id": "orgs",
+          "label": "Organisations"
+        },
+        {
+          "id": "users",
+          "label": "User Access"
+        },
+        {
+          "id": "notifications",
+          "label": "Notifications"
+        },
+        {
+          "id": "integrations",
+          "label": "Integrations"
+        },
+        {
+          "id": "billing",
+          "label": "Billing"
+        }
+      ]
+    },
+    {
+      "route": "/admin/support",
+      "file": "app/admin/support/page.tsx",
+      "tabs": [
+        {
+          "id": "tickets",
+          "label": "Support"
+        },
+        {
+          "id": "error-log",
+          "label": "Errors"
+        },
+        {
+          "id": "audit",
+          "label": "Audit log"
+        }
+      ]
+    }
+  ]
+}

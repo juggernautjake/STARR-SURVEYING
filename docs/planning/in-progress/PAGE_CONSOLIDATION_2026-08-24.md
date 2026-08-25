@@ -2067,20 +2067,47 @@ a link on purpose; they are not well served by doing it invisibly.
       The walk asserts it found **more than 100 route files** before checking anything. A scan that
       quietly matched nothing would pass this test forever while proving nothing — the exact shape of
       four separate bugs already recorded in this session.
-- [ ] **T6 — Tab-level toggles** — **DEFERRED to C2, deliberately, by §11.3's own argument.**
+- [x] **T6 — Tab-level toggles** — **DONE 2026-08-25. The deferral's premise expired and was checked
+      before building on it.**
 
-      *"Building it against 138 routes and then rebuilding it against 29 portals is the work done
-      twice."* The portal shell does not exist yet, so there are no tabs to switch off: every
-      destination in the product is still a route, and T1–T5 cover all of them.
+      §11.3 parked this: *"Building it against 138 routes and then rebuilding it against 29 portals
+      is the work done twice."* The portals exist now — **17 of them, holding 110 tabs** — so the
+      reason to wait is gone.
 
-      **The groundwork is done and is not speculative.** `toggleKey('/admin/pay', 'rewards')` and
-      `isDestinationEnabled` already exist and are tested, including the case that matters — a tab of
-      a switched-off portal reads as off, because asking only about the tab's own key would leave
-      every tab of a disabled portal reporting as enabled: true in the stored data and useless as an
-      answer, since nobody can reach any of them.
+      **What was actually missing is not what the deferral implied.** The READ half was already here
+      and already tested: `canSeeTab` calls `isDestinationEnabled(toggles, spec.route, tab.id)` and
+      `toggleKey` builds `route#tab`. What was missing is that **nothing ever produced such a key** —
+      `/api/admin/feature-toggles` listed routes only, so the control could not be reached from
+      anywhere and the mechanism sat there answering a question nobody could put to it. This
+      repository's most common defect, authored-and-not-wired, sitting in its own settings page.
 
-      So C2 has to call one function, not design a mechanism. That is the difference between parking
-      work and parking a decision, and this doc has a §11.3 saying which one this is.
+      The endpoint now emits one switch per tab, labelled by its portal ("Growth → Leads"), and the
+      settings UI needed **no change at all**: it renders destinations generically and saves by
+      `dest.key`. §11.3 predicted that — *"C2 has to call one function, not design a mechanism"* —
+      and it was right about the shape while wrong about which half was missing.
+
+      **The tab list is generated, not imported and not hand-written.** Portal specs live in
+      `'use client'` pages, and a Route Handler that imports one gets a client-reference proxy: the
+      object is not there and nothing throws, which is how C9 lost an afternoon with 26,194 tests
+      green. So `scripts/derive-portal-tabs.mjs` writes `lib/admin/portal/tabs.generated.json`, has a
+      `--check` mode, and a test regenerates and compares — a second copy of a list is what broke the
+      API bundle mirror **nine times in nine slices**, and the only thing that has ever helped is a
+      test that notices.
+
+      **The parser was wrong twice before it was right, and both cases are kept as tests:**
+
+      | Symptom | Cause |
+      |---|---|
+      | `/admin/messages` had `contacts` twice | a comment in that page discusses `id: 'contacts'` in prose — the parser read a sentence about the code as the code |
+      | `/admin/marketing` lost `uploads` | that entry carries a comment BETWEEN its `id` and its `label`, and the first attempt required them adjacent |
+
+      Comments are stripped first, line before block — the same lesson this plan learned in
+      `__tests__/research/api-access.test.ts`, arriving in a third place.
+
+      **Verified end to end in a browser rather than from the source.** `/admin/jobs` showed Jobs ·
+      Projects · Field data · Activity · Weather · Compliance; switching off `/admin/jobs#weather`
+      through the same API the settings page uses left Jobs · Projects · Field data · Activity ·
+      Compliance; restoring put Weather back and the stored row byte-for-byte to what it was.
 
 ## §12. The workspaces — the answer §10 delegated
 
