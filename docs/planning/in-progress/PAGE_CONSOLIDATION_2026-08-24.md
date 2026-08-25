@@ -1534,8 +1534,17 @@ early, and the internal tooling comes last.
       only cost is that §4's table stays one row short of done; (b) absorb it and accept that only
       admins keep company notes; (c) absorb it and widen `/admin/settings` to the three, which means
       deciding whether a `developer` should see the company's settings page at all.
-- [ ] **C13 — the workspace decision itself.** §10 says *"Workspaces — DELEGATED to me. My answer is
-      in §12"* — **and §12 was never written.** That is the open item, not a slice of code.
+- [x] **C13 — the workspace decision itself.** **ANSWERED 2026-08-25 — see §12 at the end of this
+      document.** §10 said *"Workspaces — DELEGATED to me. My answer is in §12"* and §12 was never
+      written; it is written now.
+
+      **The answer: keep the seven, and fix the two that make the idea look arbitrary.** 42 rail
+      links across 7 workspaces is six per group, which is a navigable list, and §6's threshold of
+      ~29 is not met — what remains to absorb will not get it there. But `equipment` holds exactly
+      ONE rail link (its own portal, with three hidden routes behind it), and `knowledge` has no
+      landing page while the other six do. Neither is a big change and neither belongs in the same
+      slice as a merge, which is §6's own warning. The trigger to revisit is stated so it can be
+      checked rather than felt: **rail links below 30.**
 
       Measured after C3–C13e: **42 rail links across 7 workspaces**, six of which have a
       landing page of their own. §6 said the 7-way split stops earning its keep at ~29 links and that
@@ -2060,3 +2069,70 @@ a link on purpose; they are not well served by doing it invisibly.
 
       So C2 has to call one function, not design a mechanism. That is the difference between parking
       work and parking a decision, and this doc has a §11.3 saying which one this is.
+
+## §12. The workspaces — the answer §10 delegated
+
+§10 said *"Workspaces — DELEGATED to me. My answer is in §12, with the reasoning, as a later slice."*
+§12 was never written. This is it, written on 2026-08-25 with the consolidation far enough along to
+answer with measurements instead of a guess.
+
+### What §6 said to wait for
+
+> With 29 destinations, **the 7-workspace split may stop earning its keep.** Workspaces exist to make
+> 138 links navigable; 29 links fit in one grouped list. […] it should be made AFTER a few portals
+> ship, not designed up front on a guess.
+
+### What is actually there now
+
+**42 rail links across 7 workspaces**, down from 138.
+
+| Workspace | Rail links | Landing page | Sections |
+|---|---|---|---|
+| `hub` | 8 | yes | none |
+| `work` | 6 | yes | none |
+| `equipment` | **1** | yes | none |
+| `research-cad` | 4 | yes | none |
+| `knowledge` | 6 | **no** | none |
+| `money` | 7 | yes | 4 |
+| `office` | 10 | yes | 4 |
+
+### The answer: keep the seven, and fix the two that make the idea look arbitrary
+
+**42 links across 7 groups is six per group.** That is a navigable list, and §6's threshold of ~29 is
+not met — C13f and whatever the owner decides about the four personal-vs-company pages will move it a
+little, not to 29. Deleting the workspace concept now would be re-arranging navigation for the second
+time in one week on a number that has not arrived.
+
+**But two of the seven are anomalies, and they are why the split reads as arbitrary rather than as a
+map:**
+
+1. **`equipment` holds exactly one rail link — its own portal.** Three more routes are registered and
+   hidden. A workspace whose entire visible content is its own landing page is not a room; it is a
+   door with a sign saying "door". Either `/admin/equipment` moves into `work` — it *is* work, and
+   `work` would go to 7, still the smallest group but a real one — or the concept is admitting that a
+   workspace can have one thing in it, which makes the other six harder to defend.
+
+2. **`knowledge` has no landing page while the other six do.** `/admin/learn` is its landing in
+   everything but registration: it is the first link, it is the portal, and C11a gave it ten tabs.
+   The inconsistency is bookkeeping, not design.
+
+**Neither is a big change, and neither should be made in the same slice as a merge** — §6's own
+warning, which held all the way through C3–C13e and should hold for one more step.
+
+### The trigger, stated so it can be checked rather than felt
+
+Revisit the seven-workspace split when **rail links fall below 30**, which needs roughly a dozen more
+absorptions than remain. If that never happens, the split stays: seven groups of six is a working
+navigation, and the reason to delete it was never elegance but a link count that no longer exists.
+
+### What this does not decide
+
+Four pages are stuck on the personal-vs-company question and they are one decision, not four —
+`announcements`, `notifications`, `me/privacy` and `my-files`. Each is ungated and personal; each has
+a company page it "belongs" to that is gated more narrowly; folding any of them in removes it from
+the nav of everyone outside those roles. The question is: **does the Hub own the personal view of a
+thing, or does the company page render a personal view of it for whoever opens it?** §5.2's
+role-driven rendering is the second answer; the `hub` workspace already is the first. That is a
+product decision about the shape of the app and it is not delegated — it is in §13 for the owner.
+
+---
