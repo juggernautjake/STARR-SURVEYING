@@ -468,7 +468,58 @@ mechanism behind "active" instead of being a label.
         reaches nobody."* — checked there because every write goes through it and only one of them
         is an HTTP request.
 - [ ] **W2 — the studio can place widgets**, reading `lib/hub/widget-registry` — the palette, the
-      grid, `minSize`/`maxSize`, `allowedRoles` shown on each.
+      placement, the sizing envelope.
+
+      **The palette half shipped 2026-08-25** (`lib/design/widget-palette.ts` + `.client.ts`); the
+      canvas half — dragging one onto an artboard and honouring `minSize`/`maxSize` — is what
+      remains.
+
+      **A correction worth keeping, because the first version was wrong for an interesting reason.**
+      This was built as `GET /api/admin/design/widgets`, on the reasoning that importing the registry
+      into the studio would pull all 54 widget implementations into its bundle just to draw a list of
+      names — the same seam as `/api/admin/design/import`, which hands the tracer a class index
+      rather than making a `.mjs` script import TypeScript.
+
+      Sound reasoning, wrong conclusion: **the registry does not exist on the server.** Every widget
+      module begins with `'use client'`, so in a Route Handler Next replaces it with a
+      client-reference proxy and never executes its body. `defineWidget()` never fires and
+      `allWidgets()` returns `[]`. Confirmed rather than assumed afterwards — `AddWidgetModal` and
+      `GridEditor` are the only two consumers of `allWidgets()` in the codebase and both are client
+      components. There has never been a server-side reader.
+
+      It was caught on the **first request** only because the endpoint **refused** an empty palette
+      instead of returning one. Had it shipped `[]`, the studio would have rendered "no widgets
+      available" and the obvious suspect would have been the studio, not the endpoint that had
+      already answered 200. The refusal was written on a general principle — an empty palette is
+      indistinguishable from a product with no widgets — and it turned out to be the thing that
+      found the bug.
+
+      So the bundle cost is accepted rather than engineered around: `/admin/me` already imports
+      `register-all` for exactly this reason, and the studio is developer-only. The alternative is
+      splitting metadata out of 54 widget modules, which would put every widget's description in a
+      different file from the widget.
+
+      What survives the correction is the **projection**: `toPaletteWidget` strips a definition to
+      ten serialisable fields, so no React component ever reaches a stored design, a JSON payload or
+      a test. Field by field, not a spread — a spread would carry every future field into a payload
+      by default, including the next component somebody adds.
+
+      Two decisions the tests pin:
+
+      · **`allowedRoles` and `requiresBundle` are answered separately.** One is about the viewer, the
+        other about the firm; they have different remedies (change the role vs. buy the bundle), and
+        one boolean for both makes *"why is this widget missing"* unanswerable.
+      · **A placed widget is a `catalogue` element with a namespaced id** (`widget:receipts-queue`),
+        not a fourth `ElementKind`. A new kind would give every switch in the studio — renderer,
+        layers panel, exporter, punch list, conformance matcher — another arm, and the ones nobody
+        updated would fall through to a default that draws nothing.
+
+      And `placementWarning` exists for the failure this whole feature invites: somebody designs the
+      employee portal, places an admin-only widget on it, saves, and **every employee sees a gap**.
+      Nothing errored; nothing was invalid; the page is quietly wrong for the only people who open
+      it. The editor must not forbid it — a firm composition legitimately holds widgets only some
+      viewers see — so it says so instead, and says *nothing* for the ordinary case, because a
+      warning on every placement is one nobody reads.
 - [ ] **W3 — a composition can be previewed live** at `/admin/design/serve`, rendering real widgets
       with real data rather than an artboard.
 - [ ] **W4 — a portal view renders its composition when one is active**, falling back to its hand-built
