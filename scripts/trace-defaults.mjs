@@ -151,6 +151,63 @@ function reportChanges(changes, indent) {
   }
 }
 
+/**
+ * A capture that is a fraction of its other viewport was taken too early — so take it again.
+ *
+ * ── THE MEASUREMENT THAT PROMPTED THIS ──────────────────────────────────────────────────────────
+ *
+ * Of 191 stored defaults, five had one viewport at three times the other or worse:
+ *
+ *     /admin/learn · card-bank                 21 desktop   598 mobile   28.5x
+ *     /admin/research · data-sources           19 desktop   251 mobile   13.2x
+ *     /admin/marketing · connection-uploads    28 desktop   282 mobile   10.1x
+ *     /admin/hours · field-team                22 desktop   105 mobile    4.8x
+ *     /admin/finances · job-profitability      29 desktop    91 mobile    3.1x
+ *
+ * **All five short on DESKTOP, and desktop is the viewport this walk captures first.** That is not
+ * a coincidence, it is a systematic bias: the first capture happens straight after the navigation
+ * and the second gets the benefit of everything the first waited through. `/admin/work` traced 70
+ * desktop and 2 mobile once, and the note left behind called it "a capture taken while the page was
+ * still arriving" — the same fault with the viewports the other way round.
+ *
+ * It is not theoretical drift either: `connection-uploads` measured 283 desktop elements when its
+ * portal was traced alone, and 28 when the full sweep re-traced it. **A good record was replaced by
+ * a bad one**, which is the specific harm a locked default exists to prevent.
+ *
+ * A page genuinely differs between 1440 and 390 — a table becomes cards, a rail collapses — so some
+ * difference is expected and 3x is deliberately generous. A MULTIPLE is not layout, it is a page
+ * half-drawn.
+ *
+ * `reopen(viewId)` puts the page back the way that viewport saw it; for a route that is a
+ * navigation, for a state it is `openState`. The better of the two readings wins, because the
+ * failure is always a capture that is too SMALL — nothing renders extra elements by waiting.
+ */
+async function recaptureIfLopsided(captures, reopen, label) {
+  const d = captures.desktop?.length ?? 0;
+  const m = captures.mobile?.length ?? 0;
+  const hi = Math.max(d, m);
+  const lo = Math.min(d, m);
+  if (hi < 10 || lo === 0 || hi / lo < 3) return captures;
+
+  const short = d < m ? 'desktop' : 'mobile';
+  const before = short === 'desktop' ? d : m;
+  console.log(`        ⟳ ${label}: ${d} desktop vs ${m} mobile — re-capturing ${short}`);
+
+  const again = await reopen(short);
+  if (!again) {
+    console.log(`        ⟳ ${label}: could not re-open at ${short}; keeping the first reading`);
+    return captures;
+  }
+  if (again.length > before) {
+    console.log(`        ⟳ ${label}: ${short} ${before} → ${again.length} elements`);
+    return { ...captures, [short]: again };
+  }
+  // Said out loud rather than swallowed: if the second reading is no better, the asymmetry is real
+  // and belongs to the page, and somebody should look at it rather than assume the tool handled it.
+  console.log(`        ⟳ ${label}: ${short} still ${again.length} — the difference looks real`);
+  return captures;
+}
+
 async function freshPage() {
   try { await page.close(); } catch { /* already gone — that is why we are here */ }
   page = await ctx.newPage();
@@ -398,6 +455,15 @@ for (const [i, target] of todo.entries()) {
       continue;
     }
 
+    // Before storing: is one viewport a fraction of the other? See `recaptureIfLopsided`.
+    Object.assign(captures, await recaptureIfLopsided(captures, async (viewId) => {
+      await page.setViewportSize(VIEWPORTS[viewId]);
+      await page.goto(`${BASE}${target.route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
+      if (!await waitForPageReady(page)) return null;
+      await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+      return page.evaluate(CAPTURE, classes);
+    }, target.route));
+
     const res = await page.request.fetch(`${BASE}/api/admin/design/import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -464,6 +530,13 @@ for (const [i, target] of todo.entries()) {
             : `        · ${st.key}: could not reach it — not stored`);
           continue;
         }
+        // Same guard as the route. States are where the five lopsided records actually were.
+        Object.assign(stateCaptures, await recaptureIfLopsided(stateCaptures, async (viewId) => {
+          await page.setViewportSize(VIEWPORTS[viewId]);
+          if (!await openState(page, BASE, target.route, st)) return null;
+          return page.evaluate(CAPTURE, classes);
+        }, `${st.key}`));
+
         const stateRes = await page.request.fetch(`${BASE}/api/admin/design/import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

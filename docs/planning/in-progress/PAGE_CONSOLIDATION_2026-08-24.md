@@ -358,6 +358,48 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14g — FIVE RECORDS WERE HALF A PAGE, AND THE BIAS WAS SYSTEMATIC, 2026-08-25** ──
+
+      A line went past in the sweep's output — `data-sources: 19 desktop · 251 mobile` — and thirteen
+      times more content on a phone than on a desktop is not a layout. Measured across all 191 stored
+      defaults, five have one viewport at 3x the other or worse:
+
+      | record | desktop | mobile | |
+      |---|---|---|---|
+      | `/admin/learn · card-bank` | 21 | 598 | 28.5x |
+      | `/admin/research · data-sources` | 19 | 251 | 13.2x |
+      | `/admin/marketing · connection-uploads` | 28 | 282 | 10.1x |
+      | `/admin/hours · field-team` | 22 | 105 | 4.8x |
+      | `/admin/finances · job-profitability` | 29 | 91 | 3.1x |
+
+      **All five short on desktop — the viewport the walk captures FIRST.** That is a systematic bias
+      rather than five accidents: the first capture happens straight after the navigation, and the
+      second inherits everything the first waited through. The same fault is already recorded in this
+      tool with the viewports reversed — `/admin/work` once traced 70 desktop and 2 mobile, and the
+      note called it *"a capture taken while the page was still arriving."*
+
+      And it is not harmless drift. `connection-uploads` measured **283** desktop elements when its
+      portal was traced alone, and **28** when the full sweep re-traced it. A good record was replaced
+      by a bad one — the specific harm a locked default exists to prevent.
+
+      `recaptureIfLopsided()` now re-takes the short viewport before storing, at both capture sites.
+      3x is deliberately generous: a table becoming cards is layout, a multiple is a half-drawn page.
+      The better reading wins, because this failure only ever makes a capture too SMALL — nothing
+      renders extra elements by waiting. When the second reading is no better it says so out loud
+      rather than swallowing it, because then the asymmetry is real and belongs to the page.
+
+      Verified live on the worst offender it could reach:
+
+      ```
+      ⟳ connection-uploads: 31 desktop vs 285 mobile — re-capturing desktop
+      ⟳ connection-uploads: desktop 31 → 286 elements
+        connection-uploads desktop: 28 → 283 elements · +8 new: .mu__connect .mu__pending
+      ```
+
+      **Two slices compounding, which is worth noting as a pattern.** C14f made a silent replacement
+      speak; C14g is what the speaking revealed. Neither would have found this alone — the guard
+      needed a number to compare against, and the reporting needed something worth reporting.
+
       ── **C14d — THE STRIPPER ITSELF WAS WRONG, IN SIX PLACES, 2026-08-25** ──
 
       Acting on that last line turned up something bigger than the tidying it was meant to be.
