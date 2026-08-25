@@ -358,6 +358,46 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14h — THE COMPLETENESS QUESTION, ANSWERED IN NUMBERS, 2026-08-25** ──
+
+      C14's first line is "re-derive the dossiers and re-trace the defaults", and until now nobody had
+      stated what finished would look like. Measured against the route inventory:
+
+      | artefact | present | missing, decomposed |
+      |---|---|---|
+      | route-level default | 61 of 200 | 83 redirect stubs + 56 public/non-admin + **0 admin pages** |
+      | dossier | 137 of 200 | 7 redirect stubs + 56 public/non-admin + **0 admin pages** |
+      | portal tab default | **107 of 110** | the three on `/admin/support`, traced at the end of the sweep |
+
+      **"139 routes have no default" is the alarming way to say "the consolidation worked."** 83 of
+      them are stubs this plan created, and a stub SHOULD have no default — the tracer retires the
+      design and skips the route, because a record of a forward is a record of somebody else's page.
+      The other 56 are public and `/AndrewAsh` routes that this admin sweep never claimed.
+
+      **Zero admin pages are genuinely without either artefact**, and no record points at a route that
+      no longer exists.
+
+      ── **AND A FALSE POSITIVE OF MY OWN, WHICH IS THE ENTRY'S REAL LESSON** ──
+
+      The first decomposition reported exactly one genuine gap, `/admin/design/dossiers`, and it was
+      wrong. That page IS a stub; my script copied the tracer's stub regex, which requires a
+      no-argument component and a single-quoted literal, and this one takes `searchParams` and
+      redirects to a COMPUTED target — deliberately, so `?route=` survives the forward. The doc
+      already recorded that this detector declines three pages of that shape. **I copied a detector
+      along with its documented blind spot, and wrote a comment justifying the copy.**
+
+      The tracer itself was never wrong: it navigated, saw the forward and skipped the route. Only the
+      ad-hoc measurement was. Widening the test to "imports `redirect`, renders no JSX" took the count
+      from 1 to 0. No product change was needed, which is the point — *the finding was in the ruler
+      again, and this time I had written the ruler ten minutes earlier.*
+
+      ── **A NUMBER FOR §13.3, FALLING OUT OF THE SAME MEASUREMENT** ──
+
+      83 stubs have no default; only 7 stubs have no dossier. So **76 stubs still carry a dossier for
+      a route that now forwards** — because a default can be archived and a dossier cannot: the table
+      has no `status` and no `deleted_at`. That is exactly the question §13.3 puts to the owner, and
+      it now has a size rather than an adjective.
+
       ── **C14g — FIVE RECORDS WERE HALF A PAGE, AND THE BIAS WAS SYSTEMATIC, 2026-08-25** ──
 
       A line went past in the sweep's output — `data-sources: 19 desktop · 251 mobile` — and thirteen
