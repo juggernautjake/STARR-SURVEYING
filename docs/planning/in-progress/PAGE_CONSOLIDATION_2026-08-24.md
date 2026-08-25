@@ -235,14 +235,20 @@ is **per-ITEM approval** — today the decision is per receipt.
       two disagreed across the very decision that created them. One definition, before the first
       screen reads `total_cents` again.
 
-      **Premise checked 2026-08-25, and it is better than written — see §13.4.** There is exactly ONE
-      definition of deductibility in the tree today: `deductibleFraction()` in
-      `app/api/admin/finances/tax-summary/route.ts`. Nothing else converts a flag to a fraction, and
+      **Premise checked 2026-08-25, and it is better than written — see §13.4.** One function turns
+      the flag into a number: `deductibleFraction()` in `app/api/admin/finances/tax-summary/route.ts`.
       `ScheduleCTab` consumes that route's numbers rather than recomputing them. So the split this
-      item exists to repair **has not happened yet**, and P2.2c is a guard, not a rescue: move the
-      one definition out of a route file into `lib/receipts/` where a second author would find it,
-      and pin it with a test. **Not blocked on the owner's question** — relocating a definition
-      cannot change a number — so it can go before P2.2b rather than after.
+      item exists to repair **has not happened yet**, and P2.2c is a guard, not a rescue. **Not
+      blocked on the owner's question** — a guard cannot change a number — so it went before P2.2b.
+
+      **Guard shipped 2026-08-25**: `__tests__/receipts/one-definition-of-deductible.test.ts` fails
+      the moment a second converter appears, and pins the fact that the 50 lives in two places — the
+      fraction, and a sentence in `lib/finance/tax-summary.ts` that a search for arithmetic will
+      never find. Writing the guard while the count is one is worth more than the reconciliation
+      would be once it is two.
+
+      **Still open (small):** move the definition into `lib/receipts/` so a second author finds it
+      before writing their own. Ergonomics, not correctness, now that the tripwire is in place.
 - [ ] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
       receipts today. Per-line exemption changes what it is allowed to count, so P2.2 and P7 are
       one data model seen from two ends.
@@ -2867,12 +2873,28 @@ So a partly-deductible receipt has totalled correctly for some time. P2.2b even 
 text — *"`receipts.tax_deductible_flag` is the receipt-level answer"* — which means this section
 has been quoting a blocker its own action item had already resolved.
 
-**And `deductibleFraction()` is the ONLY definition of deductibility in the tree.** Searched: nothing
-else converts a flag to a fraction. That is worth saying plainly, because it inverts P2.2c's
-premise — the `effectiveHours` defect it fears has **not** happened here. P2.2c is a guard against a
-future second definition, not a repair of an existing split. Cheaper than the item implies, and it
-should be written as "keep the one definition, and move it somewhere a second author would find it"
-rather than "reconcile the divergent ones".
+**`deductibleFraction()` is the only place that turns the flag into a NUMBER.** Six files know the
+flag; five are a `<select>` option, a documented enum, a type union, what the AI may propose and what
+an edit may set. That inverts P2.2c's premise — the `effectiveHours` defect it fears has **not**
+happened here. P2.2c is a guard against a second definition, not a repair of an existing split.
+
+**One qualification, because the first version of this note overstated it.** The *arithmetic* has one
+home; the **constant does not**. `lib/finance/tax-summary.ts` separately tells a person *"Deductible
+at 50% — meals and entertainment limit"*, and its own comment says why it is spelled out: *"partial
+without the number is the kind of thing that gets re-derived wrongly at filing time."* So the 50 is
+written down twice, and the second copy is prose — invisible to any search for a computation. That
+is the effectiveHours shape before it has cost anything: not two answers yet, but two places one
+answer has to be changed, one of which nobody would think to look at.
+
+**Shipped 2026-08-25 — `__tests__/receipts/one-definition-of-deductible.test.ts`.** Three assertions:
+exactly one file pairs `case 'partial_50'` with a numeric return; that fraction is `0.5` and the
+sentence still says 50%; and the six files that know the flag are a named list, so a seventh is a
+deliberate edit. The predicate was checked against a synthetic second converter, a `<select>` option,
+a prose branch and a commented-out case — it catches the first and ignores the other three. A guard
+that has never been shown to fail is a guard nobody has tested.
+
+The remaining half of P2.2c — moving the definition into `lib/receipts/` where a second author would
+find it — is ergonomics, and can follow at any time.
 
 **What is actually open is one question, and it is narrow:**
 
