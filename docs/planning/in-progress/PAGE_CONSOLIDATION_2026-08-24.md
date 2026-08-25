@@ -488,6 +488,30 @@ is **per-ITEM approval** — today the decision is per receipt.
       the same story from the other side: the small-screen chrome was absent from records that
       claimed to be the small screen.
 
+      ── **AND THAT HALF HAS A SHARPER MECHANISM THAN "STYLES HAD NOT SETTLED"** ──
+
+      Checked the same way — the banner is not new either (`2026-02-11`). But it is a COMPONENT, not
+      a CSS rule, and reading it gives the real reason:
+
+      ```tsx
+      const [visible, setVisible] = useState(false);          // starts FALSE
+      useEffect(() => { const mq = window.matchMedia('(max-width: 767px)'); … });
+      if (!visible) return null;
+      ```
+
+      **The banner does not exist in the DOM until an effect runs.** Server-rendered HTML has it
+      absent; it appears only after hydration. So a capture taken before hydration completes records
+      a mobile page with no small-screen chrome — and nothing about that page is wrong.
+
+      This generalises past one banner: **any element gated behind a `useEffect` is missing from a
+      capture taken too early**, and that is precisely why `waitForPageReady` is not enough. It waits
+      for a heading or a button, and the shell renders those on the server — so it is satisfied by a
+      page whose client-side content has not begun. `captureStable` re-reads and catches them.
+
+      Worth stating as the general shape, because it explains the whole class this plan has been
+      chasing: **the tracer's job is to photograph a React app after it has finished being a React
+      app**, and every wait short of "the DOM stopped changing" is a proxy for that.
+
       **No new machinery for this.** `captureStable` re-reads until the count settles, which gives
       style recalculation the time it needed, and the evidence says it worked. Adding a bespoke
       media-query probe on top would be the fourth guess-shaped fix in a plan that has already
