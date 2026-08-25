@@ -156,14 +156,14 @@ describe('what the reader is told', () => {
 
 describe('the wiring, which is the part that was missing', () => {
   it('renders the collector arrivals that the ingest API had no UI for', () => {
-    const page = read('app/admin/field-data/page.tsx');
+    const page = read('app/admin/jobs/_tabs/FieldDataTab.tsx');
     expect(page).toContain('CollectorArrivals');
     expect(page).toContain('LiveFieldFeed');
-    expect(read('app/admin/field-data/CollectorArrivals.tsx')).toContain('/api/admin/field-ingest');
+    expect(read('app/admin/jobs/_tabs/CollectorArrivals.tsx')).toContain('/api/admin/field-ingest');
   });
 
   it('polls on the server’s cursor rather than the browser’s clock', () => {
-    const feed = read('app/admin/field-data/LiveFieldFeed.tsx');
+    const feed = read('app/admin/jobs/_tabs/LiveFieldFeed.tsx');
     expect(feed).toContain('cursorRef');
     expect(feed).not.toMatch(/since=\$\{new Date\(\)/);
     // A tab left open on a truck seat should not poll all afternoon.

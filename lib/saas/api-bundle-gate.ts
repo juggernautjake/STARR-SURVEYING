@@ -133,6 +133,13 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // value they had: a firm that could reach payroll yesterday must still reach it today.
   'payroll': { bundle: 'office', reason: 'The pay surfaces; mirrored /admin/payroll (money workspace) until C6 made it a tab.' },
   'rewards': { bundle: 'office', reason: 'The XP store; mirrored /admin/rewards (money workspace) until C6 made it a tab.' },
+  // C7, the fifth. `/admin/field-data` was in the `work` workspace, whose default is `office`, and
+  // it is a tab of the Jobs portal now. Same value, written out.
+  //
+  // Five slices, five breaks. The mechanism is not going to stop being true, so the remaining
+  // portals should expect it rather than rediscover it.
+  'field-data': { bundle: 'office', reason: 'Crew uploads; mirrored /admin/field-data (work workspace) until C7 made it a tab.' },
+  'timeline': { bundle: 'office', reason: 'The activity feed; mirrored /admin/timeline (work workspace) until C7 made it a tab.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

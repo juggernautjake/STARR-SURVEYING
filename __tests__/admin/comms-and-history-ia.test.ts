@@ -55,14 +55,23 @@ describe('§2.6 — five places to answer "what happened and who did it"', () =>
   it('names the right log for each question instead of merging four different tables', () => {
     expect(byHref('/admin/audit')?.description).toContain('compliance');
     expect(byHref('/admin/error-log')?.description).toContain('software itself');
-    // The timeline lives in Work, because it is a working feed — and says so, so nobody cites it in
-    // a compliance answer.
-    expect(byHref('/admin/timeline')?.description).toContain('not a compliance record');
+    // C7 (2026-08-25): the timeline is the Jobs portal's `activity` TAB now, so the sentence moved
+    // from a registry description to the tab's hint — which is where a person reads it, above the feed
+    // itself rather than in a menu tooltip.
+    //
+    // The invariant is the whole point of §2.6 and is asserted, not dropped: five places answer "what
+    // happened and who did it", and each has to say which question it answers. A consolidation that
+    // quietly lost this sentence would put the product back to four logs and no map.
+    const portal = read('app/admin/jobs/page.tsx');
+    expect(portal, 'the activity tab must still say it is not a compliance record')
+      .toContain('not a compliance record: the Audit Log is that');
   });
 
   it('points at the other three from the one somebody opens first', () => {
     const page = read('app/admin/audit/page.tsx');
-    for (const href of ['/admin/timeline', '/admin/error-log', '/admin/equipment/overrides']) {
+    // '/admin/timeline' and '/admin/equipment/overrides' are tabs now; the audit page links straight
+    // at them rather than through their redirects, so the hrefs it must contain are the tab URLs.
+    for (const href of ['/admin/jobs?tab=activity', '/admin/error-log', '/admin/equipment/overrides']) {
       expect(page, `${href} is not cross-linked from the audit log`).toContain(href);
     }
   });

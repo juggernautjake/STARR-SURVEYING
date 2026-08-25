@@ -873,7 +873,75 @@ early, and the internal tooling comes last.
 - [x] **P1.1** — the shell, the tab set, `?tab=` in the URL, bodies moved untouched. Shipped with C6.
 - [x] **P1.2** — redirect stubs for all ten absorbed routes. Shipped with C6, each verified in a browser.
 - [x] **P1.3** — the role views (§5). Shipped with C6; see the two-account table above.
-- [ ] **C7 — P4 Jobs** (6 → 1).
+- [x] **C7 — P4 Jobs & Projects.** Shipped 2026-08-25. **Seven nav rows became one** — three absorbed
+      as tabs, three demoted to buttons. `/admin/calendar` is **deliberately not among them**; see
+      below, because the reason is the most interesting thing in this slice.
+
+      `/admin/jobs` with tabs `jobs · projects · field-data · activity`, all browser-verified, plus
+      `New job`, `Import` and `New project` as buttons that kept their routes and their admin gates.
+
+      **The roles needed no union and no middleware change** — all three absorbed pages carried
+      exactly `['admin','developer','tech_support']`, the same list the portal already had. The first
+      portal in this plan where the four tabs simply agree about who may see them.
+
+      ── **WHY `/admin/calendar` IS NOT A TAB** ───────────────────────────────────────────────────
+
+      §4's table lists it. Absorbing it needed one of two things and §5's first rule refuses both:
+
+      · **`/admin/calendar` has no `roles`.** Every signed-in person sees it in their nav today. This
+        portal sits at `/admin/jobs`, whose middleware gate is
+        `['admin','developer','field_crew','researcher','tech_support']`. Absorbing the calendar under
+        that gate **takes it away from everybody else** — the narrowing C4's note called *"the same
+        sin as widening it, and harder to notice because nobody complains about access they never
+        had."*
+      · **Widening `/admin/jobs` is worse.** Middleware matches by PREFIX, and `/admin/jobs` is the
+        prefix of `/admin/jobs/[id]` and `/admin/jobs/[id]/field` — **job records**, which §4 says are
+        not touched. It would open a customer's job record to every role in the product as a side
+        effect of a navigation change.
+
+      There is no third option: middleware cannot express *"this path but not its dynamic children"*.
+      So the calendar keeps its route and its reach, and **C13 is the right place to decide where it
+      belongs** — that slice revisits the workspaces with the whole picture, which is exactly the
+      information this decision needs and does not have yet.
+
+      ── **THE STYLESHEET TRAP, AND THIS TIME THE CODEBASE HAD ALREADY WRITTEN IT DOWN** ──────────
+
+      `app/admin/projects/layout.tsx` carries a note from the last time somebody hit it:
+
+      > *"The projects pages were first written against `jobs-page__*`, which is declared in
+      > AdminJobs.css — a stylesheet imported by app/admin/jobs/layout.tsx and therefore scoped to the
+      > /admin/jobs route tree. Nothing under /admin/projects ever loaded it, so every header, button
+      > and title rendered as raw browser default **while reporting zero horizontal overflow**."*
+
+      Moving projects into this portal reverses the direction and re-creates the identical failure.
+      The portal imports `AdminProjects.css`, and it is **verified against the source rather than
+      eyeballed**: `.proj-page` computes to `margin: 0 0 24px`, and the stylesheet says
+      `.proj-page { margin-bottom: 1.5rem; }`. Same number, so the sheet is loaded and applying.
+
+      `AdminJobs.css` comes free — the portal lives inside `app/admin/jobs/`, whose layout still
+      loads it for the job records.
+
+      ── **AND ONE INVARIANT THAT HAD TO MOVE RATHER THAN BE DROPPED** ────────────────────────────
+
+      §2.6 of the platform audit found **five places answering "what happened and who did it"**, and
+      its fix was to make each one say which question it answers. `/admin/timeline`'s registry
+      description carried the sentence *"a working feed, not a compliance record: the Audit Log is
+      that"* — and a registry description dies with the row.
+
+      It is the `activity` tab's hint now, which is where a person actually reads it: above the feed
+      rather than in a menu tooltip. The test moved with it rather than being deleted, because a
+      consolidation that quietly lost that sentence would put the product back to four logs and no
+      map. The audit page's cross-link points at the tab too.
+
+      Eight test files went red; all were samples that moved, plus **two API groups** —
+      `/api/admin/timeline` and `/api/admin/field-data` — losing their page mirror. **Fifth mirror
+      break in five slices.** Both carried `office` via the `work` workspace and are written out at
+      that value. The mechanism is not going to stop being true, and the note in the file now says so.
+
+      *(One of my own repairs was wrong first: the Work-bundle sample swapped `/admin/timeline` for
+      `/admin/field-data`, which C7 absorbed in the same breath. Two absent routes is not an
+      improvement on one. It asserts `/admin/calendar` now — a Work route this slice deliberately
+      kept, so it is a real third case.)*
 - [ ] **C8 — P7 Books & Tax** + **P8 Customer Money** (7 → 2).
 - [ ] **C9 — P10 People** + **P11 Messages** (9 → 2).
 - [ ] **C10 — P6 Growth** (1 → 0 new links; leads into marketing).

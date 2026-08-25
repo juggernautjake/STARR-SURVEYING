@@ -97,10 +97,13 @@ describe('Research tooltip — multiline popup, not layout-shifting text', () =>
 });
 
 describe('Jobs page wires the popup Tooltip around the header buttons', () => {
-  const SRC = read('app/admin/jobs/page.tsx');
+  const SRC = read('app/admin/jobs/_tabs/JobsTab.tsx');
 
   it('imports the Tooltip component', () => {
-    expect(SRC).toMatch(/import Tooltip from '\.\.\/research\/components\/Tooltip'/);
+    // C7: the jobs list moved to `app/admin/jobs/_tabs/`, one level deeper, so the relative path
+    // gained a segment. What this asserts — the list uses the shared Tooltip rather than a bare
+    // `title` attribute — is unchanged.
+    expect(SRC).toMatch(/import Tooltip from '\.\.\/\.\.\/research\/components\/Tooltip'/);
   });
 
   it('wraps the Import Legacy + New Job buttons with <Tooltip text="…" position="bottom">', () => {

@@ -87,7 +87,7 @@ export default function CustomerAuditPage() {
             where somebody who opened the wrong log ends up first. */}
         <nav className="audit-elsewhere" aria-label="Other history surfaces">
           <span>Not what you are after?</span>
-          <Link href="/admin/timeline">Activity timeline</Link>
+          <Link href="/admin/jobs?tab=activity">Activity timeline</Link>
           <em>what the crew did today — a working feed, not a record</em>
           <Link href="/admin/error-log">Error log</Link>
           <em>failures inside the software itself</em>

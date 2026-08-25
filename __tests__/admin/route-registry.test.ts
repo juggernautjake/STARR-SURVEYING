@@ -108,7 +108,9 @@ describe('route-registry — breadcrumb trail (F1)', () => {
 
   it('a detail/[id] page gets a derived leaf + a clickable list ancestor', () => {
     const trail = breadcrumbTrail('/admin/jobs/9f8e7d6c-5b4a-3210-1234-567890abcdef');
-    expect(trail.map((c) => c.label)).toEqual(['Work', 'All Jobs', 'Job Detail']);
+    // C7 relabelled the row 'Jobs & Projects' when it absorbed projects, field data and activity.
+    // The trail SHAPE is what this guards — workspace → clickable list → current record — and it holds.
+    expect(trail.map((c) => c.label)).toEqual(['Work', 'Jobs & Projects', 'Job Detail']);
     // the list ancestor is a real, clickable route (not current)
     const list = trail.find((c) => c.href === '/admin/jobs');
     expect(list?.isCurrent).toBe(false);
@@ -137,11 +139,11 @@ describe('route-registry — breadcrumb trail (F1)', () => {
     expect(parentCrumb('/admin/me')).toBeNull();
     const p = parentCrumb('/admin/jobs/9f8e7d6c-5b4a-3210-1234-567890abcdef');
     expect(p?.href).toBe('/admin/jobs');
-    expect(p?.label).toBe('All Jobs');
+    expect(p?.label).toBe('Jobs & Projects');
   });
 
   it('routeLabel uses the registry label for registered routes', () => {
-    expect(routeLabel('/admin/jobs')).toBe('All Jobs');
+    expect(routeLabel('/admin/jobs')).toBe('Jobs & Projects');
     expect(routeLabel('/admin/research/testing')).toBe('Testing Lab');
   });
 

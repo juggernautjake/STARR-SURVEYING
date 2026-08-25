@@ -20,7 +20,14 @@ describe('bundleForRoute — workspace defaults', () => {
   it('Work routes default to "office" bundle', () => {
     expect(bundleForRoute('/admin/jobs')).toBe('office');
     expect(bundleForRoute('/admin/leads')).toBe('office');
-    expect(bundleForRoute('/admin/timeline')).toBe('office');
+    // C7: `/admin/timeline` was the third sample and is the Jobs portal's `activity` tab now, so it
+    // resolves to null like any unregistered path. Replaced with `/admin/calendar` — a Work route
+    // that C7 deliberately did NOT absorb, so it is a real third case rather than a second name for
+    // one of the two above.
+    //
+    // (The first attempt at this swapped in `/admin/field-data`, which C7 absorbed in the same
+    // breath. Two absent routes is not an improvement on one.)
+    expect(bundleForRoute('/admin/calendar')).toBe('office');
   });
 
   it('Equipment routes default to "office" bundle', () => {

@@ -50,9 +50,9 @@ describe('/admin/jobs — search row width + Deleted button height', () => {
   // the end of its `style={{ … }}`. Same intent, and it can no longer be tripped by a number that
   // belongs to something else.
   it('the Deleted toggle button takes its height from the shared token, not a literal', () => {
-    const SRC = read('app/admin/jobs/page.tsx');
+    const SRC = read('app/admin/jobs/_tabs/JobsTab.tsx');
     const toggle = SRC.match(/setShowDeleted\([\s\S]{0,1500}?\}\}/);
-    expect(toggle, 'could not find the Deleted toggle button in app/admin/jobs/page.tsx').not.toBeNull();
+    expect(toggle, 'could not find the Deleted toggle button in app/admin/jobs/_tabs/JobsTab.tsx').not.toBeNull();
     expect(toggle![0]).toMatch(/height:\s*'var\(--button-height\)'/);
     expect(toggle![0]).not.toMatch(/height:\s*\d+\s*,/);
   });

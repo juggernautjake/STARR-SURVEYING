@@ -53,7 +53,10 @@ const PAGES: Record<string, ComponentType> = {
     () => import('./ResearchPanelHarnessMount').then((m) => m.RotationPanelHarness), { ssr: false }),
   'research-vendor-accounts': nextDynamic(
     () => import('./ResearchPanelHarnessMount').then((m) => m.VendorAccountsPanelHarness), { ssr: false }),
-  jobs: nextDynamic(() => import('@/app/admin/jobs/page'), { ssr: false }),
+  // C7: `/admin/jobs` is a portal shell now. Pointed at the LIST, which is what this entry has
+  // always been a picture of — shooting the shell would replace a screenshot of the jobs table with
+  // one of a tab strip.
+  jobs: nextDynamic(() => import('@/app/admin/jobs/_tabs/JobsTab'), { ssr: false }),
   leads: nextDynamic(() => import('@/app/admin/leads/page'), { ssr: false }),
   notes: nextDynamic(() => import('@/app/admin/notes/page'), { ssr: false }),
   // C5: the harness shoots page BODIES, and `/admin/receipts` is a portal shell now. Pointed at the
@@ -98,7 +101,7 @@ const PAGES: Record<string, ComponentType> = {
   office: nextDynamic(() => import('@/app/admin/office/page'), { ssr: false }),
   'org-settings': nextDynamic(() => import('@/app/admin/org-settings/page'), { ssr: false }),
   profile: nextDynamic(() => import('@/app/admin/profile/ProfilePanel'), { ssr: false }),
-  timeline: nextDynamic(() => import('@/app/admin/timeline/page'), { ssr: false }),
+  timeline: nextDynamic(() => import('@/app/admin/jobs/_tabs/ActivityTab'), { ssr: false }),
   // C3: /admin/vehicles is a redirect now — it became the Equipment portal's `vehicles` tab.
   // The harness screenshots page BODIES, so it points at the component rather than at the route that
   // forwards to it; importing the redirect would render nothing and the shot would be of an empty

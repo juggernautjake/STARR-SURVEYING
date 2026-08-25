@@ -215,10 +215,21 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // These are listed BEFORE All Jobs deliberately. The nav is read top to bottom as the order you
   // do things in, and creating a job now begins by choosing its project. `All Jobs` used to carry
   // the keyword 'projects' — that keyword had no page behind it, and now it has its own.
-  { href: '/admin/projects',        label: 'All Projects',    workspace: 'work', iconName: 'FolderKanban',  description: 'Every client engagement, and the jobs inside it.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['project', 'engagement', 'client', 'parcel', 'tract'] },
-  { href: '/admin/projects/new',    label: 'New Project',     workspace: 'work', iconName: 'FolderPlus',    description: 'Start a project — the client and site its jobs will inherit.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add', 'project'] },
-  { href: '/admin/jobs',            label: 'All Jobs',        workspace: 'work', iconName: 'ListChecks',    description: 'Every job across every project, active + archived.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job'] },
-  { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Add a job to a project.', roles: ['admin'], internalOnly: true, keywords: ['create', 'add'] },
+  { href: '/admin/projects/new',    label: 'New Project',     workspace: 'work', iconName: 'FolderPlus',    description: 'Start a project — the client and site its jobs will inherit.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['create', 'add', 'project'] },
+  // ── C7: SEVEN NAV ROWS BECAME ONE ───────────────────────────────────────────────────────────
+  //
+  // `projects`, `timeline` and `field-data` are tabs; `jobs/new`, `jobs/import` and `projects/new`
+  // are buttons that kept their routes and their gates. Every one still forwards or resolves.
+  //
+  // The ROLES are unchanged — all three absorbed pages carried this exact list, so there is no union
+  // to take and nothing to widen. That is why this portal needed no middleware change, unlike C4 and
+  // C6: the four tabs agree about who may see them.
+  //
+  // `/admin/calendar` is deliberately NOT here — see the portal's header. It is ungated today, and
+  // absorbing it would either take it away from everybody who is not on this list, or force widening
+  // `/admin/jobs` — which is the middleware prefix of the job RECORDS.
+  { href: '/admin/jobs', label: 'Jobs & Projects', workspace: 'work', iconName: 'ListChecks', description: 'Every job and the projects they belong to, what the crews have sent back, and everything that happened.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['job', 'jobs', 'project', 'projects', 'site', 'client', 'field', 'field data', 'collector', 'upload', 'survey', 'activity', 'timeline', 'history', 'feed', 'new job', 'import'] },
+  { href: '/admin/jobs/new',        label: 'New Job',         workspace: 'work', iconName: 'FilePlus',      description: 'Add a job to a project.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['create', 'add'] },
   { href: '/admin/jobs/import',     label: 'Import Jobs',     workspace: 'work', iconName: 'Upload',        description: 'Bulk import jobs.', roles: ['admin'], internalOnly: true },
   { href: '/admin/leads',           label: 'Leads',           workspace: 'work', iconName: 'Inbox',         description: 'Inbound contact + lead queue.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['contacts', 'prospects'] },
   // ── FOUR ENTRIES BECAME ONE (A1, 2026-08-11) ──────────────────────────────────────────────────
@@ -243,8 +254,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // each PERSON is on. Registered so it is reachable and searchable — an unlinked settings page is
   // a setting nobody can change.
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
-  { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
-  { href: '/admin/timeline',        label: 'Activity Timeline', workspace: 'work', iconName: 'Activity',    description: 'What the firm did today — clock-ins, job stage changes, uploads. A working feed, not a compliance record: the Audit Log is that.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['daily', 'feed'] },
   { href: '/admin/finances',        label: 'Job Profitability',        workspace: 'money', section: 'Profitability', iconName: 'Briefcase',     description: 'What each job cost against what it earned. NOT invoicing — this is the answer to "are we pricing right?".', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['invoice', 'money'] },
   // /admin/vehicles was here. C3 made it the Equipment portal's `vehicles` tab — the plan's own
   // argument: *"it is fleet, and the dossiers show /admin/equipment already calls
