@@ -1,14 +1,12 @@
-// app/admin/design/compare/page.tsx — every version of one page, side by side.
+// app/admin/design/compare/page.tsx — absorbed by the Page Designer portal.
 //
-// Phase V of docs/planning/completed/DESIGN_THEMES_2026-08-23.md.
+// C12c of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
 //
-// Owner: *"create multiple versions of each page and preview them all."*
+// The route stays and forwards, and the directory stays with it: the board component and its
+// stylesheet still live here and the tab imports them from where they are.
 
-import type { Metadata } from 'next';
-import CompareBoard from './CompareBoard';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Compare designs' };
-
-export default function ComparePage() {
-  return <CompareBoard />;
+export default function Page() {
+  redirect('/admin/design?tab=compare');
 }

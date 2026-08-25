@@ -139,13 +139,13 @@ export default function DesignHome() {
           </p>
         </div>
         <nav className="dsx-home__links" aria-label="Design tools">
-          <Link className="dsx-home__compare" href="/admin/design/compare">
+          <Link className="dsx-home__compare" href="/admin/design?tab=compare">
             <Layers3 size={15} aria-hidden /> Compare versions
           </Link>
-          <Link className="dsx-home__compare" href="/admin/design/dossiers">
+          <Link className="dsx-home__compare" href="/admin/design?tab=dossiers">
             <FileText size={15} aria-hidden /> Page dossiers
           </Link>
-          <Link className="dsx-home__compare" href="/admin/design/versions">
+          <Link className="dsx-home__compare" href="/admin/design?tab=versions">
             <Rocket size={15} aria-hidden /> Site versions
           </Link>
           <Link className="dsx-home__compare" href="/admin/design/conformance">

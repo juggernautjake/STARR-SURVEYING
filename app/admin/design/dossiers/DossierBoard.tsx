@@ -21,7 +21,6 @@
 // measurement.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { Search, RefreshCw, Save, FileText } from 'lucide-react';
 import { DOSSIER_STATE_LABEL, dossierState, derivedAgeDays, type PageDossier, type DossierState } from '@/lib/design/dossier';
 import type { ChecklistRow } from '@/lib/design/checklist';
@@ -125,7 +124,10 @@ export default function DossierBoard({ initialRoute }: { initialRoute?: string }
             touches it.
           </p>
         </div>
-        <Link className="admin-btn admin-btn--secondary" href="/admin/design">Back to designs</Link>
+        {/* C12c: a "back to the Page Designer" link sat here. This IS the Page Designer now — it
+          * pointed at the portal it renders inside, which lands you on the Pages tab and reads as a
+          * bug. Fifth slice running that an absorbed body carried one. The tab strip is the way
+          * between boards, and it is one click where this was two. */}
       </header>
 
       <div className="dsx-dos__body">

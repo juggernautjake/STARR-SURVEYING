@@ -182,17 +182,29 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Page Designer (DESIGN_STUDIO_2026-08-23). Admin + developer only: it is a build tool that
   // exposes the whole app's structure, and a half-finished mockup on a foreman's screen would read
   // as a promise about what the page is going to be.
-  { href: '/admin/design',          label: 'Page Designer',   workspace: 'office', section: 'Documents & records', iconName: 'PenTool',        description: 'Mock up any page — desktop and mobile as separate designs — then export the screenshots, HTML and a build spec.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['design', 'designer', 'mockup', 'wireframe', 'layout', 'page', 'canvas', 'prototype', 'ui', 'sketch'] },
+  // ── C12c / P17: FOUR ROWS BECAME ONE, AND §8's REASON FOR IT WAS NOT TRUE ──────────────────
+  //
+  // §8 said "six sidebar links for one internal tool". Measured before building: the rail showed
+  // ONE. Five of the six rows were already `showInRail: false`, so there was never a sidebar to
+  // shorten, and every board already carried a back-link, so there was no dead end either. The
+  // slice is still worth doing on a smaller and truer reason — the Studio was the only surface in
+  // this plan that made you go back to a hub between its boards — and the wrong reason is recorded
+  // rather than repeated. See the portal header.
+  //
+  // `serve` and `conformance` keep their rows AND their routes, for structural reasons: one
+  // renders a design at real size with no chrome on purpose, and the other is a server component
+  // that reads a generated file with `node:fs` at request time.
+  //
+  // C10's rule checked: `/admin/design/[id]` is a record, and its parent is the portal, which keeps
+  // its row because it IS the page. None of the three absorbed routes has a child.
+  { href: '/admin/design',          label: 'Page Designer',   workspace: 'office', section: 'Documents & records', iconName: 'PenTool',        description: 'Mock up any page — desktop and mobile as separate designs — then export the screenshots, HTML and a build spec.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['design', 'designer', 'mockup', 'wireframe', 'layout', 'page', 'canvas', 'prototype', 'ui', 'sketch', 'compare', 'versions', 'variants', 'side by side', 'theme', 'preview', 'alternatives', 'dossier', 'purpose', 'summary', 'elements', 'inventory', 'checklist', 'site version', 'publish', 'release', 'activate', 'designs', 'bulk'] },
   // Reached from the Page Designer rather than from the Office grid, so `showInRail: false` keeps it
   // out of that card list — but it is REGISTERED, which is what makes it searchable in the command
   // palette and what stops the orphan audit calling it an unreachable page.
-  { href: '/admin/design/compare',  label: 'Compare designs', workspace: 'office', section: 'Documents & records', iconName: 'Layers',         description: 'Every version of one page side by side, under any theme.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['compare', 'versions', 'variants', 'side by side', 'theme', 'design', 'preview', 'alternatives'] },
   // The four surfaces PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23 added. All reached from the Page
   // Designer rather than from the Office grid, so `showInRail: false` — but registered, which is
   // what makes them searchable in the command palette and what stops the orphan audit calling
   // them unreachable pages.
-  { href: '/admin/design/dossiers',   label: 'Page dossiers',   workspace: 'office', section: 'Documents & records', iconName: 'FileText', description: 'What every page is for, what it does, and every element on it — measured from the running app and written by a person.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['dossier', 'purpose', 'summary', 'elements', 'inventory', 'checklist', 'page', 'design'] },
-  { href: '/admin/design/versions',   label: 'Site versions',   workspace: 'office', section: 'Documents & records', iconName: 'Rocket',   description: 'A named set of designs across many pages, published in one action.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['site version', 'publish', 'release', 'activate', 'designs', 'bulk'] },
   { href: '/admin/design/conformance', label: 'Design conformance', workspace: 'office', section: 'Documents & records', iconName: 'Gauge', description: 'How much of each page’s design is actually on the page, and whether each default is still a 1:1 trace.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['conformance', 'diff', 'drift', 'measure', 'default', 'trace', 'design'] },
   { href: '/admin/design/serve',      label: 'Design as a page', workspace: 'office', section: 'Documents & records', iconName: 'Monitor', description: 'The design of record for a page, rendered full size with no editor chrome.', roles: ['admin', 'developer'], internalOnly: true, showInRail: false, keywords: ['serve', 'preview', 'full size', 'as a page', 'design', 'active'] },
   { href: '/admin/install',         label: 'Get the App',     workspace: 'hub', iconName: 'Smartphone',     description: 'Install the Starr Field mobile app on your phone.', keywords: ['mobile', 'app', 'download', 'install', 'iphone', 'android', 'testflight', 'apk', 'starr field'] },

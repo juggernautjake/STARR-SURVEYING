@@ -122,7 +122,10 @@ export default function VersionsBoard() {
             in it the record for its page — in a single action, with a preview first.
           </p>
         </div>
-        <Link className="admin-btn admin-btn--secondary" href="/admin/design">Back to designs</Link>
+        {/* C12c: a "back to the Page Designer" link sat here. This IS the Page Designer now — it
+          * pointed at the portal it renders inside, which lands you on the Pages tab and reads as a
+          * bug. Fifth slice running that an absorbed body carried one. The tab strip is the way
+          * between boards, and it is one click where this was two. */}
       </header>
 
       {message && <p className="dsx-vers__msg" role="status">{message}</p>}

@@ -1,12 +1,12 @@
-// app/admin/design/versions/page.tsx — site versions.
+// app/admin/design/versions/page.tsx — absorbed by the Page Designer portal.
 //
-// Phase V of docs/planning/in-progress/PAGE_VERSIONS_AND_PORTAL_THEMES_2026-08-23.md.
+// C12c of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+//
+// The route stays and forwards, and the directory stays with it: the board component and its
+// stylesheet still live here and the tab imports them from where they are.
 
-import type { Metadata } from 'next';
-import VersionsBoard from './VersionsBoard';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Site versions' };
-
-export default function SiteVersionsPage() {
-  return <VersionsBoard />;
+export default function Page() {
+  redirect('/admin/design?tab=versions');
 }

@@ -92,7 +92,10 @@ export default function CompareBoard() {
   return (
     <div className="dsx-compare">
       <header className="dsx-compare__bar">
-        <Link className="dsx__back" href="/admin/design"><ChevronLeft size={16} aria-hidden /> Designs</Link>
+        {/* C12c: a "back to the Page Designer" link sat here. This IS the Page Designer now — it
+          * pointed at the portal it renders inside, which lands you on the Pages tab and reads as a
+          * bug. Fifth slice running that an absorbed body carried one. The tab strip is the way
+          * between boards, and it is one click where this was two. */}
 
         <label className="dsx-compare__field">
           <span>Page</span>

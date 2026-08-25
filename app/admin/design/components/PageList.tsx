@@ -269,7 +269,7 @@ export default function PageList({ onCreateFor }: Props) {
                           * described, and that difference is what the dossier queue is made of. */}
                         <Link
                           className={`dsx-pages__chip dsx-pages__chip--dossier is-${page.dossier?.state ?? 'none'}`}
-                          href={`/admin/design/dossiers?route=${encodeURIComponent(page.route)}`}
+                          href={`/admin/design?tab=dossiers&route=${encodeURIComponent(page.route)}`}
                           title={page.dossier?.purpose
                             ? `${page.dossier.purpose} — ${page.dossier.elementCount} elements measured`
                             : 'Nothing is recorded about what this page is for'}

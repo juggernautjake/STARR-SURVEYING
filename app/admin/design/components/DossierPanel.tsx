@@ -260,7 +260,7 @@ export default function DossierPanel({ designId, route, onClose, onProgress }: P
                 ? <p className="dsx__dossier-summary">{dossier.summary}</p>
                 : <p className="dsx__dossier-note">
                     No one has written what this page is for yet.{' '}
-                    <a href={`/admin/design/dossiers?route=${encodeURIComponent(route ?? '')}`}>Write it</a>.
+                    <a href={`/admin/design?tab=dossiers&route=${encodeURIComponent(route ?? '')}`}>Write it</a>.
                   </p>}
               {dossier.audience && <p className="dsx__dossier-aud"><strong>Who opens it:</strong> {dossier.audience}</p>}
 

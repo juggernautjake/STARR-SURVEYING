@@ -1323,8 +1323,60 @@ early, and the internal tooling comes last.
       have worked: forwarding to `?tab=org-profile` would have landed on General. Nine tabs, both
       redirects and the restored chrome all browser-verified, no page errors.
 
-- [ ] **C12c — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:
-      they are the ones whose breakage costs the firm nothing.
+- [x] **C12c — P17 Page Designer** (4 → 1, +2 kept). **DONE 2026-08-25.**
+
+      `/admin/design` has four tabs: Pages, Compare, Dossiers, Site versions. Three routes forward.
+
+      **§8's stated reason for this slice is not true, and it is recorded rather than repeated.**
+      §8 says *"six sidebar links for one internal tool is exactly the complaint being answered."*
+      Measured before building on it: **the rail showed ONE.** Five of the six rows were already
+      `showInRail: false`. §8 also implies the boards are hard to move between; checked, and every
+      one of them already carried a back-link to the hub.
+
+      The slice is still worth doing on a smaller, true reason: the Studio was the only surface in
+      this plan that made you go back to a hub between its boards, and four tabs is one click where
+      there were two, in the shape a person has now learned on nine other pages. §8's other argument
+      survives intact and is why the premise being wrong is not used as a way out: *"the fact that
+      the tool is mine to maintain is not a reason to exempt it from the rule in §3."*
+
+      **Two of the five keep their routes, structurally rather than by preference.**
+      `design/serve` renders a design AT REAL SIZE with no chrome — that is the whole point of it,
+      and a tab strip above a design pretending to be a page would make the thing it exists to show
+      untrue (§8's own exam-sitting reasoning). `design/conformance` is a server component that reads
+      `conformance.generated.json` with `node:fs` at request time; as a tab it would need either
+      `node:fs` in the browser bundle — the exact trap C9 hit — or the numbers frozen into the build.
+      It is offered as a toolbar link from every tab instead, which is more than it had.
+
+      **A deep link I broke and caught.** Three of the four wrappers were `return <Board />` and the
+      wrapper WAS the page. The fourth was not: `dossiers/page.tsx` read `searchParams.route` and
+      passed it as `initialRoute`, because — its own header — *"the link that brings most people here
+      is the one in the editor's checklist panel."* Rendering `<DossierBoard />` with no prop
+      compiles, typechecks, passes 26,209 tests, and silently lands every one of those links on an
+      unfiltered board. The tab reads the parameter client-side, the stub forwards it rather than
+      dropping it, and both were browser-verified to SELECT the route rather than merely carry it.
+
+      Fifth slice running with self-links: three boards linked back to the portal they now render
+      inside. §5 cost nothing — all six rows and the middleware prefix are `['admin', 'developer']`.
+
+- [ ] **C12c-files — P16 Files** (`/admin/files` absorbs `/admin/my-files`). **Same shape as P14's
+      three, and blocked on the same decision.**
+
+      | | workspace | roles |
+      |---|---|---|
+      | `/admin/my-files` | `hub` | **ungated** |
+      | `/admin/files` | `office` | admin, developer, field_crew, drawer, researcher, equipment_manager, tech_support |
+
+      §8 argues my-files is *"the same filesystem scoped to one person — a role view, not a page"*,
+      and as a rendering question that is right. As a NAVIGATION question it is not: a plain
+      `employee`, a `teacher` and a `student` are in none of those seven roles, so folding my-files
+      into `/admin/files` takes their own files out of their nav entirely. Personal surface, company
+      page — exactly what stopped `announcements`, `notifications` and `me/privacy` in C12b.
+
+      Doing it properly means deciding whether the company file explorer is offered to everyone with
+      per-node permissions doing the work — which is a product decision about the file explorer, not
+      a consolidation step. Grouped with C13 alongside P14's three, so the four personal-vs-company
+      cases are decided once and together rather than four times by whoever happens to hit them.
+
 - [ ] **C12d — P18 Exam Prep** + **P19 Learning Content** (5 → 2).
 - [ ] **C13 — Re-examine the workspaces** with 24 links instead of 138. §6. A separate decision,
       made with the result in front of you.
