@@ -1870,6 +1870,28 @@ early, and the internal tooling comes last.
              · field-data  38 · 37      · activity     could not reach it — not stored
       ```
 
+      ── **CORRECTION: `--states` DOES WORK ON ITS OWN. I READ A HEADER AND KILLED THE RUN** ──
+
+      The paragraph above says `--states` cannot reach a portal because the walk excludes routes that
+      already have a default. **That is wrong.** Reading the code rather than the header:
+
+      ```js
+      let todo = MISSING_ONLY ? wanted.filter((p) => !hasDefault.has(p.route)) : wanted;
+      ```
+
+      The exclusion applies **only with `--missing`**. `--area admin --states` traces every route and
+      its states. The header line *"62 already had a default"* is a count, not a filter, and I read it
+      as one — then killed the run three routes later, saw no state lines yet, and called it proof.
+      The output I killed had already written one: `/admin/billing · overview: 42 desktop · 42 mobile`.
+
+      So `--only <route> --states` is not required; it is simply what I ran. It produces the same
+      records one portal at a time and one browser launch each, which is slower and not wrong. The
+      records in the table above are unaffected — the method was clumsy, the data is the data.
+
+      **The mistake worth keeping: a count in a header is not a filter, and an absence three lines
+      into a killed run is not evidence.** This is the same shape as reading a silent pipe as a hung
+      process, earlier in this same section.
+
       **The `activity` miss was chased rather than filed.** Loading `/admin/jobs?tab=activity` and
       reading the DOM the way `SELECTED_STATE` does: the tab IS selected, its label is `Activity`,
       and it slugs to `activity` — the key the tracer was looking for. Nothing is wrong with the tab
