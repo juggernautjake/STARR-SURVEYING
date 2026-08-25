@@ -1830,6 +1830,34 @@ early, and the internal tooling comes last.
       The dossiers pass is running behind it. That half cannot self-heal — no status, no
       `deleted_at`, §13.3 — so its 63 will still be 63 when it finishes, correctly derived and still
       describing pages that are now tabs.
+      ── **93 OF 110 TABS HAD NO DESIGN AT ALL, AND THE FLAG WAS OFF** ──
+
+      The question this plan was started next to — *"do the design pages work fully?"* — has an
+      answer that none of the counts above would have given. Measured:
+
+      | | |
+      |---|---|
+      | Portals with a route-level default | **17 / 17** |
+      | **Tabs with their own traced default** | **17 / 110** |
+
+      Every portal has a design of the tab it opens on. **The other 93 tabs have no record at all** —
+      the Page Designer knows what `/admin/jobs` looks like and nothing about its Field data, Weather
+      or Compliance tabs.
+
+      The cause is one flag. `trace-defaults` takes `--states`, it is **off by default**, and no pass
+      today used it — not the `--since` runs, not `--missing`. The data it needs was already there:
+      the dossier walker records the tabs it finds as `states`, and it had found them correctly —
+      jobs 6, people 6, learn 10, equipment 10, pay 14, across 29 dossiers.
+
+      **This reorders the rest of C14.** The conformance run was stopped mid-walk, because it scores
+      route/state rows that HAVE a default: with 93 states missing one, it would have measured a
+      fifth of the surface and finished looking complete. Trace the states, then measure. (Checked
+      before stopping: it had not written, so the existing record is intact and still the "before".)
+
+      One more instance of the same principle, and the sharpest: **a state missing from a record
+      cannot have a bad row in it.** Three walks, two ratchets and a conformance score all reported
+      health on a set that silently excluded 93 tabs.
+
       ── **THE THIRD PIECE: THE CONFORMANCE RECORD, MEASURED AND STALE** ──
 
       C14 asks for "the conformance record with them", and it had not been looked at. Measured:
