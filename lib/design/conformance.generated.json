@@ -1,7 +1,7 @@
 {
-  "measuredAt": "2026-08-25T06:17:08.805Z",
+  "measuredAt": "2026-08-25T07:22:29.108Z",
   "base": "http://127.0.0.1:3023",
-  "which": "both",
+  "which": "default",
   "routes": {
     "/admin/announcements": [
       {
@@ -834,64 +834,7 @@
     ],
     "/admin/compliance": [
       {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-compliance-mt87h8fj",
-        "designName": "/admin/compliance — as served",
-        "score": 100,
-        "designElements": 17,
-        "pageElements": 20,
-        "matched": 17,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          }
-        ]
-      },
-      {
-        "kind": "default",
-        "view": "mobile",
-        "designId": "d-default-admin-compliance-mt87h8fj",
-        "designName": "/admin/compliance — as served",
-        "score": 100,
-        "designElements": 16,
-        "pageElements": 19,
-        "matched": 16,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          }
-        ]
+        "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
       }
     ],
     "/admin/contacts": [
@@ -960,19 +903,19 @@
       {
         "kind": "default",
         "view": "desktop",
-        "designId": "d-default-admin-design-mt87hn24",
+        "designId": "d-default-admin-design-mt8c78vf",
         "designName": "/admin/design — as served",
-        "score": 5,
+        "score": 100,
         "designElements": 597,
         "pageElements": 600,
-        "matched": 562,
-        "missing": 35,
-        "moved": 489,
-        "resized": 44,
-        "extra": 14,
+        "matched": 596,
+        "missing": 1,
+        "moved": 0,
+        "resized": 0,
+        "extra": 3,
         "verdict": {
           "ok": false,
-          "why": "35 element(s) in the default are not on the page — the trace is stale."
+          "why": "1 element(s) in the default are not on the page — the trace is stale."
         },
         "worst": [
           {
@@ -981,68 +924,38 @@
             "note": "The design has .is-on here; the page has none."
           },
           {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
+            "kind": "extra",
+            "signature": ".button",
+            "note": "The page has another .button the design does not account for."
           },
           {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
           },
           {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
           }
         ]
       },
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-design-mt87hn24",
+        "designId": "d-default-admin-design-mt8c78vf",
         "designName": "/admin/design — as served",
-        "score": 1,
+        "score": 100,
         "designElements": 597,
         "pageElements": 600,
-        "matched": 562,
-        "missing": 35,
-        "moved": 474,
-        "resized": 80,
-        "extra": 14,
+        "matched": 596,
+        "missing": 1,
+        "moved": 0,
+        "resized": 0,
+        "extra": 3,
         "verdict": {
           "ok": false,
-          "why": "35 element(s) in the default are not on the page — the trace is stale."
+          "why": "1 element(s) in the default are not on the page — the trace is stale."
         },
         "worst": [
           {
@@ -1051,49 +964,19 @@
             "note": "The design has .is-on here; the page has none."
           },
           {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
+            "kind": "extra",
+            "signature": ".button",
+            "note": "The page has another .button the design does not account for."
           },
           {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
           },
           {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".dsx-pages__route",
-            "note": "The design has .dsx-pages__route here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
           }
         ]
       }
@@ -2330,28 +2213,68 @@
         "view": "desktop",
         "designId": "d-default-admin-error-log-mt87ljzi",
         "designName": "/admin/error-log — as served",
-        "score": 100,
+        "score": 96,
         "designElements": 302,
         "pageElements": 305,
         "matched": 302,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 9,
         "extra": 2,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "96% — the default still matches the page it was traced from."
         },
         "worst": [
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+            "kind": "moved",
+            "signature": ".err-log__item-type",
+            "note": "33px from where the design puts it (-33, +0)."
           },
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
+            "kind": "moved",
+            "signature": ".err-log__item-type",
+            "note": "33px from where the design puts it (-33, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".err-log__item-type",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-msg",
+            "note": "1036×21 in the design, 984×21 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-msg",
+            "note": "1036×21 in the design, 985×21 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-msg",
+            "note": "1035×21 in the design, 986×21 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-type",
+            "note": "31×22 in the design, 56×22 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-type",
+            "note": "31×22 in the design, 56×22 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-type",
+            "note": "31×22 in the design, 56×22 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".err-log__item-severity",
+            "note": "42×21 in the design, 60×21 on the page."
           }
         ]
       },
@@ -2360,28 +2283,68 @@
         "view": "mobile",
         "designId": "d-default-admin-error-log-mt87ljzi",
         "designName": "/admin/error-log — as served",
-        "score": 100,
+        "score": 93,
         "designElements": 301,
         "pageElements": 304,
         "matched": 301,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 11,
+        "resized": 10,
         "extra": 2,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "93% — the default still matches the page it was traced from."
         },
         "worst": [
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+            "kind": "shifted",
+            "signature": "(page)",
+            "note": "The page as a whole sits 42px from where it was traced (+0, +42) — 283 of 301 elements moved together. Everything below is measured against that."
           },
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
+            "kind": "moved",
+            "signature": ".section",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".strong",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-page-header__back",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-page-header__trail",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-page-header__star",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-page-header__star",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-page-header__crumb",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-page-header__crumb",
+            "note": "42px from where the design puts it (+0, -42)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".err-log__item-type",
+            "note": "25px from where the design puts it (-25, -1)."
           }
         ]
       }
@@ -2452,7 +2415,7 @@
       {
         "kind": "default",
         "view": "desktop",
-        "designId": "d-default-admin-files-mt87lxli",
+        "designId": "d-default-admin-files-mt8c7pug",
         "designName": "/admin/files — as served",
         "score": 99,
         "designElements": 97,
@@ -2492,7 +2455,7 @@
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-files-mt87lxli",
+        "designId": "d-default-admin-files-mt8c7pug",
         "designName": "/admin/files — as served",
         "score": 99,
         "designElements": 72,
@@ -2810,64 +2773,7 @@
     ],
     "/admin/hours-approval · advances": [
       {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-hours-approval-advances-mt8914ur",
-        "designName": "/admin/hours-approval · advances — as served",
-        "score": 100,
-        "designElements": 32,
-        "pageElements": 35,
-        "matched": 32,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          }
-        ]
-      },
-      {
-        "kind": "default",
-        "view": "mobile",
-        "designId": "d-default-admin-hours-approval-advances-mt8914ur",
-        "designName": "/admin/hours-approval · advances — as served",
-        "score": 100,
-        "designElements": 31,
-        "pageElements": 34,
-        "matched": 31,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          }
-        ]
+        "error": "could not open the \"advances\" tab"
       }
     ],
     "/admin/hours-approval · all-entries": [
@@ -2934,19 +2840,14 @@
     ],
     "/admin/hours-approval · bonuses": [
       {
-        "error": "could not open the \"bonuses\" tab"
-      }
-    ],
-    "/admin/hours-approval · pending": [
-      {
         "kind": "default",
         "view": "desktop",
-        "designId": "d-default-admin-hours-approval-pending-mt890jvr",
-        "designName": "/admin/hours-approval · pending — as served",
+        "designId": "d-default-admin-hours-approval-bonuses-mt891fpr",
+        "designName": "/admin/hours-approval · bonuses — as served",
         "score": 100,
-        "designElements": 56,
-        "pageElements": 59,
-        "matched": 56,
+        "designElements": 34,
+        "pageElements": 37,
+        "matched": 34,
         "missing": 0,
         "moved": 0,
         "resized": 0,
@@ -2971,12 +2872,12 @@
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-hours-approval-pending-mt890jvr",
-        "designName": "/admin/hours-approval · pending — as served",
+        "designId": "d-default-admin-hours-approval-bonuses-mt891fpr",
+        "designName": "/admin/hours-approval · bonuses — as served",
         "score": 100,
-        "designElements": 55,
-        "pageElements": 58,
-        "matched": 55,
+        "designElements": 33,
+        "pageElements": 36,
+        "matched": 33,
         "missing": 0,
         "moved": 0,
         "resized": 0,
@@ -2997,6 +2898,11 @@
             "note": ".admin-page-header__sep is on the page and not in the design."
           }
         ]
+      }
+    ],
+    "/admin/hours-approval · pending": [
+      {
+        "error": "could not open the \"pending\" tab"
       }
     ],
     "/admin/install": [
@@ -4245,28 +4151,68 @@
         "view": "mobile",
         "designId": "d-default-admin-learn-flashcard-bank-mt87s7ad",
         "designName": "/admin/learn/flashcard-bank — as served",
-        "score": 100,
+        "score": 0,
         "designElements": 597,
         "pageElements": 600,
-        "matched": 597,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
+        "matched": 591,
+        "missing": 6,
+        "moved": 576,
+        "resized": 588,
+        "extra": 9,
         "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "ok": false,
+          "why": "6 element(s) in the default are not on the page — the trace is stale."
         },
         "worst": [
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+            "kind": "missing",
+            "signature": ".admin-page-header__back",
+            "note": "The design has .admin-page-header__back here; the page has none."
           },
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
+            "kind": "missing",
+            "signature": ".admin-page-header__trail",
+            "note": "The design has .admin-page-header__trail here; the page has none."
+          },
+          {
+            "kind": "missing",
+            "signature": ".admin-page-header__star",
+            "note": "The design has .admin-page-header__star here; the page has none."
+          },
+          {
+            "kind": "missing",
+            "signature": ".admin-page-header__star",
+            "note": "The design has .admin-page-header__star here; the page has none."
+          },
+          {
+            "kind": "missing",
+            "signature": ".admin-page-header__crumb",
+            "note": "The design has .admin-page-header__crumb here; the page has none."
+          },
+          {
+            "kind": "missing",
+            "signature": ".admin-page-header__crumb",
+            "note": "The design has .admin-page-header__crumb here; the page has none."
+          },
+          {
+            "kind": "moved",
+            "signature": ".admin-btn",
+            "note": "189px from where the design puts it (-16, -188)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".span",
+            "note": "105px from where the design puts it (-16, +104)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".span",
+            "note": "105px from where the design puts it (-16, +104)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".learn__back",
+            "note": "86px from where the design puts it (-16, -84)."
           }
         ]
       }
@@ -4643,14 +4589,101 @@
     ],
     "/admin/learn/manage · articles": [
       {
+        "error": "could not open the \"articles\" tab"
+      }
+    ],
+    "/admin/learn/manage · assignments": [
+      {
         "kind": "default",
         "view": "desktop",
-        "designId": "d-default-admin-learn-manage-articles-mt87tkh6",
-        "designName": "/admin/learn/manage · articles — as served",
+        "designId": "d-default-admin-learn-manage-assignments-mt87ufzn",
+        "designName": "/admin/learn/manage · assignments — as served",
         "score": 100,
-        "designElements": 47,
-        "pageElements": 50,
-        "matched": 47,
+        "designElements": 67,
+        "pageElements": 72,
+        "matched": 67,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 4,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".div",
+            "note": "The page has another .div the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".div",
+            "note": "The page has another .div the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
+      },
+      {
+        "kind": "default",
+        "view": "mobile",
+        "designId": "d-default-admin-learn-manage-assignments-mt87ufzn",
+        "designName": "/admin/learn/manage · assignments — as served",
+        "score": 100,
+        "designElements": 69,
+        "pageElements": 74,
+        "matched": 69,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 4,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".div",
+            "note": "The page has another .div the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".div",
+            "note": "The page has another .div the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
+      }
+    ],
+    "/admin/learn/manage · flashcards": [
+      {
+        "kind": "default",
+        "view": "desktop",
+        "designId": "d-default-admin-learn-manage-flashcards-mt87tyly",
+        "designName": "/admin/learn/manage · flashcards — as served",
+        "score": 100,
+        "designElements": 597,
+        "pageElements": 600,
+        "matched": 597,
         "missing": 0,
         "moved": 0,
         "resized": 0,
@@ -4675,16 +4708,16 @@
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-learn-manage-articles-mt87tkh6",
-        "designName": "/admin/learn/manage · articles — as served",
+        "designId": "d-default-admin-learn-manage-flashcards-mt87tyly",
+        "designName": "/admin/learn/manage · flashcards — as served",
         "score": 100,
-        "designElements": 49,
-        "pageElements": 52,
-        "matched": 49,
+        "designElements": 566,
+        "pageElements": 600,
+        "matched": 566,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 33,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
@@ -4692,25 +4725,55 @@
         "worst": [
           {
             "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
           },
           {
             "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
           }
         ]
-      }
-    ],
-    "/admin/learn/manage · assignments": [
-      {
-        "error": "could not open the \"assignments\" tab"
-      }
-    ],
-    "/admin/learn/manage · flashcards": [
-      {
-        "error": "could not open the \"flashcards\" tab"
       }
     ],
     "/admin/learn/manage · lessons": [
@@ -4777,7 +4840,64 @@
     ],
     "/admin/learn/manage · modules": [
       {
-        "error": "could not open the \"modules\" tab"
+        "kind": "default",
+        "view": "desktop",
+        "designId": "d-default-admin-learn-manage-modules-mt87t950",
+        "designName": "/admin/learn/manage · modules — as served",
+        "score": 100,
+        "designElements": 431,
+        "pageElements": 434,
+        "matched": 431,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 2,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
+      },
+      {
+        "kind": "default",
+        "view": "mobile",
+        "designId": "d-default-admin-learn-manage-modules-mt87t950",
+        "designName": "/admin/learn/manage · modules — as served",
+        "score": 100,
+        "designElements": 433,
+        "pageElements": 436,
+        "matched": 433,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 2,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
       }
     ],
     "/admin/learn/manage · questions": [
@@ -5028,7 +5148,64 @@
     ],
     "/admin/learn/manage · xp-config": [
       {
-        "error": "could not open the \"xp-config\" tab"
+        "kind": "default",
+        "view": "desktop",
+        "designId": "d-default-admin-learn-manage-xp-config-mt87u9tz",
+        "designName": "/admin/learn/manage · xp-config — as served",
+        "score": 100,
+        "designElements": 212,
+        "pageElements": 215,
+        "matched": 212,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 2,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
+      },
+      {
+        "kind": "default",
+        "view": "mobile",
+        "designId": "d-default-admin-learn-manage-xp-config-mt87u9tz",
+        "designName": "/admin/learn/manage · xp-config — as served",
+        "score": 100,
+        "designElements": 214,
+        "pageElements": 217,
+        "matched": 214,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 2,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
       }
     ],
     "/admin/learn/manage/media": [
@@ -5125,64 +5302,7 @@
     ],
     "/admin/learn/manage/question-builder": [
       {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-learn-manage-question-builder-mt87vgoh",
-        "designName": "/admin/learn/manage/question-builder — as served",
-        "score": 100,
-        "designElements": 595,
-        "pageElements": 600,
-        "matched": 595,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
-          }
-        ]
-      },
-      {
-        "kind": "default",
-        "view": "mobile",
-        "designId": "d-default-admin-learn-manage-question-builder-mt87vgoh",
-        "designName": "/admin/learn/manage/question-builder — as served",
-        "score": 100,
-        "designElements": 595,
-        "pageElements": 600,
-        "matched": 595,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
-          }
-        ]
+        "error": "Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON"
       }
     ],
     "/admin/learn/manage/question-builder · auto-generate-28": [
@@ -5246,68 +5366,38 @@
         "view": "mobile",
         "designId": "d-default-admin-learn-modules-mt87w99s",
         "designName": "/admin/learn/modules — as served",
-        "score": 0,
+        "score": 100,
         "designElements": 287,
-        "pageElements": 2,
-        "matched": 0,
-        "missing": 287,
+        "pageElements": 327,
+        "matched": 287,
+        "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 4,
         "verdict": {
-          "ok": false,
-          "why": "287 element(s) in the default are not on the page — the trace is stale."
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
           {
-            "kind": "missing",
-            "signature": ".learn__back",
-            "note": "The design has .learn__back here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
           },
           {
-            "kind": "missing",
-            "signature": ".learn__title",
-            "note": "The design has .learn__title here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
           },
           {
-            "kind": "missing",
-            "signature": ".learn__subtitle",
-            "note": "The design has .learn__subtitle here; the page has none."
+            "kind": "extra",
+            "signature": ".modules__card-progressbar",
+            "note": "36 × .modules__card-progressbar on the page, nothing like it in the design."
           },
           {
-            "kind": "missing",
-            "signature": ".modules__search",
-            "note": "The design has .modules__search here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".modules__card",
-            "note": "The design has .modules__card here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".modules__card",
-            "note": "The design has .modules__card here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".modules__card",
-            "note": "The design has .modules__card here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".modules__card",
-            "note": "The design has .modules__card here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".modules__card",
-            "note": "The design has .modules__card here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".modules__card",
-            "note": "The design has .modules__card here; the page has none."
+            "kind": "extra",
+            "signature": ".modules__card-progressbar-fill",
+            "note": ".modules__card-progressbar-fill is on the page and not in the design."
           }
         ]
       }
@@ -5825,68 +5915,68 @@
         "view": "mobile",
         "designId": "d-default-admin-marketing-mt87xrvh",
         "designName": "/admin/marketing — as served",
-        "score": 100,
+        "score": 84,
         "designElements": 260,
         "pageElements": 274,
         "matched": 260,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 21,
+        "resized": 20,
         "extra": 10,
         "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "ok": false,
+          "why": "84% conformant, below the 90% a trace has to hold."
         },
         "worst": [
           {
-            "kind": "extra",
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "459px from where the design puts it (-214, -406)."
           },
           {
-            "kind": "extra",
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "107px from where the design puts it (+105, -23)."
           },
           {
-            "kind": "extra",
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "101px from where the design puts it (+98, -23)."
           },
           {
-            "kind": "extra",
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "96px from where the design puts it (-33, +90)."
           },
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__pulse",
-            "note": ".mk__pulse is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__bar",
-            "note": ".mk__bar is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__seg",
-            "note": "2 × .mk__seg on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__dot",
-            "note": "3 × .mk__dot on the page, nothing like it in the design."
+            "kind": "moved",
+            "signature": ".li",
+            "note": "74px from where the design puts it (+0, -74)."
           }
         ]
       }
@@ -6091,68 +6181,68 @@
         "view": "mobile",
         "designId": "d-default-admin-marketing-overview-mt87xwlc",
         "designName": "/admin/marketing · overview — as served",
-        "score": 100,
+        "score": 84,
         "designElements": 260,
         "pageElements": 274,
         "matched": 260,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 21,
+        "resized": 20,
         "extra": 10,
         "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "ok": false,
+          "why": "84% conformant, below the 90% a trace has to hold."
         },
         "worst": [
           {
-            "kind": "extra",
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "459px from where the design puts it (-214, -406)."
           },
           {
-            "kind": "extra",
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".td",
+            "note": "287px from where the design puts it (+0, -287)."
+          },
+          {
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "107px from where the design puts it (+105, -23)."
           },
           {
-            "kind": "extra",
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "101px from where the design puts it (+98, -23)."
           },
           {
-            "kind": "extra",
+            "kind": "moved",
             "signature": ".span",
-            "note": "The page has another .span the design does not account for."
+            "note": "96px from where the design puts it (-33, +90)."
           },
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__pulse",
-            "note": ".mk__pulse is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__bar",
-            "note": ".mk__bar is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__seg",
-            "note": "2 × .mk__seg on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".mk__dot",
-            "note": "3 × .mk__dot on the page, nothing like it in the design."
+            "kind": "moved",
+            "signature": ".li",
+            "note": "74px from where the design puts it (+0, -74)."
           }
         ]
       }
@@ -6163,28 +6253,68 @@
         "view": "desktop",
         "designId": "d-default-admin-marketing-spend-mt87y52f",
         "designName": "/admin/marketing · spend — as served",
-        "score": 100,
+        "score": 99,
         "designElements": 331,
-        "pageElements": 334,
+        "pageElements": 346,
         "matched": 331,
         "missing": 0,
         "moved": 0,
-        "resized": 0,
-        "extra": 2,
+        "resized": 2,
+        "extra": 14,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "99% — the default still matches the page it was traced from."
         },
         "worst": [
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+            "kind": "resized",
+            "signature": ".ms__panel",
+            "note": "900×1837 in the design, 900×1913 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".ms__scroll",
+            "note": "866×1781 in the design, 866×1856 on the page."
           },
           {
             "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
           }
         ]
       },
@@ -6193,28 +6323,68 @@
         "view": "mobile",
         "designId": "d-default-admin-marketing-spend-mt87y52f",
         "designName": "/admin/marketing · spend — as served",
-        "score": 100,
+        "score": 99,
         "designElements": 330,
-        "pageElements": 333,
+        "pageElements": 345,
         "matched": 330,
         "missing": 0,
         "moved": 0,
-        "resized": 0,
-        "extra": 2,
+        "resized": 2,
+        "extra": 14,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "99% — the default still matches the page it was traced from."
         },
         "worst": [
           {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+            "kind": "resized",
+            "signature": ".ms__panel",
+            "note": "318×2783 in the design, 318×2900 on the page."
+          },
+          {
+            "kind": "resized",
+            "signature": ".ms__scroll",
+            "note": "284×2726 in the design, 284×2843 on the page."
           },
           {
             "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
+          },
+          {
+            "kind": "extra",
+            "signature": ".td",
+            "note": "The page has another .td the design does not account for."
           }
         ]
       }
@@ -6223,7 +6393,7 @@
       {
         "kind": "default",
         "view": "desktop",
-        "designId": "d-default-admin-me-mt87zaxz",
+        "designId": "d-default-admin-me-mt8c7inn",
         "designName": "/admin/me — as served",
         "score": 100,
         "designElements": 156,
@@ -6283,7 +6453,7 @@
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-me-mt87zaxz",
+        "designId": "d-default-admin-me-mt8c7inn",
         "designName": "/admin/me — as served",
         "score": 82,
         "designElements": 118,
@@ -6993,64 +7163,7 @@
     ],
     "/admin/my-hours · week-history": [
       {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-my-hours-week-history-mt881ztp",
-        "designName": "/admin/my-hours · week-history — as served",
-        "score": 100,
-        "designElements": 44,
-        "pageElements": 47,
-        "matched": 44,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          }
-        ]
-      },
-      {
-        "kind": "default",
-        "view": "mobile",
-        "designId": "d-default-admin-my-hours-week-history-mt881ztp",
-        "designName": "/admin/my-hours · week-history — as served",
-        "score": 100,
-        "designElements": 43,
-        "pageElements": 46,
-        "matched": 43,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 2,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          }
-        ]
+        "error": "could not open the \"week-history\" tab"
       }
     ],
     "/admin/my-notes": [
@@ -7083,67 +7196,20 @@
             "note": ".admin-page-header__sep is on the page and not in the design."
           }
         ]
-      }
-    ],
-    "/admin/my-notes · job-notes": [
-      {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-my-notes-job-notes-mt883xkh",
-        "designName": "/admin/my-notes · job-notes — as served",
-        "score": 100,
-        "designElements": 22,
-        "pageElements": 28,
-        "matched": 22,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 5,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-empty__icon",
-            "note": ".admin-empty__icon is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-empty__title",
-            "note": ".admin-empty__title is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-empty__desc",
-            "note": ".admin-empty__desc is on the page and not in the design."
-          }
-        ]
       },
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-my-notes-job-notes-mt883xkh",
-        "designName": "/admin/my-notes · job-notes — as served",
+        "designId": "d-default-admin-my-notes-mt883mll",
+        "designName": "/admin/my-notes — as served",
         "score": 100,
-        "designElements": 21,
-        "pageElements": 27,
-        "matched": 21,
+        "designElements": 25,
+        "pageElements": 28,
+        "matched": 25,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 5,
+        "extra": 2,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
@@ -7158,23 +7224,13 @@
             "kind": "extra",
             "signature": ".admin-page-header__sep",
             "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-empty__icon",
-            "note": ".admin-empty__icon is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-empty__title",
-            "note": ".admin-empty__title is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-empty__desc",
-            "note": ".admin-empty__desc is on the page and not in the design."
           }
         ]
+      }
+    ],
+    "/admin/my-notes · job-notes": [
+      {
+        "error": "could not open the \"job-notes\" tab"
       }
     ],
     "/admin/my-notes · my-notes": [
@@ -7787,74 +7843,7 @@
     ],
     "/admin/notes · equipment": [
       {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-notes-equipment-mt88zczo",
-        "designName": "/admin/notes · equipment — as served",
-        "score": 100,
-        "designElements": 35,
-        "pageElements": 46,
-        "matched": 35,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 3,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".notes-page__chip-dot",
-            "note": "8 × .notes-page__chip-dot on the page, nothing like it in the design."
-          }
-        ]
-      },
-      {
-        "kind": "default",
-        "view": "mobile",
-        "designId": "d-default-admin-notes-equipment-mt88zczo",
-        "designName": "/admin/notes · equipment — as served",
-        "score": 100,
-        "designElements": 34,
-        "pageElements": 45,
-        "matched": 34,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 3,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".notes-page__chip-dot",
-            "note": "8 × .notes-page__chip-dot on the page, nothing like it in the design."
-          }
-        ]
+        "error": "could not open the \"equipment\" tab"
       }
     ],
     "/admin/notes · general": [
@@ -8075,74 +8064,7 @@
     ],
     "/admin/notes · procedures": [
       {
-        "kind": "default",
-        "view": "desktop",
-        "designId": "d-default-admin-notes-procedures-mt88z08d",
-        "designName": "/admin/notes · procedures — as served",
-        "score": 100,
-        "designElements": 35,
-        "pageElements": 46,
-        "matched": 35,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 3,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".notes-page__chip-dot",
-            "note": "8 × .notes-page__chip-dot on the page, nothing like it in the design."
-          }
-        ]
-      },
-      {
-        "kind": "default",
-        "view": "mobile",
-        "designId": "d-default-admin-notes-procedures-mt88z08d",
-        "designName": "/admin/notes · procedures — as served",
-        "score": 100,
-        "designElements": 34,
-        "pageElements": 45,
-        "matched": 34,
-        "missing": 0,
-        "moved": 0,
-        "resized": 0,
-        "extra": 3,
-        "verdict": {
-          "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
-        },
-        "worst": [
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__crumb-item",
-            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".admin-page-header__sep",
-            "note": ".admin-page-header__sep is on the page and not in the design."
-          },
-          {
-            "kind": "extra",
-            "signature": ".notes-page__chip-dot",
-            "note": "8 × .notes-page__chip-dot on the page, nothing like it in the design."
-          }
-        ]
+        "error": "could not open the \"procedures\" tab"
       }
     ],
     "/admin/notes · safety": [
@@ -11010,68 +10932,43 @@
         "view": "desktop",
         "designId": "d-default-admin-research-self-heal-mt88i32b",
         "designName": "/admin/research/self-heal — as served",
-        "score": 0,
+        "score": 100,
         "designElements": 35,
-        "pageElements": 2,
-        "matched": 1,
-        "missing": 34,
-        "moved": 1,
-        "resized": 1,
-        "extra": 1,
+        "pageElements": 43,
+        "matched": 35,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 5,
         "verdict": {
-          "ok": false,
-          "why": "34 element(s) in the default are not on the page — the trace is stale."
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
           {
-            "kind": "missing",
-            "signature": ".section",
-            "note": "The design has .section here; the page has none."
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
           },
           {
-            "kind": "missing",
-            "signature": ".section",
-            "note": "The design has .section here; the page has none."
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
           },
           {
-            "kind": "missing",
-            "signature": ".section",
-            "note": "The design has .section here; the page has none."
+            "kind": "extra",
+            "signature": ".span",
+            "note": "The page has another .span the design does not account for."
           },
           {
-            "kind": "missing",
-            "signature": ".admin-page-header__back",
-            "note": "The design has .admin-page-header__back here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
           },
           {
-            "kind": "missing",
-            "signature": ".admin-page-header__trail",
-            "note": "The design has .admin-page-header__trail here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".admin-page-header__star",
-            "note": "The design has .admin-page-header__star here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".admin-page-header__star",
-            "note": "The design has .admin-page-header__star here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".a",
-            "note": "The design has .a here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".h2",
-            "note": "The design has .h2 here; the page has none."
-          },
-          {
-            "kind": "missing",
-            "signature": ".h2",
-            "note": "The design has .h2 here; the page has none."
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
           }
         ]
       },
@@ -11311,19 +11208,39 @@
         "view": "mobile",
         "designId": "d-default-admin-research-testing-analyzers-mt88kf2n",
         "designName": "/admin/research/testing · analyzers — as served",
-        "score": 100,
+        "score": 97,
         "designElements": 118,
         "pageElements": 133,
         "matched": 118,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 4,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "97% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11353,19 +11270,39 @@
         "view": "desktop",
         "designId": "d-default-admin-research-testing-code-mt88mocb",
         "designName": "/admin/research/testing · code — as served",
-        "score": 100,
+        "score": 95,
         "designElements": 74,
         "pageElements": 81,
         "matched": 74,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 3,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "95% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11388,19 +11325,39 @@
         "view": "mobile",
         "designId": "d-default-admin-research-testing-code-mt88mocb",
         "designName": "/admin/research/testing · code — as served",
-        "score": 100,
+        "score": 95,
         "designElements": 73,
         "pageElements": 80,
         "matched": 73,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 3,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "95% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11421,12 +11378,226 @@
     ],
     "/admin/research/testing · full-pipeline": [
       {
-        "error": "apiRequestContext.fetch: read ECONNRESET"
+        "kind": "default",
+        "view": "desktop",
+        "designId": "d-default-admin-research-testing-full-pipeline-mt88lx8u",
+        "designName": "/admin/research/testing · full-pipeline — as served",
+        "score": 96,
+        "designElements": 91,
+        "pageElements": 98,
+        "matched": 91,
+        "missing": 0,
+        "moved": 3,
+        "resized": 1,
+        "extra": 3,
+        "verdict": {
+          "ok": true,
+          "why": "96% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".deploy-status__dot",
+            "note": "2 × .deploy-status__dot on the page, nothing like it in the design."
+          }
+        ]
+      },
+      {
+        "kind": "default",
+        "view": "mobile",
+        "designId": "d-default-admin-research-testing-full-pipeline-mt88lx8u",
+        "designName": "/admin/research/testing · full-pipeline — as served",
+        "score": 96,
+        "designElements": 90,
+        "pageElements": 97,
+        "matched": 90,
+        "missing": 0,
+        "moved": 3,
+        "resized": 1,
+        "extra": 3,
+        "verdict": {
+          "ok": true,
+          "why": "96% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".deploy-status__dot",
+            "note": "2 × .deploy-status__dot on the page, nothing like it in the design."
+          }
+        ]
       }
     ],
     "/admin/research/testing · health-check": [
       {
-        "error": "page.goto: net::ERR_FAILED at http://127.0.0.1:3023/admin/research/testing?tab=health-check"
+        "kind": "default",
+        "view": "desktop",
+        "designId": "d-default-admin-research-testing-health-check-mt88nfd5",
+        "designName": "/admin/research/testing · health-check — as served",
+        "score": 94,
+        "designElements": 71,
+        "pageElements": 78,
+        "matched": 71,
+        "missing": 0,
+        "moved": 3,
+        "resized": 1,
+        "extra": 3,
+        "verdict": {
+          "ok": true,
+          "why": "94% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".deploy-status__dot",
+            "note": "2 × .deploy-status__dot on the page, nothing like it in the design."
+          }
+        ]
+      },
+      {
+        "kind": "default",
+        "view": "mobile",
+        "designId": "d-default-admin-research-testing-health-check-mt88nfd5",
+        "designName": "/admin/research/testing · health-check — as served",
+        "score": 94,
+        "designElements": 70,
+        "pageElements": 77,
+        "matched": 70,
+        "missing": 0,
+        "moved": 3,
+        "resized": 1,
+        "extra": 3,
+        "verdict": {
+          "ok": true,
+          "why": "94% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "3 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": "2 × .admin-page-header__sep on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".deploy-status__dot",
+            "note": "2 × .deploy-status__dot on the page, nothing like it in the design."
+          }
+        ]
       }
     ],
     "/admin/research/testing · logs": [
@@ -11435,19 +11606,39 @@
         "view": "desktop",
         "designId": "d-default-admin-research-testing-logs-mt88o6er",
         "designName": "/admin/research/testing · logs — as served",
-        "score": 100,
+        "score": 95,
         "designElements": 79,
         "pageElements": 86,
         "matched": 79,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 3,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "95% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11470,19 +11661,39 @@
         "view": "mobile",
         "designId": "d-default-admin-research-testing-logs-mt88o6er",
         "designName": "/admin/research/testing · logs — as served",
-        "score": 100,
+        "score": 95,
         "designElements": 78,
         "pageElements": 85,
         "matched": 78,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 3,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "95% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11507,19 +11718,39 @@
         "view": "desktop",
         "designId": "d-default-admin-research-testing-pipeline-phases-mt88l667",
         "designName": "/admin/research/testing · pipeline-phases — as served",
-        "score": 100,
+        "score": 97,
         "designElements": 128,
         "pageElements": 144,
         "matched": 128,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 4,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "97% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11547,19 +11778,39 @@
         "view": "mobile",
         "designId": "d-default-admin-research-testing-pipeline-phases-mt88l667",
         "designName": "/admin/research/testing · pipeline-phases — as served",
-        "score": 100,
+        "score": 97,
         "designElements": 127,
         "pageElements": 143,
         "matched": 127,
         "missing": 0,
-        "moved": 0,
-        "resized": 0,
+        "moved": 3,
+        "resized": 1,
         "extra": 4,
         "verdict": {
           "ok": true,
-          "why": "100% — the default still matches the page it was traced from."
+          "why": "97% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "moved",
+            "signature": ".input",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__auto-label",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "moved",
+            "signature": ".deploy-status__check-btn",
+            "note": "32px from where the design puts it (-32, +0)."
+          },
+          {
+            "kind": "resized",
+            "signature": ".deploy-status__check-btn",
+            "note": "28×32 in the design, 60×32 on the page."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -11739,7 +11990,64 @@
     ],
     "/admin/rewards · badges": [
       {
-        "error": "could not open the \"badges\" tab"
+        "kind": "default",
+        "view": "desktop",
+        "designId": "d-default-admin-rewards-badges-mt88ovar",
+        "designName": "/admin/rewards · badges — as served",
+        "score": 100,
+        "designElements": 139,
+        "pageElements": 142,
+        "matched": 139,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 2,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
+      },
+      {
+        "kind": "default",
+        "view": "mobile",
+        "designId": "d-default-admin-rewards-badges-mt88ovar",
+        "designName": "/admin/rewards · badges — as served",
+        "score": 100,
+        "designElements": 138,
+        "pageElements": 141,
+        "matched": 138,
+        "missing": 0,
+        "moved": 0,
+        "resized": 0,
+        "extra": 2,
+        "verdict": {
+          "ok": true,
+          "why": "100% — the default still matches the page it was traced from."
+        },
+        "worst": [
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__crumb-item",
+            "note": "2 × .admin-page-header__crumb-item on the page, nothing like it in the design."
+          },
+          {
+            "kind": "extra",
+            "signature": ".admin-page-header__sep",
+            "note": ".admin-page-header__sep is on the page and not in the design."
+          }
+        ]
       }
     ],
     "/admin/rewards · company-store": [
@@ -12244,17 +12552,22 @@
         "designName": "/admin/settings — as served",
         "score": 100,
         "designElements": 28,
-        "pageElements": 31,
+        "pageElements": 32,
         "matched": 28,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12274,17 +12587,22 @@
         "designName": "/admin/settings — as served",
         "score": 100,
         "designElements": 27,
-        "pageElements": 30,
+        "pageElements": 31,
         "matched": 27,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12306,17 +12624,22 @@
         "designName": "/admin/settings · billing — as served",
         "score": 100,
         "designElements": 18,
-        "pageElements": 21,
+        "pageElements": 22,
         "matched": 18,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12336,17 +12659,22 @@
         "designName": "/admin/settings · billing — as served",
         "score": 100,
         "designElements": 17,
-        "pageElements": 20,
+        "pageElements": 21,
         "matched": 17,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12368,17 +12696,22 @@
         "designName": "/admin/settings · company — as served",
         "score": 100,
         "designElements": 31,
-        "pageElements": 34,
+        "pageElements": 35,
         "matched": 31,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12398,17 +12731,22 @@
         "designName": "/admin/settings · company — as served",
         "score": 100,
         "designElements": 30,
-        "pageElements": 33,
+        "pageElements": 34,
         "matched": 30,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12430,17 +12768,22 @@
         "designName": "/admin/settings · general — as served",
         "score": 100,
         "designElements": 28,
-        "pageElements": 31,
+        "pageElements": 32,
         "matched": 28,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12460,17 +12803,22 @@
         "designName": "/admin/settings · general — as served",
         "score": 100,
         "designElements": 27,
-        "pageElements": 30,
+        "pageElements": 31,
         "matched": 27,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12492,17 +12840,22 @@
         "designName": "/admin/settings · integrations — as served",
         "score": 100,
         "designElements": 31,
-        "pageElements": 34,
+        "pageElements": 35,
         "matched": 31,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12522,17 +12875,22 @@
         "designName": "/admin/settings · integrations — as served",
         "score": 100,
         "designElements": 30,
-        "pageElements": 33,
+        "pageElements": 34,
         "matched": 30,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12554,17 +12912,22 @@
         "designName": "/admin/settings · notifications — as served",
         "score": 100,
         "designElements": 21,
-        "pageElements": 24,
+        "pageElements": 25,
         "matched": 21,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12584,17 +12947,22 @@
         "designName": "/admin/settings · notifications — as served",
         "score": 100,
         "designElements": 20,
-        "pageElements": 23,
+        "pageElements": 24,
         "matched": 20,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12616,17 +12984,22 @@
         "designName": "/admin/settings · user-access — as served",
         "score": 100,
         "designElements": 18,
-        "pageElements": 21,
+        "pageElements": 22,
         "matched": 18,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -12646,17 +13019,22 @@
         "designName": "/admin/settings · user-access — as served",
         "score": 100,
         "designElements": 17,
-        "pageElements": 20,
+        "pageElements": 21,
         "matched": 17,
         "missing": 0,
         "moved": 0,
         "resized": 0,
-        "extra": 2,
+        "extra": 3,
         "verdict": {
           "ok": true,
           "why": "100% — the default still matches the page it was traced from."
         },
         "worst": [
+          {
+            "kind": "extra",
+            "signature": ".job-detail__tab",
+            "note": "The page has another .job-detail__tab the design does not account for."
+          },
           {
             "kind": "extra",
             "signature": ".admin-page-header__crumb-item",
@@ -13044,15 +13422,10 @@
     ],
     "/admin/users · active": [
       {
-        "error": "could not open the \"active\" tab"
-      }
-    ],
-    "/admin/users · all": [
-      {
         "kind": "default",
         "view": "desktop",
-        "designId": "d-default-admin-users-all-mt88sglp",
-        "designName": "/admin/users · all — as served",
+        "designId": "d-default-admin-users-active-mt88st9k",
+        "designName": "/admin/users · active — as served",
         "score": 100,
         "designElements": 106,
         "pageElements": 109,
@@ -13081,8 +13454,8 @@
       {
         "kind": "default",
         "view": "mobile",
-        "designId": "d-default-admin-users-all-mt88sglp",
-        "designName": "/admin/users · all — as served",
+        "designId": "d-default-admin-users-active-mt88st9k",
+        "designName": "/admin/users · active — as served",
         "score": 100,
         "designElements": 98,
         "pageElements": 101,
@@ -13107,6 +13480,11 @@
             "note": ".admin-page-header__sep is on the page and not in the design."
           }
         ]
+      }
+    ],
+    "/admin/users · all": [
+      {
+        "error": "could not open the \"all\" tab"
       }
     ],
     "/admin/users · banned": [
@@ -13441,7 +13819,7 @@
           {
             "kind": "moved",
             "signature": ".span",
-            "note": "91px from where the design puts it (+86, +30)."
+            "note": "92px from where the design puts it (+87, +30)."
           },
           {
             "kind": "moved",
