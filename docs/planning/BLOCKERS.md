@@ -493,9 +493,39 @@ render `is_current === false` as.
 
 ---
 
-## `org_id` drift — 7 tables the tenant filter does not cover (found 2026-08-16)
+## `org_id` drift — 10 tables the tenant filter does not cover (found 2026-08-16, **re-measured 2026-08-25**)
 
-- [ ] **Apply `seeds/517_org_default.sql`, backfill, then add the 7 tables to `ORG_SCOPED_TABLES`.**
+- [ ] **Apply `seeds/517_org_default.sql`, backfill, then add the 10 tables to `ORG_SCOPED_TABLES`.**
+
+> ### RE-MEASURED 2026-08-25 — THE DRIFT KEPT DRIFTING
+>
+> This entry was written against 7 tables. `npm run verify:org-scope` today:
+>
+> | | 2026-08-16 | 2026-08-25 |
+> |---|---|---|
+> | carry `org_id`, not in `ORG_SCOPED_TABLES` | 7 | **10** |
+> | no `org_id` DEFAULT | 2 | **5** |
+> | rows already sitting unowned | not reported | **`design_mockups` — 1,263** |
+>
+> New since the entry was written: **`design_mockups`, `file_comments`, `projects`.**
+>
+> Two things follow that the original entry could not have said.
+>
+> **The drift is not historical, it is ongoing.** Every one of the three additions came from work
+> done AFTER this blocker was filed — `projects` from the project layer, `design_mockups` from the
+> design studio. A blocker describing a fixed set of seven reads as a finished list of past
+> mistakes; it is actually a leak that admits a new table every few weeks, and the number in the
+> heading is the thing most likely to be trusted without re-running the check.
+>
+> **`design_mockups` is now the worst of them**, and it is the table this session has spent the day
+> writing to: 1,263 rows with no `org_id`, growing with every trace. It has no DEFAULT, so nothing
+> stamps them. That is exactly the ordering trap this entry already describes — enrolling the table
+> before backfilling would make every design record invisible at once, which looks like data loss
+> rather than a filter.
+>
+> Still correctly parked, for the reason below: seed, backfill, verify, and only then enrol. Not a
+> line in a merge. **But re-run the check before acting on any count in this entry** — it has been
+> wrong by three tables for over a week.
 
 `npm run verify:org-scope` fails, and it is **not** a regression from any recent branch —
 `lib/saas/org-scope.ts` and the verifier are byte-identical to `main`. The live database drifted
