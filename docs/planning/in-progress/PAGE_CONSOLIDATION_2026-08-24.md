@@ -1595,6 +1595,42 @@ early, and the internal tooling comes last.
       own slice; flashcard-bank is the 130k-character page that also timed out a browser walk during
       C11a, so that one at least is a size problem rather than a hang.
 
+      ── **CORRECTION: THE FOUR PAGES ARE NOT LIVE PAGES, AND THE REAL BUG IS IN THE TRACER** ──
+
+      The note above this one recorded four routes that "will not complete a walk" and called it a
+      finding about the pages. **That was wrong, and checking it is what found the actual bug.** All
+      four are redirect stubs this plan created:
+
+      | Route | Really is |
+      |---|---|
+      | `/admin/discussions` | → `/admin/messages?tab=discussions` |
+      | `/admin/equipment/consumables` | → `/admin/equipment?tab=supplies` |
+      | `/admin/equipment/timeline` | → `/admin/equipment?tab=schedule` |
+      | `/admin/learn/flashcard-bank` | → `/admin/learn?tab=flashcard-bank` |
+
+      The tracer asked `stillLoading` **before** it asked "did this route forward?", and a stub whose
+      DESTINATION is slow trips the first question — the portal it lands on has not gone quiet inside
+      the budget. So it reported a hang for a page that does not exist.
+
+      **The cost was not a wrong log line.** The forward branch is where S2 lives: the block that
+      RETIRES the locked default a forwarding route no longer has. It was unreachable for exactly the
+      routes this plan created, so every one of those stubs kept a design claiming to be a 1:1 record
+      of a page that now serves a redirect — the precise rot S2 was written to prevent, reintroduced
+      by the order of two ifs.
+
+      Where the browser ended up is known the moment navigation resolves; it never needed the page to
+      settle. The forward is answered first now, and `stillLoading` only speaks for routes that are
+      really trying to be a page. Verified on all four: each reports `redirects to …` and retires its
+      live default. Seven designs archived.
+
+      **And a third probe that was the bug.** The retire left three rows per route still marked
+      `default`, which looked like duplicate defaults — 163 route/state combinations holding 578 rows
+      between them. `design_mockups` has a unique index for exactly this,
+      `idx_design_mockups_one_default_per_state`, whose predicate includes `deleted_at IS NULL`; my
+      query did not. Re-measured with the index's own predicate: **zero live duplicates.** The extra
+      rows are soft-deleted history and the retire archived the one live default, correctly. Apply
+      the predicate the constraint applies before calling its absence a defect.
+
       ── **THE 67 ORPHANS ARE A DECISION, NOT A CLEANUP** ──
 
       67 locked defaults and 63 dossiers describe routes that no longer have a registry row. It is

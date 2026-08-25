@@ -204,16 +204,27 @@ for (const [i, target] of todo.entries()) {
       }
     }
 
-    if (stillLoading) {
-      failed.push({ route: target.route, why: 'never finished loading — a trace here would be a spinner' });
-      console.log('—  never finished loading');
-      continue;
-    }
-
     // A route that forwards is not a page, and tracing where it went would lock somebody else's
     // layout in under this URL. Skipped rather than failed: there is nothing here to fix, and a
     // queue that can never reach zero is one people stop reading.
     const landedOn = new URL(page.url()).pathname;
+
+    // ── C14: THE FORWARD IS CHECKED BEFORE THE SPINNER, AND THE ORDER WAS A REAL BUG ────────────
+    //
+    // `stillLoading` used to be answered first, and it swallowed every stub whose DESTINATION is
+    // slow. After the consolidation that is most of them: `/admin/learn/flashcard-bank`,
+    // `/admin/equipment/consumables`, `/admin/equipment/timeline` and `/admin/discussions` all
+    // reported "never finished loading" — not because the stub hangs, but because it lands on a
+    // portal that has not gone quiet within the budget, and the check below never ran.
+    //
+    // The cost was not a bad log line. It was S2: the block below RETIRES the locked design a
+    // forwarding route no longer has, and it was unreachable for exactly the routes this plan
+    // created. Every one of those stubs kept a default claiming to be a 1:1 record of a page that
+    // now serves a redirect — the precise rot S2 was written to stop.
+    //
+    // Where the browser ended up is known the moment navigation resolves; it does not need the page
+    // to settle. So the forward is answered first, and the spinner check only speaks for routes that
+    // really are trying to be a page.
     if (landedOn !== target.route) {
       // ── S2: RETIRE THE DESIGN THIS ROUTE NO LONGER HAS ──────────────────────────────────────
       //
@@ -244,6 +255,13 @@ for (const [i, target] of todo.entries()) {
         why: `redirects to ${landedOn} — not a page of its own${retired.length ? `, ${retired.length} design(s) retired` : ''}`,
       });
       console.log(`—  redirects to ${landedOn}${retired.length ? ` · retired ${retired.length} stale design(s)` : ''}`);
+      continue;
+    }
+
+    // Only now, for a route that really is trying to be a page of its own.
+    if (stillLoading) {
+      failed.push({ route: target.route, why: 'never finished loading — a trace here would be a spinner' });
+      console.log('—  never finished loading');
       continue;
     }
 
