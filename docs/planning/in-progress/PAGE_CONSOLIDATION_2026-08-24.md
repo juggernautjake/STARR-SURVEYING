@@ -1851,6 +1851,33 @@ early, and the internal tooling comes last.
       that is missing from a record cannot have a bad row in it. `/admin/schedule` is a redirect;
       `design/conformance` and `design/serve` are the two the Page Designer keeps as routes.
 
+      ── **AND THE REASON TWO PORTALS WERE NEVER MEASURED: THE TOOLING COULD NOT SEE THEM** ──
+
+      `/admin/hours` and `/admin/pay` had no conformance score, no traced default and no dossier.
+      Not because three walks each skipped them — because all three read
+      `lib/design/pages.generated.json`, and **they were not in it.** Seven routes were missing: those
+      two and the five design routes.
+
+      Why those two and no others: every other portal REUSED an existing route. C4 and C6 created
+      `/admin/hours` and `/admin/pay` as new directories, and the inventory has not been regenerated
+      since.
+
+      **The generator's own header predicted this and then did it anyway:**
+
+      > *"A hand-kept list of 168 pages is wrong the day after somebody adds a route, and the failure
+      > is silent: the page you forgot to add is the page you never review."*
+
+      Generating the list moved that failure up one level rather than removing it. The FILE is wrong
+      the day after somebody adds a route, unless a person remembers to run the script — and nothing
+      asked anyone to. Two portals were invisible to the entire design system for a day, and **none
+      of the three tools could have reported it: a route missing from a record cannot have a bad row
+      in it.** The same shape as the ratchet that was silently skipping a whole product directory.
+
+      Regenerated, and `npm run verify:page-inventory` now exits 1 when the file is behind the
+      filesystem. Exit codes measured — and the first probe was wrong in a way worth keeping: a test
+      route named `__scratch_probe` reported CURRENT, because a leading underscore is a private
+      folder the App Router ignores. The check was right and the probe was testing nothing.
+
       **Not re-run yet.** It is a third browser walk over ~75 routes at two viewports and the dossiers
       pass is still using the server. Queued behind it; the numbers above are what it will be measured
       against.

@@ -75,13 +75,40 @@ routes.sort((a, b) => a.route.localeCompare(b.route));
 const byArea = {};
 for (const r of routes) byArea[r.area] = (byArea[r.area] ?? 0) + 1;
 
-fs.writeFileSync(OUT, `${JSON.stringify({
+// ── C14: --check, BECAUSE "GENERATED" IS NOT THE SAME AS "CURRENT" ──────────────────────────────
+//
+// The header above says a hand-kept list "is wrong the day after somebody adds a route, and the
+// failure is silent: the page you forgot to add is the page you never review". Generating it moved
+// that failure up one level rather than removing it — the FILE is wrong the day after somebody adds
+// a route, unless a person remembers to run this.
+//
+// Measured on 2026-08-25: seven routes missing, and two of them were portals this consolidation
+// built a day earlier — `/admin/hours` and `/admin/pay`. Every design walk reads this file, so both
+// portals had no traced default, no dossier and no conformance score, and none of those three tools
+// could have reported it: **a route missing from a record cannot have a bad row in it.**
+//
+// So the same guard the portal-tab catalogue got. `npm run verify:page-inventory` exits 1 when the
+// file is behind the filesystem, which is something a hook or a CI step can act on.
+const body = `${JSON.stringify({
   generatedBy: 'scripts/generate-page-inventory.mjs',
   note: 'Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.',
   count: routes.length,
   byArea,
   routes,
-}, null, 2)}\n`);
+}, null, 2)}
+`;
+
+if (process.argv.includes('--check')) {
+  const existing = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  if (existing !== body) {
+    console.error(`\n  ${path.relative(process.cwd(), OUT)} is behind the filesystem — run: node scripts/generate-page-inventory.mjs\n`);
+    process.exit(1);
+  }
+  console.log(`\n  ${path.relative(process.cwd(), OUT)} is current: ${routes.length} pages\n`);
+  process.exit(0);
+}
+
+fs.writeFileSync(OUT, body);
 
 console.log(`\n  ${routes.length} pages found\n`);
 for (const [area, n] of Object.entries(byArea).sort((a, b) => b[1] - a[1])) {

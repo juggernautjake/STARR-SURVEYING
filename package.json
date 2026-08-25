@@ -19,6 +19,7 @@
     "test:watch": "vitest",
     "verify:inline-style-hex": "tsx scripts/scan-inline-style-hex.ts",
     "verify:portal-tabs": "node scripts/derive-portal-tabs.mjs --check",
+    "verify:page-inventory": "node scripts/generate-page-inventory.mjs --check",
     "verify:org-scope": "node scripts/verify-org-scoped-tables.mjs",
     "scan:untranslated": "tsx scripts/scan-untranslated.ts",
     "audit:mobile": "node scripts/audit-mobile.mjs",

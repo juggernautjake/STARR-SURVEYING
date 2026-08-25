@@ -1,10 +1,10 @@
 {
   "generatedBy": "scripts/generate-page-inventory.mjs",
   "note": "Every page.tsx under app/. Regenerate after adding a route; do not hand-edit.",
-  "count": 270,
+  "count": 277,
   "byArea": {
     "public": 43,
-    "admin": 176,
+    "admin": 183,
     "dnd": 35,
     "customer": 5,
     "platform": 9,
@@ -124,6 +124,36 @@
       "area": "admin",
       "dynamic": true,
       "file": "app/admin/design/[id]"
+    },
+    {
+      "route": "/admin/design/compare",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/design/compare"
+    },
+    {
+      "route": "/admin/design/conformance",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/design/conformance"
+    },
+    {
+      "route": "/admin/design/dossiers",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/design/dossiers"
+    },
+    {
+      "route": "/admin/design/serve",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/design/serve"
+    },
+    {
+      "route": "/admin/design/versions",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/design/versions"
     },
     {
       "route": "/admin/discussions",
@@ -310,6 +340,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/finances/reconcile"
+    },
+    {
+      "route": "/admin/hours",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/hours"
     },
     {
       "route": "/admin/hours-approval",
@@ -718,6 +754,12 @@
       "area": "admin",
       "dynamic": false,
       "file": "app/admin/pass-through"
+    },
+    {
+      "route": "/admin/pay",
+      "area": "admin",
+      "dynamic": false,
+      "file": "app/admin/pay"
     },
     {
       "route": "/admin/pay-progression",
