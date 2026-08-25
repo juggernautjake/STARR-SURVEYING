@@ -2150,6 +2150,15 @@ a link on purpose; they are not well served by doing it invisibly.
       API bundle mirror **nine times in nine slices**, and the only thing that has ever helped is a
       test that notices.
 
+      **`npm run verify:portal-tabs`** — the `--check` mode, reachable the way this repo's other
+      verifiers are (`verify:inline-style-hex`, `verify:org-scope`, `verify:fs-questions`). The test
+      already regenerates and compares; the script makes the same check runnable without the suite,
+      which is what a hook or a CI step needs.
+
+      Exit codes measured rather than assumed: **stale → 1, current → 0.** A verifier that prints a
+      warning and exits 0 is a verifier nothing acts on, and the first attempt to check this measured
+      `tail`'s exit code instead of the script's — which would have recorded exactly that lie.
+
       **The parser was wrong twice before it was right, and both cases are kept as tests:**
 
       | Symptom | Cause |
