@@ -234,6 +234,15 @@ is **per-ITEM approval** — today the decision is per receipt.
       happen: four files summed raw hours while a fifth summed the approver's adjustment, and the
       two disagreed across the very decision that created them. One definition, before the first
       screen reads `total_cents` again.
+
+      **Premise checked 2026-08-25, and it is better than written — see §13.4.** There is exactly ONE
+      definition of deductibility in the tree today: `deductibleFraction()` in
+      `app/api/admin/finances/tax-summary/route.ts`. Nothing else converts a flag to a fraction, and
+      `ScheduleCTab` consumes that route's numbers rather than recomputing them. So the split this
+      item exists to repair **has not happened yet**, and P2.2c is a guard, not a rescue: move the
+      one definition out of a route file into `lib/receipts/` where a second author would find it,
+      and pin it with a test. **Not blocked on the owner's question** — relocating a definition
+      cannot change a number — so it can go before P2.2b rather than after.
 - [ ] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
       receipts today. Per-line exemption changes what it is allowed to count, so P2.2 and P7 are
       one data model seen from two ends.
@@ -2841,13 +2850,49 @@ parking note said. The pattern is worth stating as a rule rather than a tally: *
 only as far as its blocking question actually reaches, and items get swept into a group by adjacency
 rather than by dependency.* Re-read what the question is before believing what it stops.
 
-**P2.2b–d remain genuinely blocked**, and on the original question:
+**P2.2b–d remain blocked — but on a much smaller question than this section has been claiming.**
 
-- **P2.2b** wants a *tax* treatment per line — deductible · partial · not deductible. What exists is
-  a *business* classification per line — Business · Personal · Follow receipt. Adjacent, not the
-  same, and inventing the mapping between them is the accountant's call, not this plan's.
-- **P2.2c** (`approvedTotal()` / `deductibleTotal()`) cannot define a number nobody has defined.
-- **P2.2d** follows P2.2c by construction.
+Checked 2026-08-25, and the framing was wrong. "It needs the answer about how a partly-deductible
+receipt should total" describes something **already decided, already implemented, and already on
+screen**:
+
+| link in the chain | where |
+| --- | --- |
+| the enum — `full` · `partial_50` · `none` · `review` | schema CHECK, documented at `app/api/admin/receipts/[id]/route.ts:11` |
+| a person sets it | `/admin/receipts` queue, `QueueTab.tsx:85`, labelled **"50% (meals)"** |
+| the arithmetic | `deductibleFraction()` → 1.0 / 0.5 / 0.0, `review` → 0.0 *"so the bookkeeper sees a conservative total"* |
+| the number reaches a report | `deductible_cents` → `/admin/finances` → `ScheduleCTab` |
+
+So a partly-deductible receipt has totalled correctly for some time. P2.2b even says so in its own
+text — *"`receipts.tax_deductible_flag` is the receipt-level answer"* — which means this section
+has been quoting a blocker its own action item had already resolved.
+
+**And `deductibleFraction()` is the ONLY definition of deductibility in the tree.** Searched: nothing
+else converts a flag to a fraction. That is worth saying plainly, because it inverts P2.2c's
+premise — the `effectiveHours` defect it fears has **not** happened here. P2.2c is a guard against a
+future second definition, not a repair of an existing split. Cheaper than the item implies, and it
+should be written as "keep the one definition, and move it somewhere a second author would find it"
+rather than "reconcile the divergent ones".
+
+**What is actually open is one question, and it is narrow:**
+
+> When individual lines carry their own treatment, and the transcribed lines do not add up to the
+> printed total — which they routinely do not — what is the receipt's deductible amount?
+
+- **(a) sum the lines.** Honest per line, but it silently replaces the printed total with the AI's
+  transcription, and the queue states the opposite: *the receipt's own total is what gets approved*.
+- **(b) printed total × the receipt's flag**, lines informational only. Safe, and makes per-line
+  marking decorative — which defeats P2.2b.
+- **(c) printed total, apportioned by the share the lines say is deductible.** ← **recommended.**
+  The printed total stays authoritative; the lines decide the *share*, not the *amount*. Its
+  strongest property: with no line overridden, every line inherits the receipt flag, the share
+  collapses to that one fraction, and the number produced is **byte-identical to today's**. A change
+  that cannot alter any existing figure until somebody deliberately marks a line is the version of
+  this that can ship without a reconciliation.
+
+That is a decision, not an accountancy question, and (c) has a defensible default — but it changes
+what a tax report claims, so it stays the owner's to make. **P2.2c is not blocked by it** and can be
+done first, since it only relocates the single definition that already exists. P2.2d follows P2.2b.
 
 One thing P2.2a leaves behind, stated precisely because it is easy to overstate. `AdminReceiptRow
 .line_items` is now read by **nobody**: the queue was its only consumer, and `ReceiptLineItems`
