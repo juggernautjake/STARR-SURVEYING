@@ -2686,3 +2686,23 @@ its empty state. A refusal degrades to "nothing to show" rather than an error or
 
 **So nothing broke.** Recorded anyway, because "it turned out fine" and "it was checked" are
 different claims, and only one of them was true at the time each change was committed.
+
+### 13.7 The portals on a phone — 17 swept at 390px, all clean
+
+Every browser check in this plan until now was at 1440. That is the gap between *"the tabs render"*
+and *"a person on a phone can use them"*, and a strip that pushed the page sideways would have been
+invisible to the desktop walks, to `tsc`, and to all 26,226 tests.
+
+| | result |
+|---|---|
+| Portals swept | **17** (110 tabs) |
+| Body horizontal overflow | **0px on every one** |
+| Strips that overflow their box but cannot be scrolled | **none** |
+| First tab visible on load | **all** |
+
+The ones most likely to break were the crowded ones — `/admin/learn/manage` at **12 tabs**, and
+`/admin/equipment`, `/admin/learn` and `/admin/pay` at **10**. All scroll the strip horizontally
+without the page moving. That is the reformat-vs-scroll rule `/admin/marketing` set for four tabs,
+still holding at twelve.
+
+Nothing to fix. Recorded because a check nobody knows happened is a check that gets asked for again.
