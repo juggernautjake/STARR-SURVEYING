@@ -358,6 +358,45 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14m — MEASURE AFTER THE REPAIR, NOT BEFORE IT, 2026-08-25** ──
+
+      The conformance pass was started and then **stopped at 20 of 194**, deliberately. Its first
+      twenty rows are the reason:
+
+      | row | reading |
+      |---|---|
+      | `/admin/design · compare` | default/desktop **4%** · mobile 100% |
+      | `/admin/design` · `· pages` | 99% / 99%, flagged |
+      | `/admin/design · dossiers` | could not open the tab |
+      | `/admin/billing · plan-history` | desktop 93% |
+
+      A record at 4% is not a page that drifted. It is the same premature capture C14i found, in the
+      form the lopsided check **cannot see**: when BOTH viewports are captured early the record is
+      uniformly small and looks perfectly balanced. `recaptureIfLopsided` only ever catches asymmetry,
+      and that limitation is worth stating in the doc rather than leaving for whoever trusts it next.
+
+      Every one of those records was captured **before `captureStable` existed**. So the run in flight
+      was measuring the distance between the live page and a set of records already known to be
+      stale, at roughly four minutes a page, and every row it produced would have to be thrown away
+      after the re-trace. **Measure after the repair.** The same reasoning that held conformance back
+      while 59 states had no default applies again for a different reason.
+
+      Full portal re-trace running now with `captureStable` and the readiness fix; conformance goes
+      after it.
+
+      ── **A NULL RESULT WORTH RECORDING, BECAUSE THE PROBE WAS THE PROBLEM** ──
+
+      Before stopping the run I tried to find uniformly-thin records without the browser, by comparing
+      each default's element count against its DOSSIER's inventory — two independent walks of the same
+      page. It reported zero, and zero was meaningless: a dossier's `elements` is a curated inventory
+      (24 for `/admin/design`) while a capture is a DOM census (597). A capture would have to be
+      catastrophically small to fall under half the dossier's count.
+
+      **The two numbers do not measure the same thing, so their ratio was never going to say
+      anything.** Recorded so nobody builds a guard on it: the dossier cannot cross-check capture
+      completeness, and conformance — comparison against the live page — is the only instrument that
+      catches this class.
+
       ── **C14l — THE FLAKE, DIAGNOSED: THE PAGE NEVER ARRIVED, 2026-08-25** ──
 
       Four fixes had been aimed at this and it kept moving. The instrument settled it in one run:
