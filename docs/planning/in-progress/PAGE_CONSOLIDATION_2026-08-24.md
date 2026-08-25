@@ -187,8 +187,44 @@ is **per-ITEM approval** — today the decision is per receipt.
 | `/admin/mileage` | tab `mileage` — the other reimbursable |
 
 - [x] **P2.1** — absorb cards, pass-through and mileage as tabs. Shipped 2026-08-25 with C5.
-- [ ] **P2.2a — surface the per-line editor on the approval queue.** It exists and works; it is
-      only mounted in the slideshow. §10.1.
+- [x] **P2.2a — surface the per-line editor on the approval queue.** **Shipped 2026-08-25.** §10.1.
+
+      **It was never blocked.** P2.2a sat in the group §13.4 calls "the one blocked item since before
+      this plan began" — blocked on *how a partly-deductible receipt should total*. That question is
+      P2.2b's, and P2.2a does not ask it: the editing capability already ships to approvers today,
+      one click away in the slideshow. What was missing was the mounting, not the answer. Fifth time
+      in this plan a parked item's premise turned out to be narrower than its parking note.
+
+      `ReceiptLineItems` is a three-prop client component mounted in exactly one place
+      (`ReceiptSlideshow.tsx:434`), and the slideshow's own comment says it *"replaces the read-only
+      table that used to sit here"*. The queue still had that table. This is the second half of a
+      swap made once already.
+
+      **The `> 0` gate had to go, and that is the substantive part.** The old table was hidden when
+      `row.line_items.length === 0`, which is correct for a table and wrong for an editor: *"we need
+      to be able to add items too, just in case they do not show up properly on the receipt, or the
+      AI hallucinates"* is the owner's own words, and a receipt whose lines the AI missed entirely is
+      exactly the case that needs typing into. Mounting the editor behind the old condition would
+      have looked like shipping P2.2a while leaving its motivating case unreachable.
+
+      **Two things checked rather than assumed**, both because this repo has been bitten by each:
+      · the `rli__`/`rcv__` classes live in `ReceiptSlideshow.css`, which `QueueTab` pulls in through
+      its static import of the slideshow — so the CSS is in the same client chunk and applies. A
+      component authored against another screen's stylesheet is how `/admin/settings` rendered
+      unstyled earlier in this plan. Measured in the browser: `list-style-type: none`, `margin: 0`,
+      `0.72rem` titles — **rem**, not em, so the queue's denser typography cannot shrink it.
+      · a green suite is not a rendered screen, so the row was expanded in a real browser at 1440 and
+      390. Editor, totals and Add-item all present; zero overflow at both.
+
+      **The note under it was kept and rewritten, not deleted.** The editor prints totals of its own
+      — "counted as business", "not claimed" — a few lines above Approve, so the screen now shows
+      more than one number and must say which the button acts on. That is P2.2c's warning arriving
+      early, and the honest answer until P2.2c lands is: the printed total.
+
+      Ratchet: QueueTab 34 → 31 inline hexes. Seven were deleted and three counted — the scanner
+      strips `var(--token, #fallback)` on purpose, so only raw literals move it. **This corrects a
+      standing note of mine that said the opposite**; the scanner was changed after that note was
+      written, and quoting the deletion count as the ratchet delta would have overstated the fix.
 - [ ] **P2.2b — a per-line tax treatment**, beside the per-line accept. Deductible · partial ·
       not deductible. `receipts.tax_deductible_flag` is the receipt-level answer and stays as the
       default a line inherits until somebody says otherwise.
@@ -2793,11 +2829,39 @@ and the other cannot.**
 
 ---
 
-### 13.4 P2.2a–d — the receipt per-line accounting question
+### 13.4 P2.2b–d — the receipt per-line accounting question
 
-Unchanged and unstarted: it needs the answer about how a partly-deductible receipt should total.
-It has been the one blocked item since before this plan began, and it is not blocked on anything
-this plan did.
+**Narrowed 2026-08-25: P2.2a was in this group and did not belong.** It shipped. The blocker here is
+how a partly-deductible receipt should total, and P2.2a never asked that — it mounted an editor that
+already ships to approvers one click away, in the slideshow. Checking the premise cost ten minutes
+and returned a whole item.
+
+That is now **five of five** parked premises in this plan that were false or narrower than their
+parking note said. The pattern is worth stating as a rule rather than a tally: *a group is blocked
+only as far as its blocking question actually reaches, and items get swept into a group by adjacency
+rather than by dependency.* Re-read what the question is before believing what it stops.
+
+**P2.2b–d remain genuinely blocked**, and on the original question:
+
+- **P2.2b** wants a *tax* treatment per line — deductible · partial · not deductible. What exists is
+  a *business* classification per line — Business · Personal · Follow receipt. Adjacent, not the
+  same, and inventing the mapping between them is the accountant's call, not this plan's.
+- **P2.2c** (`approvedTotal()` / `deductibleTotal()`) cannot define a number nobody has defined.
+- **P2.2d** follows P2.2c by construction.
+
+One thing P2.2a leaves behind, stated precisely because it is easy to overstate. `AdminReceiptRow
+.line_items` is now read by **nobody**: the queue was its only consumer, and `ReceiptLineItems`
+fetches its own from `/api/admin/receipts/{id}/line-items`. Checked across `app` and `lib` — every
+other `line_items` in the tree is an *invoice* line item, an unrelated concept with the same name.
+
+So `app/api/admin/receipts/route.ts` still runs an extra `receipt_line_items` query per page of
+receipts (lines 253–279) and attaches the result at line 422, to populate a field nothing reads.
+`receipt-types.ts` records that adding it there had a measured cost — *"the predicted bill arrived"*.
+
+**Not removed, and deliberately not.** It is outside what P2.2a was asked to do, the query is
+best-effort and cannot take the queue down, and P2.2c has to open this file anyway. Deleting a
+payload field is also the kind of change that is cheap to make and expensive to be wrong about — the
+right moment is when something else is already proving what reads these totals.
 
 ---
 

@@ -27,6 +27,7 @@ import type { ReceiptAiHealth } from '@/app/api/admin/receipts/ai-health/route';
 import { LOW_CONFIDENCE, reviewNeeds, reviewSummary } from '@/lib/receipts/review-needs';
 import { ReceiptEditor } from '../ReceiptEditor';
 import ReceiptSlideshow from '../ReceiptSlideshow';
+import { ReceiptLineItems } from '../ReceiptLineItems';
 import { ReceiptDeepRead } from '../ReceiptDeepRead';
 import { parseReceiptFilters, describeFilters } from '@/lib/receipts/filters';
 import {
@@ -1417,51 +1418,40 @@ function ReceiptRow({
             />
           </div>
 
-          {/* R6 — the transcribed lines. This is the part a bookkeeper genuinely cannot rebuild
-              later: the photo fades, the paper goes in a drawer, and "$84.19 at a hardware store"
-              stops being answerable six months on. Rendered only when there are lines — a fuel slip
-              or a toll has none, and an empty table would read as a failed extraction rather than a
-              receipt that simply is not itemised. */}
-          {row.line_items.length > 0 ? (
-            <div style={styles.lineItems}>
-              <strong style={styles.lineItemsTitle}>
-                What was on it ({row.line_items.length}{' '}
-                {row.line_items.length === 1 ? 'line' : 'lines'})
-              </strong>
-              {/* The wrapper scrolls, not the page (M4's rule): amounts stay column-aligned so they
-                  can be compared, which is the only reason this is a table at all. */}
-              <div style={styles.lineItemsScroll}>
-                <table style={styles.lineTable}>
-                  <thead>
-                    <tr>
-                      <th style={styles.lineTh}>Item</th>
-                      <th style={{ ...styles.lineTh, ...styles.lineThNum }}>Qty</th>
-                      <th style={{ ...styles.lineTh, ...styles.lineThNum }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {row.line_items.map((li) => (
-                      <tr key={li.id}>
-                        <td style={styles.lineTd}>{li.description || '—'}</td>
-                        <td style={{ ...styles.lineTd, ...styles.lineTdNum }}>
-                          {li.quantity ?? '—'}
-                        </td>
-                        <td style={{ ...styles.lineTd, ...styles.lineTdNum }}>
-                          {formatCents(li.amount_cents)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {/* Transcription is not arithmetic, and saying so stops somebody treating the lines as
-                  the authority when they disagree with the printed total. */}
-              <p style={styles.lineItemsNote}>
-                Read from the photo by AI. The receipt&rsquo;s own total above is what gets
-                approved.
-              </p>
-            </div>
-          ) : null}
+          {/* R6 / P2.2a — the lines on the receipt, EDITABLE, on the screen where they are judged.
+              This is the part a bookkeeper genuinely cannot rebuild later: the photo fades, the
+              paper goes in a drawer, and "$84.19 at a hardware store" stops being answerable six
+              months on.
+
+              It used to be a read-only table here while the very same editor was mounted in the
+              slideshow — so an approver could fix a mis-read line only by opening the receipt
+              full-screen first. The capability was never missing, only the mounting; the slideshow
+              made exactly this swap already, and this is the second half of it.
+
+              NOT gated on `line_items.length > 0`, and that is the point rather than an oversight.
+              The old table hid itself when there were no lines, which is right for a table and
+              wrong for an editor: "the AI missed the items entirely" is precisely the case the
+              owner asked to be able to fix by hand, and a hidden editor cannot be typed into. The
+              component draws its own empty state inviting exactly that.
+
+              Styling: `rli__*` and `rcv__*` live in ReceiptSlideshow.css, which is imported by
+              ReceiptSlideshow.tsx — statically imported by THIS file, so the CSS ships in the same
+              client chunk and applies here. Checked, because a component authored against another
+              screen's stylesheet is how /admin/settings came out unstyled. */}
+          <ReceiptLineItems
+            receiptId={row.id}
+            receiptIsBusiness={row.expense_nature !== 'personal'}
+            onChanged={onRefresh}
+          />
+          {/* Kept, and now load-bearing rather than decorative. The editor shows its own totals —
+              "counted as business", "not claimed" — a few lines above the Approve button, so the
+              screen now displays more than one number and has to say which one the button acts on.
+              Until P2.2c gives approved-vs-deductible one definition, that answer is: the printed
+              total. Transcription is not arithmetic. */}
+          <p style={styles.lineItemsNote}>
+            The receipt&rsquo;s own total above is what gets approved — the line totals are for
+            deciding what counts, not what is paid.
+          </p>
 
           {/* Inline overrides */}
           <div style={styles.editRow}>
@@ -2370,41 +2360,15 @@ const styles: Record<string, React.CSSProperties> = {
     verticalAlign: '1px',
   },
   // ── R6 — line items ───────────────────────────────────────────────────────────────────────────
-  lineItems: {
-    gridColumn: '1 / -1',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 6,
-    minWidth: 0,
-  },
-  lineItemsTitle: { fontSize: 13, color: 'var(--theme-fg-secondary, #374151)' },
-  // M4's rule, applied here rather than left for the sweep: the TABLE scrolls, the page does not.
-  // A table is the right form for this because the amounts are meant to be compared down the
-  // column — restacking it into cards on a phone would destroy the only reason it is a table.
-  lineItemsScroll: {
-    overflowX: 'auto',
-    WebkitOverflowScrolling: 'touch',
-    border: '1px solid #E5E7EB',
-    borderRadius: 6,
-    background: 'var(--color-bg-card, #FFFFFF)',
-    minWidth: 0,
-  },
-  lineTable: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
-  lineTh: {
-    textAlign: 'left',
-    padding: '6px 10px',
-    borderBottom: '1px solid #E5E7EB',
-    color: 'var(--theme-fg-muted, #6B7280)',
-    fontWeight: 600,
-    whiteSpace: 'nowrap',
-  },
-  lineThNum: { textAlign: 'right' },
-  lineTd: {
-    padding: '6px 10px',
-    borderBottom: '1px solid #F3F4F6',
-    color: 'var(--theme-fg-primary, #1F2937)',
-  },
-  lineTdNum: { textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' },
+  //
+  // The table that used to live here — `lineItems`, `lineItemsScroll`, `lineTable`, `lineTh`,
+  // `lineThNum`, `lineTd`, `lineTdNum`, `lineItemsTitle` — went with P2.2a, and took this file from
+  // 34 inline hex literals to 31. Seven hexes were deleted and the ratchet moved by three: four of
+  // them sat inside `var(--token, #fallback)`, which the scanner strips before counting, on purpose
+  // — a var() fallback is the converted form, not the debt. So the three that counted are the three
+  // raw literals: two `#E5E7EB` borders and one `#F3F4F6`.
+  // `ReceiptLineItems` draws its own, from ReceiptSlideshow.css. Only the note below is still ours,
+  // because it says something about THIS screen's Approve button.
   lineItemsNote: {
     margin: 0,
     fontSize: 11.5,

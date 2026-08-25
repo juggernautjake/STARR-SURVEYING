@@ -122,7 +122,7 @@
   "app/admin/profile/ProfilePanel.tsx": 9,
   "app/admin/receipts/_tabs/LogTripForm.tsx": 1,
   "app/admin/receipts/_tabs/MileageTab.tsx": 18,
-  "app/admin/receipts/_tabs/QueueTab.tsx": 34,
+  "app/admin/receipts/_tabs/QueueTab.tsx": 31,
   "app/admin/receipts/new/MyReceipts.tsx": 2,
   "app/admin/receipts/new/page.tsx": 24,
   "app/admin/reports/job/[jobId]/page.tsx": 1,
