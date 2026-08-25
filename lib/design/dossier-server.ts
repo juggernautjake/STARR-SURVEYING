@@ -43,6 +43,7 @@ interface DossierRow {
   elements: DerivedDossier['elements'] | null;
   endpoints: DerivedDossier['endpoints'] | null;
   element_count: number | null;
+  states: DerivedDossier['states'] | null;
   derived_at: string | null;
   derived_from: string | null;
 }
@@ -62,6 +63,9 @@ function toDossier(row: DossierRow): PageDossier {
       elements: row.elements ?? [],
       endpoints: row.endpoints ?? [],
       elementCount: row.element_count ?? row.elements?.length ?? 0,
+      // `?? []` rather than trusting the column default: a row written before seed 616 has no
+      // states, and a list page is not the place to discover that by throwing.
+      states: row.states ?? [],
       derivedAt: row.derived_at ?? '',
       derivedFrom: row.derived_from ?? null,
     },
@@ -80,7 +84,7 @@ export async function listDossiers(): Promise<PageDossier[]> {
     // `elements` is the big column and the list does not render it; `element_count` is why it
     // exists. Pulling 176 element inventories to draw 176 rows is the kind of thing that makes a
     // list page feel broken on a slow connection.
-    .select('route, state_key, purpose, summary, audience, authored_by, authored_at, functions, endpoints, element_count, derived_at, derived_from')
+    .select('route, state_key, purpose, summary, audience, authored_by, authored_at, functions, endpoints, element_count, states, derived_at, derived_from')
     .order('route');
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as DossierRow[]).map((row) => toDossier({ ...row, elements: [] }));
@@ -93,13 +97,16 @@ export async function saveAuthored(
   email: string,
   now: string,
 ): Promise<PageDossier> {
-  const patch: Record<string, unknown> = { route, authored_by: email, authored_at: now, updated_at: now };
+  // `state_key` is part of the primary key since seed 615, so it has to be IN the row for the
+  // upsert to have anything to match on. Defaulting to the route-as-a-whole here rather than making
+  // every caller pass it: writing the authored half of a dossier for a specific tab is V3 work.
+  const patch: Record<string, unknown> = { route, state_key: '', authored_by: email, authored_at: now, updated_at: now };
   if (authored.purpose !== undefined) patch.purpose = authored.purpose?.trim() || null;
   if (authored.summary !== undefined) patch.summary = authored.summary?.trim() || null;
   if (authored.audience !== undefined) patch.audience = authored.audience?.trim() || null;
 
   const { data, error } = await supabaseAdmin
-    .from(DOSSIERS).upsert(patch, { onConflict: 'route' }).select('*').single();
+    .from(DOSSIERS).upsert(patch, { onConflict: 'route,state_key' }).select('*').single();
   if (error) throw new Error(error.message);
   return toDossier(data as DossierRow);
 }
@@ -121,14 +128,18 @@ export async function saveDerived(
     .from(DOSSIERS)
     .upsert({
       route: observation.route,
+      // Part of the primary key since seed 615. The derived half describes the route as a whole
+      // until V4 teaches the walk to visit one tab at a time.
+      state_key: '',
       functions: derived.functions,
       elements: derived.elements,
       endpoints: derived.endpoints,
       element_count: derived.elementCount,
+      states: derived.states ?? [],
       derived_at: derived.derivedAt,
       derived_from: derived.derivedFrom,
       updated_at: options.now,
-    }, { onConflict: 'route' })
+    }, { onConflict: 'route,state_key' })
     .select('*')
     .single();
   if (error) throw new Error(error.message);

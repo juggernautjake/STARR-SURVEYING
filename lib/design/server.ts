@@ -479,6 +479,12 @@ export async function writeDefault(
   doc: DesignDocument,
   actorEmail: string,
   now: string,
+  /** Which state of the route this is the default FOR — V4.
+   *
+   * `''` is the route as a whole, which is what every default written before 2026-08-24 is. A
+   * tabbed page gets one default per tab, because "the page" was never one thing to look at:
+   * /admin/settings is six. */
+  stateKey: string = '',
 ): Promise<DesignSummary & { changes: RetraceChange[] }> {
   // The whole prior row, not just its id: replacing a default is the moment to say what changed,
   // and after the update the old elements are gone.
@@ -486,6 +492,10 @@ export async function writeDefault(
     .from(TABLE)
     .select('*')
     .eq('route', route)
+    // Scoped to the STATE, or re-tracing the invoices tab would retire the overview's default.
+    // The bug this prevents is not subtle in its effects and is completely invisible in its
+    // cause: six tabs would leave one design, the last one written.
+    .eq('state_key', stateKey)
     .eq('status', 'default')
     .is('deleted_at', null)
     .maybeSingle();
@@ -500,11 +510,15 @@ export async function writeDefault(
     await supabaseAdmin.from(TABLE).update({ deleted_at: now }).eq('id', prior.id as string);
   }
 
-  const id = `d-default-${route.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '')}-${Date.now().toString(36)}`;
+  const slug = `${route}${stateKey ? `-${stateKey}` : ''}`.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '');
+  const id = `d-default-${slug}-${Date.now().toString(36)}`;
   const insert = {
     id,
-    name: `${route} — as served`,
+    // The state is in the NAME as well as the column, because the name is what a person reads in
+    // a list of six otherwise-identical rows.
+    name: `${route}${stateKey ? ` · ${stateKey}` : ''} — as served`,
     route,
+    state_key: stateKey,
     variant_of: null,
     views: doc.views,
     owner_email: actorEmail,

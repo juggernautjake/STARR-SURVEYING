@@ -71,6 +71,11 @@ export interface RouteObservation {
   headings: string[];
   controls: ObservedControl[];
   regions: ObservedRegion[];
+  /** The states this page can be in — V2. Optional because a walk recorded before V2 shipped has
+   *  none, and an older payload must not throw. */
+  states?: ObservedState[];
+  /** Which query parameter selects a state on this page, when the URL carried one. */
+  stateParam?: string | null;
   requests: ObservedRequest[];
   /** Set when the walk could not trust what it saw — an error page, a redirect, a spinner. */
   problem?: string | null;
@@ -123,11 +128,29 @@ export interface DossierEndpoint {
 }
 
 /** The measured half. Replaced wholesale on every re-derive. */
+/** One state a page can be in: a tab, or a disclosure panel. */
+export interface ObservedState {
+  /** The `?tab=` value where the page has one, otherwise a slug of the label. Matches
+   *  `design_mockups.state_key` — see seed 615. */
+  key: string;
+  label: string;
+  kind: 'tab' | 'disclosure';
+  /** Was this the state showing when the page was walked? */
+  selected: boolean;
+  /** `'yes'` when the state proved itself linkable — an `<a href="?tab=…">`, or a URL that
+   *  carried the parameter. `'unknown'` otherwise, and NEVER `'no'`: a `<button>` that calls
+   *  `router.replace` looks identical from the DOM to one holding its state in a variable, and
+   *  saying "not addressable" about the first would be false. */
+  addressable: 'yes' | 'unknown';
+}
+
 export interface DerivedDossier {
   functions: DossierFunction[];
   elements: DossierElement[];
   endpoints: DossierEndpoint[];
   elementCount: number;
+  /** The states found on this page. Empty for a page that has none — which is most of them. */
+  states: ObservedState[];
   derivedAt: string;
   derivedFrom: string | null;
   problem?: string | null;
@@ -147,7 +170,7 @@ export interface PageDossier extends AuthoredDossier, DerivedDossier {
 }
 
 export const EMPTY_DERIVED: DerivedDossier = {
-  functions: [], elements: [], endpoints: [], elementCount: 0, derivedAt: '', derivedFrom: null,
+  functions: [], elements: [], endpoints: [], elementCount: 0, states: [], derivedAt: '', derivedFrom: null,
 };
 
 // ── DERIVING ────────────────────────────────────────────────────────────────────────────────────
@@ -292,6 +315,8 @@ export function deriveDossier(
   return {
     functions: inferFunctions(observation, elements),
     elements,
+    // Recorded as observed, unsorted: the order a tab strip is IN is part of what it is.
+    states: observation.states ?? [],
     endpoints: foldEndpoints(observation.requests),
     elementCount: elements.length,
     derivedAt: context.now,
@@ -454,6 +479,7 @@ export function mergeDossier(
     elements: derived?.elements ?? [],
     endpoints: derived?.endpoints ?? [],
     elementCount: derived?.elementCount ?? derived?.elements?.length ?? 0,
+    states: derived?.states ?? [],
     derivedAt: derived?.derivedAt ?? '',
     derivedFrom: derived?.derivedFrom ?? null,
     problem: derived?.problem ?? null,

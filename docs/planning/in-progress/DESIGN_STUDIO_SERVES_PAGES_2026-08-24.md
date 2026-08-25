@@ -176,12 +176,80 @@ A hand-maintained list of tabs is wrong the first time somebody adds one. Two so
       fires on prose about the thing it guards teaches people to stop writing the prose, which is
       the same lesson `scan-inline-style-hex.ts` learned when it counted the hexes in a comment
       warning against hard-coded hexes.
-- [ ] **V2 — the deriver records the views it finds** on a route: tabs, disclosure panels, and the
-      URL parameter that selects each where there is one.
+- [x] **V2 — the walk records the states it finds.** Shipped 2026-08-25. `seeds/616` adds
+      `design_page_dossiers.states`; the observer finds them; the deriver stores them.
+
+      **16 admin routes have states — 76 in total.** `/admin/learn/manage` has 10,
+      `/admin/my-pay` 9, `/admin/notes` 8, `/admin/settings` 6.
+
+      Three shapes, because the codebase uses three: a real `[role="tab"]` tablist, an HTML
+      `<details>`, and this app's own class convention. **Every rule below was found by running it
+      and reading what came back wrong — none was predicted:**
+
+      | what happened | the fix |
+      |---|---|
+      | `-tab` matched `-table` — four table headers and a paragraph of prose became "states" on `/admin/marketing` | a trailing boundary |
+      | requiring a boundary BEFORE the stem too — `job-detail__tab` stopped matching and `/admin/settings` went 6 → 0 | only the trailing one matters; `__tab` always follows a block name |
+      | `payroll-tabs__btn` — a third convention, plural stem with `__btn` items | `tabs?__` added |
+      | which then matched a hint paragraph INSIDE the tab strip | a state is something you can **click**: button, anchor, or `role="tab"` |
+      | `/admin/audit` reported one state called `1-field`, `/admin/support/new` one called `auto-attach-browser-context-recommended` | **one state is not a state** — a tab strip has at least two, a lone `<details>` is a collapsible paragraph. Counted per kind. |
+
+      **`addressable` is `'yes'` or `'unknown'`, never `'no'`.** A tab written as
+      `<a href="?tab=x">` proves itself linkable; a tab written as a `<button>` calling
+      `router.replace` — which is what `/admin/billing` does, correctly — is indistinguishable
+      from the DOM from one holding its state in a variable. The first version said "NOT
+      addressable" about a page that had just been given `?tab=` on purpose.
+
+      **The first run recorded ZERO states while reporting success on every page.** The walk found
+      them, the type carried them, the column existed — and `sane()` in the derive route, an
+      allowlist rebuilding the payload field by field, dropped them on the way past. Third time
+      this session that a field added at one end of a pipeline and not the other produced an empty
+      that looked entirely legitimate.
 - [ ] **V3 — the page list nests views under their route**, each with its own gap chips. This is the
       screen the owner is asking for.
-- [ ] **V4 — the tracer traces a view.** `?tab=invoices` is a different capture from `?tab=overview`;
-      today the tracer would record whichever tab happened to be default and call it the route.
+- [x] **V4 — a default for every tab.** Shipped 2026-08-25, `--states` on the tracer.
+
+      Owner: *"I need each actual page to have a default for all tabs and everything."*
+
+      **204 default rows across 138 admin routes — 73 of them per-state**, covering 73 of the 76
+      states found. Two ways in, tried in order: the URL where the page reads one, then clicking
+      the tab for the pages that hold their state in a variable.
+
+      **The check that it actually got there is the whole slice.** If a click misses or a `?tab=`
+      is ignored, every state captures the SAME tab and the product gets six identical defaults
+      with six different names — worse than none, because they look like a finished job. Nothing
+      is stored unless the state that ends up selected is the one that was asked for.
+      `/admin/settings` came back 28 / 31 / 18 / 21 / 31 / 18 elements, which is what a working
+      one looks like.
+
+      **Two defects the run found rather than caused:**
+
+      - **Every state on every non-URL page was "unreachable" and none was stored.** The tracer
+        had its own idea of which state was showing, and the first element in the content with
+        `--active` in its class is the **breadcrumb** — so it answered "settings" for all six tabs
+        of `/admin/settings`. Fourth time in one session that two ends of a pair answered the same
+        question differently. `SELECTED_STATE` is exported from the observer now and the tracer
+        imports it.
+      - **`seeds/615` contained a false claim I wrote without checking**: that "one default per
+        route" was enforced in `lifecycle.ts` rather than in the database. Seed 612 had already
+        made two real unique indexes on `(route)`, and they refused every per-tab default with
+        *"duplicate key value violates unique constraint"*. `seeds/617` re-keys them to
+        `(route, state_key)`, and the wrong sentence is corrected where it was written rather than
+        contradicted somewhere else.
+
+      **What is still not covered, honestly:** `/admin/my-pay` has three states — `overview`,
+      `transactions`, `withdrawals` — that live inside another tab, so they are not on the page
+      when the tracer arrives. The guard refuses them rather than storing a wrong capture, which
+      is the right failure. Nested states need the walk to open the parent first, and that is not
+      built.
+
+      **And one thing that looks wrong and is not:** all eight states of `/admin/notes` capture 35
+      elements each. They are filter tabs over one list — the layout genuinely does not change,
+      only the rows do. The verification confirms the tab really switched; identical counts are
+      the correct answer here.
+
+      Three routes failed the batch run with "never finished loading" and traced on the first
+      retry. That is the dev server compiling, and it is now the expected shape of a large walk.
 - [ ] **V5 — conformance and the checklist follow the state.** They already key on route; the same
       code keyed on `state_key` answers a much sharper question — and the conformance record grows
       from 264 measured views to roughly one per tab.

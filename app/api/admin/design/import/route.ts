@@ -63,6 +63,8 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const body = await req.json().catch(() => null) as {
     name?: string; route?: string; desktop?: unknown; mobile?: unknown; dryRun?: boolean; asDefault?: boolean;
+    /** Which state of the route was captured — V4. Absent means the route as a whole. */
+    stateKey?: string;
   } | null;
   if (!body?.route) return NextResponse.json({ error: 'Which route was captured?' }, { status: 400 });
 
@@ -96,7 +98,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     // `changes` is what makes a re-trace honest (P3): replacing the record of what a page looks
     // like without saying what moved leaves you diffing two screenshots by eye. Empty on the first
     // trace of a route, because there was nothing to change.
-    const { changes, ...summary } = await writeDefault(body.route, doc, email!, now);
+    const { changes, ...summary } = await writeDefault(body.route, doc, email!, now, typeof body.stateKey === 'string' ? body.stateKey : '');
     return NextResponse.json({ design: summary, coverage, changes });
   }
 

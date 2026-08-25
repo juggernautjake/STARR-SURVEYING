@@ -41,7 +41,7 @@ import fs from 'node:fs';
 import { chromium } from 'playwright';
 import { encode } from '@auth/core/jwt';
 import { CAPTURE } from './lib/design-capture.mjs';
-import { waitForPageReady } from './lib/design-observe.mjs';
+import { waitForPageReady, SELECTED_STATE } from './lib/design-observe.mjs';
 // The SAME rule the page list draws its "Traced before the page changed" chip from. A queue that
 // showed work this tool could not see would be the conformance defect again — two copies of one
 // rule, disagreeing, with a number that looked like evidence.
@@ -58,6 +58,9 @@ const MISSING_ONLY = process.argv.includes('--missing');
 //   --since   what a slice just touched — for a hook, right after the change
 // Conflating them would re-run the whole backlog on every commit.
 const STALE_ONLY = process.argv.includes('--stale');
+// V4. Off by default: tracing every state of every page is N× the work, and most routes have no
+// states at all. `--states` is what you run when you want the tabs too.
+const WITH_STATES = process.argv.includes('--states');
 const SINCE = arg('--since');
 const LIMIT = Number(arg('--limit') ?? 0);
 
@@ -114,6 +117,22 @@ let page = await ctx.newPage();
 //
 // That is the same shape as the fixed-wait bug and the two before it: the instrument failed and the
 // output looked exactly like a finding. A failed route now gets a fresh tab before the next one.
+/** Which state is showing right now — the observer's own rule, imported rather than re-guessed. */
+async function selectedStateKey(pg) {
+  return pg.evaluate(SELECTED_STATE).catch(() => null);
+}
+/** Click the control that switches to this state. Returns whether anything was clicked. */
+async function clickState(pg, st) {
+  return pg.evaluate((label) => {
+    const root = document.querySelector('.admin-layout__content') ?? document.body;
+    const text = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().replace(/\s*\d+$/, '');
+    for (const el of root.querySelectorAll('button, a, [role="tab"]')) {
+      if (text(el).toLowerCase() === label.toLowerCase()) { el.click(); return true; }
+    }
+    return false;
+  }, st.label).catch(() => false);
+}
+
 async function freshPage() {
   try { await page.close(); } catch { /* already gone — that is why we are here */ }
   page = await ctx.newPage();
@@ -131,6 +150,22 @@ const { classes } = await indexRes.json();
 const listRes = await page.request.fetch(`${BASE}/api/admin/design`);
 const existing = listRes.ok() ? (await listRes.json()).designs ?? [] : [];
 const hasDefault = new Set(existing.filter((d) => d.status === 'default').map((d) => d.route));
+
+// ── V4: THE STATES EACH ROUTE HAS ─────────────────────────────────────────────────────────────
+//
+// Owner: *"I need each actual page to have a default for all tabs and everything."*
+//
+// Read from the dossiers rather than re-found here: V2's walk already does the finding, and two
+// implementations of "what are this page's tabs" would drift the way the conformance check's two
+// signature rules did. A route with no dossier yet simply has no states to trace — run the
+// deriver first, which is what `--states` says when it finds nothing.
+const dossierRes = await page.request.fetch(`${BASE}/api/admin/design/dossier`);
+const statesByRoute = new Map();
+if (dossierRes.ok()) {
+  for (const d of (await dossierRes.json()).dossiers ?? []) {
+    if (Array.isArray(d.states) && d.states.length) statesByRoute.set(d.route, d.states);
+  }
+}
 
 const { wanted, skipped } = plan();
 let todo = MISSING_ONLY ? wanted.filter((p) => !hasDefault.has(p.route)) : wanted;
@@ -250,6 +285,73 @@ for (const [i, target] of todo.entries()) {
       changes: changes ?? [],
     });
     console.log(`✓  ${String(coverage.desktop.kept).padStart(3)} desktop · ${String(coverage.mobile.kept).padStart(3)} mobile`);
+
+    // ── V4: AND NOW EACH STATE OF IT ────────────────────────────────────────────────────────────
+    //
+    // A tabbed page was never one thing to look at. /admin/settings is six, and the design system
+    // recorded whichever one happened to be showing when the walk arrived.
+    //
+    // Two ways in, tried in order, because the app uses both:
+    //   1. the URL — `?tab=invoices` — where the page reads one. Cheap, exact, and re-runnable.
+    //   2. clicking the tab, for the pages that hold their state in a variable.
+    //
+    // AND THEN A CHECK THAT IT WORKED. This is the whole risk of the slice: if the click misses or
+    // the URL is ignored, every state captures the SAME tab and the product gets six identical
+    // defaults with six different names — worse than none, because they look like a finished job.
+    // The capture is only stored when the state that ends up selected is the one we asked for.
+    const states = WITH_STATES ? (statesByRoute.get(target.route) ?? []) : [];
+    for (const st of states) {
+      try {
+        const stateCaptures = {};
+        let reached = false;
+        for (const [viewId, size] of Object.entries(VIEWPORTS)) {
+          await page.setViewportSize(size);
+          const param = st.addressable === 'yes' ? 'tab' : 'tab';
+          await page.goto(`${BASE}${target.route}?${param}=${encodeURIComponent(st.key)}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+          await waitForPageReady(page);
+          await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
+
+          let on = await selectedStateKey(page);
+          if (on !== st.key) {
+            // The URL was not read. Click the control whose label matches.
+            const clicked = await clickState(page, st);
+            if (clicked) {
+              await page.waitForTimeout(1200);
+              on = await selectedStateKey(page);
+            }
+          }
+          if (on !== st.key) break;
+          reached = true;
+          stateCaptures[viewId] = await page.evaluate(CAPTURE, classes);
+        }
+
+        if (!reached || !stateCaptures.desktop) {
+          console.log(`        · ${st.key}: could not reach it — not stored`);
+          continue;
+        }
+        const stateRes = await page.request.fetch(`${BASE}/api/admin/design/import`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          data: {
+            route: target.route,
+            stateKey: st.key,
+            name: `${target.route} · ${st.key} — as served`,
+            desktop: stateCaptures.desktop,
+            mobile: stateCaptures.mobile ?? stateCaptures.desktop,
+            asDefault: true,
+          },
+        });
+        if (stateRes.ok()) {
+          const b = await stateRes.json();
+          console.log(`        · ${st.key}: ${b.coverage.desktop.kept} desktop · ${b.coverage.mobile.kept} mobile`);
+        } else {
+          console.log(`        · ${st.key}: api ${stateRes.status()}`);
+        }
+      } catch (err) {
+        console.log(`        · ${st.key}: ${String(err).split('\n')[0].slice(0, 50)}`);
+        await freshPage();
+      }
+    }
 
     // ── WHAT MOVED (P3) ─────────────────────────────────────────────────────────────────────────
     //

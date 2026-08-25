@@ -38,6 +38,19 @@ function sane(raw: unknown): RouteObservation | null {
       .filter((r) => r && typeof r.tag === 'string' && Array.isArray(r.classes)).slice(0, 200),
     requests: arr<RouteObservation['requests'][number]>(o.requests)
       .filter((r) => r && typeof r.method === 'string' && typeof r.path === 'string').slice(0, 200),
+    // V2. Validated like everything else rather than passed through: `kind` and `addressable` are
+    // small closed sets and a row with a bad one would be stored forever.
+    //
+    // This allowlist is why the first run of V2 recorded ZERO states while the deriver reported
+    // success on every page — the walk found them, the type carried them, the column existed, and
+    // `sane()` quietly dropped them on the way past. Third time this session that a field added at
+    // one end of a pipeline and not the other produced an empty that looked like a legitimate one.
+    states: arr<RouteObservation['states'] extends (infer U)[] | undefined ? U : never>(o.states)
+      .filter((st) => st && typeof st.key === 'string' && st.key.length > 0
+        && (st.kind === 'tab' || st.kind === 'disclosure')
+        && (st.addressable === 'yes' || st.addressable === 'unknown'))
+      .slice(0, 24),
+    stateParam: typeof o.stateParam === 'string' ? o.stateParam : null,
     problem: typeof o.problem === 'string' ? o.problem : null,
   };
 }

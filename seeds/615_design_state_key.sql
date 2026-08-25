@@ -44,10 +44,13 @@ COMMENT ON COLUMN public.design_mockups.state_key IS
   'Empty string means the route as a whole, which is what every design made before 2026-08-24 is. '
   'Distinct from `views`, which is the desktop/mobile pair: a design has both axes and they multiply.';
 
--- `default` and `active` are singular PER STATE, not per route. Enforced in `lib/design/lifecycle.ts`
--- rather than here — the existing rows already rely on that, and a unique index added now would fail
--- the migration on any historical duplicate rather than reporting it. Recorded so the next person
--- knows the rule is real and where it lives.
+-- `default` and `active` are singular PER STATE, not per route.
+--
+-- CORRECTED 2026-08-25: the original text here claimed that rule was "enforced in
+-- lib/design/lifecycle.ts rather than here", and that was written without checking. Seed 612 had
+-- already created two real unique indexes on (route), and they refused every per-tab default V4
+-- tried to write. Seed 617 re-keys them to (route, state_key). The rule is enforced in the
+-- DATABASE, and always was.
 CREATE INDEX IF NOT EXISTS idx_design_mockups_route_state
   ON public.design_mockups (route, state_key, status) WHERE deleted_at IS NULL;
 
