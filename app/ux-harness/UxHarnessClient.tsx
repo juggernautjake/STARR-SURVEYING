@@ -92,7 +92,7 @@ const PAGES: Record<string, ComponentType> = {
   work: nextDynamic(() => import('@/app/admin/work/page'), { ssr: false }),
   users: nextDynamic(() => import('@/app/admin/people/_tabs/AccountsTab'), { ssr: false }),
   employees: nextDynamic(() => import('@/app/admin/people/_tabs/EmployeesTab'), { ssr: false }),
-  discussions: nextDynamic(() => import('@/app/admin/discussions/page'), { ssr: false }),
+  discussions: nextDynamic(() => import('@/app/admin/messages/_tabs/DiscussionsTab'), { ssr: false }),
   // C4: both are TABS of the Hours portal now, and their routes are redirects. The harness shoots
   // page BODIES, so it points at the components — importing a redirect renders nothing and the shot
   // would be of an empty page that looked like a styling bug. Same fix as `vehicles` in C3.

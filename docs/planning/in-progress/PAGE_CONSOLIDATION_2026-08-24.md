@@ -1462,22 +1462,54 @@ early, and the internal tooling comes last.
       by mirroring the page registry, so deleting a page row silently unclassifies its endpoints and
       only that one test notices.
 
-- [ ] **C13b — §4's addendum, the remaining six.** Each needs the same premise check the first three
-      got; two of them are the personal-vs-company question below.
+- [x] **C13b — §4's addendum, contacts and discussions.** **DONE 2026-08-25.** Both into Messages.
+- [ ] **C13c — §4's addendum, the last four.** `notes` · `team` · `assignments` · `reports`.
 
-      | Route | §4 says | What still needs deciding |
+      The Messages portal has six tabs: Inbox, Team directory, Contacts, Discussions, Email,
+      Settings. Rail links **50 → 45**.
+
+      **A naming collision the merge had to resolve, and §2.5 is the reason it mattered.** The portal
+      already had a tab with the id `contacts`: the INTERNAL team directory, whose own source carries
+      a note warning people not to confuse it with *"the firm-wide /admin/contacts CRM (realtors,
+      repeat clients, students)"* — and that CRM was the thing being absorbed. Two different nouns,
+      one word, one strip. The internal one takes the id its label already used (`directory`, "Team
+      directory") and `contacts` is the CRM. Both hints now say which of the two you wanted in their
+      first clause, which is what §2.5 asks of every one of these twelve surfaces.
+
+      **C10's rule caught a lost bundle gate TWICE in one slice**, and neither by anybody
+      remembering. `/admin/contacts/[id]` is a contact record. `/admin/discussions/[id]` is a
+      thread — and `app/api/admin/discussions/route.ts` notifies with a link straight at one. I
+      dropped the discussions row anyway; the notify-links audit and the bundle test caught it
+      together. Both rows are registered with `showInRail: false` now, and both record paths measured
+      back to `office`.
+
+      **§5, both directions in one slice.** Discussions cost nothing: it and `/admin/messages` have
+      the SAME eight-role middleware entry. Contacts is a NAV narrowing only — it had no middleware
+      entry and no `roles` on its row, so the client list was offered to everyone, and `student`,
+      `guest` and `equipment_manager` lose the entry.
+
+      **They do not lose the data, and that is recorded rather than implied away:** `GET
+      /api/admin/contacts` still checks only that you are signed in, so the whole client list — names,
+      phones, emails — remains readable by any account. Unlike research (C11b-0) and compliance
+      (C13a), there is **no narrower statement anywhere in the product to enforce** — the row was
+      ungated too — so closing it would be a new policy about who may read the CRM rather than the
+      existing one reaching the data. **That is a decision for the owner**, and it is the one thing
+      this slice found and deliberately did not act on.
+
+      The API mirror broke for the **ninth time in nine slices** (`/api/admin/discussions`).
+
+- [ ] **C13c — §4's addendum, the last four.** Each still needs its own premise check.
+
+      | Route | §4 says | Known before starting |
       |---|---|---|
-      | `/admin/contacts` (325) | → Messages | plain merge; check its API gate first |
-      | `/admin/discussions` (134) | → Messages | plain merge |
-      | `/admin/notes` (316) | → Company | labelled "Company Notes"; check it is not personal |
-      | `/admin/team` (659) | → Hours | check gates; 659 lines |
-      | `/admin/assignments` (376) | → Hours | it is in `hub` — personal-vs-company |
-      | `/admin/reports` (813) | → Books & Tax | check gates |
-
+      | `/admin/notes` (316) | → Company | labelled "Company Notes"; gated admin/developer/tech_support, same as `/admin/settings` is to admin — check whether the narrowing is real |
+      | `/admin/team` (659) | → Hours | gated admin/developer/tech_support; check the Hours portal's door |
+      | `/admin/assignments` (376) | → Hours | it is in `hub` and open to six roles — the personal-vs-company axis again |
+      | `/admin/reports` (813) | → Books & Tax | gated admin/developer/tech_support |
 - [ ] **C13 — the workspace decision itself.** §10 says *"Workspaces — DELEGATED to me. My answer is
       in §12"* — **and §12 was never written.** That is the open item, not a slice of code.
 
-      Measured today, after C3–C13a: **50 rail links across 7 workspaces**, six of which have a
+      Measured after C3–C13b: **45 rail links across 7 workspaces**, six of which have a
       landing page of their own. §6 said the 7-way split stops earning its keep at ~29 links and that
       the call should be made after a few portals ship. It is not 29 yet, and C13b is what closes
       most of the remaining gap — so the honest state is **not ready to decide**, rather than decided.

@@ -154,6 +154,9 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // MIRRORING the page registry, so deleting a page row silently unclassifies its endpoints, and
   // the only thing that catches it is this test. Worth a note for whoever writes C14's sweep.
   'compliance': { bundle: 'office', reason: 'Licences, insurance and calibration; mirrored /admin/compliance (work workspace) until C13a made it a tab.' },
+  // C13b, the ninth in nine. Its page row is back (a thread is a record), but the API group is
+  // resolved by NAME rather than by walking to the page, so it needs saying here too.
+  'discussions': { bundle: 'office', reason: 'Firm-wide threads; mirrored /admin/discussions (office workspace) until C13b made it a tab.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

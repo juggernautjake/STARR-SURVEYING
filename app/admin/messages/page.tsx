@@ -26,12 +26,14 @@
 import { useMemo } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
-import { MessageSquare, Contact, Settings, Mail, MessageSquarePlus, MailPlus } from 'lucide-react';
+import { MessageSquare, Contact, Settings, Mail, MessageSquarePlus, MailPlus, Users, MessagesSquare } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import InboxTab from './_tabs/InboxTab';
 import ContactsTab from './_tabs/ContactsTab';
 import SettingsTab from './_tabs/SettingsTab';
+import CrmTab from './_tabs/CrmTab';
+import DiscussionsTab from './_tabs/DiscussionsTab';
 import EmailTab from './_tabs/EmailTab';
 import './MessagesPortal.css';
 
@@ -39,7 +41,17 @@ const PORTAL: PortalSpec = {
   route: '/admin/messages',
   tabs: [
     { id: 'inbox', label: 'Inbox', icon: MessageSquare, hint: 'Your conversations with people at the firm.' },
-    { id: 'contacts', label: 'Directory', icon: Contact, hint: 'Who you can message, and how else to reach them.' },
+    // ── C13b RENAMED THIS TAB, AND THE REASON IS THE POINT OF §2.5 ──────────────────────────
+    //
+    // It was `id: 'contacts'` labelled Directory: the INTERNAL team directory. Its own source
+    // carries a note warning people not to confuse it with "the firm-wide /admin/contacts CRM
+    // (realtors, repeat clients, students)" — and that CRM is now a tab of this same portal.
+    //
+    // Two different nouns cannot share one word on one strip, so the internal one takes the id
+    // its label already used and the CRM takes `contacts`, which is what people mean by it.
+    { id: 'directory', label: 'Team directory', icon: Users, hint: 'People who work HERE — who you can message, and how else to reach them.' },
+    { id: 'contacts', label: 'Contacts', icon: Contact, hint: 'People the firm deals with — clients, realtors, repeat customers. Not your colleagues: that is the Team directory.' },
+    { id: 'discussions', label: 'Discussions', icon: MessagesSquare, hint: 'Threads the whole firm can read, rather than a conversation with one person.' },
     // `/admin/email/sent` was admin / developer / tech_support. Carried across exactly.
     { id: 'email', label: 'Email', icon: Mail, hint: 'Mail the firm has sent, and what came back.', roles: ['admin', 'developer', 'tech_support'] },
     { id: 'settings', label: 'Settings', icon: Settings, hint: 'What the system sends on your behalf, and when.' },
@@ -99,7 +111,7 @@ export default function MessagesPortal() {
           <p className="msg-portal__hint">{activeTab.hint}</p>
           {/* The plan's compose buttons, each on the tab it belongs to. Both keep their routes:
             * composing is a thing you start from a list, and each has a full editor behind it. */}
-          {(active === 'inbox' || active === 'contacts') && (
+          {(active === 'inbox' || active === 'directory') && (
             <Link className="msg-portal__action" href="/admin/messages/new">
               <MessageSquarePlus size={14} aria-hidden /> New message
             </Link>
@@ -114,7 +126,9 @@ export default function MessagesPortal() {
 
       <div id={`msg-panel-${active}`} role="tabpanel" aria-labelledby={`msg-tab-${active}`}>
         {active === 'inbox' && <InboxTab />}
-        {active === 'contacts' && <ContactsTab />}
+        {active === 'directory' && <ContactsTab />}
+        {active === 'contacts' && <CrmTab />}
+        {active === 'discussions' && <DiscussionsTab />}
         {active === 'email' && <EmailTab />}
         {active === 'settings' && <SettingsTab />}
       </div>

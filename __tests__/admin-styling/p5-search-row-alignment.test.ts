@@ -66,7 +66,7 @@ describe('/admin/jobs — search row width + Deleted button height', () => {
 });
 
 describe('/admin/contacts — search row controls share a 36px baseline', () => {
-  const SRC = read('app/admin/contacts/page.tsx');
+  const SRC = read('app/admin/messages/_tabs/CrmTab.tsx');
 
   it('caps the search form at ~380px (no longer `1 1 280px` growing)', () => {
     expect(SRC).toMatch(/flex:\s*'0 1 380px'/);

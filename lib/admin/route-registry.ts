@@ -516,7 +516,26 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // The email tab carries admin / developer / tech_support, its row's own list. `/admin/email/*` had
   // no middleware entry, so it is narrower at the door than it was — of a path the nav never
   // offered. See the portal's header.
-  { href: '/admin/messages', label: 'Messages', workspace: 'office', section: 'Talking to people', iconName: 'MessageSquare', description: 'Chat with a teammate, one-to-one or in a group. NOT email to a customer (Compose Email), and NOT a topic thread that outlives the day (Discussions).', internalOnly: true, keywords: ['chat', 'dm', 'outbox', 'history'] },
+  // ── C13b: A SECOND ROW THAT OUTLIVES ITS NAV ENTRY ─────────────────────────────────────────
+  //
+  // `/admin/discussions/[id]` is a THREAD, and `app/api/admin/discussions/route.ts` notifies with
+  // a link straight at one. Dropping the parent row would have taken the bundle gate off every
+  // thread — C10's leak, found twice in this one slice, both times by the rule rather than by
+  // anybody remembering. Registered, `showInRail: false`.
+  { href: '/admin/discussions',     label: 'Discussions',     workspace: 'office', section: 'Talking to people', iconName: 'MessagesSquare', description: 'Threads the whole firm can read. Absorbed into Messages; the row remains so /admin/discussions/[id] keeps its bundle gate.', internalOnly: true, showInRail: false, keywords: ['threads', 'forum'] },
+
+  // ── C13b / §4's ADDENDUM: TWO MORE OF THE TWELVE COMMS SURFACES ────────────────────────────
+  //
+  // §2.5 found twelve surfaces and seven mental models for "talking to people", and said the fix
+  // was not fewer pages but a way to tell which page answers which question. This is the fewer-
+  // pages half, and the tab hints carry the distinction the descriptions did.
+  //
+  // Discussions cost §5 nothing: it and /admin/messages have the SAME eight-role middleware entry.
+  // Contacts is a narrowing of the NAV only — it had no middleware entry and no roles, so the
+  // client list was offered to everyone; three roles lose the entry and none of them loses the
+  // data, because GET /api/admin/contacts still checks only that you are signed in. That is in the
+  // doc as a decision for the owner, not something this slice quietly made.
+  { href: '/admin/messages', label: 'Messages', workspace: 'office', section: 'Talking to people', iconName: 'MessageSquare', description: 'Chat with a teammate, one-to-one or in a group. NOT email to a customer (Compose Email), and NOT a topic thread that outlives the day (Discussions).', internalOnly: true, keywords: ['chat', 'dm', 'outbox', 'history', 'address book', 'people', 'realtors', 'clients', 'threads', 'forum', 'contacts', 'crm', 'discussions'] },
   // consolidation Slice 6 (2026-05-30) — clarified description so it
   // reads distinctly from the firm-wide `/admin/contacts` CRM. This
   // surface is for picking a teammate to message; the CRM page is for
@@ -525,8 +544,13 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // contacts plan 2026-05-30 — firm-wide contacts (realtors, repeat
   // clients, students, teachers, employees). Profile per person + a
   // job ↔ contact join. See docs/planning/in-progress/contacts-…
-  { href: '/admin/contacts',              label: 'Contacts',         workspace: 'office', section: 'People', iconName: 'Users',        description: 'Saved contacts — realtors, clients, students, teachers, employees.', keywords: ['address book', 'people', 'realtors', 'clients'] },
-  { href: '/admin/discussions',           label: 'Discussions',      workspace: 'office', section: 'Talking to people', iconName: 'MessagesSquare', description: 'A topic thread that outlives a chat — decisions, standards, how-we-do-it. NOT a direct message, and not announcements.', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['threads', 'forum'] },
+  // ── C13b: THE ROW OUTLIVES THE NAV ENTRY, BECAUSE `[id]` LIVES UNDER IT ────────────────────
+  //
+  // /admin/contacts is the Messages portal's `contacts` tab now, but /admin/contacts/[id] is a
+  // contact RECORD. `bundleForRoute` resolves an unknown path by its deepest REGISTERED prefix, so
+  // dropping this row would take the bundle gate off every contact record — the leak C10 measured
+  // across five record trees. Registered, `showInRail: false`.
+  { href: '/admin/contacts',              label: 'Contacts',         workspace: 'office', section: 'People', iconName: 'Users',        description: 'Saved contacts — realtors, clients, students, teachers, employees.', keywords: ['address book', 'people', 'realtors', 'clients'], showInRail: false },
   { href: '/admin/notes',                 label: 'Company Notes',    workspace: 'office', section: 'Documents & records', iconName: 'StickyNote',   description: 'Shared notes every admin can read and edit. Your own private notes live in the Hub; a document with a filename belongs in Files.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
   // ── C12b / P14: TWO OF §8's FIVE, AND THE OTHER THREE DELIBERATELY LEFT ────────────────────
   //

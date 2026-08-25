@@ -68,7 +68,12 @@ describe('the drawer renders', () => {
     // The concrete cost of the drift, now measurable on a phone. Every one of these was in the
     // registry, reachable on desktop, and absent from the drawer.
     for (const href of [
-      '/admin/invoicing', '/admin/contacts', '/admin/files', '/admin/calendar',
+      // C13b: '/admin/contacts' is the Messages portal's `contacts` tab — the firm-wide CRM, as
+      // distinct from the `directory` tab beside it, which is the internal team list. Its registry
+      // row stays (a contact record lives under it) but `showInRail: false` keeps it out of the
+      // drawer. What §1.3 was defending — that the CRM is reachable from a phone — is defended by
+      // asserting the portal that now holds it, which is why '/admin/messages' joins this list.
+      '/admin/invoicing', '/admin/messages', '/admin/files', '/admin/calendar',
       // C12a: '/admin/audit' is the System portal's `audit` tab; the drawer offers the portal, which
       // is '/admin/support' — already on this list, one line up, and asserted there.
       '/admin/support', '/admin/reports', '/admin/billing',
