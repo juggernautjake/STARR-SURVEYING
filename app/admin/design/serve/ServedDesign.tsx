@@ -18,7 +18,7 @@
 // convincing way in the whole system to be wrong about what the app does. It can be dismissed for
 // the session, because a person who already knows should be able to see the design unobstructed.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Monitor, Smartphone, PenTool, X, ExternalLink } from 'lucide-react';
 import type { DesignDocument, ViewId } from '@/lib/design/document';
@@ -29,6 +29,14 @@ import { dsPrimitiveStyles } from '@/lib/design/export';
 import { themeStyle } from '@/lib/design/theme';
 import type { Theme } from '@/lib/design/theme';
 import type { ActiveKind } from '@/lib/design/active';
+// W3. A composition is not drawn — it is RENDERED, by the same grid the hub uses, from the same
+// registry. That is the whole distinction §2 draws between the two kinds of design: a trace holds
+// rectangles and a composition holds working components.
+import '@/lib/hub/widgets/register-all';
+import WidgetGrid from '@/lib/hub/components/WidgetGrid';
+import { allWidgets } from '@/lib/hub/widget-registry';
+import { viewToGrid } from '@/lib/design/widget-palette';
+import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import '../DesignStudio.css';
 
 interface Props {
@@ -44,6 +52,24 @@ export default function ServedDesign({ doc, kind, explanation, route }: Props) {
   const [viewId, setViewId] = useState<ViewId>('desktop');
   const [showBanner, setShowBanner] = useState(true);
   const view = doc.views[viewId];
+
+  // ── WHICH OF THE TWO KINDS THIS IS ────────────────────────────────────────────────────────────
+  //
+  // Read off the document, not guessed from its contents. A composition somebody has not put any
+  // widgets on yet is still a composition, and inferring the kind from "does it contain widgets"
+  // would render it as an empty TRACE — a blank page rather than an empty grid saying so.
+  const isComposition = doc.kind === 'composition';
+
+  // The size envelope is the registry's. A widget resized on the canvas past what its component
+  // supports renders broken on the real page, and this preview exists to catch exactly that.
+  const envelopes = useMemo(
+    () => new Map(allWidgets().map((w) => [w.id, { minSize: w.minSize, maxSize: w.maxSize }])),
+    [],
+  );
+  const instances = useMemo(
+    () => (isComposition ? viewToGrid(view.elements, view.width, HUB_GRID_COLS, envelopes) : []),
+    [isComposition, view.elements, view.width, envelopes],
+  );
 
   // ── Real size means real size ───────────────────────────────────────────────────────────────
   //
@@ -92,7 +118,19 @@ export default function ServedDesign({ doc, kind, explanation, route }: Props) {
         className="dsx-served__page"
         style={{ ...themeStyle((doc.theme as Theme | null) ?? null), width: view.width, height }}
       >
-        {[...view.elements]
+        {isComposition ? (
+          // ── THE REAL THING, NOT A PICTURE OF IT ────────────────────────────────────────────────
+          //
+          // Every widget here fetches its own data against the SIGNED-IN viewer and hides itself if
+          // they may not see it. That is why a composition can be served and a trace cannot, and it
+          // is also why this preview is worth having: what you are looking at is what the page does,
+          // not a drawing of what somebody hopes it will do.
+          //
+          // Which means the preview is honest about the thing people get wrong — a role-gated widget
+          // simply is not here when you are not that role. Seeing the gap in the preview is the
+          // point; `placementWarning` says it in words at the moment of placing, and this shows it.
+          <WidgetGrid widgets={instances} />
+        ) : [...view.elements]
           .filter((el) => !el.hidden)
           // Annotations are notes ABOUT the design — an arrow pointing at a button, a sticky asking
           // a question. On a canvas they are the conversation; on a page pretending to be the page
@@ -111,7 +149,12 @@ export default function ServedDesign({ doc, kind, explanation, route }: Props) {
               </div>
             );
           })}
-        {view.elements.length === 0 && (
+        {isComposition && instances.length === 0 && (
+          <p className="dsx-served__empty">
+            This composition has no widgets on its {viewId} view yet.
+          </p>
+        )}
+        {!isComposition && view.elements.length === 0 && (
           <p className="dsx-served__empty">
             This design has nothing on its {viewId} view yet.
           </p>

@@ -1095,6 +1095,8 @@ export default function Studio({ initial }: Props) {
           onClose={() => setShowLifecycle(false)}
           onStatus={(next) => setDoc((d) => ({ ...d, status: next }))}
           onTheme={(theme) => setDoc((d) => ({ ...d, theme, themeId: theme?.id ?? null }))}
+          // W1 + W3. A PATCH, so the panel cannot overwrite elements being drawn while it is open.
+          onDoc={(patch) => setDoc((d) => ({ ...d, ...patch }))}
         />
       )}
 

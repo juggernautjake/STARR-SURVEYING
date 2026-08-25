@@ -245,3 +245,90 @@ export function widgetPixelSize(
     h: Math.max(1, Math.round(ARTBOARD_ROW_PX * size.h + ARTBOARD_GUTTER_PX * (size.h - 1))),
   };
 }
+
+// ── A DESIGN VIEW, AS SOMETHING THE HUB GRID CAN RENDER — W3 ────────────────────────────────────
+//
+// The studio stores pixels: an element at x=332, y=80, 530×256. The hub renders a GRID: a widget at
+// column 2, row 0, spanning 3×2. Serving a composition means going back the other way from the
+// conversion `widgetPixelSize` did on the way in.
+//
+// ── WHY THIS IS LOSSY, AND WHY THAT IS RIGHT ────────────────────────────────────────────────────
+//
+// A canvas lets you put a widget at x=337. A grid has no such column. Rounding to the nearest one is
+// not an approximation of the design — it is what the design MEANT, because the thing being designed
+// is a grid layout and the canvas is only how it was drawn. A composition that preserved x=337 would
+// render at a position the hub cannot express, and the served page would differ from the preview.
+//
+// So: round, then clamp into the widget's own `minSize`/`maxSize` envelope, then let the hub's
+// existing reflow settle overlaps. Three rules, none of them invented here — the envelope is the
+// registry's and the reflow is the hub's.
+
+export interface PlacedWidget {
+  /** The element's own id, so a round trip does not renumber anything. */
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** One element back to grid coordinates, or null if it is not a widget. */
+export function elementToGrid(
+  element: { id: string; catalogId?: string; x: number; y: number; w: number; h: number },
+  artboardWidth: number,
+  columns: number,
+  envelope?: { minSize: { w: number; h: number }; maxSize: { w: number; h: number } },
+): PlacedWidget | null {
+  const type = widgetIdOf(element.catalogId);
+  if (!type) return null;
+
+  const colWidth = (artboardWidth - ARTBOARD_GUTTER_PX * (columns - 1)) / columns;
+  const step = colWidth + ARTBOARD_GUTTER_PX;
+  const rowStep = ARTBOARD_ROW_PX + ARTBOARD_GUTTER_PX;
+
+  // `+ GUTTER` on the spans because an n-cell widget swallowed n-1 gutters going out; adding one
+  // back makes the division exact rather than consistently a fraction short, which would round a
+  // 3-cell widget down to 2 at every size.
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const w = clamp(
+    Math.round((element.w + ARTBOARD_GUTTER_PX) / step),
+    envelope?.minSize.w ?? 1,
+    envelope?.maxSize.w ?? columns,
+  );
+  const h = clamp(
+    Math.round((element.h + ARTBOARD_GUTTER_PX) / rowStep),
+    envelope?.minSize.h ?? 1,
+    envelope?.maxSize.h ?? 99,
+  );
+  return {
+    id: element.id,
+    type,
+    // Clamped so a widget dragged past the right edge of the artboard does not land in a column that
+    // does not exist — the hub would reflow it somewhere arbitrary and the served page would not
+    // match the design.
+    x: clamp(Math.round(element.x / step), 0, Math.max(0, columns - w)),
+    y: Math.max(0, Math.round(element.y / rowStep)),
+    w,
+    h,
+  };
+}
+
+/**
+ * Every widget on a view, in grid coordinates, reading order.
+ *
+ * Sorted by row then column rather than by z or by insertion: the hub's reflow resolves overlaps by
+ * walking the list, so the order decides who moves. Reading order is the one that matches what
+ * somebody drew — the thing at the top-left stays at the top-left.
+ */
+export function viewToGrid(
+  elements: Array<{ id: string; catalogId?: string; x: number; y: number; w: number; h: number }>,
+  artboardWidth: number,
+  columns: number,
+  envelopes: Map<string, { minSize: { w: number; h: number }; maxSize: { w: number; h: number } }> = new Map(),
+): PlacedWidget[] {
+  return elements
+    .map((el) => elementToGrid(el, artboardWidth, columns, envelopes.get(widgetIdOf(el.catalogId) ?? '')))
+    .filter((p): p is PlacedWidget => p !== null)
+    .sort((a, b) => a.y - b.y || a.x - b.x);
+}

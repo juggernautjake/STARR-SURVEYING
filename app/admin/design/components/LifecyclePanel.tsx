@@ -28,6 +28,9 @@ import { STATUS_RULES, statusRule, activationEffect, type DesignStatus } from '@
 import { BUILT_IN_THEMES, type Theme } from '@/lib/design/theme';
 import type { DesignSummary } from '@/lib/design/client';
 import type { DesignDocument } from '@/lib/design/document';
+import type { CompositionScope, DesignKind } from '@/lib/design/document';
+import { SCOPES, scopeLabel, scopeMeaning } from '@/lib/design/composition';
+import { pushDesign } from '@/lib/design/client';
 
 interface Relations {
   design: DesignSummary;
@@ -44,9 +47,13 @@ interface Props {
   onStatus: (status: string) => void;
   /** Told when the theme changes underneath, so the artboard repaints. */
   onTheme: (theme: Theme | null) => void;
+  /** Told when the kind or the audience changes, so the toolbar and the artboard follow — W1 + W3.
+   *  A patch rather than a whole document: this panel owns three fields and should not be able to
+   *  overwrite the elements somebody is drawing while it is open. */
+  onDoc: (patch: Partial<DesignDocument>) => void;
 }
 
-export default function LifecyclePanel({ doc, onClose, onStatus, onTheme }: Props) {
+export default function LifecyclePanel({ doc, onClose, onStatus, onTheme, onDoc }: Props) {
   const [relations, setRelations] = useState<Relations | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -62,6 +69,53 @@ export default function LifecyclePanel({ doc, onClose, onStatus, onTheme }: Prop
   const currentActive = relations?.routeSiblings.find((d) => d.status === 'active')
     ?? relations?.themeSiblings.find((d) => d.status === 'active')
     ?? null;
+
+  // ── CHANGING THE KIND OR THE AUDIENCE — W1 + W3 ───────────────────────────────────────────────
+  //
+  // Both go through the ordinary design save (`POST /api/admin/design`), not a bespoke endpoint, so
+  // `saveMockup`'s validation applies: a role scope with no role is refused there, in words, before
+  // Postgres refuses it as a check-constraint violation nobody can read.
+  //
+  // Which also means the refusal has to be SHOWN. `pushDesign` returning an error and this setting a
+  // message is the whole reason these are not fire-and-forget — a scope change that silently failed
+  // would leave the panel saying "Anyone whose role is employee" about a row that still says firm.
+  async function saveKindOrScope(patch: Partial<DesignDocument>, note: string) {
+    setBusy(true);
+    try {
+      const next = { ...doc, ...patch } as DesignDocument;
+      await pushDesign(next, 'Changed what this design is for');
+      onDoc(patch);
+      setMessage(note);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not save that.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setKind(kind: DesignKind) {
+    await saveKindOrScope(
+      // A trace has no audience — see seed 618. Reset rather than left behind, because a stale
+      // `scope: 'user'` on a row somebody later flips back to a composition would quietly make it
+      // one person's page again.
+      kind === 'trace' ? { kind, scope: 'firm', scopeKey: '' } : { kind },
+      kind === 'composition'
+        ? 'This is a composition now. Place widgets from the Widgets tab — those are the only elements a page can actually serve.'
+        : 'Back to a drawing. It records what a page looks like; it does not run.',
+    );
+  }
+
+  async function setScope(scope: CompositionScope, scopeKey: string) {
+    if (scope !== 'firm' && !scopeKey.trim()) {
+      // Said here rather than sent and bounced: the panel already knows this is incomplete, and a
+      // round trip to be told so reads as a failure rather than as an unfinished form.
+      setMessage(scope === 'role'
+        ? 'Which role? A role version with no role reaches nobody.'
+        : 'Which person? A personal version with no owner reaches nobody.');
+      return;
+    }
+    await saveKindOrScope({ scope, scopeKey }, scopeLabel(scope, scopeKey) + '. ' + scopeMeaning(scope, scopeKey));
+  }
 
   async function setStatus(next: DesignStatus) {
     setBusy(true);
@@ -134,6 +188,70 @@ export default function LifecyclePanel({ doc, onClose, onStatus, onTheme }: Prop
       {message && <p className="dsx__life-msg" role="status">{message}</p>}
 
       <p className="dsx__life-meaning">{rule.meaning}</p>
+      {/* ── WHAT THIS DESIGN IS, AND WHO IT IS FOR — W1 + W3 ─────────────────────────────────────
+        *
+        * Without this control the whole composition chain is unreachable: seed 618 has the columns,
+        * the palette places widgets, /admin/design/serve renders them — and every design is still a
+        * `trace`, so the widgets draw as boxes and nothing is ever served. Authored but not wired,
+        * which is this repo's most common defect and the one W2 already tripped over twice.
+        *
+        * It sits HERE rather than in the toolbar because it is the same kind of fact as the status:
+        * not something you adjust while drawing, but something you decide about the design. */}
+      <div className="dsx__life-block">
+        <h4>What this is</h4>
+        <div className="dsx__life-actions">
+          {(['trace', 'composition'] as const).map((k) => (
+            <button
+              key={k}
+              className={`dsx__life-btn${(doc.kind ?? 'trace') === k ? ' is-good' : ''}`}
+              onClick={() => void setKind(k)}
+              disabled={busy || (doc.kind ?? 'trace') === k}
+            >
+              {k === 'trace' ? 'A drawing of a page' : 'A layout of live widgets'}
+            </button>
+          ))}
+        </div>
+        <p className="dsx__life-meaning">
+          {(doc.kind ?? 'trace') === 'trace'
+            ? 'A drawing. It holds catalogue elements at measured coordinates, and it cannot be served — a page is behaviour, and a picture of one is not.'
+            : 'A layout of real widgets. Each one fetches its own data and knows who may see it, which is why this kind CAN be served.'}
+        </p>
+      </div>
+
+      {(doc.kind ?? 'trace') === 'composition' && (
+        <div className="dsx__life-block">
+          <h4>Who sees it</h4>
+          <div className="dsx__life-actions">
+            {SCOPES.map((sc) => (
+              <button
+                key={sc}
+                className={`dsx__life-btn${(doc.scope ?? 'firm') === sc ? ' is-good' : ''}`}
+                onClick={() => void setScope(sc, sc === 'firm' ? '' : (doc.scopeKey ?? ''))}
+                disabled={busy}
+              >
+                {sc === 'firm' ? 'Everyone' : sc === 'role' ? 'One role' : 'One person'}
+              </button>
+            ))}
+          </div>
+          {(doc.scope ?? 'firm') !== 'firm' && (
+            <input
+              className="dsx__life-input"
+              defaultValue={doc.scopeKey ?? ''}
+              placeholder={doc.scope === 'role' ? 'employee' : 'someone@starr-surveying.com'}
+              onBlur={(e) => void setScope(doc.scope!, e.target.value)}
+              aria-label={doc.scope === 'role' ? 'Which role' : 'Which person'}
+            />
+          )}
+          {/* THE sentence this panel exists to show. The single most likely failure of the whole
+            * scope design is somebody rearranging a portal, saving, and having changed it only for
+            * themselves — or only for admins — and finding out weeks later. It comes from the same
+            * module the cascade does, so the label and the rule cannot drift apart. */}
+          <p className="dsx__life-meaning">
+            <strong>{scopeLabel(doc.scope ?? 'firm', doc.scopeKey ?? '')}.</strong>{' '}
+            {scopeMeaning(doc.scope ?? 'firm', doc.scopeKey ?? '')}
+          </p>
+        </div>
+      )}
 
       {/* ── Status ───────────────────────────────────────────────────────────────────────────── */}
       <div className="dsx__life-block">

@@ -21,7 +21,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   toPaletteWidget, visibleToRoles, placementWarning, groupByCategory, searchWidgets,
-  widgetCatalogId, isWidgetElement, widgetIdOf, WIDGET_PREFIX, widgetPixelSize, ARTBOARD_ROW_PX,
+  widgetCatalogId, isWidgetElement, widgetIdOf, WIDGET_PREFIX, widgetPixelSize, ARTBOARD_ROW_PX, elementToGrid, viewToGrid,
   type PaletteWidget,
 } from '@/lib/design/widget-palette';
 import { renderElement } from '@/lib/design/render';
@@ -296,5 +296,89 @@ describe('the canvas draws a placed widget as a named box', () => {
       slots: {}, style: {}, x: 0, y: 0, w: 10, h: 10, z: 1,
     });
     expect(html).toContain('ds-missing');
+  });
+});
+
+// ── AND BACK AGAIN: PIXELS → GRID ───────────────────────────────────────────────────────────────
+//
+// W3. Serving a composition means undoing what `widgetPixelSize` did on the way in. This is the one
+// place a SERVED page can silently differ from the design somebody approved — not by erroring, but
+// by putting a widget one column over.
+describe('a placed widget goes back to the grid it came from', () => {
+  const W = 1440;
+  const COLS = 8;
+  const el = (over: Partial<{ x: number; y: number; w: number; h: number; catalogId: string }> = {}) => ({
+    id: 'e1', catalogId: 'widget:my-pay', x: 0, y: 0, w: 166, h: ARTBOARD_ROW_PX, ...over,
+  });
+
+  it('round-trips every size the grid can express', () => {
+    // The property that matters. Anything else means the widget somebody sized to three columns
+    // serves at two, and the preview and the page disagree about a design that was signed off.
+    for (let w = 1; w <= COLS; w += 1) {
+      for (let h = 1; h <= 4; h += 1) {
+        const px = widgetPixelSize({ w, h }, W, COLS);
+        const back = elementToGrid(el({ w: px.w, h: px.h }), W, COLS)!;
+        expect([back.w, back.h]).toEqual([w, h]);
+      }
+    }
+  });
+
+  it('round-trips positions too', () => {
+    for (let col = 0; col < COLS; col += 1) {
+      const step = (W - 16 * (COLS - 1)) / COLS + 16;
+      const back = elementToGrid(el({ x: Math.round(step * col) }), W, COLS)!;
+      expect(back.x).toBe(col);
+    }
+  });
+
+  it('rounds an off-grid position to the column it meant', () => {
+    // A canvas lets you put a widget at x=337 and a grid has no such column. Rounding is not an
+    // approximation of the design — it is what the design MEANT, because the thing being designed
+    // IS a grid layout and the canvas is only how it was drawn.
+    expect(elementToGrid(el({ x: 337 }), W, COLS)!.x).toBe(2);
+    expect(elementToGrid(el({ x: 350 }), W, COLS)!.x).toBe(2);
+  });
+
+  it('never lands in a column that does not exist', () => {
+    // Dragged past the right edge, an unclamped x would send the hub's reflow somewhere arbitrary
+    // and the served page would not match the design at all.
+    const wide = elementToGrid(el({ x: 99_999, w: widgetPixelSize({ w: 3, h: 1 }, W, COLS).w }), W, COLS)!;
+    expect(wide.x).toBe(COLS - 3);
+    expect(elementToGrid(el({ y: -500 }), W, COLS)!.y).toBe(0);
+  });
+
+  it('honours the widget\'s own size envelope', () => {
+    // The envelope is the REGISTRY's, not this module's. A widget resized on the canvas beyond what
+    // its component supports would render broken on the served page — the one thing a preview is
+    // supposed to catch.
+    const envelope = { minSize: { w: 2, h: 2 }, maxSize: { w: 4, h: 3 } };
+    const tiny = elementToGrid(el({ w: 100, h: 40 }), W, COLS, envelope)!;
+    expect([tiny.w, tiny.h]).toEqual([2, 2]);
+    const huge = elementToGrid(el({ w: 9_000, h: 9_000 }), W, COLS, envelope)!;
+    expect([huge.w, huge.h]).toEqual([4, 3]);
+  });
+
+  it('ignores everything that is not a widget', () => {
+    expect(elementToGrid(el({ catalogId: 'button.secondary' }), W, COLS)).toBeNull();
+  });
+
+  it('and returns them in reading order, because reflow walks the list', () => {
+    // The hub resolves overlaps by walking the widgets in order, so the order decides who moves.
+    // Reading order is the one that matches what somebody drew: the thing at the top-left stays
+    // at the top-left.
+    const step = (W - 16 * (COLS - 1)) / COLS + 16;
+    const rowStep = ARTBOARD_ROW_PX + 16;
+    const got = viewToGrid([
+      { id: 'c', catalogId: 'widget:c', x: Math.round(step * 2), y: rowStep, w: 166, h: 120 },
+      { id: 'a', catalogId: 'widget:a', x: 0, y: 0, w: 166, h: 120 },
+      { id: 'not', catalogId: 'button.primary', x: 0, y: 0, w: 10, h: 10 },
+      { id: 'b', catalogId: 'widget:b', x: Math.round(step), y: 0, w: 166, h: 120 },
+    ], W, COLS);
+    expect(got.map((p) => p.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps the element\'s own id, so a round trip renumbers nothing', () => {
+    expect(elementToGrid(el(), W, COLS)!.id).toBe('e1');
+    expect(elementToGrid(el(), W, COLS)!.type).toBe('my-pay');
   });
 });

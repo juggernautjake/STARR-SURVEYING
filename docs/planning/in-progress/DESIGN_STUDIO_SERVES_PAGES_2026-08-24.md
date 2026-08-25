@@ -548,8 +548,52 @@ mechanism behind "active" instead of being a label.
       a full-width one comes out exactly the artboard width — otherwise a widget sized to span the
       page hangs a few pixels off the edge of it.
 
-- [ ] **W3 — a composition can be previewed live** at `/admin/design/serve`, rendering real widgets
-      with real data rather than an artboard.
+- [x] **W3 — a composition can be previewed live** at `/admin/design/serve`, rendering real widgets
+      against the signed-in user's data. Shipped 2026-08-25.
+
+      `/admin/design/serve?id=…` renders a composition through the hub's own `WidgetGrid`, from the
+      hub's own registry. Browser-verified end to end: a composition with three widgets served
+      **"My Pay · HOURLY $25.00/hr"**, **"Weather · 81° Clear night · Central Texas"** and **"My Jobs
+      · No jobs yet"** — real data for the signed-in account — with **zero** placeholder boxes. The
+      boxes exist only in the editor.
+
+      Which is the whole distinction §2 draws, demonstrated: a trace holds rectangles and cannot be
+      served; a composition holds working components and can.
+
+      **The conversion back to a grid is where a served page could silently differ from its design.**
+      The studio stores pixels; the hub renders columns and rows. `viewToGrid` undoes what
+      `widgetPixelSize` did, and the round trip is asserted for **every size the grid can express**
+      (1–8 columns × 1–4 rows) and every column — because the failure here is not an error, it is a
+      widget one column over from where somebody approved it.
+
+      Three rules, none of them invented in that function:
+
+      · **Round to the nearest cell.** A canvas lets you place a widget at x=337 and a grid has no
+        such column. Rounding is not an approximation of the design — it is what the design MEANT,
+        because the thing being designed IS a grid layout and the canvas is only how it was drawn.
+      · **Clamp into the widget's own envelope**, which is the registry's `minSize`/`maxSize`. A
+        widget resized past what its component supports renders broken on the real page, and a
+        preview exists to catch exactly that.
+      · **Reading order**, because the hub's reflow resolves overlaps by walking the list — so the
+        order decides who moves, and reading order is the one where the thing at the top-left stays
+        at the top-left.
+
+      **And the kind is now settable, or none of W1–W3 was reachable.** Seed 618 had the columns, the
+      palette placed widgets, this route rendered them — and every design was still a `trace`, so the
+      widgets drew as boxes and nothing was ever served. Authored but not wired, for the third time
+      in this arc. The lifecycle panel gained *"What this is"* and *"Who sees it"*, and the audience
+      control prints `scopeLabel` + `scopeMeaning` from the same module the cascade lives in, so the
+      sentence on screen and the rule that resolves it cannot drift.
+
+      `isComposition` is read off the document, never inferred from its contents: a composition
+      nobody has put widgets on yet is still a composition, and guessing from *"does it contain
+      widgets"* would render it as an empty TRACE — a blank page instead of an empty grid saying so.
+
+      **My probe was the bug, twice.** The first version posted a document with `grid: {…}` where the
+      shape is `settings: {…}`, and the studio threw *"Cannot read properties of undefined (reading
+      'size')"*. I read the 120-second selector timeout as server load — both walks were running —
+      and only found it by loading an EXISTING design and watching it work. Eighth time this session
+      that a throwaway script's own malformed input looked like a defect in the thing it was testing.
 - [ ] **W4 — a portal view renders its composition when one is active**, falling back to its hand-built
       panel when none is. **The fallback is the safety property**: a composition that fails to load
       must leave the page working.
