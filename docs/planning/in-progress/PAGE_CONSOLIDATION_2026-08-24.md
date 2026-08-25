@@ -2805,6 +2805,23 @@ succeed and the record fills up with keys that cannot be turned back into a link
 reconstructs a URL from a stored key — a "view this tab" action, a deep link out of the designer,
 `design/serve` for a state — opens the DEFAULT tab and looks like it worked.
 
+**The blast radius, bounded — this is smaller than it first reads.** The design tools are internally
+consistent, because they never depend on the URL working:
+
+· `SELECTED_STATE` derives a key by slugging the label · a design is stored under that key ·
+  `clickState` finds a tab by matching the slug of its text against the key.
+
+Derive, store and re-open all speak label-slugs, so they agree. `openState` tries `?tab=<key>` first
+and falls back to clicking — for these 23 the URL silently fails and the click carries it, which is
+why traces and conformance runs both succeed. The conformance sweep even passes **only** the key,
+with no label, and `clickState` handles exactly that case on purpose.
+
+So nothing in the design system is broken today. **What is broken is the assumption that a state key
+is a URL**, which is the one thing the key looks like it should be. Any link built from a stored key
+— out of the designer, into a report, in a message to somebody — opens the default tab and looks
+correct. That is the cost, and it is why this is written down rather than left to be discovered by a
+link that goes to the wrong place.
+
 **Two further consequences worth naming.** A key derived from a label means **renaming a tab orphans
 its design**, silently. And one label is a template literal, so its key came out as
 `recycle-bin-recyclebin-length-0` — a key that is not a slug of anything a person will ever see.
