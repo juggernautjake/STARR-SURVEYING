@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Settings, Building2, Lock, Bell, Link2, CreditCard, Check, Satellite,
-  Monitor, Map as MapIcon, Mail, Calendar,
+  Monitor, Map as MapIcon, Mail, Calendar, LayoutList,
 } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { usePageError } from '../hooks/usePageError';
 import HoursNotificationSetting from './HoursNotificationSetting';
+import PageToggles from './PageToggles';
 
 interface GeneralSettings {
   companyName: string;
@@ -78,6 +79,11 @@ export default function SettingsPage() {
     { key: 'notifications', label: 'Notifications', Icon: Bell },
     { key: 'integrations', label: 'Integrations', Icon: Link2 },
     { key: 'billing', label: 'Billing', Icon: CreditCard },
+    // T3 of §11, PAGE_CONSOLIDATION. Owner: "full control in the settings as to what all pages
+    // are visible and what pages are not." It belongs in Settings because that is where the owner
+    // said to put it, and beside these because it is the same kind of fact: something the FIRM
+    // decides once, not something a person adjusts while working.
+    { key: 'pages', label: 'Pages', Icon: LayoutList },
   ];
 
   function SaveBar({ k }: { k: 'general' | 'company' }) {
@@ -235,6 +241,12 @@ export default function SettingsPage() {
                 <span className="job-detail__integration-status">Not Connected</span>
               </div>
             </div>
+          </div>
+        )}
+
+        {activeSection === 'pages' && (
+          <div className="job-detail__section">
+            <PageToggles />
           </div>
         )}
 

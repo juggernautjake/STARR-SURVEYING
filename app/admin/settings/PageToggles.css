@@ -1,0 +1,115 @@
+/* app/admin/settings/PageToggles.css — the "which pages this firm uses" panel.
+ *
+ * T3 of §11 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+ *
+ * ── A LOCAL STYLESHEET, IMPORTED BY THE COMPONENT ─────────────────────────────────────────────
+ *
+ * Not appended to `AdminJobs.css`, which the settings page borrows its `job-detail__*` classes from.
+ * That file is loaded by `app/admin/jobs/layout.tsx` and reaches the settings route only because
+ * something else imports it — and a rule written there for a page outside the jobs tree is the
+ * route-scoped-CSS trap this codebase has already been caught by twice: a fix that reaches every
+ * route except the ones it was written for.
+ *
+ * Every colour is a token. The panel lists a hundred rows and has to stay readable in all eleven
+ * palettes, and a literal hex here is one the theme sweep would flag and the contrast audit would
+ * find later at a worse moment. */
+
+.page-toggles__caution {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.75rem 0 1rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 8px;
+  background: var(--color-warning-surface);
+  color: var(--color-warning-text);
+  border: 1px solid color-mix(in srgb, var(--color-warning-text) 25%, transparent);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.page-toggles__caution svg { flex: 0 0 auto; margin-top: 0.125rem; }
+
+.page-toggles__count {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.page-toggles__msg {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #F3F4F6);
+  color: var(--theme-fg-primary, #111827);
+  font-size: 0.8125rem;
+}
+
+.page-toggles__group { margin-bottom: 1.5rem; }
+
+.page-toggles__group h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #6B7280);
+}
+
+.page-toggles__group ul { list-style: none; margin: 0; padding: 0; }
+
+.page-toggles__group li {
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  padding: 0.5rem 0;
+}
+
+.page-toggles__group li:last-child { border-bottom: none; }
+
+/* A switched-off row stays legible rather than being greyed into unreadability: it is the row
+ * somebody is most likely to be looking for when they come back to turn something on. */
+.page-toggles__group li.is-off .page-toggles__label {
+  text-decoration: line-through;
+  color: var(--theme-fg-secondary, #6B7280);
+}
+
+.page-toggles__group label {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  cursor: pointer;
+  /* The whole row is the target. A 13px checkbox is a hard thing to hit, and this is a screen where
+   * a misclick switches off a page for the entire company. */
+  min-height: 2rem;
+}
+
+.page-toggles__label { font-size: 0.875rem; color: var(--theme-fg-primary, #111827); }
+
+.page-toggles__href {
+  margin-left: auto;
+  font-size: 0.6875rem;
+  color: var(--theme-fg-secondary, #6B7280);
+  /* The URL is the disambiguator when two pages share a label, so it is present and quiet rather
+   * than absent or loud. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 45%;
+}
+
+.page-toggles__links {
+  display: flex;
+  gap: 0.375rem;
+  align-items: flex-start;
+  margin: 0.25rem 0 0 1.75rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--color-warning-text);
+}
+
+.page-toggles__links svg { flex: 0 0 auto; margin-top: 0.125rem; }
+
+@media (max-width: 640px) {
+  .page-toggles__href { display: none; }
+  .page-toggles__links { margin-left: 0; }
+}

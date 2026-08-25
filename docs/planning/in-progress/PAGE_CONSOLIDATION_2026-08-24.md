@@ -835,8 +835,48 @@ a link on purpose; they are not well served by doing it invisibly.
       `/admin/vehicles`, which is not in that workspace at all, so nothing could have changed. Ninth
       time this session a throwaway script's own bad input looked like a defect in the thing it was
       testing.)*
-- [ ] **T3 — The settings screen.** A list of every destination grouped as the sidebar groups them,
-      each with a switch, plus the inbound-link count from 11.6.
+- [x] **T3 — The settings screen.** Shipped 2026-08-25 as a **Pages** tab on `/admin/settings` —
+      where the owner asked for it — plus `GET /api/admin/feature-toggles` for the half a browser
+      cannot compute.
+
+      Browser-verified: **134 destinations in 7 workspace groups**, grouped and labelled exactly as
+      the sidebar groups them. That is not cosmetic: the person using this screen is looking at their
+      own sidebar deciding what to remove from it, and any other ordering makes them translate
+      between two views of the same thing while flipping switches they cannot immediately verify.
+
+      **Every switch saves on its own.** No Save button: forty switches behind one button is a page
+      where a misclick loses all of it, and where *"did that take?"* is unanswerable until you
+      navigate away and come back. The cost is paid honestly — a failed write puts the switch BACK,
+      because a control that stays flipped after a failed save leaves the screen disagreeing with the
+      product about which pages exist.
+
+      §11.5's sentence is **on the screen**, not only in a code comment nobody using the product will
+      read: *"This hides pages; it does not lock them. Permissions are set by role, not here."*
+
+      §11.6's warning names the pages rather than counting them, and appears only once a page is OFF
+      — a link count on all 134 rows is noise, and it is only a consequence after the switch.
+
+      **The link count was wrong on its first run, and reading the output is what caught it.**
+      `AdminSidebar` and `AdminLayoutClient` link to every route in the registry *by construction*,
+      so counting them made every destination look like it had two or three more dependants than it
+      has: `/admin/me` reported **19**, most of them the navigation itself listing it. That is worse
+      than a wrong number — the sentence exists to say what you are about to break, and an inflated
+      warning is one people learn to skip. Only links from a file that BELONGS to a page count now,
+      and `/admin/me` reads **11**, every one a real page.
+
+      Two smaller rules the tests pin:
+
+      · **Every route, not only the ones this admin can open.** `accessibleRoutes` would be the
+        obvious call and would be wrong — this screen decides what the FIRM uses, not what the person
+        looking at it may open, and a switch you cannot find is indistinguishable from one that does
+        not exist.
+      · **Matched on a QUOTED href.** `"/admin/jobs"` must not be found inside `"/admin/jobs/new"`,
+        or every parent route absorbs its children's inbound links — wrong in the direction that
+        matters.
+
+      The scan runs per request rather than from a generated file. Every other derived inventory here
+      is generated, and every one of them has at some point been stale and believed; a link count is
+      advisory, so being a request slower is free and being WRONG is the failure that matters.
 - [ ] **T4 — The off page**, and the admin bypass with its banner (11.4).
 - [ ] **T5 — The test that keeps 11.5 true**: with a page toggled off, its API answers exactly as
       before, for every role.

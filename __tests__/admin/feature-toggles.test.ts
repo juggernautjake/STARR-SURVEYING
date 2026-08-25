@@ -263,3 +263,77 @@ describe('a switched-off page leaves the navigation', () => {
     expect(hook).toMatch(/\.finally\(\(\) => \{ inflight = null; \}\)/);
   });
 });
+
+// ── T3: THE SETTINGS SCREEN ─────────────────────────────────────────────────────────────────────
+//
+// Owner: *"full control in the settings as to what all pages are visible and what pages are not."*
+//
+// Browser-verified: 134 destinations in 7 workspace groups on `/admin/settings` → Pages, each row
+// saving on its own, the count line, the consequences sentence, and restore.
+describe('the screen that puts the switch in somebody\'s hands', () => {
+  const ROOT3 = path.join(__dirname, '..', '..');
+  const API = fs.readFileSync(path.join(ROOT3, 'app/api/admin/feature-toggles/route.ts'), 'utf8');
+  const PANEL = fs.readFileSync(path.join(ROOT3, 'app/admin/settings/PageToggles.tsx'), 'utf8');
+
+  it('lists EVERY route, not only the ones this admin can open', () => {
+    // `accessibleRoutes` would be the obvious call and would be wrong: this screen decides what the
+    // FIRM uses, not what the person looking at it may open. Filtering by their roles would hide
+    // pages they are switching off on behalf of people who DO have those roles, and a switch you
+    // cannot find is indistinguishable from one that does not exist.
+    expect(API).toMatch(/ADMIN_ROUTES\s*\n?\s*\.filter\(\(r\) => !r\.parked\)/);
+    expect(API).not.toMatch(/accessibleRoutes\(/);
+  });
+
+  it('counts only links FROM A PAGE, not from shared chrome', () => {
+    // ── THE DEFECT THIS PINS ────────────────────────────────────────────────────────────────────
+    //
+    // `AdminSidebar` and `AdminLayoutClient` link to every route in the registry by construction, so
+    // counting them made every destination look like it had two or three more dependants than it
+    // has — `/admin/me` reported 19 when most were the navigation itself listing it.
+    //
+    // Worse than a wrong number: the sentence exists to tell somebody what they are about to break,
+    // and an inflated warning is one people learn to skip. After the fix `/admin/me` reads 11, all
+    // of them real pages. Found by reading the output, not by anything failing.
+    expect(API).toMatch(/if \(!owner\) continue;/);
+  });
+
+  it('and matches a QUOTED href, so a parent does not inherit its children\'s links', () => {
+    // `"/admin/jobs"` must not be found inside `"/admin/jobs/new"`, or every parent route would
+    // absorb its children's inbound links — wrong in the direction that matters, overstating what
+    // breaks.
+    expect(API).toMatch(/text\.includes\(`"\$\{href\}"`\)/);
+    expect(API).toMatch(/text\.includes\(`'\$\{href\}'`\)/);
+  });
+
+  it('scans per request rather than reading a generated file', () => {
+    // Every other derived inventory here is generated, and every one has at some point been stale
+    // and believed. A link count is advisory: a request slower is free, WRONG is the failure that
+    // matters — it would tell somebody nothing links to a page that three pages link to.
+    expect(API).toMatch(/export const dynamic = 'force-dynamic';/);
+  });
+
+  it('a failed save puts the switch back', () => {
+    // A control that stays flipped after a failed save is the worst outcome here: the screen would
+    // then disagree with the product about which pages exist.
+    expect(PANEL).toMatch(/catch \(err\) \{\s*\n\s*setToggles\(toggles\);/);
+  });
+
+  it('and flipping one clears the nav\'s cached read', () => {
+    // The nav caches its read for the page load. Without this the sidebar keeps the old list until
+    // a full reload, and the switch looks like it did nothing.
+    expect(PANEL).toMatch(/invalidateFeatureToggles\(\);/);
+  });
+
+  it('says on the screen that this is not a permission', () => {
+    // §11.5, said where the belief would form rather than only in a code comment nobody using the
+    // product will ever read.
+    expect(PANEL).toMatch(/This hides pages; it does not lock them/);
+  });
+
+  it('and names what a switched-off page breaks, without refusing', () => {
+    // §11.6. The owner is allowed to break a link on purpose; they are not well served by doing it
+    // invisibly. Shown only once the switch is OFF — a link count on all 134 rows is noise.
+    expect(PANEL).toMatch(/\{!on && d\.inbound > 0 && \(/);
+    expect(PANEL).toMatch(/Those links still work; they just point somewhere nobody can find/);
+  });
+});
