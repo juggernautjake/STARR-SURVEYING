@@ -76,7 +76,10 @@ describe('the drawer renders', () => {
       '/admin/invoicing', '/admin/messages', '/admin/files', '/admin/calendar',
       // C12a: '/admin/audit' is the System portal's `audit` tab; the drawer offers the portal, which
       // is '/admin/support' — already on this list, one line up, and asserted there.
-      '/admin/support', '/admin/reports', '/admin/billing',
+      // C13c: '/admin/reports' is the Books & Tax portal's `reports` tab — §4's addendum calls it
+      // "a financial report". Its row stays registered because /admin/reports/job lives under it,
+      // but `showInRail: false` keeps it out of the drawer, so the drawer offers '/admin/finances'.
+      '/admin/support', '/admin/finances', '/admin/billing',
       // C9: '/admin/invites' is the People portal's `invites` tab; the drawer offers the portal.
       '/admin/people', '/admin/announcements',
     ]) {

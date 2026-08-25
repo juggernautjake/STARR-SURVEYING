@@ -14,6 +14,19 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import type { UserRole } from '@/lib/auth-roles';
+
+/** The roles `middleware.ts` lets through the `/admin/notes` PAGE prefix.
+ *
+ *  Until 2026-08-25 every method on this route checked only that the caller was signed in — not just
+ *  the read, but POST, PATCH and DELETE, so any account could create, edit and DELETE the firm's
+ *  notes. The three-role gate everybody could see on `/admin/notes` was in front of the screen and
+ *  never in front of the data, because ROUTE_ROLES has only ever run on page paths.
+ *
+ *  Third endpoint of this shape found in this plan, after research (C11b-0) and compliance (C13a),
+ *  and the first where the WRITES were open too. Pinned to the middleware entry by
+ *  `__tests__/admin/notes-access.test.ts`. */
+const NOTES_ROLES: UserRole[] = ['admin', 'developer', 'tech_support'];
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
@@ -28,6 +41,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!NOTES_ROLES.some((r) => (session.user.roles ?? []).includes(r))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { searchParams } = new URL(req.url);
   const category = searchParams.get('category');
@@ -59,6 +75,9 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  if (!NOTES_ROLES.some((r) => (session.user.roles ?? []).includes(r))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const body = await req.json() as { title?: string; content?: string; category?: string; is_pinned?: boolean };
   const title = (body.title ?? '').trim();
   if (!title) {
@@ -87,6 +106,9 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!NOTES_ROLES.some((r) => (session.user.roles ?? []).includes(r))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const body = await req.json() as {
     id?: string; title?: string; content?: string; category?: string; is_pinned?: boolean;
@@ -128,6 +150,9 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  if (!NOTES_ROLES.some((r) => (session.user.roles ?? []).includes(r))) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');

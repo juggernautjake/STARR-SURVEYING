@@ -24,13 +24,14 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { Briefcase, PieChart, Scale, FileSpreadsheet } from 'lucide-react';
+import { Briefcase, PieChart, Scale, FileSpreadsheet , FileBarChart } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import ScheduleCTab from './_tabs/ScheduleCTab';
 import OverviewTab from './_tabs/OverviewTab';
 import ReconcileTab from './_tabs/ReconcileTab';
 import PayrollTaxTab from './_tabs/PayrollTaxTab';
+import ReportsTab from './_tabs/ReportsTab';
 import './FinancesPortal.css';
 
 const BOOKS = ['admin', 'developer', 'tech_support'];
@@ -43,6 +44,10 @@ const PORTAL: PortalSpec = {
     { id: 'reconcile', label: 'Reconcile', icon: Scale, hint: 'Bank rows waiting to be matched to something the firm recorded.', roles: BOOKS as never },
     // `/admin/payouts/tax-report` was admin-only. Carried across exactly — see the header.
     { id: 'payroll-tax', label: 'Payroll tax', icon: FileSpreadsheet, hint: 'What was withheld and what is owed, per person, per period.', roles: ['admin'] },
+    // C13c / §4's addendum: "it is a financial report". Same middleware entry and the same three
+    // roles as this portal, so nothing moved in either direction — the cleanest §5 match in the
+    // plan. /admin/reports/job keeps its own route beneath the old path.
+    { id: 'reports', label: 'Reports', icon: FileBarChart, hint: 'The firm as numbers — people, jobs and operations, over a period you choose.', roles: BOOKS as never },
   ],
   // The month's totals, not the per-job margin: somebody opening the books is usually answering
   // "how did we do", and the job-level answer is one tab along.
@@ -103,6 +108,7 @@ export default function FinancesPortal() {
         {active === 'schedule-c' && <ScheduleCTab />}
         {active === 'reconcile' && <ReconcileTab />}
         {active === 'payroll-tax' && <PayrollTaxTab />}
+        {active === 'reports' && <ReportsTab />}
       </div>
     </div>
   );

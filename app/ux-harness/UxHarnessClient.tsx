@@ -72,7 +72,7 @@ const PAGES: Record<string, ComponentType> = {
   install: nextDynamic(() => import('@/app/admin/install/page'), { ssr: false }),
   mileage: nextDynamic(() => import('@/app/admin/receipts/_tabs/MileageTab'), { ssr: false }),
   assignments: nextDynamic(() => import('@/app/admin/assignments/page'), { ssr: false }),
-  reports: nextDynamic(() => import('@/app/admin/reports/page'), { ssr: false }),
+  reports: nextDynamic(() => import('@/app/admin/finances/_tabs/ReportsTab'), { ssr: false }),
   equipment: nextDynamic(() => import('@/app/admin/equipment/page'), { ssr: false }),
   // C9: five of these are TABS now and their routes are redirects. The harness shoots page BODIES,
   // so each points at the component — importing a redirect renders nothing and the shot would be a

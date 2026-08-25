@@ -298,7 +298,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // The description keeps the "NOT invoicing" clause, which is load-bearing. §2.2 found "Billing",
   // "Invoicing" and "Finances" meaning three different things nobody could guess between, and the
   // fix was each row saying what it is NOT. That sentence is asserted by a test.
-  { href: '/admin/finances', label: 'Books & Tax', workspace: 'money', section: 'Profitability', iconName: 'Briefcase', description: 'Money in against money out, what each job earned, the bank queue and payroll tax. NOT invoicing — that is what your customers owe you.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['profit', 'margin', 'schedule c', 'books', 'tax', 'reconcile', 'bank', 'overview', 'totals', 'payroll tax', 'withholding'] },
+  // ── C13c / §4's ADDENDUM: "it is a financial report" ───────────────────────────────────────
+  //
+  // The cleanest §5 match in the plan: /admin/reports and /admin/finances have the SAME middleware
+  // entry and the same three roles on their rows, so nothing moved in either direction.
+  { href: '/admin/finances', label: 'Books & Tax', workspace: 'money', section: 'Profitability', iconName: 'Briefcase', description: 'Money in against money out, what each job earned, the bank queue and payroll tax. NOT invoicing — that is what your customers owe you.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['profit', 'margin', 'schedule c', 'books', 'tax', 'reconcile', 'bank', 'overview', 'totals', 'payroll tax', 'withholding', 'kpi', 'metrics', 'analytics', 'reports', 'report', 'operations', 'headcount'] },
   // /admin/vehicles was here. C3 made it the Equipment portal's `vehicles` tab — the plan's own
   // argument: *"it is fleet, and the dossiers show /admin/equipment already calls
   // /api/admin/vehicles"*. Two nav rows were reading the same data.
@@ -569,7 +573,13 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // a void — the same defect an unwatched hours queue has, about money already worked for.
   { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', section: 'Talking to people', iconName: 'Megaphone',    description: 'One-way broadcast to everyone at the firm — release notes and news. Nobody replies to these; use Messages or Discussions for that.', keywords: ['release', 'changelog', 'news'] },
   { href: '/admin/billing',               label: 'Software Subscription',          workspace: 'money', section: 'Company account', iconName: 'CreditCard',   description: 'What THIS FIRM pays for this software — plan, card, invoices and plan history. One page, three tabs. Nothing to do with what customers pay you.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'invoices', 'plan', 'plan history', 'saas', 'bundle', 'upgrade', 'downgrade', 'seats', 'card', 'billing'] },
-  { href: '/admin/reports',               label: 'Reports',          workspace: 'office', section: 'Documents & records', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'] },
+  // ── C13c: THE ROW OUTLIVES THE NAV ENTRY ───────────────────────────────────────────────────
+  //
+  // /admin/reports is the Books & Tax portal's `reports` tab now, but /admin/reports/job is a
+  // report about ONE job and keeps its route beneath this path. Dropping this row would take the
+  // bundle gate off it — C10's leak, and the third time in three slices that the rule has caught a
+  // record that would otherwise have gone ungated. Registered, `showInRail: false`.
+  { href: '/admin/reports',               label: 'Reports',          workspace: 'office', section: 'Documents & records', iconName: 'FileBarChart', description: 'Owner reports + KPI dashboards.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['kpi', 'metrics', 'analytics'], showInRail: false },
   // ── C12a / P15: THREE ROWS BECAME ONE ──────────────────────────────────────────────────────
   //
   // Tickets, the error log and the audit log are one subject: the software itself.
