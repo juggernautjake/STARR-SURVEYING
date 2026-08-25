@@ -2380,8 +2380,31 @@ early, and the internal tooling comes last.
         personal view of a thing, or does the company page render a personal view of it for whoever
         opens it?** §5.2's role-driven rendering is the second answer; the first is what the `hub`
         workspace already is. That is the decision §12 owes.
-- [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** **IN PROGRESS 2026-08-25 — the
-      defaults pass is running; the dossiers pass and one decision remain.**
+- [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** **DEFAULTS PASS COMPLETE
+      2026-08-25; conformance running.**
+
+      ── **THE RESULT, MEASURED AFTER THE FULL RE-TRACE** ──
+
+      | | |
+      |---|---|
+      | portal tabs with a default | **110 / 110** |
+      | default records in total | 194 |
+      | lopsided (one viewport ≥3× the other) | **0** |
+      | records with an empty viewport | **0** |
+
+      **110 of 110.** The tab surface was 17 when this work began and 51 when the sweep started. The
+      three routes still short an hour ago were `/admin/support`'s, and they came in on the last
+      portal of the walk.
+
+      Both quality numbers are zero, and they are zero for different reasons worth separating: the
+      **empty** column has been guarded since before this plan (a capture of nothing is refused), and
+      the **lopsided** column is zero because five records were found and repaired today and the
+      guard that found them now runs before every store.
+
+      What that does NOT prove is that every record is correct — only that none is missing, none is
+      empty, and none is half a page. The claim a default makes is "1:1 with what is served", and the
+      only instrument that tests it is the conformance sweep, now running against the repaired
+      surface with a checker that reads each page until it settles instead of once.
 
       ── **THE ENTRIES BELOW, IN THE ORDER THEY HAPPENED** ──
 
