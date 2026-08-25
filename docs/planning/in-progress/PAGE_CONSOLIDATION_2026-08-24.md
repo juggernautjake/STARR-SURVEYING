@@ -493,6 +493,21 @@ is **per-ITEM approval** — today the decision is per receipt.
       media-query probe on top would be the fourth guess-shaped fix in a plan that has already
       learned what those cost.
 
+      **The obvious alternative explanation, checked and eliminated.** "The media query had not
+      applied" is a story, and a more boring story fits the same evidence: the rule could simply be
+      NEW, in which case the old records were right when they were written and nothing is wrong at
+      all. Measured — `git log -S` on the rule:
+
+      > `639d59612 · 2026-06-20 · F1: universal back/up navigation on every admin page`
+
+      The `display: none` arrived in the **same commit as the element**, more than two months ago. It
+      has never been visible at 390px, so a mobile record containing it was wrong on the day it was
+      written. The diagnosis survives its cheapest disproof, which is the least a diagnosis should be
+      asked to do after this plan shipped three that did not.
+
+      The pattern has since recurred on `integrations`, making six mobile records that carried a
+      desktop-only element.
+
       ── **C14p — THE STUDIO COULD NOT SEE A BAD RECORD, ONLY A MISSING ONE, 2026-08-25** ──
 
       *(This heading was deleted and restored. Inserting C14q anchored on it and replaced it, so for
