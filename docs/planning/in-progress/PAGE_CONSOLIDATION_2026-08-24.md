@@ -1877,6 +1877,27 @@ early, and the internal tooling comes last.
       filesystem. Exit codes measured — and the first probe was wrong in a way worth keeping: a test
       route named `__scratch_probe` reported CURRENT, because a leading underscore is a private
       folder the App Router ignores. The check was right and the probe was testing nothing.
+      **And with the inventory fixed, the two invisible portals finally have records.** Traced and
+      derived in the same slice that found them:
+
+      | Route | default | dossier |
+      |---|---|---|
+      | `/admin/hours` | ✓ | 15 elements · 3 functions · 17 checklist items |
+      | `/admin/pay` | ✓ | 25 elements · 2 functions · 24 checklist items |
+      | `/admin/design/conformance` | ✓ | 9 elements · 1 function · 12 checklist items |
+      | `/admin/design/serve` | ✓ | 6 elements · 1 function · 10 checklist items |
+
+      The dossiers pass reports **"4 derived · 0 not derived · 7 not a page"** — the 7 being stubs it
+      recognised from source without a browser, which is the fix from earlier in this section doing
+      its job on its first real outing.
+
+      One more cold-compile artifact on the way, recorded because it is now the fifth: the first
+      attempt died on *"Could not read the catalogue index (500). Is the server up and the account a
+      developer?"* — a question whose two suggestions were both wrong. The server was up and the
+      account was an admin; the endpoint was still compiling. It answered 200 a moment later and the
+      walk ran clean. **A dev-server walk needs its endpoints warm, and an error message that guesses
+      at causes will guess wrong.**
+
 
       **Not re-run yet.** It is a third browser walk over ~75 routes at two viewports and the dossiers
       pass is still using the server. Queued behind it; the numbers above are what it will be measured
