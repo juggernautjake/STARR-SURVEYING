@@ -36,7 +36,7 @@ import { diffDefaults, type RetraceChange } from './conformance';
  * name in here, so a query that fetches fewer does not fail; it returns undefined and the caller
  * gets a null. Both copies now use this.
  */
-const SUMMARY_COLS = 'id, name, route, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email, traced_at';
+const SUMMARY_COLS = 'id, name, route, state_key, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email, traced_at';
 
 export interface DesignSummary {
   id: string;
@@ -60,6 +60,13 @@ export interface DesignSummary {
    * On the summary because the question it answers — "is this record older than the page it
    * records?" — has four callers (the page list's fifth gap, and `--stale` on the tracer, the
    * deriver and the conformance sweep) and none of them wants a second query per row. */
+  /** Which STATE of the route this is of — the `?tab=` value, or a disclosure panel's id.
+   *
+   * `''` means the route as a whole, which is what every row made before 2026-08-24 is. Carried
+   * through the types by V1 so the column cannot be added and then quietly forgotten; nothing
+   * READS it until V2 teaches the deriver to find a page's states. Distinct from `views`, which is
+   * the desktop/mobile pair — a design has both axes and they multiply. */
+  stateKey: string;
   tracedAt: string | null;
   ownerEmail: string | null;
 }
@@ -79,6 +86,7 @@ interface MockupRow {
   notes: string | null;
   activated_at: string | null;
   traced_at: string | null;
+  state_key: string;
   version: number;
   created_at: string;
   updated_at: string;
@@ -108,7 +116,7 @@ function toDocument(row: MockupRow): DesignDocument {
   } as DesignDocument;
 }
 
-function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email' | 'traced_at'>): DesignSummary {
+function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'state_key' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email' | 'traced_at'>): DesignSummary {
   return {
     id: row.id,
     name: row.name,
@@ -126,6 +134,9 @@ function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'updated_at' |
     locked: !!row.locked,
     themeGroup: row.theme_group ?? null,
     themeId: row.theme_id ?? null,
+    // `?? ''` rather than trusting NOT NULL: a row read by an older client, or by a query written
+    // before the column existed, arrives undefined and the route-as-a-whole is the right answer.
+    stateKey: row.state_key ?? '',
     tracedAt: row.traced_at ?? null,
     ownerEmail: row.owner_email ?? null,
   };

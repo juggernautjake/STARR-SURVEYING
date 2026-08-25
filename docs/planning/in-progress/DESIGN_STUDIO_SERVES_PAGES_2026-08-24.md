@@ -143,8 +143,39 @@ A hand-maintained list of tabs is wrong the first time somebody adds one. Two so
 
 **Deriving beats declaring for everything the shell does not own**, and the deriver already exists.
 
-- [ ] **V1 — `state_key` on `design_mockups`**, null-defaulting, plus the same on dossiers and
-      checklist state. Nothing reads it yet.
+- [x] **V1 — `state_key`**, shipped 2026-08-24 as `seeds/615_design_state_key.sql`, applied to the
+      live database and verified. On `design_mockups`, `design_page_dossiers` and
+      `design_checklist_items`; carried through `MockupRow`, `DesignSummary` and `DossierRow`.
+      **Nothing reads it yet** — V2 is what teaches the deriver to find a page's states.
+
+      **Two deviations from what this slice asked for, both deliberate.**
+
+      **1. `''`, not null.** The plan said "null-defaulting". `design_page_dossiers.route` was the
+      PRIMARY KEY, and a tabbed route needs one dossier per tab — so the key had to become
+      `(route, state_key)`, and **Postgres forbids NULL in a primary key**. Rather than run two
+      conventions (nullable on designs, not-null on dossiers) and spend the next year writing
+      `IS NOT DISTINCT FROM`, all three columns are `TEXT NOT NULL DEFAULT ''`. Empty string means
+      the route as a whole, which is exactly what all 468 existing rows are.
+
+      **2. `design_checklist_state` did NOT get the column**, though the slice listed it. Its key
+      is `(design_id, item_id)`, and a design belongs to exactly one state — so the design id
+      already carries the answer. Adding one would be a second place for the same fact to live,
+      and therefore a second place for it to be wrong.
+
+      **The primary-key change is guarded and re-runnable**, proven by running the seed twice.
+      Seeds in this repo get re-run; dropping a constraint that is already gone would fail the
+      whole file, and a migration that only works once is one nobody dares run.
+
+      Verified against the live database: 159 designs and 1,781 checklist items all at `''`, the
+      dossier key reading `PRIMARY KEY (route, state_key)`, and `design_checklist_state` still
+      carrying six columns and no state.
+
+      **A test that failed on its own documentation.** The assertion "this is not called
+      `view_key`" was written as `expect(SEED).not.toMatch(/view_key/)` — and the seed explains at
+      length *why* it is not called that. It checks for a column declaration now. A guard that
+      fires on prose about the thing it guards teaches people to stop writing the prose, which is
+      the same lesson `scan-inline-style-hex.ts` learned when it counted the hexes in a comment
+      warning against hard-coded hexes.
 - [ ] **V2 — the deriver records the views it finds** on a route: tabs, disclosure panels, and the
       URL parameter that selects each where there is one.
 - [ ] **V3 — the page list nests views under their route**, each with its own gap chips. This is the

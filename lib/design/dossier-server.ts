@@ -31,6 +31,9 @@ const STATE = 'design_checklist_state';
 
 interface DossierRow {
   route: string;
+  /** Which state of the route — see seed 615. `''` is the route as a whole, and is what every
+   *  dossier written before 2026-08-24 is. Part of the PRIMARY KEY now, so it is never null. */
+  state_key: string;
   purpose: string | null;
   summary: string | null;
   audience: string | null;
@@ -77,7 +80,7 @@ export async function listDossiers(): Promise<PageDossier[]> {
     // `elements` is the big column and the list does not render it; `element_count` is why it
     // exists. Pulling 176 element inventories to draw 176 rows is the kind of thing that makes a
     // list page feel broken on a slow connection.
-    .select('route, purpose, summary, audience, authored_by, authored_at, functions, endpoints, element_count, derived_at, derived_from')
+    .select('route, state_key, purpose, summary, audience, authored_by, authored_at, functions, endpoints, element_count, derived_at, derived_from')
     .order('route');
   if (error) throw new Error(error.message);
   return ((data ?? []) as unknown as DossierRow[]).map((row) => toDossier({ ...row, elements: [] }));
