@@ -22,6 +22,9 @@ import {
   accessibleRoutes,
   type Workspace,
 } from '@/lib/admin/route-registry';
+// T2. §11 of PAGE_CONSOLIDATION: which pages this FIRM uses, a different question from "may
+// you" and answered in `accessibleRoutes` so all four nav surfaces cannot disagree.
+import { useFeatureToggles } from '@/lib/admin/use-feature-toggles';
 import { isInternalUser } from '@/lib/saas/internal-user';
 import { trackNavEvent } from '@/lib/admin/nav-telemetry';
 import type { UserRole } from '@/lib/auth-roles';
@@ -70,13 +73,14 @@ export default function WorkspaceFlyout({
     [session?.user?.roles, session?.user?.role],
   );
   const isCompanyUser = isInternalUser(session);
+  const toggles = useFeatureToggles();
 
   const routes = useMemo(() => {
-    return accessibleRoutes({ roles, isCompanyUser })
+    return accessibleRoutes({ roles, isCompanyUser, toggles })
       .filter((r) => r.workspace === workspace)
       .filter((r) => r.href !== meta.href)
       .filter((r) => r.showInRail !== false);
-  }, [roles, isCompanyUser, workspace, meta.href]);
+  }, [roles, isCompanyUser, toggles, workspace, meta.href]);
 
   useEffect(() => {
     return () => {

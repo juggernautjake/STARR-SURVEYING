@@ -18,6 +18,10 @@
 
 import type { UserRole } from '@/lib/auth';
 import type { BundleId } from '@/lib/saas/bundles';
+// T2. Value import, not just a type: `isEnabled` is the one rule for "is this on", and
+// `feature-toggles.ts` imports nothing at all — so it cannot pull anything server-only into the
+// client bundles that read this registry.
+import { isEnabled, type FeatureToggles } from '@/lib/admin/feature-toggles';
 
 // ── Workspaces (§5.3) ───────────────────────────────────────────────
 
@@ -492,13 +496,34 @@ export function workspaceOf(pathname: string): Workspace | null {
 export function accessibleRoutes(opts: {
   roles: UserRole[];
   isCompanyUser: boolean;
+  /**
+   * ── T2: WHAT THIS FIRM ACTUALLY USES ─────────────────────────────────────────────────────────
+   *
+   * §11 of PAGE_CONSOLIDATION_2026-08-24.md. A FOURTH question, deliberately not folded into any of
+   * the three above: `roles` asks *may you*, `requiredBundle` asks *did the firm pay*, `internalOnly`
+   * asks *is this for staff* — and none of them can say *"this firm has simply decided not to run
+   * this page yet"*.
+   *
+   * Applied HERE because the comment at the top of `AdminSidebar` already states the rule this
+   * system runs on: *"gating happens once, in `accessibleRoutes`"*. Four nav surfaces call this —
+   * sidebar, rail, command palette, workspace flyout — and filtering in each of them is four places
+   * for a page to stay visible in one of them after being switched off.
+   *
+   * Optional, and absent means everything is on, so every existing caller keeps working unchanged
+   * and a failed settings read cannot empty somebody's sidebar.
+   */
+  toggles?: FeatureToggles | null;
 }): AdminRoute[] {
-  const { roles, isCompanyUser } = opts;
+  const { roles, isCompanyUser, toggles } = opts;
   const isAdmin = roles.includes('admin');
   return ADMIN_ROUTES.filter((r) => {
     // Parked first, before any role logic: it hides the route from everybody including admins,
     // which is the point. `findRoute` still resolves it, so breadcrumbs and direct links work.
     if (r.parked) return false;
+    // Switched off by this firm. Hidden from ADMINS TOO, which is the whole point of the setting —
+    // an easier sidebar. Reaching a disabled page is by direct URL (§11.4), where an admin gets the
+    // working page behind a banner; it is not something the nav keeps offering them.
+    if (!isEnabled(toggles, r.href)) return false;
     if (r.internalOnly && !isCompanyUser) return false;
     if (!r.roles) return true;
     if (isAdmin) return true;

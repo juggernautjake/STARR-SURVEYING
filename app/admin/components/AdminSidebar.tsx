@@ -12,6 +12,9 @@ import {
   WORKSPACES,
   WORKSPACE_ORDER,
 } from '@/lib/admin/route-registry';
+// T2. §11 of PAGE_CONSOLIDATION: which pages this FIRM uses, a different question from "may
+// you" and answered in `accessibleRoutes` so all four nav surfaces cannot disagree.
+import { useFeatureToggles } from '@/lib/admin/use-feature-toggles';
 import { ChevronRight, X } from 'lucide-react';
 
 interface AdminSidebarProps {
@@ -72,6 +75,9 @@ const BRAND_LABELS: Record<string, string> = {
 // lib/admin/route-registry.ts, which is now the only place that decides who sees which route.
 
 export default function AdminSidebar({ role, roles, userName, userEmail, userImage, isCompanyUser, isOpen, onClose }: AdminSidebarProps) {
+  // T2. Which pages this FIRM uses — a fourth question, answered once in `accessibleRoutes` so
+  // this drawer, the rail, the palette and the flyout cannot disagree about what exists.
+  const toggles = useFeatureToggles();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -97,7 +103,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
   // `showInRail: false` routes are excluded, matching the icon rail. Those are the palette-only
   // entries (§1.4) — registering all 131 here would trade an incomplete drawer for an unscannable one.
   const sections: NavSection[] = useMemo(() => {
-    const visible = accessibleRoutes({ roles, isCompanyUser })
+    const visible = accessibleRoutes({ roles, isCompanyUser, toggles })
       .filter((r) => r.showInRail !== false);
 
     return WORKSPACE_ORDER
@@ -108,7 +114,7 @@ export default function AdminSidebar({ role, roles, userName, userEmail, userIma
           .map((r) => ({ href: r.href, label: r.label, icon: r.iconName })),
       }))
       .filter((section) => section.items.length > 0);
-  }, [roles, isCompanyUser]);
+  }, [roles, isCompanyUser, toggles]);
 
   // ── Sections start CLOSED (owner request, 2026-08-04) ──────────────────────────────────────────
   //

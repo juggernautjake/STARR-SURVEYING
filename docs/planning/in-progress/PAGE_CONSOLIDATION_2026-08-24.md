@@ -783,10 +783,58 @@ a link on purpose; they are not well served by doing it invisibly.
 
 ### 11.7 Slices
 
-- [ ] **T1 — The switch, read-only.** `lib/admin/feature-toggles.ts`: read `app_settings`, one
-      exported `isEnabled(key)`, absent = on. Nothing consumes it yet.
-- [ ] **T2 — The nav respects it.** Sidebar, rail, command palette and search filter on it. This
-      alone delivers the owner's stated goal — *"navigating the webpage is easier"*.
+- [x] **T1 — The switch, read-only.** Shipped 2026-08-25. `lib/admin/feature-toggles.ts`: `isEnabled`,
+      `isDestinationEnabled`, `togglesFrom`, `toggleKey`/`parseToggleKey`, `withToggle`,
+      `disabledKeys`. Stored in `app_settings` under `feature_toggles`, and **absent means ON**.
+
+      Three decisions the tests pin, each about a failure mode rather than taste:
+
+      · **A broken row is the harmless state.** Nothing, a string, an array, a number — every one of
+        them reads as "everything is on". A parse that threw here would take out the sidebar of every
+        page that reads it, and the whole point of "absent means on" is that the broken state does no
+        damage.
+      · **A non-boolean is dropped, never coerced.** `"false"` the string is TRUTHY in JavaScript and
+        would silently mean ON — the reverse of what whoever wrote it intended. A toggle doing the
+        opposite of the stored data is worse than one ignoring it.
+      · **Turning something back ON deletes its key** rather than storing `true`. A map that
+        accumulated `true` for everything ever toggled would slowly become the exhaustive inventory
+        this design exists to avoid, including entries for routes that stopped existing.
+
+      **The whitelist caught itself.** `/api/admin/settings` writes through `ALLOWED_KEYS`, and its
+      own header says why: *"a new section written to the table by a seed but not named here reads
+      back fine and silently 400s on save. That is the 'authored but not wired' failure this codebase
+      hits most often."* A reader with no writer is exactly that, on the very list that warns about
+      it. `feature_toggles` is on the whitelist, by importing `TOGGLES_KEY` rather than retyping the
+      string — two spellings of one key is how a writer and a reader end up pointed at different rows,
+      and the symptom would be a switch that saves successfully and changes nothing.
+
+- [x] **T2 — The nav respects it.** Shipped 2026-08-25, and **in one place**, because
+      `AdminSidebar`'s own header already states the rule: *"gating happens once, in
+      `accessibleRoutes`, off the registry."*
+
+      `accessibleRoutes` takes an optional `toggles` map and drops what is off. Four surfaces read
+      it — the sidebar (which is also the mobile drawer, and the only nav a phone has), the icon
+      rail, the command palette and the workspace flyout — and filtering in each separately is four
+      places for a switched-off page to stay visible in one of them.
+
+      The check sits **above the role logic**, beside `parked`, so `isAdmin` cannot short-circuit
+      past it. Hiding it from admins too is the request itself: *"so that navigating the webpage is
+      easier"*. An admin reaches a disabled page by URL (§11.4), where they get the working page
+      behind a banner — the nav does not keep offering it.
+
+      One fetch per page load, not four. React renders these concurrently, so an effect in each
+      would fire four identical requests on every navigation; `useFeatureToggles` shares a
+      module-level promise. It starts **everything ON** while the read is in flight rather than
+      showing a loading state — a nav that waited would flicker its whole list into existence on
+      every page load, and the unfiltered list is a superset, never a lie about what exists.
+
+      Browser-verified on `/admin/equipment`: **10 cards → 9** with `/admin/equipment/timeline`
+      switched off, and **back to 10** when switched on.
+
+      *(The first probe of this reported "no change" three times and was wrong — it had picked
+      `/admin/vehicles`, which is not in that workspace at all, so nothing could have changed. Ninth
+      time this session a throwaway script's own bad input looked like a defect in the thing it was
+      testing.)*
 - [ ] **T3 — The settings screen.** A list of every destination grouped as the sidebar groups them,
       each with a switch, plus the inbound-link count from 11.6.
 - [ ] **T4 — The off page**, and the admin bypass with its banner (11.4).

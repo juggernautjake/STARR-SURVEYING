@@ -22,6 +22,9 @@ import {
   rankRoutes,
   type AdminRoute,
 } from '@/lib/admin/route-registry';
+// T2. §11 of PAGE_CONSOLIDATION: which pages this FIRM uses, a different question from "may
+// you" and answered in `accessibleRoutes` so all four nav surfaces cannot disagree.
+import { useFeatureToggles } from '@/lib/admin/use-feature-toggles';
 import { useAdminNavStore } from '@/lib/admin/nav-store';
 import type { UserRole } from '@/lib/auth-roles';
 import { isInternalUser } from '@/lib/saas/internal-user';
@@ -106,10 +109,11 @@ export default function CommandPalette() {
   );
   // Staff, from the session's own answer rather than an email suffix (audit item 8h).
   const isCompanyUser = useMemo(() => isInternalUser(session), [session]);
+  const toggles = useFeatureToggles();
 
   const visiblePages = useMemo(
-    () => accessibleRoutes({ roles, isCompanyUser }),
-    [roles, isCompanyUser],
+    () => accessibleRoutes({ roles, isCompanyUser, toggles }),
+    [roles, isCompanyUser, toggles],
   );
 
   const visibleActions = useMemo(() => {
@@ -118,7 +122,7 @@ export default function CommandPalette() {
       if (roles.includes('admin')) return true;
       return !a.roles || a.roles.some((r) => roles.includes(r));
     });
-  }, [roles, isCompanyUser]);
+  }, [roles, isCompanyUser, toggles]);
 
   // Records, from the search backbone. Debounced, and cancelled on every keystroke: the palette is
   // typed into fast, and an un-cancelled response arriving late would repaint the list under

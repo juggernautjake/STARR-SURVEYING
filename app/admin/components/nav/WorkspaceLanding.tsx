@@ -29,6 +29,9 @@ import {
   accessibleRoutes,
   type Workspace,
 } from '@/lib/admin/route-registry';
+// T2. §11 of PAGE_CONSOLIDATION: which pages this FIRM uses, a different question from "may
+// you" and answered in `accessibleRoutes` so all four nav surfaces cannot disagree.
+import { useFeatureToggles } from '@/lib/admin/use-feature-toggles';
 import { isInternalUser } from '@/lib/saas/internal-user';
 import type { UserRole } from '@/lib/auth-roles';
 import CompositionSlot from '@/lib/design/CompositionSlot';
@@ -65,11 +68,12 @@ export default function WorkspaceLanding({ workspace }: WorkspaceLandingProps) {
   const roles: UserRole[] =
     (session?.user?.roles ?? (session?.user?.role ? [session.user.role] : [])) as UserRole[];
   const isCompanyUser = isInternalUser(session);
+  const toggles = useFeatureToggles();
 
   // Show the workspace's own routes. The landing page itself is in the
   // registry too (so the Hub's Workspaces column links to it) — filter
   // it out of the card grid so we don't list "Office" inside Office.
-  const routes = accessibleRoutes({ roles, isCompanyUser })
+  const routes = accessibleRoutes({ roles, isCompanyUser, toggles })
     .filter((r) => r.workspace === workspace)
     .filter((r) => r.href !== meta.href)
     .filter((r) => r.showInRail !== false);
