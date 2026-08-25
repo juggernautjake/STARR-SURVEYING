@@ -1891,6 +1891,18 @@ early, and the internal tooling comes last.
       recognised from source without a browser, which is the fix from earlier in this section doing
       its job on its first real outing.
 
+      **Checked that the new dossiers describe the page and not a spinner**, which is the failure
+      mode this walker was built to avoid and the reason it waits rather than counting to 2.5s:
+
+      · `/admin/hours` — 15 elements; observed `GET /api/admin/time-logs`,
+        `/api/admin/employees/options`, `/api/admin/payroll/owed`.
+      · `/admin/pay` — 25 elements; observed `GET /api/admin/payroll/employees`,
+        `/api/admin/clock-session`.
+
+      Both list **"Switches between sections"** among their functions. That is the portal tab strip,
+      observed rather than described — the consolidation showing up in the measurement of its own
+      result.
+
       One more cold-compile artifact on the way, recorded because it is now the fifth: the first
       attempt died on *"Could not read the catalogue index (500). Is the server up and the account a
       developer?"* — a question whose two suggestions were both wrong. The server was up and the
