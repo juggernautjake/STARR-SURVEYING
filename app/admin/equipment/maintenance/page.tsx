@@ -523,13 +523,13 @@ const failedQaStyles: Record<string, React.CSSProperties> = {
     border: '1px solid #FCA5A5',
     borderLeft: '3px solid #B91C1C',
     borderRadius: 6,
-    color: '#111827',
+    color: 'var(--theme-fg-primary, #111827)',
     textDecoration: 'none',
     fontSize: 12,
   },
   itemEquip: {
     fontWeight: 600,
-    color: '#111827',
+    color: 'var(--theme-fg-primary, #111827)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
@@ -539,12 +539,12 @@ const failedQaStyles: Record<string, React.CSSProperties> = {
     padding: '2px 8px',
     borderRadius: 4,
     fontSize: 11,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     textTransform: 'capitalize' as const,
     justifySelf: 'start' as const,
   },
   itemSummary: {
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
@@ -596,7 +596,7 @@ function chipStyle(state: string): React.CSSProperties {
     overflow: 'hidden',
     whiteSpace: 'nowrap' as const,
     textOverflow: 'ellipsis',
-    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
+    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: 'var(--theme-fg-secondary, #374151)' }),
   };
 }
 
@@ -711,7 +711,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     fontSize: 13,
   },
-  summaryStrong: { color: '#111827', fontWeight: 600 },
+  summaryStrong: { color: 'var(--theme-fg-primary, #111827)', fontWeight: 600 },
   summaryAmber: { color: '#B45309', fontWeight: 600 },
   summaryRed: { color: '#B91C1C', fontWeight: 700 },
   muted: { color: 'var(--color-text-muted)' },
@@ -772,7 +772,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     fontSize: 11,
   },
-  dayNumber: { color: '#374151', fontWeight: 500 },
+  dayNumber: { color: 'var(--theme-fg-secondary, #374151)', fontWeight: 500 },
   dayCount: {
     background: 'var(--color-bg-subtle)',
     color: 'var(--color-text-tertiary)',
@@ -828,7 +828,7 @@ const styles: Record<string, React.CSSProperties> = {
   upcomingTitle: {
     fontWeight: 600,
     fontSize: 13,
-    color: '#111827',
+    color: 'var(--theme-fg-primary, #111827)',
   },
   upcomingMeta: {
     fontSize: 11,
@@ -840,7 +840,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   upcomingSummary: {
     fontSize: 11,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   nextDueSection: {
     background: 'var(--color-bg-card)',

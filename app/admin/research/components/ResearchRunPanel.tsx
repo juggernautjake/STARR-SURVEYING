@@ -774,7 +774,7 @@ export default function ResearchRunPanel({
             padding: '0.4rem 0.85rem',
             fontSize: '0.85rem',
             fontWeight: 500,
-            color: '#374151',
+            color: 'var(--theme-fg-secondary, #374151)',
             cursor: 'pointer',
             marginBottom: '1rem',
           }}
@@ -797,8 +797,8 @@ export default function ResearchRunPanel({
           gap: '0.75rem',
         }}>
           <div style={{ fontSize: '2.5rem' }}>🔬</div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#1F2937' }}>No Active Research</div>
-          <div style={{ fontSize: '0.88rem', color: '#4B5563', maxWidth: '28rem', lineHeight: 1.5 }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--theme-fg-primary, #1F2937)' }}>No Active Research</div>
+          <div style={{ fontSize: '0.88rem', color: 'var(--theme-fg-secondary, #4B5563)', maxWidth: '28rem', lineHeight: 1.5 }}>
             No research pipeline is currently running for this project.
             Go back to Property Information and click &quot;Initiate Research &amp; Analysis&quot; to start.
           </div>
@@ -866,7 +866,7 @@ export default function ResearchRunPanel({
           margin: '0.25rem 0',
         }}>
           {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:{(elapsedSeconds % 60).toString().padStart(2, '0')}
-          <span style={{ fontSize: '0.75rem', fontWeight: 400, marginLeft: '0.35rem', color: '#6B7280' }}>elapsed</span>
+          <span style={{ fontSize: '0.75rem', fontWeight: 400, marginLeft: '0.35rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>elapsed</span>
         </div>
 
         {/* Current micro-stage */}
@@ -1612,7 +1612,7 @@ function DocumentsSection({ documents, loading, isRunning }: {
           <div className="review-doc-list__header">
             <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
           </div>
-          <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6B7280', fontSize: '0.85rem' }}>
+          <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.85rem' }}>
             Loading documents...
           </div>
         </div>
@@ -1628,7 +1628,7 @@ function DocumentsSection({ documents, loading, isRunning }: {
             <span className="review-doc-list__title">📂 Documents &amp; Sources</span>
             <span className="review-doc-list__count">0</span>
           </div>
-          <div style={{ padding: '1.5rem', textAlign: 'center', color: '#6B7280', fontSize: '0.85rem' }}>
+          <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.85rem' }}>
             {isRunning
               ? 'Waiting for documents & screenshots to be captured...'
               : 'No documents captured yet.'}
@@ -1663,7 +1663,7 @@ function DocumentsSection({ documents, loading, isRunning }: {
         })}
       </div>
       {miscCount > 0 && (
-        <div style={{ textAlign: 'center', padding: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+        <div style={{ textAlign: 'center', padding: '0.5rem', fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
           {miscCount} non-useful screenshot{miscCount !== 1 ? 's' : ''} filtered out
         </div>
       )}

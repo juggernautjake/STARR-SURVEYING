@@ -156,7 +156,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
         </div>
         <div className="research-briefing__loading">
           <div className="research-analyzing__spinner" style={{ marginBottom: '0.75rem' }} />
-          <span style={{ color: '#6B7280', fontSize: '0.9rem' }}>Generating briefing…</span>
+          <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.9rem' }}>Generating briefing…</span>
         </div>
       </div>
     );
@@ -240,7 +240,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
         {/* ── Summary Tab ─────────────────────────────────────────────── */}
         {activeSection === 'summary' && (
           <div className="research-briefing__section">
-            <p style={{ color: '#6B7280', fontSize: '0.8rem', marginBottom: '1rem' }}>
+            <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.8rem', marginBottom: '1rem' }}>
               This briefing summarizes all surveying data extracted from the uploaded documents. Each section provides specific findings for quick reference.
             </p>
             <div className="research-briefing__summary-list">
@@ -267,7 +267,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
               <div className="research-briefing__empty">No boundary call data was extracted from the provided documents.</div>
             ) : (
               <>
-                <p style={{ color: '#6B7280', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
                   These are the metes-and-bounds calls that define the property boundary, listed in sequence. Each call specifies a direction (bearing) and distance.
                 </p>
                 {sections.pob && (
@@ -292,9 +292,9 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                       </div>
                       {expandedLines.has(line.index) && (
                         <div className="research-briefing__call-detail">
-                          <div><span style={{ color: '#6B7280' }}>Raw:</span> {line.raw}</div>
+                          <div><span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>Raw:</span> {line.raw}</div>
                           {line.monument_at_end && (
-                            <div><span style={{ color: '#6B7280' }}>Monument at end:</span> {line.monument_at_end}</div>
+                            <div><span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>Monument at end:</span> {line.monument_at_end}</div>
                           )}
                         </div>
                       )}
@@ -318,7 +318,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
               <div className="research-briefing__empty">No corner or boundary markers were specifically identified in the documents.</div>
             ) : (
               <>
-                <p style={{ color: '#6B7280', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
                   Corner and boundary markers are physical monuments that mark the corners and lines of the survey. &ldquo;Found&rdquo; means an existing marker was located; &ldquo;Set&rdquo; means a new marker was placed.
                 </p>
                 <div className="research-briefing__monument-list">
@@ -337,10 +337,10 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                             {mon.condition === 'found' ? '✓ Found' : mon.condition === 'set' ? '+ Set' : mon.condition}
                           </span>
                           {mon.type && mon.type !== 'unknown' && (
-                            <span style={{ color: '#6B7280', fontSize: '0.78rem' }}>{mon.type.replace(/_/g, ' ')}</span>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.78rem' }}>{mon.type.replace(/_/g, ' ')}</span>
                           )}
                           {mon.sequence_order !== null && mon.sequence_order !== undefined && (
-                            <span style={{ color: '#9CA3AF', fontSize: '0.75rem' }}>Point {mon.sequence_order}</span>
+                            <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)', fontSize: '0.75rem' }}>Point {mon.sequence_order}</span>
                           )}
                           <span style={{ color: confidenceColor(mon.confidence), fontSize: '0.75rem' }}>
                             {Math.round(mon.confidence)}% confidence
@@ -363,7 +363,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
               <div className="research-briefing__empty">No easements were identified in the provided documents.</div>
             ) : (
               <>
-                <p style={{ color: '#6B7280', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
                   Easements grant specific rights to use a portion of the property for a defined purpose. They are typically recorded with the deed or in separate instruments.
                 </p>
                 <div className="research-briefing__easement-list">
@@ -371,13 +371,13 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                     <div key={i} className="research-briefing__easement">
                       <div className="research-briefing__easement-type">
                         🛤️ {e.type.replace(/_/g, ' ')}
-                        {e.width !== null && <span style={{ marginLeft: '0.5rem', color: '#6B7280', fontWeight: 400 }}>({e.width} ft wide)</span>}
+                        {e.width !== null && <span style={{ marginLeft: '0.5rem', color: 'var(--theme-fg-secondary, #6B7280)', fontWeight: 400 }}>({e.width} ft wide)</span>}
                       </div>
                       <div className="research-briefing__easement-desc">{e.description}</div>
                       <div className="research-briefing__easement-meta">
                         {e.purpose && <span>Purpose: {e.purpose}</span>}
                         {e.grantee && <span>Grantee: {e.grantee}</span>}
-                        <span style={{ color: '#9CA3AF' }}>Source: {e.source_doc}</span>
+                        <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)' }}>Source: {e.source_doc}</span>
                       </div>
                     </div>
                   ))}
@@ -400,7 +400,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                     {sections.utilities.map((u, i) => (
                       <div key={i} className="research-briefing__other-item">
                         <div>{u.description}</div>
-                        <div style={{ color: '#9CA3AF', fontSize: '0.78rem' }}>Source: {u.source_doc}</div>
+                        <div style={{ color: 'var(--theme-fg-muted, #9CA3AF)', fontSize: '0.78rem' }}>Source: {u.source_doc}</div>
                       </div>
                     ))}
                   </>
@@ -414,7 +414,7 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                           <span className="research-briefing__other-category">{CATEGORY_LABELS[o.category] || o.category}</span>
                           <span>{o.description}</span>
                         </div>
-                        <div style={{ color: '#9CA3AF', fontSize: '0.78rem' }}>Source: {o.source_doc}</div>
+                        <div style={{ color: 'var(--theme-fg-muted, #9CA3AF)', fontSize: '0.78rem' }}>Source: {o.source_doc}</div>
                       </div>
                     ))}
                   </>
@@ -440,9 +440,9 @@ export default function BriefingPanel({ projectId, onClose }: BriefingPanelProps
                   {sections.discrepancies.critical > 0 && (
                     <span style={{ color: 'var(--color-error)' }}><strong>{sections.discrepancies.critical}</strong> critical</span>
                   )}
-                  <span style={{ color: '#9CA3AF' }}>{sections.discrepancies.total} total</span>
+                  <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)' }}>{sections.discrepancies.total} total</span>
                 </div>
-                <p style={{ color: '#6B7280', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
                   Review and resolve these discrepancies in the Review step before finalizing the drawing.
                 </p>
                 <div>

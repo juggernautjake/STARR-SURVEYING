@@ -89,7 +89,7 @@ export default function CustomRoleBuilderClient({ initialRoles }: { initialRoles
       >
         <strong style={{ fontSize: '0.95rem' }}>New role</strong>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>Label</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>Label</span>
           <input
             type="text"
             data-testid="admin-role-builder-label"
@@ -100,8 +100,8 @@ export default function CustomRoleBuilderClient({ initialRoles }: { initialRoles
           />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>
-            Key <span style={{ fontWeight: 400, color: '#6B7280' }}>(optional — auto-slugged from label)</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>
+            Key <span style={{ fontWeight: 400, color: 'var(--theme-fg-secondary, #6B7280)' }}>(optional — auto-slugged from label)</span>
           </span>
           <input
             type="text"
@@ -112,7 +112,7 @@ export default function CustomRoleBuilderClient({ initialRoles }: { initialRoles
           />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>Description</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>Description</span>
           <input
             type="text"
             data-testid="admin-role-builder-description"
@@ -122,8 +122,8 @@ export default function CustomRoleBuilderClient({ initialRoles }: { initialRoles
           />
         </label>
         <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>
-            Permissions <span style={{ fontWeight: 400, color: '#6B7280' }}>(JSON object)</span>
+          <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>
+            Permissions <span style={{ fontWeight: 400, color: 'var(--theme-fg-secondary, #6B7280)' }}>(JSON object)</span>
           </span>
           <textarea
             data-testid="admin-role-builder-permissions"
@@ -162,7 +162,7 @@ export default function CustomRoleBuilderClient({ initialRoles }: { initialRoles
           <tbody>
             {roles.length === 0 ? (
               <tr>
-                <td colSpan={4} style={{ padding: '0.75rem', color: '#6B7280', textAlign: 'center' }}>
+                <td colSpan={4} style={{ padding: '0.75rem', color: 'var(--theme-fg-secondary, #6B7280)', textAlign: 'center' }}>
                   No custom roles yet — add one above.
                 </td>
               </tr>
@@ -171,8 +171,8 @@ export default function CustomRoleBuilderClient({ initialRoles }: { initialRoles
                 <tr key={r.id} style={{ borderTop: '1px solid #F1F5F9' }}>
                   <td style={{ padding: '0.5rem', fontFamily: 'monospace' }}>{r.key}</td>
                   <td style={{ padding: '0.5rem' }}>{r.label}</td>
-                  <td style={{ padding: '0.5rem', color: '#374151' }}>{r.description ?? '—'}</td>
-                  <td style={{ padding: '0.5rem', color: '#6B7280' }}>{r.created_by ?? '—'}</td>
+                  <td style={{ padding: '0.5rem', color: 'var(--theme-fg-secondary, #374151)' }}>{r.description ?? '—'}</td>
+                  <td style={{ padding: '0.5rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>{r.created_by ?? '—'}</td>
                 </tr>
               ))
             )}

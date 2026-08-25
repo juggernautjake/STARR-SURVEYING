@@ -214,7 +214,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
             {results.passed ? ' \u2014 Great work!' : ' \u2014 You need 70% to pass.'}
           </p>
           {historicalAvg && historicalAvg.attempts > 1 && (
-            <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.82rem', color: '#6B7280', marginTop: '0.5rem' }}>
+            <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '0.82rem', color: 'var(--theme-fg-secondary, #6B7280)', marginTop: '0.5rem' }}>
               Your average across {historicalAvg.attempts} attempt{historicalAvg.attempts !== 1 ? 's' : ''}:{' '}
               <span className={`quiz-avg-badge ${historicalAvg.avg >= 70 ? 'quiz-avg-badge--green' : historicalAvg.avg >= 40 ? 'quiz-avg-badge--yellow' : 'quiz-avg-badge--red'}`}>
                 {historicalAvg.avg}%
@@ -424,7 +424,7 @@ export default function QuizRunner({ type, lessonId, moduleId, examCategory, que
         >
           {submitting ? 'Grading...' : `Submit ${type === 'module_test' ? 'Test' : 'Quiz'}`}
         </button>
-        <span style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
+        <span style={{ fontSize: '0.8rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
           {answeredCount}/{questions.length} answered
         </span>
       </div>

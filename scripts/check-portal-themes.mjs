@@ -74,17 +74,37 @@ const AUDIT = (limits) => {
     while (node && node !== document.documentElement) {
       const bg = parse(getComputedStyle(node).backgroundColor);
       if (bg && bg.a > 0.5) return bg;
+      // ── A GRADIENT IS NOT A COLOUR, AND GUESSING ONE MANUFACTURES A FINDING ──────────────────
+      //
+      // The hub greeting is a brand hero: white text on `linear-gradient(135deg, …)`, with no
+      // background-COLOR anywhere in its ancestry. This walk read `backgroundColor` only, found
+      // `rgba(0,0,0,0)` all the way to the root, fell back to the page, and reported white text
+      // at 1.05:1 — on all eleven themes, light and dark alike, which is the tell: a real contrast
+      // defect does not have the same ratio on a white page and a black one.
+      //
+      // Four findings per run, about a banner that is perfectly legible. This is the fifth time an
+      // instrument in this system has reported its own blind spot as a property of the app, and
+      // the cost is always the same — a confidently wrong measurement is indistinguishable from a
+      // discovery, and it buries the real ones.
+      //
+      // Answering "unknown" rather than a number is the honest result. What is behind the text is
+      // a ramp of colours, and no single ratio describes it.
+      if (getComputedStyle(node).backgroundImage !== 'none') return null;
       node = node.parentElement;
     }
     const root = parse(getComputedStyle(document.documentElement).backgroundColor);
     return root && root.a > 0.5 ? root : { r: 255, g: 255, b: 255, a: 1 };
   };
 
-  const pageBg = behind(document.body);
+  const pageBg = behind(document.body) ?? { r: 255, g: 255, b: 255, a: 1 };
   const pageIsDark = lum(pageBg) < 0.4;
 
   const islands = [];
   const unreadable = [];
+  // Counted and reported, never silently dropped: "we did not look at 4 things" and "we looked at
+  // 4 things and they were fine" are different statements, and a check that cannot tell them apart
+  // is one you can quietly narrow to nothing.
+  const unmeasurable = [];
   const seen = new Set();
 
   const scope = document.querySelector('.admin-layout__content') ?? document.body;
@@ -112,14 +132,19 @@ const AUDIT = (limits) => {
     const bold = (parseInt(s.fontWeight, 10) || 400) >= 700;
     const large = size >= 24 || (size >= 18.66 && bold);
     const need = large ? limits.large : limits.normal;
-    const got = ratio(fg, behind(el));
+    const paper = behind(el);
+    if (!paper) {
+      if (!seen.has(`u:${key}`)) { seen.add(`u:${key}`); unmeasurable.push({ what: key, why: 'sits on a gradient' }); }
+      return;
+    }
+    const got = ratio(fg, paper);
     if (got < need && !seen.has(`t:${key}`)) {
       seen.add(`t:${key}`);
       unreadable.push({ what: key, ratio: Math.round(got * 100) / 100, need, size: Math.round(size * 10) / 10, color: s.color });
     }
   });
 
-  return { pageIsDark, pageBg: `rgb(${pageBg.r}, ${pageBg.g}, ${pageBg.b})`, islands, unreadable };
+  return { pageIsDark, pageBg: `rgb(${pageBg.r}, ${pageBg.g}, ${pageBg.b})`, islands, unreadable, unmeasurable };
 };
 
 console.log(`\n  ${BASE} — do the portal themes hold up?\n`);
@@ -156,13 +181,24 @@ for (const theme of THEMES) {
   // Answering the hub-data call with the theme under test makes the app apply it through its own
   // code path and keep it applied, which is both correct and the thing worth testing.
   await page.route('**/api/admin/me/hub-data*', async (route) => {
-    const response = await route.fetch();
+    // A cold dev server can take longer than Playwright's 30s default to compile this API route,
+    // and an unhandled rejection here killed the ENTIRE sweep — eighteen routes across five themes,
+    // lost to one slow compile. Falling through to the real request keeps the run alive; that page
+    // is then measured under whatever theme the account has, which is worth strictly more than no
+    // measurement at all.
+    let response;
+    try {
+      response = await route.fetch({ timeout: 90_000 });
+    } catch {
+      await route.continue().catch(() => {});
+      return;
+    }
     let body = {};
     try { body = await response.json(); } catch { /* not JSON — pass it through untouched */ }
-    await route.fulfill({ response, json: { ...body, theme, customTheme: null } });
+    await route.fulfill({ response, json: { ...body, theme, customTheme: null } }).catch(() => {});
   });
 
-  const summary = { islands: new Map(), unreadable: new Map(), dark: false };
+  const summary = { islands: new Map(), unreadable: new Map(), unmeasurable: new Map(), dark: false };
   for (const route of ROUTES) {
     try {
       await page.goto(`${BASE}${route}`, { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -176,6 +212,7 @@ for (const theme of THEMES) {
       summary.dark = res.pageIsDark;
       for (const i of res.islands) summary.islands.set(i.what, i);
       for (const u of res.unreadable) summary.unreadable.set(u.what, u);
+      for (const u of res.unmeasurable ?? []) summary.unmeasurable.set(u.what, u);
     } catch { /* a route that will not load says nothing about the theme */ }
   }
   perTheme[theme] = summary;
@@ -183,7 +220,19 @@ for (const theme of THEMES) {
   problems += bad;
 
   console.log(`  ── ${theme}${summary.dark ? ' (dark)' : ''} ──`);
-  if (bad === 0) { console.log('     ✓ no unthemed surfaces, no unreadable text\n'); continue; }
+  // Said out loud on every run, clean or not. A check that silently skips things is how a green
+  // result stops meaning anything — and skipping these is the correct behaviour, not a gap: what
+  // is behind text on a gradient is a ramp of colours, and no single ratio describes it.
+  const skipped = summary.unmeasurable.size
+    ? `     · ${summary.unmeasurable.size} element(s) sit on a gradient and cannot be scored: ${[...summary.unmeasurable.keys()].slice(0, 4).join(', ')}`
+    : '';
+  if (bad === 0) {
+    console.log('     ✓ no unthemed surfaces, no unreadable text');
+    if (skipped) console.log(skipped);
+    console.log('');
+    continue;
+  }
+  if (skipped) console.log(skipped);
   for (const i of [...summary.islands.values()].slice(0, 30)) {
     console.log(`     ✗ light surface in a dark app: ${i.what} — ${i.bg}`);
   }

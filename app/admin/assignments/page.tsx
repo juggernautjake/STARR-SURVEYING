@@ -274,7 +274,7 @@ export default function AssignmentsPage() {
         <div className="assign__empty">
           <span className="assign__empty-icon"><ClipboardList size={30} strokeWidth={1.5} /></span>
           <p>No assignments found</p>
-          <p style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
             {statusFilter !== 'all' ? 'Try changing the filter' : 'Assignments from your admin will appear here'}
           </p>
         </div>

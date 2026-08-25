@@ -87,7 +87,7 @@ export default function CheckedOutPage(): React.ReactElement {
               <span style={{ fontWeight: 600 }}>{a.equipment?.name ?? '—'}</span>
               <span>
                 {KIND_LABEL[a.assigned_kind] ?? a.assigned_kind}
-                <span style={{ display: 'block', fontSize: '0.8rem', color: '#6B7280' }}>
+                <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>
                   {assignmentTargetLabel({ assigned_kind: a.assigned_kind, assigned_label: a.assigned_label, assigned_user_name: a.assigned_user_name, assigned_vehicle_name: a.vehicle?.name })}
                 </span>
               </span>
@@ -316,10 +316,10 @@ const styles: Record<string, React.CSSProperties> = {
   lede: { color: '#4a5470', margin: '0.25rem 0 0' },
   card: { maxWidth: 1100, margin: '0 auto', background: '#fff', border: '1px solid #e4e7ee', borderRadius: 12, overflow: 'hidden' },
   row: { display: 'grid', gridTemplateColumns: '1.4fr 1.6fr 1.2fr 1fr 1fr 0.8fr', gap: '0.75rem', alignItems: 'center', padding: '0.7rem 1rem', borderBottom: '1px solid #eef0f4' },
-  rowHead: { fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#6b7280', background: '#fafbfd' },
-  empty: { maxWidth: 1100, margin: '0 auto', padding: '2.5rem', textAlign: 'center', color: '#6b7280', background: '#fff', border: '1px solid #e4e7ee', borderRadius: 12 },
+  rowHead: { fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--theme-fg-secondary, #6b7280)', background: '#fafbfd' },
+  empty: { maxWidth: 1100, margin: '0 auto', padding: '2.5rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #6b7280)', background: '#fff', border: '1px solid #e4e7ee', borderRadius: 12 },
   error: { color: '#B42318', background: '#FDECEC', padding: '0.6rem 0.8rem', borderRadius: 8, maxWidth: 1100, margin: '0.75rem auto' },
-  hint: { fontSize: '0.83rem', color: '#6b7280', margin: '0 0 0.5rem' },
+  hint: { fontSize: '0.83rem', color: 'var(--theme-fg-secondary, #6b7280)', margin: '0 0 0.5rem' },
   btn: { fontWeight: 700, padding: '0.6rem 1.1rem', background: '#1D3095', color: '#fff', border: 'none', borderRadius: 9, cursor: 'pointer', textDecoration: 'none', display: 'inline-block' },
   btnGhost: { fontWeight: 600, padding: '0.6rem 1.1rem', background: 'transparent', color: '#1D3095', border: '1px solid #1D3095', borderRadius: 9, cursor: 'pointer', textDecoration: 'none', display: 'inline-block' },
   btnSm: { fontWeight: 600, padding: '0.35rem 0.8rem', background: '#1D3095', color: '#fff', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: '0.82rem' },

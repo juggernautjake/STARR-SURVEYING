@@ -390,7 +390,7 @@ export default function ErrorLogPage() {
         <div className="err-log__empty">
           <div className="err-log__empty-icon"><CheckCircle2 size={30} strokeWidth={1.5} /></div>
           <p>No error reports found</p>
-          <p style={{ fontSize: '0.8rem', color: '#9CA3AF' }}>
+          <p style={{ fontSize: '0.8rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
             {statusFilter !== 'all' || typeFilter !== 'all' || severityFilter !== 'all' || searchDebounced
               ? 'Try adjusting your filters'
               : 'Error reports will appear here when users encounter issues'}

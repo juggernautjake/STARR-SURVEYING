@@ -162,7 +162,7 @@ export default function PayrollRunPanel() {
           <div className="payroll-runs__empty">No payroll runs yet. Create one to get started.</div>
         ) : (
           runs.map(run => {
-            const statusInfo = PAYROLL_STATUSES[run.status] || { label: run.status, color: '#6B7280' };
+            const statusInfo = PAYROLL_STATUSES[run.status] || { label: run.status, color: 'var(--theme-fg-secondary, #6B7280)' };
             const isSelected = selectedRun?.id === run.id;
 
             return (

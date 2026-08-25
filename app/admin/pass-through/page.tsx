@@ -52,7 +52,7 @@ const money = (cents: number) => `$${(Math.abs(cents) / 100).toFixed(2)}`;
 /** Colour carries the same meaning as the state, never a different one. */
 const TONE: Record<RecoveryState, { label: string; color: string }> = {
   NO_NET_GAIN: { label: 'No net gain', color: 'var(--theme-success)' },
-  OVER_RECOVERED: { label: 'Margin', color: 'var(--theme-info)' },
+  OVER_RECOVERED: { label: 'Margin', color: 'var(--color-info-text)' },
   UNDER_RECOVERED: { label: 'Under-recovered', color: 'var(--theme-warning)' },
   NOT_RECOVERED: { label: 'Not billed yet', color: 'var(--theme-danger)' },
   NOT_RECOVERABLE: { label: 'Absorbed', color: 'var(--color-text-secondary)' },

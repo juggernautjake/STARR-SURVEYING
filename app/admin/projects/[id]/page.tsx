@@ -197,7 +197,7 @@ export default function ProjectDetailPage() {
             ) : (
               <ul className="pd__jobs" data-testid="project-jobs">
                 {jobs.map((j) => {
-                  const stage = STAGE_CONFIG[j.stage] ?? { label: j.stage, color: '#6B7280' };
+                  const stage = STAGE_CONFIG[j.stage] ?? { label: j.stage, color: 'var(--theme-fg-secondary, #6B7280)' };
                   return (
                     <li key={j.id}>
                       <Link href={`/admin/jobs/${j.id}`} className="pd__job">

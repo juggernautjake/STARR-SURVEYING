@@ -1199,11 +1199,11 @@ export default function QuestionBuilderPage() {
                         <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Avg Score</div>
                       </div>
                       <div style={{ background: '#FAFBFF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#374151' }}>{quizAnalytics.summary.total_attempts}</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--theme-fg-secondary, #374151)' }}>{quizAnalytics.summary.total_attempts}</div>
                         <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Total Attempts</div>
                       </div>
                       <div style={{ background: '#FAFBFF', borderRadius: 6, padding: '.5rem .65rem', textAlign: 'center' }}>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#374151' }}>{quizAnalytics.summary.unique_users}</div>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--theme-fg-secondary, #374151)' }}>{quizAnalytics.summary.unique_users}</div>
                         <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)' }}>Unique Users</div>
                       </div>
                     </div>
@@ -1222,12 +1222,12 @@ export default function QuestionBuilderPage() {
                     {/* Breakdown by quiz type */}
                     {quizAnalytics.breakdown.length > 0 && (
                       <div>
-                        <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.4rem' }}>Breakdown by Quiz</h4>
+                        <h4 style={{ fontFamily: 'Sora,sans-serif', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.4rem' }}>Breakdown by Quiz</h4>
                         {quizAnalytics.breakdown.map(b => {
                           const passColor = b.pass_rate >= 70 ? 'var(--color-success)' : b.pass_rate >= 40 ? 'var(--color-warning)' : 'var(--color-error)';
                           return (
                             <div key={b.key} style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginBottom: '.35rem', fontSize: '.72rem' }}>
-                              <span style={{ fontWeight: 600, color: '#374151', minWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.label}>
+                              <span style={{ fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', minWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={b.label}>
                                 {b.label.length > 12 ? b.label.slice(0, 12) + '...' : b.label}
                               </span>
                               <div style={{ flex: 1, height: 6, background: 'var(--color-bg-subtle)', borderRadius: 3, overflow: 'hidden' }}>

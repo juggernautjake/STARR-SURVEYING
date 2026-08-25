@@ -325,7 +325,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.32rem 0.8rem',
     borderRadius: 9999,
     background: '#F1F5F9',
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
   },
   statOutstanding: {
     background: '#FFF4E0',
@@ -346,7 +346,7 @@ const styles: Record<string, React.CSSProperties> = {
   emptyState: {
     padding: '2rem',
     textAlign: 'center',
-    color: '#6b7280',
+    color: 'var(--theme-fg-secondary, #6b7280)',
     background: '#F9FAFB',
     border: '1px dashed #d6d9e3',
     borderRadius: 12,
@@ -382,7 +382,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '0.95rem',
     fontWeight: 700,
     fontFamily: 'SF Mono, Menlo, monospace',
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
   },
   statusPill: {
     alignSelf: 'flex-start',
@@ -403,14 +403,14 @@ const styles: Record<string, React.CSSProperties> = {
   totalLabel: {
     fontSize: '0.68rem',
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   totalValue: {
     fontSize: '1.05rem',
     fontWeight: 700,
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
     whiteSpace: 'nowrap',
   },
   cardBody: {
@@ -427,7 +427,7 @@ const styles: Record<string, React.CSSProperties> = {
   customerName: {
     fontSize: '0.92rem',
     fontWeight: 600,
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -456,7 +456,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   metaKey: {
     margin: 0,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 600,
     fontSize: '0.68rem',
     textTransform: 'uppercase',
@@ -464,7 +464,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   metaVal: {
     margin: 0,
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
   },
   jobBadge: {
     display: 'flex',
@@ -503,7 +503,7 @@ const styles: Record<string, React.CSSProperties> = {
   noJob: {
     margin: 0,
     fontSize: '0.78rem',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontStyle: 'italic',
   },
   inlineLink: {

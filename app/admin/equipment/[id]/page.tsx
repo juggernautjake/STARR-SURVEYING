@@ -631,7 +631,7 @@ function maintStatePill(state: string): React.CSSProperties {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
-    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
+    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: 'var(--theme-fg-secondary, #374151)' }),
   };
 }
 
@@ -646,7 +646,7 @@ const maintRowStyles: Record<string, React.CSSProperties> = {
     padding: '1px 8px',
     borderRadius: 4,
     fontSize: 11,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     textTransform: 'capitalize' as const,
     marginRight: 6,
   },
@@ -732,7 +732,7 @@ const styles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  fieldValue: { fontSize: 14, color: '#111827' },
+  fieldValue: { fontSize: 14, color: 'var(--theme-fg-primary, #111827)' },
   section: {
     marginBottom: 16,
     border: '1px solid #E2E5EB',

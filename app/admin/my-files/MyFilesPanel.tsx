@@ -184,7 +184,7 @@ export default function MyFilesPanel() {
       >
         <span style={{ color: 'var(--color-brand-navy, #1D3095)' }}><Upload size={30} strokeWidth={1.75} /></span>
         <p><strong>Drop files here</strong> or click to browse</p>
-        <p style={{ fontSize: '0.78rem', color: '#9CA3AF' }}>
+        <p style={{ fontSize: '0.78rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
           {folderFilter === 'all' ? 'Uploads go to “Other”.' : `Uploads go to “${FOLDERS.find(f => f.key === folderFilter)?.label}”.`} Supports all file types. Max 50MB per file.
         </p>
       </div>

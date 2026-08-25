@@ -820,7 +820,7 @@ export const editStyles: Record<string, React.CSSProperties> = {
   label: {
     fontSize: 12,
     fontWeight: 600,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   input: {
     padding: '8px 10px',
@@ -1413,7 +1413,7 @@ export function statusPillStyle(status: string): React.CSSProperties {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
-    ...(map[status] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
+    ...(map[status] ?? { background: 'var(--color-bg-subtle)', color: 'var(--theme-fg-secondary, #374151)' }),
   };
 }
 
@@ -1473,13 +1473,13 @@ export const attachStyles: Record<string, React.CSSProperties> = {
     gap: 8,
   },
   itemVendor: {
-    color: '#111827',
+    color: 'var(--theme-fg-primary, #111827)',
     fontSize: 13,
   },
   itemAmount: {
     fontFamily: 'Menlo, monospace',
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   itemMetaRow: {
     display: 'flex',
@@ -1501,7 +1501,7 @@ export const attachStyles: Record<string, React.CSSProperties> = {
   },
   itemJob: {
     background: 'var(--color-bg-subtle)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     padding: '1px 6px',
     borderRadius: 4,
   },
@@ -1654,9 +1654,9 @@ export const transitionStyles: Record<string, React.CSSProperties> = {
     flexDirection: 'column' as const,
     gap: 14,
   },
-  copy: { margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 },
+  copy: { margin: 0, fontSize: 13, color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.5 },
   field: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  label: { fontSize: 12, fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' },
   input: {
     padding: '8px 10px',
     border: '1px solid #E2E5EB',
@@ -1723,6 +1723,6 @@ export const transitionStyles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
 };

@@ -785,7 +785,7 @@ export default function LessonViewerPage() {
                                 {isVisible ? (
                                   <div style={{ flex: 1 }}>
                                     <strong>{step.label}</strong>
-                                    {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: '#374151', lineHeight: 1.6 }}>{step.content}</p>}
+                                    {step.content && <p style={{ margin: '.25rem 0 0', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.6 }}>{step.content}</p>}
                                   </div>
                                 ) : si === revealedCount ? (
                                   <div style={{ flex: 1, display: 'flex', gap: '.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -810,7 +810,7 @@ export default function LessonViewerPage() {
                           <div className="block-practice__answer">
                             <strong>Final Answer:</strong> {block.content.final_answer}
                             {block.content.explanation && (
-                              <p style={{ margin: '.5rem 0 0', fontSize: '.85rem', color: '#374151', lineHeight: 1.6 }}>{block.content.explanation}</p>
+                              <p style={{ margin: '.5rem 0 0', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.6 }}>{block.content.explanation}</p>
                             )}
                           </div>
                         )}

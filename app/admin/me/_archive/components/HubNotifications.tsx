@@ -102,7 +102,7 @@ export default function HubNotifications() {
               marginLeft: '0.5rem',
               padding: '0.1rem 0.5rem',
               background: 'var(--color-brand-navy)',
-              color: '#FFF',
+              color: 'var(--theme-accent-fg, #FFF)',
               borderRadius: 999,
               fontSize: '0.72rem',
               fontWeight: 700,
@@ -149,13 +149,13 @@ export default function HubNotifications() {
               >
                 <span style={{ fontSize: '1.1rem', lineHeight: 1 }}>{icon}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.88rem', color: '#0F1419' }}>
+                  <div style={{ fontWeight: 600, fontSize: '0.88rem', color: 'var(--theme-fg-primary, #0F1419)' }}>
                     {n.title}
                   </div>
                   {n.body && (
                     <div style={{
                       fontSize: '0.82rem',
-                      color: '#374151',
+                      color: 'var(--theme-fg-secondary, #374151)',
                       marginTop: '0.15rem',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
@@ -165,7 +165,7 @@ export default function HubNotifications() {
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: '0.55rem', alignItems: 'center', marginTop: '0.25rem' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{timeAgo(n.createdAt)}</span>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>{timeAgo(n.createdAt)}</span>
                     {n.actionUrl && (
                       <a
                         href={n.actionUrl}
@@ -184,7 +184,7 @@ export default function HubNotifications() {
                   style={{
                     background: 'none',
                     border: 0,
-                    color: '#9CA3AF',
+                    color: 'var(--theme-fg-muted, #9CA3AF)',
                     cursor: 'pointer',
                     fontSize: '0.9rem',
                     padding: '0 0.15rem',

@@ -44,7 +44,7 @@ export default function TestingLabLayout({ children }: { children: React.ReactNo
           borderTopColor: 'transparent',
           animation: 'spin 0.8s linear infinite',
         }} />
-        <div style={{ color: '#6B7280', fontSize: '0.9rem' }}>Loading Testing Lab...</div>
+        <div style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.9rem' }}>Loading Testing Lab...</div>
       </div>
     );
   }

@@ -188,7 +188,7 @@ export default function ResearchListPage() {
                 className="research-page__search-clear"
                 onClick={() => setSearch('')}
                 aria-label="Clear search"
-                style={{ background: 'none', border: 'none', color: '#9CA3AF', cursor: 'pointer', padding: '0 0.5rem', fontSize: '1.1rem' }}
+                style={{ background: 'none', border: 'none', color: 'var(--theme-fg-muted, #9CA3AF)', cursor: 'pointer', padding: '0 0.5rem', fontSize: '1.1rem' }}
               >
                 &times;
               </button>
@@ -314,7 +314,7 @@ export default function ResearchListPage() {
         )}
 
         {!loading && total > 0 && (
-          <div style={{ textAlign: 'center', color: '#9CA3AF', fontSize: '0.85rem', marginTop: '1rem' }}>
+          <div style={{ textAlign: 'center', color: 'var(--theme-fg-muted, #9CA3AF)', fontSize: '0.85rem', marginTop: '1rem' }}>
             Showing {projects.length} of {total} projects
           </div>
         )}

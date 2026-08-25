@@ -93,6 +93,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -170,6 +222,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -244,6 +348,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -318,6 +474,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -392,6 +600,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -477,6 +737,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -551,6 +863,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -627,6 +991,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -701,6 +1117,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -778,6 +1246,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -853,6 +1373,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived
@@ -913,6 +1485,58 @@
   --color-success:        var(--theme-success);
   --color-danger:         var(--theme-danger);
   --color-info:           var(--theme-info);
+  /* ON-BRAND-2026-08-24 — `--color-text-on-brand` is `#FFFFFF` in tokens.css and no theme block
+   * had ever aliased it, so all 107 rules that read it painted white on every palette. On a dark
+   * theme the accent LIGHTENS — that is the whole point of it, so links can be read on a dark page
+   * — and white on that measured 1.07:1 on high-contrast-dark. Every "on brand" surface in the app
+   * had the defect at once: the receipts tabs, the period buttons, the form submits.
+   *
+   * It is the same question `--theme-accent-fg` already answers, and every theme already answers
+   * it correctly for its own accent. This is one alias, not a new colour. */
+  --color-text-on-brand:  var(--theme-accent-fg);
+  /* ── NAMES THAT WERE BEING READ AND HAD NEVER BEEN DEFINED (2026-08-24) ─────────────────────
+   *
+   * Fifty-two rules across nine stylesheets read a `--theme-*` property that did not exist
+   * anywhere in this repository. CSS answers a missing variable with the fallback — silently,
+   * and forever — so every one of them looked converted, reviewed as converted, and painted its
+   * literal on all eleven palettes. `--theme-fg` was four rules of near-black text;
+   * `--theme-brand-subtle` was five rules of pale blue on a dark page.
+   *
+   * Defined rather than deleted, because every call site was asking for the right thing. Each is
+   * derived from the tokens this palette already sets, so a theme that changes its accent moves
+   * all of these with it. `__tests__/hub/theme-vars-are-adopted.test.ts` now fails on a name that
+   * nothing defines, which is a great deal cheaper than finding the next one in a browser. */
+  --theme-border-subtle:     color-mix(in srgb, var(--theme-border) 55%, var(--theme-bg-surface));
+  --theme-bg-hover:          color-mix(in srgb, var(--theme-fg-primary) 6%, var(--theme-bg-surface));
+  --theme-bg-subtle-hover:   color-mix(in srgb, var(--theme-fg-primary) 8%, var(--theme-bg-elevated));
+  /* Text on a SOLID brand or status block. Every palette already publishes the foreground that
+   * reads on its own accent, and a dark theme pairs a light accent with dark text — which is
+   * also the right answer on the light reds and ambers those themes use for status fills. */
+  --theme-fg-inverse:        var(--theme-accent-fg);
+  --theme-brand-tint:        color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
+  --theme-brand-hover:       color-mix(in srgb, var(--theme-accent) 80%, var(--theme-fg-primary));
+  --theme-danger-bg:         color-mix(in srgb, var(--theme-danger) 12%, var(--theme-bg-surface));
+  --theme-danger-fg:         color-mix(in srgb, var(--theme-danger) 55%, var(--theme-fg-primary));
+  --theme-danger-solid:      var(--theme-danger);
+  --theme-danger-solid-hover: color-mix(in srgb, var(--theme-danger) 80%, var(--theme-fg-primary));
+  --theme-warning-bg:        color-mix(in srgb, var(--theme-warning) 12%, var(--theme-bg-surface));
+  --theme-warning-fg:        color-mix(in srgb, var(--theme-warning) 55%, var(--theme-fg-primary));
+  --theme-warning-border:    color-mix(in srgb, var(--theme-warning) 40%, var(--theme-bg-surface));
+  --theme-success-bg:        color-mix(in srgb, var(--theme-success) 12%, var(--theme-bg-surface));
+  --theme-success-fg:        color-mix(in srgb, var(--theme-success) 55%, var(--theme-fg-primary));
+  /* Deliberately NOT derived. A photo or a video reads correctly against a neutral dark ground
+   * whatever the app is wearing — letterboxing that changes colour with the theme tints the
+   * media itself. */
+  --theme-media-ground:      #000000;
+  /* BRAND-SUBTLE-2026-08-24 — five rules across AdminJobs.css and AdminProjects.css read
+   * `var(--theme-brand-subtle, #EBF0FF)`, and this token had never been defined anywhere in the
+   * repository. All five have been painting that pale blue on every palette since they were
+   * written — an active filter chip that stayed light blue on a dark page, which reads as the
+   * chip being broken rather than as a token that was never there.
+   *
+   * Defined rather than edited out of the five call sites: they were all asking for the right
+   * thing — "the accent, faintly" — and the sixth place to want it should get it too. */
+  --theme-brand-subtle:  color-mix(in srgb, var(--theme-accent) 10%, var(--theme-bg-surface));
   /* THEME-STATUS-PAIRS-2026-08-24 — the `-text` / `-surface` pairs were the ONE status family the
    * theme blocks never aliased, so a dark theme repainted the app around a `#FFFAEB` amber panel
    * and left it there: `.worker-status--warn` measured 1.16:1 on forest-dark. They are derived

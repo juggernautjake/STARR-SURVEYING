@@ -27,7 +27,7 @@ const ERROR_TYPE_LABELS: Record<string, { label: string; icon: string; color: st
   network: { label: 'Network Error', icon: '📡', color: '#3B82F6' },
   validation: { label: 'Validation Error', icon: '📝', color: '#F59E0B' },
   auth: { label: 'Authentication Error', icon: '🔒', color: 'var(--color-error)' },
-  unknown: { label: 'Unexpected Error', icon: '❓', color: '#6B7280' },
+  unknown: { label: 'Unexpected Error', icon: '❓', color: 'var(--theme-fg-secondary, #6B7280)' },
 };
 
 const SEVERITY_OPTIONS: { value: ErrorReport['severity']; label: string; color: string; desc: string }[] = [

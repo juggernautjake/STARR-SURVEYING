@@ -213,7 +213,7 @@ export default function DocumentDeepAnalysisPanel({
               </div>
 
               {isThisAnalyzing && (
-                <p style={{ color: '#6B7280', fontSize: '0.8rem', margin: '0.25rem 0 0 0' }}>
+                <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.8rem', margin: '0.25rem 0 0 0' }}>
                   AI is scanning the document with enhanced tile-based analysis. This includes
                   splitting the document into tiles, analyzing each tile, and searching county
                   records. This may take 2-5 minutes for large documents...
@@ -243,25 +243,25 @@ export default function DocumentDeepAnalysisPanel({
                       <div style={{ fontSize: '0.85rem', display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.25rem 0.75rem' }}>
                         {result.extractedIdentifiers.platNames.length > 0 && (
                           <>
-                            <span style={{ color: '#6B7280' }}>Plat Names:</span>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>Plat Names:</span>
                             <span>{result.extractedIdentifiers.platNames.join(', ')}</span>
                           </>
                         )}
                         {result.extractedIdentifiers.subdivisionNames.length > 0 && (
                           <>
-                            <span style={{ color: '#6B7280' }}>Subdivisions:</span>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>Subdivisions:</span>
                             <span>{result.extractedIdentifiers.subdivisionNames.join(', ')}</span>
                           </>
                         )}
                         {result.extractedIdentifiers.instrumentNumbers.length > 0 && (
                           <>
-                            <span style={{ color: '#6B7280' }}>Instrument #s:</span>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>Instrument #s:</span>
                             <span>{result.extractedIdentifiers.instrumentNumbers.join(', ')}</span>
                           </>
                         )}
                         {result.extractedIdentifiers.ownerNames.length > 0 && (
                           <>
-                            <span style={{ color: '#6B7280' }}>Owners:</span>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>Owners:</span>
                             <span>{result.extractedIdentifiers.ownerNames.join(', ')}</span>
                           </>
                         )}
@@ -365,15 +365,15 @@ export default function DocumentDeepAnalysisPanel({
                             <span style={{ flexShrink: 0, width: '1rem', textAlign: 'center' }}>
                               {entry.level === 'error' ? '\u2715' : entry.level === 'warn' ? '\u26A0' : entry.level === 'success' ? '\u2713' : '\u00B7'}
                             </span>
-                            <span style={{ color: '#9CA3AF', flexShrink: 0, fontSize: '0.72rem' }}>
+                            <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)', flexShrink: 0, fontSize: '0.72rem' }}>
                               {entry.durationMs != null ? `+${(entry.durationMs / 1000).toFixed(1)}s` : ''}
                             </span>
-                            <span style={{ color: '#6B7280', flexShrink: 0, fontSize: '0.72rem' }}>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', flexShrink: 0, fontSize: '0.72rem' }}>
                               [{entry.phase}]
                             </span>
                             <span>{entry.message}</span>
                             {entry.detail && (
-                              <span style={{ color: '#9CA3AF' }}> — {entry.detail}</span>
+                              <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)' }}> — {entry.detail}</span>
                             )}
                           </div>
                         ))}
@@ -439,7 +439,7 @@ function LegalDescriptionView({ data }: { data: LegalDescriptionAnalysis }) {
             {data.point_of_beginning.description}
           </p>
           {(data.point_of_beginning.monument_type || data.point_of_beginning.monument_condition) && (
-            <p style={{ fontSize: '0.82rem', color: '#6B7280', margin: '0.25rem 0 0 0' }}>
+            <p style={{ fontSize: '0.82rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0.25rem 0 0 0' }}>
               Monument: {[data.point_of_beginning.monument_type, data.point_of_beginning.monument_condition].filter(Boolean).join(', ')}
             </p>
           )}
@@ -534,7 +534,7 @@ function LegalDescriptionView({ data }: { data: LegalDescriptionAnalysis }) {
       {/* Notes */}
       {data.notes && (
         <Section title="Notes">
-          <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: 0 }}>{data.notes}</p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 }}>{data.notes}</p>
         </Section>
       )}
     </div>
@@ -593,7 +593,7 @@ function PlatView({ data }: { data: PlatAnalysis }) {
             ['Corner Side', data.building_setback_lines.corner_side_ft != null ? `${data.building_setback_lines.corner_side_ft} ft` : null],
           ]} />
           {data.building_setback_lines.notes && (
-            <p style={{ fontSize: '0.82rem', color: '#6B7280', margin: '0.25rem 0 0 0' }}>{data.building_setback_lines.notes}</p>
+            <p style={{ fontSize: '0.82rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0.25rem 0 0 0' }}>{data.building_setback_lines.notes}</p>
           )}
         </Section>
       )}
@@ -669,7 +669,7 @@ function PlatView({ data }: { data: PlatAnalysis }) {
 
       {data.notes && (
         <Section title="Notes">
-          <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: 0 }}>{data.notes}</p>
+          <p style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 }}>{data.notes}</p>
         </Section>
       )}
     </div>
@@ -728,7 +728,7 @@ function CallsTable({ calls }: { calls: DeepAnalysisCall[] }) {
                   ? (call.arc_length ? `Arc ${call.arc_length.toFixed(2)} ft` : call.chord_distance ? `Chord ${call.chord_distance.toFixed(2)} ft` : '—')
                   : (call.distance != null ? `${call.distance.toFixed(2)} ${call.distance_unit === 'feet' ? 'ft' : (call.distance_unit ?? 'ft')}` : '—')}
               </td>
-              <td style={{ fontSize: '0.8rem', color: '#6B7280', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              <td style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #6B7280)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   title={call.monument_at_end ?? call.adjoiner ?? undefined}>
                 {call.monument_at_end ?? call.adjoiner ?? '—'}
               </td>

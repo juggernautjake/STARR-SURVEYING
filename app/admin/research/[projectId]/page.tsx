@@ -1557,7 +1557,7 @@ export default function ResearchProjectPage() {
         <div>
           <h1 className="research-page__title">{project.name}</h1>
           {project.property_address && (
-            <div style={{ color: '#374151', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+            <div style={{ color: 'var(--theme-fg-secondary, #374151)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
               <MapPin size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />{project.property_address}
               {project.county && (
                 <span className="research-county-badge">
@@ -1568,7 +1568,7 @@ export default function ResearchProjectPage() {
             </div>
           )}
           {project.description && (
-            <div style={{ color: '#4B5563', fontSize: '0.85rem', marginTop: '0.25rem' }}>
+            <div style={{ color: 'var(--theme-fg-secondary, #4B5563)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
               {project.description}
             </div>
           )}
@@ -1576,7 +1576,7 @@ export default function ResearchProjectPage() {
         <div className="research-page__actions" style={{ display: 'flex', gap: '0.5rem' }}>
           <button
             onClick={openEditProject}
-            style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#374151' }}
+            style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #374151)' }}
             aria-label="Edit project details"
           >
             <Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Edit Details
@@ -1661,16 +1661,16 @@ export default function ResearchProjectPage() {
             <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
               Re-run Research &amp; Analysis
             </h3>
-            <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: '#374151', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.5 }}>
               <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
             </p>
-            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: '#374151', lineHeight: 1.7 }}>
+            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.7 }}>
               <li>Extracted data points and analysis results</li>
               <li>Discrepancies found during analysis</li>
               <li>Pipeline-fetched documents and screenshots</li>
               <li>Research logs</li>
             </ul>
-            <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: '#6B7280' }}>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>
               Your manually uploaded documents and job notes will be preserved.
             </p>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -1678,7 +1678,7 @@ export default function ResearchProjectPage() {
                 onClick={() => setShowRerunConfirm(false)}
                 style={{
                   padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
-                  background: '#fff', color: '#374151', fontSize: '0.85rem', cursor: 'pointer',
+                  background: '#fff', color: 'var(--theme-fg-secondary, #374151)', fontSize: '0.85rem', cursor: 'pointer',
                 }}
               >
                 Cancel
@@ -2406,14 +2406,14 @@ export default function ResearchProjectPage() {
                             {(boundary.bearingsAndDistances ?? []).map((call, i) => (
                               <tr key={i} style={{ borderBottom: '1px solid #dbeafe', background: i % 2 === 0 ? '#f0f7ff' : '#ffffff' }}>
                                 <td style={{ padding: '0.4rem 0.6rem', color: '#1e40af', fontWeight: 700, width: '2.5rem' }}>{i + 1}</td>
-                                <td style={{ padding: '0.4rem 0.6rem', color: '#111827', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.02em' }}>{call}</td>
+                                <td style={{ padding: '0.4rem 0.6rem', color: 'var(--theme-fg-primary, #111827)', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.02em' }}>{call}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table></div>
                       </div>
                     ) : (
-                      <div style={{ color: '#6b7280', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                      <div style={{ color: 'var(--theme-fg-secondary, #6b7280)', fontStyle: 'italic', padding: '0.5rem 0' }}>
                         No boundary bearing/distance data extracted. This requires plat images to be analyzed by AI (ensure <code>sharp</code> is installed on the worker).
                       </div>
                     )}
@@ -2822,7 +2822,7 @@ export default function ResearchProjectPage() {
             ];
             if (documents.length === 0) {
               return (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#4B5563', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #4B5563)', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
                   <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #999)" }}><Inbox size={30} strokeWidth={1.5} /></div>
                   <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No documents captured</div>
                   <div style={{ fontSize: '0.85rem' }}>Go back to Research &amp; Analysis to run the pipeline.</div>
@@ -2881,7 +2881,7 @@ export default function ResearchProjectPage() {
                 {/* MISC documents are excluded from display — they are error pages,
                    empty results, auth walls, and other non-useful captures */}
                 {miscDocs.length > 0 && (
-                  <div className="misc-docs-toggle__hint" style={{ textAlign: 'center', padding: '0.5rem', fontSize: '0.75rem', color: '#9CA3AF' }}>
+                  <div className="misc-docs-toggle__hint" style={{ textAlign: 'center', padding: '0.5rem', fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
                     {miscDocs.length} non-useful screenshot{miscDocs.length !== 1 ? 's' : ''} filtered out (error pages, empty results, etc.)
                   </div>
                 )}
@@ -3149,7 +3149,7 @@ export default function ResearchProjectPage() {
                         />
                       ) : (
                         <div className="research-canvas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 400 }}>
-                          <div style={{ color: '#6B7280', fontSize: '0.88rem' }}>Loading drawing...</div>
+                          <div style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.88rem' }}>Loading drawing...</div>
                         </div>
                       )}
                     </div>
@@ -3358,7 +3358,7 @@ export default function ResearchProjectPage() {
                       <div style={{ border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden', maxHeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#F8FAFC' }}
                         dangerouslySetInnerHTML={{ __html: sanitizedDrawingSvg }}
                       />
-                      <div style={{ fontSize: '0.78rem', color: '#4B5563', marginTop: '0.5rem', textAlign: 'center' }}>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #4B5563)', marginTop: '0.5rem', textAlign: 'center' }}>
                         {activeDrawing.name} — v{activeDrawing.version}
                         {activeDrawing.overall_confidence ? ` — ${Math.round(activeDrawing.overall_confidence)}% confidence` : ''}
                       </div>
@@ -3367,7 +3367,7 @@ export default function ResearchProjectPage() {
                   {!activeDrawing && (
                     <div className="research-final-doc__section">
                       <h3 className="research-final-doc__section-title"><Pencil size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Boundary Drawing</h3>
-                      <div style={{ padding: '2rem', textAlign: 'center', color: '#4B5563', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
+                      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #4B5563)', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
                         <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #999)" }}><DraftingCompass size={24} strokeWidth={1.5} /></div>
                         <div style={{ fontSize: '0.88rem' }}>
                           No drawing generated yet. Go to the <button onClick={() => setJobPrepTab('drawing')} style={{ background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}>Drawing tab</button> to generate an AI boundary drawing.
@@ -3416,7 +3416,7 @@ export default function ResearchProjectPage() {
                         <h3 className="research-final-doc__section-title">Research Documents &amp; Screenshots ({imageDocs.length})</h3>
                         {[...grouped.entries()].map(([groupName, groupDocs]) => (
                           <div key={groupName} style={{ marginBottom: '1rem' }}>
-                            <h4 style={{ fontSize: '0.8rem', fontWeight: 600, color: '#374151', textTransform: 'capitalize', marginBottom: '0.5rem' }}>
+                            <h4 style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', textTransform: 'capitalize', marginBottom: '0.5rem' }}>
                               {groupName} ({groupDocs.length})
                             </h4>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
@@ -3440,14 +3440,14 @@ export default function ResearchProjectPage() {
                                         style={{ width: '100%', height: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', cursor: 'pointer' }}
                                         onClick={() => window.open(imgSrc, '_blank')}
                                       >
-                                        <div style={{ textAlign: 'center', color: '#374151' }}>
+                                        <div style={{ textAlign: 'center', color: 'var(--theme-fg-secondary, #374151)' }}>
                                           <div style={{ fontSize: '2rem' }}>PDF</div>
                                           <div style={{ fontSize: '0.7rem' }}>Click to view</div>
                                         </div>
                                       </div>
                                     )}
-                                    <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: '#4B5563', borderTop: '1px solid #E5E7EB' }}>
-                                      <div style={{ fontWeight: 500, color: '#374151' }}>
+                                    <div style={{ padding: '0.5rem 0.65rem', fontSize: '0.75rem', color: 'var(--theme-fg-secondary, #4B5563)', borderTop: '1px solid #E5E7EB' }}>
+                                      <div style={{ fontWeight: 500, color: 'var(--theme-fg-secondary, #374151)' }}>
                                         {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Document'}
                                       </div>
                                       <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem', flexWrap: 'wrap' }}>
@@ -3477,7 +3477,7 @@ export default function ResearchProjectPage() {
                   <div className="research-final-doc__section research-final-doc__section--editable">
                     <h3 className="research-final-doc__section-title">
                       <FileText size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Job Notes &amp; Field Instructions
-                      <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 400, color: '#6B7280', textTransform: 'none', letterSpacing: 0 }}>
+                      <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 400, color: 'var(--theme-fg-secondary, #6B7280)', textTransform: 'none', letterSpacing: 0 }}>
                         {savingJobNotes ? '⏳ Saving…' : '(editable — auto-saved)'}
                       </span>
                     </h3>
@@ -3517,8 +3517,8 @@ export default function ResearchProjectPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {documents.map((doc, i) => (
                           <div key={doc.id} style={{ display: 'flex', gap: '0.75rem', fontSize: '0.82rem', padding: '0.4rem 0', borderBottom: i < documents.length - 1 ? '1px solid #F3F4F6' : 'none' }}>
-                            <span style={{ color: '#6B7280', width: 20, flexShrink: 0 }}>{i + 1}.</span>
-                            <span style={{ fontWeight: 600, color: '#1F2937', flex: 1 }}>
+                            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', width: 20, flexShrink: 0 }}>{i + 1}.</span>
+                            <span style={{ fontWeight: 600, color: 'var(--theme-fg-primary, #1F2937)', flex: 1 }}>
                               {doc.document_label || doc.original_filename || doc.document_type?.replace(/_/g, ' ') || 'Document'}
                             </span>
                             {doc.source_url && (

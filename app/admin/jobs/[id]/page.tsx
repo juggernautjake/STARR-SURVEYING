@@ -460,7 +460,7 @@ export default function JobDetailPage() {
   }
 
   if (!session?.user) return null;
-  if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: '#9CA3AF' }}>Loading job...</div>;
+  if (loading) return <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--theme-fg-muted, #9CA3AF)' }}>Loading job...</div>;
   if (!job) return <div style={{ padding: '2rem', textAlign: 'center' }}>Job not found. <Link href="/admin/jobs">Back to Jobs</Link></div>;
 
   const stageInfo = STAGE_CONFIG[job.stage] || STAGE_CONFIG.quote;
@@ -1182,7 +1182,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
           </span>
           <button
             onClick={() => setEditing(true)}
-            style={{ fontSize: '0.74rem', background: 'none', border: 0, color: '#6B7280', cursor: 'pointer', textDecoration: 'underline' }}
+            style={{ fontSize: '0.74rem', background: 'none', border: 0, color: 'var(--theme-fg-secondary, #6B7280)', cursor: 'pointer', textDecoration: 'underline' }}
           >
             change
           </button>
@@ -1256,7 +1256,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
           <button
             onClick={clearResult}
             disabled={submitting}
-            style={{ fontSize: '0.74rem', background: 'none', border: 0, color: '#6B7280', cursor: 'pointer', textDecoration: 'underline' }}
+            style={{ fontSize: '0.74rem', background: 'none', border: 0, color: 'var(--theme-fg-secondary, #6B7280)', cursor: 'pointer', textDecoration: 'underline' }}
           >
             Clear
           </button>
@@ -1272,7 +1272,7 @@ function JobResultControl({ jobId, currentResult, currentReason, onUpdate }: {
           <button
             onClick={save}
             disabled={submitting || ((draftResult === 'lost' || draftResult === 'abandoned') && !draftReason.trim())}
-            style={{ padding: '0.25rem 0.7rem', background: 'var(--color-brand-navy)', color: '#FFF', border: 0, borderRadius: 4, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{ padding: '0.25rem 0.7rem', background: 'var(--color-brand-navy)', color: 'var(--theme-accent-fg, #FFF)', border: 0, borderRadius: 4, fontSize: '0.78rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             {submitting ? 'Saving…' : 'Save'}
           </button>

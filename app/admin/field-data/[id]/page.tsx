@@ -645,7 +645,7 @@ function FileCardItem({ file }: { file: FileRow }) {
       </header>
       <p style={styles.noteBody}>{file.name || '(unnamed)'}</p>
       {file.description ? (
-        <p style={{ ...styles.noteBody, fontSize: 12, color: '#4B5563' }}>
+        <p style={{ ...styles.noteBody, fontSize: 12, color: 'var(--theme-fg-secondary, #4B5563)' }}>
           {file.description}
         </p>
       ) : null}
@@ -765,14 +765,14 @@ function CsvPreview({ signedUrl }: { signedUrl: string }) {
 
   if (loading) {
     return (
-      <p style={{ fontSize: 12, color: '#6B7280', marginTop: 8 }}>
+      <p style={{ fontSize: 12, color: 'var(--theme-fg-secondary, #6B7280)', marginTop: 8 }}>
         Loading CSV preview…
       </p>
     );
   }
   if (error || !rows || rows.length === 0) {
     return (
-      <p style={{ fontSize: 12, color: '#9CA3AF', marginTop: 8 }}>
+      <p style={{ fontSize: 12, color: 'var(--theme-fg-muted, #9CA3AF)', marginTop: 8 }}>
         Preview unavailable. Use Download to inspect.
       </p>
     );
@@ -823,7 +823,7 @@ function CsvPreview({ signedUrl }: { signedUrl: string }) {
                   style={{
                     padding: '6px 10px',
                     borderBottom: '1px solid #F3F4F6',
-                    color: '#4B5563',
+                    color: 'var(--theme-fg-secondary, #4B5563)',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -838,7 +838,7 @@ function CsvPreview({ signedUrl }: { signedUrl: string }) {
         <p
           style={{
             fontSize: 11,
-            color: '#9CA3AF',
+            color: 'var(--theme-fg-muted, #9CA3AF)',
             padding: '6px 10px',
             margin: 0,
             borderTop: '1px solid #E2E5EB',
@@ -1252,7 +1252,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: '0 0 8px',
   },
   flagRow: {
@@ -1311,7 +1311,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   descBlock: {
     marginBottom: 24,
@@ -1361,7 +1361,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     fontSize: 13,
   },
   noteList: {
@@ -1396,7 +1396,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   noteTemplateNeutral: {
     background: '#F3F4F6',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontSize: 11,
     fontWeight: 600,
     textTransform: 'uppercase',
@@ -1406,7 +1406,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   noteMeta: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   noteBody: {
     fontSize: 14,
@@ -1429,7 +1429,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 12,
   },
   notePayloadKey: {
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 500,
     margin: 0,
     textTransform: 'capitalize',
@@ -1443,7 +1443,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-block',
     marginTop: 8,
     background: '#F3F4F6',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     padding: '2px 8px',
     borderRadius: 4,
     fontSize: 11,
@@ -1479,7 +1479,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
   },
   audioMissing: {
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     fontSize: 13,
   },
   transcriptBlock: {
@@ -1503,7 +1503,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: 12,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
   },
   fullLink: {
     fontSize: 12,
@@ -1513,14 +1513,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   uploaderLine: {
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     marginBottom: 6,
     fontStyle: 'italic',
   },
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   error: {
     background: '#FEF2F2',

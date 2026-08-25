@@ -949,7 +949,7 @@ export default function FloatingMessenger() {
                 <div
                   className="messenger-panel__search-summary"
                   data-testid="messenger-panel-search-summary"
-                  style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', color: '#6B7280' }}
+                  style={{ padding: '0.25rem 0.65rem', fontSize: '0.75rem', color: 'var(--theme-fg-secondary, #6B7280)' }}
                 >
                   {searchResults.length} match{searchResults.length === 1 ? '' : 'es'} for
                   {' '}
@@ -981,7 +981,7 @@ export default function FloatingMessenger() {
                       <span className="messenger-panel__search-sender">
                         {displayName(r.sender_email)}
                         {conv && (
-                          <span style={{ color: '#6B7280', fontWeight: 400 }}>
+                          <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontWeight: 400 }}>
                             {' '}· {getConvName(conv)}
                           </span>
                         )}

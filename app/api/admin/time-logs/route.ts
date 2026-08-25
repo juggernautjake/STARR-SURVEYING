@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { findRecentDuplicate } from '@/lib/hours/duplicate-submission';
 import { notify } from '@/lib/notifications';
 import {
   buildHoursDecisionNotifications,
@@ -240,13 +241,43 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // an UPDATE statement".
   const { data: priorRows } = await supabaseAdmin
     .from('daily_time_logs')
-    .select('log_date')
+    .select('id, log_date, hours, description, job_id, created_at')
     .eq('user_email', targetEmail)
     .in('log_date', [...hoursByDate.keys()]);
-  const existingDates = new Set(((priorRows ?? []) as { log_date: string }[]).map((r) => r.log_date));
+  const prior = (priorRows ?? []) as Array<{
+    id: string; log_date: string; hours: number | null;
+    description: string | null; job_id: string | null; created_at: string;
+  }>;
+  const existingDates = new Set(prior.map((r) => r.log_date));
 
+  // ── THE SAME DAY CANNOT BE SUBMITTED TWICE IN A ROW (2026-08-24) ─────────────────────────────
+  //
+  // `daily_time_logs` held two identical 7.56-hour rows for one person and one day, created 3.2
+  // seconds apart, both reading "Clock-out entry from top-bar pill". Nobody worked fifteen hours:
+  // the clock-out button stayed live for the whole round-trip and was pressed twice.
+  //
+  // That button is now guarded, and this is the layer that matters anyway. A UI guard cannot stop
+  // a fetch the browser retried, a second tab, an offline queue flushing twice, or the next
+  // surface somebody writes. This route is insert-only with no unique constraint behind it, so
+  // the second copy of a day was always going to be accepted by whoever asked twice.
+  //
+  // The rule itself lives in `lib/hours/duplicate-submission.ts` — testable without a database,
+  // and shared so the route's SUPPRESSION and the review queue's duplicate FLAG cannot drift into
+  // disagreeing about what a duplicate is.
+  const nowMs = Date.now();
   const results = [];
+  let duplicatesSuppressed = 0;
   for (const entry of entries) {
+    const echo = findRecentDuplicate(prior, entry, nowMs);
+    if (echo) {
+      duplicatesSuppressed += 1;
+      console.warn('[admin/time-logs] suppressed a duplicate submission', {
+        user_email: targetEmail, log_date: entry.log_date, hours: entry.hours, existing_id: echo.id,
+      });
+      results.push(echo);
+      continue;
+    }
+
     const resolved = rateFor(payFacts, payConfig, { workType: entry.work_type });
 
     const { data, error } = await supabaseAdmin
@@ -291,6 +322,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    // Added to the same list the echo check reads, so two identical entries inside ONE request
+    // collapse as well. A double-submit is the common case; a client looping over an array it
+    // built twice is the same defect arriving by a different road.
+    if (data) prior.push({
+      id: data.id, log_date: data.log_date, hours: data.hours,
+      description: data.description, job_id: data.job_id,
+      created_at: data.created_at ?? new Date().toISOString(),
+    });
     results.push(data);
   }
 
@@ -417,7 +456,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  return NextResponse.json({ logs: results }, { status: 201 });
+  // `duplicates_suppressed` is reported rather than hidden. A client that submitted twice gets a
+  // success carrying the rows that exist — which is the truth — and anything watching this route can
+  // tell a genuine save from a swallowed retry without diffing the table.
+  return NextResponse.json({ logs: results, duplicates_suppressed: duplicatesSuppressed }, { status: 201 });
 }, { routeName: 'time-logs' });
 
 // PUT: Update a time log (employee can edit pending, admin can approve/reject/adjust)

@@ -13,7 +13,7 @@ interface ActivityTag { id: string; label: string; color: string; }
 interface ClockInModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { jobId: string | null; tagIds: string[] }) => void;
+  onSubmit: (data: { jobId: string | null; tagIds: string[] }) => void | Promise<void>;
   catalog: ActivityTag[];
 }
 
@@ -70,7 +70,7 @@ export function ClockInModal({ open, onClose, onSubmit, catalog }: ClockInModalP
           })}
         </div>
       </fieldset>
-      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ jobId: jobId || null, tagIds })} confirmLabel="Clock in" />
+      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ jobId: jobId || null, tagIds })} confirmLabel="Clock in" busyLabel="Clocking in…" />
     </ModalShell>
   );
 }
@@ -78,7 +78,7 @@ export function ClockInModal({ open, onClose, onSubmit, catalog }: ClockInModalP
 interface ClockOutModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => void;
+  onSubmit: (data: { perJobAllocations: Record<string, number>; tagIds: string[]; notes: string }) => void | Promise<void>;
   catalog: ActivityTag[];
   /** Map of job id → suggested hours, e.g. from the day's auto-tracked time. */
   suggestedAllocations: Record<string, number>;
@@ -145,7 +145,7 @@ export function ClockOutModal({ open, onClose, onSubmit, catalog, suggestedAlloc
           A short recap so future-you and admins can reconstruct the day.
         </span>
       </label>
-      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ perJobAllocations: allocations, tagIds, notes })} confirmLabel="Submit + clock out" />
+      <ModalActions onCancel={onClose} onConfirm={() => onSubmit({ perJobAllocations: allocations, tagIds, notes })} confirmLabel="Submit + clock out" busyLabel="Saving your hours…" />
     </ModalShell>
   );
 }
@@ -164,11 +164,55 @@ function ModalShell({ title, children, onClose }: { title: string; children: Rea
   );
 }
 
-function ModalActions({ onCancel, onConfirm, confirmLabel }: { onCancel: () => void; onConfirm: () => void; confirmLabel: string }) {
+/**
+ * The confirm button, which can be pressed exactly once.
+ *
+ * DOUBLE-LOGGED HOURS, 2026-08-24. `daily_time_logs` held two identical 7.56-hour rows for the
+ * same person and the same day, created 3.2 seconds apart, both saying "Clock-out entry from
+ * top-bar pill". Nobody worked fifteen hours: the button stayed live for the whole round-trip,
+ * so a second click while the first request was still going posted the entire day again.
+ *
+ * The guard lives HERE rather than in either caller because there are two clock-out surfaces —
+ * the top-bar pill and the Quick Actions tile — with two copies of the same handler, and a fix
+ * written in one of them would have left the other one able to do it. Anything that opens this
+ * modal in future gets the guard for free.
+ *
+ * Cancel is disabled too while the request is in flight. Closing the dialog mid-save would clear
+ * the session on a submission the user could no longer see the outcome of.
+ */
+function ModalActions({ onCancel, onConfirm, confirmLabel, busyLabel }: {
+  onCancel: () => void;
+  onConfirm: () => void | Promise<void>;
+  confirmLabel: string;
+  busyLabel?: string;
+}) {
+  const [busy, setBusy] = useState(false);
+
+  const confirm = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await onConfirm();
+    } finally {
+      // The caller normally unmounts this modal on success, so this only runs when it did not —
+      // a thrown handler, or a flow that keeps the dialog open. Leaving `busy` true there would
+      // strand the user on a dead button with no way to retry.
+      setBusy(false);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-      <button type="button" onClick={onCancel} style={cancelButtonStyle}>Cancel</button>
-      <button type="button" onClick={onConfirm} style={primaryButtonStyle}>{confirmLabel}</button>
+      <button type="button" onClick={onCancel} disabled={busy} style={{ ...cancelButtonStyle, opacity: busy ? 0.5 : 1, cursor: busy ? 'default' : 'pointer' }}>Cancel</button>
+      <button
+        type="button"
+        onClick={confirm}
+        disabled={busy}
+        aria-busy={busy}
+        style={{ ...primaryButtonStyle, opacity: busy ? 0.7 : 1, cursor: busy ? 'progress' : 'pointer' }}
+      >
+        {busy ? (busyLabel ?? 'Saving…') : confirmLabel}
+      </button>
     </div>
   );
 }

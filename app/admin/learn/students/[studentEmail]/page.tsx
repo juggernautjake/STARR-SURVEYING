@@ -330,12 +330,12 @@ export default function StudentDetailPage() {
                         <span style={{
                           display: 'inline-block', padding: '.15rem .5rem', borderRadius: 12,
                           fontSize: '.72rem', fontWeight: 600,
-                          background: 'var(--color-bg-subtle)', color: '#374151',
+                          background: 'var(--color-bg-subtle)', color: 'var(--theme-fg-secondary, #374151)',
                         }}>
                           {tx.transaction_type.replace(/_/g, ' ')}
                         </span>
                       </td>
-                      <td style={{ ...tdStyle, color: '#374151' }}>{tx.description}</td>
+                      <td style={{ ...tdStyle, color: 'var(--theme-fg-secondary, #374151)' }}>{tx.description}</td>
                       <td style={{ ...tdStyle, color: 'var(--color-text-muted)', fontSize: '.8rem' }}>{formatDate(tx.created_at)}</td>
                     </tr>
                   ))}
@@ -349,5 +349,5 @@ export default function StudentDetailPage() {
   );
 }
 
-const thStyle: React.CSSProperties = { padding: '.65rem .75rem', fontWeight: 600, color: '#374151', whiteSpace: 'nowrap' };
-const tdStyle: React.CSSProperties = { padding: '.65rem .75rem', color: '#374151' };
+const thStyle: React.CSSProperties = { padding: '.65rem .75rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', whiteSpace: 'nowrap' };
+const tdStyle: React.CSSProperties = { padding: '.65rem .75rem', color: 'var(--theme-fg-secondary, #374151)' };

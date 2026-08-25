@@ -357,3 +357,59 @@ describe('the themes are actually consumed', () => {
       .toEqual([]);
   });
 });
+
+// ── A TOKEN THAT WAS NEVER DEFINED IS A FALLBACK NOBODY MEANT TO SHIP ──────────────────────────
+//
+// Three separate defects on 2026-08-24 were the same mistake: a rule reading a `--theme-*` custom
+// property that this repository has never defined anywhere. CSS answers a missing variable with the
+// fallback, silently and forever, so the rule looks converted, reviews as converted, and paints a
+// literal on every palette:
+//
+//   --theme-fg            4 rules in AdminTimeLogs.css, painting #111827 on every theme
+//   --theme-brand-subtle  5 rules across AdminJobs.css and AdminProjects.css, painting #EBF0FF
+//
+// Both were found by measuring rendered pages, which is expensive and needs a browser. The names
+// are checkable for free.
+describe('every --theme-* a stylesheet reads is a token that exists', () => {
+  it('has no rule reading a property no theme block defines', () => {
+    const files = [
+      'app/styles/themes.css',
+      'app/styles/tokens.css',
+      'app/styles/globals.css',
+    ].map((f) => fs.readFileSync(f, 'utf8'));
+
+    // Everything DEFINED, from any source: the theme blocks, the base tokens, the :root fallback.
+    const defined = new Set<string>();
+    for (const src of files) {
+      for (const m of src.matchAll(/^\s*(--theme-[a-z0-9-]+)\s*:/gm)) defined.add(m[1]);
+    }
+    expect(defined.size).toBeGreaterThan(10);
+
+    // Everything READ, across every stylesheet the admin shell loads.
+    const cssFiles: string[] = [];
+    const walk = (dir: string) => {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) walk(full);
+        else if (e.name.endsWith('.css')) cssFiles.push(full);
+      }
+    };
+    walk('app');
+    expect(cssFiles.length).toBeGreaterThan(10);
+
+    const missing: string[] = [];
+    for (const file of cssFiles) {
+      const src = fs.readFileSync(file, 'utf8');
+      for (const m of src.matchAll(/var\(\s*(--theme-[a-z0-9-]+)/g)) {
+        if (!defined.has(m[1])) missing.push(`${file.split(String.fromCharCode(92)).join('/')}: ${m[1]}`);
+      }
+    }
+
+    expect(
+      [...new Set(missing)],
+      'These rules read a --theme-* property nothing defines, so they paint their literal fallback on '
+      + 'every palette. Either define the token in every block of themes.css, or use one that exists.',
+    ).toEqual([]);
+  });
+});

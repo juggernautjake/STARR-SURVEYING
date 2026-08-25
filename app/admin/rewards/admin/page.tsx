@@ -691,7 +691,7 @@ export default function AdminRewardsPage() {
                 onClick={() => setEditingId(editingId === b.id ? null : b.id)}>
                 <span className="rewards__badge-icon">{b.icon}</span>
                 <h4 className="rewards__badge-name">{b.name}</h4>
-                <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>{b.category}</span>
+                <span style={{ fontSize: '0.7rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>{b.category}</span>
                 {b.xp_reward > 0 && <span className="rewards__badge-xp">+{b.xp_reward} XP</span>}
                 {editingId === b.id && (
                   <button className="admin-btn admin-btn--ghost admin-btn--sm" style={{ marginTop: '0.5rem', fontSize: '0.7rem' }}
@@ -725,15 +725,15 @@ export default function AdminRewardsPage() {
               <h4 className="mng__card-title" style={{ marginBottom: '0.75rem' }}>Current XP for {manageXpEmail}</h4>
               <div className="mng__xp-stats-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', textAlign: 'center' }}>
                 <div>
-                  <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Current Balance</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--theme-fg-secondary, #6B7280)', textTransform: 'uppercase' }}>Current Balance</div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#10B981' }}>{manageXpData.current_balance.toLocaleString()}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Earned</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--theme-fg-secondary, #6B7280)', textTransform: 'uppercase' }}>Total Earned</div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{manageXpData.total_earned.toLocaleString()}</div>
                 </div>
                 <div>
-                  <div style={{ fontSize: '0.7rem', color: '#6B7280', textTransform: 'uppercase' }}>Total Spent</div>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--theme-fg-secondary, #6B7280)', textTransform: 'uppercase' }}>Total Spent</div>
                   <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--color-error)' }}>{manageXpData.total_spent.toLocaleString()}</div>
                 </div>
               </div>
@@ -743,7 +743,7 @@ export default function AdminRewardsPage() {
           {/* Award XP */}
           <div className="mng__card">
             <h4 className="mng__card-title">Award XP</h4>
-            <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.65rem' }}>Add XP to the employee&apos;s balance. Increases both current and all-time totals.</p>
+            <p style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0 0 0.65rem' }}>Add XP to the employee&apos;s balance. Increases both current and all-time totals.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <input type="number" placeholder="XP amount" value={awardAmount} onChange={e => setAwardAmount(e.target.value)} className="mng__input" />
               <input placeholder="Reason/description" value={awardDesc} onChange={e => setAwardDesc(e.target.value)} className="mng__input" />
@@ -757,7 +757,7 @@ export default function AdminRewardsPage() {
           {manageXpData && (
             <div className="mng__card" style={{ marginTop: '0.75rem' }}>
               <h4 className="mng__card-title">Override XP Values</h4>
-              <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.65rem' }}>Directly set the current balance and/or all-time total. Use this to correct errors.</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0 0 0.65rem' }}>Directly set the current balance and/or all-time total. Use this to correct errors.</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                 <div className="mng__inline-field">
                   <label className="mng__inline-label">Set Current Balance</label>
@@ -767,7 +767,7 @@ export default function AdminRewardsPage() {
                   <label className="mng__inline-label">Set Total Earned</label>
                   <input type="number" className="mng__inline-input" value={manageXpTotal} onChange={e => setManageXpTotal(e.target.value)} min="0" />
                 </div>
-                <p style={{ fontSize: '0.72rem', color: '#9CA3AF', margin: '0.25rem 0' }}>
+                <p style={{ fontSize: '0.72rem', color: 'var(--theme-fg-muted, #9CA3AF)', margin: '0.25rem 0' }}>
                   Total Spent will auto-calculate as Total Earned minus Current Balance.
                 </p>
                 <button className="admin-btn admin-btn--primary" onClick={handleSetXP} disabled={saving === 'set-xp'}>

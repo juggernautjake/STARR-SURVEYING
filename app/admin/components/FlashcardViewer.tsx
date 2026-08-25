@@ -48,7 +48,7 @@ export default function FlashcardViewer({ cards, deckName, onBack }: FlashcardVi
         <div style={{ marginBottom: '1rem' }}>
           <button onClick={onBack} className="learn__back">&larr; Back to Flashcards</button>
           <h2 className="learn__title" style={{ marginBottom: '.25rem' }}>{deckName}</h2>
-          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280', marginBottom: '1rem' }}>
+          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #6B7280)', marginBottom: '1rem' }}>
             {cards.length} card{cards.length !== 1 ? 's' : ''} in this deck. How do you want to study?
           </p>
         </div>
@@ -240,7 +240,7 @@ export default function FlashcardViewer({ cards, deckName, onBack }: FlashcardVi
           </button>
         </div>
 
-        <p style={{ marginTop: '.75rem', fontFamily: 'Inter,sans-serif', fontSize: '.75rem', color: '#9CA3AF' }}>
+        <p style={{ marginTop: '.75rem', fontFamily: 'Inter,sans-serif', fontSize: '.75rem', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
           Click the card to flip it
         </p>
       </div>

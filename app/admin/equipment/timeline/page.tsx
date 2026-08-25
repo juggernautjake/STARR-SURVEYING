@@ -702,7 +702,7 @@ const BAR_STATE_STYLES: Record<string, React.CSSProperties> = {
   },
   returned: {
     background: '#E5E7EB',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     border: 'var(--border-normal)',
   },
   cancelled: {
@@ -712,7 +712,7 @@ const BAR_STATE_STYLES: Record<string, React.CSSProperties> = {
   },
   default: {
     background: 'var(--color-bg-subtle)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     border: 'var(--border-light)',
   },
 };
@@ -799,7 +799,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 10px',
     border: '1px solid #E2E5EB',
     background: 'var(--color-bg-card)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     borderRadius: 6,
     fontSize: 12,
     cursor: 'pointer',
@@ -831,7 +831,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 0,
     gap: 6,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     cursor: 'pointer',
   },
   empty: {
@@ -852,7 +852,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     color: 'var(--color-text-tertiary)',
   },
-  summaryStrong: { color: '#111827', fontWeight: 600 },
+  summaryStrong: { color: 'var(--theme-fg-primary, #111827)', fontWeight: 600 },
   gantt: {
     background: 'var(--color-bg-card)',
     border: '1px solid #E2E5EB',
@@ -896,7 +896,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 12px',
     fontSize: 12,
     fontWeight: 500,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     borderRight: '1px solid #F1F2F4',
     background: '#FAFBFC',
     overflow: 'hidden',
@@ -1047,7 +1047,7 @@ const drawerStyles: Record<string, React.CSSProperties> = {
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
   },
-  rowValue: { color: '#111827', wordBreak: 'break-word' },
+  rowValue: { color: 'var(--theme-fg-primary, #111827)', wordBreak: 'break-word' },
   link: { color: 'var(--color-brand-navy)', textDecoration: 'none' },
   muted: { color: 'var(--color-text-muted)' },
   code: {
@@ -1070,7 +1070,7 @@ const drawerStyles: Record<string, React.CSSProperties> = {
     border: '1px solid #E2E5EB',
     borderRadius: 8,
     background: 'var(--color-bg-card)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     fontSize: 13,
     textDecoration: 'none',
   },

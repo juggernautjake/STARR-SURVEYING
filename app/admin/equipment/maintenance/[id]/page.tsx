@@ -506,7 +506,7 @@ function stateBadgeStyle(state: string): React.CSSProperties {
     fontWeight: 600,
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
-    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: '#374151' }),
+    ...(map[state] ?? { background: 'var(--color-bg-subtle)', color: 'var(--theme-fg-secondary, #374151)' }),
   };
 }
 
@@ -517,7 +517,7 @@ function kindBadgeStyle(): React.CSSProperties {
     fontSize: 12,
     fontWeight: 500,
     background: 'var(--color-bg-subtle)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   };
 }
 
@@ -540,7 +540,7 @@ function docKindBadgeStyle(kind: string): React.CSSProperties {
     before_photo: { background: '#F3E8FF', color: '#581C87' },
     after_photo: { background: '#F3E8FF', color: '#581C87' },
     qa_report: { background: '#FEE2E2', color: '#7F1D1D' },
-    other: { background: 'var(--color-bg-subtle)', color: '#374151' },
+    other: { background: 'var(--color-bg-subtle)', color: 'var(--theme-fg-secondary, #374151)' },
   };
   return {
     padding: '2px 8px',

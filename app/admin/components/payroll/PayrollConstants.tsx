@@ -42,7 +42,7 @@ export const CERTIFICATION_TYPES: Record<string, { label: string; icon: string }
 export const TRANSACTION_TYPES: Record<string, { label: string; icon: string; color: string }> = {
   credit_payroll: { label: 'Payroll Credit', icon: '💰', color: '#10B981' },
   withdrawal: { label: 'Withdrawal', icon: '🏦', color: 'var(--color-error)' },
-  adjustment: { label: 'Adjustment', icon: '⚙️', color: '#6B7280' },
+  adjustment: { label: 'Adjustment', icon: '⚙️', color: 'var(--theme-fg-secondary, #6B7280)' },
   bonus: { label: 'Bonus', icon: '🎉', color: '#8B5CF6' },
   reimbursement: { label: 'Reimbursement', icon: '🧾', color: '#3B82F6' },
 };
@@ -53,11 +53,11 @@ export const WITHDRAWAL_STATUSES: Record<string, { label: string; color: string 
   processing: { label: 'Processing', color: '#8B5CF6' },
   completed: { label: 'Completed', color: '#10B981' },
   rejected: { label: 'Rejected', color: 'var(--color-error)' },
-  cancelled: { label: 'Cancelled', color: '#6B7280' },
+  cancelled: { label: 'Cancelled', color: 'var(--theme-fg-secondary, #6B7280)' },
 };
 
 export const PAYROLL_STATUSES: Record<string, { label: string; color: string }> = {
-  draft: { label: 'Draft', color: '#6B7280' },
+  draft: { label: 'Draft', color: 'var(--theme-fg-secondary, #6B7280)' },
   processing: { label: 'Processing', color: '#F59E0B' },
   completed: { label: 'Completed', color: '#10B981' },
   cancelled: { label: 'Cancelled', color: 'var(--color-error)' },

@@ -151,7 +151,7 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
             style={{
               width: 64, height: 64, borderRadius: '50%',
               background: 'var(--color-brand-navy)',
-              color: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'var(--theme-accent-fg, #FFF)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontFamily: 'Sora,sans-serif', fontSize: '1.4rem', fontWeight: 700,
             }}
             aria-hidden
@@ -162,9 +162,9 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
             <h1 style={{ margin: 0, fontFamily: 'Sora,sans-serif', fontSize: '1.4rem', fontWeight: 700 }}>
               {displayName}
             </h1>
-            <div style={{ color: '#6B7280', fontSize: '0.85rem' }}>{email}</div>
+            <div style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.85rem' }}>{email}</div>
             {profile.job_title && (
-              <div style={{ color: '#374151', fontSize: '0.9rem', marginTop: '0.25rem' }}>{profile.job_title}</div>
+              <div style={{ color: 'var(--theme-fg-secondary, #374151)', fontSize: '0.9rem', marginTop: '0.25rem' }}>{profile.job_title}</div>
             )}
             {/* Slice W3 — user spec calls out roles in the
                 always-on header. Rendered as small pills below
@@ -200,7 +200,7 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
         <div
           className="admin-card"
           data-testid="employee-profile-empty-stub"
-          style={{ textAlign: 'center', color: '#6B7280', fontSize: '0.95rem', padding: '1.5rem 1rem' }}
+          style={{ textAlign: 'center', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.95rem', padding: '1.5rem 1rem' }}
         >
           No more information about {displayName} is available.
         </div>
@@ -234,7 +234,7 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
         <div className="emp-manage__field"><label>Age</label><span>{age == null ? '—' : `${age} years`}</span></div>
         <div className="emp-manage__field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
           <label>About</label>
-          <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#374151' }}>{profile.bio?.trim() || 'Not set'}</p>
+          <p style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--theme-fg-secondary, #374151)' }}>{profile.bio?.trim() || 'Not set'}</p>
         </div>
       </div>
 
@@ -247,7 +247,7 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
               {phones.map((c) => (
                 <li key={c.id}>
                   {c.value}
-                  {c.label && <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· {c.label}</span>}
+                  {c.label && <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· {c.label}</span>}
                   {c.is_primary && <span style={{ color: 'var(--color-brand-navy)', marginLeft: '0.5rem' }}>(primary)</span>}
                 </li>
               ))}
@@ -259,12 +259,12 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
           <ul style={{ margin: 0, paddingLeft: '1rem' }}>
             <li>
               {email}
-              <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· auth email</span>
+              <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· auth email</span>
             </li>
             {emails.map((c) => (
               <li key={c.id}>
                 {c.value}
-                {c.label && <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· {c.label}</span>}
+                {c.label && <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· {c.label}</span>}
                 {c.is_primary && <span style={{ color: 'var(--color-brand-navy)', marginLeft: '0.5rem' }}>(primary)</span>}
               </li>
             ))}
@@ -277,7 +277,7 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
               {addresses.map((c) => (
                 <li key={c.id} style={{ whiteSpace: 'pre-wrap' }}>
                   {c.value}
-                  {c.label && <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· {c.label}</span>}
+                  {c.label && <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· {c.label}</span>}
                 </li>
               ))}
             </ul>
@@ -300,16 +300,16 @@ export default async function EmployeeProfilePage({ params }: PageProps) {
       <div className="admin-card" data-testid="employee-profile-credentials">
         <h2 style={{ marginTop: 0, fontSize: '1rem', fontWeight: 600 }}>Credentials</h2>
         {certRows.length === 0 ? (
-          <p style={{ color: '#6B7280', margin: 0 }}>No credentials on file.</p>
+          <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 }}>No credentials on file.</p>
         ) : (
           <ul style={{ margin: 0, paddingLeft: '1rem' }}>
             {certRows.map((c) => (
               <li key={c.id}>
                 <strong>{c.certification_name}</strong>
-                <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· {c.certification_type}</span>
-                <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· issued {fmtDate(c.issued_date)}</span>
+                <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· {c.certification_type}</span>
+                <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· issued {fmtDate(c.issued_date)}</span>
                 {c.expiry_date && (
-                  <span style={{ color: '#6B7280', marginLeft: '0.5rem' }}>· expires {fmtDate(c.expiry_date)}</span>
+                  <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', marginLeft: '0.5rem' }}>· expires {fmtDate(c.expiry_date)}</span>
                 )}
               </li>
             ))}

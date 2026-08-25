@@ -239,7 +239,7 @@ export default function EmployeeManagePage() {
           )}
           {unearnedCreds.length > 0 && (
             <>
-              <h4 style={{ marginTop: '1.5rem', color: '#6B7280', fontSize: '0.9rem' }}>Available Credentials</h4>
+              <h4 style={{ marginTop: '1.5rem', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.9rem' }}>Available Credentials</h4>
               <div className="emp-manage__cred-list emp-manage__cred-list--available">
                 {unearnedCreds.map((cb) => (
                   <div key={cb.credential_key} className="emp-manage__cred-item emp-manage__cred-item--available">
@@ -417,7 +417,7 @@ export default function EmployeeManagePage() {
         <div className="emp-manage__modal-overlay" onClick={() => setShowRaiseForm(false)}>
           <div className="emp-manage__modal" onClick={(e) => e.stopPropagation()}>
             <h3>Apply Pay Raise</h3>
-            <p style={{ fontSize: '0.85rem', color: '#6B7280' }}>Current rate: {fmtCurrency(profile.hourly_rate || 0)}/hr</p>
+            <p style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>Current rate: {fmtCurrency(profile.hourly_rate || 0)}/hr</p>
             <div className="emp-manage__form-field">
               <label>Raise Amount ($/hr)</label>
               <input type="number" step="0.25" min="0.25" value={raiseForm.raise_amount} onChange={(e) => setRaiseForm({ ...raiseForm, raise_amount: e.target.value })} placeholder="e.g. 1.50" />

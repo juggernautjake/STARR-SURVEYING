@@ -549,7 +549,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 14px',
     border: '1px solid #E2E5EB',
     background: 'var(--color-bg-card)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     borderRadius: 6,
     fontSize: 13,
     fontWeight: 500,
@@ -597,7 +597,7 @@ const styles: Record<string, React.CSSProperties> = {
   summaryValue: {
     fontSize: 22,
     fontWeight: 700,
-    color: '#111827',
+    color: 'var(--theme-fg-primary, #111827)',
     fontVariant: 'tabular-nums' as const,
     marginBottom: 4,
   },
@@ -747,7 +747,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   copy: {
     margin: 0,
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     lineHeight: 1.5,
   },
   footer: {
@@ -766,7 +766,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   confirmBtn: {
     background: '#7F1D1D',

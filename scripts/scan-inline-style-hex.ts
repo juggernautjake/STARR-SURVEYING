@@ -103,7 +103,23 @@ function countHexInMatchedBlocks(source: string, re: RegExp, openDepth: number):
     // says it was the fifth time that day a check in this repo read prose as code.
     const block = source.slice(m.index, i)
       .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\/\/[^\n]*/g, '');
+      .replace(/\/\/[^\n]*/g, '')
+      // ── A FALLBACK INSIDE var() IS NOT AN UNREACHABLE COLOUR ──────────────────────────────────
+      //
+      // `var(--theme-fg-secondary, #6B7280)` is the CONVERTED form. The hex is there because
+      // `__tests__/hub/theme-vars-are-adopted.test.ts` REQUIRES it — a theme variable with no
+      // fallback renders as nothing on a surface that never enters a `[data-theme]` block, so the
+      // literal is what keeps the public site rendering byte-identically.
+      //
+      // This scanner counted it anyway, and the two guards were therefore in direct contradiction:
+      // converting a colour correctly could not lower this count, and adding the mandatory fallback
+      // RAISED it. A 550-colour conversion across 90 admin files registered here as +2.
+      //
+      // The point of this ratchet is colours a design token, a media query, the print stylesheet or
+      // a contrast audit cannot reach. A var() fallback is reachable by all four — through the
+      // token. It is the fix, not the debt, and a guard that cannot see its own success is one
+      // people learn to re-baseline past.
+      .replace(/var\(\s*--[a-z0-9-]+\s*,[^()]*\)/gi, 'var()');
     // 3–8 digits covers #abc, #aabbcc and the 4/8-digit alpha forms.
     total += (block.match(/#[0-9a-fA-F]{3,8}\b/g) ?? []).length;
   }

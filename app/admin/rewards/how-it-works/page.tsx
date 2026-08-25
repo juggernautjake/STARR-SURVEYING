@@ -173,7 +173,7 @@ export default function HowItWorksPage() {
             <p>$50 gift cards, polo shirts, cash bonuses, multi-tools</p>
           </div>
           <div className="hiw__tier" style={{ borderColor: '#E5E4E2' }}>
-            <strong style={{ color: '#666' }}>Platinum (10K-20K XP)</strong>
+            <strong style={{ color: 'var(--theme-fg-secondary, #666)' }}>Platinum (10K-20K XP)</strong>
             <p>Work boots, knives, Bluetooth speakers, Yeti gear</p>
           </div>
           <div className="hiw__tier" style={{ borderColor: '#87CEEB' }}>

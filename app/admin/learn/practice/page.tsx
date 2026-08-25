@@ -212,7 +212,7 @@ export default function PracticeSessionPage() {
 
             <div className="practice__fields-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
               <div className="practice__field-type" style={{ flex: '2 1 250px' }}>
-                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Problem Type</label>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Problem Type</label>
                 <select
                   value={cfg.typeId}
                   onChange={e => updateConfig(idx, 'typeId', e.target.value)}
@@ -230,7 +230,7 @@ export default function PracticeSessionPage() {
               </div>
 
               <div className="practice__field-qty" style={{ flex: '0 0 100px' }}>
-                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Quantity</label>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Quantity</label>
                 <input
                   type="number" min={1} max={50}
                   value={cfg.count}
@@ -240,7 +240,7 @@ export default function PracticeSessionPage() {
               </div>
 
               <div className="practice__field-diff" style={{ flex: '0 0 120px' }}>
-                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Difficulty</label>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Difficulty</label>
                 <select
                   value={cfg.difficulty}
                   onChange={e => updateConfig(idx, 'difficulty', e.target.value)}
@@ -272,7 +272,7 @@ export default function PracticeSessionPage() {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem', color: '#374151', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #374151)', cursor: 'pointer' }}>
             <input type="checkbox" checked={randomize} onChange={e => setRandomize(e.target.checked)} />
             Randomize problem order
           </label>
@@ -388,7 +388,7 @@ export default function PracticeSessionPage() {
             <div style={{ fontSize: '.82rem', fontWeight: 700, color: 'var(--color-brand-red)', marginBottom: '.5rem' }}>
               You gave up on this problem. Correct answer: {solutionViewed[currentProblem.id].correct_answer}
             </div>
-            <div style={{ fontSize: '.85rem', color: '#374151', lineHeight: 1.7 }}>
+            <div style={{ fontSize: '.85rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.7 }}>
               {solutionViewed[currentProblem.id].steps.map(step => (
                 <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid var(--color-brand-navy)' }}>
                   <div style={{ fontWeight: 600, color: 'var(--color-brand-navy)', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
@@ -495,9 +495,9 @@ export default function PracticeSessionPage() {
                   {r.solution_steps.map(step => (
                     <div key={step.step_number} style={{ marginBottom: '.75rem', paddingLeft: '1rem', borderLeft: '3px solid var(--color-brand-navy)' }}>
                       <div style={{ fontWeight: 600, color: 'var(--color-brand-navy)', fontSize: '.82rem' }}>Step {step.step_number}: {step.title}</div>
-                      {step.description && <div style={{ fontSize: '.85rem', color: '#374151', whiteSpace: 'pre-line' }}>{step.description}</div>}
+                      {step.description && <div style={{ fontSize: '.85rem', color: 'var(--theme-fg-secondary, #374151)', whiteSpace: 'pre-line' }}>{step.description}</div>}
                       {step.formula && <div style={{ fontFamily: 'monospace', background: 'var(--color-bg-card)', padding: '.3rem .6rem', borderRadius: 4, margin: '.25rem 0', fontSize: '.82rem', border: 'var(--border-light)' }}>{step.formula}</div>}
-                      {step.calculation && <div style={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '.82rem', color: '#374151' }}>{step.calculation}</div>}
+                      {step.calculation && <div style={{ whiteSpace: 'pre-line', fontFamily: 'monospace', fontSize: '.82rem', color: 'var(--theme-fg-secondary, #374151)' }}>{step.calculation}</div>}
                       {step.result && <div style={{ fontWeight: 600, color: '#059669', fontSize: '.85rem' }}>{step.result}</div>}
                     </div>
                   ))}

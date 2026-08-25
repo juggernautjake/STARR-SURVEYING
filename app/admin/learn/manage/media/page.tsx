@@ -201,11 +201,11 @@ export default function MediaLibraryPage() {
             <div className="manage__form" style={{ gap: '.65rem' }}>
               <div className="media__form-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: '2 1 200px', minWidth: 0 }}>
-                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Title</label>
+                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Title</label>
                   <input className="manage__form-input" value={uploadTitle} onChange={e => setUploadTitle(e.target.value)} placeholder="Media title" />
                 </div>
                 <div className="media__field-type" style={{ flex: '0 0 140px' }}>
-                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Type</label>
+                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Type</label>
                   <select className="manage__form-input" value={uploadType} onChange={e => setUploadType(e.target.value)} style={{ background: 'var(--color-bg-card)' }}>
                     <option value="image">Image</option>
                     <option value="video">Video</option>
@@ -217,29 +217,29 @@ export default function MediaLibraryPage() {
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>URL (or paste embed URL / YouTube link)</label>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>URL (or paste embed URL / YouTube link)</label>
                 <input className="manage__form-input" value={uploadUrl.startsWith('data:') ? '(File selected)' : uploadUrl} onChange={e => { setUploadUrl(e.target.value); setPreviewUrl(e.target.value); }} placeholder="https://..." disabled={uploadUrl.startsWith('data:')} />
               </div>
 
               <div>
-                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Caption</label>
+                <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Caption</label>
                 <textarea className="manage__form-textarea" value={uploadCaption} onChange={e => setUploadCaption(e.target.value)} rows={2} placeholder="Optional caption text" />
               </div>
 
               <div style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Alt Text</label>
+                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Alt Text</label>
                   <input className="manage__form-input" value={uploadAlt} onChange={e => setUploadAlt(e.target.value)} placeholder="Descriptive alt text" />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Tags (comma-separated)</label>
+                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Tags (comma-separated)</label>
                   <input className="manage__form-input" value={uploadTags} onChange={e => setUploadTags(e.target.value)} placeholder="surveying, diagram" />
                 </div>
               </div>
 
               <div className="media__form-row" style={{ display: 'flex', gap: '.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
                 <div className="media__field-res" style={{ flex: '0 0 140px' }}>
-                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Resolution</label>
+                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Resolution</label>
                   <select className="manage__form-input" value={uploadResolution} onChange={e => setUploadResolution(e.target.value)} style={{ background: 'var(--color-bg-card)' }}>
                     <option value="original">Original</option>
                     <option value="thumbnail">Thumbnail (150px)</option>
@@ -250,10 +250,10 @@ export default function MediaLibraryPage() {
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: '#374151', marginBottom: '.25rem' }}>Link URL (if clickable)</label>
+                  <label style={{ display: 'block', fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.25rem' }}>Link URL (if clickable)</label>
                   <input className="manage__form-input" value={uploadLinkUrl} onChange={e => setUploadLinkUrl(e.target.value)} placeholder="https://..." />
                 </div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', cursor: 'pointer', marginBottom: '.35rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: 'var(--theme-fg-secondary, #374151)', cursor: 'pointer', marginBottom: '.35rem' }}>
                   <input type="checkbox" checked={uploadClickable} onChange={e => setUploadClickable(e.target.checked)} />
                   Clickable
                 </label>

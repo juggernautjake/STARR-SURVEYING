@@ -34,7 +34,7 @@ const STAGE_CONFIG: Record<string, { label: string; color: string; icon: string 
   drawing: { label: 'Drawing', color: '#3B82F6', icon: '📐' },
   legal: { label: 'Legal', color: '#6366F1', icon: '⚖️' },
   delivery: { label: 'Delivery', color: '#10B981', icon: '📦' },
-  completed: { label: 'Completed', color: '#6B7280', icon: '✅' },
+  completed: { label: 'Completed', color: 'var(--theme-fg-secondary, #6B7280)', icon: '✅' },
   cancelled: { label: 'Cancelled', color: 'var(--color-error)', icon: '❌' },
   on_hold: { label: 'On Hold', color: '#F97316', icon: '⏸️' },
 };

@@ -341,7 +341,7 @@ const s: Record<string, React.CSSProperties> = {
   // stayed put. Two identical-looking fields side by side, inputs 10.7px out of line, and nothing
   // in either field's own styling to explain it: the cause was the sibling's hint text.
   field: { display: 'grid', gap: 4, minWidth: 0, alignContent: 'start' },
-  label: { fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 },
+  label: { fontSize: 11, fontWeight: 600, color: 'var(--theme-fg-secondary, #6B7280)', textTransform: 'uppercase', letterSpacing: 0.5 },
   input: {
     height: 'var(--input-height, 40px)',
     boxSizing: 'border-box',

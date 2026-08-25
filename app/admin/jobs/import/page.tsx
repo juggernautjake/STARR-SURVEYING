@@ -286,7 +286,7 @@ export default function ImportJobsPage() {
         <div className="job-form__header">
           <Link href="/admin/jobs" className="learn__back">&larr; Back to Jobs</Link>
           <h2 className="job-form__title">Import Jobs & Files</h2>
-          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280', margin: '0.25rem 0 0' }}>
+          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0.25rem 0 0' }}>
             Import historical surveys, bulk-upload jobs from CSV, or attach files to existing jobs.
           </p>
         </div>
@@ -513,7 +513,7 @@ export default function ImportJobsPage() {
                         ))}
                         {csvRows.length > 50 && (
                           <tr>
-                            <td colSpan={csvHeaders.length + 1} style={{ textAlign: 'center', fontStyle: 'italic', color: '#9CA3AF' }}>
+                            <td colSpan={csvHeaders.length + 1} style={{ textAlign: 'center', fontStyle: 'italic', color: 'var(--theme-fg-muted, #9CA3AF)' }}>
                               ...and {csvRows.length - 50} more rows
                             </td>
                           </tr>

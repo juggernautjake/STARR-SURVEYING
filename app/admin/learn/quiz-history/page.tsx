@@ -130,7 +130,7 @@ export default function QuizHistoryPage() {
       {/* Admin: Employee selector */}
       {isAdminOrDev && (
         <div style={{ marginBottom: '1rem', display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#374151' }}>View as:</label>
+          <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>View as:</label>
           <input
             type="email"
             placeholder="Employee email (blank = yours)"

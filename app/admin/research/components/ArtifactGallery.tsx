@@ -189,7 +189,7 @@ export default function ArtifactGallery({ projectId, refreshInterval }: Artifact
     if (refreshInterval && refreshInterval > 0) {
       return (
         <div className="artifact-gallery artifact-gallery--empty">
-          <p style={{ color: '#6B7280', fontSize: '0.85rem' }}>
+          <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.85rem' }}>
             Waiting for documents &amp; screenshots to be captured...
           </p>
         </div>

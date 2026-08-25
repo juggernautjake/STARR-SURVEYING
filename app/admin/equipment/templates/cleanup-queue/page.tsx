@@ -299,7 +299,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     fontSize: 13,
   },
-  summaryStrong: { color: '#111827', fontWeight: 600 },
+  summaryStrong: { color: 'var(--theme-fg-primary, #111827)', fontWeight: 600 },
   muted: { color: 'var(--color-text-muted)' },
   card: {
     background: 'var(--color-bg-card)',

@@ -42,7 +42,7 @@ const STATUS_OPTIONS = [
   { key: 'quoted', label: 'Quoted', color: '#F59E0B' },
   { key: 'accepted', label: 'Accepted', color: '#059669' },
   { key: 'declined', label: 'Declined', color: 'var(--color-error)' },
-  { key: 'lost', label: 'Lost', color: '#6B7280' },
+  { key: 'lost', label: 'Lost', color: 'var(--theme-fg-secondary, #6B7280)' },
 ];
 
 const SOURCE_OPTIONS = ['Website', 'Phone', 'Email', 'Referral', 'Walk-in', 'Social Media', 'Other'];

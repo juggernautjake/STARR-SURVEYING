@@ -66,3 +66,70 @@ describe('computeHoursFlags', () => {
     expect(review?.message).toContain('1 entry needs');
   });
 });
+
+// ── The same day, submitted twice ──────────────────────────────────────────────────────────────
+//
+// Found in live data on 2026-08-24: two identical 7.56-hour rows for one person and one Monday,
+// created 3.2 seconds apart, both from the clock-out button. `long_day` had noticed something was
+// off with that day — 15.12h — but told the approver to check for a missed clock-out, which is the
+// wrong instruction. One is an entry to correct; the other is an entry to delete.
+describe('duplicate submissions', () => {
+  const dup = { log_date: '2026-08-17', hours: 7.56, status: 'pending', description: 'Clock-out entry from top-bar pill' };
+
+  it('names a repeated entry as a duplicate, not as a long day', () => {
+    const flags = computeHoursFlags([dup, { ...dup }]);
+    const duplicate = flags.find((f) => f.kind === 'duplicate');
+    expect(duplicate).toBeDefined();
+    expect(duplicate!.message).toContain('2026-08-17');
+    expect(duplicate!.message).toContain('appears 2 times');
+  });
+
+  it('counts three copies as three', () => {
+    const flags = computeHoursFlags([dup, { ...dup }, { ...dup }]);
+    expect(flags.find((f) => f.kind === 'duplicate')!.message).toContain('appears 3 times');
+  });
+
+  it('leaves two genuinely different entries on one day alone', () => {
+    // The most important negative case. A real day is often several entries, and a warning that
+    // fires on normal timesheets is one people learn to dismiss.
+    const flags = computeHoursFlags([
+      { log_date: '2026-08-17', hours: 3.5, status: 'pending', description: 'Drive to site' },
+      { log_date: '2026-08-17', hours: 4.0, status: 'pending', description: 'Boundary survey' },
+    ]);
+    expect(flags.some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+
+  it('does not flag the same hours on the same day when the work differs', () => {
+    const flags = computeHoursFlags([
+      { log_date: '2026-08-17', hours: 4, status: 'pending', description: 'Morning: control' },
+      { log_date: '2026-08-17', hours: 4, status: 'pending', description: 'Afternoon: topo' },
+    ]);
+    expect(flags.some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+
+  it('does not flag identical work on two different days', () => {
+    const flags = computeHoursFlags([
+      { log_date: '2026-08-17', hours: 8, status: 'pending', description: 'Boundary survey' },
+      { log_date: '2026-08-18', hours: 8, status: 'pending', description: 'Boundary survey' },
+    ]);
+    expect(flags.some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+
+  it('tells duplicates apart by job, so one crew on two jobs is not a duplicate', () => {
+    const flags = computeHoursFlags([
+      { log_date: '2026-08-17', hours: 4, status: 'pending', description: 'Fieldwork', job_id: 'a' },
+      { log_date: '2026-08-17', hours: 4, status: 'pending', description: 'Fieldwork', job_id: 'b' },
+    ]);
+    expect(flags.some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+
+  it("compares the hours that COUNT, so an approver's adjustment splits a pair", () => {
+    // Adjusting one of two identical entries is how a duplicate gets resolved without deleting it.
+    // The flag has to stop firing once that has happened, or it accuses a decision already made.
+    const flags = computeHoursFlags([
+      { ...dup },
+      { ...dup, adjusted_hours: 0 },
+    ]);
+    expect(flags.some((f) => f.kind === 'duplicate')).toBe(false);
+  });
+});

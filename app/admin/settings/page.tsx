@@ -336,7 +336,7 @@ function GoogleCalendarConnectCard() {
         <span className="job-detail__integration-icon"><Calendar size={24} strokeWidth={1.75} /></span>
         <div>
           <h4 style={{ margin: 0 }}>Google Calendar</h4>
-          <p style={{ margin: '0.15rem 0 0', color: '#6B7280', fontSize: '0.85rem' }}>
+          <p style={{ margin: '0.15rem 0 0', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.85rem' }}>
             Two-way sync between your schedule and your Google Calendar.
           </p>
           {status?.connected ? (
@@ -344,7 +344,7 @@ function GoogleCalendarConnectCard() {
               Connected{status.last_synced_at ? ` · last sync ${new Date(status.last_synced_at).toLocaleString()}` : ''}
             </p>
           ) : (
-            <p style={{ margin: '0.25rem 0 0', color: '#6B7280', fontSize: '0.8rem' }}>Not connected</p>
+            <p style={{ margin: '0.25rem 0 0', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.8rem' }}>Not connected</p>
           )}
           {message && <p style={{ margin: '0.4rem 0 0', color: 'var(--color-brand-navy)', fontSize: '0.8rem' }}>{message}</p>}
         </div>
@@ -370,7 +370,7 @@ function GoogleCalendarConnectCard() {
 }
 
 const btnPrimary: React.CSSProperties = {
-  padding: '0.45rem 0.9rem', background: 'var(--color-brand-navy)', color: '#FFF',
+  padding: '0.45rem 0.9rem', background: 'var(--color-brand-navy)', color: 'var(--theme-accent-fg, #FFF)',
   border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem',
 };
 const btnSecondary: React.CSSProperties = {

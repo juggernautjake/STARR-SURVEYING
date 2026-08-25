@@ -107,7 +107,7 @@ const STATUS_OPTIONS = [
   { key: 'quoted', label: 'Quoted', color: '#F59E0B' },
   { key: 'accepted', label: 'Accepted', color: '#059669' },
   { key: 'declined', label: 'Declined', color: 'var(--color-error)' },
-  { key: 'lost', label: 'Lost', color: '#6B7280' },
+  { key: 'lost', label: 'Lost', color: 'var(--theme-fg-secondary, #6B7280)' },
 ];
 
 function fmtDate(iso: string | null | undefined): string {
@@ -863,7 +863,7 @@ function DetailRow({
     >
       <span
         style={{
-          color: '#6B7280',
+          color: 'var(--theme-fg-secondary, #6B7280)',
           fontSize: '0.78rem',
           fontWeight: 500,
           textTransform: 'uppercase',
@@ -876,7 +876,7 @@ function DetailRow({
         style={{
           textAlign: 'right',
           fontSize: '0.9rem',
-          color: '#1F2937',
+          color: 'var(--theme-fg-primary, #1F2937)',
           minWidth: 0,
           overflowWrap: 'anywhere',
           wordBreak: 'break-word',

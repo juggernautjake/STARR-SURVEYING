@@ -304,7 +304,7 @@ const styles: Record<string, React.CSSProperties> = {
   formLabel: {
     fontSize: 12,
     fontWeight: 600,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   modalHint: {
     fontSize: 11,
@@ -345,7 +345,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     textDecoration: 'none',
     display: 'inline-block',
   },

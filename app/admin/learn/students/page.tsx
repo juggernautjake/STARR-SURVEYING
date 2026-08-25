@@ -174,14 +174,14 @@ export default function StudentsPage() {
                         key={key}
                         onClick={() => handleSort(key)}
                         style={{
-                          padding: '.65rem .75rem', fontWeight: 600, color: '#374151',
+                          padding: '.65rem .75rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)',
                           cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
                         }}
                       >
                         {label}{sortArrow(key)}
                       </th>
                     ))}
-                    <th style={{ padding: '.65rem .75rem', fontWeight: 600, color: '#374151' }}></th>
+                    <th style={{ padding: '.65rem .75rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -195,9 +195,9 @@ export default function StudentsPage() {
                       <td style={{ padding: '.65rem .75rem', fontWeight: 500, color: 'var(--color-text-primary)' }}>
                         {student.email}
                       </td>
-                      <td style={{ padding: '.65rem .75rem', color: '#374151' }}>{student.lessons_completed}</td>
-                      <td style={{ padding: '.65rem .75rem', color: '#374151' }}>{student.modules_completed}</td>
-                      <td style={{ padding: '.65rem .75rem', color: '#374151' }}>{student.quiz_count}</td>
+                      <td style={{ padding: '.65rem .75rem', color: 'var(--theme-fg-secondary, #374151)' }}>{student.lessons_completed}</td>
+                      <td style={{ padding: '.65rem .75rem', color: 'var(--theme-fg-secondary, #374151)' }}>{student.modules_completed}</td>
+                      <td style={{ padding: '.65rem .75rem', color: 'var(--theme-fg-secondary, #374151)' }}>{student.quiz_count}</td>
                       <td style={{ padding: '.65rem .75rem' }}>
                         <span style={{
                           color: student.avg_quiz_score >= 80 ? '#059669' : student.avg_quiz_score >= 60 ? '#D97706' : '#DC2626',
@@ -206,7 +206,7 @@ export default function StudentsPage() {
                           {student.avg_quiz_score > 0 ? `${student.avg_quiz_score}%` : '—'}
                         </span>
                       </td>
-                      <td style={{ padding: '.65rem .75rem', color: '#374151', fontWeight: 500 }}>
+                      <td style={{ padding: '.65rem .75rem', color: 'var(--theme-fg-secondary, #374151)', fontWeight: 500 }}>
                         {student.xp_total.toLocaleString()}
                       </td>
                       <td style={{ padding: '.65rem .75rem', color: 'var(--color-text-muted)', fontSize: '.8rem' }}>

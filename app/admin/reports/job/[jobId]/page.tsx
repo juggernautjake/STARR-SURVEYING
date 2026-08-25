@@ -132,7 +132,7 @@ export default function JobReportPage({ params }: PageProps) {
       <section className="job-card">
         <h2 className="job-no-print">
           {job.name}
-          {job.jobNumber && <code style={{ marginLeft: '0.5rem', fontFamily: 'JetBrains Mono, ui-monospace, monospace', fontSize: '0.85rem', color: '#6B7280' }}>{job.jobNumber}</code>}
+          {job.jobNumber && <code style={{ marginLeft: '0.5rem', fontFamily: 'JetBrains Mono, ui-monospace, monospace', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>{job.jobNumber}</code>}
         </h2>
         <div className="job-meta">
           <KV k="Client" v={job.clientName ?? '—'} />
@@ -268,7 +268,7 @@ export default function JobReportPage({ params }: PageProps) {
               <td><strong>Gross margin</strong></td>
               <td className="right">
                 <strong>{fmtMoney(financials.grossMarginCents)}</strong>{' '}
-                <span style={{ color: '#6B7280', fontWeight: 400 }}>({financials.grossMarginPct.toFixed(1)}%)</span>
+                <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontWeight: 400 }}>({financials.grossMarginPct.toFixed(1)}%)</span>
               </td>
             </tr>
           </tbody>
@@ -394,7 +394,7 @@ export default function JobReportPage({ params }: PageProps) {
 function KV({ k, v }: { k: string; v: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.25rem 0', borderBottom: '1px solid #F3F4F6', fontSize: '0.85rem', gap: '0.5rem' }}>
-      <span style={{ color: '#6B7280' }}>{k}</span>
+      <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>{k}</span>
       <span style={{ textAlign: 'right', wordBreak: 'break-word' }}>{v}</span>
     </div>
   );

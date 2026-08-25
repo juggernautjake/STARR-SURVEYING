@@ -1558,7 +1558,7 @@ export default function LessonBuilderPage() {
                 {block.block_type === 'columns' && (
                   <div>
                     <div style={{ display: 'flex', gap: '.5rem', alignItems: 'center', marginBottom: '.65rem' }}>
-                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Columns:</span>
+                      <span style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>Columns:</span>
                       {[2, 3].map(n => (
                         <button key={n} className={`admin-btn admin-btn--sm ${(block.content.columnCount || 2) === n ? 'admin-btn--primary' : 'admin-btn--ghost'}`} onClick={() => {
                           const cols = [...(block.content.columns || [])];
@@ -1592,7 +1592,7 @@ export default function LessonBuilderPage() {
                     </div>
                     <textarea className="fc-form__textarea" placeholder="Problem statement — describe the problem for the student" value={block.content.problem_statement || ''} onChange={e => updateBlockContent(block.id, { ...block.content, problem_statement: e.target.value })} rows={3} style={{ marginTop: '.5rem' }} />
                     <div style={{ marginTop: '.75rem' }}>
-                      <span style={{ fontSize: '.82rem', fontWeight: 600, color: '#374151', marginBottom: '.35rem', display: 'block' }}>Solution Steps</span>
+                      <span style={{ fontSize: '.82rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', marginBottom: '.35rem', display: 'block' }}>Solution Steps</span>
                       {(block.content.steps || []).map((step: any, si: number) => (
                         <div key={si} style={{ display: 'flex', gap: '.35rem', marginBottom: '.45rem', alignItems: 'flex-start' }}>
                           <span style={{ fontSize: '.78rem', fontWeight: 700, color: 'var(--color-brand-navy)', minWidth: '1.5rem', marginTop: '.35rem' }}>{si + 1}.</span>
@@ -1920,7 +1920,7 @@ export default function LessonBuilderPage() {
                     return (
                       <div key={stat.block_id} style={{ marginBottom: '.4rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.72rem', marginBottom: '.15rem' }}>
-                          <span style={{ fontWeight: 600, color: '#374151', textTransform: 'capitalize' }}>{blockLabel}</span>
+                          <span style={{ fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', textTransform: 'capitalize' }}>{blockLabel}</span>
                           <span style={{ color: 'var(--color-text-tertiary)' }}>{stat.avg_time_seconds}s avg &middot; {stat.view_count} views</span>
                         </div>
                         <div style={{ height: 4, background: 'var(--color-bg-subtle)', borderRadius: 2, overflow: 'hidden' }}>
@@ -1947,7 +1947,7 @@ export default function LessonBuilderPage() {
                   return (
                     <div key={`${qa.block_id}-${i}`} style={{ marginBottom: '.6rem', background: '#FAFAFA', borderRadius: 6, padding: '.5rem .6rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '.72rem', marginBottom: '.2rem' }}>
-                        <span style={{ fontWeight: 600, color: '#374151' }}>{blockLabel}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>{blockLabel}</span>
                         <span style={{ color: passColor, fontWeight: 700 }}>{qa.pass_rate}% pass</span>
                       </div>
                       <div style={{ fontSize: '.68rem', color: 'var(--color-text-tertiary)', marginBottom: '.25rem', lineHeight: 1.3 }}>

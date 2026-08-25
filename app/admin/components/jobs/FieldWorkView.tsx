@@ -966,7 +966,7 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh, jo
           <div className="fw__popup" onClick={e => e.stopPropagation()}>
             <div className="fw__popup-header"><h3>Import Point File</h3><button className="fw__popup-close" onClick={() => setShowImport(false)}>x</button></div>
             <div className="fw__popup-body">
-              <p style={{ fontSize: '0.85rem', color: '#6B7280', margin: '0 0 1rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0 0 1rem' }}>
                 Import points from a CSV or PNEZD text file. Supports files exported from Trimble Business Center, Trimble Access, AutoCAD Civil 3D, or any standard point file format.
               </p>
               <div className="fw__import-formats">
@@ -1012,7 +1012,7 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh, jo
                         ))}
                       </tbody>
                     </table>
-                    {importData.length > 10 && <p style={{ fontSize: '0.75rem', color: '#9CA3AF', textAlign: 'center', margin: '0.5rem 0 0' }}>...and {importData.length - 10} more</p>}
+                    {importData.length > 10 && <p style={{ fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)', textAlign: 'center', margin: '0.5rem 0 0' }}>...and {importData.length - 10} more</p>}
                   </div>
                 </div>
               )}
@@ -1106,7 +1106,7 @@ export default function FieldWorkView({ jobId, points: propPoints, onRefresh, jo
                   {DATA_TYPE_LABELS[detailPoint.data_type] || detailPoint.data_type}
                   {detailPoint.raw_data?.code && ` — ${detailPoint.raw_data.code}`}
                   {detailPoint.raw_data?.code && POINT_CODE_CATEGORIES[detailPoint.raw_data.code] && (
-                    <span style={{ fontWeight: 400, color: '#6B7280' }}> ({POINT_CODE_CATEGORIES[detailPoint.raw_data.code].label})</span>
+                    <span style={{ fontWeight: 400, color: 'var(--theme-fg-secondary, #6B7280)' }}> ({POINT_CODE_CATEGORIES[detailPoint.raw_data.code].label})</span>
                   )}
                 </span>
               </div>

@@ -466,7 +466,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     maxWidth: 720,
     lineHeight: 1.5,
@@ -486,7 +486,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -513,7 +513,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   deriveBtn: {
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     height: 'var(--button-height)',
@@ -547,12 +547,12 @@ const styles: Record<string, React.CSSProperties> = {
   derivedAt: {
     marginLeft: 'auto',
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     background: '#F7F8FA',
     borderRadius: 8,
   },
@@ -599,7 +599,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
     flexWrap: 'wrap',
     fontSize: 13,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     marginBottom: 6,
   },
   stopPlace: {
@@ -635,7 +635,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 12,
     padding: '4px 0 4px 24px',
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   segmentLine: {
     width: 2,

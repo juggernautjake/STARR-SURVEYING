@@ -1832,7 +1832,7 @@ const styles: Record<string, React.CSSProperties> = {
   page: { padding: '24px', maxWidth: 1100, margin: '0 auto' },
   header: { marginBottom: 24 },
   title: { fontSize: 28, fontWeight: 700, margin: 0 },
-  subtitle: { fontSize: 14, color: '#666', marginTop: 8 },
+  subtitle: { fontSize: 14, color: 'var(--theme-fg-secondary, #666)', marginTop: 8 },
   tabs: { display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' },
   tabButton: {
     padding: '8px 16px',
@@ -1985,7 +1985,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     marginBottom: 0,
     fontSize: 12,
-    color: '#666',
+    color: 'var(--theme-fg-secondary, #666)',
     gap: 4,
   },
   /* ── THE ROW READS ONE TOKEN, NOT A HAND-PICKED 36 (2026-08-22) ─────────────────────────────
@@ -2023,7 +2023,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 'var(--button-height)',
     padding: '0 4px',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
   },
@@ -2055,7 +2055,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 6,
     border: '1px solid var(--color-brand-navy)',
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     cursor: 'pointer',
     fontSize: 14,
     fontWeight: 500,
@@ -2079,7 +2079,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#888',
+    color: 'var(--theme-fg-muted, #888)',
     fontStyle: 'italic',
   },
   list: { display: 'flex', flexDirection: 'column', gap: 8 },
@@ -2090,7 +2090,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     padding: '6px 16px',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     cursor: 'pointer',
   },
   row: {
@@ -2138,7 +2138,7 @@ const styles: Record<string, React.CSSProperties> = {
   bulkCount: {
     fontSize: 13,
     fontWeight: 600,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     flex: 1,
   },
   bulkClearBtn: {
@@ -2148,7 +2148,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 12px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   bulkApproveBtn: {
     background: '#059669',
@@ -2173,8 +2173,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   rowMain: { flex: 1, minWidth: 0 },
   rowVendor: { fontSize: 16, fontWeight: 600, marginBottom: 2 },
-  rowMeta: { fontSize: 13, color: '#555' },
-  rowMetaSecondary: { fontSize: 12, color: '#888', marginTop: 2 },
+  rowMeta: { fontSize: 13, color: 'var(--theme-fg-secondary, #555)' },
+  rowMetaSecondary: { fontSize: 12, color: 'var(--theme-fg-muted, #888)', marginTop: 2 },
   rowRight: { textAlign: 'right', display: 'flex', flexDirection: 'column', gap: 4 },
   rowTotal: { fontSize: 17, fontWeight: 700 },
   statusChip: {
@@ -2219,7 +2219,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
     border: '1px dashed #ccc',
     borderRadius: 6,
-    color: '#999',
+    color: 'var(--theme-fg-muted, #999)',
     fontStyle: 'italic',
     textAlign: 'center',
   },
@@ -2413,7 +2413,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   fields: { margin: 0, display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 },
   fieldRow: { display: 'flex', gap: 12, fontSize: 13 },
-  fieldLabel: { width: 120, color: '#888', flexShrink: 0 },
+  fieldLabel: { width: 120, color: 'var(--theme-fg-muted, #888)', flexShrink: 0 },
   fieldValue: { color: '#222', margin: 0 },
   editRow: {
     gridColumn: '1 / -1',
@@ -2426,7 +2426,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     fontSize: 12,
-    color: '#666',
+    color: 'var(--theme-fg-secondary, #666)',
     gap: 4,
   },
   // The job picker owns a dropdown that is absolutely positioned against this box, so it needs a

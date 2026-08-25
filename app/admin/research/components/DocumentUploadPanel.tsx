@@ -27,7 +27,7 @@ const ACCEPTED_MIME_TYPES = new Set([
 ]);
 
 const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:    { label: 'Pending', color: '#9CA3AF' },
+  pending:    { label: 'Pending', color: 'var(--theme-fg-muted, #9CA3AF)' },
   extracting: { label: 'Extracting...', color: '#F59E0B' },
   extracted:  { label: 'Extracted', color: '#3B82F6' },
   analyzing:  { label: 'Analyzing...', color: '#F59E0B' },

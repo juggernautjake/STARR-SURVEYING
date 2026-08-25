@@ -350,7 +350,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     maxWidth: 720,
     lineHeight: 1.5,
@@ -370,7 +370,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -412,13 +412,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summary: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     marginBottom: 12,
   },
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   grid: {
     display: 'grid',
@@ -454,7 +454,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     fontSize: 28,
   },
   mediaBadge: {
@@ -494,12 +494,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardMeta: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     marginBottom: 2,
   },
   cardDesc: {
     fontSize: 12,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     marginTop: 6,
     overflow: 'hidden',
     display: '-webkit-box',
@@ -524,6 +524,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pagerLabel: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
 };

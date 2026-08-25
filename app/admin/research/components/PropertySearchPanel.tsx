@@ -962,7 +962,7 @@ export default function PropertySearchPanel({
                 className="research-page__new-btn"
                 onClick={handleInitiateResearch}
                 disabled={pipelineRunning || searching || liteRunning}
-                style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', background: 'none', border: '1px solid #D1D5DB', color: '#374151', borderRadius: '0.375rem', cursor: 'pointer' }}
+                style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem', background: 'none', border: '1px solid #D1D5DB', color: 'var(--theme-fg-secondary, #374151)', borderRadius: '0.375rem', cursor: 'pointer' }}
               >
                 🔄 Re-run Research
               </button>

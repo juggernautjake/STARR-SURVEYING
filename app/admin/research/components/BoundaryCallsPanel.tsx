@@ -234,7 +234,7 @@ export default function BoundaryCallsPanel({
         </div>
         <div className="research-boundary__field">
           <label className="research-boundary__label" htmlFor="bc-owner">
-            Owner Name <span style={{ fontWeight: 400, color: '#9CA3AF' }}>(optional — improves lookup)</span>
+            Owner Name <span style={{ fontWeight: 400, color: 'var(--theme-fg-muted, #9CA3AF)' }}>(optional — improves lookup)</span>
           </label>
           <input
             id="bc-owner"
@@ -277,7 +277,7 @@ export default function BoundaryCallsPanel({
             {browserFetching ? '🌐 Searching live websites…' : '🌐 Live Browser Search'}
           </button>
           {(fetching || browserFetching) && (
-            <span style={{ color: '#6B7280', fontSize: '0.82rem', marginLeft: '0.75rem' }}>
+            <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.82rem', marginLeft: '0.75rem' }}>
               {browserFetching
                 ? 'Navigating county websites, filling forms, and screenshotting results — may take 1–3 min'
                 : 'Searching county CAD and parsing legal description — please wait up to 2–3 min'}
@@ -323,7 +323,7 @@ export default function BoundaryCallsPanel({
               </button>
             </div>
             {showBrowserLog && (
-              <ol style={{ margin: '0.4rem 0 0 1.2rem', padding: 0, fontSize: '0.75rem', color: '#374151' }}>
+              <ol style={{ margin: '0.4rem 0 0 1.2rem', padding: 0, fontSize: '0.75rem', color: 'var(--theme-fg-secondary, #374151)' }}>
                 {browserResult.steps.map((s, i) => <li key={i} style={{ marginBottom: '0.15rem' }}>{s}</li>)}
               </ol>
             )}
@@ -337,14 +337,14 @@ export default function BoundaryCallsPanel({
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <button
               type="button"
-              style={{ background: 'none', border: 'none', color: '#6B7280', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: 'var(--theme-fg-secondary, #6B7280)', cursor: 'pointer', fontSize: '0.8rem', padding: 0 }}
               onClick={() => setShowLog(v => !v)}
             >
               {showLog ? '▾ Hide' : '▸ Show'} search log ({stepLog.length} steps)
             </button>
             <button
               type="button"
-              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '4px', color: '#374151', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, padding: '0.1rem 0.45rem' }}
+              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '4px', color: 'var(--theme-fg-secondary, #374151)', cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, padding: '0.1rem 0.45rem' }}
               onClick={handleCopyStepLog}
               title="Copy all search log entries to clipboard"
             >
@@ -574,7 +574,7 @@ export default function BoundaryCallsPanel({
           )}
 
           {!hasCalls && result.success === false && (
-            <div style={{ color: '#6B7280', fontSize: '0.88rem', marginTop: '0.5rem' }}>
+            <div style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.88rem', marginTop: '0.5rem' }}>
               No boundary calls could be parsed from the legal description. The legal description may
               be a lot/block reference or may not contain metes-and-bounds text.
             </div>

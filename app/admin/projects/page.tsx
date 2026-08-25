@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { chipInk } from '@/lib/admin/color-alpha';
 import { FolderKanban, Plus, Search, Briefcase, MapPin, User, Clock, SlidersHorizontal } from 'lucide-react';
 import { usePageError } from '../hooks/usePageError';
 import {
@@ -276,7 +277,7 @@ export default function ProjectsPage() {
                 <span className="proj__number">{p.project_number ?? '—'}</span>
                 <span
                   className="proj__status"
-                  style={{ background: `${PROJECT_STATUS_COLORS[p.status]}18`, color: PROJECT_STATUS_COLORS[p.status] }}
+                  style={{ background: `${PROJECT_STATUS_COLORS[p.status]}18`, color: chipInk(PROJECT_STATUS_COLORS[p.status]) }}
                 >
                   {PROJECT_STATUS_LABELS[p.status]}
                 </span>

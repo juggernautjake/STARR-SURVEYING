@@ -317,7 +317,7 @@ export default function ReplyDialog({
                           data-testid="reply-template-pick"
                         >
                           <span style={{ fontWeight: 600 }}>{t.name}</span>
-                          <span style={{ color: '#6B7280', fontSize: '0.72rem' }}>
+                          <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.72rem' }}>
                             {t.category}
                           </span>
                         </button>
@@ -471,7 +471,7 @@ export default function ReplyDialog({
               {attachments.map((f, i) => (
                 <li key={`${f.name}-${i}`} style={attachmentChipStyle}>
                   <span>📎 {f.name}</span>
-                  <span style={{ color: '#6B7280', fontSize: '0.7rem' }}>
+                  <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.7rem' }}>
                     {(f.size / 1024).toFixed(1)} KB
                   </span>
                   <button
@@ -626,7 +626,7 @@ const headerStyle: React.CSSProperties = {
 const closeBtnStyle: React.CSSProperties = {
   width: 32, height: 32, borderRadius: 8,
   border: 0, background: 'transparent', cursor: 'pointer',
-  color: '#6B7280', fontSize: '1rem',
+  color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '1rem',
 };
 const fieldsStyle: React.CSSProperties = {
   padding: '0.75rem 1rem 0',
@@ -641,7 +641,7 @@ const fieldRowStyle: React.CSSProperties = {
   gap: '0.5rem',
 };
 const fieldLabelStyle: React.CSSProperties = {
-  color: '#6B7280',
+  color: 'var(--theme-fg-secondary, #6B7280)',
   fontSize: '0.78rem',
   fontWeight: 600,
   textTransform: 'uppercase',
@@ -675,7 +675,7 @@ const toolbarBtnStyle: React.CSSProperties = {
   borderRadius: 6,
   border: '1px solid transparent',
   background: 'transparent',
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
   fontSize: '0.85rem',
   cursor: 'pointer',
 };
@@ -714,7 +714,7 @@ const inlineBtnStyle: React.CSSProperties = {
   background: 'white',
   fontSize: '0.85rem',
   fontWeight: 600,
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
 };
 const attachmentListStyle: React.CSSProperties = {
   listStyle: 'none',
@@ -732,14 +732,14 @@ const attachmentChipStyle: React.CSSProperties = {
   borderRadius: 999,
   background: '#F1F5F9',
   fontSize: '0.78rem',
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
 };
 const chipRemoveStyle: React.CSSProperties = {
   width: 16, height: 16,
   borderRadius: 999,
   border: 0,
   background: 'transparent',
-  color: '#6B7280',
+  color: 'var(--theme-fg-secondary, #6B7280)',
   cursor: 'pointer',
   fontSize: '0.8rem',
   lineHeight: 1,
@@ -793,7 +793,7 @@ const templatesToggleStyle: React.CSSProperties = {
   background: 'white',
   fontSize: '0.82rem',
   fontWeight: 600,
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
   cursor: 'pointer',
 };
 const templatesListStyle: React.CSSProperties = {
@@ -822,7 +822,7 @@ const templateBtnStyle: React.CSSProperties = {
   borderRadius: 6,
   border: 0,
   background: 'transparent',
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
   fontSize: '0.85rem',
   cursor: 'pointer',
   textAlign: 'left' as const,
@@ -865,7 +865,7 @@ const aiHintCancelStyle: React.CSSProperties = {
   borderRadius: 6,
   border: '1px solid #E5E7EB',
   background: 'white',
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
   fontSize: '0.8rem',
   fontWeight: 600,
   cursor: 'pointer',
@@ -886,7 +886,7 @@ const cancelBtnStyle: React.CSSProperties = {
   borderRadius: 8,
   border: '1px solid #E5E7EB',
   background: 'white',
-  color: '#1F2937',
+  color: 'var(--theme-fg-primary, #1F2937)',
   fontSize: '0.875rem',
   fontWeight: 600,
   cursor: 'pointer',

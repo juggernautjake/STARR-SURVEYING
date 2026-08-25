@@ -725,7 +725,7 @@ export default function ManageContentPage() {
 
             {/* Row 3: Due Date */}
             <div style={{ display: 'flex', gap: '.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: '#374151', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '.35rem', fontSize: '.82rem', color: 'var(--theme-fg-secondary, #374151)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <input
                   type="checkbox"
                   checked={assignForm.no_due_date ?? true}

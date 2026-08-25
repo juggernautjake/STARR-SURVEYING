@@ -157,7 +157,7 @@ export default function HealthCheckTab() {
       {integrations.length > 0 && (
         <div className="health-check-tab__section">
           <h4>Phase A Integrations</h4>
-          <p style={{ margin: '0 0 0.5rem 0', color: '#6B7280', fontSize: '0.875rem' }}>
+          <p style={{ margin: '0 0 0.5rem 0', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.875rem' }}>
             Configuration status for the captcha solver, headless browser backend, document storage,
             real-time event publisher, and WebSocket auth tickets. <code>unconfigured</code> means
             the feature is intentionally disabled in this environment; <code>warning</code> means a
@@ -174,7 +174,7 @@ export default function HealthCheckTab() {
                   </span>
                 </div>
                 {c.detail && (
-                  <div className="health-check-tab__response-time" style={{ color: '#374151' }}>{c.detail}</div>
+                  <div className="health-check-tab__response-time" style={{ color: 'var(--theme-fg-secondary, #374151)' }}>{c.detail}</div>
                 )}
               </div>
             ))}

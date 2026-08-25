@@ -450,7 +450,7 @@ export default function TeamMemberDrilldownPage() {
                           {e.job_name ?? 'Unnamed'}
                         </Link>
                       ) : (
-                        <span style={{ color: '#9CA3AF' }}>—</span>
+                        <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)' }}>—</span>
                       )}
                     </td>
                   </tr>
@@ -640,7 +640,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: '0 0 8px',
   },
   rolePill: {
@@ -672,7 +672,7 @@ const styles: Record<string, React.CSSProperties> = {
   flagNeutral: {
     display: 'inline-block',
     background: '#F3F4F6',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     padding: '4px 10px',
     borderRadius: 6,
     fontSize: 12,
@@ -686,7 +686,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   primaryBtn: {
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '10px 14px',
@@ -741,7 +741,7 @@ const styles: Record<string, React.CSSProperties> = {
   statLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -770,7 +770,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   activeMeta: {
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   activeRight: {
     display: 'flex',
@@ -794,7 +794,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#F7F8FA',
     borderBottom: '1px solid #E2E5EB',
     fontWeight: 600,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   td: {
     padding: '10px 12px',
@@ -842,7 +842,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: 28,
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
   },
   captureBadge: {
     position: 'absolute',
@@ -865,11 +865,11 @@ const styles: Record<string, React.CSSProperties> = {
   },
   captureMeta: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   captureJob: {
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     marginTop: 2,
   },
   captureFlag: {
@@ -904,7 +904,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   listSub: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     marginTop: 2,
   },
   listRight: {
@@ -922,7 +922,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 24,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     background: '#F7F8FA',
     borderRadius: 12,
     fontSize: 13,

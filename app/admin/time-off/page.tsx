@@ -128,7 +128,7 @@ export default function TimeOffPage() {
     <div style={{ maxWidth: 980, padding: '1.5rem' }}>
       <header style={{ marginBottom: '1rem' }}>
         <h1 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.6rem', margin: '0 0 0.25rem' }}>Time Off</h1>
-        <p style={{ color: '#4B5563', margin: 0 }}>
+        <p style={{ color: 'var(--theme-fg-secondary, #4B5563)', margin: 0 }}>
           Request days off — they appear on the team schedule once approved.
         </p>
       </header>
@@ -137,13 +137,13 @@ export default function TimeOffPage() {
         <button
           type="button"
           onClick={() => setShowForm(v => !v)}
-          style={{ padding: '0.5rem 0.9rem', background: 'var(--color-brand-navy)', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}
+          style={{ padding: '0.5rem 0.9rem', background: 'var(--color-brand-navy)', color: 'var(--theme-accent-fg, #FFF)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}
         >
           {showForm ? 'Cancel' : '+ Request time off'}
         </button>
         {balance !== null && (
-          <span style={{ padding: '0.35rem 0.7rem', background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 999, fontSize: '0.8rem', color: '#374151' }}>
-            PTO balance: <strong style={{ color: balance > 0 ? 'var(--color-brand-navy)' : 'var(--color-error)' }}>{balance.toFixed(1)} h</strong>
+          <span style={{ padding: '0.35rem 0.7rem', background: 'var(--theme-bg-elevated, #F3F4F6)', border: '1px solid var(--theme-border, #E5E7EB)', borderRadius: 999, fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #374151)' }}>
+            PTO balance: <strong style={{ color: balance > 0 ? 'var(--color-brand-navy)' : 'var(--color-error-text)' }}>{balance.toFixed(1)} h</strong>
           </span>
         )}
       </div>
@@ -191,7 +191,7 @@ export default function TimeOffPage() {
           )}
           <div style={{ marginTop: '0.75rem' }}>
             <button type="button" disabled={saving || !form.start_date || !form.end_date} onClick={() => void submit()}
-              style={{ padding: '0.45rem 0.9rem', background: 'var(--color-brand-navy)', color: '#FFF', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
+              style={{ padding: '0.45rem 0.9rem', background: 'var(--color-brand-navy)', color: 'var(--theme-accent-fg, #FFF)', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '0.85rem' }}>
               {saving ? 'Submitting…' : 'Submit request'}
             </button>
             {error && <span style={{ marginLeft: '0.75rem', color: 'var(--color-error)', fontSize: '0.85rem' }}>{error}</span>}
@@ -272,14 +272,16 @@ function RequestTable({
 }
 
 const fieldStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '0.25rem' };
-const labelStyle: React.CSSProperties = { fontSize: '0.75rem', color: '#6B7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 };
+const labelStyle: React.CSSProperties = { fontSize: '0.75rem', color: 'var(--theme-fg-secondary, #6B7280)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 };
 // F3 (pattern #3): pin every control to the 36px baseline + border-box so
 // native date/time pickers (taller intrinsic calendar chrome) line up with
 // text inputs in the form grid instead of overhanging them.
-const inputStyle: React.CSSProperties = { height: 36, boxSizing: 'border-box', padding: '0 0.6rem', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: '0.85rem', lineHeight: '1.2' };
+const inputStyle: React.CSSProperties = { height: 36, boxSizing: 'border-box', padding: '0 0.6rem', border: '1px solid var(--theme-border, #D1D5DB)', borderRadius: 6, background: 'var(--theme-bg-surface, #fff)', color: 'var(--theme-fg-primary, #111827)', fontSize: '0.85rem', lineHeight: '1.2' };
 const sectionTitle: React.CSSProperties = { fontSize: '1.05rem', fontWeight: 600, margin: '0 0 0.5rem' };
-const emptyStyle: React.CSSProperties = { padding: '1rem', background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 6, color: '#6B7280', fontSize: '0.85rem' };
-const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem 0.75rem', fontWeight: 600, color: '#4B5563' };
+const emptyStyle: React.CSSProperties = { padding: '1rem', background: 'var(--theme-bg-elevated, #F9FAFB)', border: '1px solid var(--theme-border, #E5E7EB)', borderRadius: 6, color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.85rem' };
+const th: React.CSSProperties = { textAlign: 'left', padding: '0.5rem 0.75rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #4B5563)' };
 const td: React.CSSProperties = { padding: '0.5rem 0.75rem', verticalAlign: 'top' };
-const btnApprove: React.CSSProperties = { marginRight: 8, padding: '0.3rem 0.6rem', background: '#059669', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };
-const btnDeny: React.CSSProperties = { padding: '0.3rem 0.6rem', background: '#FFF', color: 'var(--color-error)', border: '1px solid var(--color-error)', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };
+// `#059669` carries white at 3.77:1 on every theme including the light one — the same measured
+// miss as `.um-btn--success`. Emerald-700 is the step that clears it.
+const btnApprove: React.CSSProperties = { marginRight: 8, padding: '0.3rem 0.6rem', background: '#047857', color: '#FFF', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };
+const btnDeny: React.CSSProperties = { padding: '0.3rem 0.6rem', background: 'var(--theme-bg-surface, #FFF)', color: 'var(--color-error-text)', border: '1px solid var(--color-error-text)', borderRadius: 4, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 };

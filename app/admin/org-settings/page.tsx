@@ -91,13 +91,13 @@ export default function OrgSettingsPage() {
 
   if (error) {
     return (
-      <div style={{ maxWidth: 720, margin: '2rem auto', padding: '2rem', color: '#4B5563' }}>
+      <div style={{ maxWidth: 720, margin: '2rem auto', padding: '2rem', color: 'var(--theme-fg-secondary, #4B5563)' }}>
         {error}
       </div>
     );
   }
   if (!state || !state.org || !state.settings) {
-    return <div style={{ padding: '2rem', color: '#4B5563' }}>Loading…</div>;
+    return <div style={{ padding: '2rem', color: 'var(--theme-fg-secondary, #4B5563)' }}>Loading…</div>;
   }
 
   function update<K extends keyof OrgState['org']>(k: K, v: OrgState['org'][K]) {
@@ -110,7 +110,7 @@ export default function OrgSettingsPage() {
   return (
     <div style={{ maxWidth: 720, padding: '1.5rem' }}>
       <h1 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.6rem', margin: '0 0 0.5rem' }}>Org settings</h1>
-      <p style={{ color: '#4B5563', margin: '0 0 1.5rem' }}>
+      <p style={{ color: 'var(--theme-fg-secondary, #4B5563)', margin: '0 0 1.5rem' }}>
         Configure how your organization works inside Starr Software. Changes apply to every member.
       </p>
 
@@ -213,7 +213,7 @@ export default function OrgSettingsPage() {
 function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
   return (
     <label htmlFor={id} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-      <span style={{ fontSize: '0.78rem', color: '#4B5563', fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #4B5563)', fontWeight: 600 }}>{label}</span>
       {children}
     </label>
   );
@@ -224,7 +224,7 @@ const inputStyle: React.CSSProperties = {
   background: '#FFFFFF',
   border: '1px solid #D1D5DB',
   borderRadius: 6,
-  color: '#0F1419',
+  color: 'var(--theme-fg-primary, #0F1419)',
   fontSize: '0.88rem',
   fontFamily: 'inherit',
 };
@@ -252,7 +252,7 @@ const fieldGrid: React.CSSProperties = {
 const primaryBtnStyle: React.CSSProperties = {
   padding: '0.6rem 1.2rem',
   background: '#FCD34D',
-  color: '#0F1419',
+  color: 'var(--theme-fg-primary, #0F1419)',
   border: 0,
   borderRadius: 6,
   fontWeight: 600,

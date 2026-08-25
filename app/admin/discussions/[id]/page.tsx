@@ -130,7 +130,7 @@ export default function ThreadDetailPage() {
           >
             {thread.escalation_level.toUpperCase()}
           </span>
-          <span className="thread-detail__badge" style={{ background: '#E5E7EB', color: '#374151' }}>
+          <span className="thread-detail__badge" style={{ background: '#E5E7EB', color: 'var(--theme-fg-secondary, #374151)' }}>
             {TYPE_LABELS[thread.thread_type] || thread.thread_type}
           </span>
           <span className="thread-detail__badge" style={{ background: '#EFF6FF', color: 'var(--color-brand-navy)' }}>
@@ -196,7 +196,7 @@ export default function ThreadDetailPage() {
         <h3 className="thread-detail__messages-title">Discussion ({messages.length})</h3>
 
         {messages.length === 0 ? (
-          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#9CA3AF', textAlign: 'center', padding: '1rem' }}>
+          <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--theme-fg-muted, #9CA3AF)', textAlign: 'center', padding: '1rem' }}>
             No messages yet. Start the discussion below.
           </p>
         ) : (

@@ -608,7 +608,7 @@ export default function VehiclesPage() {
                             {CONDITION_META[v.condition]?.label ?? v.condition}
                           </span>
                         ) : (
-                          <span style={{ color: '#9CA3AF' }}>Not logged</span>
+                          <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)' }}>Not logged</span>
                         )}
                       </dd>
                     </div>
@@ -886,14 +886,14 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     maxWidth: 720,
     lineHeight: 1.5,
   },
   primaryBtn: {
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -921,7 +921,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 8,
     alignItems: 'center',
     fontSize: 13,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     whiteSpace: 'nowrap',
     cursor: 'pointer',
   },
@@ -937,7 +937,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     background: '#F7F8FA',
     borderRadius: 8,
   },
@@ -969,7 +969,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -988,7 +988,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   hint: {
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   formActions: {
     display: 'flex',
@@ -1028,7 +1028,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
   },
   statusPill: {
     position: 'absolute',
@@ -1063,7 +1063,7 @@ const styles: Record<string, React.CSSProperties> = {
   cardSubtitle: {
     margin: 0,
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   metaList: {
     margin: 0,
@@ -1080,16 +1080,16 @@ const styles: Record<string, React.CSSProperties> = {
   },
   metaKey: {
     margin: 0,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 500,
   },
   metaVal: {
     margin: 0,
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
   },
   metaValMono: {
     margin: 0,
-    color: '#1F2937',
+    color: 'var(--theme-fg-primary, #1F2937)',
     fontFamily: 'SF Mono, Menlo, monospace',
     fontSize: 11,
   },
@@ -1176,7 +1176,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     borderRadius: 9999,
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     cursor: 'pointer',
     fontSize: 13,
     fontWeight: 600,
@@ -1195,7 +1195,7 @@ const styles: Record<string, React.CSSProperties> = {
   galleryEmpty: {
     margin: 0,
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   galleryGrid: {
     display: 'grid',
@@ -1280,7 +1280,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 4,
     fontSize: 13,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     marginBottom: 10,
   },
   condLabel: { fontWeight: 500 },

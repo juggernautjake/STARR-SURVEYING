@@ -253,7 +253,7 @@ export default function ElementDetailPanel({
                   value={element.style.opacity}
                   onChange={e => onStyleChange(element.id, { opacity: Number(e.target.value) })}
                 />
-                <span style={{ fontSize: '0.72rem', color: '#6B7280' }}>{element.style.opacity}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>{element.style.opacity}</span>
               </div>
 
               {/* Font controls for label elements */}

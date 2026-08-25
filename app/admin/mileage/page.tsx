@@ -334,7 +334,7 @@ export default function MileagePage() {
                               style={{
                                 ...styles.td,
                                 paddingLeft: 36,
-                                color: '#6B7280',
+                                color: 'var(--theme-fg-secondary, #6B7280)',
                                 fontSize: 12,
                               }}
                             >
@@ -362,7 +362,7 @@ export default function MileagePage() {
                                   style={{
                                     marginLeft: 6,
                                     background: '#F3F4F6',
-                                    color: '#6B7280',
+                                    color: 'var(--theme-fg-secondary, #6B7280)',
                                     fontSize: 10,
                                     fontWeight: 600,
                                     padding: '1px 6px',
@@ -380,7 +380,7 @@ export default function MileagePage() {
                               style={{
                                 ...styles.tdRight,
                                 fontSize: 12,
-                                color: '#4B5563',
+                                color: 'var(--theme-fg-secondary, #4B5563)',
                               }}
                             >
                               {v.miles.toFixed(2)}
@@ -389,7 +389,7 @@ export default function MileagePage() {
                               style={{
                                 ...styles.tdRight,
                                 fontSize: 12,
-                                color: '#9CA3AF',
+                                color: 'var(--theme-fg-muted, #9CA3AF)',
                               }}
                             >
                               {v.ping_count}
@@ -427,7 +427,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     maxWidth: 720,
     lineHeight: 1.5,
@@ -447,7 +447,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -480,7 +480,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 40,
     boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '0 14px',
@@ -500,7 +500,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   summaryRow: {
     display: 'flex',
@@ -514,7 +514,7 @@ const styles: Record<string, React.CSSProperties> = {
   summaryLabel: {
     fontSize: 12,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -524,7 +524,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summarySub: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   userBlock: {
     marginBottom: 24,
@@ -558,14 +558,14 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '8px 16px',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 500,
     borderBottom: '1px solid #F3F4F6',
   },
   thRight: {
     textAlign: 'right',
     padding: '8px 16px',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 500,
     borderBottom: '1px solid #F3F4F6',
   },

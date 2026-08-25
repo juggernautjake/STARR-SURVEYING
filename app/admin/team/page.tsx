@@ -424,7 +424,7 @@ function TeamCard({ member, pinging, onPing }: TeamCardProps) {
                   : ' · — unread'}
               </>
             ) : (
-              <span style={{ color: '#6B7280' }}>none in last 24 h</span>
+              <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>none in last 24 h</span>
             )}
           </dd>
         </div>
@@ -493,7 +493,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     maxWidth: 720,
     lineHeight: 1.5,
@@ -519,12 +519,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '6px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   tabActive: {
     background: 'var(--color-brand-navy)',
     borderColor: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
   },
   error: {
     background: '#FEF2F2',
@@ -556,7 +556,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   grid: {
     display: 'grid',
@@ -586,7 +586,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardEmail: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
   },
   statusBadge: {
@@ -610,7 +610,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px dashed #F3F4F6',
   },
   dt: {
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
   },
   dd: {
@@ -625,7 +625,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pingBtn: {
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',

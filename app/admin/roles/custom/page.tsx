@@ -38,7 +38,7 @@ export default async function CustomRolesPage() {
         <h1 style={{ margin: 0, fontFamily: 'Sora,sans-serif', fontSize: '1.5rem', fontWeight: 700 }}>
           Role builder
         </h1>
-        <p style={{ color: '#6B7280', margin: '0.25rem 0 0' }}>
+        <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', margin: '0.25rem 0 0' }}>
           Define new roles on top of the built-in role list. Holders carry the role key in their
           <code style={{ marginLeft: 4 }}>registered_users.roles[]</code> array.
         </p>

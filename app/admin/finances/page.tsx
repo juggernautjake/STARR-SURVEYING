@@ -758,7 +758,7 @@ const styles: Record<string, React.CSSProperties> = {
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     maxWidth: 720,
     lineHeight: 1.5,
@@ -774,7 +774,7 @@ const styles: Record<string, React.CSSProperties> = {
   fieldLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     lineHeight: 1.4,
@@ -808,7 +808,7 @@ const styles: Record<string, React.CSSProperties> = {
     height: 40, // W6f — shared toolbar height, raised from 38 to clear the 40px tap floor
     boxSizing: 'border-box',
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '0 14px',
@@ -849,7 +849,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   // Status-segmented stat cards — visually distinct so the bookkeeper
   // sees the anti-double-counting story at a glance.
@@ -891,7 +891,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignSelf: 'flex-start',
     fontSize: 10,
     fontWeight: 700,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     background: '#E5E7EB',
@@ -916,7 +916,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   statSub: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   statFooter: {
     marginTop: 4,
@@ -926,7 +926,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 2,
     fontSize: 12,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   // Section blocks — Schedule C table and (later) mileage / vendors.
   section: {
@@ -947,7 +947,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionSub: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
   },
   table: {
@@ -958,14 +958,14 @@ const styles: Record<string, React.CSSProperties> = {
   th: {
     textAlign: 'left',
     padding: '8px 16px',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 500,
     borderBottom: '1px solid #F3F4F6',
   },
   thRight: {
     textAlign: 'right',
     padding: '8px 16px',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 500,
     borderBottom: '1px solid #F3F4F6',
   },
@@ -984,7 +984,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tdEmpty: {
     padding: '12px 16px',
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     fontStyle: 'italic',
     textAlign: 'center',
   },
@@ -995,13 +995,13 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: '1px solid #F3F4F6',
     fontSize: 12,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     marginTop: 24,
     fontStyle: 'italic',
   },

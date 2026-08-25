@@ -203,7 +203,7 @@ function Inner({ children }: { children: React.ReactNode }) {
 
   if (status === 'loading') return (
     <div className="admin-layout" style={{ alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ textAlign: 'center', color: '#6B7280' }}>
+      <div style={{ textAlign: 'center', color: 'var(--theme-fg-secondary, #6B7280)' }}>
         <div style={{ fontSize: '2rem', marginBottom: '.5rem' }}>⏳</div>
         <p style={{ fontFamily: 'Inter,sans-serif', fontSize: '.9rem' }}>Loading...</p>
       </div>

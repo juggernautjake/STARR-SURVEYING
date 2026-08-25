@@ -225,7 +225,7 @@ export default function BalanceCard({ email, isAdmin, isSelf }: BalanceCardProps
             <div className="payroll-balance__empty">No transactions yet</div>
           ) : (
             transactions.map(tx => {
-              const typeInfo = TRANSACTION_TYPES[tx.transaction_type] || { label: tx.transaction_type, icon: '📝', color: '#6B7280' };
+              const typeInfo = TRANSACTION_TYPES[tx.transaction_type] || { label: tx.transaction_type, icon: '📝', color: 'var(--theme-fg-secondary, #6B7280)' };
               return (
                 <div key={tx.id} className="payroll-balance__tx-item">
                   <div className="payroll-balance__tx-icon" style={{ color: typeInfo.color }}>{typeInfo.icon}</div>
@@ -251,7 +251,7 @@ export default function BalanceCard({ email, isAdmin, isSelf }: BalanceCardProps
             <div className="payroll-balance__empty">No withdrawal requests</div>
           ) : (
             withdrawals.map(wd => {
-              const statusInfo = WITHDRAWAL_STATUSES[wd.status] || { label: wd.status, color: '#6B7280' };
+              const statusInfo = WITHDRAWAL_STATUSES[wd.status] || { label: wd.status, color: 'var(--theme-fg-secondary, #6B7280)' };
               return (
                 <div key={wd.id} className="payroll-balance__wd-item">
                   <div className="payroll-balance__wd-info">

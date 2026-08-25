@@ -85,7 +85,7 @@ function FieldCard({ title, children }: { title: string; children: React.ReactNo
         fontWeight: 700,
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
-        color: '#6b7280',
+        color: 'var(--theme-fg-secondary, #6b7280)',
         marginBottom: 12,
         margin: '0 0 12px 0',
       }}>
@@ -108,7 +108,7 @@ function BigNumber({ value, label, color }: { value: string; label: string; colo
       }}>
         {value}
       </div>
-      <div style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>{label}</div>
+      <div style={{ fontSize: 14, color: 'var(--theme-fg-secondary, #6b7280)', marginTop: 4 }}>{label}</div>
     </div>
   );
 }
@@ -188,7 +188,7 @@ export default function FieldReportPage() {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', padding: '0 16px' }}>
         <div style={{ textAlign: 'center' }}>
-          <p style={{ color: '#6b7280', fontSize: 15 }}>{error ?? 'Report not found.'}</p>
+          <p style={{ color: 'var(--theme-fg-secondary, #6b7280)', fontSize: 15 }}>{error ?? 'Report not found.'}</p>
           {projectId && (
             <Link href={`/admin/research/${projectId}`} style={{ color: '#2563eb', fontSize: 14, marginTop: 12, display: 'block' }}>
               ← Back to project
@@ -251,11 +251,11 @@ export default function FieldReportPage() {
 
         {/* Property info */}
         <FieldCard title="Property">
-          <p style={{ fontSize: 18, fontWeight: 700, color: '#111827', margin: '0 0 4px 0', wordBreak: 'break-word' }}>
+          <p style={{ fontSize: 18, fontWeight: 700, color: 'var(--theme-fg-primary, #111827)', margin: '0 0 4px 0', wordBreak: 'break-word' }}>
             {project.property_address ?? '—'}
           </p>
           {(project.county || project.state) && (
-            <p style={{ fontSize: 15, color: '#6b7280', margin: '0 0 8px 0' }}>
+            <p style={{ fontSize: 15, color: 'var(--theme-fg-secondary, #6b7280)', margin: '0 0 8px 0' }}>
               {[project.county, project.state].filter(Boolean).join(', ')}
             </p>
           )}
@@ -292,14 +292,14 @@ export default function FieldReportPage() {
         {callCount > 0 && (
           <FieldCard title={`Boundary Calls (${callCount} total)`}>
             {calls.length === 0 ? (
-              <p style={{ fontSize: 15, color: '#6b7280' }}>{callCount} calls on record</p>
+              <p style={{ fontSize: 15, color: 'var(--theme-fg-secondary, #6b7280)' }}>{callCount} calls on record</p>
             ) : (
               <>
                 <ol style={{ margin: 0, padding: '0 0 0 20px' }}>
                   {visibleCalls.map((call, i) => (
                     <li key={i} style={{
                       fontSize: 15,
-                      color: '#111827',
+                      color: 'var(--theme-fg-primary, #111827)',
                       padding: '6px 0',
                       borderBottom: i < visibleCalls.length - 1 ? '1px solid #f3f4f6' : 'none',
                       fontFamily: 'monospace',
@@ -377,7 +377,7 @@ export default function FieldReportPage() {
         {discCount > 0 && (
           <FieldCard title={`Discrepancies (${discCount})`}>
             {discrepancies.length === 0 ? (
-              <p style={{ fontSize: 15, color: '#6b7280' }}>{discCount} discrepancies on record</p>
+              <p style={{ fontSize: 15, color: 'var(--theme-fg-secondary, #6b7280)' }}>{discCount} discrepancies on record</p>
             ) : (
               <div>
                 {discrepancies.map((d, i) => (
@@ -391,11 +391,11 @@ export default function FieldReportPage() {
                         <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>✓ Resolved</span>
                       )}
                       {d.field && (
-                        <span style={{ fontSize: 13, color: '#6b7280' }}>{d.field}</span>
+                        <span style={{ fontSize: 13, color: 'var(--theme-fg-secondary, #6b7280)' }}>{d.field}</span>
                       )}
                     </div>
                     {d.description && (
-                      <p style={{ fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.5 }}>
+                      <p style={{ fontSize: 14, color: 'var(--theme-fg-secondary, #374151)', margin: 0, lineHeight: 1.5 }}>
                         {d.description}
                       </p>
                     )}
@@ -409,7 +409,7 @@ export default function FieldReportPage() {
         {/* Legal description */}
         {project.legal_description && (
           <FieldCard title="Legal Description">
-            <p style={{ fontSize: 14, color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0, wordBreak: 'break-word' }}>
+            <p style={{ fontSize: 14, color: 'var(--theme-fg-secondary, #374151)', whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0, wordBreak: 'break-word' }}>
               {project.legal_description}
             </p>
           </FieldCard>

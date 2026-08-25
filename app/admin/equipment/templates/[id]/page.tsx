@@ -1473,7 +1473,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     borderRadius: '0 0 12px 12px',
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  label: { fontSize: 12, fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' },
   input: {
     padding: '8px 10px',
     border: '1px solid #E2E5EB',
@@ -1489,7 +1489,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
     gap: 6,
   },
-  legend: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  legend: { fontSize: 12, fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' },
   radioRow: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -1543,7 +1543,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
   dangerBtn: {
     background: '#B91C1C',
@@ -1558,7 +1558,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
   warningCopy: {
     margin: 0,
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     lineHeight: 1.5,
   },
   summaryCard: {
@@ -1585,7 +1585,7 @@ const modalStyles: Record<string, React.CSSProperties> = {
     letterSpacing: '0.04em',
   },
   summaryValue: {
-    color: '#111827',
+    color: 'var(--theme-fg-primary, #111827)',
     wordBreak: 'break-word' as const,
   },
 };
@@ -1806,7 +1806,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 16,
   },
   field: { display: 'flex', flexDirection: 'column', gap: 4 },
-  formLabel: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  formLabel: { fontSize: 12, fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' },
   modalHint: {
     fontSize: 11,
     color: 'var(--color-text-tertiary)',

@@ -144,7 +144,7 @@ export default function ExportPanel({
             {isOpeningInCAD ? '⏳ Opening in CAD Editor…' : '✏️ Open in CAD Editor'}
           </button>
         </Tooltip>
-        <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: '0 0 0.25rem' }}>
+        <p style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: '0 0 0.25rem' }}>
           Loads the survey drawing into STARR CAD where you can edit features, add annotations,
           adjust styles, and produce a final deliverable.
         </p>

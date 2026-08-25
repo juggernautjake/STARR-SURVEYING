@@ -675,12 +675,12 @@ function assignmentStateBadgeStyle(state: string): React.CSSProperties {
     declined: { background: '#FEE2E2', color: '#7F1D1D' },
     cancelled: {
       background: '#FFFFFF',
-      color: '#9CA3AF',
+      color: 'var(--theme-fg-muted, #9CA3AF)',
       border: '1px dashed #D1D5DB',
     },
   };
   return {
-    ...(map[state] ?? { background: '#F3F4F6', color: '#374151' }),
+    ...(map[state] ?? { background: '#F3F4F6', color: 'var(--theme-fg-secondary, #374151)' }),
     padding: '2px 8px',
     borderRadius: 4,
     fontSize: 11,
@@ -724,19 +724,19 @@ const drawerStyles: Record<string, React.CSSProperties> = {
   title: { fontSize: 18, fontWeight: 600, margin: '0 0 4px' },
   subtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
     display: 'flex',
     gap: 6,
     alignItems: 'center',
     flexWrap: 'wrap' as const,
   },
-  muted: { color: '#6B7280' },
+  muted: { color: 'var(--theme-fg-secondary, #6B7280)' },
   close: {
     background: 'transparent',
     border: 'none',
     fontSize: 18,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     cursor: 'pointer',
     padding: 4,
     lineHeight: 1,
@@ -752,14 +752,14 @@ const drawerStyles: Record<string, React.CSSProperties> = {
   loading: {
     padding: 24,
     textAlign: 'center' as const,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontSize: 13,
   },
   section: { display: 'flex', flexDirection: 'column', gap: 8 },
   sectionTitle: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
     margin: 0,
@@ -783,11 +783,11 @@ const drawerStyles: Record<string, React.CSSProperties> = {
   rowLabel: {
     fontSize: 10,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.04em',
   },
-  rowValue: { color: '#111827', wordBreak: 'break-word' as const },
+  rowValue: { color: 'var(--theme-fg-primary, #111827)', wordBreak: 'break-word' as const },
   link: { color: 'var(--color-brand-navy)', textDecoration: 'none' },
   leadBadge: {
     background: '#DBEAFE',
@@ -1090,7 +1090,7 @@ const createStyles: Record<string, React.CSSProperties> = {
     background: 'transparent',
     border: 'none',
     fontSize: 18,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     cursor: 'pointer',
     padding: 4,
     lineHeight: 1,
@@ -1101,7 +1101,7 @@ const createStyles: Record<string, React.CSSProperties> = {
     flexDirection: 'column' as const,
     gap: 14,
   },
-  copy: { margin: 0, fontSize: 13, color: '#374151', lineHeight: 1.5 },
+  copy: { margin: 0, fontSize: 13, color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.5 },
   code: {
     fontFamily: 'Menlo, monospace',
     fontSize: 11,
@@ -1111,7 +1111,7 @@ const createStyles: Record<string, React.CSSProperties> = {
     margin: '0 2px',
   },
   field: { display: 'flex', flexDirection: 'column' as const, gap: 4 },
-  label: { fontSize: 12, fontWeight: 600, color: '#374151' },
+  label: { fontSize: 12, fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' },
   input: {
     padding: '8px 10px',
     border: '1px solid #E2E5EB',
@@ -1125,7 +1125,7 @@ const createStyles: Record<string, React.CSSProperties> = {
     gap: 8,
     fontSize: 13,
   },
-  hint: { fontSize: 11, color: '#6B7280', fontStyle: 'italic' as const },
+  hint: { fontSize: 11, color: 'var(--theme-fg-secondary, #6B7280)', fontStyle: 'italic' as const },
   error: {
     background: '#FEF2F2',
     border: '1px solid #FCA5A5',
@@ -1145,7 +1145,7 @@ const createStyles: Record<string, React.CSSProperties> = {
   },
   saveBtn: {
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 16px',
@@ -1160,7 +1160,7 @@ const createStyles: Record<string, React.CSSProperties> = {
     padding: '8px 14px',
     cursor: 'pointer',
     fontSize: 13,
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
   },
 };
 
@@ -1181,7 +1181,7 @@ const CELL_STATE_STYLES: Record<CellState, React.CSSProperties> = {
   proposed: { background: '#DCFCE7', color: '#166534' },
   confirmed: { background: '#15803D', color: '#FFFFFF' },
   split_shift: { background: '#FEF3C7', color: '#78350F' },
-  unavailable: { background: '#E5E7EB', color: '#374151' },
+  unavailable: { background: '#E5E7EB', color: 'var(--theme-fg-secondary, #374151)' },
   unconfirmed_overdue: { background: '#FEE2E2', color: '#7F1D1D' },
 };
 
@@ -1195,7 +1195,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 16,
   },
   h1: { fontSize: 22, fontWeight: 600, margin: '0 0 4px' },
-  subtitle: { fontSize: 13, color: '#6B7280', margin: 0 },
+  subtitle: { fontSize: 13, color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 },
   headerControls: { display: 'flex', flexWrap: 'wrap' as const, gap: 8, alignItems: 'center' },
   /* admin-ui-alignment-2026-08-15 (A11) — nowrap. Squeezed into a phone-width row these
    * buttons wrapped their own labels instead, growing to 56 and 76px beside a 33px Refresh:
@@ -1215,7 +1215,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: 'none',
     borderRadius: 6,
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     fontSize: 13,
     cursor: 'pointer',
     fontWeight: 500,
@@ -1232,12 +1232,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     fontSize: 13,
   },
-  summaryStrong: { color: '#111827', fontWeight: 600 },
-  muted: { color: '#6B7280' },
+  summaryStrong: { color: 'var(--theme-fg-primary, #111827)', fontWeight: 600 },
+  muted: { color: 'var(--theme-fg-secondary, #6B7280)' },
   divider: { color: '#D1D5DB', margin: '0 4px' },
   legend: { display: 'flex', gap: 12, flexWrap: 'wrap' as const, fontSize: 12 },
   legendItem: { display: 'inline-flex', alignItems: 'center', gap: 4 },
-  legendCount: { color: '#9CA3AF', marginLeft: 2 },
+  legendCount: { color: 'var(--theme-fg-muted, #9CA3AF)', marginLeft: 2 },
   gridWrap: {
     background: '#FFFFFF',
     border: '1px solid #E2E5EB',
@@ -1260,7 +1260,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#F9FAFB',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 600,
     letterSpacing: '0.04em',
     textTransform: 'uppercase' as const,
@@ -1274,12 +1274,12 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#F9FAFB',
     borderBottom: '1px solid #E2E5EB',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontWeight: 600,
     minWidth: 80,
   },
   dayHeader: { display: 'flex', flexDirection: 'column', gap: 2 },
-  dayDate: { color: '#9CA3AF', fontWeight: 400, fontSize: 10 },
+  dayDate: { color: 'var(--theme-fg-muted, #9CA3AF)', fontWeight: 400, fontSize: 10 },
   tdUser: {
     padding: '8px 12px',
     borderBottom: '1px solid #F1F2F4',
@@ -1289,7 +1289,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 13,
     minWidth: 200,
   },
-  userEmail: { fontSize: 11, color: '#9CA3AF', marginTop: 2 },
+  userEmail: { fontSize: 11, color: 'var(--theme-fg-muted, #9CA3AF)', marginTop: 2 },
   cell: {
     textAlign: 'center' as const,
     borderBottom: '1px solid #F1F2F4',
@@ -1304,7 +1304,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center' as const,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     fontSize: 13,
     background: '#FFFFFF',
     border: '1px solid #E2E5EB',
@@ -1320,7 +1320,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   note: {
     fontSize: 12,
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     marginTop: 16,
     fontStyle: 'italic' as const,
     textAlign: 'center' as const,

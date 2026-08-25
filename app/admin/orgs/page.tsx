@@ -67,7 +67,7 @@ export default function OrgsPage() {
       <h1 style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.6rem', margin: '0 0 0.5rem' }}>
         Your organizations
       </h1>
-      <p style={{ color: '#4B5563', margin: '0 0 1.5rem' }}>
+      <p style={{ color: 'var(--theme-fg-secondary, #4B5563)', margin: '0 0 1.5rem' }}>
         Switch the active organization for your session. Only org-scoped data
         for the active org is visible.
       </p>
@@ -94,7 +94,7 @@ export default function OrgsPage() {
                 <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.05rem', fontWeight: 600 }}>
                   {m.orgName}
                 </div>
-                <div style={{ fontSize: '0.78rem', color: '#6B7280' }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>
                   {m.orgSlug ? <code style={{ fontFamily: 'JetBrains Mono,monospace' }}>{m.orgSlug}</code> : null}
                   {m.orgSlug ? ' · ' : ''}
                   {m.role}
@@ -105,7 +105,7 @@ export default function OrgsPage() {
                 <span style={{
                   padding: '0.25rem 0.7rem',
                   background: '#FCD34D',
-                  color: '#0F1419',
+                  color: 'var(--theme-fg-primary, #0F1419)',
                   borderRadius: 999,
                   fontSize: '0.72rem',
                   fontWeight: 700,
@@ -134,7 +134,7 @@ export default function OrgsPage() {
 const primaryBtnStyle: React.CSSProperties = {
   padding: '0.45rem 0.95rem',
   background: '#FCD34D',
-  color: '#0F1419',
+  color: 'var(--theme-fg-primary, #0F1419)',
   border: 0,
   borderRadius: 6,
   fontWeight: 600,
@@ -149,5 +149,5 @@ const emptyStyle: React.CSSProperties = {
   background: '#F9FAFB',
   border: '1px solid #E5E7EB',
   borderRadius: 12,
-  color: '#6B7280',
+  color: 'var(--theme-fg-secondary, #6B7280)',
 };

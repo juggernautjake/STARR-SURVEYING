@@ -404,8 +404,8 @@ export default function ProfilePanel() {
             />
           </label>
           <div>
-            <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.2rem', fontWeight: 700, color: '#0F1419' }}>{name}</div>
-            <div style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: '#6B7280' }}>{email}</div>
+            <div style={{ fontFamily: 'Sora,sans-serif', fontSize: '1.2rem', fontWeight: 700, color: 'var(--theme-fg-primary, #0F1419)' }}>{name}</div>
+            <div style={{ fontFamily: 'Inter,sans-serif', fontSize: '.85rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>{email}</div>
             {avatarError && (
               <div role="alert" data-testid="profile-avatar-error" style={{ fontSize: '0.75rem', color: 'var(--color-error)' }}>{avatarError}</div>
             )}
@@ -418,10 +418,10 @@ export default function ProfilePanel() {
         </div>
         {profile && (
           <div className="profile-page__stats" style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>HOURLY RATE</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{fmtCurrency(profile.hourly_rate)}/hr</span></div>
-            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>LEARNING CREDITS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{totalPoints}</span></div>
-            <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>CREDENTIALS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{certs.length}</span></div>
-            {profile.hire_date && <div><span style={{ fontSize: '0.75rem', color: '#9CA3AF', display: 'block' }}>HIRE DATE</span><span style={{ fontSize: '0.9rem', color: '#374151' }}>{fmtDate(profile.hire_date)}</span></div>}
+            <div><span style={{ fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)', display: 'block' }}>HOURLY RATE</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{fmtCurrency(profile.hourly_rate)}/hr</span></div>
+            <div><span style={{ fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)', display: 'block' }}>LEARNING CREDITS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{totalPoints}</span></div>
+            <div><span style={{ fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)', display: 'block' }}>CREDENTIALS</span><span style={{ fontFamily: 'monospace', fontSize: '1.1rem', fontWeight: 700, color: 'var(--color-brand-navy)' }}>{certs.length}</span></div>
+            {profile.hire_date && <div><span style={{ fontSize: '0.75rem', color: 'var(--theme-fg-muted, #9CA3AF)', display: 'block' }}>HIRE DATE</span><span style={{ fontSize: '0.9rem', color: 'var(--theme-fg-secondary, #374151)' }}>{fmtDate(profile.hire_date)}</span></div>}
           </div>
         )}
       </div>
@@ -515,7 +515,7 @@ export default function ProfilePanel() {
               </div>
               <div className="emp-manage__field" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '0.25rem' }}>
                 <label>About me</label>
-                <p data-testid="profile-personal-bio" style={{ margin: 0, whiteSpace: 'pre-wrap', color: '#374151' }}>
+                <p data-testid="profile-personal-bio" style={{ margin: 0, whiteSpace: 'pre-wrap', color: 'var(--theme-fg-secondary, #374151)' }}>
                   {profile?.bio?.trim() || 'Not set'}
                 </p>
               </div>
@@ -625,7 +625,7 @@ export default function ProfilePanel() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <strong>Contact methods</strong>
             {contactsLoading && (
-              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>Loading…</span>
             )}
           </div>
           {(['phone', 'email', 'address'] as const).map((kind) => {
@@ -640,7 +640,7 @@ export default function ProfilePanel() {
               >
                 <label>{label}</label>
                 {rows.length === 0 ? (
-                  <span style={{ color: '#6B7280' }}>None added.</span>
+                  <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>None added.</span>
                 ) : (
                   <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
                     {rows.map((c) => (
@@ -650,7 +650,7 @@ export default function ProfilePanel() {
                         style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}
                       >
                         <span style={{ whiteSpace: 'pre-wrap' }}>{c.value}</span>
-                        {c.label && <span style={{ color: '#6B7280' }}>· {c.label}</span>}
+                        {c.label && <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>· {c.label}</span>}
                         {c.is_primary && (
                           <span style={{ color: 'var(--color-brand-navy)', fontWeight: 600 }}>(primary)</span>
                         )}
@@ -761,7 +761,7 @@ export default function ProfilePanel() {
                 style={{ flex: '0 1 180px' }}
               />
             </div>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: '#374151' }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #374151)' }}>
               <input
                 type="checkbox"
                 checked={contactDraft.is_primary}
@@ -795,11 +795,11 @@ export default function ProfilePanel() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <strong>About-me gallery</strong>
             {imagesLoading && (
-              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>Loading…</span>
             )}
           </div>
           {images.length === 0 ? (
-            <p style={{ color: '#6B7280', margin: 0 }}>No images yet — pick a file below to add one.</p>
+            <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 }}>No images yet — pick a file below to add one.</p>
           ) : (
             <ul
               data-testid="profile-gallery-grid"
@@ -823,7 +823,7 @@ export default function ProfilePanel() {
                     style={{ display: 'block', width: '100%', aspectRatio: '1 / 1', objectFit: 'cover' }}
                   />
                   {img.caption && (
-                    <div style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: '#374151' }}>
+                    <div style={{ padding: '0.35rem 0.5rem', fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #374151)' }}>
                       {img.caption}
                     </div>
                   )}
@@ -903,7 +903,7 @@ export default function ProfilePanel() {
               </p>
             )}
             {imageUploading && (
-              <p style={{ fontSize: '0.78rem', color: '#6B7280', margin: 0 }}>Uploading…</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 }}>Uploading…</p>
             )}
           </div>
         </div>
@@ -916,11 +916,11 @@ export default function ProfilePanel() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <strong>Jobs I&apos;ve worked on</strong>
             {workedJobsLoading && (
-              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>Loading…</span>
             )}
           </div>
           {workedJobs.length === 0 ? (
-            <p style={{ color: '#6B7280', margin: 0 }}>You haven&apos;t been assigned to any jobs yet.</p>
+            <p style={{ color: 'var(--theme-fg-secondary, #6B7280)', margin: 0 }}>You haven&apos;t been assigned to any jobs yet.</p>
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
               {workedJobs.map((j) => (
@@ -943,7 +943,7 @@ export default function ProfilePanel() {
                       · Crew lead
                     </span>
                   )}
-                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', color: '#6B7280', fontSize: '0.78rem', marginTop: '0.15rem' }}>
+                  <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.78rem', marginTop: '0.15rem' }}>
                     {j.stage && <span>{j.stage}</span>}
                     {j.address && <span>· {j.address}</span>}
                     {j.assigned_from && (
@@ -966,7 +966,7 @@ export default function ProfilePanel() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <strong>Compensation</strong>
             {compensationLoading && (
-              <span style={{ fontSize: '0.78rem', color: '#6B7280' }}>Loading…</span>
+              <span style={{ fontSize: '0.78rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>Loading…</span>
             )}
           </div>
 
@@ -1013,7 +1013,7 @@ export default function ProfilePanel() {
                       : s.base_annual_salary_cents != null
                       ? `${fmtCents(s.base_annual_salary_cents)}/yr`
                       : '—'}
-                    {s.change_reason && <span style={{ color: '#6B7280' }}> · {s.change_reason}</span>}
+                    {s.change_reason && <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}> · {s.change_reason}</span>}
                   </li>
                 ))}
               </ul>
@@ -1027,13 +1027,13 @@ export default function ProfilePanel() {
           >
             <label>Bonuses</label>
             {compensation.bonuses.length === 0 ? (
-              <span style={{ color: '#6B7280' }}>None on file.</span>
+              <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>None on file.</span>
             ) : (
               <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
                 {compensation.bonuses.slice(0, 5).map((b) => (
                   <li key={b.id}>
                     {fmtDate(b.awarded_at)} — <strong>{fmtCents(b.amount_cents)}</strong>
-                    <span style={{ color: '#6B7280' }}> · {b.reason}</span>
+                    <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}> · {b.reason}</span>
                   </li>
                 ))}
               </ul>
@@ -1047,14 +1047,14 @@ export default function ProfilePanel() {
           >
             <label>Recent payouts</label>
             {compensation.payouts.length === 0 ? (
-              <span style={{ color: '#6B7280' }}>No payouts logged yet.</span>
+              <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}>No payouts logged yet.</span>
             ) : (
               <ul style={{ margin: 0, paddingLeft: '1rem', width: '100%' }}>
                 {compensation.payouts.slice(0, 4).map((p) => (
                   <li key={p.id}>
                     {fmtDate(p.paid_at)} — <strong>{fmtCents(p.net_cents)}</strong> net
-                    <span style={{ color: '#6B7280' }}> · gross {fmtCents(p.gross_cents)}</span>
-                    <span style={{ color: '#6B7280' }}> · {p.method}</span>
+                    <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}> · gross {fmtCents(p.gross_cents)}</span>
+                    <span style={{ color: 'var(--theme-fg-secondary, #6B7280)' }}> · {p.method}</span>
                   </li>
                 ))}
               </ul>
@@ -1092,7 +1092,7 @@ export default function ProfilePanel() {
       {/* Learning Credits */}
       {tab === 'credits' && (
         <div className="admin-card">
-          <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: '#374151' }}>
+          <div style={{ marginBottom: '0.75rem', fontSize: '0.9rem', color: 'var(--theme-fg-secondary, #374151)' }}>
             Total Learning Credits: <strong style={{ color: 'var(--color-brand-navy)' }}>{totalPoints}</strong>
           </div>
           {credits.length === 0 ? (

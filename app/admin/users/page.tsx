@@ -324,16 +324,16 @@ export default function UsersPage() {
           </p>
           <div style={{ display: 'flex', gap: '.5rem', flexWrap: 'wrap', marginBottom: '.75rem' }}>
             <div style={{ flex: 2, minWidth: '200px' }}>
-              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Email *</label>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>Email *</label>
               <input className="job-form__input" type="email" placeholder="user@example.com" value={addEmail} onChange={e => setAddEmail(e.target.value)} />
             </div>
             <div style={{ flex: 1, minWidth: '150px' }}>
-              <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151' }}>Display Name</label>
+              <label style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>Display Name</label>
               <input className="job-form__input" type="text" placeholder="Optional" value={addName} onChange={e => setAddName(e.target.value)} />
             </div>
           </div>
           <div style={{ marginBottom: '.75rem' }}>
-            <label style={{ fontSize: '.78rem', fontWeight: 600, color: '#374151', display: 'block', marginBottom: '.4rem' }}>Roles</label>
+            <label style={{ fontSize: '.78rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)', display: 'block', marginBottom: '.4rem' }}>Roles</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
               {ALL_ROLES.map(r => (
                 <label key={r} style={{ display: 'flex', alignItems: 'center', gap: '.3rem', fontSize: '.8rem', padding: '.25rem .5rem', borderRadius: '6px', border: `1px solid ${addRoles.includes(r) ? ROLE_COLORS[r] : '#D1D5DB'}`, background: addRoles.includes(r) ? ROLE_COLORS[r] + '12' : 'white', cursor: r === 'employee' ? 'not-allowed' : 'pointer', opacity: r === 'employee' ? 0.6 : 1 }}>
@@ -504,7 +504,7 @@ export default function UsersPage() {
                         </div>
                         {canEdit && !user.is_banned && user.is_approved && (
                           <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.8rem', fontWeight: 600, color: '#374151' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '.4rem', fontSize: '.8rem', fontWeight: 600, color: 'var(--theme-fg-secondary, #374151)' }}>
                               Tax class:
                               <select
                                 className="job-form__input"

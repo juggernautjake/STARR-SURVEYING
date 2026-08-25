@@ -302,7 +302,7 @@ function StateBadge({ state }: { state: string }) {
   const map: Record<string, React.CSSProperties> = {
     held: { background: '#DBEAFE', color: '#1E3A8A' },
     checked_out: { background: 'var(--color-brand-navy)', color: 'var(--color-text-on-brand)' },
-    returned: { background: '#E5E7EB', color: '#374151' },
+    returned: { background: '#E5E7EB', color: 'var(--theme-fg-secondary, #374151)' },
     cancelled: { background: 'var(--color-bg-subtle)', color: 'var(--color-text-muted)' },
     proposed: { background: '#DCFCE7', color: '#166534' },
     confirmed: { background: '#15803D', color: 'var(--color-text-on-brand)' },
@@ -401,7 +401,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0 10px',
     border: '1px solid #E2E5EB',
     background: 'var(--color-bg-card)',
-    color: '#374151',
+    color: 'var(--theme-fg-secondary, #374151)',
     borderRadius: 6,
     fontSize: 12,
     cursor: 'pointer',
@@ -418,7 +418,7 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: 12,
     fontSize: 13,
   },
-  summaryStrong: { color: '#111827', fontWeight: 600 },
+  summaryStrong: { color: 'var(--theme-fg-primary, #111827)', fontWeight: 600 },
   muted: { color: 'var(--color-text-muted)' },
   truncatedPill: {
     background: '#FEF3C7',

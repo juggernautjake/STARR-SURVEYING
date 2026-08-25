@@ -443,7 +443,7 @@ export default function JobFieldDataPage() {
                       <span>📝 {p.note_count}</span>
                     ) : null}
                     {p.media_count === 0 && p.note_count === 0 ? (
-                      <span style={{ color: '#9CA3AF' }}>
+                      <span style={{ color: 'var(--theme-fg-muted, #9CA3AF)' }}>
                         no attachments
                       </span>
                     ) : null}
@@ -665,16 +665,16 @@ const styles: Record<string, React.CSSProperties> = {
   h1Sub: {
     fontSize: 16,
     fontWeight: 500,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   subtitle: {
     fontSize: 13,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     margin: 0,
   },
   primaryBtn: {
     background: 'var(--color-brand-navy)',
-    color: '#FFFFFF',
+    color: 'var(--theme-accent-fg, #FFFFFF)',
     border: 'none',
     borderRadius: 8,
     padding: '8px 14px',
@@ -734,7 +734,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     fontSize: 13,
     borderRadius: 8,
   },
@@ -742,7 +742,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     fontSize: 11,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   uploaderLineDark: {
     fontSize: 11,
@@ -780,7 +780,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   noteMeta: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
   },
   noteBody: {
     fontSize: 14,
@@ -797,14 +797,14 @@ const styles: Record<string, React.CSSProperties> = {
   // colours it was written with.
   fileDesc: {
     fontSize: 12,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     margin: '0 0 8px',
   },
   fileMeta: {
     display: 'flex',
     gap: 12,
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     marginBottom: 6,
   },
   dlLink: {
@@ -846,7 +846,7 @@ const styles: Record<string, React.CSSProperties> = {
   statLabel: {
     fontSize: 11,
     fontWeight: 600,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -862,7 +862,7 @@ const styles: Record<string, React.CSSProperties> = {
   empty: {
     padding: 32,
     textAlign: 'center',
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     background: '#F7F8FA',
     borderRadius: 12,
   },
@@ -907,7 +907,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    color: '#9CA3AF',
+    color: 'var(--theme-fg-muted, #9CA3AF)',
     fontSize: 28,
   },
   mediaBadge: {
@@ -947,19 +947,19 @@ const styles: Record<string, React.CSSProperties> = {
   },
   cardMeta: {
     fontSize: 12,
-    color: '#6B7280',
+    color: 'var(--theme-fg-secondary, #6B7280)',
     marginBottom: 4,
   },
   cardCounts: {
     display: 'flex',
     gap: 12,
     fontSize: 12,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     marginBottom: 6,
   },
   cardDesc: {
     fontSize: 12,
-    color: '#4B5563',
+    color: 'var(--theme-fg-secondary, #4B5563)',
     overflow: 'hidden',
     display: '-webkit-box',
     WebkitLineClamp: 2,

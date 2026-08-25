@@ -248,7 +248,7 @@ export default function RepliesList({ leadId, refreshKey }: RepliesListProps) {
                             <>
                               <span aria-hidden style={{ fontSize: '1.1rem' }}>📎</span>
                               <span>{a.name}</span>
-                              <span style={{ color: '#6B7280', fontSize: '0.72rem' }}>
+                              <span style={{ color: 'var(--theme-fg-secondary, #6B7280)', fontSize: '0.72rem' }}>
                                 {fmtBytes(a.size)}
                               </span>
                             </>

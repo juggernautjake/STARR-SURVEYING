@@ -23,6 +23,9 @@ interface TimeLog {
   description: string;
   notes: string | null;
   job_name: string | null;
+  /** The job this day was worked on, when there is one. Read by the duplicate check: two crews on
+   *  two jobs for the same four hours is not one entry submitted twice. */
+  job_id: string | null;
   status: string;
   rejection_reason: string | null;
   adjustment_note: string | null;
@@ -203,6 +206,20 @@ export default function HoursApprovalPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set<string>());
 
+  // ── EVERYTHING AWAITING A DECISION, NOT JUST THIS WEEK'S ─────────────────────────────────────
+  //
+  // This page opens on the CURRENT week. On 2026-08-24 that week was empty and the page said "No
+  // time logs for this period" — while four entries sat awaiting review in the weeks before it,
+  // including somebody's whole Monday. An approver who opens the queue and is told there is
+  // nothing here closes it, and the hours stay unpaid.
+  //
+  // "Is anything waiting?" is not a question about the week on screen, so it is not asked with the
+  // week's filters. One unfiltered read of what is still pending or disputed, kept beside the
+  // week's data rather than mixed into it, so the week's own totals cannot drift.
+  const [outstanding, setOutstanding] = useState<{ count: number; oldest: string | null; people: number }>(
+    { count: 0, oldest: null, people: 0 },
+  );
+
   // ── THE NOTIFICATION HAS TO LAND SOMEWHERE USEFUL (owner request, 2026-08-05) ─────────────
   //
   // *"…will get a notification where they can be linked to see the submitted hours and address
@@ -375,6 +392,23 @@ export default function HoursApprovalPage() {
           setStaff((body.employees ?? []) as Array<{ email: string; name: string | null }>);
         }
       } catch { /* the picker is empty; the rest of the page is unaffected */ }
+
+      // Unfiltered by date and by person, deliberately: this is the number that tells an approver
+      // the queue is not empty even when the week they happen to be looking at is.
+      try {
+        const outRes = await fetch('/api/admin/time-logs?status=pending,disputed');
+        if (outRes.ok) {
+          const rows = ((await outRes.json()).logs ?? []) as TimeLog[];
+          const dates = rows.map((l) => l.log_date).filter(Boolean).sort();
+          setOutstanding({
+            count: rows.length,
+            oldest: dates[0] ?? null,
+            people: new Set(rows.map((l) => l.user_email)).size,
+          });
+        }
+      } catch {
+        // The banner simply does not render. It must never be the reason the page fails to load.
+      }
 
       if (advRes.ok) {
         const data = await advRes.json();
@@ -572,6 +606,41 @@ export default function HoursApprovalPage() {
 
   const bulkApprove = async () => {
     if (selected.size === 0) return;
+
+    // ── DO NOT LET TWO CLICKS APPROVE A DAY TWICE ────────────────────────────────────
+    //
+    // "Select All Pending" then "Approve Selected" is two clicks, and that is the point — a week
+    // of ordinary hours should not take twenty. But on 2026-08-24 the queue held two identical
+    // 7.56-hour rows for one Monday, and those same two clicks would have paid both of them.
+    //
+    // The flag was already on screen. This is the difference between showing somebody a warning
+    // and making sure they read it: bulk approve is the one action that can act on a duplicate
+    // without anybody ever looking at the entry itself.
+    //
+    // Named rather than counted. "2 possible duplicates" is a number to click past; the date and
+    // the description are what let the approver decide inside the dialog.
+    const chosen = logs.filter((l) => selected.has(l.id));
+    const groups = new Map<string, number>();
+    for (const l of chosen) {
+      const key = [l.user_email, l.log_date, effectiveHours(l), (l.description ?? '').trim(), l.job_id ?? ''].join('|');
+      groups.set(key, (groups.get(key) ?? 0) + 1);
+    }
+    const repeated = [...groups.entries()].filter(([, n]) => n > 1);
+    if (repeated.length > 0) {
+      const lines = repeated.map(([key, n]) => {
+        const [email, date, hours, description] = key.split('|');
+        return `  • ${email} — ${date}, ${hours}h "${description.slice(0, 50)}" ×${n}`;
+      });
+      const ok = confirm([
+        'You are about to approve entries that look like the same day submitted more than once:',
+        '',
+        ...lines,
+        '',
+        'Approving all of them pays those hours more than once. Cancel to reject the extra copies first.',
+      ].join('\n'));
+      if (!ok) return;
+    }
+
     try {
       const res = await fetch('/api/admin/time-logs/approve', {
         method: 'POST',
@@ -839,6 +908,46 @@ export default function HoursApprovalPage() {
 
   return (
     <div className="tl-page">
+      {/* ── WHAT IS WAITING, WHEREVER IT IS ────────────────────────────────────────────────────
+
+          This page opens on the current week. On 2026-08-24 that week was empty, so it said "No
+          time logs for this period" — and four entries were awaiting review in the weeks before
+          it, one of them a whole day. An empty queue and an unwatched one look identical, and
+          only one of them means somebody is not getting paid.
+
+          Shown only when the week on screen does NOT already account for everything outstanding,
+          so an approver working a normal week never sees it. One click widens the range to
+          everything, which is where the work is. */}
+      {!loading && outstanding.count > pendingCount && (
+        <div className="tl-outstanding" role="status">
+          <span className="tl-outstanding__icon" aria-hidden="true">&#128276;</span>
+          <span className="tl-outstanding__text">
+            <strong>
+              {outstanding.count} {outstanding.count === 1 ? 'entry is' : 'entries are'} waiting for your decision
+            </strong>
+            {' '}across {outstanding.people} {outstanding.people === 1 ? 'person' : 'people'}
+            {outstanding.oldest && <> &mdash; the oldest is from <strong>{formatDate(outstanding.oldest)}</strong></>}
+            {pendingCount === 0
+              ? <>. None of them are in the period you are looking at.</>
+              : <>, and {outstanding.count - pendingCount} of them {outstanding.count - pendingCount === 1 ? 'is' : 'are'} outside it.</>}
+          </span>
+          <button
+            type="button"
+            className="tl-btn tl-btn--sm tl-btn--primary"
+            onClick={() => {
+              // The oldest outstanding entry is the one that has been waiting longest, so that is
+              // the week to open on. Widening to "all" as well, because a second person's entry in
+              // a different week would otherwise be the next thing to go unnoticed.
+              if (outstanding.oldest) setWeekStart(getMonday(new Date(`${outstanding.oldest}T00:00:00`)).toISOString().split('T')[0]);
+              setRange('all');
+              setFilterStatus('pending,disputed');
+            }}
+          >
+            Show me
+          </button>
+        </div>
+      )}
+
       {/* Week navigation. The arrows step the week even when a wider range is showing, because the
           week is still what gets locked and paid — widening changes what you can SEE, not the
           period you are working. */}
