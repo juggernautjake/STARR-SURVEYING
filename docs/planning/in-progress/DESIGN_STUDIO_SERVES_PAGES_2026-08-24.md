@@ -445,6 +445,28 @@ mechanism behind "active" instead of being a label.
       hold three rows each claiming to be the record — which is the same as holding none, because
       nothing could say which was true. The cascade decides which composition APPLIES to a viewer;
       it does not decide what the page is.
+      **And the columns are wired, in the same slice, deliberately.** Seed 618 on its own is three
+      columns, three constraints, a resolver and 22 tests — with **no way to create a single
+      composition**, because `saveMockup` did not write any of them. That is this repo's most common
+      defect: authored, complete, reachable from nowhere. `theme` and `notes` sat in exactly that
+      position for weeks, edited in the UI and discarded on every save, until seed 614 went looking.
+      So `kind`, `scope` and `scope_key` are in `SUMMARY_COLS`, in `toDocument`, in `summarise`, and
+      in the row `saveMockup` writes.
+
+      Two decisions in that wiring worth keeping:
+
+      · **A clone keeps the kind and drops the audience.** A clone of a composition must be a
+        composition — clone-to-edit is the flow for changing one, and a clone that came out a
+        `trace` would be a drawing of a widget layout. But inheriting `scope: 'user'` would quietly
+        make somebody else's personal layout the starting point for a change meant for everyone.
+        The firm is the one scope that cannot be a surprise: it is what a page with no composition
+        already effectively has.
+      · **The refusals are in words.** The check constraints are the real guarantee and they stay,
+        but a violation arrives as `violates check constraint "design_mockups_scope_key_check"`,
+        reaches the person as a 500, and sends them looking for a broken database instead of picking
+        a role. `saveMockup` says *"Which role is this version for? A role version with no role
+        reaches nobody."* — checked there because every write goes through it and only one of them
+        is an HTTP request.
 - [ ] **W2 — the studio can place widgets**, reading `lib/hub/widget-registry` — the palette, the
       grid, `minSize`/`maxSize`, `allowedRoles` shown on each.
 - [ ] **W3 — a composition can be previewed live** at `/admin/design/serve`, rendering real widgets

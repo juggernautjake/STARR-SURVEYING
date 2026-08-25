@@ -25,12 +25,14 @@
 // pinned to specific examples rather than described in a comment and hoped for.
 
 import type { UserRole } from '@/lib/auth-roles';
+import type { CompositionScope, DesignKind } from './document';
 
-/** Who a composition is for. Ordered here most-specific-first; the resolver relies on that order. */
-export const SCOPES = ['user', 'role', 'firm'] as const;
-export type CompositionScope = (typeof SCOPES)[number];
+// The vocabulary lives in `document.ts` — the module everything imports, kept dependency-free so
+// nothing can cycle through it. This file owns the RULES about those values, not the values.
+export type { CompositionScope, DesignKind };
 
-export type DesignKind = 'trace' | 'composition';
+/** Every scope, most-specific-first. This order IS the cascade, written down once. */
+export const SCOPES: readonly CompositionScope[] = ['user', 'role', 'firm'];
 
 export interface CompositionRow {
   id: string;

@@ -28,6 +28,18 @@ export interface DesignTheme {
   paletteId?: string | null;
 }
 
+/** ── THE TWO KINDS OF DESIGN, AND WHO ONE IS FOR — W1 ──────────────────────────────────────────
+ *
+ *  Declared HERE and imported by `composition.ts`, rather than the other way round, for the reason
+ *  in the note above: this is the module everything else imports, and it stays free of dependencies
+ *  so that nothing can create a cycle through it. `composition.ts` owns the RULES about these two
+ *  values — the cascade, the role order, the labels — and this owns only the vocabulary.
+ *
+ *  One definition, not a structural copy like `DesignTheme` above: these are string unions rather
+ *  than shapes, and a second copy of a union is a second list to forget to extend. */
+export type DesignKind = 'trace' | 'composition';
+export type CompositionScope = 'user' | 'role' | 'firm';
+
 export type ViewId = 'desktop' | 'mobile';
 
 /** A placed thing. Three kinds, because they are edited differently:
@@ -141,6 +153,19 @@ export interface DesignDocument {
    *  competes with — can then read the answer off the design instead of being told it separately.
    *  Two sources for one fact is how the conformance endpoint and the sweep drifted apart in V4. */
   stateKey?: string;
+  /** ── A DRAWING, OR A LAYOUT OF REAL WIDGETS — W1 ─────────────────────────────────────────────
+   *
+   *  `trace` holds catalogue elements at measured coordinates and CANNOT be served: it is a picture
+   *  of a page, and a page is behaviour. `composition` holds widgets, which already fetch their own
+   *  data and already declare who may see them — so it can be. See seed 618 and §2 of the plan.
+   *
+   *  Optional, and defaulting to `trace` everywhere it is read, because ~470 documents predate it. */
+  kind?: DesignKind;
+  /** Who a composition is for: `firm` | `role` | `user`, resolved most-specific-first by
+   *  `resolveComposition`. Meaningless on a trace — a measurement has no audience. */
+  scope?: CompositionScope;
+  /** The role name or the email. Empty for firm scope; required for the other two (seed 618). */
+  scopeKey?: string;
   /** Sibling designs of the same page: "Jobs list — A (dense)" vs "B (cards)". */
   variantOf?: string | null;
   /** What this page is and what it is for, in the designer's own words.

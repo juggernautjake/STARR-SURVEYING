@@ -26,6 +26,7 @@ import { statusRule, cloneName, type DesignStatus } from './lifecycle';
 // `diffDefaults` lives with the other measurement code rather than here: it is pure, a test has to
 // be able to reach it, and this module cannot be imported without a database client.
 import { diffDefaults, type RetraceChange } from './conformance';
+import type { CompositionScope, DesignKind } from './document';
 
 /**
  * The columns a `DesignSummary` is built from.
@@ -36,7 +37,7 @@ import { diffDefaults, type RetraceChange } from './conformance';
  * name in here, so a query that fetches fewer does not fail; it returns undefined and the caller
  * gets a null. Both copies now use this.
  */
-const SUMMARY_COLS = 'id, name, route, state_key, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email, traced_at';
+const SUMMARY_COLS = 'id, name, route, state_key, kind, scope, scope_key, variant_of, views, version, updated_at, status, locked, theme_group, theme_id, owner_email, traced_at';
 
 export interface DesignSummary {
   id: string;
@@ -67,6 +68,11 @@ export interface DesignSummary {
    * READS it until V2 teaches the deriver to find a page's states. Distinct from `views`, which is
    * the desktop/mobile pair — a design has both axes and they multiply. */
   stateKey: string;
+  /** W1 — a drawing of a page, or a layout of real widgets that can be served. */
+  kind: DesignKind;
+  /** Who a COMPOSITION is for. Meaningless on a trace: a measurement has no audience. */
+  scope: CompositionScope;
+  scopeKey: string;
   tracedAt: string | null;
   ownerEmail: string | null;
 }
@@ -87,6 +93,10 @@ interface MockupRow {
   activated_at: string | null;
   traced_at: string | null;
   state_key: string;
+  /** W1 — seed 618. `trace` | `composition`. Every row written before 2026-08-25 is a trace. */
+  kind: string | null;
+  scope: string | null;
+  scope_key: string | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -103,6 +113,9 @@ function toDocument(row: MockupRow): DesignDocument {
     // V6. Read here so every consumer of a document gets it for free rather than fetching the row
     // again to find out which tab it is of.
     stateKey: row.state_key ?? '',
+    kind: (row.kind as DesignKind | null) ?? 'trace',
+    scope: (row.scope as CompositionScope | null) ?? 'firm',
+    scopeKey: row.scope_key ?? '',
     variantOf: row.variant_of,
     views: row.views,
     version: row.version,
@@ -119,7 +132,7 @@ function toDocument(row: MockupRow): DesignDocument {
   } as DesignDocument;
 }
 
-function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'state_key' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email' | 'traced_at'>): DesignSummary {
+function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'state_key' | 'kind' | 'scope' | 'scope_key' | 'updated_at' | 'version' | 'variant_of' | 'views' | 'status' | 'locked' | 'theme_group' | 'theme_id' | 'owner_email' | 'traced_at'>): DesignSummary {
   return {
     id: row.id,
     name: row.name,
@@ -140,6 +153,11 @@ function summarise(row: Pick<MockupRow, 'id' | 'name' | 'route' | 'state_key' | 
     // `?? ''` rather than trusting NOT NULL: a row read by an older client, or by a query written
     // before the column existed, arrives undefined and the route-as-a-whole is the right answer.
     stateKey: row.state_key ?? '',
+    // W1. Defaulted the same way and for the same reason: a row read by a query written before
+    // seed 618 arrives undefined, and `trace` / `firm` is what every such row actually is.
+    kind: (row.kind as DesignKind | null) ?? 'trace',
+    scope: (row.scope as CompositionScope | null) ?? 'firm',
+    scopeKey: row.scope_key ?? '',
     tracedAt: row.traced_at ?? null,
     ownerEmail: row.owner_email ?? null,
   };
@@ -211,11 +229,54 @@ export async function saveMockup(
     );
   }
 
+  // ── W1: SAY WHY, RATHER THAN LETTING POSTGRES SAY IT ─────────────────────────────────────────
+  //
+  // Seed 618's three check constraints are the real guarantee and they stay. But a constraint
+  // violation arrives as `new row for relation "design_mockups" violates check constraint
+  // "design_mockups_scope_key_check"`, which reaches the person as a 500 and sends them looking for
+  // a broken database. The two mistakes this shape actually invites are both ordinary:
+  //
+  //   · picking a role scope and not picking a role
+  //   · a client a version behind sending a `kind` this build has never heard of
+  //
+  // Checked here rather than in the route because every write goes through this function and
+  // exactly one of them is an HTTP request.
+  const kind = doc.kind ?? 'trace';
+  if (kind !== 'trace' && kind !== 'composition') {
+    throw new Error(`A design is a trace or a composition, not “${kind}”.`);
+  }
+  const scope = doc.scope ?? 'firm';
+  if (scope !== 'firm' && scope !== 'role' && scope !== 'user') {
+    throw new Error(`A composition is for the firm, a role, or a user — not “${scope}”.`);
+  }
+  if (scope !== 'firm' && !(doc.scopeKey ?? '').trim()) {
+    throw new Error(
+      scope === 'role'
+        ? 'Which role is this version for? A role version with no role reaches nobody.'
+        : 'Which person is this version for? A personal version with no owner reaches nobody.',
+    );
+  }
+
   const version = ((existing?.version as number | undefined) ?? 0) + 1;
   const row = {
     id: doc.id,
     name: doc.name,
     route: doc.route,
+    // ── W1: THE COLUMNS SEED 618 ADDED, ACTUALLY WRITTEN ─────────────────────────────────────────
+    //
+    // Left out of this object they would be another "authored but not wired": three columns, three
+    // constraints, a resolver and a test suite, and no way to create a single composition — the
+    // most common defect shape in this repo. `theme` and `notes` sat in exactly this position until
+    // seed 614, edited in the UI and discarded on every save.
+    //
+    // Defaulted rather than required, because every existing caller sends a document with none of
+    // them and `trace` / `firm` is precisely what those documents are.
+    kind,
+    scope,
+    // Forced empty for the firm, which is what seed 618's check constraint demands: a firm-scoped
+    // row carrying a leftover key from a scope somebody switched away from is refused by the
+    // database, and they would see "save failed" with nothing on screen explaining why.
+    scope_key: scope === 'firm' ? '' : (doc.scopeKey ?? '').trim(),
     variant_of: doc.variantOf ?? null,
     views: doc.views,
     theme: doc.theme ?? null,
@@ -437,6 +498,16 @@ export async function cloneMockup(
     // edited invoices tab would have been offered as the design of record for the billing page as
     // a whole. Not an error and not an empty: a design filed one level up from where it was made.
     state_key: source.state_key ?? '',
+    // W1. A clone of a composition is a composition — clone-to-edit is the flow for changing one,
+    // and a clone that came out a `trace` would be a drawing of a widget layout: unservable, and
+    // unservable in a way nothing on screen would explain.
+    kind: source.kind ?? 'trace',
+    // But NOT the audience. A clone is a new draft, and inheriting `scope: 'user'` from the row it
+    // came from would quietly make somebody else's personal layout the starting point for a change
+    // meant for everyone. The firm is the safe default: it is the one scope that cannot be a
+    // surprise, because it is what a page with no composition already effectively has.
+    scope: 'firm',
+    scope_key: '',
     variant_of: source.id,
     views: source.views,
     // The clone wears what the source wore. A copy that lost its theme would open in the default

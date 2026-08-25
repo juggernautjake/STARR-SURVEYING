@@ -226,3 +226,63 @@ describe('seed 618', () => {
     expect(SEED).not.toMatch(/CREATE UNIQUE INDEX[\s\S]{0,200}scope/);
   });
 });
+
+// ── AND THE COLUMNS ARE ACTUALLY WRITTEN ────────────────────────────────────────────────────────
+//
+// The most common defect in this repo is "authored but not wired": a thing built completely and
+// reachable from nowhere. Seed 618 added three columns, three constraints, a resolver and twenty-two
+// tests — and until `saveMockup` put them in the row, there was no way to create a single
+// composition. `theme` and `notes` sat in exactly that position for weeks, edited in the UI and
+// discarded on every save, until seed 614 went looking for them.
+//
+// These are source assertions rather than behaviour: `lib/design/server.ts` cannot be imported
+// without a database client, and a jsdom approximation of a Postgres write would be the class of
+// lie the whole design-conformance phase exists to prevent.
+describe('the columns reach the row', () => {
+  const SERVER = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'lib/design/server.ts'), 'utf8',
+  );
+
+  it('saveMockup writes all three', () => {
+    const block = SERVER.slice(SERVER.indexOf('export async function saveMockup'));
+    expect(block).toMatch(/^\s*kind,$/m);
+    expect(block).toMatch(/^\s*scope,$/m);
+    expect(block).toMatch(/scope_key: scope === 'firm' \? '' : \(doc\.scopeKey \?\? ''\)\.trim\(\)/);
+  });
+
+  it('and reads them back with the defaults the existing 234 rows need', () => {
+    // A row read by a query written before seed 618 arrives undefined. `trace` / `firm` is exactly
+    // what every such row is, so the default is the truth rather than a guess.
+    expect(SERVER).toMatch(/kind: \(row\.kind as DesignKind \| null\) \?\? 'trace'/);
+    expect(SERVER).toMatch(/scope: \(row\.scope as CompositionScope \| null\) \?\? 'firm'/);
+  });
+
+  it('the column list includes them, because summarise reads every name in it', () => {
+    // A query fetching fewer columns than `summarise` reads does not fail — it returns undefined
+    // and the caller gets a default. That is how `traced_at` came within one keystroke of reaching
+    // one query and not the others, and why there is one constant.
+    expect(SERVER).toMatch(/const SUMMARY_COLS = '[^']*\bkind, scope, scope_key\b/);
+  });
+
+  it('a bad kind or a keyless role scope is refused in words, not by Postgres', () => {
+    // The constraints are the real guarantee. But a violation arrives as `violates check constraint
+    // "design_mockups_scope_key_check"`, reaches the person as a 500, and sends them looking for a
+    // broken database instead of picking a role.
+    const block = SERVER.slice(SERVER.indexOf('export async function saveMockup'));
+    expect(block).toMatch(/A design is a trace or a composition/);
+    expect(block).toMatch(/Which role is this version for\? A role version with no role reaches nobody\./);
+  });
+
+  it('a clone keeps the kind and deliberately drops the audience', () => {
+    // A clone of a composition must be a composition — clone-to-edit is the flow for changing one,
+    // and a clone that came out a trace would be a drawing of a widget layout.
+    //
+    // But inheriting `scope: 'user'` would quietly make somebody else's personal layout the
+    // starting point for a change meant for everyone. The firm is the one scope that cannot be a
+    // surprise: it is what a page with no composition already effectively has.
+    const block = SERVER.slice(SERVER.indexOf('export async function cloneMockup'));
+    expect(block).toMatch(/kind: source\.kind \?\? 'trace',/);
+    expect(block).toMatch(/scope: 'firm',/);
+    expect(block).toMatch(/scope_key: '',/);
+  });
+});
