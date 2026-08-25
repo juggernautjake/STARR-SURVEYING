@@ -99,8 +99,24 @@ const body = `${JSON.stringify({
 `;
 
 if (process.argv.includes('--check')) {
+  // ── COMPARED WITHOUT LINE ENDINGS, AND THAT IS NOT PEDANTRY ───────────────────────────────────
+  //
+  // This repository stores the file with LF and checks it out with CRLF. The generator writes LF.
+  // So a byte comparison called the inventory "behind the filesystem" on any Windows working copy
+  // the moment git had touched the file — 277 routes in, 277 routes out, not one added or removed,
+  // and the check still failed.
+  //
+  // A guard that cries wolf about whitespace is worse than no guard, because it teaches people that
+  // this message does not mean anything. And this message means a great deal: a stale inventory
+  // makes routes INVISIBLE to the tracer, the dossier deriver and the conformance sweep, which then
+  // report success over a smaller world than the one they were asked to measure. That already
+  // happened once here, to `/admin/hours` and `/admin/pay`.
+  //
+  // Found by writing the test that runs this check — the check had never been run from a fresh
+  // checkout, only from a working copy that had just written the file.
+  const norm = (s) => s.split('\r\n').join('\n');
   const existing = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
-  if (existing !== body) {
+  if (norm(existing) !== norm(body)) {
     console.error(`\n  ${path.relative(process.cwd(), OUT)} is behind the filesystem — run: node scripts/generate-page-inventory.mjs\n`);
     process.exit(1);
   }

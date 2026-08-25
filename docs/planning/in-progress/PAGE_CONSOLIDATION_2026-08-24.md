@@ -383,6 +383,39 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14n — THE RATCHETS ONLY FIRE WHEN SOMEBODY REMEMBERS THEM, 2026-08-25** ──
+
+      `package.json` has six `verify:*` scripts. **CI runs `type-check`, `lint`, `test` and `build`,
+      and not one of them.** Two are nevertheless covered, because somebody wrote them as tests: the
+      inline-hex ratchet has its own, and `portal-tab-toggles` regenerates the tab file and compares.
+      The other four fire only when a person types the command.
+
+      That is why the `org_id` drift in `docs/planning/BLOCKERS.md` grew from 7 tables to 10 without
+      anyone noticing — see that file, re-measured today. And it is why
+      `lib/design/pages.generated.json` went a day stale earlier in this plan and made `/admin/hours`
+      and `/admin/pay` **invisible to all three design walks**, which then reported success over a
+      smaller world than the one they were asked to measure.
+
+      `__tests__/design/page-inventory-is-current.test.ts` puts the third one inside `npm test`. It
+      shells out to the shipped `--check` rather than reimplementing it — this plan already spent an
+      afternoon on two copies of a `clickState` rule that "happened to agree".
+
+      ── **AND THE CHECK ITSELF WAS BROKEN, WHICH ONLY WRITING THE TEST REVEALED** ──
+
+      `--check` compared bytes. This repository stores that file with LF and checks it out with CRLF,
+      and the generator writes LF — so on any Windows working copy git had touched, the check
+      reported the inventory "behind the filesystem" with **277 routes in, 277 routes out, nothing
+      added and nothing removed.**
+
+      A guard that cries wolf about whitespace is worse than no guard: it teaches people this message
+      does not mean anything, and this message means a great deal. Now normalised before comparing.
+
+      Proven both ways rather than assumed — a real new route still fails the check, and the file as
+      committed passes. **The first attempt at that proof was my own mistake, and one this project has
+      already written down**: I created `app/admin/__probe_page_inventory/`, the check passed, and a
+      leading underscore is a private App Router folder the walker correctly skips. The note in memory
+      says exactly that, about exactly this walker. Renaming the probe made it fail as it should.
+
       ── **C14m — MEASURE AFTER THE REPAIR, NOT BEFORE IT, 2026-08-25** ──
 
       The conformance pass was started and then **stopped at 20 of 194**, deliberately. Its first
