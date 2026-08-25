@@ -112,7 +112,7 @@ const PAGES: Record<string, ComponentType> = {
   vehicles: nextDynamic(() => import('@/app/admin/equipment/_tabs/VehiclesTab'), { ssr: false }),
   rewards: nextDynamic(() => import('@/app/admin/pay/_tabs/RewardsTab'), { ssr: false }),
   billing: nextDynamic(() => import('@/app/admin/billing/page'), { ssr: false }),
-  research: nextDynamic(() => import('@/app/admin/research/page'), { ssr: false }),
+  research: nextDynamic(() => import('@/app/admin/research/_tabs/ProjectsTab'), { ssr: false }),
   // C8: `/admin/finances` is a portal shell now. Pointed at the job-profitability body, which is
   // what this entry has always been a picture of.
   finances: nextDynamic(() => import('@/app/admin/finances/_tabs/ScheduleCTab'), { ssr: false }),

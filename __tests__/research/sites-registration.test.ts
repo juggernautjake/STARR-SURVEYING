@@ -95,17 +95,27 @@ describe('the health dashboard route reports failure instead of rendering an all
 });
 
 describe('the panel and the page are reachable', () => {
-  it('registers /admin/research/sites, so the rail, ⌘K and the mobile drawer all find it', () => {
-    const entry = ADMIN_ROUTES.find((r) => r.href === '/admin/research/sites');
-    expect(entry, '/admin/research/sites is not in ADMIN_ROUTES').toBeTruthy();
+  it('is reachable from the rail, Cmd+K and the mobile drawer', () => {
+    // C11b (2026-08-25): `/admin/research/sites` is the Research portal's `sites` TAB now, so its own
+    // registry row is gone and the route forwards. What this guards — the data-source screen is
+    // OFFERED somewhere a person can find it — is asserted where it now lives: the portal has a row
+    // in the right workspace with a real icon, and the portal declares the tab.
+    const entry = ADMIN_ROUTES.find((r) => r.href === '/admin/research');
+    expect(entry, '/admin/research is not in ADMIN_ROUTES').toBeTruthy();
     expect(entry!.workspace).toBe('research-cad');
     // The orphan sweep only asserts registration. This asserts the icon actually resolves: an
     // unmapped name silently falls back to a neutral Circle, which reads as "we chose Circle".
     expect(iconForName(entry!.iconName)).not.toBe(iconForName('__definitely_not_an_icon__'));
+    // And the words somebody would type still find it — the row harvested the absorbed keywords.
+    expect(entry!.keywords ?? []).toContain('data source');
+
+    const portal = read('app/admin/research/page.tsx');
+    expect(portal).toMatch(/id: 'sites'/);
+    expect(portal).toMatch(/<SitesTab \/>/);
   });
 
   it('surfaces live health on the coverage page, beside the compile-time map', () => {
-    const page = code(read('app/admin/research/coverage/page.tsx'));
+    const page = code(read('app/admin/research/_tabs/CoverageTab.tsx'));
     expect(page).toContain('AdapterHealthPanel');
   });
 

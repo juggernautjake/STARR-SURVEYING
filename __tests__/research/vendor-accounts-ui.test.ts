@@ -19,7 +19,9 @@ import path from 'node:path';
 const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const route = read('app/api/admin/research/vendor-accounts/route.ts');
 const panel = read('app/admin/research/components/VendorAccountsPanel.tsx');
-const billing = read('app/admin/research/billing/page.tsx');
+// C11b (2026-08-25): this page is a tab of the Research portal now. Same body, same directory
+// depth; what these assertions check is unchanged.
+const billing = read('app/admin/research/_tabs/BillingTab.tsx');
 
 describe('no screen in this app can set a card number', () => {
   it('rejects card and Stripe fields rather than stripping them', () => {

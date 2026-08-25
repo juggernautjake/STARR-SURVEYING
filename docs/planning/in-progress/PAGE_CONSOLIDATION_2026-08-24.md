@@ -1101,7 +1101,7 @@ early, and the internal tooling comes last.
       broken by the slice that quotes it. Browser-verified: five tabs, 11 real leads on the tab,
       picker present on three and absent on two. Inline hexes **2306 before, 2306 after**.
       `npm run build` clean.
-- [ ] **C11 — P12 Knowledge** + **P13 Research** (13 → 2). **Split; P12 DONE 2026-08-25, P13 open.**
+- [x] **C11 — P12 Knowledge** + **P13 Research** (13 → 2). **Split; BOTH DONE 2026-08-25.**
       Thirteen routes across two portals was not one slice. C11a is Knowledge; C11b is Research.
 
       **C11a — P12 Knowledge (9 → 0 new links). DONE.** `/admin/learn` has ten tabs: the hub's card
@@ -1192,11 +1192,60 @@ early, and the internal tooling comes last.
       comments have to be stripped FIRST. The same latent bug was in C9's helper and is fixed there
       too.
 
-- [ ] **C11b — P13 Research** (`/admin/research` absorbs coverage · library · pipeline · sites ·
-      self-heal · billing). `/admin/research/[projectId]` (22,112 lines), `/admin/research/testing`
-      and `/admin/cad` stay. Note for whoever takes it: `AdminResearch.css` is route-scoped exactly
-      like `AdminLearn.css`, and `/admin/research/[projectId]` means the parent row must stay
-      registered per C10's rule.
+- [x] **C11b — P13 Research** (7 → 1). **DONE 2026-08-25.** With C11a, C11 is complete.
+
+      `/admin/research` has seven tabs: the projects list plus coverage, library, data sources, site
+      health, pipeline and billing. Six routes forward.
+
+      **What stayed, and the one that had a rule of its own.** `/admin/research/[projectId]` (3,654
+      lines) is a record. `/admin/cad` is its own shell. `/admin/research/testing` is a lab — and it
+      also has its **own middleware entry, three roles instead of six, listed before
+      `/admin/research` so it wins the prefix match.** Absorbing it would have widened it from three
+      roles to six, which §5 forbids outright. §8 wanted it separate anyway; this is the second
+      reason, and the stronger one.
+
+      **§5's door did not move at all.** All six absorbed pages already sat behind the same
+      middleware prefix — none had a narrower entry — so their narrower registry rows expressed nav
+      visibility, never a gate. **C11b-0 is what makes carrying those rows onto tabs worth anything:**
+      before it, five of the six endpoints behind these screens answered any signed-in account. A tab
+      list is now a courtesy over a boundary that holds rather than a courtesy over nothing.
+
+      **A packaging consequence worth knowing before a portal causes it by accident.**
+      `bundleForRoute` reads a PATHNAME, so a tab cannot carry its own bundle — everything here
+      resolves as `/admin/research`, which is `recon`. Pipeline and billing were deliberately
+      bundle-EXEMPT in `ROUTE_BUNDLE_OVERRIDES` ("operator-only, no customer bundle gate") and are
+      now inside a gated path. Safe for the audience they have — `middleware.ts` skips the bundle
+      check entirely for `isOperator` — and a non-operator without Recon is also not offered the tab
+      and is refused by the API since C11b-0. **Absorbing a bundle-exempt route into a bundled portal
+      always costs this.** Recorded in the portal's header.
+
+      **C10's rule, checked and found not to apply.** Not one of the six has a dynamic child, so none
+      needed a kept row. The record in this tree is `/admin/research/[projectId]`, whose parent is the
+      portal itself. Checking is the rule; the answer being "no" is a result, not a skip.
+
+      **The C9 server-component trap, avoided rather than hit.** `coverage` was a genuine server
+      component. Its own header says "pure rendering of compile-time data; no client state, no
+      network", `clerk-registry.ts` imports nothing, and both panels it mounts were already
+      `use client` — so it became a client component honestly, with no endpoint needed. Its
+      `metadata` export went with the page file: a module that is not a route cannot set a title, and
+      leaving it would be a line that looks load-bearing and is not. `sites` was a four-line server
+      wrapper around `SitesClient`; the wrapper WAS the page, so the tab is the client component.
+
+      **The back-link class again — five of seven bodies.** Fourth slice running.
+
+      **And the ratchet had been lying, in a way only a file move could expose.** The scan reported
+      2306 → **2317** and named `CoverageTab.tsx` as "0 → 11". Nothing had regressed:
+      `scan-inline-style-hex.ts` had `'coverage'` in `SKIP_DIRS`, meant for the test-coverage OUTPUT
+      directory — and `scanRepo` only ever walks `app` and `lib`, so **that entry could never have
+      matched the thing it was for.** All it did was exclude `app/admin/research/coverage/`, a
+      product directory, from the ratchet entirely. Measured: the file held 12 hexes before the move
+      and holds 11 after, so the code got one BETTER while the number went up eleven. The baseline is
+      2317 now because that is what the codebase has always had. The ratchet's blind spot has been
+      bigger than its count before; this is the same shape, keyed on a directory NAME rather than a
+      path.
+
+      Browser-verified: seven tabs render, six redirects land on their own tab, `testing` untouched,
+      no page errors and no self-links left. `npm run build` clean.
 - [ ] **C12 — P14 Company** + **P15 System** (8 → 2).
 - [ ] **C12b — P16 Files** + **P17 Page Designer** (6 → 2). Internal surfaces, done last on purpose:
       they are the ones whose breakage costs the firm nothing.

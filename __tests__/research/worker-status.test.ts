@@ -97,7 +97,7 @@ describe('the wiring', () => {
   });
 
   it('shows the banner where a run is started', () => {
-    expect(read('app/admin/research/page.tsx')).toContain('WorkerStatusBanner');
+    expect(read('app/admin/research/_tabs/ProjectsTab.tsx')).toContain('WorkerStatusBanner');
   });
 
   it('stays quiet when the engine is healthy', () => {

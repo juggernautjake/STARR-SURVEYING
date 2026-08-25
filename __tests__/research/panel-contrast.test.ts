@@ -55,8 +55,8 @@ function hasColour(tag: string, src = ''): boolean {
 const DARK_SURFACES = [
   'app/admin/research/components/RotationPanel.tsx',
   'app/admin/research/components/VendorAccountsPanel.tsx',
-  'app/admin/research/billing/page.tsx',
-  'app/admin/research/library/page.tsx',
+  'app/admin/research/_tabs/BillingTab.tsx',
+  'app/admin/research/_tabs/LibraryTab.tsx',
   'app/admin/research/[projectId]/boundary/page.tsx',
   'app/admin/research/[projectId]/documents/page.tsx',
 ];

@@ -1,0 +1,361 @@
+// app/admin/research/_tabs/LibraryTab.tsx — a tab of the Research portal.
+//
+// C11b / P13 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// Was `/admin/research/library/page.tsx`; the old route stays and forwards.
+// app/admin/research/library/page.tsx — Phase 13 Global Document Library
+// Shows ALL research documents across ALL projects for the current user.
+// Supports full-text search, type filtering, county filtering, and bulk actions.
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  Map, ScrollText, Spline, DraftingCompass, FileText, BookOpen, Inbox,
+  Check, Home, Loader2, type LucideIcon,
+} from 'lucide-react';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface LibraryDocument {
+  documentId: string;
+  projectId: string;
+  projectAddress?: string;
+  countyName?: string;
+  type: 'plat' | 'deed' | 'easement' | 'survey' | 'other';
+  instrumentNumber?: string;
+  description?: string;
+  grantor?: string;
+  grantee?: string;
+  recordedDate?: string;
+  pageCount?: number;
+  sizeBytes?: number;
+  relevanceScore?: number;
+  purchased: boolean;
+  purchasedAt?: string;
+  purchaseCost?: number;
+  usedInAnalysis?: boolean;
+  source?: string;
+  fileFormat?: string;
+}
+
+interface LibraryStats {
+  totalDocuments: number;
+  totalPurchased: number;
+  totalSpent: number;
+  byType: Record<string, number>;
+  byCounty: Record<string, number>;
+}
+
+type DocFilter = 'all' | 'plat' | 'deed' | 'easement' | 'survey' | 'purchased';
+type SortBy = 'date_desc' | 'date_asc' | 'relevance' | 'type' | 'county';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const DOC_TYPE_ICONS: Record<string, LucideIcon> = {
+  plat: Map, deed: ScrollText, easement: Spline, survey: DraftingCompass, other: FileText,
+};
+
+function DocTypeIcon({ type, size = 16 }: { type: string; size?: number }) {
+  const Icon = DOC_TYPE_ICONS[type] ?? FileText;
+  return <Icon size={size} strokeWidth={1.75} className="inline align-text-bottom" aria-hidden="true" />;
+}
+
+function formatBytes(bytes: number | undefined): string {
+  if (!bytes) return '—';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+// ── Page ───────────────────────────────────────────────────────────────────────
+
+export default function LibraryTab() {
+  const { data: session, status: sessionStatus } = useSession();
+  const router = useRouter();
+
+  const [documents, setDocuments] = useState<LibraryDocument[]>([]);
+  const [stats, setStats] = useState<LibraryStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [filter, setFilter] = useState<DocFilter>('all');
+  const [countyFilter, setCountyFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<SortBy>('date_desc');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
+
+  useEffect(() => {
+    if (sessionStatus === 'unauthenticated') router.push('/admin/login');
+  }, [sessionStatus, router]);
+
+  const loadLibrary = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const res = await fetch('/api/admin/research/library');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { documents: LibraryDocument[]; stats: LibraryStats };
+      setDocuments(data.documents ?? []);
+      setStats(data.stats ?? null);
+    } catch (err) {
+      setLoadError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadLibrary(); }, [loadLibrary]);
+
+  // ── Derive county list from documents ─────────────────────────────────────
+
+  const counties = Array.from(
+    new Set(documents.map(d => d.countyName).filter(Boolean)),
+  ).sort() as string[];
+
+  // ── Filter + Sort + Paginate ───────────────────────────────────────────────
+
+  const filtered = documents
+    .filter(doc => {
+      if (filter === 'purchased') return doc.purchased;
+      if (filter !== 'all') return doc.type === filter;
+      return true;
+    })
+    .filter(doc => countyFilter === 'all' || doc.countyName === countyFilter)
+    .filter(doc => {
+      if (!search) return true;
+      const q = search.toLowerCase();
+      return (
+        (doc.instrumentNumber ?? '').toLowerCase().includes(q) ||
+        (doc.description ?? '').toLowerCase().includes(q) ||
+        (doc.grantor ?? '').toLowerCase().includes(q) ||
+        (doc.grantee ?? '').toLowerCase().includes(q) ||
+        (doc.projectAddress ?? '').toLowerCase().includes(q)
+      );
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'date_desc': return (b.recordedDate ?? '').localeCompare(a.recordedDate ?? '');
+        case 'date_asc':  return (a.recordedDate ?? '').localeCompare(b.recordedDate ?? '');
+        case 'relevance': return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
+        case 'type':      return a.type.localeCompare(b.type);
+        case 'county':    return (a.countyName ?? '').localeCompare(b.countyName ?? '');
+        default: return 0;
+      }
+    });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const resetPage = () => setPage(1);
+
+  if (sessionStatus === 'loading' || loading) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-gray-300 text-center">
+          <div className="mb-4 flex justify-center"><Loader2 size={36} strokeWidth={2} className="animate-spin" /></div>
+          <p>Loading document library…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-400 mb-4">Failed to load library</p>
+          <p className="text-gray-500 text-sm mb-6">{loadError}</p>
+          <button onClick={loadLibrary} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-950 text-gray-100">
+      {/* ── Header ── */}
+      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            {/* C11b: a "← Research" link sat here. This IS Research now — it pointed at the portal it
+              * renders inside, which lands you on the Projects tab and reads as a bug. Fourth slice
+              * running that an absorbed body carried one; five of the seven did here. */}
+            <h1 className="text-xl font-bold flex items-center gap-2 text-gray-100"><BookOpen size={20} strokeWidth={1.75} /> Document Library</h1>
+          </div>
+          {stats && (
+            <div className="flex gap-6 text-sm text-gray-400">
+              <span><strong className="text-white">{stats.totalDocuments}</strong> documents</span>
+              <span><strong className="text-green-400">{stats.totalPurchased}</strong> purchased</span>
+              <span><strong className="text-yellow-400">${stats.totalSpent.toFixed(2)}</strong> spent</span>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* ── Stats bar ── */}
+      {stats && (
+        <div className="bg-gray-900/50 border-b border-gray-800 px-6 py-2 flex gap-6 overflow-x-auto text-xs text-gray-400">
+          {Object.entries(stats.byType).map(([type, count]) => (
+            <span key={type}><DocTypeIcon type={type} size={14} /> {type}: <strong className="text-white">{count}</strong></span>
+          ))}
+        </div>
+      )}
+
+      {/* ── Toolbar ──
+          admin-ui-alignment-2026-08-15 — this page is one of the two utility-class islands in the
+          admin (the other is the CAD editor). Its filter tabs were `py-1`, so 24px, beside selects
+          and a search field that forms.css raises to 40px: a 16px disagreement across one strip,
+          with the tabs under the 28px floor as well.
+
+          It is a dense dark toolbar, so it takes the contract's second move rather than growing to
+          40px — the row redefines --input-height, both selects and the search follow through
+          forms.css, and the tabs are pinned to the same small token. Tailwind's arbitrary-property
+          syntax keeps that declaration in the class list where the rest of this page's styling
+          lives, instead of opening a second styling system on the same element. */}
+      <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3 [--input-height:var(--button-height-sm)]">
+        {/* Filter tabs — admin-ui-alignment-2026-08-15 (A11): six chips do not fit 390px, and they
+            were neither wrapping nor scrolling, so the last one sat 26px off-screen with no way to
+            reach it. It scrolls sideways now, the same call the file explorer's type chips make:
+            wrapping to three lines pushes the document list below the fold, and the list is what
+            people came for. `shrink-0` so the chips keep their size instead of being squeezed. */}
+        <div className="flex gap-1 overflow-x-auto max-w-full [scrollbar-width:thin]">
+          {(['all', 'plat', 'deed', 'easement', 'survey', 'purchased'] as DocFilter[]).map(f => (
+            <button
+              key={f}
+              onClick={() => { setFilter(f); resetPage(); }}
+              className={`inline-flex items-center shrink-0 h-[var(--button-height-sm)] px-3 rounded text-xs font-medium transition-colors ${
+                filter === f
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* County filter */}
+        <select
+          value={countyFilter}
+          onChange={e => { setCountyFilter(e.target.value); resetPage(); }}
+          className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none"
+        >
+          <option value="all">All Counties</option>
+          {counties.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        {/* Search */}
+        <input
+          type="text"
+          placeholder="Search instrument #, grantor, grantee, address…"
+          value={search}
+          onChange={e => { setSearch(e.target.value); resetPage(); }}
+          className="flex-1 min-w-48 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+        />
+
+        {/* Sort */}
+        <select
+          value={sortBy}
+          onChange={e => { setSortBy(e.target.value as SortBy); resetPage(); }}
+          className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none"
+        >
+          <option value="date_desc">Newest First</option>
+          <option value="date_asc">Oldest First</option>
+          <option value="relevance">Relevance</option>
+          <option value="type">Document Type</option>
+          <option value="county">County</option>
+        </select>
+
+        <span className="text-xs text-gray-500 ml-auto">
+          {filtered.length} results
+        </span>
+      </div>
+
+      {/* ── Document list ── */}
+      <div className="px-6 py-4">
+        {paginated.length === 0 ? (
+          <div className="text-center text-gray-500 mt-16">
+            <div className="mb-3 flex justify-center text-gray-500"><Inbox size={40} strokeWidth={1.5} /></div>
+            <p>{search ? 'No documents match your search.' : 'Your document library is empty.'}</p>
+            <p className="text-sm mt-2">Run a research project to harvest documents.</p>
+          </div>
+        ) : (
+          <div className="grid gap-2">
+            {paginated.map(doc => (
+              <Link
+                key={doc.documentId}
+                href={`/admin/research/${doc.projectId}/documents`}
+                className="block bg-gray-900 border border-gray-800 rounded-lg p-4 hover:border-blue-600 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <span className="text-xl flex-shrink-0"><DocTypeIcon type={doc.type} size={20} /></span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-300 capitalize">
+                          {doc.type}
+                        </span>
+                        {doc.instrumentNumber && (
+                          <span className="font-mono text-sm text-blue-300">{doc.instrumentNumber}</span>
+                        )}
+                        {doc.purchased && (
+                          <span className="text-xs px-2 py-0.5 bg-green-800 text-green-300 rounded inline-flex items-center gap-1"><Check size={11} strokeWidth={2.5} /> Purchased</span>
+                        )}
+                        {doc.usedInAnalysis && (
+                          <span className="text-xs px-2 py-0.5 bg-blue-800 text-blue-300 rounded inline-flex items-center gap-1"><Check size={11} strokeWidth={2.5} /> Used</span>
+                        )}
+                      </div>
+                      {doc.description && (
+                        <p className="text-sm text-gray-300 mt-1 truncate">{doc.description}</p>
+                      )}
+                      <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 flex-wrap">
+                        {doc.projectAddress && <span className="text-gray-400 inline-flex items-center gap-1"><Home size={12} strokeWidth={2} /> {doc.projectAddress}</span>}
+                        {doc.countyName && <span>{doc.countyName} County</span>}
+                        {doc.grantor && <span>From: {doc.grantor}</span>}
+                        {doc.recordedDate && <span>{doc.recordedDate}</span>}
+                        {doc.sizeBytes && <span>{formatBytes(doc.sizeBytes)}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {doc.purchaseCost !== undefined && (
+                    <div className="text-green-400 text-sm font-medium flex-shrink-0">
+                      ${doc.purchaseCost.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {/* ── Pagination ── */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-2 mt-6">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 bg-gray-800 rounded text-sm disabled:opacity-40 hover:bg-gray-700"
+            >
+              ← Prev
+            </button>
+            <span className="text-sm text-gray-400">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1.5 bg-gray-800 rounded text-sm disabled:opacity-40 hover:bg-gray-700"
+            >
+              Next →
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

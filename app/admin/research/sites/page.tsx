@@ -1,12 +1,12 @@
-// app/admin/research/sites/page.tsx — Pillar A's registration screen (§8.1).
+// app/admin/research/sites/page.tsx — absorbed by the Research portal.
 //
-// The roadmap's own acceptance criterion (a): "registering a known-vendor county = pick county +
-// paste URL + 1–2 params + confirm test property, < 5 min, NO CODE CHANGE."
-import SitesClient from './SitesClient';
-import './Sites.css';
+// C11b of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+//
+// The route stays and forwards, and the directory stays with it: SitesClient and Sites.css still
+// live here and the tab imports them from where they are.
 
-export const metadata = { title: 'Data sources' };
+import { redirect } from 'next/navigation';
 
-export default function SitesPage() {
-  return <SitesClient />;
+export default function Page() {
+  redirect('/admin/research?tab=sites');
 }

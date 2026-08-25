@@ -21,7 +21,17 @@ import path from 'node:path';
 
 export const BASELINE_PATH = 'scripts/inline-style-hex-baseline.json';
 
-const SKIP_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'build', 'coverage']);
+// 'coverage' was in this set until 2026-08-25, meant for the test-coverage OUTPUT directory. It was
+// therefore also excluding `app/admin/research/coverage/` — a product directory — from the ratchet,
+// and `scanRepo` only ever walks `app` and `lib`, so the entry could never have matched the thing it
+// was for. It was pure loss.
+//
+// C11b found it by moving one file out of that directory, at which point 11 hex literals that had
+// been sitting there all along appeared as a regression. Nothing had failed; the number was simply
+// smaller than the codebase. The ratchet's blind spot has been bigger than its count before, and
+// this is the same shape: an exclusion keyed on a directory NAME rather than a path, hiding a whole
+// product folder. The other four names cannot collide with product directories.
+const SKIP_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'build']);
 
 function walk(dir: string, out: string[] = []): string[] {
   let entries: fs.Dirent[];

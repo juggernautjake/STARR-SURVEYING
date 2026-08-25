@@ -316,9 +316,20 @@ export const ADMIN_ROUTES: AdminRoute[] = [
 
   // Research & CAD workspace ──────────────────────────────────────
   { href: '/admin/research-cad',         label: 'Research & CAD',   workspace: 'research-cad', iconName: 'Compass',     description: 'Research projects + CAD drawings landing.', keywords: ['cad', 'research'] },
-  { href: '/admin/research',             label: 'Property Research', workspace: 'research-cad', iconName: 'Microscope',  description: 'Property research projects.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['property', 'records'] },
+  // ── C11b / P13: SEVEN ROWS BECAME ONE ──────────────────────────────────────────────────────
+  //
+  // Coverage, the library, the data sources, site health, the pipeline dashboard and the billing
+  // rollup are tabs of the projects list now, and every one of their routes forwards.
+  //
+  // NONE of the six needed C10's keep-the-row treatment: not one has a dynamic child. The record
+  // in this tree is `/admin/research/[projectId]`, and its parent is the portal — which keeps its
+  // row because it IS the page. Checked rather than assumed; that is the whole point of the rule.
+  //
+  // `/admin/research/testing` keeps its row AND its own middleware entry — three roles, listed
+  // before `/admin/research` so it wins the prefix match. Absorbing it would have widened it to
+  // six roles, which §5 forbids, and §8 wanted it separate anyway.
+  { href: '/admin/research',             label: 'Property Research', workspace: 'research-cad', iconName: 'Microscope',  description: 'Property research end to end — the projects, county coverage, the document library, the data sources, site health, the pipeline and what it all costs.', roles: [...RESEARCH_ROLES, 'field_crew', 'tech_support'], internalOnly: true, keywords: ['property', 'records', 'county', 'portal', 'adapter', 'vendor', 'register', 'source', 'self-heal', 'monitoring', 'sweep', 'adapters', 'health', 'coverage', 'library', 'data sources', 'site health', 'pipeline', 'research billing', 'counties', 'self heal', 'data source'] },
   { href: '/admin/research/testing',     label: 'Testing Lab',      workspace: 'research-cad', iconName: 'FlaskConical', description: 'Test research pipelines + adapters.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['lab', 'experiments'] },
-  { href: '/admin/research/self-heal',   label: 'Site Health',      workspace: 'research-cad', iconName: 'ShieldCheck',  description: 'Run a one-time check across every county portal and toggle automatic self-healing.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['self-heal', 'monitoring', 'sweep', 'adapters', 'health'] },
   // Roadmap §8.1 (Pillar A). Sits beside Site Health deliberately: that page answers "is a county
   // portal still working", this one answers "which county portals do we have at all", and the two
   // read the same registry. Same roles as Site Health — registering a data source decides what the
@@ -326,7 +337,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Palette-only, like Coverage and Pipeline beside it: registering a portal is a rare setup action,
   // and the rail is a place you go daily. It is reached from the coverage page's health panel, which
   // is where the question "why can't we search this county" actually gets asked.
-  { href: '/admin/research/sites',       label: 'Data Sources',     workspace: 'research-cad', iconName: 'Globe',       description: 'Register a county portal — CAD, clerk, plat or GIS — and see which ones this firm can read.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['county', 'portal', 'adapter', 'vendor', 'register', 'source'] },
   // Slice W4 (hub-cad-roles-polish-2026-06-18) — user spec: "If
   // a user does not have the drawing role and clicks the cad
   // button … they are still routed to the cad software. We might
@@ -335,10 +345,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // entry; re-add the role gate when the broader permissions
   // story (W7) lands.
   { href: '/admin/cad',                  label: 'CAD Editor',       workspace: 'research-cad', iconName: 'PenTool',     description: 'CAD drawing editor.', internalOnly: true, keywords: ['drawing', 'plat'] },
-  { href: '/admin/research/billing',     label: 'Research Billing', workspace: 'research-cad', iconName: 'Receipt',     description: 'Research cost + billing rollup.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
-  { href: '/admin/research/coverage',    label: 'Coverage',         workspace: 'research-cad', iconName: 'Map',         description: 'County coverage map.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
-  { href: '/admin/research/library',     label: 'Library',          workspace: 'research-cad', iconName: 'Library',     description: 'Research document library.', roles: [...RESEARCH_ROLES, 'tech_support'], internalOnly: true, showInRail: false },
-  { href: '/admin/research/pipeline',    label: 'Pipeline',         workspace: 'research-cad', iconName: 'Workflow',    description: 'Pipeline run dashboard.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false },
 
   // ── C10: FIVE ABSORBED PARENTS COME BACK AS REGISTRATIONS, BECAUSE THEIR RECORDS NEVER LEFT ────
   //

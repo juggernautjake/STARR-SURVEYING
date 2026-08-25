@@ -129,7 +129,9 @@ describe('the surface', () => {
   });
 
   it('keeps the measured panel separate from the compiled registry table', () => {
-    const page = read('app/admin/research/coverage/page.tsx');
+    // C11b (2026-08-25): this page is a tab of the Research portal now. Same body, same directory
+    // depth; what these assertions check is unchanged.
+    const page = read('app/admin/research/_tabs/CoverageTab.tsx');
     expect(page).toContain('MeasuredCoverage');
     expect(page).toContain('AdapterHealthPanel');
   });
