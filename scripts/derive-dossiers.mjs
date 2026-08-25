@@ -166,18 +166,34 @@ for (const [i, target] of todo.entries()) {
     const ready = await waitForPageReady(page);
     await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-    let problem = null;
-    const status = response?.status() ?? 0;
-    if (status >= 400) problem = `the page answered ${status}`;
-    if (!problem && !ready) problem = 'still loading after 25s — a dossier here would describe a spinner';
-    const landedOn = new URL(page.url()).pathname;
     // A forwarding stub is not a page with a missing dossier; it is not a page. Counted as a
     // failure it left four routes permanently in the "not derived" list with nothing to do.
-    if (!problem && landedOn !== target.route) {
+    //
+    // ── C14: ASKED BEFORE THE SPINNER, AND THE ORDER WAS THE SAME BUG AS trace-defaults ─────────
+    //
+    // This check used to sit below `problem` and be guarded by `!problem` — so a stub whose
+    // DESTINATION is slow had `problem` set to "still loading" first and was never recognised as a
+    // forward at all. After the consolidation that is most stubs: they land on a portal that has not
+    // gone quiet inside the budget.
+    //
+    // Which is the very failure the comment above records being fixed once already, arriving by a
+    // different door: four routes stuck permanently in "not derived" with nothing to do about it.
+    // Found by fixing the identical ordering in `trace-defaults.mjs` and then reading its sibling.
+    //
+    // Where the browser ended up is known as soon as navigation resolves and needs no readiness. A
+    // 4xx is still checked BELOW rather than here, because that is a real answer from a real
+    // request, and a stub that forwards to a page answering 500 should say so.
+    const landedOn = new URL(page.url()).pathname;
+    if (landedOn !== target.route) {
       skipped.push({ route: target.route, why: `redirects to ${landedOn}` });
       console.log(`—  redirects to ${landedOn} — not a page of its own`);
       continue;
     }
+
+    let problem = null;
+    const status = response?.status() ?? 0;
+    if (status >= 400) problem = `the page answered ${status}`;
+    if (!problem && !ready) problem = 'still loading after 25s — a dossier here would describe a spinner';
 
     const observed = await page.evaluate(OBSERVE);
     if (!problem && observed.controls.length === 0 && observed.headings.length === 0) {

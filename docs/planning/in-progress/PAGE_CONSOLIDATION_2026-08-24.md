@@ -1623,6 +1623,18 @@ early, and the internal tooling comes last.
       really trying to be a page. Verified on all four: each reports `redirects to …` and retires its
       live default. Seven designs archived.
 
+      **The same bug was in the sibling script, and fixing one is how it was found.**
+      `derive-dossiers.mjs` computed `problem = 'still loading after 25s'` **before** it asked whether
+      the route forwarded, and gated the forward check on `!problem`. So a stub whose destination is
+      slow was never recognised as a forward at all — it went into the "not derived" queue as a
+      failure with nothing to do about it, **which is the exact failure the comment sitting above
+      that check records being fixed once already.** Same order, same door, second script. Fixed the
+      same way and verified on `/admin/discussions`: "redirects to /admin/messages — not a page of
+      its own", counted as *not a page* rather than as a failure.
+
+      A 4xx is still checked below rather than above, deliberately: that is a real answer from a real
+      request, and a stub forwarding to a page that answers 500 should say so.
+
       **And a third probe that was the bug.** The retire left three rows per route still marked
       `default`, which looked like duplicate defaults — 163 route/state combinations holding 578 rows
       between them. `design_mockups` has a unique index for exactly this,
