@@ -10,7 +10,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { isLopsided, lopsidedRatio, LOPSIDED_RATIO, LOPSIDED_FLOOR } from '@/lib/design/lopsided';
-import { GAP_LABEL, GAP_MEANING, lifecycleOf, type PageGap } from '@/lib/design/pages';
+import { GAP_LABEL, GAP_MEANING, joinPages, lifecycleOf, type PageGap } from '@/lib/design/pages';
 
 describe('isLopsided', () => {
   it('catches the five that were actually wrong', () => {
@@ -72,5 +72,39 @@ describe('the gap reaches the page list', () => {
     const life = lifecycleOf([{ id: 'a', name: 'x', status: 'default' }]);
     expect(life.default?.counts).toEqual({ desktop: 0, mobile: 0 });
     expect(isLopsided(0, 0)).toBe(false);
+  });
+
+  // ── THE TEST THAT WOULD HAVE CAUGHT IT, AND THE ONE ABOVE THAT DID NOT ────────────────────────
+  //
+  // Every assertion above passed while the gap could not fire on a single page in the product.
+  // `joinPages` built its design list as `{ id, name, status, locked }` and dropped `counts`, so
+  // `lifecycleOf` was handed nothing and answered 0/0 — which `isLopsided` correctly calls false.
+  //
+  // The unit was right, the rule was right, the wiring was missing, and testing `lifecycleOf` with
+  // hand-made counts could never see it. **"Authored but not wired" is this repository's most common
+  // defect and I shipped one, in the slice arguing against exactly this.** So the gap is now
+  // asserted through the REAL assembly, from the shape the API actually passes.
+  it('fires through joinPages, on the shape the API really passes', () => {
+    const rows = joinPages(
+      [],
+      [{
+        id: 'd1', name: 'as served', route: '/admin/learn', status: 'default', locked: true,
+        counts: { desktop: 21, mobile: 598 },
+      }],
+    );
+    const learn = rows.find((r) => r.route === '/admin/learn');
+    expect(learn, '/admin/learn should be in the generated inventory').toBeTruthy();
+    expect(learn!.gaps).toContain('lopsided-default');
+  });
+
+  it('and does not fire through joinPages when the record is sound', () => {
+    const rows = joinPages(
+      [],
+      [{
+        id: 'd1', name: 'as served', route: '/admin/learn', status: 'default', locked: true,
+        counts: { desktop: 598, mobile: 598 },
+      }],
+    );
+    expect(rows.find((r) => r.route === '/admin/learn')!.gaps).not.toContain('lopsided-default');
   });
 });

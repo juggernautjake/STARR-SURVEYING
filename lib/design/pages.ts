@@ -42,7 +42,11 @@ export interface PageRow extends InventoryPage {
   updatedBy: string | null;
   updatedAt: string | null;
   /** Designs that name this route, so "open the mockup" is one click. */
-  designs: Array<{ id: string; name: string; status: string; locked: boolean }>;
+  designs: Array<{
+    id: string; name: string; status: string; locked: boolean;
+    /** Element count per viewport — what the `lopsided-default` gap is judged on. */
+    counts?: { desktop: number; mobile: number };
+  }>;
   /** ── WHAT EXISTS FOR THIS PAGE, AT A GLANCE ──────────────────────────────────────────────────
    *
    * Owner: *"I will need it so that we have all of the pages listed out and so that we can click
@@ -179,7 +183,13 @@ export function isReviewStatus(value: unknown): value is ReviewStatus {
  */
 export function joinPages(
   reviews: PageReview[],
-  designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean; stateKey?: string }>,
+  // `counts` is what `lopsided-default` is judged on. It was left out of this type when the gap
+  // shipped, and the object built below dropped it too — so the gap could never fire, on any page,
+  // ever. `DesignSummary` has carried it the whole time.
+  designs: Array<{
+    id: string; name: string; route: string | null; status?: string; locked?: boolean; stateKey?: string;
+    counts?: { desktop: number; mobile: number };
+  }>,
   dossiers: Array<{
     route: string; purpose: string | null; summary: string | null; elementCount: number;
     /** Which state this dossier is of — V6. Absent or `''` means the route as a whole. */
@@ -207,12 +217,17 @@ export function joinPages(
   // the database. No error and no empty; just another page's numbers under this page's name, which
   // is the hardest kind of wrong to notice.
   const dossierByKey = new Map(dossiers.map((d) => [key(d.route, d.stateKey ?? ''), d]));
-  const designsByRoute = new Map<string, Array<{ id: string; name: string; status: string; locked: boolean }>>();
+  const designsByRoute = new Map<string, PageRow['designs']>();
   for (const d of designs) {
     if (!d.route) continue;
     const k = key(d.route, d.stateKey ?? '');
     const list = designsByRoute.get(k) ?? [];
-    list.push({ id: d.id, name: d.name, status: d.status ?? 'draft', locked: !!d.locked });
+    // `counts` carried through, not dropped: this line is where the lopsided gap died the first
+    // time. A unit test of `lifecycleOf` passed counts in by hand and went green while the real
+    // assembly here handed it nothing — the gap was authored, tested and inert.
+    list.push({
+      id: d.id, name: d.name, status: d.status ?? 'draft', locked: !!d.locked, counts: d.counts,
+    });
     designsByRoute.set(k, list);
   }
 

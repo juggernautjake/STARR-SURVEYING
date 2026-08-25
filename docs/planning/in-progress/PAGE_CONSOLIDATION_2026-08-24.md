@@ -418,6 +418,36 @@ is **per-ITEM approval** — today the decision is per receipt.
       10.1x, 4.8x, 3.1x) must trip it, and the repaired records plus `finances · overview` — a
       genuine 66/58 responsive difference — must not.
 
+      ── **CORRECTION: THE GAP DOES NOT REACH THE STUDIO, AND I SHIPPED IT SAYING IT DID** ──
+
+      The two commits above describe a gap a person can see and filter by. **It cannot fire.** Traced
+      one layer at a time, the counts are dropped twice:
+
+      | layer | what it does |
+      |---|---|
+      | `GET /api/admin/design/pages` | selects `id, name, route, state_key, status, locked, traced_at` — **no `views`** |
+      | its `designs.map(...)` | builds `{ id, name, route, status, locked, stateKey }` — no counts |
+      | `joinPages` | built `{ id, name, status, locked }` — dropped them again |
+      | `lifecycleOf` | gets nothing, answers `0/0`, and `isLopsided(0,0)` is correctly **false** |
+
+      The plumbing in `joinPages` and `lifecycleOf` is fixed. **The API is not, and should not be by
+      a mapping line**: the counts live inside `views`, and that SELECT omits `views` deliberately —
+      its own comment says `element_count` exists as a column precisely so 270 rows of element
+      inventory are not dragged into a list page. Adding it would trade a measured page-load
+      regression for a chip. Finishing it needs either a stored count column (a seed against the live
+      database) or a second narrow aggregate query joined in like the dossiers are. Recorded at the
+      mapping site so the next reader sees it there rather than trusting the chip.
+
+      **Why this matters more than the feature.** *"Authored but not wired" is this repository's most
+      common defect*, it is written down as such, and I shipped one — in the slice whose argument was
+      that a record can look complete and be wrong. My tests passed because they called `lifecycleOf`
+      with hand-made counts: **the unit was right, the rule was right, and nothing exercised the
+      path.** The gap is now asserted through `joinPages` on the shape the API really passes, which
+      is the test that would have caught it and the one I should have written first.
+
+      The rule is not wasted: `scripts/trace-defaults.mjs` reads the same module and refuses to store
+      a lopsided capture, which is where it does the most good anyway — before a bad record exists.
+
       ── **C14o — A CLAIM OF MINE, CORRECTED BY THE NEXT RUN, 2026-08-25** ──
 
       C14i said `captureStable` lands the fix "on the FIRST capture rather than depending on a retry

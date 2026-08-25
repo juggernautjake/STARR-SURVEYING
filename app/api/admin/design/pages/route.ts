@@ -75,6 +75,23 @@ export const GET = withErrorHandler(async () => {
       // snake_case column → camelCase field. The `--stale` filter matched nothing for exactly this
       // reason three slices ago; the summary shape and the column name are not the same thing.
       stateKey: (d.state_key as string | undefined) ?? '',
+      // ── `counts` IS DELIBERATELY ABSENT, AND THE `lopsided-default` GAP IS INERT BECAUSE OF IT ──
+      //
+      // `joinPages` accepts `counts: { desktop, mobile }` and derives the sixth gap from it — the
+      // only gap about a record being WRONG rather than missing. Nothing here supplies it, so that
+      // gap can never fire on any page.
+      //
+      // Not an oversight to be patched by adding a field: the counts live inside `views`, and the
+      // SELECT above omits `views` ON PURPOSE — see the note at the query, `element_count` exists as
+      // a column precisely so 270 rows of element inventory are not dragged into a list page. Adding
+      // `views` here would trade a real, measured page-load regression for a chip.
+      //
+      // Two honest ways to finish it, both bigger than a mapping line:
+      //   · a generated/stored count column on `design_mockups` (a seed, applied to the live DB), or
+      //   · a second narrow aggregate query keyed by id, joined in like the dossiers are.
+      //
+      // Left inert and SAID SO rather than left looking done. The rule itself is real and used —
+      // `scripts/trace-defaults.mjs` refuses to store a lopsided capture through the same module.
     })),
     ((dossiers ?? []) as Array<Record<string, unknown>>).map((d) => ({
       route: d.route as string,
