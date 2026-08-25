@@ -1538,16 +1538,18 @@ early, and the internal tooling comes last.
       document.** §10 said *"Workspaces — DELEGATED to me. My answer is in §12"* and §12 was never
       written; it is written now.
 
-      **The answer: keep the seven, and fix the two that make the idea look arbitrary.** 42 rail
+      **The answer: keep the seven and change nothing structurally; revisit below 30 rail links.** 42 rail
       links across 7 workspaces is six per group, which is a navigable list, and §6's threshold of
-      ~29 is not met — what remains to absorb will not get it there. But `equipment` holds exactly
-      ONE rail link (its own portal, with three hidden routes behind it), and `knowledge` has no
-      landing page while the other six do. Neither is a big change and neither belongs in the same
-      slice as a merge, which is §6's own warning. The trigger to revisit is stated so it can be
-      checked rather than felt: **rail links below 30.**
+      ~29 is not met — what remains to absorb will not get it there.
 
-      Measured after C3–C13e: **42 rail links across 7 workspaces**, six of which have a
-      landing page of their own. §6 said the 7-way split stops earning its keep at ~29 links and that
+      §12 first proposed two fixes and then WITHDREW both: `knowledge` does have a landing
+      (`/admin/learn`; my probe looked for a route named after the workspace instead of reading
+      `WORKSPACES[ws].href`), and `equipment` holding one rail link is C3 succeeding rather than a
+      defect. Both the claim and the correction are in §12, in that order. The trigger to revisit is
+      stated so it can be checked rather than felt: **rail links below 30.**
+
+      Measured after C3–C13e: **42 rail links across 7 workspaces**, ALL SEVEN of which have a
+      registered landing page. §6 said the 7-way split stops earning its keep at ~29 links and that
       the call should be made after a few portals ship. It is not 29 yet, and C13b is what closes
       most of the remaining gap — so the honest state is **not ready to decide**, rather than decided.
 
@@ -2118,6 +2120,47 @@ map:**
 
 **Neither is a big change, and neither should be made in the same slice as a merge** — §6's own
 warning, which held all the way through C3–C13e and should hold for one more step.
+
+### CORRECTION, 2026-08-25 — one of the two "anomalies" was my measurement, not the registry
+
+The table above said `knowledge` has **no landing page** while the other six do, and the section
+below built a recommendation on it. **That was wrong.** Every one of the seven workspaces has a
+landing, registered and reachable:
+
+| Workspace | `WORKSPACES[ws].href` | registered |
+|---|---|---|
+| `hub` | `/admin/me` | yes |
+| `work` | `/admin/work` | yes |
+| `equipment` | `/admin/equipment` | yes |
+| `research-cad` | `/admin/research-cad` | yes |
+| `knowledge` | **`/admin/learn`** | yes |
+| `money` | `/admin/money` | yes |
+| `office` | `/admin/office` | yes |
+
+My probe did not read `WORKSPACES[ws].href`. It looked for a ROUTE NAMED AFTER the workspace —
+`/admin/knowledge` — which four of the seven happen to follow and which is a naming convention, not a
+requirement. `knowledge` is named `/admin/learn` because the product calls it Learning, and that is
+the only thing wrong with it. Fourth time in this plan that the probe was the defect, and the check
+that caught it is the same one every time: read the field the code reads, not a pattern that usually
+matches it.
+
+**The second anomaly does not survive either, on re-reading rather than re-measuring.** `equipment`
+holding exactly one rail link is the consolidation WORKING: C3 absorbed ten pages into that portal,
+so one link is the correct number. The observation that does survive is smaller and belongs to all
+seven — every workspace's rail repeats its own landing as its first row, which in `equipment`'s case
+is the entire group. That is a cosmetic redundancy in the rail, not a case for retiring a workspace,
+and retiring one for it would be exactly the "re-arranging navigation on a number that has not
+arrived" this section warns against two paragraphs later.
+
+### So the answer is simpler than the section above concluded
+
+**Keep the seven, change nothing structurally, revisit below 30 rail links.** The two changes
+proposed above are withdrawn: one rested on a broken measurement and the other on reading a success
+as a defect. What is left is the part that was always the answer — 42 links across 7 groups is a
+working navigation, and the reason to delete the split was never elegance but a link count that no
+longer exists and is not coming.
+
+The trigger stands, and it is the only thing here worth acting on later: **rail links below 30.**
 
 ### The trigger, stated so it can be checked rather than felt
 
