@@ -93,36 +93,3 @@ export const code = (src: string) => stripComments(src);
 /** CSS has no line comments — `//` there is part of a URL far more often than not. */
 export const cssCode = (src: string) => stripComments(src, { line: false });
 
-/**
- * Assert that one piece of source comes before another, and say so plainly when it does not.
- *
- * ── WHY THIS IS NOT JUST TWO indexOf CALLS ──────────────────────────────────────────────────────
- *
- * The idiom across this repo is:
- *
- *     expect(src.indexOf('X')).toBeGreaterThan(src.indexOf('Y'))
- *
- * which has a failure mode in the dangerous direction. When `Y` is absent `indexOf` returns -1, the
- * assertion becomes `toBeGreaterThan(-1)`, and it **passes for any X that exists at all** — order
- * unchecked. A test that cannot fail is indistinguishable from a test that is passing.
- *
- * Measured across the suite: 24 such assertions, 0 currently dead. So this prevents a class rather
- * than repairing a hole — worth doing while the count is zero, for the same reason the deductibility
- * guard was written while there was still one definition.
- *
- * The other half is legibility. Seven assertions in the page-consolidation plan failed because an
- * anchor moved while the rule it guarded did not, and each reported something like *"expected -1 to
- * be greater than 45"* — which says nothing about which anchor went missing. Naming the absent one
- * turns a five-minute puzzle into a one-line fix.
- */
-export function expectOrder(src: string, first: string, second: string): void {
-  const a = src.indexOf(first);
-  const b = src.indexOf(second);
-  if (a === -1) throw new Error(`expectOrder: anchor not found in source: ${JSON.stringify(first)}`);
-  if (b === -1) throw new Error(`expectOrder: anchor not found in source: ${JSON.stringify(second)}`);
-  if (a >= b) {
-    throw new Error(
-      `expectOrder: expected ${JSON.stringify(first)} (at ${a}) to come before ${JSON.stringify(second)} (at ${b})`,
-    );
-  }
-}

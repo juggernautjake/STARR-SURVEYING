@@ -18,7 +18,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { expectOrder } from '../helpers/source';
+import { expectOrder } from '../helpers/expect-order';
 
 const OBSERVE = fs.readFileSync(path.join(process.cwd(), 'scripts/lib/design-observe.mjs'), 'utf8');
 const TRACER = fs.readFileSync(path.join(process.cwd(), 'scripts/trace-defaults.mjs'), 'utf8');

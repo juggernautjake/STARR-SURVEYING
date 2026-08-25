@@ -29,6 +29,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { code } from './helpers/source';
 
 /** Ordering assertions written the unsafe way — MEASURED 2026-08-04, after converting the five in
  *  the CAD suites authored that day (38 found, 5 converted, 33 remain). The first value written here
@@ -57,7 +58,17 @@ function findUnsafe(): Array<{ file: string; count: number }> {
   const hits: Array<{ file: string; count: number }> = [];
   for (const root of ROOTS) {
     for (const f of walk(path.join(process.cwd(), root))) {
-      const n = (fs.readFileSync(f, 'utf8').match(UNSAFE) ?? []).length;
+      // ── COMMENTS STRIPPED BEFORE COUNTING (2026-08-25) ────────────────────────────────────────
+      //
+      // This ratchet counted its own explanation. A test file that QUOTES the unsafe shape in a
+      // comment — to say why it is unsafe — was scored as containing one, and the count went 33 → 34
+      // for a note about the hazard rather than an instance of it.
+      //
+      // The inline-hex scanner learned this exact lesson and wrote it down: *"a guard that fires on
+      // prose about the thing it guards teaches people to stop writing the prose."* Same repository,
+      // same failure, applied here late. `code()` is the shared stripper, which tracks string state
+      // rather than pattern-matching, so a `//` inside a quoted example survives.
+      const n = (code(fs.readFileSync(f, 'utf8')).match(UNSAFE) ?? []).length;
       if (n > 0) hits.push({ file: path.relative(process.cwd(), f).replace(/\\/g, '/'), count: n });
     }
   }
