@@ -138,7 +138,7 @@ function fmtMoney(cents: number, ccy: string): string {
 }
 
 export default function CustomerBillingPage() {
-  // ── C1 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md ─────────────────────────
+  // ── C1 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md ─────────────────────────
   //
   // The tab was `useState`. It is the URL now, which is the one property of the /admin/marketing
   // consolidation worth copying above all the others: a reload keeps you where you were, the back

@@ -2,7 +2,7 @@
 //
 //   GET /api/admin/feature-toggles → { destinations: [{ key, label, workspace, inbound, inboundFrom }] }
 //
-// T3 of §11 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// T3 of §11 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // The toggle VALUES come from `/api/admin/settings`, which already owns `app_settings`. This adds
 // the half that screen cannot compute in a browser: how many other pages link to each destination.

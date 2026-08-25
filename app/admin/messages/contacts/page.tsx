@@ -1,6 +1,6 @@
 // app/admin/messages/contacts/page.tsx — absorbed by the Messages portal.
 //
-// C9 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C9 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // The route stays and forwards.
 //

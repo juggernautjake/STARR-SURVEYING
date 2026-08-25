@@ -1,6 +1,6 @@
 // app/admin/hours/_tabs/TeamTab.tsx — a tab of the Hours portal.
 //
-// C13e of §4's addendum in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — §4: "who
+// C13e of §4's addendum in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — §4: "who
 // is working, and on what — the same session as approving their hours". Was /admin/team/page.tsx;
 // the old route stays and forwards, and /admin/team/[email] is a record that keeps its own.
 //

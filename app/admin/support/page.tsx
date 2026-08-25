@@ -1,7 +1,7 @@
 'use client';
 // app/admin/support/page.tsx — the System portal.
 //
-// C12a / P15 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C12a / P15 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Three routes about the software itself: your support tickets, what has gone wrong, and who did
 // what. §8 calls this one "developer-facing; low traffic; low risk", and the first two of those are

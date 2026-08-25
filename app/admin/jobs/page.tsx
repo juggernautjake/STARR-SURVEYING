@@ -1,7 +1,7 @@
 'use client';
 // app/admin/jobs/page.tsx — the Jobs & Projects portal.
 //
-// C7 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C7 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── THE STYLESHEET TRAP, AND THIS TIME THE CODEBASE HAD ALREADY WRITTEN IT DOWN ─────────────────
 //

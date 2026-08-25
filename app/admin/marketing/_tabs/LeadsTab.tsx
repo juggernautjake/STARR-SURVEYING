@@ -1,6 +1,6 @@
 // app/admin/marketing/_tabs/LeadsTab.tsx — the lead queue, now a tab of Growth.
 //
-// C10 / P6 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// C10 / P6 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. Was
 // `app/admin/leads/page.tsx`. The old route stays and forwards; `/admin/leads/[id]` is a RECORD
 // and is untouched.
 //

@@ -1,6 +1,6 @@
 /* app/admin/components/PageOffGate.css — a switched-off page, and the admin's way back in.
  *
- * T4 of §11.4 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+ * T4 of §11.4 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
  *
  * Tokens throughout: this renders on every admin route, so it has to hold up in all eleven palettes.
  * A literal hex here is one the theme sweep flags and the contrast audit finds later at a worse

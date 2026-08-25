@@ -1,6 +1,6 @@
 // app/admin/research/_tabs/BillingTab.tsx — a tab of the Research portal.
 //
-// C11b / P13 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11b / P13 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 // Was `/admin/research/billing/page.tsx`; the old route stays and forwards.
 // app/admin/research/billing/page.tsx — Phase 13 Research Billing & Usage Dashboard
 // Shows subscription status, usage metrics, invoice history, and document

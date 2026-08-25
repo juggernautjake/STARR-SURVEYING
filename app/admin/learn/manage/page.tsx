@@ -1,6 +1,6 @@
 // app/admin/learn/manage/page.tsx — Learning Content: everything that authors a course.
 //
-// C12d / P19 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C12d / P19 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // §8 asked for a PORTAL above this page, with `media` and `question-builder` as its tabs. That is
 // the wrong shape here, and the page itself is why: it has had a ten-tab bar reading `?tab=` since

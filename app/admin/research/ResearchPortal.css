@@ -1,6 +1,6 @@
 /* app/admin/research/ResearchPortal.css — the Research portal's chrome.
  *
- * C11b / P13 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+ * C11b / P13 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
  *
  * Local, and here for the same reason C11a spelled out: `AdminResearch.css` is route-scoped and
  * loads LAST on this tree, so a rule written there for a page outside it reaches every route except

@@ -1,6 +1,6 @@
 // __tests__/admin/feature-toggles.test.ts
 //
-// T1 of §11 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// T1 of §11 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Owner: *"Maybe we don't want to use a page or feature right now, so we would toggle it off so that
 // navigating the webpage is easier, but if we decide to use that page/feature in the future, then we

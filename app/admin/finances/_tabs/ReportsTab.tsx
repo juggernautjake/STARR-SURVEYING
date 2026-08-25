@@ -1,6 +1,6 @@
 // app/admin/finances/_tabs/ReportsTab.tsx — a tab of the Books & Tax portal.
 //
-// C13c of §4's addendum in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — §4: "it is
+// C13c of §4's addendum in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — §4: "it is
 // a financial report". Was /admin/reports/page.tsx; the old route stays and forwards.
 //
 // §5 costs exactly nothing here, and it is the cleanest match in the whole plan: /admin/reports

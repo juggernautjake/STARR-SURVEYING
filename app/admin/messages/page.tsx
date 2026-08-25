@@ -1,7 +1,7 @@
 'use client';
 // app/admin/messages/page.tsx — the Messages portal.
 //
-// C9 / P11 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C9 / P11 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Everything about talking to people: the conversations, who you can talk to, what the system sends
 // on your behalf, and the email log.

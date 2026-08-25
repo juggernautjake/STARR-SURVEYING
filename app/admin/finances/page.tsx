@@ -1,7 +1,7 @@
 'use client';
 // app/admin/finances/page.tsx — the Books & Tax portal.
 //
-// C8 / P7 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C8 / P7 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Four surfaces that answer one question — *what did the firm make, and what does it owe* — split
 // across two workspaces' worth of history. §2.2's finding, in miniature: "Finances" meant job

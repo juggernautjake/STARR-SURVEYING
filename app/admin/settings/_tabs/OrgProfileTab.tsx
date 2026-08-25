@@ -1,6 +1,6 @@
 // app/admin/settings/_tabs/OrgProfileTab.tsx — a tab of the Company portal.
 //
-// C12b / P14 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// C12b / P14 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. Was
 // `/admin/org-settings/page.tsx`; the old route stays and forwards.
 //
 // Named "Org profile" rather than "Org settings" because it is now a tab OF settings, and a

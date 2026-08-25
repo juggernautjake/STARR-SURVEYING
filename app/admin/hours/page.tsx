@@ -1,7 +1,7 @@
 'use client';
 // app/admin/hours/page.tsx — the Hours & Time portal. The first one that proves §5.
 //
-// C4 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C4 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // §4, P3: *"The dossiers show /admin/my-hours and /admin/hours-approval already call the same three
 // APIs — time-logs, time-logs/advances, time-logs/lock-period. They are one screen with two

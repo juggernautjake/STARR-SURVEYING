@@ -4,7 +4,7 @@
 //   node --env-file=.env.local scripts/nav-usage-report.mjs --days 14
 //   node --env-file=.env.local scripts/nav-usage-report.mjs --by-person
 //
-// C0 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C0 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── WHY THIS SHIPS WITH THE EMITTER AND NOT AFTER IT ────────────────────────────────────────────
 //

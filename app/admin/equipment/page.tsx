@@ -1,7 +1,7 @@
 'use client';
 // app/admin/equipment/page.tsx — the Equipment portal. One cage, one page.
 //
-// C3 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C3 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // §4, P5: *"The most mechanical merge in the document — fourteen links about one cage."*
 //

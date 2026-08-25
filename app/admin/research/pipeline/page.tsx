@@ -1,6 +1,6 @@
 // app/admin/research/pipeline/page.tsx — absorbed by the Research portal.
 //
-// C11b of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11b of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // The route stays and forwards. Deleting it would break every bookmark.
 

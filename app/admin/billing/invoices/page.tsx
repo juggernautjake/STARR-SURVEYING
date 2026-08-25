@@ -2,7 +2,7 @@
 //
 // The panel this route rendered has been the `Invoices` tab of /admin/billing since
 // `billing-real-tabs-2026-06-21`; both surfaces already shared one fetcher. What C1 of
-// docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md changed is that the tab now lives in
+// docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md changed is that the tab now lives in
 // the URL, so there is somewhere exact to send this.
 //
 // The file stays so that every bookmark, every link in an old email and every `// Spec:` reference

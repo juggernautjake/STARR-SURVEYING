@@ -1,6 +1,6 @@
 // app/admin/jobs/_tabs/WeatherTab.tsx — a tab of the Jobs portal.
 //
-// C13a of §4's addendum in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — the table
+// C13a of §4's addendum in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — the table
 // of routes the first draft left alone and which do not survive the rule in §3 on a second look.
 // Was app/admin/weather/page.tsx; the old route stays and forwards. §4: both are "can we work, and may we".
 //

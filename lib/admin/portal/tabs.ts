@@ -1,6 +1,6 @@
 // lib/admin/portal/tabs.ts — what a portal's tab strip is, decided without a router.
 //
-// C2 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C2 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // *"Extract the shell as `lib/admin/portal/` — tab set, `?tab=` routing, per-role default, per-tab
 // gating, per-tab lazy fetch, and the toggle read from §11.6. Everything after this is

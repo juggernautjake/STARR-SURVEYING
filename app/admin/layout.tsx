@@ -6,7 +6,7 @@ import RegisterAdminPWA from './components/RegisterAdminPWA';
 // Proactive "turn on notifications" prompt + silent re-subscribe when permission is already granted.
 // Renders nothing unless there is one actionable tap to offer, so it is safe to mount app-wide.
 import NotificationNudge from './components/NotificationNudge';
-// C0 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — one row per admin route
+// C0 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — one row per admin route
 // opened, so the consolidation plan can be argued from usage instead of from the sidebar.
 // Renders nothing; off in development unless NEXT_PUBLIC_ROUTE_TELEMETRY=1.
 import RouteViewTelemetry from './components/RouteViewTelemetry';

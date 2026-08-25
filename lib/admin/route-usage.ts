@@ -4,7 +4,7 @@
 //
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
 //
-// C0 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. That plan proposes folding 111
+// C0 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. That plan proposes folding 111
 // sidebar links into 17 portals, and the first question anyone should ask about a plan like that is
 // "which of these does anybody actually open?"
 //

@@ -1,7 +1,7 @@
 'use client';
 // app/admin/receipts/page.tsx — the Receipts & Spending portal.
 //
-// C5 / P2.1 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C5 / P2.1 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Owner, named explicitly: *"one portal for receipt management… adding receipts, reviewing receipts,
 // and approving and denying receipts or specific items on receipts."*

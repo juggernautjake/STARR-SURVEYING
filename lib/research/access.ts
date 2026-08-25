@@ -1,6 +1,6 @@
 // lib/research/access.ts — who may READ research data.
 //
-// C11b-0 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11b-0 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
 //

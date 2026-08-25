@@ -1,6 +1,6 @@
 // lib/admin/feature-toggles.ts — which pages this firm actually uses.
 //
-// T1 of §11 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// T1 of §11 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Owner: *"I want it so that we can have full control in the settings as to what all pages are
 // visible and what pages are not… Maybe we don't want to use a page or feature right now, so we

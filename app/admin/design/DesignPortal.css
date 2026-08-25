@@ -1,6 +1,6 @@
 /* app/admin/design/DesignPortal.css — the Page Designer portal's chrome.
  *
- * C12c / P17 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+ * C12c / P17 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
  *
  * Local, and every colour a token. The Studio has its own `DesignStudio.css` loaded by the boards;
  * the strip above them is portal chrome and belongs with the portal, not in a sheet the boards own.

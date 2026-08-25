@@ -1,7 +1,7 @@
 'use client';
 // app/admin/components/RouteViewTelemetry.tsx
 //
-// C0 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — record which admin routes are
+// C0 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — record which admin routes are
 // actually opened, so the consolidation plan can be argued from data instead of from the sidebar.
 //
 // Renders nothing. Mounted app-wide beside `RegisterAdminPWA` and `NotificationNudge`, which are the

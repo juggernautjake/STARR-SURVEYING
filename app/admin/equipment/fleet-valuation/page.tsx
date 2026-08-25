@@ -1,6 +1,6 @@
 // app/admin/equipment/fleet-valuation/page.tsx — absorbed by the Equipment portal (C3).
 //
-// C3 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. The page itself moved to
+// C3 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. The page itself moved to
 // `app/admin/equipment/_tabs/` UNTOUCHED and renders as a tab; this route stays and forwards.
 //
 // ── WHY THE ROUTE STAYS ─────────────────────────────────────────────────────────────────────────

@@ -1,7 +1,7 @@
 'use client';
 // app/admin/learn/page.tsx — the Knowledge portal.
 //
-// C11a / P12 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11a / P12 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Nineteen links in one workspace. Nine of them are the same activity — studying — split by
 // implementation: the roadmap, the modules, the reference library, the two flashcard surfaces, the

@@ -2,7 +2,7 @@
 
 // lib/admin/portal/usePortalTabs.ts — the tab strip, bound to the URL.
 //
-// C2 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C2 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Everything decidable without a router lives in `./tabs.ts` and is tested there. This is the thin
 // part: read the query string, write the query string, and hand the caller the answer.

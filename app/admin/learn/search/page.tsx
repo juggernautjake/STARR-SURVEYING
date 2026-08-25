@@ -1,6 +1,6 @@
 // app/admin/learn/search/page.tsx — absorbed by the Knowledge portal.
 //
-// C11a of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11a of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // The route stays and forwards. Deleting it would break every bookmark and every link written
 // into a lesson.

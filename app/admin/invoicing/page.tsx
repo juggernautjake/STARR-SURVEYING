@@ -1,7 +1,7 @@
 'use client';
 // app/admin/invoicing/page.tsx — the Customer Money portal.
 //
-// C8 / P8 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C8 / P8 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Everything about money coming IN from a customer: the invoices, what has not been paid, what
 // arrived and has not been matched, and the categories invoice lines are built from.

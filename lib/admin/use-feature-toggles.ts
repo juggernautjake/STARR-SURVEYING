@@ -2,7 +2,7 @@
 
 // lib/admin/use-feature-toggles.ts — one read of the toggle map, shared by every nav surface.
 //
-// T2 of §11 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// T2 of §11 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── WHY THIS IS CACHED IN A MODULE AND NOT A CONTEXT ────────────────────────────────────────────
 //

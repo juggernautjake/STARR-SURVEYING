@@ -1,6 +1,6 @@
 // __tests__/admin/hours-portal.test.ts
 //
-// C4 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — the first portal to
+// C4 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — the first portal to
 // prove §5, *"one portal, several views"*.
 //
 // ── WHY THIS SLICE GETS ITS OWN TEST FILE AND C3 DID NOT ────────────────────────────────────────

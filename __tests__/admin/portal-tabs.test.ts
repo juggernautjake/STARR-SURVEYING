@@ -1,6 +1,6 @@
 // __tests__/admin/portal-tabs.test.ts
 //
-// C2 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C2 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // *"Extract the shell as `lib/admin/portal/` … Everything after this is configuration."*
 //

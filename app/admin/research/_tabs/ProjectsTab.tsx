@@ -1,6 +1,6 @@
 // app/admin/research/_tabs/ProjectsTab.tsx — a tab of the Research portal.
 //
-// C11b / P13 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11b / P13 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 // Was `/admin/research/page.tsx, the projects list`; the old route stays and forwards.
 //
 // This one was the PORTAL's own page rather than a page beneath it, so it is a directory deeper

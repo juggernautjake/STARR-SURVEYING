@@ -2,7 +2,7 @@
 
 // app/admin/components/PageOffGate.tsx — what a switched-off page shows.
 //
-// T4 of §11.4 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// T4 of §11.4 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Owner: *"if we decide to use that page/feature in the future, then we can turn it back on **and
 // make sure it is hooked up correctly**."*

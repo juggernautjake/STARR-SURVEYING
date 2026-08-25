@@ -1,6 +1,6 @@
 // app/admin/messages/_tabs/CrmTab.tsx — a tab of the Messages portal.
 //
-// C13b of §4's addendum in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// C13b of §4's addendum in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. Was
 // /admin/contacts/page.tsx; the old route stays and forwards, and its row stays REGISTERED
 // because /admin/contacts/[id] is a record that would otherwise lose its bundle gate (C10).
 //

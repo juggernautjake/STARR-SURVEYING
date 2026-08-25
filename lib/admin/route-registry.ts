@@ -355,7 +355,7 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   //
   // ── C3: TWELVE ENTRIES BECAME THREE ──────────────────────────────────────────────────────────
   //
-  // §4, P5 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md: *"The most mechanical
+  // §4, P5 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md: *"The most mechanical
   // merge in the document — fourteen links about one cage."*
   //
   // `today`, `checked-out`, `timeline`, `maintenance`, `consumables`, `templates`,

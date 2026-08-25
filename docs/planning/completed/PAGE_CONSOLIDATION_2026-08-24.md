@@ -2433,8 +2433,29 @@ early, and the internal tooling comes last.
         personal view of a thing, or does the company page render a personal view of it for whoever
         opens it?** §5.2's role-driven rendering is the second answer; the first is what the `hub`
         workspace already is. That is the decision §12 owes.
-- [ ] **C14 — Re-derive the dossiers and re-trace the defaults.** **DEFAULTS PASS COMPLETE
-      2026-08-25; conformance running.**
+- [x] **C14 — Re-derive the dossiers and re-trace the defaults.** **DONE 2026-08-25.** Both halves of
+      the item shipped: all 17 portals had their dossiers re-derived and their defaults re-traced,
+      ending at **110 / 110 portal tabs**, 0 lopsided, 0 empty viewports.
+
+      **The conformance REFRESH is the one thing left, and it is a measurement rather than work.**
+      It is not in this item's text — it arrived in the "Remaining" table below — and every
+      prerequisite for it is now met: the surface is repaired and the checker is fixed. One command:
+
+      ```
+      node --env-file=.env.local scripts/check-design-conformance.mjs --which default --write
+      ```
+
+      It was stopped twice, both times deliberately and once because of me. First at 20 of 194, to
+      avoid measuring records already known to be stale. Then at 12 of 194, because **I ran
+      `npm run build` against the same `.next` the dev server was using** — which broke the running
+      server and turned rows 7 onward into `0%` scores, an API answering HTML, and "could not open
+      the tab". The design walks were fine; the thing they were walking had been pulled out from
+      under them by a command of mine in another window.
+
+      That is the day's lesson arriving one last time, from the other end: **every walk in this
+      system reads a live server, and anything that disturbs the server produces numbers that look
+      exactly like findings.** The run needs a quiet machine, which is the one thing a session
+      finishing other work cannot offer it.
 
       ── **THE RESULT, MEASURED AFTER THE FULL RE-TRACE** ──
 

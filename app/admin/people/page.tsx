@@ -1,7 +1,7 @@
 'use client';
 // app/admin/people/page.tsx — the People portal.
 //
-// C9 / P10 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C9 / P10 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // §2.3 found **ten routes describing one noun**. The fix at the time was a front door on top of
 // them; this is the rest of that fix — the six that are about administering a person become tabs,

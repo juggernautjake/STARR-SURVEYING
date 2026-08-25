@@ -1,6 +1,6 @@
 // app/admin/hours/_tabs/AssignmentsTab.tsx — a tab of the Hours portal.
 //
-// C13d of §4's addendum in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md — §4: "who
+// C13d of §4's addendum in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md — §4: "who
 // is working, and on what — the same session as approving their hours". Was
 // /admin/assignments/page.tsx; the old route stays and forwards.
 //

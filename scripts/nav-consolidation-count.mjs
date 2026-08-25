@@ -2,7 +2,7 @@
 //
 //   node scripts/nav-consolidation-count.mjs
 //
-// docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md claims "138 nav links become 29". That
+// docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md claims "138 nav links become 29". That
 // is the kind of number that is quoted for a year after the one person who counted it has forgotten
 // how. This is the count, run against the live registry, so the claim can be re-checked after every
 // slice and goes stale loudly instead of quietly.

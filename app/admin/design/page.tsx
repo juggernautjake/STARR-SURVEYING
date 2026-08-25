@@ -1,7 +1,7 @@
 'use client';
 // app/admin/design/page.tsx — the Page Designer portal.
 //
-// C12c / P17 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C12c / P17 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── §8's STATED REASON FOR THIS SLICE IS NOT TRUE, AND THE SLICE IS STILL WORTH DOING ───────────
 //

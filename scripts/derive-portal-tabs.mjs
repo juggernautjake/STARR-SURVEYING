@@ -3,7 +3,7 @@
 //   node scripts/derive-portal-tabs.mjs            # rewrite lib/admin/portal/tabs.generated.json
 //   node scripts/derive-portal-tabs.mjs --check    # exit 1 if the file is behind the pages
 //
-// T6 of §11 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// T6 of §11 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── WHY THIS IS DERIVED AND NOT IMPORTED ────────────────────────────────────────────────────────
 //

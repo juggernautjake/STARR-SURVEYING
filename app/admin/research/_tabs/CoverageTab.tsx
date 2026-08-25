@@ -1,6 +1,6 @@
 // app/admin/research/_tabs/CoverageTab.tsx — a tab of the Research portal.
 //
-// C11b / P13 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11b / P13 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 // Was `/admin/research/coverage/page.tsx`; the old route stays and forwards.
 //
 // ── THIS ONE WAS A SERVER COMPONENT, WHICH IS THE C9 TRAP ────────────────────────────────────

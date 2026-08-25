@@ -1,6 +1,6 @@
 // app/admin/design/_tabs/DossiersTab.tsx — a tab of the Page Designer.
 //
-// C12c / P17 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C12c / P17 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 // Was `app/admin/design/dossiers/page.tsx`.
 //
 // ── THE ONE WRAPPER THAT WAS NOT JUST A WRAPPER ─────────────────────────────────────────────────

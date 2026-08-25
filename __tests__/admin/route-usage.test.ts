@@ -1,6 +1,6 @@
 // __tests__/admin/route-usage.test.ts
 //
-// C0 of docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C0 of docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // The emitter writes `props.route` and the report groups by it. Two ends, one rule — and the reason
 // it is ONE rule, exported, rather than a regex at each end is that the design conformance check

@@ -1,7 +1,7 @@
 'use client';
 // app/admin/pay/page.tsx — the Pay & Payouts portal. The owner's headline example.
 //
-// C6 / P1.1–P1.3 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C6 / P1.1–P1.3 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // §4, P1: *"Eleven links, one question: what is somebody owed and how do they get it."*
 //

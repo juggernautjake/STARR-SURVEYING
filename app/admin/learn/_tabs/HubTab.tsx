@@ -1,6 +1,6 @@
 // app/admin/learn/_tabs/HubTab.tsx — a tab of the Knowledge portal.
 //
-// C11a / P12 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// C11a / P12 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. Was
 // `/admin/learn/page.tsx`, the hub's own card grid.
 //
 // The body is unchanged apart from two relative imports: the hub sat at the top of the tree and

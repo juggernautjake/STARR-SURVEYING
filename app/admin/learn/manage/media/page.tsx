@@ -1,6 +1,6 @@
 // app/admin/learn/manage/media/page.tsx — absorbed by the Learning Content portal.
 //
-// C12d of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C12d of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // The route stays and forwards. Deleting it would break every bookmark, and authoring links get
 // pasted between the people who write the courses.

@@ -1,6 +1,6 @@
 // app/admin/settings/page.tsx — the Company portal.
 //
-// C12b / P14 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C12b / P14 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // ── TWO OF THE FIVE, AND THE REASON THE OTHER THREE ARE NOT HERE ────────────────────────────────
 //

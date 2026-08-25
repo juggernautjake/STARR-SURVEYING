@@ -1,6 +1,6 @@
 // app/admin/support/_tabs/TicketsTab.tsx — a tab of the System portal.
 //
-// C12a / P15 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// C12a / P15 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. Was
 // `/admin/support/page.tsx`. It was the portal's own page, so it is a directory deeper now — but
 // it had no relative imports to pay for that.
 //

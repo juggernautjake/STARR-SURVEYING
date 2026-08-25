@@ -1,6 +1,6 @@
 // app/admin/learn/_tabs/RoadmapTab.tsx — a tab of the Knowledge portal.
 //
-// C11a / P12 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md. Was
+// C11a / P12 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md. Was
 // `/admin/learn/roadmap/page.tsx`; the old route stays and forwards.
 //
 // The body is unchanged. `_tabs/` sits at the same depth as the directory this came from, so

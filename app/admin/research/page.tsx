@@ -1,7 +1,7 @@
 'use client';
 // app/admin/research/page.tsx — the Research portal.
 //
-// C11b / P13 of §8 in docs/planning/in-progress/PAGE_CONSOLIDATION_2026-08-24.md.
+// C11b / P13 of §8 in docs/planning/completed/PAGE_CONSOLIDATION_2026-08-24.md.
 //
 // Seven routes describing one subject. The projects list keeps the front door and the other six —
 // coverage, the document library, the data sources, site health, the pipeline dashboard and the
