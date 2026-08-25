@@ -358,6 +358,47 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
+      ── **C14i — THE LOPSIDED RECORDS WERE EMPTY STATES, 2026-08-25** ──
+
+      C14g caught five records where one viewport held a fraction of the other and re-captured the
+      short one. `/admin/learn · card-bank` refused to be fixed that way, and reading its 21 stored
+      mobile elements is what finally explained the whole class:
+
+      > `admin-empty` — the EMPTY STATE — a search box, a title, and 617px of content, against
+      > desktop's 5230px and 587 card elements.
+
+      **Mobile was not a different layout. It photographed the page before its rows arrived**, and
+      filed "nothing here" as the record of what that tab looks like. Then the guard's retry could
+      not re-open the state at mobile — the intermittent `openState` failure, landing where it did
+      the most damage — so the bad reading stayed:
+
+      ```
+      ⟳ card-bank: 600 desktop vs 25 mobile — re-capturing mobile
+      ⟳ card-bank: could not re-open at mobile; keeping the first reading
+      ```
+
+      **The root cause is the same one this plan keeps re-buying at a higher price.** Everything
+      before this waited for a PROXY and then captured once: `waitForPageReady` waits for a heading
+      or a button; `openState` waits for the right tab to be selected. A shell that has fetched
+      nothing satisfies both. Every fixed wait in this file has been too short for somebody — the
+      route walk (4 of 51 pages), the state opener (three tabs), the re-capture — and each fix
+      lengthened a guess.
+
+      `captureStable()` stops guessing at a duration and watches the thing itself: capture, wait,
+      capture again, and while the count is still climbing the page is still arriving. It is used at
+      **all four** capture sites, so the fix lands on the FIRST capture rather than depending on a
+      retry that may not get a turn.
+
+      ```
+      · card-bank: 598 desktop · 598 mobile
+        card-bank mobile: 21 → 598 elements · +1 new: .div · −1 gone: .admin-empty · 4 moved
+      ```
+
+      `−1 gone: .admin-empty` is the proof, and it is only legible because C14f taught state records
+      to say what they replaced. **28.5x → 1.0x**, and the three slices now read as one argument:
+      make the replacement speak, notice the asymmetry it reveals, then find that the asymmetry was
+      never about viewports at all.
+
       ── **C14h — THE COMPLETENESS QUESTION, ANSWERED IN NUMBERS, 2026-08-25** ──
 
       C14's first line is "re-derive the dossiers and re-trace the defaults", and until now nobody had

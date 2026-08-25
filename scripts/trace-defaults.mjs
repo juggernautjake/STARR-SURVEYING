@@ -117,6 +117,8 @@ let page = await ctx.newPage();
 //
 // That is the same shape as the fixed-wait bug and the two before it: the instrument failed and the
 // output looked exactly like a finding. A failed route now gets a fresh tab before the next one.
+// (`freshPage` is below, after the three helpers this walk leans on.)
+
 /**
  * What a re-trace replaced, per viewport — for a route AND for each of its states.
  *
@@ -149,6 +151,37 @@ function reportChanges(changes, indent) {
     if (moved.length) bits.push(`${moved.length} moved (worst ${moved[0].signature} by ${moved[0].by}px)`);
     console.log(`${indent}${change.view}: ${bits.join(' · ')}`);
   }
+}
+
+/**
+ * Capture, then capture again, until the page stops growing.
+ *
+ * ── WHAT THE LOPSIDED RECORDS ACTUALLY WERE ─────────────────────────────────────────────────────
+ *
+ * `/admin/learn · card-bank` stored 598 desktop elements and 21 mobile ones, and the 21 are worth
+ * reading: `admin-empty` — the EMPTY STATE — a search box, a title, and 617px of content against
+ * desktop's 5230px. Mobile did not render a different layout. It photographed the page **before its
+ * rows arrived**, and filed "nothing here" as the record of what that tab looks like.
+ *
+ * Everything before this waited for a PROXY and then captured once: `waitForPageReady` waits for a
+ * heading or a button, `openState` waits for the right tab to be selected. Both are satisfied by a
+ * shell that has not fetched anything yet. Every fixed wait in this file has been too short for
+ * somebody — the route walk (4 of 51 pages), the state opener (three tabs), the re-capture — and
+ * lengthening them is how you buy the same bug at a higher price.
+ *
+ * So stop guessing at a duration and watch the thing itself. Capture, wait, capture again; while the
+ * count is still climbing the page is still arriving. Return the largest reading, because this
+ * failure only ever makes a capture too small — nothing renders fewer elements by waiting.
+ */
+async function captureStable(page, classes, { tries = 4, gap = 1_200 } = {}) {
+  let best = await page.evaluate(CAPTURE, classes);
+  for (let i = 1; i < tries; i += 1) {
+    await page.waitForTimeout(gap);
+    const next = await page.evaluate(CAPTURE, classes);
+    if (next.length <= best.length) return best;   // stopped growing — this is the page
+    best = next;
+  }
+  return best;
 }
 
 /**
@@ -376,7 +409,7 @@ for (const [i, target] of todo.entries()) {
       // capture, because afterwards there is nothing to distinguish it from a page.
       const broken = await devErrorOn(page);
       if (broken) { devError = broken; break; }
-      captures[viewId] = await page.evaluate(CAPTURE, classes);
+      captures[viewId] = await captureStable(page, classes);
       if (viewId === 'desktop' && captures[viewId].length < 8) {
         stillLoading = stillLoading
           || await page.locator('text=/^\\s*(Loading|Loading…)\\s*$/').count() > 0;
@@ -461,7 +494,7 @@ for (const [i, target] of todo.entries()) {
       await page.goto(`${BASE}${target.route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 }).catch(() => {});
       if (!await waitForPageReady(page)) return null;
       await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
-      return page.evaluate(CAPTURE, classes);
+      return captureStable(page, classes);
     }, target.route));
 
     const res = await page.request.fetch(`${BASE}/api/admin/design/import`, {
@@ -518,7 +551,7 @@ for (const [i, target] of todo.entries()) {
           stDevError = await devErrorOn(page);
           if (stDevError) break;
           reached = true;
-          stateCaptures[viewId] = await page.evaluate(CAPTURE, classes);
+          stateCaptures[viewId] = await captureStable(page, classes);
         }
 
         if (!reached || !stateCaptures.desktop) {
@@ -534,7 +567,7 @@ for (const [i, target] of todo.entries()) {
         Object.assign(stateCaptures, await recaptureIfLopsided(stateCaptures, async (viewId) => {
           await page.setViewportSize(VIEWPORTS[viewId]);
           if (!await openState(page, BASE, target.route, st)) return null;
-          return page.evaluate(CAPTURE, classes);
+          return captureStable(page, classes);
         }, `${st.key}`));
 
         const stateRes = await page.request.fetch(`${BASE}/api/admin/design/import`, {
