@@ -1145,6 +1145,53 @@ early, and the internal tooling comes last.
       routes are untouched, no page errors. Inline hexes **2306 before, 2306 after**. `npm run build`
       clean.
 
+- [x] **C11b-0 — the research read boundary.** **DONE 2026-08-25.** Not in the plan; found while
+      writing C11b and shipped ahead of it, because C11b's whole shape depended on the answer.
+
+      C11b was going to make six research pages into tabs, each carrying its registry row's role
+      list. §5.1 says a tab list is a courtesy and the API is the boundary, so the lists were worth
+      measuring before writing. Against a running server, with a plain `employee` token holding no
+      research role of any kind:
+
+      | Endpoint | plain `employee` |
+      |---|---|
+      | `GET /api/admin/research/coverage` | **200** |
+      | `GET /api/admin/research/library` | **200** |
+      | `GET /api/admin/research/pipeline` | **200** |
+      | `GET /api/admin/research/billing` | **200** |
+      | `GET /api/admin/research/sites` | **200** |
+      | `GET /api/admin/research/self-heal/proposals` | 403 |
+
+      **Five of six answered anybody who was signed in.** They call `auth()` and stop there.
+
+      The cause is structural rather than careless: `middleware.ts`'s `ROUTE_ROLES` has only ever run
+      on PAGE paths. `/api/admin/*` goes through the bundle gate alone, and four of these routes are
+      deliberately bundle-exempt because they are operator tools. So the six-role gate everyone can
+      see on `/admin/research` was in front of the screen, never in front of the data.
+
+      **Why fixing it is not a product decision, when C10 said the opposite.** C10 met the mirror
+      image — a door wider than its boundary — and left the boundary alone, because who may see leads
+      is the owner's call. The asymmetry: there the extra roles reached a page that refused them
+      everything, so narrowing the door took nothing from anybody. Here the boundary is wider than
+      the product's own intent, stated twice and in agreement — middleware gates the pages to six
+      roles and the registry rows say the same or narrower, and a plain `employee` is in neither.
+      Refusing them is the existing policy finally reaching the data.
+
+      `lib/research/access.ts` therefore enforces the **widest** of the product's own statements —
+      the page gate — rather than the narrower per-row lists, so nobody who can open a research page
+      loses anything. Verified both ways against the running server: after the change all six refuse
+      a plain employee, and a real `field_crew`-only account (no admin) still gets 200 from all five.
+
+      `__tests__/research/api-access.test.ts` pins the role list to middleware's literal entry —
+      that mirror has broken seven times in seven slices — and pins each route's guard.
+
+      **And the probe was the bug, in a new way worth recording.** The test's comment-stripping
+      helper reported the `sites` guard missing when it was plainly there: the guard's own comment
+      contains an api path with a star in it, which the block-comment regex read as an opening
+      `/*` and followed to a closing marker sixty lines below, deleting the code under test. Line
+      comments have to be stripped FIRST. The same latent bug was in C9's helper and is fixed there
+      too.
+
 - [ ] **C11b — P13 Research** (`/admin/research` absorbs coverage · library · pipeline · sites ·
       self-heal · billing). `/admin/research/[projectId]` (22,112 lines), `/admin/research/testing`
       and `/admin/cad` stay. Note for whoever takes it: `AdminResearch.css` is route-scoped exactly

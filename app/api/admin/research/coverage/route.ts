@@ -10,6 +10,7 @@
 
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { canReadResearch } from '@/lib/research/access';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
@@ -22,6 +23,11 @@ import {
 export const GET = withErrorHandler(async () => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // C11b-0: this route answered ANY signed-in account until 2026-08-25 — measured, 200 to a plain
+  // `employee`. `middleware.ts` gates the /admin/research PAGES to these six roles but never ran on
+  // /api/*, so the gate was in front of the screen and not in front of the data. See
+  // lib/research/access.ts.
+  if (!canReadResearch(session.user.roles)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const [adapterRes, countyRes, checkRes] = await Promise.all([
     supabaseAdmin

@@ -23,6 +23,7 @@
 // health scheduler picks up and what the coverage dashboard tells a customer works.
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, isAdmin, isDeveloper } from '@/lib/auth';
+import { canReadResearch } from '@/lib/research/access';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { supabaseAdmin } from '@/lib/supabase';
 import { detectVendor, type VendorTemplate as DetectVendor } from '@/lib/research/vendor-detection';
@@ -89,6 +90,11 @@ async function loadVendors(): Promise<VendorRow[]> {
 export const GET = withErrorHandler(async (req: NextRequest) => {
   const session = await auth();
   if (!session?.user?.email) return NextResponse.json({ error: 'Not signed in.' }, { status: 401 });
+  // C11b-0: this GET answered ANY signed-in account until 2026-08-25 — measured, 200 to a plain
+  // `employee`. `middleware.ts` gates the /admin/research PAGES to these six roles but never ran on
+  // /api/*, so the gate was in front of the screen and not in front of the data. See
+  // lib/research/access.ts.
+  if (!canReadResearch(session.user.roles)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const url = new URL(req.url);
   const detectUrl = url.searchParams.get('detect');

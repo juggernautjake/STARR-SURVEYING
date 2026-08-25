@@ -96,7 +96,12 @@ describe('Role builder page + client (W7)', () => {
   const TAB_RAW = read('app/admin/people/_tabs/RolesTab.tsx');
   // The tab's own header explains the C9 change in prose, and that prose contains every identifier
   // this block looks for. Strip comments so no assertion can pass by matching a sentence I wrote.
-  const TAB = TAB_RAW.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // Line comments FIRST, and CRLF normalised — see the note on `code()` in
+  // __tests__/research/api-access.test.ts for the two ways the naive version of this lies.
+  const TAB = TAB_RAW
+    .split('\r\n').join('\n')
+    .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
   const CLIENT = read('app/admin/people/_tabs/CustomRoleBuilderClient.tsx');
 
   // C9 (2026-08-25): this was an async SERVER page that ran `auth()` and redirected non-admins.
