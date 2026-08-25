@@ -25,7 +25,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { code } from '../helpers/source';
-import { deductibleFraction, DEDUCTIBLE_FRACTION } from '@/lib/finance/tax-summary';
+import { deductibleFraction, deductibleCents, DEDUCTIBLE_FRACTION } from '@/lib/finance/tax-summary';
 
 const ROOT = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -62,6 +62,20 @@ describe('the move changed nothing about the numbers', () => {
     for (const notAFlag of ['', 'FULL', 'partial', 'deductible', null, undefined]) {
       expect(deductibleFraction(notAFlag), `unknown flag ${JSON.stringify(notAFlag)}`).toBe(0);
     }
+  });
+
+  it('deductibleCents rounds once, in the definition', () => {
+    // The route used to write `Math.round(total * deductibleFraction(flag))` inline. Rounding is
+    // part of what "deductible" MEANS -- cents are integers -- and a half-cent that rounds one way
+    // here and another way in the next screen is a discrepancy nobody can explain at filing time.
+    expect(deductibleCents(1001, 'partial_50')).toBe(501);   // 500.5 → 501, once, here
+    expect(deductibleCents(1000, 'partial_50')).toBe(500);
+    expect(deductibleCents(1234, 'full')).toBe(1234);
+    expect(deductibleCents(1234, 'none')).toBe(0);
+    expect(deductibleCents(1234, 'review')).toBe(0);
+    // A missing total is zero, not NaN: a receipt with no amount must not poison a whole report.
+    expect(deductibleCents(null, 'full')).toBe(0);
+    expect(deductibleCents(undefined, 'full')).toBe(0);
   });
 
   it('and nothing deducts more than the receipt', () => {

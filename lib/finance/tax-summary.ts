@@ -71,6 +71,34 @@ export function deductibleFraction(flag: string | null | undefined): number {
 /** `0.5` → `50`. The sentence and the arithmetic must not be able to disagree. */
 const asPercent = (fraction: number) => Math.round(fraction * 100);
 
+/**
+ * What one receipt actually deducts, in cents — P2.2c.
+ *
+ * ── WHY THIS AND NOT `deductibleTotal(rows)` ────────────────────────────────────────────────────
+ *
+ * P2.2c asks for `approvedTotal()` and `deductibleTotal()`, "exported, used everywhere", against the
+ * `effectiveHours` defect — four files summing raw hours while a fifth summed the approver's
+ * adjustment. The instinct is to add two list-level functions. **Implemented literally, that would
+ * create the very defect the item exists to prevent.**
+ *
+ * The only consumer is `/api/admin/finances/tax-summary`, and it does not sum a list: it makes ONE
+ * pass accumulating `by_status`, `by_category`, `by_tax_flag`, `top_vendors` and `by_user` together.
+ * A standalone `deductibleTotal(rows)` beside that loop would be a second way to compute the same
+ * number, differing the first time somebody changes one and not the other — two definitions, added
+ * by the slice whose entire purpose is to have one.
+ *
+ * So the shared unit is the per-RECEIPT arithmetic the loop already calls, and the totals stay where
+ * the totals are made. `Math.round` is part of the definition, not the caller's business: cents are
+ * integers, and a half-cent that rounds differently in two places is exactly the kind of discrepancy
+ * nobody can explain at filing time.
+ */
+export function deductibleCents(
+  totalCents: number | null | undefined,
+  flag: string | null | undefined,
+): number {
+  return Math.round((totalCents ?? 0) * deductibleFraction(flag));
+}
+
 export interface TaxSummaryInput {
   /** The card that paid, if one has been CONFIRMED. An unconfirmed suggestion must not be passed
    *  here — see `cardConfirmed`. */

@@ -83,7 +83,7 @@ import {
   depreciationForYear,
   type DepreciationMethod,
 } from '@/lib/equipment/depreciation';
-import { deductibleFraction } from '@/lib/finance/tax-summary';
+import { deductibleCents } from '@/lib/finance/tax-summary';
 
 /** IRS standard business mileage rate (cents/mile). 2025 rate is
  *  67¢; 2026 wasn't published when this was written. Override via
@@ -346,7 +346,9 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     receiptTotalCents += total;
 
     const cat = (r.category ?? 'other').trim() || 'other';
-    const ded = Math.round(total * deductibleFraction(r.tax_deductible_flag));
+    // P2.2c: the rounding is part of the definition, not this loop's business — a half-cent that
+    // rounds differently in two places is a discrepancy nobody can explain at filing time.
+    const ded = deductibleCents(total, r.tax_deductible_flag);
 
     const catBucket =
       byCategory.get(cat) ?? { count: 0, total_cents: 0, deductible_cents: 0 };

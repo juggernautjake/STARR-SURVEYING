@@ -228,7 +228,9 @@ is **per-ITEM approval** — today the decision is per receipt.
 - [ ] **P2.2b — a per-line tax treatment**, beside the per-line accept. Deductible · partial ·
       not deductible. `receipts.tax_deductible_flag` is the receipt-level answer and stays as the
       default a line inherits until somebody says otherwise.
-- [ ] **P2.2c — `approvedTotal()` and `deductibleTotal()`, exported, used everywhere.** Once a line
+- [x] **P2.2c — one definition of what a receipt deducts.** **Shipped 2026-08-25**, in a different
+      shape from the one written below, and the difference is the finding. Originally:
+      `approvedTotal()` and `deductibleTotal()`, exported, used everywhere. Once a line
       can be rejected there are three numbers — spent, approved, deductible — and every screen that
       says "the receipt amount" has to say which. This is the `effectiveHours` defect waiting to
       happen: four files summed raw hours while a fifth summed the approver's adjustment, and the
@@ -256,6 +258,29 @@ is **per-ITEM approval** — today the decision is per receipt.
       sentence can read it** — `Deductible at ${asPercent(DEDUCTIBLE_FRACTION.partial_50)}%`. The two
       copies are now one. The route imports the function and no longer contains the flag at all,
       which is why the allowlist went from six files to five.
+
+      ── **WHY THE TWO NAMED FUNCTIONS WERE NOT WRITTEN — AND WHY THAT IS THE POINT** ──
+
+      The item asks for `approvedTotal()` and `deductibleTotal()`, list-level, exported, used
+      everywhere. **Implemented literally, that would have created the defect the item exists to
+      prevent.**
+
+      There is exactly one consumer, `/api/admin/finances/tax-summary`, and it does not sum a list.
+      It makes ONE pass accumulating `by_status`, `by_category`, `by_tax_flag`, `top_vendors` and
+      `by_user` together. A `deductibleTotal(rows)` standing beside that loop would be a second way
+      to compute the same number — differing the first time somebody changed one and not the other.
+      Two definitions, added by the slice whose whole purpose is to have one.
+
+      The unit that is genuinely shared is the **per-receipt** arithmetic the loop already calls, so
+      that is what was extracted: `deductibleCents(totalCents, flag)`. The totals stay where totals
+      are made. `Math.round` moved inside it deliberately — rounding is part of what "deductible"
+      means, cents are integers, and a half-cent rounding one way here and another way on the next
+      screen is precisely the discrepancy nobody can explain at filing time.
+
+      **An exported function with no caller is not "one definition", it is an API that starts
+      drifting from the product the day it ships.** Ticked on that basis rather than on the letter of
+      the item; `deductibleTotal` becomes worth writing when P2.2b gives per-line amounts and a
+      second consumer exists to disagree with.
 
       A relocation that alters a tax figure is not a relocation, so the behaviour is asserted rather
       than assumed: the old `switch` had a `default:` arm catching `review` and everything else, the
