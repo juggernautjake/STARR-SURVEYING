@@ -2554,3 +2554,27 @@ resolves to `null` and is reachable with no bundles at all.
 asked for it to be absorbed. It had a registry row, but functionally it is a destination you are SENT
 to rather than one you browse to, and C1 removed the row without making it a tab. That was the right
 call for the wrong-looking reason, and it is why this page is the only unregistered one in the tree.
+
+### 13.6 The four closed boundaries broke no caller — checked afterwards, which is late
+
+Five endpoints were gated across C11b-0, C13a and C13c. Each change was verified against the *roles*
+it refused, and none was verified against the *callers* it might break. That is the wrong order, and
+it is the same omission that nearly cost something on `/api/admin/team/status` — where the check
+before the change is what showed the endpoint was open on purpose, because three Hub widgets need it.
+
+Done properly now. Every caller of every gated endpoint:
+
+| Endpoint | Callers outside the route | Inside the gate? |
+|---|---|---|
+| `/api/admin/notes` | the notes page | yes |
+| `/api/admin/compliance` | the Jobs portal + its Compliance tab | yes |
+| `/api/admin/research/coverage` · `library` · `billing` · `sites` | their own tabs and panels | yes |
+| `/api/admin/research/pipeline` | **`lib/hub/widgets/pipeline-status`** | yes — `['admin','developer','researcher','tech_support']`, all inside `RESEARCH_READ_ROLES` |
+
+The one that mattered is the widget, because the Hub is ungated and this repository's `allowedRoles`
+is read by the Add-Widget modal rather than at render — so a widget already on somebody's dashboard
+draws for whoever opens it. Checked: on a non-OK response it sets its state to `empty` and renders
+its empty state. A refusal degrades to "nothing to show" rather than an error or a blank.
+
+**So nothing broke.** Recorded anyway, because "it turned out fine" and "it was checked" are
+different claims, and only one of them was true at the time each change was committed.
