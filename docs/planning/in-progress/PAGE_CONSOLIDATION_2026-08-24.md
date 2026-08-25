@@ -427,12 +427,52 @@ once means any complaint afterwards has two possible causes.
 Ordered by *risk-adjusted value*: the pilot is small and reversible, the owner's named portals come
 early, and the internal tooling comes last.
 
-- [ ] **C0 — Get real usage data before absorbing anything.** See §10: the telemetry that exists
-      cannot answer "which links does anyone open", and the sample it does have suggests some of
-      these pages want DELETING rather than re-homing — a cheaper answer than a tab. One slice:
-      emit a `nav.route.view` event on every admin route for two weeks, then read it. **This can
-      change the plan below, so it goes first — but it does not block C1, which is safe either
-      way.**
+- [x] **C0 — Get real usage data before absorbing anything.** Shipped 2026-08-24. The product
+      could not answer "which of these 138 links does anyone open"; now it can, and the answer
+      arrives in two weeks rather than being argued about.
+
+      **What shipped.** `nav.route.view`, one row per admin route opened, through the telemetry
+      that already existed — `trackNavEvent` → `POST /api/admin/nav-events` → `nav_events`. Four
+      files: the event name added at both ends (the emitter can post whatever it likes;
+      `KNOWN_EVENTS` decides what is stored, and a name added at one end only is dropped with a
+      400 nobody reads), `RouteViewTelemetry` mounted app-wide beside the two existing
+      effect-only components, and `lib/admin/route-usage.ts` holding the rule.
+
+      **One rule, exported, used at both ends.** A raw pathname cannot be counted:
+      `/admin/jobs/58a62727-…` and `/admin/jobs/8d787d88-…` are two visits to one page. The
+      emitter writes `props.route` and the report groups by it, both through
+      `normaliseRoutePath`. That is deliberate rather than tidy — the design conformance check
+      shipped with two matching rules, one at each end, and they disagreed about the name of the
+      same element; 220 of 266 defaults were reported stale and the score was really measuring
+      class-attribute order. The same shape here would be a report counting a route the emitter
+      never wrote, and it would look exactly like a page nobody opens.
+
+      **The reading half shipped with it.** `scripts/nav-usage-report.mjs` — a slice that writes
+      rows nobody can read is not a slice, it is a table. It ranks what was opened and lists what
+      was not **next to the roles that could have opened it**, because there are three reasons a
+      route can be missing and only one of them is a finding: nobody opened it, nobody who could
+      was in the window, or it was never reachable at all — and the third is a bug, not a
+      deletion candidate.
+
+      **Off in development** unless `NEXT_PUBLIC_ROUTE_TELEMETRY=1`. A developer reloading
+      `/admin/jobs` forty times while working on it would drown the signal from the people this
+      plan is about.
+
+      **Verified end to end in a browser**, not just wired: the guard compiles to `if (false)`
+      with the flag set, a route load and a real in-app `<Link>` click both reach `nav_events`
+      with the right normalised route, and neither fires twice. **The first probe reported zero
+      events and was wrong** — `sendBeacon` sends a Blob and Playwright could not read the body.
+      Seventh time in this repository that the instrument was the defect; the database settled
+      it. The eight QA rows were deleted afterwards, because synthetic views would poison the
+      first read of the very data this exists to produce.
+
+      **One thing this deliberately does not measure:** which TAB gets used. `?tab=` is stripped
+      by the normaliser, so `/admin/marketing?tab=spend` counts as `/admin/marketing`. That is
+      right for the question C0 asks — is this ROUTE worth keeping — and it becomes the wrong
+      answer the moment portals exist. **C13 should revisit it.**
+
+      **Still to do, and it is not code:** deploy, then leave it alone for two weeks. Nothing in
+      this plan should be deleted on the strength of a shorter window than that.
 - [ ] **C1 — Pilot: P9 Subscription** (3 links → 1). Smallest, already tabbed, lowest traffic,
       admin-only. Proves the mechanics end to end and produces the reusable portal shell.
 - [ ] **C2 — Extract the shell.** Whatever C1 produced, as `lib/admin/portal/` — tab set, `?tab=`

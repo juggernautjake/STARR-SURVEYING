@@ -14,6 +14,10 @@
 //   - Never throws; telemetry failure is invisible to the caller.
 
 export type NavEventName =
+  // C0 of the consolidation plan. One row per admin route opened — the product could not
+  // previously answer "which of these 138 links does anyone use", which is the first question
+  // anybody should ask before folding 111 of them into portals.
+  | 'nav.route.view'
   | 'nav.cmdk.open'
   | 'nav.workspace.click'
   | 'nav.pin.add'

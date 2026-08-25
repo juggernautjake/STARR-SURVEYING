@@ -13,6 +13,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 
 const KNOWN_EVENTS = new Set([
+  'nav.route.view',
   'nav.cmdk.open',
   'nav.workspace.click',
   'nav.pin.add',
