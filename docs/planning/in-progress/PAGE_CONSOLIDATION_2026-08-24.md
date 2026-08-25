@@ -187,10 +187,20 @@ is **per-ITEM approval** — today the decision is per receipt.
 | `/admin/mileage` | tab `mileage` — the other reimbursable |
 
 - [ ] **P2.1** — absorb cards, pass-through and mileage as tabs.
-- [ ] **P2.2** — **per-item approve/deny.** The one genuinely NEW capability in this plan. Needs a
-      decision first: does denying one line item reject the receipt, reduce it, or split it? That is
-      an accounting question, not a UI one, and it belongs to the owner. **BLOCKED pending that
-      answer** — do not guess.
+- [ ] **P2.2a — surface the per-line editor on the approval queue.** It exists and works; it is
+      only mounted in the slideshow. §10.1.
+- [ ] **P2.2b — a per-line tax treatment**, beside the per-line accept. Deductible · partial ·
+      not deductible. `receipts.tax_deductible_flag` is the receipt-level answer and stays as the
+      default a line inherits until somebody says otherwise.
+- [ ] **P2.2c — `approvedTotal()` and `deductibleTotal()`, exported, used everywhere.** Once a line
+      can be rejected there are three numbers — spent, approved, deductible — and every screen that
+      says "the receipt amount" has to say which. This is the `effectiveHours` defect waiting to
+      happen: four files summed raw hours while a fifth summed the approver's adjustment, and the
+      two disagreed across the very decision that created them. One definition, before the first
+      screen reads `total_cents` again.
+- [ ] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
+      receipts today. Per-line exemption changes what it is allowed to count, so P2.2 and P7 are
+      one data model seen from two ends.
 
 ### P3 — Hours & Time · `/admin/hours` (absorbs 4)
 
@@ -542,16 +552,223 @@ distinction is exactly why C0 exists, and why no page in this plan is marked for
 
 ---
 
-## §10. The open questions — owner decisions, not engineering ones
+## §10. The owner's answers — 2026-08-24
 
-1. **Per-item receipt approval (P2.2):** when one line on a receipt is denied, does the receipt get
-   rejected, reduced, or split into two? This is the only genuinely new capability requested and it
-   cannot be guessed.
-2. **Employees vs Users (P10):** are these one list with a status column, or two genuinely different
-   things? Today they are two pages with 25 and 643 lines. It is a data question.
-3. **Rewards (P1):** is the points store part of pay, or its own thing? It is filed under Money
-   today and reads as a separate product.
-4. **Workspaces after (C13):** keep 7, collapse to 3–4, or drop the concept and use one grouped
-   list?
-5. **Anything to DELETE rather than absorb?** C0 will produce candidates. A link nobody opens is
-   cheaper removed than re-homed.
+Asked in the first draft, answered the same day. Recorded here rather than in a chat log, because
+these are the decisions the rest of the plan rests on.
+
+**1. Per-item receipt approval — ANSWERED, and it is bigger than approve/deny.**
+
+> *"It can be that some items on the receipt are accepted and some are rejected. There would need to
+> be a way to fully flesh out the costs of a given receipt and determine what all should be tax
+> exempt and what should not."*
+
+So a receipt is not a decision, it is a **list of decisions**, and each line carries two independent
+ones:
+
+| Per line | Values | Who decides |
+|---|---|---|
+| accepted? | accepted · rejected | the approver |
+| taxable? | taxable · exempt | the approver, and it is an accounting fact |
+
+Three consequences the first draft did not anticipate:
+
+- **The receipt total stops being the receipt total.** Once a line can be rejected there are three
+  numbers — what was spent, what was approved, and what is deductible — and every screen that shows
+  "the receipt amount" has to say WHICH. That is the same defect shape as `effectiveHours`, where
+  four files summed raw hours while a fifth summed the approver's adjustment and the two disagreed
+  across the very decision that created them. **One function, `approvedTotal(receipt)`, exported,
+  used everywhere** — decided now, before the first screen reads `receipt.amount_cents` again.
+- **Tax-exempt is not a UI flag, it is a Schedule-C input.** `/admin/finances` already builds a
+  Schedule-C-shaped report from approved receipts. Per-line exemption changes what that report is
+  allowed to count, so P2.2 and P7 are the same slice's data model seen from two ends.
+**CHECKED, 2026-08-24 — and most of this is already built.** The first draft said to find out
+before designing the screen. Found out:
+
+| Piece | State |
+|---|---|
+| `receipt_line_items` table | **exists**, 93 rows, AI-extracted, position-ordered |
+| per-line accept/reject | **built** — `is_business_expense`, nullable by design: TRUE claim it, FALSE do not, NULL undecided |
+| the editing UI | **built** — `app/admin/receipts/ReceiptLineItems.tsx` |
+| the API | **built** — `PATCH /api/admin/receipts/[id]/line-items` |
+| an audit trail | **built** — `added_by`, `removed_by`, `edited_by`, and their reasons |
+| per-line TAX treatment | **missing.** `tax_deductible_flag` exists on the RECEIPT, not the line |
+| anybody having used it | **no.** All 93 rows are `NULL` |
+
+So P2.2 is not "build per-item approval". It is three much smaller things:
+
+1. **Put the existing editor where the deciding happens.** `ReceiptLineItems` is mounted in
+   `ReceiptSlideshow` only — the review carousel — and not on `/admin/receipts`, which is the
+   approval queue. It is one click away rather than absent, but the queue is where somebody sits
+   down to approve twenty receipts, and that is where the per-line decision belongs.
+2. **Add the second axis.** Accepted and deductible are not the same question: a client meal can be
+   approved and only half deductible; a parking fine can be approved and not deductible at all.
+   `is_business_expense` answers the first. The second needs its own per-line column.
+3. **Decide what the receipt total means** once lines disagree — below.
+
+That every one of those 93 rows is still `NULL` is the finding underneath the finding: this is the
+repository's most common defect, a feature authored and never wired to the place it was for.
+
+**2. Roles — ANSWERED, with one gap.**
+
+> *"users could be employees, students, teachers, admin, marketing team, etc."*
+
+`ALL_ROLES` already carries `admin`, `developer`, `teacher`, `student`, `researcher`, `drawer`,
+`field_crew`, `employee`, `guest`, `tech_support`, `equipment_manager` and a money-handling role.
+Everything named is there **except `marketing`** — advertising is gated to `admin` today. Adding a
+role is a small change; noting that it is missing before designing a Growth portal around it is the
+point.
+
+**3. Rewards — ANSWERED. Part of pay.** It stays as a tab of P1, which is where the first draft put
+it. No change; the question is closed.
+
+**4. Workspaces — DELEGATED to me.** My answer is in §12, with the reasoning, as a later slice.
+
+**5. Deleting rather than absorbing — still open, and now measurable.** C0 shipped; two weeks of
+`nav.route.view` will produce the candidate list. Nothing gets deleted before that.
+
+**6. NEW — page and feature toggles.** A requirement, not an answer. §11.
+
+**7. NEW — role-driven rendering.**
+
+> *"I want it so that pages load elements dynamically based on the role of the user."*
+
+This is §5 stated more strongly, and it extends past the tab bar to what is INSIDE a tab. The rule
+in §5.1 does not change and gets more important the finer the granularity: **hiding an element is a
+courtesy, refusing the request is the boundary.** A portal that renders fewer widgets for a field
+crew member and an API that would happily answer all of them is not a permission model.
+
+---
+
+## §11. Toggling pages and features on and off
+
+> *"I want it so that we can have full control in the settings as to what all pages are visible and
+> what pages are not… Maybe we don't want to use a page or feature right now, so we would toggle it
+> off so that navigating the webpage is easier, but if we decide to use that page/feature in the
+> future, then we can turn it back on and make sure it is hooked up correctly."*
+
+### 11.1 This is a FOURTH question, and that is why it deserves its own switch
+
+Three gates already decide whether somebody sees a route, and the toggle must not become a fourth
+copy of any of them. They answer genuinely different questions:
+
+| Gate | Where | The question |
+|---|---|---|
+| `roles` | `route-registry.ts` + `middleware.ts` | **may you?** |
+| `requiredBundle` | `lib/saas/bundle-gate.ts` | **did the firm pay for it?** |
+| `internalOnly` / `showInRail` | registry flags | **is this for staff, and does it belong in the rail?** |
+| **`enabled`** | NEW | **does this firm use it at all?** |
+
+A page can be one you may see, that you paid for, that is meant for staff — and that this firm has
+simply decided not to run yet. None of the existing three can express that, which is why the answer
+is a new switch rather than a new role or a new bundle.
+
+### 11.2 Where it lives: no new table
+
+`app_settings` is already an org-scoped key/value store (`key`, `value` JSONB, `org_id`) with a
+route at `/api/admin/settings`. One row:
+
+```
+key:   'feature_toggles'
+value: { "/admin/payouts/search": false, "/admin/pay#rewards": false, … }
+```
+
+**Absent means ON.** Not "absent means off" and not an exhaustive list written at install time: a
+toggle system that ships with anything off is one that broke something on day one, and a new page
+added next year must appear without anybody remembering to enable it.
+
+### 11.3 The unit is a nav destination OR a portal tab
+
+This is where §11 and §4 turn out to be the same shape. After consolidation most of what the owner
+would want to switch off is not a route any more — it is a tab. "We do not do pass-through billing"
+should turn off the `rebilled` tab of the receipts portal, not a URL that no longer exists.
+
+So a toggle key is either a route (`/admin/vehicles`) or a route-plus-tab (`/admin/pay#rewards`),
+and the portal shell reads it in the same breath as the role check.
+
+**Consequence worth stating: the toggle system should be built INTO the portal shell (C2), not
+bolted on after.** Building it against 138 routes and then rebuilding it against 29 portals is the
+work done twice.
+
+### 11.4 What a switched-off page actually does
+
+The owner's own sentence settles the hardest question here: *"turn it back on and make sure it is
+hooked up correctly."* An admin has to be able to REACH a disabled page to check it. So:
+
+| Surface | Behaviour when off |
+|---|---|
+| Sidebar, rail, palette, search | gone. This is the whole point. |
+| A link from another page | rendered, but marked — a dead link is worse than a visible one |
+| Direct URL, ordinary user | a plain "this feature is turned off" page. **Not a 404** — a 404 says the thing does not exist, and it does |
+| Direct URL, admin | **the page, working**, behind a banner saying it is off for everyone else, with a Turn on button |
+| The APIs behind it | **unchanged.** See 11.5 |
+
+### 11.5 The thing this must never become
+
+**A toggle is not a permission.** It is a visibility control, and the moment somebody believes
+otherwise it becomes a security hole with a friendly name: *"we turned payroll off, so the crew
+cannot see wages"* is false the second anyone types the URL, and it is exactly the kind of false
+belief that goes unexamined for a year.
+
+So the APIs keep every check they have, the middleware role gate is untouched, and the toggle is
+read in the UI layer and in a redirect — never as the reason a request is refused. **A test should
+assert that turning a page off changes no API's answer.**
+
+### 11.6 Turning something off should say what it breaks
+
+Pages link to each other. Switching off `/admin/vehicles` leaves the mileage screen pointing at a
+page nobody can open, and the person flipping the switch has no way to know that.
+
+The registry plus a link scan can answer it, so the settings screen should: **"3 other pages link
+here — Mileage, Equipment, Field Team."** Not a refusal, a sentence. The owner is allowed to break
+a link on purpose; they are not well served by doing it invisibly.
+
+### 11.7 Slices
+
+- [ ] **T1 — The switch, read-only.** `lib/admin/feature-toggles.ts`: read `app_settings`, one
+      exported `isEnabled(key)`, absent = on. Nothing consumes it yet.
+- [ ] **T2 — The nav respects it.** Sidebar, rail, command palette and search filter on it. This
+      alone delivers the owner's stated goal — *"navigating the webpage is easier"*.
+- [ ] **T3 — The settings screen.** A list of every destination grouped as the sidebar groups them,
+      each with a switch, plus the inbound-link count from 11.6.
+- [ ] **T4 — The off page**, and the admin bypass with its banner (11.4).
+- [ ] **T5 — The test that keeps 11.5 true**: with a page toggled off, its API answers exactly as
+      before, for every role.
+- [ ] **T6 — Tab-level toggles**, folded into the portal shell as part of C2 rather than after it.
+
+---
+
+## §12. Workspaces: my answer
+
+Delegated to me in §10.4. **Drop the workspace RAIL as a navigation level; keep the groups as
+headings in one sidebar list.**
+
+The reasoning, so it can be argued with:
+
+- Workspaces exist to make 138 links navigable. At 29 they are solving a problem that no longer
+  exists, and each one costs a click and a concept.
+- The grouping itself is still useful — "money things" and "job things" are real categories, and the
+  registry already encodes them. **Keeping the labels while dropping the level** preserves
+  everything the grouping was for.
+- 29 links under 5 or 6 headings is one scan of one list. That is fewer decisions than choosing a
+  workspace and then a link within it.
+- The measured usage supports it rather than just taste: the four most-clicked things in three
+  months were workspace LANDINGS (`/admin/me` 66, `/admin/work` 47, `/admin/office` 40) — people
+  clicking through a level to get somewhere, which is what a level you do not need looks like.
+
+**Two caveats I would not want lost.** The rail carries the `Mod+1…7` shortcuts, which are real
+muscle memory for anybody who uses them — they need somewhere to go. And this is an IA change on
+top of fifteen merges: **it must be its own slice, after several portals have shipped**, or any
+complaint afterwards has two possible causes. It stays as C13.
+
+---
+
+## §13. Still open
+
+1. ~~Does the receipt AI extract line items?~~ **ANSWERED 2026-08-24: yes, 93 of them, and most of
+   the feature is already built.** See §10.1. P2.2 got smaller and split into four.
+2. **Is `marketing` a role we are adding?** §10.2. It is the one role the owner named that
+   `ALL_ROLES` does not have.
+3. **Employees vs Users (P10)** — one list with a status column, or two nouns? Still unanswered, and
+   it is a data question rather than a layout one.
+4. **What to delete rather than absorb** — answerable in two weeks, from C0.
