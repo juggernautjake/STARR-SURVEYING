@@ -186,7 +186,24 @@ export const OBSERVE = () => {
     pushState(slug(label), label, 'disclosure', el.hasAttribute('open'), false);
   }
 
-  // 3 — the app's own tab convention.
+  // 3 — the app's own tab convention, for the strips that never say `role="tab"`.
+  //
+  // ── ONLY WHEN THERE IS NO REAL TABLIST (V7) ──────────────────────────────────────────────────
+  //
+  // A page can have a tab bar INSIDE a tab. /admin/hours has six portal tabs, and its Approvals
+  // panel has four more of its own — Pending, All Entries, Advances, Bonuses, class `tl-tabs__btn`.
+  // Rule 3 matched those and the route was recorded as having ten states. Four of them were not
+  // states of the route at all, and they could never be reached: `?tab=pending` means nothing to
+  // the outer strip, and after clicking one the selected tab is still Approvals — so the tracer
+  // reported "could not reach it" four times for a page that was behaving correctly.
+  //
+  // The verify step catching that is the system working: without it the route would have four
+  // identical Approvals captures filed under four names, which looks like a finished job.
+  //
+  // A state of a state is not a state of the route, so when rule 1 found a genuine tablist, that
+  // tablist IS the page's states and rule 3 has nothing to add. Pages whose strip is CSS-only —
+  // `/admin/learn/manage` and its twelve — have no rule-1 states and are untouched by this.
+  const hasRealTablist = states.length > 1;
   //
   // The CSS attribute selector is a substring match, so `[class*="-tab"]` also matches `-table`.
   // On /admin/marketing that turned four table headers and a paragraph of prose into "states",
@@ -202,7 +219,7 @@ export const OBSERVE = () => {
   //   mkt-tab--active         a modifier
   // and one that must NOT match: anything-table. `-tab` followed by a letter is a different word.
   const TAB_CLASS = /(__tab|-tab)([^a-z]|$)|tabs?__/;
-  for (const el of root.querySelectorAll('[class*="__tab"], [class*="-tab"], [class*="tabs__"]')) {
+  for (const el of hasRealTablist ? [] : root.querySelectorAll('[class*="__tab"], [class*="-tab"], [class*="tabs__"]')) {
     if (!visible(el)) continue;
     const classes = cleanClasses(el);
     if (!classes.some((c) => TAB_CLASS.test(c))) continue;
@@ -391,22 +408,52 @@ export async function clickState(page, state) {
  * from a variable when you are only reading the DOM.
  *
  * Returns true only when the observer agrees the requested state is the one showing.
+ *
+ * ── WHY IT POLLS, AND DOES NOT SLEEP (V7) ───────────────────────────────────────────────────────
+ *
+ * It used to wait a flat 1200ms after the click and then judge. Three tabs — `equipment ·
+ * cleanup-queue`, `jobs · activity`, `marketing · connection-uploads` — came back "could not reach
+ * it" from a full sweep and then opened FIRST TRY when probed one at a time. Nothing was wrong with
+ * any of them. They were cold: a dev server compiling a panel on demand does not answer in 1200ms,
+ * and the check read the tab that was still showing.
+ *
+ * That is the same fixed-wait trap that once made the route walk store 4 of 51 pages instead of 26.
+ * A sleep encodes a guess about how slow the slowest machine is on its worst run; the failure is
+ * silent and looks exactly like a genuinely unreachable tab, which is the dangerous part — three of
+ * them were about to be written down as a structural finding.
+ *
+ * So: poll for the state we asked for until a deadline, and settle only once it is there.
  */
 export async function openState(page, base, route, state, { param = 'tab', settle = 1200 } = {}) {
+  /** Read the selected key until it is `want`, or the deadline passes. Returns the last reading. */
+  const until = async (want, ms) => {
+    const deadline = Date.now() + ms;
+    let on = await selectedStateKey(page);
+    while (on !== want && Date.now() < deadline) {
+      await page.waitForTimeout(250);
+      on = await selectedStateKey(page);
+    }
+    return on;
+  };
+
   await page.goto(`${base}${route}?${param}=${encodeURIComponent(state.key)}`, {
     waitUntil: 'domcontentloaded', timeout: 60_000,
   });
   await waitForPageReady(page);
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
-  let on = await selectedStateKey(page);
-  if (on !== state.key) {
-    const clicked = await clickState(page, state);
-    if (clicked) {
-      await page.waitForTimeout(settle);
-      await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-      on = await selectedStateKey(page);
-    }
+  // The URL may be read, ignored, or read slowly. Only the third case needs the wait, and only the
+  // first iteration pays for it — `until` returns the moment the key matches.
+  let on = await until(state.key, settle * 4);
+  if (on !== state.key && await clickState(page, state)) {
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+    on = await until(state.key, settle * 10);
   }
-  return on === state.key;
+  if (on === state.key) {
+    // Reached. Give the panel its own moment to finish drawing before anyone captures it.
+    await page.waitForTimeout(settle);
+    await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
+    return true;
+  }
+  return false;
 }

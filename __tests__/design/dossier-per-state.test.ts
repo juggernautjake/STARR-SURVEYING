@@ -195,7 +195,21 @@ describe('opening a state is one function', () => {
     // outside. The tracer skips and says so; the sweep counts a failed check. What none of them may
     // do is proceed as though it worked.
     const block = OBSERVE.slice(OBSERVE.indexOf('export async function openState'));
-    expect(block).toMatch(/return on === state\.key;/);
+    expect(block).toMatch(/on === state\.key/);
+    expect(block).toMatch(/return false;/);
     expect(block).not.toMatch(/throw new Error/);
+  });
+
+  it('and waits for the state to arrive rather than sleeping a fixed guess', () => {
+    // Three tabs came back "could not reach it" from a full sweep and then opened first try when
+    // probed alone: equipment · cleanup-queue, jobs · activity, marketing · connection-uploads.
+    // Nothing was wrong with any of them — a dev server compiling a panel on demand does not answer
+    // inside a flat 1200ms, and the check read the tab that was still showing. The same fixed-wait
+    // trap once made the route walk store 4 of 51 pages instead of 26. A sleep encodes a guess
+    // about the slowest machine on its worst run, and its failure is indistinguishable from a tab
+    // that genuinely cannot be opened — which is how three of these were nearly written down as a
+    // structural finding.
+    const block = OBSERVE.slice(OBSERVE.indexOf('export async function openState'));
+    expect(block).toMatch(/while \(on !== want && Date\.now\(\) < deadline\)/);
   });
 });

@@ -61,8 +61,22 @@ describe('a state is something you can click', () => {
     // `tabs__` matches every child of a tab strip, and /admin/marketing has a hint paragraph in
     // there — "Funnel, cost per stage, attribution coverage." was recorded as a tab. The class says
     // where an element lives; the tag says whether it is a control.
-    const block = OBSERVE_SRC.slice(OBSERVE_SRC.indexOf("// 3 — the app's own tab convention."));
+    // Anchored WITHOUT the trailing full stop: the heading gained a clause when rule 3 was gated,
+    // `indexOf` returned -1, and `slice(-1)` handed the assertion the file's last character. A test
+    // pinned to prose fails for the one reason that teaches nothing — the fourth time in this
+    // plan that a comment edit broke an assertion about the code beneath it.
+    const block = OBSERVE_SRC.slice(OBSERVE_SRC.indexOf("// 3 — the app's own tab convention"));
+    expect(block).not.toBe('\n');
     expect(block).toMatch(/tag !== 'button' && tag !== 'a' && el\.getAttribute\('role'\) !== 'tab'/);
+  });
+
+  it('and rule 3 stands down when the page declares a real tablist', () => {
+    // /admin/hours has six portal tabs and four more INSIDE its Approvals panel (`tl-tabs__btn`).
+    // Rule 3 matched the inner four and the route was recorded as having ten states — four of them
+    // unreachable by construction, because `?tab=pending` means nothing to the outer strip and
+    // clicking one leaves Approvals selected. A state of a state is not a state of the route.
+    expect(OBSERVE_SRC).toMatch(/const hasRealTablist = states\.length > 1;/);
+    expect(OBSERVE_SRC).toMatch(/for \(const el of hasRealTablist \? \[\] : root\.querySelectorAll\(/);
   });
 });
 

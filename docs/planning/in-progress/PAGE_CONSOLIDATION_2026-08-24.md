@@ -2068,6 +2068,59 @@ early, and the internal tooling comes last.
       **Remaining:** finish the defaults pass; run `derive-dossiers.mjs --since` for the same set;
       refresh the conformance record; chase the four pages that will not settle; and put the orphan
       question to the owner.
+
+      ── **C14b — THE SIX TABS THAT "COULD NOT BE REACHED", 2026-08-25** ──
+
+      The per-portal states sweep reported six tabs it could not open. They looked like a finding.
+      **Five of the six were not.** Taking them one at a time is what separated them, and the three
+      answers were three different things:
+
+      | reported | truth |
+      | --- | --- |
+      | `hours · pending`, `all-entries`, `advances`, `bonuses` | never states of the route |
+      | `equipment · cleanup-queue`, `jobs · activity`, `marketing · connection-uploads` | reachable; the sweep's window was too short |
+      | `hours · assignments` | captured in one run, failed in the next — the same flake, caught red-handed |
+
+      **1 — A state of a state is not a state of the route.** `/admin/hours` has six portal tabs, and
+      its Approvals panel has a tab bar of its OWN — Pending, All Entries, Advances, Bonuses, class
+      `tl-tabs__btn`. Rule 3 of the observer matches any element whose class looks like a tab, so all
+      ten were recorded as states of `/admin/hours`. The inner four cannot be opened by anything the
+      tracer does, and correctly so: `?tab=pending` means nothing to the outer strip, and after
+      clicking one the selected tab is still Approvals.
+
+      **The verify step refusing to store them is the system working.** Without it the route would
+      now hold four identical captures of Approvals filed under four different names — worse than
+      four missing ones, because they look like a finished job. Fixed by gating rule 3 on
+      `hasRealTablist`: when a page declares a genuine `role="tab"` list, that list IS its states.
+      `/admin/learn/manage`, whose twelve-tab strip is CSS-only, is untouched — checked, not assumed.
+
+      **2 — The fixed-wait trap, again.** The other three opened FIRST TRY when probed one at a time.
+      Nothing was wrong with any of them. `openState` slept a flat 1200ms after clicking and then
+      judged; a dev server compiling a panel on demand does not answer in 1200ms, so the check read
+      the tab that was still showing. This is the same trap that once took the route walk from 4 of
+      51 pages to 26 — and it is nastier here, because its failure is **indistinguishable from a tab
+      that genuinely cannot be opened**. It now polls for the state it asked for until a deadline.
+
+      Result: marketing 4/5 → **5/5** (`connection-uploads` captures 283 elements against overview's
+      263 — a different page, not a re-photograph of the same one), jobs 5/6 → **6/6**.
+
+      ── **THE METHOD NOTE, WHICH IS THE POINT OF THIS ENTRY** ──
+
+      I had already written down that the three partials — equipment 9/10, jobs 5/6, marketing 4/5 —
+      were worth checking for a shared cause. They had one. It was **the measuring instrument**, for
+      the second time in this plan, and for the same reason both times: a sleep long enough on a warm
+      machine is not long enough on a cold one.
+
+      The near-miss worth recording: three unrelated singletons in three unrelated portals is exactly
+      the shape a structural defect makes, and I was one step from filing it as one. What stopped it
+      was re-running the three ALONE before believing the batch. **A failure that disappears when you
+      isolate it was never a property of the thing you isolated.**
+
+      And one number in the previous entry was wrong: "71 of 110 tabs" compared every per-state
+      default in the table (73, of which 22 are on non-portal routes) against the portal-tab
+      denominator. The real figure at that moment was **51 of 110**. Same shape as the 163 phantom
+      duplicate defaults earlier in this plan — a count that answers a different question than the
+      one being asked, reported as though it answered this one.
 ---
 
 ## §9. What the usage data does and does not say
