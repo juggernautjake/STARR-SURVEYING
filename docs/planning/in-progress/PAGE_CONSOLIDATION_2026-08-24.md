@@ -383,7 +383,43 @@ is **per-ITEM approval** — today the decision is per receipt.
       intermittently, the cause of the remaining occurrences is not established, and
       `DESIGN_TRACE_DEBUG=1` is how the next one should be approached.
 
-      ── **C14p — THE STUDIO COULD NOT SEE A BAD RECORD, ONLY A MISSING ONE, 2026-08-25** ──
+      ── **C14q — WHAT THE RE-TRACE ACTUALLY CHANGED, READ ROW BY ROW, 2026-08-25** ──
+
+      The re-trace replaces records, so it is worth checking it did not make any of them worse. Every
+      element-count change it reported, in full:
+
+      **Repairs, as intended:** `compare` 26 → 600 desktop (the record conformance scored at 4%),
+      `job-profitability` 32 → 98, `field-team` 25 → 109.
+
+      **And one the asymmetry guard could never have caught:** `xp-config` went **24 → 214 desktop
+      AND 26 → 216 mobile.** Both viewports were thin, so the ratio was ~1.0 and `isLopsided` said
+      false — correctly, by its own rule. This is exactly the blind spot recorded in C14m ("when BOTH
+      viewports are captured early the record is uniformly small and looks perfectly balanced"), and
+      `captureStable` is what closed it. Two layers aimed at the same fault from different angles,
+      and each catches what the other cannot.
+
+      ── **AND A SUBTLER FAULT THE CHANGE REPORTS EXPOSED** ──
+
+      Four mobile records lost the same element: `−1 gone: .admin-page-header__back-label`, on
+      `my-time`, `weather`, `question-builder` and `flashcards`.
+
+      That element is hidden on purpose — `@media (max-width: 599px) { .admin-page-header__back-label
+      { display: none } }`, with a comment explaining that the arrow and the trail already say "up".
+      And `design-capture.mjs` **skips** anything computing to `display: none`.
+
+      So those mobile records contained an element that cannot be visible at 390px. The only way it
+      got in is that **the media query had not applied when the capture was taken** — the records
+      were mobile-sized and partly desktop-STYLED. Not a missing element, which is obvious; an
+      element that should not exist, which is not.
+
+      `flashcards` and `question-builder` gained `.small-screen-banner` in the same pass, which is
+      the same story from the other side: the small-screen chrome was absent from records that
+      claimed to be the small screen.
+
+      **No new machinery for this.** `captureStable` re-reads until the count settles, which gives
+      style recalculation the time it needed, and the evidence says it worked. Adding a bespoke
+      media-query probe on top would be the fourth guess-shaped fix in a plan that has already
+      learned what those cost.
 
       The page list reports five gaps: `no-default`, `no-dossier`, `no-design`, `no-active`,
       `stale-default`. **Every one of them is about absence.** There was nothing for *a record exists
