@@ -11,11 +11,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { code } from '../helpers/source';
 
 const QUEUE = fs.readFileSync(path.join(process.cwd(), 'app/admin/receipts/_tabs/QueueTab.tsx'), 'utf8');
 
-/** Source with comments removed. Every assertion below is about CODE. */
-const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+// Every assertion below is about CODE, not about the comments explaining it — see the shared
+// stripper for why this is one import rather than a two-line regex per file.
 
 describe('the approval queue edits the lines it is judging', () => {
   it('mounts the editor, not a read-only table', () => {

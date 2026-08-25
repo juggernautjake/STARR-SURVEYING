@@ -24,6 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { code } from '../helpers/source';
 import { deductibleFraction, DEDUCTIBLE_FRACTION } from '@/lib/finance/tax-summary';
 
 const ROOT = process.cwd();
@@ -42,8 +43,10 @@ function walk(dir: string, out: string[] = []): string[] {
 
 const SOURCES = [...walk('app'), ...walk('lib')];
 
-/** Comments stripped: this file is about code, and prose about the rule must not read as the rule. */
-const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+// `code()` is the shared stripper — this file used to carry its own copy, and that copy had the
+// bug every hand-rolled version has: it eats the rest of any line containing `//` inside a string,
+// so `'https://x'` becomes `'https:`. Harmless for a positive match and quietly fatal for a
+// negative one, which is most of what this file asserts.
 
 describe('the move changed nothing about the numbers', () => {
   // P2.2c relocated a function; a relocation that alters a tax figure is not a relocation. The old

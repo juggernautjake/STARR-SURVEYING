@@ -269,6 +269,40 @@ is **per-ITEM approval** — today the decision is per receipt.
       Six times in one plan is not carelessness about one comment; it is a property of writing tests
       that read source. **Any assertion over source text should strip comments by default**, and the
       helper should be reached for first rather than after the failure.
+
+      ── **C14d — THE STRIPPER ITSELF WAS WRONG, IN SIX PLACES, 2026-08-25** ──
+
+      Acting on that last line turned up something bigger than the tidying it was meant to be.
+      **32 test files strip comments before asserting, and there were SIX different implementations
+      of it** — the same "two copies of one rule" shape this plan keeps finding in the product,
+      sitting in the tests that exist to catch it.
+
+      Five of the six shared a bug:
+
+      ```js
+      src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+      ```
+
+      eats the rest of any line containing `//` **inside a string**. Measured:
+      `const u = 'https://example.com/x';` becomes `const u = 'https:`.
+
+      For a positive assertion that is a false negative and someone investigates. **The dangerous
+      direction is the other one:** a `not.toMatch()` over stripped source PASSES when the stripper
+      has deleted the evidence — and a test that cannot fail looks exactly like a test that is
+      passing. That is the same family as the `--stale` queue reporting zero, which this repo already
+      paid for once: *nobody investigates zero.*
+
+      Shipped `__tests__/helpers/source.ts` — one implementation that tracks string state instead of
+      pattern-matching, preserves line numbers so failures still point at the right place, survives
+      an escaped quote and an unterminated block comment, and offers `cssCode()` for stylesheets
+      where `//` is not a comment at all. Nine tests, and the one that matters is the URL case every
+      hand-rolled version fails.
+
+      Adopted in the two files this plan owns. **The other 30 are deliberately not converted here** —
+      each needs its assertions re-read against the new (correct) stripping, several are in areas
+      this plan has not touched, and a mechanical sweep of 30 test files inside a consolidation slice
+      is how an unrelated regression arrives wearing this plan's name. Left as a follow-up with the
+      hazard written down rather than done badly in passing.
 - [ ] **P2.2d — teach `/admin/finances` the difference.** Its Schedule-C report totals approved
       receipts today. Per-line exemption changes what it is allowed to count, so P2.2 and P7 are
       one data model seen from two ends.
