@@ -159,8 +159,35 @@ for (const [i, target] of todo.entries()) {
     // queue that can never reach zero is one people stop reading.
     const landedOn = new URL(page.url()).pathname;
     if (landedOn !== target.route) {
-      skipped.push({ route: target.route, why: `redirects to ${landedOn} — not a page of its own` });
-      console.log(`—  redirects to ${landedOn}`);
+      // ── S2: RETIRE THE DESIGN THIS ROUTE NO LONGER HAS ──────────────────────────────────────
+      //
+      // Refusing to trace a forwarding route stops a WRONG default being written. It does nothing
+      // about the one that is already there, and that is the half that rots: after C1 of the
+      // consolidation plan, `/admin/billing/invoices` and `/admin/billing/plan-history` each still
+      // held a LOCKED design called "— as served", claiming to be a 1:1 record of a route that now
+      // serves a redirect. A design system is only worth reading if a stale entry cannot sit there
+      // looking current.
+      //
+      // ARCHIVED, not deleted, and the difference matters. These captures are the right page's
+      // elements, measured while the route really rendered them — "what this looked like before it
+      // became a tab" is worth keeping. (The five removed on 2026-08-24 were a different case: they
+      // held the DESTINATION's elements, traced straight through the forward, and were evidence of
+      // nothing.) `lifecycle.ts` anticipated exactly this — a default `canBecome: ['archived']`,
+      // because "a default can only ever be re-traced or retired".
+      const retired = [];
+      for (const d of existing.filter((x) => x.route === target.route && x.status === 'default')) {
+        const res = await page.request.fetch(`${BASE}/api/admin/design/${d.id}/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          data: { status: 'archived' },
+        });
+        retired.push(res.ok() ? d.id : `${d.id} (failed: ${res.status()})`);
+      }
+      skipped.push({
+        route: target.route,
+        why: `redirects to ${landedOn} — not a page of its own${retired.length ? `, ${retired.length} design(s) retired` : ''}`,
+      });
+      console.log(`—  redirects to ${landedOn}${retired.length ? ` · retired ${retired.length} stale design(s)` : ''}`);
       continue;
     }
 

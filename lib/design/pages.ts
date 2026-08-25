@@ -67,10 +67,11 @@ export interface PageRow extends InventoryPage {
   gaps: PageGap[];
 }
 
-/** The four things a page can be missing, in the order they are usually done. */
-export type PageGap = 'no-default' | 'no-dossier' | 'no-active' | 'no-design';
+/** The five things a page can be missing, in the order they are usually done. */
+export type PageGap = 'no-default' | 'no-dossier' | 'no-active' | 'no-design' | 'stale-default';
 
 export const GAP_LABEL: Record<PageGap, string> = {
+  'stale-default': 'Traced before the page changed',
   'no-default': 'No default traced',
   'no-dossier': 'Nothing measured about it',
   'no-active': 'No design of record',
@@ -78,6 +79,10 @@ export const GAP_LABEL: Record<PageGap, string> = {
 };
 
 export const GAP_MEANING: Record<PageGap, string> = {
+  // S3 of DESIGN_STUDIO_SERVES_PAGES_2026-08-24.md. The gap the owner asked for by name: not
+  // "there is no record" but "the record is older than the thing it records", which is the one
+  // that looks fine until you rely on it.
+  'stale-default': 'The page has been edited since its default was traced, so the record is behind the page. Re-trace it.',
   'no-default': 'Nothing records what this page looks like as it is served. Run the tracer.',
   'no-dossier': 'Nobody has measured what is on this page or what it does. Run the deriver.',
   'no-active': 'Designs exist, but none of them is the record for this page.',
@@ -88,9 +93,13 @@ function gapsOf(
   lifecycle: PageRow['lifecycle'],
   designs: PageRow['designs'],
   dossier: PageRow['dossier'],
+  staleDefault = false,
 ): PageGap[] {
   const gaps: PageGap[] = [];
   if (!lifecycle.default) gaps.push('no-default');
+  // Only when there IS a default. "No default" and "stale default" are the same complaint twice
+  // otherwise, and a queue that says everything twice is one people stop reading.
+  else if (staleDefault) gaps.push('stale-default');
   if (!dossier || dossier.elementCount === 0) gaps.push('no-dossier');
   // "No design of record" is only worth saying when there is something that COULD be the record.
   // On a page with nothing designed at all it would be the same complaint twice.
@@ -134,6 +143,12 @@ export function joinPages(
   reviews: PageReview[],
   designs: Array<{ id: string; name: string; route: string | null; status?: string; locked?: boolean }>,
   dossiers: Array<{ route: string; purpose: string | null; summary: string | null; elementCount: number }> = [],
+  /** Routes whose default was traced BEFORE the page file last changed — S3.
+   *
+   * Passed in rather than computed here, and that is not laziness. This module is imported by
+   * `PageList.tsx`, a client component, so it cannot touch the filesystem. The caller that CAN
+   * (the API route) does the stat and hands over the answer. */
+  staleDefaults: ReadonlySet<string> = new Set(),
 ): PageRow[] {
   const dossierByRoute = new Map(dossiers.map((d) => [d.route, d]));
   const byRoute = new Map(reviews.map((r) => [r.route, r]));
@@ -166,7 +181,7 @@ export function joinPages(
       designs: forRoute,
       lifecycle,
       dossier,
-      gaps: gapsOf(lifecycle, forRoute, dossier),
+      gaps: gapsOf(lifecycle, forRoute, dossier, staleDefaults.has(page.route)),
     };
   });
 }

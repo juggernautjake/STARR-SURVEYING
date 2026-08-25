@@ -34,7 +34,10 @@ import {
 // default, deriving a dossier, choosing a design of record, designing anything at all. Filtering to
 // one of them turns 270 rows into the list of pages that need that specific thing done — which is
 // the only way a list this long is worked THROUGH rather than scrolled.
-const GAP_FILTERS: PageGap[] = ['no-default', 'no-dossier', 'no-design', 'no-active'];
+// `stale-default` is last deliberately: the first four are "this page has never been done", which
+// is a build queue, and this one is "the record has fallen behind the page", which is maintenance.
+// Different work, same list, and the order says which you are usually doing.
+const GAP_FILTERS: PageGap[] = ['no-default', 'no-dossier', 'no-design', 'no-active', 'stale-default'];
 
 const STATUS_ICON: Record<ReviewStatus, typeof Circle> = {
   not_started: Circle,

@@ -230,12 +230,55 @@ node --env-file=.env.local scripts/check-design-conformance.mjs --only /admin/bi
 
 - [ ] **S1 — a `--since` mode** on the three walks: re-derive every route whose page file changed
       since a given commit. Turns "remember to re-derive" into one command a hook can run.
-- [ ] **S2 — the merged-away routes get retired, not left rotting.** `/admin/billing/invoices` is a
-      redirect now; its design row should say so rather than sit there claiming to be the spec for a
-      page that no longer renders. **The tracer already refuses to trace a redirect** — it needs the
-      matching action for a design that already exists.
-- [ ] **S3 — the page list shows staleness.** `derived_at` against the page file's mtime. A design
-      older than the page it describes is the thing the owner is asking not to be surprised by.
+- [x] **S2 — the merged-away routes get retired, not left rotting.** Shipped 2026-08-24.
+
+      C1 of the consolidation left exactly the rot this predicted: `/admin/billing/invoices` and
+      `/admin/billing/plan-history` each still held a **locked** design named "— as served",
+      claiming to be a 1:1 record of a route that now serves a redirect.
+
+      The tracer already refused to TRACE a forwarding route — that stops a wrong default being
+      written and does nothing about the one already sitting there. The walk that discovers the
+      forward now retires the design too. Both were archived on the first run.
+
+      **`lifecycle.ts` had already decided this**, which is why no new status was invented: a
+      default's only transition is `canBecome: ['archived']`, and the rule's own comment says why —
+      *"a default can only ever be re-traced or retired"*. S2 is that sentence, automated.
+
+      **Archived, not deleted, and the distinction is the whole slice.** These captures are the
+      RIGHT page's elements, measured while the route really rendered them: "what this looked like
+      before it became a tab" is worth keeping. The five designs DELETED on 2026-08-24 were the
+      opposite case — they held the destination's elements, traced straight through a forward, and
+      `/admin/schedule` was holding 72 elements of `/admin/calendar`. That is evidence of nothing.
+
+      Only the `default` is retired. A draft somebody cloned from it is their own work on a route
+      that moved, and touching it would be the tool making a decision for them. Six tests pin it.
+
+- [x] **S3 — the page list shows staleness.** Shipped 2026-08-24. A fifth gap, `stale-default`:
+      **"Traced before the page changed"**, filterable like the other four. It reads **50 of 138**
+      admin routes today.
+
+      **The first version used `fs.statSync().mtimeMs` and I nearly shipped it.** It reported the
+      same 50 — but mtime records when the FILE was written, not when the page changed, and a
+      branch checkout or a rebase rewrites it. This repository does both daily, so the number could
+      not be trusted even when it was right. It reads the last COMMIT that touched the file now:
+      one `git log` for the whole tree, measured at ~0.1s against 138 `stat` calls for a worse
+      answer. mtime survives as the fallback for a deployment with no `.git`.
+
+      **The 50 are real, and checked rather than assumed.** `/admin/assignments` was traced at
+      01:26 and last committed at 20:38 — by the contrast codemod in `31a6989c7`, which touched 90
+      admin files. Every one of those pages genuinely changed after its default was recorded.
+
+      **A false alarm I raised and withdrew:** the same query appeared to show three `default` rows
+      for `/admin/employees`, which would break the `singular` rule and let conformance compare
+      against an arbitrary one. Filtering `deleted_at` showed 340 default rows of which 131 are
+      live and **zero routes have more than one** — the tracer soft-deletes the previous default,
+      exactly as it should. Recorded because "I found a bug" and "my query was missing a filter"
+      look identical until you check.
+
+      **Computed by the caller, not by `joinPages`.** That module is imported by `PageList.tsx`, a
+      client component, so it cannot touch the filesystem or shell out. The API route does the
+      lookup and passes a set. The alternative — making the page list server-only — would have been
+      a much larger change for a chip.
 
 ---
 
