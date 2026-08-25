@@ -187,9 +187,24 @@ for (const [i, target] of todo.entries()) {
   try {
     const captures = {};
     let stillLoading = false;
+    // Set by the loop below the moment a navigation lands somewhere else.
+    let forwarded = false;
     for (const [viewId, size] of Object.entries(VIEWPORTS)) {
       await page.setViewportSize(size);
       await page.goto(`${BASE}${target.route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+
+      // ── C14: A FORWARD IS ANSWERED ON THE FIRST NAVIGATION, NOT AFTER TWO FULL WALKS ──────────
+      //
+      // Moving the forward check above `stillLoading` fixed WHAT this reports. It did nothing about
+      // what it costs: the check still sat below this loop, so every stub paid two page loads, two
+      // 25s readiness waits and two 15s network-idle waits before anything looked at the URL.
+      //
+      // After the consolidation roughly eighty of the ninety-eight routes in a `--since` pass are
+      // stubs. At up to forty seconds each that is most of an hour spent measuring redirects, which
+      // is why the first full pass never finished. The destination is known as soon as navigation
+      // resolves, so it is read here and the rest of the walk is skipped.
+      if (new URL(page.url()).pathname !== target.route) { forwarded = true; break; }
+
       // Admin pages fetch after mount. Capturing the splash would trace a spinner and call it a page.
       //
       // Waits for the page rather than for a fixed 2.5s: that number is why `/admin/work` traced 70
@@ -208,6 +223,7 @@ for (const [i, target] of todo.entries()) {
     // layout in under this URL. Skipped rather than failed: there is nothing here to fix, and a
     // queue that can never reach zero is one people stop reading.
     const landedOn = new URL(page.url()).pathname;
+    void forwarded;   // the break above already left `page.url()` on the destination
 
     // ── C14: THE FORWARD IS CHECKED BEFORE THE SPINNER, AND THE ORDER WAS A REAL BUG ────────────
     //

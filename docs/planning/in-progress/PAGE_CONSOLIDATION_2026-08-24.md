@@ -1623,6 +1623,18 @@ early, and the internal tooling comes last.
       really trying to be a page. Verified on all four: each reports `redirects to …` and retires its
       live default. Seven designs archived.
 
+      **And the correctness fix did nothing about the cost, which is why the first pass never
+      finished.** The forward check moved above `stillLoading`, but it still sat below the viewport
+      loop — so every stub paid two page loads, two 25-second readiness waits and two 15-second
+      network-idle waits before anything looked at the URL. After the consolidation **roughly eighty
+      of the ninety-eight routes in a `--since` pass are stubs**, which is most of an hour spent
+      measuring redirects.
+
+      The destination is known as soon as navigation resolves, so it is read on the FIRST navigation
+      and the rest of the walk is skipped. Measured: **20 routes — 16 stubs and 4 real traces — in
+      under 400 seconds**, against 8 routes in several minutes before. That is what makes the full
+      pass a thing that can be run rather than a thing that gets killed.
+
       **The same bug was in the sibling script, and fixing one is how it was found.**
       `derive-dossiers.mjs` computed `problem = 'still loading after 25s'` **before** it asked whether
       the route forwarded, and gated the forward check on `!problem`. So a stub whose destination is
