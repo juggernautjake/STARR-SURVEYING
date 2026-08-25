@@ -475,24 +475,116 @@ export async function openState(page, base, route, state, { param = 'tab', settl
     return on;
   };
 
-  await page.goto(`${base}${route}?${param}=${encodeURIComponent(state.key)}`, {
-    waitUntil: 'domcontentloaded', timeout: 60_000,
-  });
+  // ── THE NAVIGATION ITSELF IS RETRIED, AND THAT IS THE ACTUAL BUG ──────────────────────────────
+  //
+  // Diagnosed by instrumenting rather than by guessing, after two fixes aimed at guesses:
+  //
+  //     · valuation: TimeoutError: page.goto: Timeout 60000ms exceeded.
+  //
+  // The dev server stalls for over a minute roughly once per portal run — compiling, collecting, or
+  // digesting the capture POSTs — and whichever state's navigation lands inside that stall dies. It
+  // explains every observation the earlier theories could not: the failing tab MOVES between runs
+  // (cleanup-queue, then maintenance, then supplies, then valuation), there is almost always exactly
+  // ONE, it never reproduces when the portal is traced alone, and neither polling nor retrying the
+  // click helped — the navigation never completed, so nothing downstream ever ran.
+  //
+  // Two attempts, with a pause between. A stall of this kind is over in seconds; a genuinely
+  // unreachable page still fails, just twice as slowly, and that is the right trade for a walk whose
+  // whole output is a record somebody will trust.
+  let navError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto(`${base}${route}?${param}=${encodeURIComponent(state.key)}`, {
+        waitUntil: 'domcontentloaded', timeout: 60_000,
+      });
+      navError = null;
+      break;
+    } catch (err) {
+      navError = err;
+      if (process.env.DESIGN_TRACE_DEBUG) {
+        console.log(`      !! goto(${route}?${param}=${state.key}) attempt ${attempt + 1} — ${String(err.message).split('\n')[0]}`);
+      }
+      await page.waitForTimeout(3_000);
+    }
+  }
+  if (navError) throw navError;
+
   await waitForPageReady(page);
   await page.waitForLoadState('networkidle', { timeout: 15_000 }).catch(() => {});
 
   // The URL may be read, ignored, or read slowly. Only the third case needs the wait, and only the
   // first iteration pays for it — `until` returns the moment the key matches.
   let on = await until(state.key, settle * 4);
-  if (on !== state.key && await clickState(page, state)) {
+
+  // ── THE CLICK IS TRIED MORE THAN ONCE, AND THAT WAS THE RESIDUAL BUG ──────────────────────────
+  //
+  // It used to read `if (on !== key && await clickState(...))`. When `clickState` found no matching
+  // element it returned false, the `&&` short-circuited, and the generous poll after it NEVER RAN —
+  // so a tab strip that rendered a moment late failed permanently, with a budget it never touched.
+  //
+  // Measured after the polling fix: about one state per portal still failed, and **the failing tab
+  // moved between runs** — cleanup-queue in one, maintenance in the next, activity and
+  // connection-uploads and assignments on other days. A failure that changes address is not a
+  // property of any tab; it is a race, and this is the only unguarded one left in the dance.
+  //
+  // Three attempts, each with its own poll window, and a pause between them so a late strip has time
+  // to arrive rather than being asked again immediately.
+  // A failed click means one of two very different things, and they need different waits:
+  //   · the strip is there and no tab matches  — retrying is pointless, but harmless
+  //   · the strip has not mounted yet          — retrying is the whole fix, and it needs TIME
+  //
+  // The instrumented run said which: `failed — showing "null"`. `selectedStateKey` returns null only
+  // when there is no tab strip at all, so the page was up — `waitForPageReady` is satisfied by the
+  // shell's heading and buttons — while the tabs were still arriving. Waiting a flat `settle` after
+  // a failed click gave a late strip about eight seconds in total, not the generous budget the poll
+  // below implies. So a failed click now waits for a strip to APPEAR rather than for a fixed pause.
+  const untilTabs = async (ms) => {
+    const deadline = Date.now() + ms;
+    while (Date.now() < deadline) {
+      if (await selectedStateKey(page) !== null) return true;
+      await page.waitForTimeout(250);
+    }
+    return false;
+  };
+
+  for (let attempt = 0; attempt < 3 && on !== state.key; attempt += 1) {
+    if (!await clickState(page, state)) { await untilTabs(settle * 4); continue; }
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
-    on = await until(state.key, settle * 10);
+    on = await until(state.key, settle * 4);
   }
   if (on === state.key) {
     // Reached. Give the panel its own moment to finish drawing before anyone captures it.
     await page.waitForTimeout(settle);
     await page.waitForLoadState('networkidle', { timeout: 10_000 }).catch(() => {});
     return true;
+  }
+
+  // ── WHY IT FAILED, WHEN SOMEBODY IS ASKING ──────────────────────────────────────────────────────
+  //
+  // `DESIGN_TRACE_DEBUG=1` prints the state of the world at the moment of failure. It exists because
+  // this failure has now survived two fixes aimed at guesses: a fixed wait, then a single click
+  // attempt. Both were real gaps and neither was THIS. Three runs of /admin/equipment failed
+  // cleanup-queue, then maintenance, then supplies — exactly one each time, at a different address.
+  //
+  // Guessing again would be the fourth theory. What is missing is not an idea, it is a reading:
+  // whether the control was on the page at all, what was selected instead, and how many tabs the
+  // strip had when we looked.
+  if (process.env.DESIGN_TRACE_DEBUG) {
+    const seen = await page.evaluate(() => {
+      const root = document.querySelector('.admin-layout__content') ?? document.body;
+      const slug = (t) => (t || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);
+      const text = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().replace(/\s*\d+$/, '');
+      const tabs = [...root.querySelectorAll('[role="tab"]')];
+      return {
+        tabCount: tabs.length,
+        keys: tabs.map((e) => slug(text(e))),
+        selected: tabs.filter((e) => e.getAttribute('aria-selected') === 'true').map((e) => slug(text(e))),
+        url: location.search,
+        bodyChars: (root.innerText || '').length,
+      };
+    }).catch(() => null);
+    console.log(`      !! openState(${route} · ${state.key}) failed — showing "${on}"`);
+    console.log(`         ${seen ? JSON.stringify(seen) : '(could not read the page)'}`);
   }
   return false;
 }

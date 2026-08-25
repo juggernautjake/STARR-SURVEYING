@@ -270,6 +270,61 @@ is **per-ITEM approval** — today the decision is per receipt.
       that read source. **Any assertion over source text should strip comments by default**, and the
       helper should be reached for first rather than after the failure.
 
+      ── **C14e — THREE FIXES, TWO OF THEM AIMED AT GUESSES, 2026-08-25** ──
+
+      C14b closed this with "the sweep's window was too short" and called the three singletons
+      explained. **Two of the three were re-verified and the third never was**, and it failed again
+      on the next sweep. What followed is worth recording as a method failure before it is recorded
+      as a bug fix.
+
+      | run | the tab that failed |
+      | --- | --- |
+      | sweep 1 | `cleanup-queue` |
+      | sweep 2 (after the polling fix) | `cleanup-queue` |
+      | equipment alone | `maintenance` |
+      | after the click-retry fix | `supplies` |
+      | with diagnostics on | `valuation` |
+
+      **Exactly one per run, at a different address each time.** Ruled out along the way, each by
+      measurement rather than argument: an id/label mismatch (`plan-history` is one and works); the
+      first-text-match hazard (exactly one match per tab, and it is the tab); a nested tab group
+      (equipment has a single strip); the sequence and the viewport order (all ten replayed in order
+      at both widths — all ten passed); a dev error overlay (the new guard reports none).
+
+      Then I stopped arguing and instrumented it. `DESIGN_TRACE_DEBUG=1` prints what the page looked
+      like at the moment of failure, and two runs answered what four theories had not:
+
+      ```
+      · valuation: TimeoutError: page.goto: Timeout 60000ms exceeded.
+      !! openState(/admin/equipment · supplies) failed — showing "null"
+      ```
+
+      **Two real causes, neither of them about tabs.**
+      1. The dev server stalls for over a minute roughly once per portal run, and whichever
+         navigation lands inside the stall dies. The `goto` is now retried once after a pause.
+      2. `selectedStateKey` returning **null** means there is no tab strip on the page *at all* — so
+         the page was up (`waitForPageReady` is satisfied by the shell's heading and buttons) while
+         the tabs were still arriving. A failed click waited a flat `settle`, giving a late strip
+         about **eight seconds** in total rather than the generous budget the poll below it implies.
+         A failed click now waits for a strip to APPEAR.
+
+      Result: `/admin/equipment` 10/10, the first clean run after four consecutive runs each losing
+      one. One run is not proof for an intermittent fault, and this entry does not claim it is —
+      unlike C14b, which claimed exactly that and was wrong.
+
+      **The lesson is not about tabs.** Three fixes shipped here: a fixed wait replaced by polling, a
+      single click attempt replaced by three, and these two. All three closed genuine gaps. **Only
+      the third was aimed at the actual failure**, and it is the only one that came after a reading
+      rather than a theory. Two plausible diagnoses in a row, each confirmed by a green run that was
+      really just the flake landing elsewhere. *An intermittent failure will confirm any fix you ship
+      the moment it moves — so a fix for one is only evidence when you knew the cause before you
+      wrote it.*
+
+      Also noticed and NOT chased: `overrides` captured 42 desktop elements in one run and 50 in
+      another. Element counts drift between runs for the same tab, which is a question about capture
+      stability rather than reachability, and it deserves its own slice rather than a guess at the
+      end of this one.
+
       ── **C14d — THE STRIPPER ITSELF WAS WRONG, IN SIX PLACES, 2026-08-25** ──
 
       Acting on that last line turned up something bigger than the tidying it was meant to be.

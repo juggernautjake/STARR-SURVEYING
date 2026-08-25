@@ -212,4 +212,19 @@ describe('opening a state is one function', () => {
     const block = OBSERVE.slice(OBSERVE.indexOf('export async function openState'));
     expect(block).toMatch(/while \(on !== want && Date\.now\(\) < deadline\)/);
   });
+
+  it('and retries the click, because a strip can render late', () => {
+    // The polling fix left a race the poll could not see. The code read
+    // `if (on !== key && await clickState(...))`, so when `clickState` found no element the `&&`
+    // short-circuited and the generous wait after it never ran — a late tab strip failed with a
+    // budget it never touched.
+    //
+    // What proved it was not tab-specific: after the fix about one state per portal still failed and
+    // THE FAILING TAB MOVED between runs — cleanup-queue, then maintenance, then activity. A failure
+    // that changes address is a race, not a property of the thing it lands on.
+    const block = OBSERVE.slice(OBSERVE.indexOf('export async function openState'));
+    expect(block).toMatch(/for \(let attempt = 0; attempt < 3 && on !== state\.key; attempt \+= 1\)/);
+    // The short-circuit must not come back: a failed click has to continue the loop, not end it.
+    expect(block).not.toMatch(/on !== state\.key && await clickState/);
+  });
 });
