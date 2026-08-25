@@ -1678,6 +1678,30 @@ early, and the internal tooling comes last.
       under 400 seconds**, against 8 routes in several minutes before. That is what makes the full
       pass a thing that can be run rather than a thing that gets killed.
 
+      ── **AND THE SPEED FIX WAS RACY, WHICH ONE ANOMALY IN A LATER RUN EXPOSED** ──
+
+      The short-circuit read `page.url()` immediately after `goto`. A later pass reported four hangs;
+      two of them — `/admin/invites` and `/admin/equipment/templates/cleanup-queue` — are **stubs**,
+      which the fix was supposed to have handled.
+
+      Measured rather than dismissed as flake: **every redirect stub this plan created answers a
+      document GET with 200, not a 307.** `redirect()` in a server component is performed by the
+      CLIENT router after hydration, so at `domcontentloaded` the URL is still the stub. Reading it
+      there is a race — it worked for stubs whose destination compiles quickly and failed for the
+      rest, which is why `/admin/discussions` reported "redirects to /admin/messages" and
+      `/admin/invites`, four rows later in the same run, reported a hang.
+
+      Fixed with a **bounded** wait: `waitForURL` for four seconds, far short of the 25s readiness
+      budget the short-circuit exists to avoid. Verified on the route that failed — `/admin/invites`
+      now reports "redirects to /admin/people". `derive-dossiers` does not need it: it calls
+      `waitForPageReady` before reading the URL, so it is slow rather than racy, and adding churn
+      there would be fixing something that is not broken.
+
+      **Three commits on one twenty-line branch, each fixing what the previous one exposed** — a
+      wrong report, then its cost, then a race in the fix for the cost. Each was found by asking why
+      one route disagreed with the others rather than filing it as noise, which is the only reason
+      the chain ended somewhere true.
+
       **The same bug was in the sibling script, and fixing one is how it was found.**
       `derive-dossiers.mjs` computed `problem = 'still loading after 25s'` **before** it asked whether
       the route forwarded, and gated the forward check on `!problem`. So a stub whose destination is

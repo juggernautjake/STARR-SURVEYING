@@ -203,6 +203,20 @@ for (const [i, target] of todo.entries()) {
       // stubs. At up to forty seconds each that is most of an hour spent measuring redirects, which
       // is why the first full pass never finished. The destination is known as soon as navigation
       // resolves, so it is read here and the rest of the walk is skipped.
+      // ── AND THE CHECK HAS TO WAIT A MOMENT, BECAUSE THESE FORWARDS ARE CLIENT-SIDE ──────────
+      //
+      // Measured: every redirect stub this plan created answers a document GET with **200**, not a
+      // 307. `redirect()` in a server component is performed by the client router after hydration,
+      // so at `domcontentloaded` the URL is still the stub. Reading it there is a RACE — it happened
+      // to work for stubs whose destination compiles quickly and not for the rest, which is why
+      // `/admin/discussions` reported "redirects to /admin/messages" and `/admin/invites`, four rows
+      // later in the same run, reported a hang.
+      //
+      // So: give the forward a bounded moment to happen. Four seconds is far short of the 25s
+      // readiness budget this exists to avoid, and a stub that has not moved in four seconds is one
+      // whose destination is worth waiting for as a page anyway.
+      await page.waitForURL((u) => new URL(u).pathname !== target.route, { timeout: 4_000 })
+        .catch(() => {});
       if (new URL(page.url()).pathname !== target.route) { forwarded = true; break; }
 
       // Admin pages fetch after mount. Capturing the splash would trace a spinner and call it a page.
