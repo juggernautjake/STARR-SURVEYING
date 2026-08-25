@@ -2391,6 +2391,20 @@ default when it finds the route forwarding — the S2 branch — so walking the 
 designs** today without being asked. The remaining 28 are simply routes the pass has not reached yet;
 finishing it should take most of them.
 
+**And 2 of the 28 are not orphans at all — my definition over-counted.** "Orphaned" here means *not
+in `ADMIN_ROUTES`*, and two live pages qualify without having been absorbed by anything:
+
+| Route | What it is |
+|---|---|
+| `/admin/login` | a real page, deliberately not in the nav registry — you do not navigate to login from a menu |
+| `/admin/billing/upgrade` | a real page that was never registered |
+
+Classified: of the 28, **26 are redirect stubs** the pass retires on sight, and 2 are these. So the
+defaults half of this question resolves to **zero real orphans** once the walk finishes — and the
+count I first put in §13 was measuring "unregistered" while calling it "absorbed".
+
+That leaves 13.3 as one question about dossiers, below.
+
 **The dossiers cannot fix themselves, because there is no mechanism.** `derive-dossiers` skips a
 forwarding route — it does not record that the dossier it left behind now describes a redirect — and
 `design_page_dossiers` has **no status and no `deleted_at`**: nothing in the schema can express
