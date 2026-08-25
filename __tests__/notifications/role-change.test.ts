@@ -22,7 +22,7 @@ describe('buildRoleChangeNotification — role', () => {
       type: 'profile_change',
       source_type: 'role',
       title: '🎉 Role updated: Crew Chief',
-      link: '/admin/my-pay',
+      link: '/admin/pay?tab=my-pay',
     });
     expect(out!.body).toContain('promoted to Crew Chief');
     expect(out!.body).toContain('+$2.50/hr');
@@ -59,7 +59,7 @@ describe('buildRoleChangeNotification — credential_added', () => {
       type: 'profile_change',
       source_type: 'credential_added',
       title: '🏅 Credential earned: RPLS',
-      link: '/admin/my-pay',
+      link: '/admin/pay?tab=my-pay',
     });
     expect(out!.body).toContain('+$5.00/hr');
   });
@@ -94,7 +94,7 @@ describe('buildRoleChangeNotification — bonus', () => {
     expect(out).toMatchObject({
       source_type: 'bonus',
       title: '🎁 Bonus awarded — $150.00',
-      link: '/admin/my-pay',
+      link: '/admin/pay?tab=my-pay',
     });
     expect(out!.body).toContain('Great job on the boundary stake');
   });

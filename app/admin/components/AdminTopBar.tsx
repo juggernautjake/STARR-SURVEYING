@@ -239,7 +239,7 @@ export default function AdminTopBar({ title, onMenuToggle }: AdminTopBarProps) {
         <ClockInPill />
         {/* XP Counter — clickable, links to store */}
         {xp !== null && (
-          <Link href="/admin/rewards" className="admin-topbar__xp" title="Click to spend reward points!">
+          <Link href="/admin/pay?tab=rewards" className="admin-topbar__xp" title="Click to spend reward points!">
             <span className="admin-topbar__xp-icon"><Star size={13} strokeWidth={2} fill="currentColor" /></span>
             <span className="admin-topbar__xp-current">{xp.current.toLocaleString()}</span>
             <span className="admin-topbar__xp-sep">/</span>

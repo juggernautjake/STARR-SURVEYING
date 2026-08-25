@@ -85,7 +85,9 @@ describe('every menu destination is a page', () => {
       // 'My Hours' and landed on the Hub — is unchanged: there is still exactly one nav row that
       // opens a timesheet, and 'my hours' is still one of its keywords so searching finds it.
       ['Hours & Time', '/admin/hours'],
-      ['My Pay', '/admin/my-pay'],
+      // C6: absorbed as the Pay portal's `my-pay` tab. Same guard, new row: there is still exactly
+      // one nav entry that opens somebody's own pay, and 'my pay' is one of its keywords.
+      ['Pay & Payouts', '/admin/pay'],
       ['My Notes', '/admin/my-notes'],
       // 'My Profile' and 'My Jobs' were FOLDED into entries that already served those pages rather
       // than repointed — two rows for one href is how a menu shows the same destination twice under

@@ -41,7 +41,9 @@ describe('item 7 — Money is one workspace', () => {
       // the firm's money surfaces live in ONE workspace rather than scattered across two — is
       // untouched and is in fact stronger: `/admin/receipts` is in Money and mileage is inside it.
       // Listing the old href would assert a row that deliberately went away.
-      '/admin/payroll', '/admin/payouts', '/admin/receipts',
+      // C6 absorbed /admin/payroll and /admin/payouts into the Pay portal, which is itself in Money.
+      // The invariant — the firm's money surfaces live in ONE workspace — is stronger, not weaker.
+      '/admin/pay', '/admin/receipts',
       '/admin/finances', '/admin/finances/overview',
       // `/admin/billing/upgrade` was a sample here until C1 of the consolidation plan removed it
       // from the registry. It is not in ANY workspace now, deliberately: it is the interstitial the
@@ -88,9 +90,20 @@ describe('item 7 — Money is one workspace', () => {
   it('no URL moved', () => {
     // Consolidation here is a re-filing, not a migration. Every money page keeps its path, so no
     // bookmark, notification link or customer email breaks.
-    for (const href of ['/admin/invoicing', '/admin/billing', '/admin/finances', '/admin/payroll']) {
+    for (const href of ['/admin/invoicing', '/admin/billing', '/admin/finances', '/admin/pay']) {
       expect(workspaceOf(href)).toBe('money');
       expect(exists(`app${href}/page.tsx`), `${href} page file`).toBe(true);
+    }
+
+    // C6 (2026-08-25): `/admin/payroll` was a sample above and is now a REDIRECT into the Pay
+    // portal. The claim this test makes — *"consolidation here is a re-filing, not a migration; no
+    // bookmark, notification link or customer email breaks"* — is exactly what C6 had to preserve, so
+    // it is asserted directly rather than dropped: the file is still there, and what it contains is a
+    // forward rather than a 404.
+    for (const href of ['/admin/payroll', '/admin/payouts', '/admin/my-pay', '/admin/rewards']) {
+      expect(exists(`app${href}/page.tsx`), `${href} page file`).toBe(true);
+      const src = fs.readFileSync(path.join(ROOT, `app${href}/page.tsx`), 'utf8');
+      expect(src, `${href} should forward into the Pay portal`).toContain("redirect('/admin/pay?tab=");
     }
   });
 });

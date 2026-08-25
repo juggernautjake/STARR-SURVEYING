@@ -177,7 +177,7 @@ describe('GET + POST /api/admin/payouts/runs — source-lock', () => {
 });
 
 describe('/admin/payouts/runs page — source-lock', () => {
-  const SRC = read('app/admin/payouts/runs/page.tsx');
+  const SRC = read('app/admin/pay/_tabs/PayoutRunsTab.tsx');
 
   it("renders the wizard with week-start + week-end inputs + label preview", () => {
     expect(SRC).toMatch(/data-testid="payouts-week-start"/);
@@ -217,11 +217,20 @@ describe('the Payout Runs link is reachable from navigation', () => {
   // Retargeted from AdminSidebar.tsx's source text to the registry, which now feeds BOTH the desktop
   // rail and the mobile drawer (platform audit §1.3). The old assertion would have failed on a change
   // that made this link strictly more reachable, not less.
-  it('is registered, and shows in the rail and drawer rather than palette-only', () => {
-    const route = ADMIN_ROUTES.find((r) => r.href === '/admin/payouts/runs');
-    expect(route, '/admin/payouts/runs must be registered').toBeDefined();
-    expect(route!.label).toBe('Payout Runs');
+  // C6 (2026-08-25): the SAMPLE moved, the invariant did not. `/admin/payouts/runs` is the Pay
+  // portal's `payout-runs` tab now, and the route still forwards. What this guards — payout runs are
+  // reachable from the NAV rather than only from the command palette — is unchanged, and is now the
+  // portal's row.
+  //
+  // Re-pointed rather than deleted: this file exists because the link was once palette-only, and a
+  // deleted assertion is one that cannot notice it happening again.
+  it('is reachable from navigation rather than palette-only', () => {
+    const route = ADMIN_ROUTES.find((r) => r.href === '/admin/pay');
+    expect(route, 'the Pay portal must be registered').toBeDefined();
+    expect(route!.label).toBe('Pay & Payouts');
     expect(route!.showInRail).not.toBe(false);
+    // And the tab it absorbed is findable by the words somebody would type for it.
+    expect(route!.keywords).toContain('runs');
   });
 });
 

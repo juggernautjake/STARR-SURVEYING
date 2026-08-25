@@ -16,7 +16,7 @@ const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), 'utf8');
 const ADMIN_PAYMENT_PAGES = [
   'app/admin/invoices/new/page.tsx',
   'app/admin/payments/inbox/page.tsx',
-  'app/admin/payouts/runs/page.tsx',
+  'app/admin/pay/_tabs/PayoutRunsTab.tsx',
   'app/admin/payouts/runs/[id]/page.tsx',
   'app/admin/payouts/runs/[id]/dispatch/page.tsx',
   'app/admin/payouts/ad-hoc/page.tsx',

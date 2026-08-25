@@ -45,12 +45,13 @@ const LEGACY_SIDEBAR_HREFS = [
   // C4: the old drawer's '/admin/my-hours' is the Hours portal's `my-time` tab. The route still
   // forwards; this list is about what the DRAWER offers, and it offers one row now.
   '/admin/hours',         // was /admin/my-hours, and before that ?tab=hours
-  '/admin/my-pay',        // was ?tab=pay
+  // C6 absorbed these into the Pay portal. They are hrefs the OLD drawer had; the drawer offers
+  // one row now, and every one of these still forwards to its tab.
+  '/admin/pay',
   '/admin/my-notes',      // was ?tab=notes
   '/admin/profile',       // was ?tab=profile — folded into 'Profile & Settings'
   '/admin/equipment', '/admin/research', '/admin/cad',
-  '/admin/rewards', '/admin/rewards/how-it-works', '/admin/rewards/admin',
-  '/admin/payments/inbox', '/admin/payouts/runs', '/admin/invoices/new',
+  '/admin/payments/inbox', '/admin/invoices/new',
   '/admin/messages', '/admin/install', '/admin/settings', '/admin/error-log',
 ] as const;
 

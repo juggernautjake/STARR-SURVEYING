@@ -164,7 +164,7 @@ describe('/admin/payouts/tax-report page — source-lock', () => {
 });
 
 describe('/admin/payouts/runs links to the tax report', () => {
-  const SRC = read('app/admin/payouts/runs/page.tsx');
+  const SRC = read('app/admin/pay/_tabs/PayoutRunsTab.tsx');
   it("renders the 'Tax report' link", () => {
     expect(SRC).toMatch(/href="\/admin\/payouts\/tax-report"/);
     expect(SRC).toMatch(/data-testid="payouts-tax-report-link"/);

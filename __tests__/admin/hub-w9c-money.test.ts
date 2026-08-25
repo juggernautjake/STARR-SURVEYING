@@ -80,9 +80,17 @@ describe('money widget registration + render (W9c)', () => {
   });
 
   it('per-section "Open →" links route to pay / reports / finances', () => {
-    // `/admin/my-pay`, not `/admin/me?tab=pay` — the Hub reads no `tab` parameter, so the "My pay
-    // Open →" link reloaded the Hub this widget sits on. Fixed 2026-08-06.
-    expect(SRC).toMatch(/href="\/admin\/my-pay"/);
+    // ── C6 (2026-08-25) ────────────────────────────────────────────────────────────────────────
+    //
+    // Was `/admin/my-pay`, which is the Pay portal's `my-pay` tab now. The reason this assertion
+    // exists is unchanged and is worth restating, because it looks superficially like the thing C6
+    // did: the bug was `/admin/me?tab=pay` — **the Hub reads no `tab` parameter**, so that link
+    // reloaded the Hub this widget sits on.
+    //
+    // `/admin/pay?tab=my-pay` is the opposite case. The Pay portal DOES read `?tab=`, verified in a
+    // browser, so the link opens the panel it names. The rule the second assertion keeps is
+    // therefore still exactly right, and still about `/admin/me`.
+    expect(SRC).toMatch(/href="\/admin\/pay\?tab=my-pay"/);
     expect(SRC).not.toMatch(/href="\/admin\/me\?tab=/);
     expect(SRC).toMatch(/href="\/admin\/reports"/);
     expect(SRC).toMatch(/href="\/admin\/finances"/);

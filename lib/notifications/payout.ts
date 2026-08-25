@@ -37,7 +37,10 @@ export interface NotifyPayload {
   link: string;
 }
 
-const PAY_LINK = '/admin/my-pay';
+// C6: the Pay portal's `my-pay` tab. Was '/admin/my-pay', which still forwards — but this is the
+// link in every "you were paid" notification, tapped from a phone, and a redirect costs a
+// navigation on the worst connection any of these links sees.
+const PAY_LINK = '/admin/pay?tab=my-pay';
 
 /** Pretty-format `amount_cents` as a USD string (`$1,234.56`). */
 export function formatUsdCents(cents: number): string {

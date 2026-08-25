@@ -165,7 +165,7 @@ export async function notifyPaymentUpdate(userEmail: string, title: string, body
     title: `💰 ${title}`,
     body,
     icon: '💰',
-    link: '/admin/my-pay',
+    link: '/admin/pay?tab=my-pay',
     source_type: 'payment',
     escalation_level: 'normal',
   });
@@ -198,7 +198,7 @@ export async function notifyRaise(userEmail: string, newRate: string) {
     title: `🎉 You got a raise!`,
     body: `Your new rate is ${newRate}. Keep up the great work!`,
     icon: '🎉',
-    link: '/admin/my-pay',
+    link: '/admin/pay?tab=my-pay',
     source_type: 'raise',
     escalation_level: 'normal',
   });
@@ -212,7 +212,7 @@ export async function notifyBonus(userEmail: string, amount: string, reason: str
     title: `🎊 Bonus Awarded: ${amount}`,
     body: reason,
     icon: '🎊',
-    link: '/admin/my-pay',
+    link: '/admin/pay?tab=my-pay',
     source_type: 'bonus',
   });
 }
@@ -225,7 +225,7 @@ export async function notifyPurchase(userEmail: string, itemName: string, xpSpen
     title: `🛍️ Purchase Confirmed: ${itemName}`,
     body: `${xpSpent.toLocaleString()} XP spent. An admin will fulfill your order.`,
     icon: '🛍️',
-    link: '/admin/rewards',
+    link: '/admin/pay?tab=rewards',
     source_type: 'purchase',
   });
 }
@@ -237,7 +237,7 @@ export async function notifyNewReward(recipientEmails: string[], itemName: strin
     title: `🆕 New in Store: ${itemName}`,
     body: `Available for ${xpCost.toLocaleString()} XP. Check it out!`,
     icon: '🆕',
-    link: '/admin/rewards',
+    link: '/admin/pay?tab=rewards',
     source_type: 'new_reward',
   });
 }
@@ -250,7 +250,7 @@ export async function notifyBadgeEarned(userEmail: string, badgeName: string, ba
     title: `${badgeIcon} Badge Earned: ${badgeName}`,
     body: `Congratulations! You've earned the "${badgeName}" badge.`,
     icon: badgeIcon,
-    link: '/admin/rewards',
+    link: '/admin/pay?tab=rewards',
     source_type: 'badge_earned',
   });
 }
@@ -329,7 +329,7 @@ export async function notifyXPEarned(userEmail: string, amount: number, reason: 
     title: `⭐ +${amount} XP Earned`,
     body: reason,
     icon: '⭐',
-    link: '/admin/rewards',
+    link: '/admin/pay?tab=rewards',
     source_type: 'xp_earned',
   });
 }

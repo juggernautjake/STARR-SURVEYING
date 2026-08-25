@@ -36,7 +36,12 @@ describe('bundleForRoute — workspace defaults', () => {
   });
 
   it('Office workspace business routes default to "office" bundle', () => {
-    expect(bundleForRoute('/admin/payroll')).toBe('office');
+    // C6 (2026-08-25): `/admin/payroll` is the Pay portal's `payroll` tab now, and the route is a
+    // redirect. The INVARIANT — the payroll surface is behind the office bundle — is unchanged and is
+    // re-asserted on the surface that exists: `/admin/pay` is in the `money` workspace, whose default
+    // is `office`. A firm that could reach payroll yesterday reaches it today; one that could not,
+    // still cannot.
+    expect(bundleForRoute('/admin/pay')).toBe('office');
     expect(bundleForRoute('/admin/receipts')).toBe('office');
     expect(bundleForRoute('/admin/messages')).toBe('office');
     expect(bundleForRoute('/admin/discussions')).toBe('office');

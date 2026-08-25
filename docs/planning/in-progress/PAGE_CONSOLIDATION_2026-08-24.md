@@ -166,9 +166,9 @@ it.
 is to search a table that another page already lists. It is a search box that was given a sidebar
 link.
 
-- [ ] **P1.1** — the shell, the tab set, and `?tab=` in the URL. Bodies moved untouched.
-- [ ] **P1.2** — redirect stubs for all 11 old routes.
-- [ ] **P1.3** — the role views (§5).
+- [x] **P1.1** — the shell, the tab set, and `?tab=` in the URL. Bodies moved untouched.
+- [x] **P1.2** — redirect stubs for all 11 old routes.
+- [x] **P1.3** — the role views (§5).
 
 ### P2 — Receipts & Spending · `/admin/receipts` (absorbs 4)
 
@@ -796,7 +796,83 @@ early, and the internal tooling comes last.
       per-line tax treatment, `approvedTotal()`/`deductibleTotal()` do not exist, and `/admin/finances`
       still totals whole approved receipts. Shipping the tabs did **not** ship per-item approval, and
       the portal's own header says so where somebody will read it.
-- [ ] **C6 — P1 Pay & Payouts** (11 → 1). The headline. Do it after Hours has proven the role split.
+- [x] **C6 — P1 Pay & Payouts.** Shipped 2026-08-25, all three sub-items. **Ten nav rows became one**
+      — the owner's headline example, and the portal with the most at stake: every tab decides money.
+
+      `/admin/pay` with ten tabs: `my-pay · payroll · ledger · payout-runs · withdrawals · history ·
+      rates · rewards · rewards-admin · how-rewards-work`. All ten browser-verified rendering live
+      data; all ten old routes verified forwarding to their tab.
+
+      **§5 proven where it matters most, with two real accounts on one URL:**
+
+      | | tabs | lands on | `?tab=payroll` opens |
+      |---|---|---|---|
+      | admin | **10** | Payroll | Payroll |
+      | employee | **1** — My pay | My pay | **My pay** |
+
+      An employee sees their own pay and nothing else. Nine money screens are invisible to them, and
+      a link to the payroll run gives them their own payslip.
+
+      ── **THE ROUTE-SCOPED STYLESHEET TRAP, WALKED INTO AND CLOSED** ──────────────────────────────
+
+      `app/admin/payroll/layout.tsx` and `app/admin/rewards/layout.tsx` exist for **one reason each**:
+      to import `AdminPayroll.css` and `AdminRewards.css`. A Next layout loads its stylesheet for its
+      route TREE and nowhere else — the trap this repository has been caught by twice.
+
+      Moving those bodies into tabs without their stylesheets would have rendered two tabs unstyled
+      with **nothing failing**: no error, no red test, just a payroll screen that looked broken. The
+      portal imports both, and it is verified rather than assumed — a `.payroll-overview` rule is
+      present in the document, and `rewards__hero` computes to `radius=14px pad=32px` rather than to
+      browser defaults.
+
+      ── **AND WHAT DELIBERATELY DID NOT BECOME A TAB** ───────────────────────────────────────────
+
+      **`/admin/pay-progression` is `parked: true`.** The plan's table maps it to tab `rates`, and
+      doing that would have **silently un-parked it**: `accessibleRoutes` hides a parked route from
+      everybody *including admins* — *"a parked feature is deliberately out of circulation"* — and a
+      tab has no such flag. 869 lines of a deliberately-withdrawn feature would have come back in
+      front of people as a side effect of a navigation change. It stays a parked route, untouched.
+
+      `/admin/payouts/tax-report` is **P7's**, not P1's. `ad-hoc` and `search` are buttons, as the
+      plan says — §4 calls search *"the clearest case in the whole document: a 201-line page whose
+      entire job is to search a table another page already lists"*, and taking away its sidebar row
+      is the slice.
+
+      **One row went back in after being dropped.** `/admin/payouts/runs` is the parent of
+      `/admin/payouts/runs/[id]` and `.../[id]/dispatch` — **records**, which §4 says are not touched
+      — and the cron that prepares a batch links straight at one. With no ancestor in the registry
+      that record has no breadcrumb and the notification audit cannot resolve the link. It is back
+      as `showInRail: false`: not a nav row, just the parent of a record.
+
+      ── **SEVENTEEN TEST FILES WENT RED. TWO WERE FINDINGS THAT MATTERED.** ──────────────────────
+
+      · **`bundle-gate`** — `bundleForRoute('/admin/payroll')` fell to `null`. **This is the packaging
+        gate**, and the question is whether a paid feature was given away. It was not: the portal
+        resolves to `office`, the same bundle the money workspace always defaulted to, so a firm that
+        could reach payroll yesterday reaches it today and one that could not, still cannot.
+      · **`api-bundle-gate`** — twelve `/api/admin/payroll/*` and `/api/admin/rewards/*` routes lost
+        their classification. **The fourth mirror break in four slices**, and the first where the
+        answer was a real bundle rather than `null`: they carried `office` by mirroring pages in the
+        `money` workspace. Unclassified fails CLOSED so nothing leaked — but that is luck about which
+        direction the file errs, not a reason to leave it. Written out at the value they had.
+
+      Everything else was a sample that moved: the Money-workspace list, the `paycheck → Payroll`
+      ranker, two drawer parity lists, and **thirteen source files** whose notification and widget
+      links pointed at the absorbed routes — all repointed, because each is tapped from a phone where
+      a redirect costs a navigation.
+
+      **A deliberate narrowing, recorded rather than smuggled.** `/admin/my-pay` was
+      `INTENTIONALLY_OPEN` in middleware; `/admin/pay` is not. A `guest` who typed the old URL used
+      to reach it and is now bounced. That is right: the registry never offered that page to a guest,
+      so the only way in was typing the URL — and an ungated portal would have shown them a strip
+      with **zero visible tabs** and the message *"every part of Pay is switched off for this
+      company"*, which is a lie about a permission problem.
+
+      The inline-hex ratchet fired for the fourth consecutive slice — **2306 before, 2306 after**.
+
+- [x] **P1.1** — the shell, the tab set, `?tab=` in the URL, bodies moved untouched. Shipped with C6.
+- [x] **P1.2** — redirect stubs for all ten absorbed routes. Shipped with C6, each verified in a browser.
+- [x] **P1.3** — the role views (§5). Shipped with C6; see the two-account table above.
 - [ ] **C7 — P4 Jobs** (6 → 1).
 - [ ] **C8 — P7 Books & Tax** + **P8 Customer Money** (7 → 2).
 - [ ] **C9 — P10 People** + **P11 Messages** (9 → 2).

@@ -163,7 +163,7 @@ describe('/admin/payouts/runs/[id] page — source-lock', () => {
 });
 
 describe('history list links to detail', () => {
-  const SRC = read('app/admin/payouts/runs/page.tsx');
+  const SRC = read('app/admin/pay/_tabs/PayoutRunsTab.tsx');
   it("each history row wraps in a Link to /admin/payouts/runs/<id>", () => {
     expect(SRC).toMatch(/Link href={`\/admin\/payouts\/runs\/\$\{b\.id\}`}/);
   });

@@ -56,10 +56,10 @@ export interface RoleChangeNotification {
   title: string;
   body: string;
   icon: string;
-  link: '/admin/my-pay' | '/admin/profile';
+  link: '/admin/pay?tab=my-pay' | '/admin/profile';
 }
 
-const PAY_LINK = '/admin/my-pay';
+const PAY_LINK = '/admin/pay?tab=my-pay';
 const PROFILE_LINK = '/admin/profile';
 
 function money(n: number): string {

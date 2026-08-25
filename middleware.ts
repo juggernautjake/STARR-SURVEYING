@@ -26,6 +26,23 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   { prefix: '/admin/settings', roles: ['admin'] },
   { prefix: '/admin/payroll', roles: ['admin'] },
 
+  // ── C6: THE PAY PORTAL ──────────────────────────────────────────────────────────────
+  //
+  // The union of the ten pages it absorbed, which is `/admin/my-pay`'s list plus `finance` (the only
+  // role that could reach withdrawals). Every tab keeps its own narrower gate in the portal spec.
+  //
+  // ── A DELIBERATE NARROWING, AND WHY ────────────────────────────────────────────────
+  //
+  // `/admin/my-pay` was `INTENTIONALLY_OPEN` — middleware let anyone signed in through, because the
+  // page reads the session's own pay and nobody else's. This portal is NOT open, and that is a
+  // change: a `guest` who typed `/admin/my-pay` used to reach it and is now bounced.
+  //
+  // It is the right change. The registry never offered that page to a guest, so the only way in was
+  // typing the URL — and with tabs, an ungated portal would have shown them a strip with ZERO visible
+  // tabs and the message "every part of Pay is switched off for this company", which is a lie about
+  // a permission problem. Bounced at the door is the honest answer.
+  { prefix: '/admin/pay', roles: ['admin', 'developer', 'field_crew', 'employee', 'tech_support', 'finance'] },
+
   // Page Designer (2026-08-23) — a build tool, not a business surface. It puts every element of
   // every page in one panel and lets you draw pages that do not exist yet, so a half-finished
   // mockup on a foreman's screen would read as a promise about what the app is about to do. Same

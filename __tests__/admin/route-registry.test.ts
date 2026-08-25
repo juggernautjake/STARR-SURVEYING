@@ -227,10 +227,14 @@ describe('route-registry — Cmd+K ranker', () => {
     expect(ranked[0]?.label).toBe('Office');
   });
 
-  it('keyword hits route the user past synonyms (e.g. paycheck → Payroll)', () => {
+  it('keyword hits route the user past synonyms (e.g. paycheck → Pay & Payouts)', () => {
+    // C6 (2026-08-25): 'Payroll' is a TAB now and its keywords moved to the portal row. The property
+    // this guards — typing a word nobody labelled a page with still finds the page — is exactly why
+    // those keywords were carried across rather than dropped, and is asserted on the row that
+    // survived. Somebody typing 'paycheck' who got nothing would read it as the feature being gone.
     const ranked = rankRoutes(ADMIN_ROUTES, 'paycheck');
     const labels = ranked.map((r) => r.label);
-    expect(labels).toContain('Payroll');
+    expect(labels).toContain('Pay & Payouts');
   });
 
   it('empty query returns the original list unchanged', () => {

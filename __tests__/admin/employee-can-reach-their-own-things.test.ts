@@ -53,7 +53,9 @@ const SELF_SERVICE = [
   '/admin/hours',
   '/admin/schedule',
   '/admin/assignments',
-  '/admin/my-pay',
+  // C6: was '/admin/my-pay', now the Pay portal's `my-pay` tab. Re-checked rather than assumed —
+  // the portal's roles include `employee`, and its per-role default sends a non-admin to `my-pay`.
+  '/admin/pay',
   '/admin/receipts/new',
   // C4 absorbed `/admin/time-off` as the portal's `time-off` tab, and it is the tab that keeps the
   // portal ungated: it was the one of the four with no role list, because every employee may ask for

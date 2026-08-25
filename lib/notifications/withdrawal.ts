@@ -76,14 +76,14 @@ export function buildWithdrawalNotification(
         // Approved is deliberately NOT "paid". The money has not moved yet, and letting somebody
         // believe it has is how a rent payment bounces.
         body: `${amount} was approved${where}. It has not been sent yet — you will be told again when it goes out.`,
-        link: '/admin/my-pay', source_type: 'withdrawal',
+        link: '/admin/pay?tab=my-pay', source_type: 'withdrawal',
       };
     case 'completed':
       return {
         user_email: email, type: 'payment', icon: '💸',
         title: '💸 Withdrawal sent',
         body: `${amount} has been sent${where} and taken off your balance.`,
-        link: '/admin/my-pay', source_type: 'withdrawal',
+        link: '/admin/pay?tab=my-pay', source_type: 'withdrawal',
       };
     case 'rejected': {
       const why = input.reason?.trim() ? ` Reason: ${input.reason.trim()}` : '';
@@ -91,7 +91,7 @@ export function buildWithdrawalNotification(
         user_email: email, type: 'payment', icon: '❌',
         title: '❌ Withdrawal declined',
         body: `${amount} was not approved.${why} Your balance is unchanged.`,
-        link: '/admin/my-pay', source_type: 'withdrawal',
+        link: '/admin/pay?tab=my-pay', source_type: 'withdrawal',
       };
     }
     case 'cancelled':
@@ -100,7 +100,7 @@ export function buildWithdrawalNotification(
         user_email: email, type: 'payment', icon: '↩️',
         title: '↩️ Withdrawal cancelled',
         body: `${amount} was cancelled. Your balance is unchanged.`,
-        link: '/admin/my-pay', source_type: 'withdrawal',
+        link: '/admin/pay?tab=my-pay', source_type: 'withdrawal',
       };
   }
 }

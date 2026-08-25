@@ -60,7 +60,10 @@ const PAGES: Record<string, ComponentType> = {
   // QUEUE, which is what this entry has always been a picture of — shooting the shell would replace a
   // screenshot of the approval queue with one of a tab strip.
   receipts: nextDynamic(() => import('@/app/admin/receipts/_tabs/QueueTab'), { ssr: false }),
-  payroll: nextDynamic(() => import('@/app/admin/payroll/page'), { ssr: false }),
+  // C6: all four are TABS of the Pay portal now and their routes are redirects. The harness shoots
+  // page BODIES, so it points at the components — importing a redirect renders nothing and the shot
+  // would be of a blank page that looked like a styling bug. Same fix as C3, C4 and C5.
+  payroll: nextDynamic(() => import('@/app/admin/pay/_tabs/PayrollTab'), { ssr: false }),
   'pay-progression': nextDynamic(() => import('@/app/admin/pay-progression/page'), { ssr: false }),
   settings: nextDynamic(() => import('@/app/admin/settings/page'), { ssr: false }),
   install: nextDynamic(() => import('@/app/admin/install/page'), { ssr: false }),
@@ -101,13 +104,13 @@ const PAGES: Record<string, ComponentType> = {
   // forwards to it; importing the redirect would render nothing and the shot would be of an empty
   // page that looked like a styling bug.
   vehicles: nextDynamic(() => import('@/app/admin/equipment/_tabs/VehiclesTab'), { ssr: false }),
-  rewards: nextDynamic(() => import('@/app/admin/rewards/page'), { ssr: false }),
+  rewards: nextDynamic(() => import('@/app/admin/pay/_tabs/RewardsTab'), { ssr: false }),
   billing: nextDynamic(() => import('@/app/admin/billing/page'), { ssr: false }),
   research: nextDynamic(() => import('@/app/admin/research/page'), { ssr: false }),
   finances: nextDynamic(() => import('@/app/admin/finances/page'), { ssr: false }),
   // Newly registered in route-registry Slice 56 — kept for harness parity.
   orgs: nextDynamic(() => import('@/app/admin/orgs/page'), { ssr: false }),
-  payouts: nextDynamic(() => import('@/app/admin/payouts/page'), { ssr: false }),
+  payouts: nextDynamic(() => import('@/app/admin/pay/_tabs/LedgerTab'), { ssr: false }),
   support: nextDynamic(() => import('@/app/admin/support/page'), { ssr: false }),
   learn: nextDynamic(() => import('@/app/admin/learn/page'), { ssr: false }),
   'learn-modules': nextDynamic(() => import('@/app/admin/learn/modules/page'), { ssr: false }),
@@ -115,7 +118,7 @@ const PAGES: Record<string, ComponentType> = {
   email: nextDynamic(() => import('@/app/admin/email/new/page'), { ssr: false }),
   'email-sent': nextDynamic(() => import('@/app/admin/email/sent/page'), { ssr: false }),
   notifications: nextDynamic(() => import('@/app/admin/notifications/page'), { ssr: false }),
-  'payout-log': nextDynamic(() => import('@/app/admin/payout-log/page'), { ssr: false }),
+  'payout-log': nextDynamic(() => import('@/app/admin/pay/_tabs/HistoryTab'), { ssr: false }),
   // The Hub (/admin/me) is a server component behind auth; mount the real
   // canvas via a harness wrapper that seeds a default multi-widget layout
   // so the mobile customization flow can be exercised + screenshotted.

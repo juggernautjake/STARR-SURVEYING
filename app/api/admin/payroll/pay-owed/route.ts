@@ -330,7 +330,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
             + `$${(line.recovered_cents / 100).toFixed(2)} of that goes against your pay advance. `
             + 'You will see it here when it goes out.'
           : 'Your approved hours are in a payout that has been prepared. You will see it here when it goes out.',
-        link: '/admin/my-pay',
+        link: '/admin/pay?tab=my-pay',
         source_type: 'payout_batches',
         source_id: batch.id,
       });

@@ -120,6 +120,19 @@ export const API_GROUP_GATES: Record<string, { bundle: BundleId | null; reason: 
   // `/admin/mileage` was `internalOnly` with no `requiredBundle`, so the answer is carried across
   // rather than invented.
   'mileage': { bundle: null, reason: 'Reimbursable trips; the page is a tab of the Receipts portal since C5.' },
+  // ── C6, AND THE FOURTH TIME A MIRROR BROKE ────────────────────────────────────────────
+  //
+  // These carried `office` — not `null` — and that is the difference from the three above. They were
+  // classified by mirroring `/admin/payroll` and `/admin/rewards`, both in the `money` workspace,
+  // whose default bundle is `office`. C6 absorbed both pages, the mirror stopped resolving, and
+  // twelve routes fell to unclassified.
+  //
+  // **Unclassified fails CLOSED, so nothing leaked** — a firm without the office bundle would have
+  // been refused rather than let in, and the ratchet caught it before it shipped either way. But
+  // that is luck about which direction this file errs, not a reason to leave it. Written out at the
+  // value they had: a firm that could reach payroll yesterday must still reach it today.
+  'payroll': { bundle: 'office', reason: 'The pay surfaces; mirrored /admin/payroll (money workspace) until C6 made it a tab.' },
+  'rewards': { bundle: 'office', reason: 'The XP store; mirrored /admin/rewards (money workspace) until C6 made it a tab.' },
   // Which pages this firm has switched off (§11 of PAGE_CONSOLIDATION). Ungated for the same
   // reason `settings` is, and one more: EVERY signed-in user reads this on every admin page to draw
   // their own navigation. A bundle gate here would empty the sidebar of anyone on a lapsed plan —

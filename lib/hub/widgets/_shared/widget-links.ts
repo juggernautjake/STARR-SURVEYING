@@ -47,7 +47,7 @@ export const WIDGET_LINKS: Readonly<Record<string, WidgetGoToTarget>> = {
   // `edit` and `debug` and the parameter has meant nothing since. Both pages were RESTORED on
   // 2026-08-04 when the nav entries were fixed, but these widget footers were never updated, so
   // "Go to my hours →" kept dropping the user on the widget canvas they were already looking at.
-  'my-pay': { href: '/admin/my-pay', label: 'my pay' },
+  'my-pay': { href: '/admin/pay?tab=my-pay', label: 'my pay' },
   'hours-this-week': { href: '/admin/hours?tab=my-time', label: 'my hours' },
   'pto-balance': { href: '/admin/hours?tab=time-off', label: 'time off' },
   // financial

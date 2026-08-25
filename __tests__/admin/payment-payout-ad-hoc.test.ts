@@ -64,7 +64,7 @@ describe('/admin/payouts/ad-hoc page — source-lock', () => {
 });
 
 describe('/admin/payouts/runs page wires the ad-hoc link', () => {
-  const SRC = read('app/admin/payouts/runs/page.tsx');
+  const SRC = read('app/admin/pay/_tabs/PayoutRunsTab.tsx');
 
   it("renders the 'One-off payout' link routed to /admin/payouts/ad-hoc", () => {
     expect(SRC).toMatch(/href="\/admin\/payouts\/ad-hoc"/);

@@ -170,7 +170,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // page, one entry. Its extra role (researcher) and its wording live on the entry above; two rows
   // for one href is how a menu comes to show the same destination twice under different names.
   // bookmarks at the old URLs.
-  { href: '/admin/my-pay',           label: 'My Pay',          workspace: 'hub', iconName: 'Wallet',         description: 'Your paycheck history + progression.', roles: [...PAY_ROLES, 'employee', 'tech_support'], internalOnly: true, keywords: ['paycheck', 'salary', 'wage'] },
   { href: '/admin/my-notes',         label: 'My Notes',        workspace: 'hub', iconName: 'NotebookPen',    description: 'Personal notes.' },
   // E2 (2026-08-11) — no `roles` key, so everyone at the firm sees it. That is the point: the
   // people who need to ASK for a role are by definition the ones who do not have it, and gating
@@ -243,7 +242,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // The pay model is two screens: this one sets what each ACTIVITY pays, /admin/payroll sets what
   // each PERSON is on. Registered so it is reachable and searchable — an unlinked settings page is
   // a setting nobody can change.
-  { href: '/admin/pay-rates',       label: 'Pay Rates',       workspace: 'work', iconName: 'DollarSign',    description: 'What each activity pays — the person’s base pay, or a set rate everyone gets.', roles: ['admin', 'developer'], internalOnly: true, keywords: ['rate', 'rates', 'pay', 'hourly', 'driving', 'activity', 'work type', 'base pay', 'money'] },
   { href: '/admin/team',            label: 'Field Team',      workspace: 'work', iconName: 'Users',         description: 'Live status of crew in the field.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['crew', 'roster'] },
   { href: '/admin/field-data',      label: 'Field Data',      workspace: 'work', iconName: 'MapPin',        description: 'Field data review + approval.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['points', 'gnss'] },
   { href: '/admin/timeline',        label: 'Activity Timeline', workspace: 'work', iconName: 'Activity',    description: 'What the firm did today — clock-ins, job stage changes, uploads. A working feed, not a compliance record: the Audit Log is that.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['daily', 'feed'] },
@@ -350,7 +348,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // Admin-only; surfaces alongside Manage Users in the Office
   // workspace.
   { href: '/admin/roles/custom',          label: 'Role Builder',     workspace: 'office', section: 'People', iconName: 'ShieldPlus',   description: 'Define new roles on top of the built-in role list.', roles: ['admin'], internalOnly: true, keywords: ['permissions', 'roles', 'custom'] },
-  { href: '/admin/payroll',               label: 'Payroll',          workspace: 'money', section: 'Money out', iconName: 'BadgeDollarSign', description: 'Payroll runs.', roles: ['admin'], internalOnly: true, keywords: ['paychecks', 'wages'] },
   // PARKED 2026-08-04. The graduated model — role tiers, seniority brackets, credential bonuses,
   // XP milestones — is on hold at the owner's request in favour of base pay plus a handful of set
   // activity rates. The page and its data are intact; it is simply not offered anywhere. See
@@ -360,8 +357,11 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // columns are old_rate / new_rate / old_role / new_role — a record of pay CHANGES, not of
   // payments. Somebody hunting for the record of a cheque found rate changes and could reasonably
   // conclude the payment was never made. Payments live at /admin/payouts/search.
-  { href: '/admin/payout-log',            label: 'Pay Change History', workspace: 'money', section: 'Money out', iconName: 'ScrollText',   description: 'When somebody’s pay rate or role changed, and who changed it. NOT a record of payments — those are on Payout Search.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['raise', 'rate change', 'role change', 'history'] },
-  { href: '/admin/payouts/search',        label: 'Payout Search',    workspace: 'money', section: 'Money out', iconName: 'Search',       description: 'Every payment recorded, to anyone, however it was made — searchable by person, check number, Venmo reference, method, status, date or amount.', roles: ['admin'], internalOnly: true, keywords: ['payout', 'payment', 'paid', 'check number', 'venmo', 'cash', 'find payment', 'receipt of payment', 'reconcile'] },
+  // C6: off the rail, and §4 says why better than I can — *"the clearest case in the whole
+  // document: a 201-line page whose entire job is to search a table that another page already lists.
+  // It is a search box that was given a sidebar link."* It stays a ROUTE and is the "Search payouts"
+  // button on the ledger tab; taking away the sidebar row IS the slice.
+  { href: '/admin/payouts/search',        label: 'Payout Search',    workspace: 'money', section: 'Money out', iconName: 'Search',       description: 'Every payment recorded, to anyone, however it was made — searchable by person, check number, Venmo reference, method, status, date or amount.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['payout', 'payment', 'paid', 'check number', 'venmo', 'cash', 'find payment', 'receipt of payment', 'reconcile'] },
   // ── C5 / P2.1: FOUR ROWS BECAME ONE ────────────────────────────────────────────────────
   //
   // `cards`, `pass-through` and `mileage` are tabs of this portal now. The ROLES here are
@@ -391,9 +391,6 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // F1b / F2b, registered 2026-08-04 — the orphan guard caught both the day after they shipped.
   // A page nobody can navigate to is this repo's signature defect, and building the page is the
   // half that feels like finishing.
-  { href: '/admin/rewards',               label: 'Rewards & Store',  workspace: 'money', section: 'Money out', iconName: 'Trophy',       description: 'Rewards portal + company store.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true, keywords: ['points', 'store'] },
-  { href: '/admin/rewards/admin',         label: 'Manage Rewards',   workspace: 'money', section: 'Money out', iconName: 'Settings2',    description: 'Configure rewards + store catalog.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true },
-  { href: '/admin/rewards/how-it-works',  label: 'How Rewards Work', workspace: 'money', section: 'Money out', iconName: 'HelpCircle',   description: 'Rewards program explainer.', roles: [...PAY_ROLES, 'tech_support'], internalOnly: true },
   { href: '/admin/messages',              label: 'Messages',         workspace: 'office', section: 'Talking to people', iconName: 'MessageSquare', description: 'Chat with a teammate, one-to-one or in a group. NOT email to a customer (Compose Email), and NOT a topic thread that outlives the day (Discussions).', roles: INTERNAL_COMM_ROLES, internalOnly: true, keywords: ['chat', 'dm'] },
   // consolidation Slice 6 (2026-05-30) — clarified description so it
   // reads distinctly from the firm-wide `/admin/contacts` CRM. This
@@ -412,11 +409,9 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   { href: '/admin/error-log',             label: 'Error Log',        workspace: 'office', section: 'What happened', iconName: 'Bug',          description: 'Errors the software itself hit — stack traces and failed requests. For who-did-what, see the Audit Log; for what the crew did, the Activity Timeline.', roles: ['admin', 'developer', 'tech_support'] },
   { href: '/admin/audit',                 label: 'Audit Log',        workspace: 'office', section: 'What happened', iconName: 'ShieldCheck',  description: 'Who did what, and when — permission changes, record edits, operator access. The one to open for a compliance question.', roles: ['admin', 'developer', 'tech_support'], keywords: ['compliance', 'history', 'log'] },
   { href: '/admin/invites',               label: 'Invites',          workspace: 'office', section: 'People', iconName: 'UserPlus',     description: 'Pending + historical org user invites.', roles: ['admin', 'tech_support'], keywords: ['onboard', 'invite'] },
-  { href: '/admin/payouts',               label: 'Payouts',          workspace: 'money', section: 'Money out', iconName: 'Banknote',     description: 'Record employee payouts (Venmo / Stripe / check / cash).', roles: ['admin'], internalOnly: true, keywords: ['pay', 'venmo', 'stripe'] },
   // The queue an employee's request goes into. The API could approve, decline and send a withdrawal
   // long before any page listed one, so a person asking for their own earned money was asking into
   // a void — the same defect an unwatched hours queue has, about money already worked for.
-  { href: '/admin/payouts/withdrawals',   label: 'Withdrawal Requests', workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Money employees have asked to take out of the balance they have earned — approve it, decline it with a reason, or record that it has actually been sent.', roles: ['admin', 'finance'], internalOnly: true, keywords: ['withdraw', 'withdrawal', 'cash out', 'balance', 'request money', 'transfer'] },
   { href: '/admin/announcements',         label: 'Announcements',    workspace: 'office', section: 'Talking to people', iconName: 'Megaphone',    description: 'One-way broadcast to everyone at the firm — release notes and news. Nobody replies to these; use Messages or Discussions for that.', keywords: ['release', 'changelog', 'news'] },
   { href: '/admin/billing',               label: 'Software Subscription',          workspace: 'money', section: 'Company account', iconName: 'CreditCard',   description: 'What THIS FIRM pays for this software — plan, card, invoices and plan history. One page, three tabs. Nothing to do with what customers pay you.', roles: ['admin', 'tech_support'], keywords: ['subscription', 'invoice', 'invoices', 'plan', 'plan history', 'saas', 'bundle', 'upgrade', 'downgrade', 'seats', 'card', 'billing'] },
   { href: '/admin/org-settings',          label: 'Org Settings',     workspace: 'office', section: 'Setup & account', iconName: 'Building',     description: 'Per-organization configuration.', roles: ['admin'], keywords: ['org', 'tenant', 'company'] },
@@ -457,11 +452,36 @@ export const ADMIN_ROUTES: AdminRoute[] = [
   // the audit is specifically about colliding money vocabulary: "reconcile" alone could mean the bank,
   // the subscription, or a payout run.
   { href: '/admin/finances/reconcile',    label: 'Bank Reconciliation', workspace: 'money', section: 'Profitability', iconName: 'Scale',     description: 'Match recorded payments against the bank statement (G3).', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['bank', 'reconcile', 'reconciliation', 'statement', 'g3'] },
+  // ── C6: TEN ROWS BECAME ONE ─────────────────────────────────────────────────────────────────
+  //
+  // §4, P1 — the owner's headline example: *"Eleven links, one question: what is somebody owed and
+  // how do they get it."*
+  //
+  // ── THE ROLES ARE THE BROADEST OF THE TEN, AND EVERY TAB KEEPS ITS OWN ──────────────────────
+  //
+  // §5's first rule, and this is the portal it was written about: *"a portal reachable by six roles
+  // whose tabs are gated to one is a WIDER door than six separately-gated pages, and it is the
+  // single most dangerous thing in this plan."* This one decides money.
+  //
+  // The list here is `/admin/my-pay`'s — the broadest of the ten, because everybody may see their
+  // own pay. Every other tab carries the exact list its page carried, so a `field_crew` member
+  // opening this sees four tabs and an `admin` sees ten. The row cannot be narrower than the union
+  // without removing somebody's access to their own payslip.
+  { href: '/admin/pay', label: 'Pay & Payouts', workspace: 'money', section: 'Money out', iconName: 'Wallet', description: 'What everyone is owed and how they get it — your pay, payroll runs, payouts, withdrawals, rates and rewards.', roles: [...PAY_ROLES, 'employee', 'tech_support', 'finance'], internalOnly: true, keywords: ['pay', 'paycheck', 'salary', 'wage', 'payroll', 'payout', 'payouts', 'withdrawal', 'withdraw', 'balance', 'owed', 'rate', 'rates', 'raise', 'reward', 'rewards', 'xp', 'store', 'redeem', 'my pay', 'ledger', 'run', 'runs'] },
   { href: '/admin/payouts/tax-report',    label: 'Payout Tax Report', workspace: 'money', section: 'Money out', iconName: 'FileSpreadsheet', description: 'Year-end payout totals per person (G5).', roles: ['admin'], internalOnly: true, keywords: ['1099', 'tax', 'year end', 'g5'] },
 
   // Money — reached from their parent list, so searchable rather than on the rail.
   { href: '/admin/payments/inbox',        label: 'Payments Inbox',   workspace: 'money', section: 'Money in', iconName: 'Inbox',        description: 'Customer pledges and "I sent it" claims waiting on the office.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['pledge', 'venmo', 'claim', 'confirm'] },
-  { href: '/admin/payouts/runs',          label: 'Payout Runs',      workspace: 'money', section: 'Money out', iconName: 'ListChecks',   description: 'Batched payout runs.', roles: ['admin'], internalOnly: true, keywords: ['batch', 'run'] },
+  // ── C6 PUT THIS BACK, OFF THE RAIL ────────────────────────────────────────────────────
+  //
+  // Dropped with the other nine, and that was wrong for one reason nothing about the sidebar would
+  // have shown: `/admin/payouts/runs/[id]` and `.../[id]/dispatch` are RECORDS, which §4 says are not
+  // touched — and the cron that prepares a batch links straight at one. With no ancestor in the
+  // registry, that record has no breadcrumb and the notification audit cannot resolve the link.
+  //
+  // `showInRail: false`, so it is not a nav row: the LIST is the portal's `payout-runs` tab, and this
+  // page forwards there. What it exists for is being the parent of a record.
+  { href: '/admin/payouts/runs', label: 'Payout Runs', workspace: 'money', section: 'Money out', iconName: 'ListChecks', description: 'A payout batch and what came back from the bank.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['batch', 'run'] },
   { href: '/admin/payouts/ad-hoc',        label: 'Ad-hoc Payout',    workspace: 'money', section: 'Money out', iconName: 'HandCoins',    description: 'Pay someone outside a run.', roles: ['admin'], internalOnly: true, showInRail: false, keywords: ['one off', 'manual'] },
   { href: '/admin/invoices/new',          label: 'New Customer Invoice',      workspace: 'money', section: 'Money in', iconName: 'FilePlus',     description: 'Draft a customer invoice.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, keywords: ['create', 'bill', 'customer'] },
   { href: '/admin/invoicing/categories',  label: 'Invoice Line Categories', workspace: 'money', section: 'Money in', iconName: 'Tags',       description: 'Line-item categories for invoices.', roles: ['admin', 'developer', 'tech_support'], internalOnly: true, showInRail: false, keywords: ['line items', 'tags'] },

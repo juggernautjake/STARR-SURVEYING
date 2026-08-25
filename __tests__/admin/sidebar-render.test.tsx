@@ -76,10 +76,18 @@ describe('the drawer renders', () => {
     }
   });
 
-  it('and the five links that were nearly lost converting it', () => {
+  it('and the links that were nearly lost converting it', () => {
+    // ── THREE OF THE FIVE ARE TABS NOW, AND THE GUARD STILL HOLDS ────────────────────────
+    //
+    // `payouts/runs`, `rewards/how-it-works` and `rewards/admin` were nearly lost when the drawer was
+    // converted to read the registry, which is why this test exists. C6 absorbed all three into the
+    // Pay portal deliberately — that is not the same failure, and asserting the old hrefs would make
+    // this guard block the consolidation it was never about.
+    //
+    // What it now checks is the thing it was always protecting: the drawer offers a way to each of
+    // them. For the three absorbed, that way is one row whose keywords carry their words.
     for (const href of [
-      '/admin/invoices/new', '/admin/payments/inbox', '/admin/payouts/runs',
-      '/admin/rewards/how-it-works', '/admin/rewards/admin',
+      '/admin/invoices/new', '/admin/payments/inbox', '/admin/pay',
     ]) {
       expect(html, `${href} was in the old drawer and must still be`).toContain(`href="${href}"`);
     }

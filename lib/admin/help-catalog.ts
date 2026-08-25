@@ -111,7 +111,7 @@ export const HELP_CATALOG: HelpCatalog = {
     ],
     resources: [
       { label: 'Receipts', href: '/admin/receipts' },
-      { label: 'Payroll', href: '/admin/payroll' },
+      { label: 'Payroll', href: '/admin/pay?tab=payroll' },
       { label: 'Audit log', href: '/admin/audit' },
     ],
   },

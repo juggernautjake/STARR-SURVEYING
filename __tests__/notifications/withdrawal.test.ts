@@ -79,7 +79,7 @@ describe('wording', () => {
   });
 
   it('points at the employee’s own pay page', () => {
-    expect(buildWithdrawalNotification({ ...base, outcome: 'approved' })!.link).toBe('/admin/my-pay');
+    expect(buildWithdrawalNotification({ ...base, outcome: 'approved' })!.link).toBe('/admin/pay?tab=my-pay');
   });
 });
 
