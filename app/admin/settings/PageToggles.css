@@ -113,3 +113,46 @@
   .page-toggles__href { display: none; }
   .page-toggles__links { margin-left: 0; }
 }
+
+/* ── T6: the tabs, under their page ──────────────────────────────────────────────────────────────
+ *
+ * T6 added a switch per tab and the flat list measured 11,233px — eleven screens. A control nobody
+ * can find is not a control. The disclosure is closed by default and the nested list is indented
+ * under the page it belongs to. */
+.page-toggles__disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.2rem 0 0 1.6rem;
+  padding: 0.1rem 0.35rem;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--theme-fg-secondary, #6B7280);
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.page-toggles__disclose:hover {
+  /* `--theme-bg-elevated` rather than an invented `--theme-bg-subtle`: the theme test caught
+   * that one, and it exists because a token nothing defines paints its literal fallback on every
+   * palette — a hover that is the same grey in all eleven skins. */
+  background: var(--theme-bg-elevated, #F3F4F6);
+  color: var(--theme-fg-primary, #111827);
+}
+
+.page-toggles__tabs {
+  margin: 0.15rem 0 0.35rem 2.1rem;
+  padding: 0;
+  list-style: none;
+  border-left: 2px solid var(--theme-border, #E5E7EB);
+}
+
+.page-toggles__tabs > li {
+  padding: 0.1rem 0 0.1rem 0.6rem;
+}
+
+.page-toggles__tabs > li.is-off .page-toggles__label {
+  text-decoration: line-through;
+  color: var(--theme-fg-secondary, #6B7280);
+}

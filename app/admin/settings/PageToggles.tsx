@@ -27,7 +27,7 @@
 // product about which pages exist.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Link2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Link2, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { WORKSPACES, WORKSPACE_ORDER, type Workspace } from '@/lib/admin/route-registry';
 import {
   TOGGLES_KEY, isEnabled, withToggle, disabledKeys,
@@ -70,11 +70,36 @@ export default function PageToggles() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const grouped = useMemo(() => WORKSPACE_ORDER
-    .map((ws) => ({ ws, items: destinations.filter((d) => d.workspace === ws) }))
-    .filter((g) => g.items.length > 0), [destinations]);
+  // ── T6 PUT THE TABS UNDER THEIR PAGE, AND THAT IS NOT A PREFERENCE ────────────────────────────
+  //
+  // T6 added a switch per tab: 74 destinations became 184. Rendered flat, beside the pages, the
+  // measured result was a list **11,233 pixels tall** — eleven screens — with 368 rows. A control
+  // nobody can find is not a control, and "switch off anything this company does not use" stops
+  // being possible when finding the thing takes eleven screens of scrolling.
+  //
+  // So a tab is nested under its page and the group is collapsed until asked for. A page with tabs
+  // shows how many; a page without is exactly what it was.
+  const grouped = useMemo(() => {
+    const tabsByRoute = new Map<string, Destination[]>();
+    for (const d of destinations) {
+      const hash = d.key.indexOf('#');
+      if (hash === -1) continue;
+      const route = d.key.slice(0, hash);
+      if (!tabsByRoute.has(route)) tabsByRoute.set(route, []);
+      tabsByRoute.get(route)!.push(d);
+    }
+    return WORKSPACE_ORDER
+      .map((ws) => ({
+        ws,
+        items: destinations
+          .filter((d) => d.workspace === ws && !d.key.includes('#'))
+          .map((d) => ({ page: d, tabs: tabsByRoute.get(d.key) ?? [] })),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [destinations]);
 
   const off = disabledKeys(toggles);
+  const [openTabs, setOpenTabs] = useState<Set<string>>(new Set());
 
   async function flip(dest: Destination, enabled: boolean) {
     const next = withToggle(toggles, dest.key, enabled);
@@ -144,8 +169,9 @@ export default function PageToggles() {
         <section key={ws} className="page-toggles__group">
           <h3>{WORKSPACES[ws].label}</h3>
           <ul>
-            {items.map((d) => {
+            {items.map(({ page: d, tabs }) => {
               const on = isEnabled(toggles, d.key);
+              const expanded = openTabs.has(d.key);
               return (
                 <li key={d.key} className={on ? '' : 'is-off'}>
                   <label>
@@ -175,6 +201,58 @@ export default function PageToggles() {
                         {d.inboundFrom.length > 3 && ` and ${d.inboundFrom.length - 3} more`}</>}
                       . Those links still work; they just point somewhere nobody can find any more.
                     </p>
+                  )}
+
+                  {/* ── T6: THE TABS, UNDER THE PAGE, CLOSED UNTIL ASKED FOR ────────────────────
+                    *
+                    * Shown only when the page itself is ON. Switching a page off already takes its
+                    * tabs with it — `isDestinationEnabled` answers false for every tab of a disabled
+                    * portal — so offering tab switches under a switched-off page would be offering
+                    * controls that cannot change anything. */}
+                  {on && tabs.length > 0 && (
+                    <>
+                      <button
+                        type="button"
+                        className="page-toggles__disclose"
+                        aria-expanded={expanded}
+                        onClick={() => setOpenTabs((cur) => {
+                          const next = new Set(cur);
+                          if (next.has(d.key)) next.delete(d.key); else next.add(d.key);
+                          return next;
+                        })}
+                      >
+                        {expanded ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+                        {tabs.length} {tabs.length === 1 ? 'tab' : 'tabs'}
+                        {(() => {
+                          const offTabs = tabs.filter((t) => !isEnabled(toggles, t.key)).length;
+                          return offTabs > 0 ? ` · ${offTabs} off` : '';
+                        })()}
+                      </button>
+                      {expanded && (
+                        <ul className="page-toggles__tabs">
+                          {tabs.map((t) => {
+                            const tabOn = isEnabled(toggles, t.key);
+                            return (
+                              <li key={t.key} className={tabOn ? '' : 'is-off'}>
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={tabOn}
+                                    disabled={busyKey === t.key}
+                                    onChange={(e) => void flip(t, e.target.checked)}
+                                  />
+                                  {/* The portal's name is already the row above; repeating it here
+                                    * would be the label saying "Growth → Growth → Leads". */}
+                                  <span className="page-toggles__label">
+                                    {t.label.includes('→') ? t.label.split('→').slice(1).join('→').trim() : t.label}
+                                  </span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      )}
+                    </>
                   )}
                 </li>
               );

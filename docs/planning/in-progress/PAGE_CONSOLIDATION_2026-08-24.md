@@ -2140,6 +2140,26 @@ a link on purpose; they are not well served by doing it invisibly.
       Projects · Field data · Activity · Weather · Compliance; switching off `/admin/jobs#weather`
       through the same API the settings page uses left Jobs · Projects · Field data · Activity ·
       Compliance; restoring put Weather back and the stored row byte-for-byte to what it was.
+      **And then the screen it shipped into had to be fixed, because I measured it.** 74 destinations
+      became 184, rendered flat: the Pages tab measured **11,233 pixels tall — eleven screens — with
+      368 rows.** "Switch off anything this company does not use" stops being possible when finding
+      the thing takes eleven screens of scrolling, so a control nobody can find is not a control.
+
+      Tabs are nested under their page now, behind a disclosure that is closed by default and says
+      how many tabs there are and how many are off. Measured after: **5,019px, 160 rows** — back to
+      roughly what the screen was before T6 — with 17 disclosures, and expanding one shows that
+      portal's tabs by their own names ("My time · Assignments · Approvals · Field team · Time off ·
+      Availability") rather than repeating the portal name in every row. Verified reversible: it
+      closes again.
+
+      Tab switches are offered only when the PAGE is on, because switching a page off already takes
+      its tabs with it — offering controls that cannot change anything is worse than offering none.
+
+      **The theme ratchet caught the CSS on the way past.** The hover used
+      `var(--theme-bg-subtle, …)`, a token nothing defines, which would paint its literal fallback
+      identically on all eleven palettes. That test exists for exactly this and it earned its keep on
+      a stylesheet written the same hour.
+
 
 ## §12. The workspaces — the answer §10 delegated
 
