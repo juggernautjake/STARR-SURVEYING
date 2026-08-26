@@ -1,7 +1,17 @@
 import { MetadataRoute } from 'next';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://starr-surveying.com';
+  // ── www, BECAUSE THAT IS WHAT THE SITE ACTUALLY SERVES ──────────────────────────────────────
+  //
+  // This said `https://starr-surveying.com` (no www). Measured 2026-08-25: that host answers with a
+  // 301 to `https://www.starr-surveying.com`, so EVERY url in this sitemap was a redirect.
+  //
+  // Google's own guidance is that a sitemap lists canonical URLs. A sitemap of redirects still gets
+  // crawled, but it spends crawl budget on hops and hands Google a second spelling of every page to
+  // reconcile against the one the site serves — which is exactly the ambiguity a sitemap exists to
+  // remove. Three spellings of this host were in the codebase at once; the other two are fixed in
+  // `app/layout.tsx`.
+  const baseUrl = 'https://www.starr-surveying.com';
   const lastModified = new Date();
 
   return [

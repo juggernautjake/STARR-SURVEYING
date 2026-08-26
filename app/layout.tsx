@@ -74,7 +74,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: 'https://www.starrsurveying.com',
+    // The SAME dead domain `metadataBase` was corrected for on 2026-08-07, missed here — so the
+    // emitted `og:url` still named a host that does not resolve. Verified 2026-08-25: a request to
+    // `www.starrsurveying.com` fails outright, while `www.starr-surveying.com` serves in 0.16s.
+    //
+    // og:url is what a crawler, a social preview and a link unfurler treat as this page's own
+    // address. Pointing it at nothing is worse than omitting it: it actively tells them the
+    // canonical home of this content is somewhere unreachable.
+    url: 'https://www.starr-surveying.com',
     siteName: 'Starr Surveying',
     title: 'Starr Surveying | Your Trusted Texas Land Surveyors',
     description: 'Professional land surveying services in Central Texas. Boundary surveys, topographic surveys, construction staking, and more. RPLS licensed. Get a free estimate!',
