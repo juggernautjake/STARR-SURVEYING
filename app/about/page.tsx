@@ -1,13 +1,19 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/page-metadata';
 import Link from 'next/link';
 
 // Import About page styles
 import '../styles/About.css';
 
-export const metadata: Metadata = {
-  title: 'About Starr Surveying | Our Team & Story',
-  description: 'Learn about Starr Surveying - over 15 years of professional land surveying expertise in Central Texas, guided by integrity and Christian values.',
-};
+// The brand was in here twice, as on /services: this title carried "Starr Surveying" and the root
+// layout appends it again, so production served
+// `About Starr Surveying | Our Team & Story | Starr Surveying`.
+export const metadata: Metadata = pageMetadata({
+  title: 'About Our Team & Story',
+  description:
+    'Over 15 years of professional land surveying in Central Texas, led by a Registered Professional Land Surveyor and guided by integrity, accuracy and Christian values.',
+  path: '/about',
+});
 
 interface TeamMember {
   name: string;

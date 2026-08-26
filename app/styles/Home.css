@@ -792,6 +792,12 @@
   color: var(--brand-red);
 }
 
+/* The counterpart to the required asterisk: a field we ask for but never demand. */
+.home-contact__optional {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .home-contact__input,
 .home-contact__select,
 .home-contact__textarea {

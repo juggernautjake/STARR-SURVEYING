@@ -363,6 +363,12 @@ a.contact-info__card-value:hover {
   color: var(--brand-red);
 }
 
+/* The counterpart to the required asterisk: a field we ask for but never demand. */
+.contact-form__optional {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .contact-form__input,
 .contact-form__select,
 .contact-form__textarea {

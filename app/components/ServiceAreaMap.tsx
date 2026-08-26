@@ -2,6 +2,14 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { GoogleMap, LoadScript, Circle, InfoWindow } from '@react-google-maps/api';
+import {
+  OFFICE_ADDRESS,
+  OFFICE_ADDRESS_LINE1,
+  OFFICE_ADDRESS_LINE2,
+  OFFICE_LAT,
+  OFFICE_LNG,
+  SERVICE_RADIUS_METERS,
+} from '@/lib/seo/business';
 
 // ============================================================================
 // GOOGLE MAPS SERVICE AREA MAP
@@ -18,18 +26,20 @@ const containerStyle = {
 // =============================================================================
 // OFFICE LOCATION - EXACT GPS COORDINATES
 // 3779 W FM 436, Belton, TX 76513
+//
+// THESE ARE NO LONGER DECLARED HERE. They now come from `lib/seo/business.ts`, which is also what
+// the JSON-LD tells Google, so the address on the map and the address in the structured data cannot
+// drift apart. NAP consistency (name / address / phone, identical everywhere) is a local search
+// ranking input, and a second copy of an address is how it stops being consistent.
+//
+// The re-exports below are kept because Footer, the contact page and the home page import these
+// names from this module; they are the same values, sourced once.
 // =============================================================================
-const OFFICE_LAT = 30.99752823122663;
-const OFFICE_LNG = -97.40083553223793;
+export { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 };
+
 const beltonCenter = { lat: OFFICE_LAT, lng: OFFICE_LNG };
 
-// Professional format for DISPLAY on website
-export const OFFICE_ADDRESS = '3779 W FM 436, Belton, TX 76513';
-export const OFFICE_ADDRESS_LINE1 = '3779 W FM 436';
-export const OFFICE_ADDRESS_LINE2 = 'Belton, TX 76513';
-
-// ~150 miles in meters = 241,401 meters (150 * 1609.34)
-const radiusInMeters = 241401;
+const radiusInMeters = SERVICE_RADIUS_METERS;
 
 const circleOptions = {
   strokeColor: '#BD1218',

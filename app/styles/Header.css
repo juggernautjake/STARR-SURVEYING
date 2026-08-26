@@ -336,6 +336,20 @@
 /* payment-portal-discoverability-2026-06-22 — Pay Invoice dropdown
  * row in the mobile menu. Navy CTA treatment to mirror the desktop
  * .navbar__link--pay pill. */
+/* Call variant — 2026-08-25. Green rather than the navy of Pay Invoice, because the two are opposite
+ * audiences: Pay Invoice is for an existing customer, this is for a stranger deciding whether to ring.
+ * Filled rather than outlined so it reads as the action of the menu and not the ninth link in it. */
+.navbar__dropdown-link--call {
+  background-color: var(--color-green);
+  border-color: var(--color-green);
+  color: var(--color-white);
+}
+.navbar__dropdown-link--call:hover {
+  background-color: var(--color-white);
+  color: var(--color-green);
+  border-color: var(--color-green);
+}
+
 .navbar__dropdown-link--pay {
   background-color: var(--color-blue);
   border-color: var(--color-blue);
@@ -491,6 +505,17 @@
 /* payment-portal-discoverability-2026-06-22 — Pay Invoice variant for
  * the scrolled-state mobile dropdown. Navy fill mirrors the navbar's
  * Pay treatment. */
+/* Call variant for the scrolled-state dropdown — see the note on .navbar__dropdown-link--call. */
+.scrolled-dropdown-link--call {
+  background-color: var(--color-green);
+  color: var(--color-white);
+}
+
+.scrolled-dropdown-link--call:hover {
+  background-color: var(--color-white);
+  color: var(--color-green);
+}
+
 .scrolled-dropdown-link--pay {
   background-color: var(--color-blue);
   color: var(--color-white);

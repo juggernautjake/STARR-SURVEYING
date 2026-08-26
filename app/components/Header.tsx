@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect, useRef } from 'react';
+import { PHONE_DISPLAY, PHONE_E164 } from '@/lib/seo/business';
 
 // Single CSS file for all screen sizes
 import '../styles/Header.css';
@@ -67,13 +68,41 @@ const Header = (): React.ReactElement => {
         <header ref={headerRef} className="header-box" />
 
         {/* Logo - Floats IN FRONT of the header box (NOT clickable) */}
+        {/* ── `priority` AND `sizes`, ADDED 2026-08-25. MEASURED ON THE LIVE SITE, NOT GUESSED. ──
+            The served markup for this image was:
+
+              loading="lazy" ... srcSet="/_next/image?...&w=3840 1x"
+
+            Two separate faults in one tag, on the first element of every page:
+
+            1. LAZY-LOADED ABOVE THE FOLD. `next/image` lazy-loads by default, and this logo is almost
+               certainly the Largest Contentful Paint element on a phone. Deferring the LCP image is the
+               textbook LCP regression — the browser will not even request it until layout says it is
+               near the viewport, on an element that is AT the top of the viewport. LCP is a Core Web
+               Vitals metric and therefore a ranking input, and it is also simply what "the site feels
+               slow" means to a visitor who just paid us a click to get here.
+
+            2. ONE 3840px CANDIDATE. Without `sizes`, Next emits a srcSet of exactly one entry — the
+               3840px rendition (25.7 KB measured) — and a 390px phone had no smaller option to choose.
+               With `sizes` it emits the full ladder and the browser picks by viewport and pixel ratio.
+
+            `sizes` IS `100vw`, AND THAT IS DELIBERATE. The tempting value is a narrow one like `600px`,
+            because the logo is height-constrained rather than width-constrained. It would be wrong:
+            `--logo-max-height` climbs from 118px on a phone to 480px on the widest breakpoint, and at
+            the source ratio of 3014:618 a 480px-tall logo is 2342px WIDE. A `600px` hint would tell the
+            browser to fetch a rendition four times too small and the wordmark would render soft on
+            every large display. `100vw` tracks the real ladder closely enough at both ends.
+
+            `priority` sets fetchpriority=high and removes the lazy attribute. */}
         <div className="logo-container">
-          <Image 
-            src="/logos/Fancy_Logo_red_darkblue_white_2.png" 
-            alt="Starr Surveying Logo" 
+          <Image
+            src="/logos/Fancy_Logo_red_darkblue_white_2.png"
+            alt="Starr Surveying Logo"
             className="logo"
             width={3014}
             height={618}
+            priority
+            sizes="100vw"
           />
         </div>
 
@@ -112,6 +141,16 @@ const Header = (): React.ReactElement => {
           {/* Mobile Dropdown — ONLY when primary navbar is visible */}
           {isOpen && !isScrolled && (
             <div className="navbar__dropdown">
+              {/* CALL FIRST, added 2026-08-25.
+                  A visitor who opens this menu on a phone had no way to ring the office from it: every
+                  `tel:` link on the site sits in a CTA block partway down a page, so calling meant
+                  closing the menu and hunting for one. The number is the fastest route to a job for a
+                  trade business, and this is the one control that is on every page at the top.
+                  Tracked automatically — the delegated `tel:` listener in GoogleAdsScript reports it as
+                  a Phone Click conversion, with no wiring here. */}
+              <a href={`tel:${PHONE_E164}`} className="navbar__dropdown-link navbar__dropdown-link--call">
+                📞 Call {PHONE_DISPLAY}
+              </a>
               {navLinks.map((link: NavLink) => (
                 <Link
                   key={link.href}
@@ -158,6 +197,11 @@ const Header = (): React.ReactElement => {
           </div>
           {isOpen && (
             <div className="scrolled-dropdown">
+              {/* Same reasoning as the primary dropdown above — and this is the menu that is reachable
+                  from anywhere on a long page, which is where somebody decides to stop reading and ring. */}
+              <a href={`tel:${PHONE_E164}`} className="scrolled-dropdown-link scrolled-dropdown-link--call">
+                📞 Call {PHONE_DISPLAY}
+              </a>
               {navLinks.map((link: NavLink) => (
                 <Link
                   key={link.href}

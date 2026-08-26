@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Script from 'next/script';
-import { GA_ADS_ID, CONVERSION_LABEL, trackPhoneClick } from '../utils/gtag';
+import { GA_ADS_ID, CONVERSION_LABEL, GA4_MEASUREMENT_ID, trackPhoneClick } from '../utils/gtag';
 
 /**
  * The only hosts allowed to talk to the live Google Ads account.
@@ -24,9 +24,23 @@ const PRODUCTION_HOSTS = new Set(['www.starr-surveying.com', 'starr-surveying.co
  * double-counted every lead and was removed on 2026-07-31 — see the long note below, which is kept
  * because the removal is the fix and someone will otherwise "restore" it from the Google support ticket.
  *
- * **This tag is Ads only (`AW-…`).** No GA4 property (`G-…`) is configured on this site — see A10 in
- * docs/planning/.../LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md for why the GA4 mirror is
- * deferred rather than built.
+ * **This tag carries TWO destinations as of 2026-08-25.** Google Ads (`AW-17921491739`) unconditionally,
+ * and a GA4 property (`G-…`) when `NEXT_PUBLIC_GA4_MEASUREMENT_ID` is set. One `gtag` instance, two
+ * `config` calls — which is the supported way to do this, and the reason every event sender in
+ * `utils/gtag.ts` names its `send_to` explicitly. An event with no `send_to` goes to BOTH.
+ *
+ * Until that variable is set, the GA4 half emits nothing at all and the file behaves exactly as it did
+ * before. What A10 of LEAD_TO_CASH_ATTRIBUTION_AND_GOOGLE_ADS_2026-07-31.md deferred was the *offline*
+ * mirror — replaying our own lead tables into GA4 by Measurement Protocol, a second source of truth for
+ * numbers we already hold. That is still deferred, and still the right call. The client-side property
+ * is the opposite case: sessions, traffic sources and landing-page behaviour are things our tables
+ * cannot report at all, because a database of leads only ever sees the people who converted.
+ *
+ * ── THE PRODUCTION-HOST GATE COVERS GA4 TOO, AND MUST ────────────────────────────────────────────
+ *
+ * Both `config` calls sit inside the same `onProductionHost` gate below. That is not incidental: a GA4
+ * property polluted by `localhost` and Vercel preview sessions reports a bounce rate and a channel mix
+ * that are partly the development team, and it is very hard to unpick afterwards.
  */
 export default function GoogleAdsScript(): React.ReactElement | null {
   // ── WHY THIS IS GATED BY HOSTNAME (added 2026-08-07) ──────────────────────────────────────────
@@ -115,7 +129,7 @@ export default function GoogleAdsScript(): React.ReactElement | null {
         strategy="afterInteractive"
       />
 
-      {/* Step 2: Initialise gtag and configure the Ads account */}
+      {/* Step 2: Initialise gtag and configure the accounts */}
       <Script id="google-ads-gtag-config" strategy="afterInteractive">
         {`
           /* GOOGLE ADS – global site tag init (AW-17921491739) */
@@ -123,6 +137,12 @@ export default function GoogleAdsScript(): React.ReactElement | null {
           function gtag(){dataLayer.push(arguments);}
           gtag('js', new Date());
           gtag('config', '${GA_ADS_ID}');
+${
+  GA4_MEASUREMENT_ID
+    ? `          /* GA4 – second destination on the SAME gtag instance (${GA4_MEASUREMENT_ID}) */
+          gtag('config', '${GA4_MEASUREMENT_ID}');`
+    : `          /* No GA4 property configured — NEXT_PUBLIC_GA4_MEASUREMENT_ID is unset. */`
+}
         `}
       </Script>
 

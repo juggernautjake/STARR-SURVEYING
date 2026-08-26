@@ -1359,12 +1359,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { status: 400 }
       );
     }
-    if (!isCalculator && (!data.propertyAddress || !data.propertyCounty || !data.propertyNumber)) {
+    // ── PROPERTY ID IS OPTIONAL (2026-08-25) ──────────────────────────────────────────────────────
+    //
+    // It was required alongside the address and county, and it is the only field on this form a
+    // prospective customer usually CANNOT answer from where they are standing: it is the county
+    // appraisal district's parcel number, which means leaving the page, finding the CAD site,
+    // searching their own address, and coming back.
+    //
+    // Required, that turns an enquiry into an errand — and this form is where paid search traffic
+    // lands at $1.91 a click. A surveyor can look a parcel up from an address in seconds; a stranger
+    // who has just clicked an ad will more often close the tab.
+    //
+    // Address and county stay required: without them the enquiry cannot be quoted or routed at all,
+    // and both are things the customer already knows.
+    if (!isCalculator && (!data.propertyAddress || !data.propertyCounty)) {
       return NextResponse.json(
         {
           success: false,
           message: 'Missing required fields',
-          error: 'Please include the property address, county, and Property ID.',
+          error: 'Please include the property address and county.',
         },
         { status: 400 }
       );

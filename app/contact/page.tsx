@@ -167,8 +167,9 @@ export default function ContactPage(): React.ReactElement {
       !formData.phone ||
       !formData.propertyStreet ||
       !formData.propertyCity ||
-      !formData.propertyCounty ||
-      !formData.propertyNumber
+      // Property ID deliberately NOT required — it is the county parcel number, which a customer
+      // has to leave the page to look up. See the note in app/api/contact/route.ts.
+      !formData.propertyCounty
     ) {
       setFormState((prev) => ({
         ...prev,
@@ -207,7 +208,7 @@ export default function ContactPage(): React.ReactElement {
         // Track the Google Ads conversion, keyed by the server's reference number so a retry or a
         // back/forward-cache restore cannot count the same lead twice.
         const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
-        trackConversion(ref);
+        trackConversion(ref, 'contact_page');
 
         setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
         setFormData({
@@ -475,10 +476,12 @@ export default function ContactPage(): React.ReactElement {
                   />
                 </div>
 
-                {/* Property ID - Required */}
+                {/* Property ID — OPTIONAL. It is the county appraisal district's parcel number, which
+                    most customers have to leave the page to look up. Asked for because it saves the
+                    office a lookup when it is known, never demanded. */}
                 <div className="contact-form__group">
-                  <label htmlFor="propertyNumber" className="contact-form__label contact-form__label--required">
-                    Property ID
+                  <label htmlFor="propertyNumber" className="contact-form__label">
+                    Property ID <span className="contact-form__optional">(optional)</span>
                   </label>
                   <input
                     type="text"
@@ -487,8 +490,7 @@ export default function ContactPage(): React.ReactElement {
                     value={formData.propertyNumber}
                     onChange={handleInputChange}
                     className="contact-form__input"
-                    placeholder="CAD account or parcel number"
-                    required
+                    placeholder="CAD account or parcel number — if you know it"
                   />
                 </div>
 
