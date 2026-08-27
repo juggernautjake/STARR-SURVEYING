@@ -80,11 +80,30 @@ This also settles the cost audit's open question about R2: it is not optional, i
 Doppler entry references the dead IP**. `worker.starr-surveying.com` currently resolves to
 `104.131.20.240`. The switch is one A record; nothing in Doppler or Vercel needs editing.
 
-### W3 — `WORKER_API_KEY` must match on both sides
+### W3 — `WORKER_API_KEY` must match on both sides ◐ **guard SHIPPED 2026-08-26**
 
 Pull the existing value from Doppler `prd` rather than generating a new one. If the worker and the app
 disagree, **the worker runs perfectly and the app reports it unreachable** — a failure that looks like
 a network problem and is not.
+
+**Now warned about at boot.** `configWarnings()` in `infra/health.ts` was extended rather than
+duplicated — it already covered Anthropic, Supabase, Redis and Browserbase, and a second env checker
+beside it is how this repo has grown parallel helpers before. Three additions, each guarding a setting
+that is **accepted at boot and only fails later**:
+
+| Setting | Where it currently fails |
+|---|---|
+| `WORKER_API_KEY` absent | Every call from the app rejected — reads as an outage, sends you to DNS |
+| `STORAGE_BACKEND=r2` without R2 keys | **The first upload, mid-run**, after paid documents are bought |
+| `CAPTCHA_PROVIDER=capsolver` without key | The first time a county portal presents a captcha |
+
+The middle one is the reason this slice exists. `resolveBackend()` honours `r2` whether or not the
+credentials are present, and W1 made `r2` the configured default — so forgetting a key on the netcup
+box is now a live risk that would surface twenty minutes into a run rather than at startup.
+
+Surfaced on `/healthz`, so it is visible from the app rather than only in a boot log. 6 new tests; the
+existing "complete environment" fixture gained `WORKER_API_KEY` — the contract widening, not a test
+being loosened. Full worker suite: 1,606 tests green.
 
 ### W4 — verify from OUTSIDE the box
 

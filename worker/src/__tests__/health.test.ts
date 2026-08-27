@@ -151,6 +151,53 @@ describe('config warnings', () => {
     expect(warnings.join(' ')).toContain('SUPABASE_URL');
   });
 
+  // ── The three checks added for the netcup rebuild (plan W1/W3) ────────────────────────────────
+  //
+  // Each guards a setting that is ACCEPTED at boot and only fails later. That shape is the point: a
+  // worker that refuses to start is a five-minute fix; one that dies at minute 22 of a run has
+  // already spent money on documents it will not deliver.
+
+  it('flags a missing WORKER_API_KEY, because the symptom looks like an outage', () => {
+    // Without it the worker starts perfectly and rejects every call from the app — which reads as
+    // "the research worker is not answering" and sends an operator to check DNS and firewalls.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('WORKER_API_KEY');
+    expect(warnings).toContain('looks like an outage');
+  });
+
+  it('flags r2 storage with no credentials, naming each missing key', () => {
+    // `resolveBackend()` honours r2 whether or not the keys exist, so the failure lands at the first
+    // upload rather than at boot. r2 became the configured default after the previous host was
+    // destroyed with locally-stored artifacts on it — which makes this live, not theoretical.
+    const warnings = configWarnings({ STORAGE_BACKEND: 'r2' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('R2_ACCOUNT_ID');
+    expect(warnings).toContain('R2_SECRET_ACCESS_KEY');
+    expect(warnings).toContain('mid-run');
+  });
+
+  it('is quiet when the r2 credentials are all present', () => {
+    const warnings = configWarnings({
+      STORAGE_BACKEND: 'r2',
+      R2_ACCOUNT_ID: 'a', R2_BUCKET: 'b', R2_ACCESS_KEY_ID: 'c', R2_SECRET_ACCESS_KEY: 'd',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('STORAGE_BACKEND');
+  });
+
+  it('does not demand r2 credentials when the backend is local', () => {
+    const warnings = configWarnings({ STORAGE_BACKEND: 'local' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('R2_');
+  });
+
+  it('flags capsolver selected without its key', () => {
+    const warnings = configWarnings({ CAPTCHA_PROVIDER: 'capsolver' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('CAPSOLVER_API_KEY');
+  });
+
+  it('leaves the stub captcha provider alone', () => {
+    const warnings = configWarnings({ CAPTCHA_PROVIDER: 'stub' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('CAPSOLVER');
+  });
+
   it('flags browserbase configured without credentials', () => {
     const warnings = configWarnings({ BROWSER_BACKEND: 'browserbase' } as NodeJS.ProcessEnv);
     expect(warnings.join(' ')).toContain('browserbase');
@@ -162,6 +209,10 @@ describe('config warnings', () => {
       SUPABASE_URL: 'https://x.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'k',
       REDIS_URL: 'redis://x',
+      // Added 2026-08-26 with the WORKER_API_KEY check. The fixture is what a COMPLETE environment
+      // looks like, so a new requirement belongs here — this is the contract widening, not a test
+      // being loosened to accommodate a change.
+      WORKER_API_KEY: 'worker-secret',
     } as NodeJS.ProcessEnv)).toEqual([]);
   });
 });
