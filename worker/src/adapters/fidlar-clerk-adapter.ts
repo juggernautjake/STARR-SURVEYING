@@ -105,9 +105,21 @@ export interface FidlarConfig {
  *     ava.fidlar.com/TXGalveston/AvaWeb/   200   live
  *     ava.fidlar.com/TXBrazoria/AvaWeb/    404   so it is NOT a per-county pattern either
  *
- * So proving Fidlar is **per-county URL discovery**, starting from Galveston, and not a pattern fix.
- * Anyone tempted to promote `fidlar` on the strength of that 200: it is a landing page. Reachability
- * is the cheap half of proof; the rule is drive it against a real county and return a real document.
+ * ── THE DISCOVERY IS DONE, AND THERE IS NO SET TO WIN ───────────────────────────────────────────
+ *
+ * All 13 counties in this block were probed against the AVA pattern on 2026-08-27, plus Brazoria:
+ * **14 of 14 returned 404.** Galveston is the only live Fidlar portal, and Galveston is not one of
+ * the 46 counties this firm serves — it is on the Gulf Coast, ~200 miles from Belton.
+ *
+ * So the appealing theory — "prove one vendor, convert a whole set of counties" — does not hold for
+ * Fidlar. There is no set. Proving it would buy exactly one county the firm does not work in.
+ *
+ * **R2b is deferred on that measurement**, not on difficulty. Re-running the probe answers it again
+ * in fifteen seconds if Fidlar ever stands up portals inside the service area.
+ *
+ * Anyone tempted to promote `fidlar` on the strength of that single 200: it is a landing page.
+ * Reachability is the cheap half of proof; the rule is drive it against a real county and return a
+ * real document.
  */
 export const FIDLAR_CONFIGS: Record<string, FidlarConfig> = {
   '48475': {  // Ward County

@@ -339,9 +339,36 @@ on (a stale "all dead" is as misleading as a stale "all fine", so it was checked
 | `ava.fidlar.com/` | 403 — host alive, no root page |
 | `laredo.fidlar.com` (what the adapter builds) | **no A, AAAA or CNAME — the host does not exist** |
 
-So Fidlar is not uniformly dead — **the adapter is pointed at the wrong URL shape.** That reframes
-R2b from "drive the adapter" to "discover the real per-county URLs, then drive it". Galveston is the
-one county with a confirmed live endpoint and is the obvious starting point.
+So Fidlar is not uniformly dead — **the adapter is pointed at the wrong URL shape.**
+
+**The URL discovery is now done, and it kills the item. ⏸ R2b DEFERRED 2026-08-27.**
+
+Every county Fidlar is configured for was probed against the live AVA pattern, one request per
+second against one host:
+
+```
+TXWard TXTerrell TXJasper TXNewton TXSabine TXSanAugustine TXSanJacinto
+TXDallas TXHidalgo TXMenard TXFoard TXFortBend TXFranklin TXBrazoria   → 404 (14 of 14)
+TXGalveston                                                            → 200
+```
+
+**Galveston is the only live Fidlar portal in existence for these counties — and Galveston is not in
+the firm's service area.** It is absent from the 46 counties in `lib/seo/business.ts`, roughly 200
+miles from Belton, on the Gulf Coast.
+
+So proving Fidlar — the whole exercise of driving an adapter, verifying real documents come back, and
+promoting it to `PROVEN_VENDORS` — would convert **one county the firm does not work in** from
+TexasFile to native. The cost is a full vendor-proving cycle against a live portal; the benefit is
+zero for this business today.
+
+**Deferred on measured value, not on difficulty.** Revisit only if the firm takes work in Galveston,
+or if Fidlar stands up portals for counties inside the service area. The same probe re-run answers
+that in about fifteen seconds.
+
+> This closes the "proving one vendor converts a whole set of counties at once" idea for Fidlar
+> specifically. It was a reasonable hypothesis and the data does not support it: there is no set.
+> **TexasFile's universal fallback is not the consolation prize here — it is the answer**, and the
+> only genuine cost is per-document pricing rather than missing coverage.
 
 **Deliberately NOT promoted to `PROVEN_VENDORS`.** A 200 from a landing page is reachability, not
 proof. The rule is that an adapter must be driven against a real county and return a real document;
