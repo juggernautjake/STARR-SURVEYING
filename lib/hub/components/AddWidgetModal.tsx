@@ -1,18 +1,47 @@
 'use client';
 // lib/hub/components/AddWidgetModal.tsx
 //
-// Catalog modal opened by the "+ Add Widget" affordance in the
-// edit-mode bar. Lists every widget the user can add, grouped by
-// category, filtered by an optional search term. Click an entry to
-// append it to the draft layout (the modal then closes).
+// Catalog modal opened by the "+ Add Widget" affordance in the edit-mode bar.
 //
-// Slice 100 of customizable-hub-and-work-mode-2026-05-28.md.
+// Slice 100 of customizable-hub-and-work-mode-2026-05-28.md, rebuilt for H2-H6 of
+// HUB_CUSTOMIZER_2026-08-27.md.
+//
+// ── IT OPENS ON CATEGORIES, NOT ON WIDGETS ──────────────────────────────────────────────────────
+//
+// It used to render every permitted widget grouped under always-open headings — 55 tiles behind one
+// scrollbar. Grouping without collapsing is still a wall, which was the owner's actual complaint:
+// "the hub opens showing categories rather than a wall of widgets". So each category is now a closed
+// box you open, and opening one pushes the rest down rather than replacing them.
+//
+// The filter-tab row is gone with it. A single-selection filter and a set of openable boxes answer
+// the same question twice, and the tabs were the half that could only ever show you one category.
+//
+// ── SEARCH OPERATES ON CATEGORIES ───────────────────────────────────────────────────────────────
+//
+// `buildCategorySections` hides a whole box when nothing in it matches, and narrows the tiles inside
+// the boxes that survive. A search matching three widgets should leave you looking at one box, not
+// eleven boxes of which ten are empty.
+//
+// ── DISCLOSURE IS DERIVED, WHICH IS THE ONLY SUBTLE PART ────────────────────────────────────────
+//
+// A search opens what it surfaces (H4) and clearing it must restore exactly what you had (H6). Those
+// fight if there is one open-set that the search mutates. `category-disclosure.ts` keeps user intent
+// and search-derived opening apart and derives what is shown, so clearing restores by construction.
+// The reasoning is in that file's header; do not collapse the two pieces of state back into one.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
 import { allWidgets, type WidgetCategory, type WidgetDefinition } from '@/lib/hub/widget-registry';
-import { filterCatalog, groupByCategory } from '@/lib/hub/widget-catalog-filter';
+import { buildCategorySections, type CategorySection } from '@/lib/hub/widget-catalog-filter';
+import {
+  emptyDisclosure,
+  isCategoryOpen,
+  isSearchActive,
+  onSearchChanged,
+  toggleCategory,
+  type DisclosureState,
+} from '@/lib/hub/category-disclosure';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
 import { compactLayout } from '@/lib/hub/grid-math';
@@ -69,7 +98,8 @@ interface AddWidgetModalBodyProps {
 
 function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBodyProps) {
   const [search, setSearch] = useState('');
-  const [category, setCategory] = useState<WidgetCategory | 'all'>('all');
+  const [disclosure, setDisclosure] = useState<DisclosureState>(emptyDisclosure);
+  const prevSearch = useRef('');
   const draftWidgets = useHubStore((s) => s.draftWidgets);
   // Slice 200 — actions via getState (stable closures), no wasted subscription.
   const { setDraftWidgets } = useHubActions();
@@ -95,12 +125,19 @@ function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBod
   // previously fired on every parent render even when closed.
   const catalog = useMemo(() => allWidgets(), []);
 
-  const filtered = useMemo(
-    () => filterCatalog(catalog, { roles, activeBundles, search, category }),
-    [catalog, roles, activeBundles, search, category],
+  const sections = useMemo(
+    () => buildCategorySections(catalog, { roles, activeBundles, search }),
+    [catalog, roles, activeBundles, search],
   );
 
-  const grouped = useMemo(() => groupByCategory(filtered), [filtered]);
+  const searchActive = isSearchActive(search);
+
+  function onSearch(next: string) {
+    // Overrides belong to the query that produced them, so they are dropped when it changes.
+    setDisclosure((d) => onSearchChanged(d, next, prevSearch.current));
+    prevSearch.current = next;
+    setSearch(next);
+  }
 
   function handleAdd(def: WidgetDefinition) {
     const existing = draftWidgets ?? [];
@@ -129,6 +166,21 @@ function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBod
       }}
     >
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+        {/* H5 — a fade, not a pop. Results update on every keystroke, so boxes and tiles arrive and
+            leave constantly; without this the catalog looks like things are blinking in and out of
+            existence. Follows the inline-<style> pattern from WidgetSkeleton, since this component
+            is otherwise inline-styled and has no stylesheet of its own. Reduced motion opts out. */}
+        <style>{`
+          @keyframes hub-cat-fade {
+            from { opacity: 0; transform: translateY(-3px); }
+            to   { opacity: 1; transform: none; }
+          }
+          .hub-cat-reveal { animation: hub-cat-fade 170ms ease both; }
+          .hub-cat-reveal > * { animation: hub-cat-fade 190ms ease both; }
+          @media (prefers-reduced-motion: reduce) {
+            .hub-cat-reveal, .hub-cat-reveal > * { animation: none !important; }
+          }
+        `}</style>
         <header style={headerStyle}>
           <h2 style={titleStyle}>Add a widget</h2>
           <button type="button" onClick={onClose} aria-label="Close" style={closeButtonStyle}>×</button>
@@ -140,75 +192,76 @@ function AddWidgetModalBody({ onClose, roles, activeBundles }: AddWidgetModalBod
             type="search"
             placeholder="Search widgets…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => onSearch(e.target.value)}
             style={searchInputStyle}
             aria-label="Search widgets"
           />
         </div>
 
-        <nav aria-label="Categories" style={tabsRowStyle}>
-          {(['all', 'personal', 'work', 'time-pay', 'equipment', 'cad', 'research', 'learning', 'communication', 'office', 'financial', 'operational'] as const).map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCategory(c)}
-              aria-pressed={category === c}
-              style={category === c ? tabActiveStyle : tabStyle}
-            >
-              {CATEGORY_LABELS[c]}
-            </button>
-          ))}
-        </nav>
-
         <div style={listStyle}>
-          {filtered.length === 0 && (
+          {sections.length === 0 && (
             <div style={emptyStyle}>
-              No widgets match — try clearing the search or picking a different category.
+              Nothing matches “{search.trim()}”. Try a shorter word — the search looks at every
+              widget&rsquo;s name, description and category.
             </div>
           )}
-          {category === 'all'
-            ? renderGrouped(grouped, handleAdd)
-            : renderFlat(filtered, handleAdd)}
+          {sections.map((section) => (
+            <CategoryBox
+              key={section.category}
+              section={section}
+              open={isCategoryOpen(disclosure, section.category, { searchActive, matched: section.matched })}
+              onToggle={() => setDisclosure((d) => toggleCategory(d, section.category, {
+                searchActive, matched: section.matched,
+              }))}
+              onPick={handleAdd}
+            />
+          ))}
         </div>
       </div>
     </div>
   );
 }
 
-function renderGrouped(
-  grouped: Map<WidgetCategory, WidgetDefinition[]>,
-  onPick: (def: WidgetDefinition) => void,
-) {
-  const order: WidgetCategory[] = [
-    'personal', 'work', 'time-pay', 'equipment',
-    'cad', 'research', 'learning', 'communication',
-    'office', 'financial', 'operational',
-  ];
-  const out: React.ReactNode[] = [];
-  for (const cat of order) {
-    const widgets = grouped.get(cat);
-    if (!widgets || widgets.length === 0) continue;
-    out.push(
-      <section key={cat} style={{ marginBottom: 'var(--hub-spc-3, 12px)' }}>
-        <h3 style={sectionTitleStyle}>{CATEGORY_LABELS[cat]}</h3>
-        <div style={tileGridStyle}>
-          {widgets.map((w) => (
+/**
+ * One category, closed by default, opening in place.
+ *
+ * The count on the header is what makes a closed box worth having: you can see how much is inside
+ * without opening it. When a search has narrowed the box, both numbers are shown — "3 of 12" — so a
+ * shortened list never reads as a category that lost widgets.
+ */
+function CategoryBox({ section, open, onToggle, onPick }: {
+  section: CategorySection;
+  open: boolean;
+  onToggle: () => void;
+  onPick: (def: WidgetDefinition) => void;
+}) {
+  const narrowed = section.widgets.length !== section.total;
+  return (
+    <section style={boxStyle} data-category={section.category} data-open={open ? 'true' : 'false'}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        style={boxHeadStyle}
+      >
+        <span style={{ ...caretStyle, transform: open ? 'rotate(90deg)' : 'none' }} aria-hidden="true">▸</span>
+        <span style={boxTitleStyle}>{CATEGORY_LABELS[section.category]}</span>
+        <span style={boxCountStyle}>
+          {narrowed ? `${section.widgets.length} of ${section.total}` : section.total}
+        </span>
+      </button>
+
+      {open && (
+        // H5 — fade in rather than appear. Keywords update per keystroke, so boxes and tiles are
+        // constantly arriving and leaving; without this the screen looks like things are popping in
+        // and out of existence.
+        <div style={tileGridStyle} className="hub-cat-reveal">
+          {section.widgets.map((w) => (
             <WidgetTile key={w.id} def={w} onPick={() => onPick(w)} />
           ))}
         </div>
-      </section>,
-    );
-  }
-  return out;
-}
-
-function renderFlat(widgets: WidgetDefinition[], onPick: (def: WidgetDefinition) => void) {
-  return (
-    <div style={tileGridStyle}>
-      {widgets.map((w) => (
-        <WidgetTile key={w.id} def={w} onPick={() => onPick(w)} />
-      ))}
-    </div>
+      )}
+    </section>
   );
 }
 
@@ -298,51 +351,63 @@ const searchInputStyle: React.CSSProperties = {
   fontSize: 'var(--hub-font-sm, 0.875rem)',
 };
 
-const tabsRowStyle: React.CSSProperties = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: 'var(--hub-spc-2, 8px)',
-  padding: '0 var(--hub-spc-4, 16px) var(--hub-spc-3, 12px)',
-  borderBottom: '1px solid var(--theme-border)',
-};
-
-const tabStyle: React.CSSProperties = {
-  padding: '4px 10px',
-  borderRadius: 6,
+const boxStyle: React.CSSProperties = {
   border: '1px solid var(--theme-border)',
-  background: 'transparent',
-  color: 'var(--theme-fg-secondary)',
-  fontSize: 'var(--hub-font-xs, 0.75rem)',
-  cursor: 'pointer',
+  borderRadius: 10,
+  marginBottom: 'var(--hub-spc-2, 8px)',
+  overflow: 'hidden',
+  background: 'var(--theme-bg-surface)',
 };
 
-const tabActiveStyle: React.CSSProperties = {
-  ...tabStyle,
-  background: 'var(--theme-accent)',
-  color: 'var(--theme-accent-fg)',
-  borderColor: 'var(--theme-accent)',
+const boxHeadStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--hub-spc-2, 8px)',
+  width: '100%',
+  padding: 'var(--hub-spc-3, 12px) var(--hub-spc-3, 12px)',
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--theme-fg-primary)',
+  font: 'inherit',
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  minHeight: 44,
+};
+
+const caretStyle: React.CSSProperties = {
+  flex: '0 0 auto',
+  width: 12,
+  fontSize: 11,
+  color: 'var(--theme-fg-secondary)',
+  transition: 'transform 160ms ease',
+};
+
+const boxTitleStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  fontSize: 'var(--hub-font-sm, 0.875rem)',
+  fontWeight: 650,
+};
+
+const boxCountStyle: React.CSSProperties = {
+  flex: '0 0 auto',
+  fontSize: 'var(--hub-font-xs, 0.75rem)',
+  color: 'var(--theme-fg-secondary)',
+  fontVariantNumeric: 'tabular-nums',
 };
 
 const listStyle: React.CSSProperties = {
   padding: 'var(--hub-spc-3, 12px) var(--hub-spc-4, 16px)',
   overflowY: 'auto',
   flex: 1,
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: 0,
-  marginBottom: 'var(--hub-spc-2, 8px)',
-  fontSize: 'var(--hub-font-sm, 0.875rem)',
-  fontWeight: 700,
-  textTransform: 'uppercase' as const,
-  letterSpacing: 0.5,
-  color: 'var(--theme-fg-secondary)',
+  borderTop: '1px solid var(--theme-border)',
 };
 
 const tileGridStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-  gap: 'var(--hub-spc-3, 12px)',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+  gap: 'var(--hub-spc-2, 8px)',
+  padding: '0 var(--hub-spc-3, 12px) var(--hub-spc-3, 12px)',
 };
 
 const tileStyle: React.CSSProperties = {

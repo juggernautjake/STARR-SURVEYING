@@ -164,10 +164,16 @@ export function categoryTags(widgets: readonly WidgetDefinition[]): Set<string> 
  * they finish the word — the whole feature updates per keystroke.
  */
 export function categoryMatches(tags: ReadonlySet<string>, term: string): boolean {
-  const t = term.trim().toLowerCase();
-  if (!t) return true;
+  // THE QUERY IS SPLIT THE SAME WAY THE TAGS WERE.
+  //
+  // `widgetTags` breaks on every non-alphanumeric character, so "Today's Schedule" is stored as
+  // `today`, `s`, `schedule`. Splitting the query on whitespace alone left the apostrophe attached,
+  // and typing a widget's own label back into the search box returned nothing — two normalisations
+  // that have to agree, and did not. Punctuation in a query is now dropped, not searched for.
+  const words = term.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!words.length) return true;
   // Multi-word queries: every word must appear somewhere in the category, in any order.
-  return t.split(/\s+/).every((word) => {
+  return words.every((word) => {
     for (const tag of tags) if (tag.startsWith(word) || tag.includes(word)) return true;
     return false;
   });

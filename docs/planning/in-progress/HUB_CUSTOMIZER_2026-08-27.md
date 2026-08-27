@@ -1,6 +1,6 @@
 # Hub Customizer — categories, search and disclosure — 2026-08-27
 
-**Status:** IN PROGRESS · opened 2026-08-27 · owner's notes, verbatim, plus what the code actually
+**Status:** ALL SIX SHIPPED 2026-08-27 · opened 2026-08-27 · owner's notes, verbatim, plus what the code actually
 does today.
 
 The Add-Widget catalog opens on a wall of widgets. The owner's six items below are one coherent
@@ -30,7 +30,7 @@ there.
 
 ## 1. The items, as written
 
-### H1 — Sort widgets into categories ◐ categorisation already done, outcome pending
+### H1 — Sort widgets into categories ✅ categorisation was already done; the outcome shipped with H2
 
 > Declutter the screen and cut the time it takes to find a specific widget.
 >
@@ -41,7 +41,7 @@ Every widget already belongs to exactly one category. What is missing is the sec
 opening on categories — which H2 delivers. Nothing to build here beyond confirming no widget is
 uncategorised, which a test now asserts.
 
-### H2 — Category boxes with drop-down widget lists ☐
+### H2 — Category boxes with drop-down widget lists ✅
 
 > Once widgets are sorted, each category is a box with a dropdown containing its widgets.
 >
@@ -50,7 +50,7 @@ uncategorised, which a test now asserts.
 > - The selected category expands in place, filling the freed space
 > - Its widgets display in a drop-down underneath itself
 
-### H3 — Search widgets by category tags, not one flat list ☐
+### H3 — Search widgets by category tags, not one flat list ✅
 
 > Searching should not scan every widget across every category.
 >
@@ -59,12 +59,12 @@ uncategorised, which a test now asserts.
 > - Within a matching category, widgets whose tags do not match are also hidden
 > - Only relevant categories and relevant widgets remain on screen
 
-### H4 — Auto-open categories that match a search ☐
+### H4 — Auto-open categories that match a search ✅
 
 > A category surfaced by a search should already be open. The user should not have to click into a
 > category to see why it matched.
 
-### H5 — Fade widgets and categories in and out — never pop ☐
+### H5 — Fade widgets and categories in and out — never pop ✅
 
 > Keywords update in real time as the user types, so things are constantly appearing and
 > disappearing.
@@ -72,7 +72,7 @@ uncategorised, which a test now asserts.
 > **Requirement:** a slight fade in / fade out on both widgets and categories. Without it the screen
 > looks like items are popping in and out of existence — jittery and cheap-looking.
 
-### H6 — Remember open/closed state across a search ☐
+### H6 — Remember open/closed state across a search ✅
 
 > Category open/closed state must survive a search and be restored when the search is cleared.
 >
@@ -109,13 +109,58 @@ the UI is ever rebuilt.
 
 ## 3. Slices
 
-| | Item | What ships |
-|---|---|---|
-| S1 | H1, H3 | Category-level tag aggregation + a filter that returns categories with their surviving widgets, hiding non-matching categories entirely. Pure, tested. |
-| S2 | H4, H6 | `lib/hub/category-disclosure.ts` — the derived-state model above. Pure, tested against the owner's worked example verbatim. |
-| S3 | H2, H5 | The modal rewritten as collapsible category boxes with fade transitions and `prefers-reduced-motion` respected. |
+| | Item | What ships | Status |
+|---|---|---|---|
+| S1 | H1, H3 | Category-level tag aggregation + a filter returning categories with their surviving widgets. | ✅ 2026-08-27 |
+| S2 | H4, H6 | `lib/hub/category-disclosure.ts` — the derived-state model above. | ✅ 2026-08-27 |
+| S3 | H2, H5 | The modal rebuilt as collapsible boxes with fade transitions. | ✅ 2026-08-27 |
 
----
+**All six shipped 2026-08-27.** `lib/hub/widget-catalog-filter.ts` (+`buildCategorySections`,
+`categoryTags`, `categoryMatches`, `widgetTags`, `CATEGORY_ORDER`), `lib/hub/category-disclosure.ts`,
+and `lib/hub/components/AddWidgetModal.tsx` rebuilt around them. 34 new tests; 1,959 hub tests green;
+`tsc` and `next lint` clean.
+
+### What the catalog does now
+
+Opens on **11 closed boxes instead of 54 tiles**, each showing its own count so a closed box still
+says how much is inside. Opening one pushes the rest down. The old filter-tab row is gone — a
+single-selection filter and a set of openable boxes answered the same question twice, and the tabs
+were the half that could only ever show you one category at a time.
+
+Searching hides whole boxes and narrows the tiles inside the survivors; a narrowed box reads
+"3 of 12" so a shortened list never looks like a category that lost widgets. A category matching on
+its own **name** keeps everything in it — "cad" means *show me the CAD things*, not *CAD things whose
+description also says cad*.
+
+### Three things worth not re-deriving
+
+**Disclosure stays two pieces of state.** The owner's worked example is a test, verbatim, and it
+passes because clearing a search restores the previous state *by construction* — the search never
+writes to user intent. Collapsing them back into one open-set reintroduces every edge case: searching
+while searching, backspacing one character at a time, closing a box mid-search.
+
+**Category tags are derived, never declared.** A hand-maintained tag list per category is a second
+source of truth that goes stale the first time somebody adds a widget and forgets — and the failure
+is silent, because a missing tag looks exactly like a search with no results.
+
+**Role and bundle gating runs BEFORE the count is taken.** Otherwise a closed box advertises tiles
+that vanish when you open it, which is worse than not showing them.
+
+### Two bugs found while testing, one of them mine
+
+**The query and the tags were normalised differently.** `widgetTags` splits on every non-alphanumeric
+character, so "Today's Schedule" is stored as `today`, `s`, `schedule`. The matcher split the query on
+whitespace alone, leaving the apostrophe attached — so **typing a widget's own label into the search
+box returned nothing**. Found by a test that searches every widget's first label word against its own
+category. Fixed by splitting the query the same way.
+
+**`roles: []` is "no roles", not "every role"** — it gates away every widget declaring `allowedRoles`,
+and makes 4 of the 11 categories vanish. That is correct behaviour that looked exactly like a broken
+filter, and it produced three wrong assertions before a control assertion caught the real problem:
+`allWidgets()` returns **0** unless `lib/hub/widgets/register-all` is imported, because every widget
+registers itself from its own module. Without that control, twenty tests would have passed against an
+empty catalog. A test now pins the gating difference so the next reader does not repeat it.
+
 
 ## 4. Not in scope
 
