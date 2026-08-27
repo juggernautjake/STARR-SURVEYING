@@ -332,10 +332,13 @@ describe('the Tavily primitive is shared, not copied', () => {
     // Two copies of this request would grow two relevance floors, two content trims and two ideas of
     // what a failure is, and would drift within a month.
     const openWeb = readFileSync(join(process.cwd(), 'lib/research/open-web.ts'), 'utf8');
+    const core = readFileSync(join(process.cwd(), 'lib/research/announcement-watch.ts'), 'utf8');
     const watch = readFileSync(join(process.cwd(), 'lib/research/portal-watch.ts'), 'utf8');
 
     expect(openWeb).toContain('export async function tavilySearch');
-    expect(watch).toContain('tavilySearch');
+    // The core owns the call now; the watches are profiles over it and must not reach past it.
+    expect(core).toContain('tavilySearch');
+    expect(watch).not.toContain('api.tavily.com');
     // Exactly one place builds the Tavily request.
     expect(openWeb.match(/api\.tavily\.com/g) ?? []).toHaveLength(1);
     expect(watch).not.toContain('api.tavily.com');
