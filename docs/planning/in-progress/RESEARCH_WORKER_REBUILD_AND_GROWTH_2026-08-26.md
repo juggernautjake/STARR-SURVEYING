@@ -580,6 +580,27 @@ old one in the Voyage dashboard.** A Doppler CLI token now exists on the work la
 
 ## 5. M — Website and marketing
 
+### M0 — The three intake forms agree ✅ pinned 2026-08-27
+**Pinned 2026-08-27.** `__tests__/leads/intake-forms-agree.test.ts`.
+
+The site has **three separate hand-written intake forms** — the home page, `/contact`, and the
+pricing calculator — plus the unrendered fourth copy noted on the orphan list. Checked by hand this
+session: all three carry attribution capture, the honeypot, and a `trackConversion` call with its own
+distinct source label. Nothing was broken.
+
+That verification is now a test, because **the failure mode here is silent and expensive**. A form
+that stops sending `attributionFormFields` still submits perfectly: the lead saves, the email
+arrives, and the gclid is simply gone — so an ad-driven enquiry lands looking organic and Ads never
+learns the click converted. Same for a dropped `trackConversion` (Smart Bidding optimising against a
+funnel missing a third of its conversions) and a dropped honeypot (spam forwarded). Every one of
+those looks like a working form.
+
+Mutation-verified rather than trusted: renaming each of the five guarantees in one form is caught.
+The first draft was **not** — a loose `/attributionFormFields/` still matched a renamed
+`ZZattributionFormFields`, so the assertion would have survived the exact edit it exists to catch.
+Word-boundary anchored now.
+
+
 ### M1 — Google Ads offline conversions ☐ built, switched off
 
 Four conversion actions, created via **Import → Manual import using API or uploads** (not "Website"):
