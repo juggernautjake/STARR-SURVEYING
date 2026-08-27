@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   businessJsonLd,
+  openingHoursDisplay,
   businessNode,
   websiteNode,
   BUSINESS_ID,
@@ -65,6 +66,19 @@ describe('businessNode', () => {
     expect(days).not.toContain('Sunday');
     expect(days).toContain('Monday');
     expect(days).toContain('Friday');
+  });
+
+  it('opens at 9, and says so identically to people and to crawlers', () => {
+    // The site said 8:00 AM and the Google Business Profile said 9:00. The OWNER confirmed 9:00 on
+    // 2026-08-26, so the website had been wrong — inviting people to ring an hour before anyone was
+    // in. Pinned because it is a fact about the business that no test could otherwise catch, and
+    // because the two surfaces stating it must never diverge again.
+    const spec = (businessNode().openingHoursSpecification as Array<{ opens: string; closes: string }>)[0];
+    expect(spec.opens).toBe('09:00');
+    expect(spec.closes).toBe('17:00');
+
+    // The prose on /contact is derived from the same constant, not typed alongside it.
+    expect(openingHoursDisplay()).toEqual({ days: 'Monday - Friday', time: '9:00 AM - 5:00 PM' });
   });
 
   it('serves both a radius and the named counties', () => {

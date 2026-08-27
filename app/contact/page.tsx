@@ -5,6 +5,7 @@ import { useState, FormEvent, ChangeEvent } from 'react';
 import PayInvoiceCTA from '../components/PayInvoiceCTA';
 import { OFFICE_ADDRESS, OFFICE_ADDRESS_LINE1, OFFICE_ADDRESS_LINE2 } from '../components/ServiceAreaMap';
 import { trackConversion } from '../utils/gtag';
+import { openingHoursDisplay } from '@/lib/seo/business';
 import { attributionFormFields, readAttribution } from '@/lib/leads/attribution';
 import { honeypotValuesFrom } from '@/lib/leads/honeypot';
 import HoneypotFields from '@/app/components/HoneypotFields';
@@ -52,6 +53,9 @@ interface ContactInfo {
 // =============================================================================
 
 export default function ContactPage(): React.ReactElement {
+  // One source for the weekday hours — see the note beside the hours card below.
+  const hours = openingHoursDisplay();
+
   const [formData, setFormData] = useState<ContactFormData>({
     name: '',
     email: '',
@@ -308,9 +312,14 @@ export default function ContactPage(): React.ReactElement {
           <div className="contact-info__hours">
             <h3 className="contact-info__hours-title">🕐 Business Hours</h3>
             <div className="contact-info__hours-grid">
+              {/* Rendered from lib/seo/business.ts, not written here. This line said "8:00 AM" while
+                  the Google Business Profile said 9:00, and 9:00 was the true one — so the site spent
+                  years telling people to call an office an hour before anyone arrived. Reading the
+                  constant means the hours a customer sees and the hours the JSON-LD publishes are the
+                  same fact, changed in one place. */}
               <div className="contact-info__hours-row">
-                <span className="contact-info__hours-day">Monday - Friday</span>
-                <span className="contact-info__hours-time">8:00 AM - 5:00 PM</span>
+                <span className="contact-info__hours-day">{hours.days}</span>
+                <span className="contact-info__hours-time">{hours.time}</span>
               </div>
               <div className="contact-info__hours-row">
                 <span className="contact-info__hours-day">Saturday</span>

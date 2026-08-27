@@ -71,8 +71,36 @@ export const RPLS_LICENSE_ISSUED = '2017-12-15';
 // These hours must match the Google Business Profile. When they disagree, the profile is what shows in
 // the map pack — but the disagreement itself is a quality signal against the site.
 export const OPENING_HOURS = [
-  { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '08:00', closes: '17:00' },
+  { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '09:00', closes: '17:00' },
 ] as const;
+
+// OPENS AT 9, NOT 8 — corrected 2026-08-26 by the owner.
+//
+// The contact page had said 8:00 AM for as long as it has existed, and the Google Business Profile
+// said 9:00. Confirmed with the owner: NINE is right, and the website was the wrong one. So this is a
+// correction to the site, not to Google.
+//
+// It is worth noting what the wrong version cost. Google cross-checks a business against its own
+// listing, and the two disagreeing is a quality signal against the site — but the real damage is
+// simpler: for years the site invited people to ring an office an hour before anyone was there.
+//
+// `/contact` now renders this constant instead of its own hard-coded string, so the page a customer
+// reads and the hours a crawler reads cannot disagree again.
+
+/** How the weekday range is written for people, derived from the same values the crawler is given. */
+export function openingHoursDisplay(): { days: string; time: string } {
+  const h = OPENING_HOURS[0];
+  const human = (t: string): string => {
+    const [rawH, m] = t.split(':').map(Number);
+    const suffix = rawH >= 12 ? 'PM' : 'AM';
+    const hour12 = rawH % 12 === 0 ? 12 : rawH % 12;
+    return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+  };
+  return {
+    days: `${h.days[0]} - ${h.days[h.days.length - 1]}`,
+    time: `${human(h.opens)} - ${human(h.closes)}`,
+  };
+}
 
 // ── WHAT THEY SELL ──────────────────────────────────────────────────────────────────────────────
 //
