@@ -18,7 +18,8 @@ urgent except in the order given. If you read nothing else, read this table.
 | # | Do this | Where | Why it is first |
 |---|---|---|---|
 | 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable switches on the entire open-web research layer that is already built and wired. Five minutes, largest capability gain available. |
-| 2 | **Point `worker.starr-surveying.com` at the netcup IP** when the order clears | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
+| 2 | **Pay netcup invoice `nc-5513706` (€40.27) by card or PayPal** | §F3a | **Payment is in advance** — no server is provisioned until it clears, so this gates every other worker item. A US bank wire takes days; card takes minutes. |
+| 2b | **Then point `worker.starr-surveying.com` at the new IP** | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
 | 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
@@ -1002,6 +1003,30 @@ customers. That is presumably why the gate exists.
 > Sixth near-miss of the session. "Empty credentials for the payment processor" is a sentence that
 > would have had somebody out of bed, and the difference between *broken* and *deliberately off* was
 > one variable that is absent rather than present. **Absence carried the meaning.**
+
+### F3a — ⚠ PAYMENT IN ADVANCE is the blocker, not the order review (2026-08-27)
+
+Order accepted; account created. **Customer number 417617**, invoice `nc-5513706`, **€40.27**, due
+**10 Sep 2026**. netcup states plainly: *"the payment must be made in advance."*
+
+**So no server exists yet.** The provisioning email carrying the IP and Server Control Panel
+credentials arrives only after payment clears. Everything in §2 (W2–W5) waits on this one step.
+
+- **Pay by card or PayPal, not bank transfer.** A US wire to a German IBAN takes 2–5 business days
+  and carries fees at both ends; card clears in minutes. The PayPal option sits beside the open
+  invoice in the CCP.
+- **VAT exemption held.** €39.77 + €0.50 = €40.27 exactly — the net figure. "Including VAT" in the
+  email is boilerplate.
+- **No SEPA mandate is set up**, so nothing renews by direct debit. Safer than the DigitalOcean card
+  that vanished — but a missed monthly invoice suspends the box, which is *precisely* how the last
+  worker died. Put the due date somewhere it will be seen, or set up the mandate deliberately.
+- **Two panels, two logins.** CCP (`customercontrolpanel.de`) is billing, and its credentials arrived
+  now. **SCP** (`servercontrolpanel.de`) is the server itself — power, reinstall, rescue, VNC — and
+  its credentials come separately with provisioning.
+
+**Security note recorded because it will matter later:** the CCP password arrived by plaintext email
+and was pasted into a chat transcript. It should be rotated and 2FA enabled before that panel holds a
+running server. netcup documents 2FA in the same welcome mail.
 
 ### F3 — netcup ☐
 
