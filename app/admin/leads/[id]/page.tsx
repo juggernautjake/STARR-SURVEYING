@@ -35,6 +35,7 @@ import QuotesCard from './QuotesCard';
 import LifecycleTimeline from './LifecycleTimeline';
 // A13 — the self-reported and staff-recorded halves of attribution, for leads with no click.
 import AttributionCard from './AttributionCard';
+import BackgroundCard from './BackgroundCard';
 
 interface LeadAttachment {
   name: string;
@@ -460,6 +461,11 @@ export default function LeadDetailPage() {
 
         {/* A13 — three kinds of evidence about where this lead came from, shown as three kinds. */}
         <AttributionCard leadId={lead.id} />
+
+        {/* §I3.1 — public-web background before the callback. Sits above the notes because it is
+            read BEFORE the call, and the notes are written after. Does not fetch on mount: it
+            spends a third-party search, and opening a lead to check a phone number should not. */}
+        <BackgroundCard leadId={lead.id} />
 
         <LeadNotesCard leadId={lead.id} />
 

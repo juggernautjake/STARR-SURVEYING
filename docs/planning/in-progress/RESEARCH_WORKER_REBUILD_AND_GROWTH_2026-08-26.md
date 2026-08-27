@@ -17,7 +17,7 @@ urgent except in the order given. If you read nothing else, read this table.
 
 | # | Do this | Where | Why it is first |
 |---|---|---|---|
-| 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable switches on the entire open-web research layer that is already built and wired. Five minutes, largest capability gain available. |
+| 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable switches on the entire open-web research layer **and**, since 2026-08-27, lead enrichment — the Background card on every lead detail page (§I3.1). Both are built and wired and both say "not configured" today. Five minutes, largest capability gain available. |
 | 2 | **Pay netcup invoice `nc-5513706` (€40.27) by card or PayPal** | §F3a | **Payment is in advance** — no server is provisioned until it clears, so this gates every other worker item. A US bank wire takes days; card takes minutes. |
 | 2b | **Then point `worker.starr-surveying.com` at the new IP** | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
 | 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
@@ -843,14 +843,48 @@ document the AI reasons over.
 **Cost check before spending:** at five angles per run, 1,000 searches is ~200 property researches a
 month. Free tier is very likely sufficient; measure before upgrading.
 
-### I3 — Where else Tavily earns its keep ☐ scoped, not built
+### I3 — Where else Tavily earns its keep ◐ item 1 SHIPPED 2026-08-27, 2–5 still scoped
 
 Explored per the owner's ask. Ordered by value, and honest about which are speculative:
 
-1. **Lead enrichment** *(business — strong)*. A quote request arrives with a name and an address.
-   The same five-angle search would tell the office whether it is a builder with twelve permits or a
-   homeowner with a fence dispute — before anyone rings back. `lib/leads/` already has the intake
-   surface; this is the open-web module pointed at a lead instead of a project.
+1. **Lead enrichment** *(business — strong)*. ✅ **BUILT AND WIRED 2026-08-27.**
+
+   `lib/leads/enrichment.ts` + `GET /api/admin/leads/[id]/enrichment` + a **Background** card on the
+   lead detail page. Whoever rings a lead back can now see, before the call, whether they are talking
+   to a builder with a live permit or a homeowner in a fence dispute.
+
+   None of the searching was rewritten — `lib/research/open-web.ts` already ran the five angles,
+   weighted domains by provenance and deduped across angles. What is new is the reading layer: ranked
+   pages become a handful of signals (`commercial-operator`, `active-permit`, `subdivision-activity`,
+   `dispute-context`, `encumbrance-context`), each with a confidence drawn from **provenance rather
+   than volume** — ten content-farm pages about a name are not better evidence than one county agenda,
+   they are usually the same syndicated page.
+
+   **Four decisions worth not re-deriving:**
+
+   - **It runs on a click, not on intake.** Enriching every submission would spend a search on the
+     spam and put a third-party API on the critical path of saving a customer's quote request. Somebody
+     opening a lead is the signal the lookup is worth doing.
+   - **Company before personal name.** `ownerName` drives the encumbrance angle, and a lead's name is
+     the person *asking*, usually but not always the owner. A company is the better search on both
+     counts — it has a public record, and looking up a business is ordinary commercial diligence in a
+     way that looking up a private individual by name is not. The personal name is used only when it
+     is the sole identifier.
+   - **No signal without a citation.** `LeadSignal.sources` is never empty; a lead-stated company
+     cites *"Stated on the enquiry"* explicitly, so nobody mistakes it for an external finding.
+   - **It never touches `ai-draft.ts`,** and a test asserts the import is absent. Per this section's
+     own closing line: search results are unverified by construction, and this firm's product is a
+     licensed professional's assurance.
+
+   **It works today with no `TAVILY_API_KEY`** — and says so, which is the point. `status` separates
+   `not-configured` / `insufficient-lead` / `search-failed` / `searched`, because an empty findings
+   list means four different things and only one of them is *"we looked, and this is an ordinary
+   enquiry"*. The card branches on status, never on `signals.length`; a blank must never read as a
+   clean record. **This is the same defect as the address autocomplete in §M5, one floor up**, and the
+   briefing's first line differs in all four cases — asserted directly, with `headers.size === 4`.
+
+   So setting the key (START HERE #1) now lights up **both** the research pipeline and this. 27 tests,
+   `tsc` and `next lint` clean.
 2. **Competitor and market watch** *(business — moderate)*. Which surveyors are named in Central
    Texas planning agendas and news. Directly feeds the county-page work in M4.
 3. **County portal change detection** *(research — strong, pairs with self-healing)*. The research
