@@ -127,7 +127,7 @@ CPU deliberately still reads the host: compose sets no `cpus` limit, so all 12 r
 
 ## 3. R — Research capability
 
-### R1 — Open-web research via Tavily ☐ **the biggest capability gap**
+### R1 — Open-web research via Tavily ◐ **R1a SHIPPED 2026-08-26 · R1b open**
 
 `TAVILY_API_KEY` is configured and does exactly one job: guessing county CAD URLs, as "Method 9" in
 `lib/research/boundary-fetch.service.ts`. Free tier, 1,000 requests/month.
@@ -146,6 +146,34 @@ result ranking, and feeding what comes back to Claude.
 > **Browserbase is NOT this.** It is a *place to run a browser* — hosted Chromium on residential IPs.
 > It finds nothing and reads nothing. It solves exactly one problem: a site that blocks datacentre IPs.
 > Useful, narrow, and unrelated to giving the AI reach. See S2.
+
+**R1a — the search itself. SHIPPED 2026-08-26.** `lib/research/open-web.ts`, wired into
+`analyzeProject` at the first point where address, county, parcel id and owner are all resolved —
+earlier would build queries from a half-empty subject, and an angle with nothing to ask gets skipped.
+
+Five angles, each its own search: `owner-encumbrance`, `permits-planning`, `news-disputes`,
+`plat-subdivision`, `environmental-utility`. One query with everything in it returns one topic's
+results and silently answers none of the other questions.
+
+Three rules that each stop a specific way of being plausibly wrong:
+
+- **An angle with nothing to ask is skipped, not guessed.** Searching for liens with no owner name
+  returns the county's general lien page — a well-formed finding answering a question nobody asked,
+  which reads as "we checked".
+- **Domain authority is weighted, not filtered.** Tavily scores topical match, not trustworthiness,
+  so ranking on score alone puts real-estate lead-gen above the county. Government is 1.0, the
+  records vendors we already pay for 0.8, open web 0.2 — but nothing is discarded, because a blog
+  post may be the only public record of a boundary dispute.
+- **Angles fail independently.** A rate-limit on the owner search must not lose the permit findings.
+
+Every non-result carries a reason (`not-configured` / `insufficient-subject` / `search-failed`),
+following `lib/search/semantic.ts`. Non-fatal by construction: a web search being down can never
+fail a run that has already bought paid documents. 19 tests, `tsc` clean, 1,050 suite tests green.
+
+**R1b — feed the findings to the synthesis ☐ NEXT.** Today the findings land in the run log, where a
+surveyor reads them. They are not yet passed to the AI that writes the report, so the model cannot
+reason over a lien it can see in the log. That is the next slice and it is where most of the value
+is — deliberately split so R1a could ship wired rather than sitting behind a bigger change.
 
 ### R2 — County coverage: deeper, not wider ☐
 

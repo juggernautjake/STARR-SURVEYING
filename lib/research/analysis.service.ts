@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { TEXAS_MIN_RURAL_RATIO, TEXAS_MIN_URBAN_RATIO } from '@/worker/src/lib/closure-tolerance';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
+import { searchOpenWeb, type OpenWebResult } from './open-web';
 // Matching a fact's quote back to the tile it was read from (plan R17).
 import { locateFactRegion, summariseLocations, type LocateResult, type OcrRegion } from './fact-regions';
 import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
@@ -646,6 +647,48 @@ export async function analyzeProject(
     }
     if (userNotes) {
       addLog('info', `[Context] User notes: ${userNotes.substring(0, 200)}${userNotes.length > 200 ? '…' : ''}`);
+    }
+
+    // ── OPEN-WEB RESEARCH (plan R1) ────────────────────────────────────────────────────────────
+    //
+    // Everything above this line searches places we already know: the appraisal district, the
+    // clerk, the ten government APIs. This searches the rest of the internet for the same property.
+    //
+    // The findings it is looking for are the ones that sink a survey and appear in no portal — a
+    // lien against the OWNER rather than the parcel, a replat argued at a planning meeting, a
+    // boundary dispute that made the local paper years before it reached a record.
+    //
+    // Placed here because this is the first point where address, county, parcel id and owner are
+    // all resolved. Running it earlier would build queries from a subject that is still half empty,
+    // and an angle with nothing to ask is an angle that gets skipped.
+    //
+    // NON-FATAL BY CONSTRUCTION. Every failure inside `searchOpenWeb` is already converted into a
+    // per-angle skip reason rather than a throw, and the try/catch is the second wall. A web search
+    // that is down must never fail a research run that has already bought paid documents.
+    let openWebFindings: OpenWebResult[] = [];
+    try {
+      const report = await searchOpenWeb({
+        address: projectRow?.property_address ?? undefined,
+        county: projectRow?.county ?? undefined,
+        ownerName: ownerName ?? undefined,
+        parcelId: projectRow?.parcel_id ?? undefined,
+        legalDescription: userNotes ?? undefined,
+      });
+      openWebFindings = report.topResults;
+
+      // Every angle reports, including the ones that did not run. "Skipped — no owner name" and
+      // "ran and found nothing" are different answers and the log must not blur them.
+      for (const step of report.steps) addLog('info', step);
+
+      if (openWebFindings.length > 0) {
+        addLog('info', `[open-web] ${openWebFindings.length} distinct source(s) after dedupe, ranked by relevance and domain authority.`);
+        for (const f of openWebFindings.slice(0, 5)) {
+          addLog('info', `[open-web] ${f.angle}: ${f.title}`, f.url);
+        }
+      }
+    } catch (err) {
+      addLog('warn', '[open-web] Open-web research failed; the rest of the run is unaffected.',
+        err instanceof Error ? err.message : String(err));
     }
     const countyKey = (projectRow?.county ?? '')
       .toLowerCase()
