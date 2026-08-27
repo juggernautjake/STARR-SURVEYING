@@ -223,6 +223,39 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, '
     for (const h of list) console.log(`      ${h.count}× ${h.what}`);
   }
 
+  // ── A HINT, BECAUSE THIS MISCLASSIFICATION HAS NOW HAPPENED FOUR TIMES ─────────────────────────
+  //
+  // `tenant` is a FALLTHROUGH: anything matching nothing in CORRECT_FOREVER or COUNTY_ADAPTERS is
+  // counted as debt. That is the right default for an admin surface and the wrong one for a new page
+  // on the firm's own website — and the difference is invisible until the ratchet goes red weeks
+  // later, at which point somebody re-derives the whole argument from scratch.
+  //
+  // It has been re-derived three times already: app/privacy and GoogleAdsScript (2026-08-12),
+  // app/robots.ts (created 2026-08-25, caught 2026-08-27), and lib/seo/* (2026-08-27).
+  //
+  // So rather than silently counting the next one, say so. This changes NO classification and no
+  // count — the ratchet is unaffected. It only prints "these look like own-site files; if they are,
+  // add them to CORRECT_FOREVER", which is the sentence somebody would otherwise have to work out
+  // for themselves under time pressure with a red test in front of them.
+  const OWN_SITE_SHAPED = [
+    { re: /^app\/[a-z0-9.\-]+\.tsx?$/, why: 'a file at the public site’s own root' },
+    { re: /^lib\/seo\//,               why: 'metadata for the public site' },
+    { re: /^app\/components\/[A-Z]/,   why: 'a public-site component (every sibling is already listed)' },
+  ];
+  const suspicious = [...files]
+    .map((f) => ({ file: f, hint: OWN_SITE_SHAPED.find((s) => s.re.test(f))?.why }))
+    .filter((x) => x.hint);
+
+  if (suspicious.length) {
+    console.log('\n⚠ These are counted as tenant debt but look like OWN-SITE files:\n');
+    for (const { file, hint } of suspicious) console.log(`  ${file}\n      ${hint}`);
+    console.log(
+      '\n  If that is what they are, add them to CORRECT_FOREVER with a reason — do NOT raise the\n' +
+      '  ceiling in __tests__/saas/starr-assumptions.test.ts. The number is a measurement; moving it\n' +
+      '  to accommodate a misclassification hides the only signal this audit produces.\n',
+    );
+  }
+
   if (process.argv.includes('--all')) {
     console.log('\nEverything else, for review:\n');
     for (const h of hits.filter((x) => x.bucket !== 'tenant').sort((a, b) => a.file.localeCompare(b.file))) {
