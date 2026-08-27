@@ -701,6 +701,32 @@ Opened 2026-08-27 at the owner's request: *"make sure we can use BrowserBase and
 of the ways these things could be integrated."* Measured first, because both turned out to be in
 states nobody would have guessed.
 
+### I0a — Re-run this audit in one command ✅ SHIPPED 2026-08-27
+
+```bash
+doppler run --project starr-surveying --config prd -- npm run audit:vendors
+```
+
+`scripts/check-vendor-credentials.mjs`. Sibling of `worker/scripts/check-adapter-hosts.mjs` — that one
+asks whether a hostname exists, this one asks whether a credential works. Both exist because the
+answer was assumed for months and was wrong.
+
+**Run it before switching a provider on, when auditing spend, and after any rotation.** Every endpoint
+is free and read-only; nothing sends an email, solves a captcha, starts a browser session or bills a
+request.
+
+The states it distinguishes are the whole point — a pass/fail checker would collapse four of these
+into "fail" and be wrong about three:
+
+| | Meaning |
+|---|---|
+| `OK` | works |
+| `OK*` | valid but **scope-limited** — healthy, not a fault (Resend's send-only key) |
+| `UNUSED` | valid credentials, **zero usage** — money leaving for nothing (Browserbase) |
+| `REJECT` | the account refuses the key (CapSolver) |
+| `OFF` | deliberately disabled (Stripe, behind `PAYMENTS_LIVE`) |
+| `EMPTY` | no value configured |
+
 ### I0b — Every third-party key, actually called ✅ MEASURED 2026-08-27
 
 Read-only account endpoints, no writes, nothing billable. Three of the first three were broken, so
