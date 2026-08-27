@@ -105,11 +105,37 @@ Surfaced on `/healthz`, so it is visible from the app rather than only in a boot
 existing "complete environment" fixture gained `WORKER_API_KEY` — the contract widening, not a test
 being loosened. Full worker suite: 1,606 tests green.
 
-### W4 — verify from OUTSIDE the box
+### W4 — verify from OUTSIDE the box ✅ TOOLING ALREADY EXISTS — verified 2026-08-26
 
-`curl localhost:3100/healthz` on the droplet proves nothing about reachability. The real test is
+`curl localhost:3100/healthz` on the server proves nothing about reachability. The real test is
 `curl https://worker.starr-surveying.com/health` from elsewhere. A worker that answers on loopback and
 not the internet is a firewall problem that looks like success from inside.
+
+**I was about to build a verification script and found one already built, better.** `/admin/research`
+renders `WorkerStatusBanner`, which probes the worker from the app — i.e. from outside the box, over
+the real hostname, through the real TLS — and `interpretWorkerProbe` names which of four situations
+you are in rather than "it failed":
+
+| State | Meaning |
+|---|---|
+| `not_configured` | no `WORKER_URL` — a valid state, not a fault |
+| `unreachable` | configured and not answering — start or redeploy it |
+| `degraded` | answering, but its own `/healthz` says it cannot launch a browser. **Worse than down, because it looks up** — it will accept work and fail it |
+| `ok` | answering and able to work |
+
+So the cutover check is: load `/admin/research` and read the banner. A CLI script would have been a
+second, worse copy of this — the failure mode this repo is most prone to.
+
+**What I did instead: pinned the chain.** The config warnings added in W3 travel five hops across
+three directories and two test suites — `configWarnings()` → `/healthz` body → the app's probe route
+→ `interpretWorkerProbe` → the banner's render. Every hop was traced by hand and was intact, **which
+is precisely when the test is worth writing**: nothing is red to tell you when a hop is dropped, and
+the symptom would be the worker correctly announcing "STORAGE_BACKEND=r2 but R2_ACCESS_KEY_ID
+missing" into a void while an operator watches a run die twenty minutes in.
+
+Added to `worker-healthcheck-contract.test.ts`, which already exists for exactly this reason — it was
+written after a Dockerfile polled `/healthz` while the worker only served `/health`, a defect that
+hid in the gap between two test suites. 9 tests green.
 
 ### W5 — `pm2 startup` / compose `restart: unless-stopped`
 
