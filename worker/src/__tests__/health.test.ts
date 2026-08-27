@@ -198,6 +198,53 @@ describe('config warnings', () => {
     expect(warnings).not.toContain('CAPSOLVER');
   });
 
+  // ── The opposite failure: paid, valid, and unreachable ────────────────────────────────────────
+  //
+  // Measured 2026-08-27 against Browserbase's own API — valid key, project created 2026-04-23,
+  // ZERO sessions ever run. Nothing errored for four months because nothing was wrong: the
+  // credentials were fine and the config forbade the code from using them. The only symptom of that
+  // class of fault is an invoice, so it has to be asserted.
+
+  it('flags browserbase paid for but switched off at the backend', () => {
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p', BROWSER_BACKEND: 'local',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('billing');
+    expect(warnings).toContain('no session can ever start');
+  });
+
+  it('flags the second switch too — backend on, but no adapter routed', () => {
+    // It takes TWO switches. Fixing only the obvious one leaves it just as unused, and looks fixed.
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p',
+      BROWSER_BACKEND: 'browserbase', BROWSERBASE_ENABLED_ADAPTERS: '',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('BROWSERBASE_ENABLED_ADAPTERS is empty');
+  });
+
+  it('is quiet when browserbase is genuinely in use', () => {
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p',
+      BROWSER_BACKEND: 'browserbase', BROWSERBASE_ENABLED_ADAPTERS: 'bell-clerk',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('billing');
+    expect(warnings).not.toContain('ENABLED_ADAPTERS');
+  });
+
+  it('says nothing about browserbase when no credentials exist', () => {
+    // Not owning it is a valid state, not a fault. Warning here would train people to ignore this list.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('billing');
+  });
+
+  it('flags a missing TAVILY_API_KEY, because the pipeline just gets quieter', () => {
+    // Without it, open-web research reports `not-configured` and every run narrows to the county
+    // sources it already knew. A working system producing a thinner answer is the hardest gap to see.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('TAVILY_API_KEY');
+    expect(warnings).toContain('county sources only');
+  });
+
   it('flags browserbase configured without credentials', () => {
     const warnings = configWarnings({ BROWSER_BACKEND: 'browserbase' } as NodeJS.ProcessEnv);
     expect(warnings.join(' ')).toContain('browserbase');
@@ -213,6 +260,9 @@ describe('config warnings', () => {
       // looks like, so a new requirement belongs here — this is the contract widening, not a test
       // being loosened to accommodate a change.
       WORKER_API_KEY: 'worker-secret',
+      // Added 2026-08-27 with the open-web layer. A "complete" environment now includes the search
+      // key, because a run without it silently sees county sources only.
+      TAVILY_API_KEY: 'tvly-x',
     } as NodeJS.ProcessEnv)).toEqual([]);
   });
 });

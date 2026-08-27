@@ -226,5 +226,31 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
     warn.push('CAPTCHA_PROVIDER=capsolver but CAPSOLVER_API_KEY missing — solving fails the first time a portal asks');
   }
 
+  // ── PAID BUT UNUSED (added 2026-08-27) ────────────────────────────────────────────────────────
+  //
+  // The opposite failure to everything above: not a missing key, but a key that is present, valid,
+  // billing, and unreachable by any code path. That is invisible by construction — nothing errors,
+  // nothing degrades, and the only symptom is an invoice.
+  //
+  // Measured 2026-08-27 against Browserbase's own API: valid credentials, project created
+  // 2026-04-23, **zero sessions ever run**. Four months of paying for infrastructure the config
+  // forbids the code from touching. It takes TWO switches to enable, and both were off.
+  if (env.BROWSERBASE_API_KEY && env.BROWSERBASE_PROJECT_ID) {
+    const backend = (env.BROWSER_BACKEND ?? 'local').toLowerCase();
+    const adapters = (env.BROWSERBASE_ENABLED_ADAPTERS ?? '').trim();
+    if (backend !== 'browserbase') {
+      warn.push(`Browserbase credentials are set and billing, but BROWSER_BACKEND=${backend} — no session can ever start`);
+    } else if (!adapters) {
+      warn.push('BROWSER_BACKEND=browserbase but BROWSERBASE_ENABLED_ADAPTERS is empty — per-adapter gating routes nothing');
+    }
+  }
+
+  // Tavily drives open-web research (lib/research/open-web.ts). Absent, that whole layer reports
+  // `not-configured` and the pipeline silently narrows to the sources it already knows — which is a
+  // working system producing a thinner answer, the hardest kind of gap to notice.
+  if (!env.TAVILY_API_KEY) {
+    warn.push('TAVILY_API_KEY missing — open-web research is inert; runs see county sources only');
+  }
+
   return warn;
 }

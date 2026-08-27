@@ -574,7 +574,170 @@ conclusion would have been wrong for the right-looking reason.
 
 ---
 
-## 8. Owner-gated — nothing proceeds without these
+## 8. I — Browserbase and Tavily: measured, then planned
+
+Opened 2026-08-27 at the owner's request: *"make sure we can use BrowserBase and Tavily… explore all
+of the ways these things could be integrated."* Measured first, because both turned out to be in
+states nobody would have guessed.
+
+### I0 — What is actually true today ✅ MEASURED 2026-08-27
+
+| | Finding |
+|---|---|
+| **Browserbase key** | **Valid.** Their API returns the project — "Production project", created **2026-04-23** |
+| **Browserbase sessions ever run** | **ZERO.** Queried from their own API |
+| `BROWSER_BACKEND` | `local` — switch one, off |
+| `BROWSERBASE_ENABLED_ADAPTERS` | empty — switch two, off |
+| **`TAVILY_API_KEY`** | **EMPTY in `prd`, `dev` and `stg`.** Never configured anywhere |
+
+**Four months of paying for Browserbase, zero sessions.** Nothing errored, because nothing was
+wrong: valid credentials the config forbade the code from touching. The only symptom of that fault
+class is an invoice.
+
+**And Tavily has never had a key at all** — so "Method 9" in `boundary-fetch.service.ts` has always
+fallen through to `tryCountyCadPatterns()`, and the open-web layer built tonight (R1) reports
+`not-configured` and does nothing.
+
+### I1 — Both states now announce themselves ✅ SHIPPED 2026-08-27
+
+`configWarnings()` gained the inverse of everything else it checks. Every other warning is a missing
+key; these two are the opposite — **present, valid, billing, unreachable**:
+
+- Browserbase credentials set while `BROWSER_BACKEND` is not `browserbase` → *"set and billing, but
+  no session can ever start"*
+- `BROWSER_BACKEND=browserbase` with empty `BROWSERBASE_ENABLED_ADAPTERS` → routes nothing. **It
+  takes two switches, and fixing only the obvious one looks fixed while changing nothing.**
+- `TAVILY_API_KEY` absent → *"open-web research is inert; runs see county sources only"*
+
+Silent when Browserbase credentials are absent entirely — not owning it is a valid state, and
+warning about it would train people to ignore the list. 5 new tests; 24 in the file.
+
+### I2 — Turn Tavily on ☐ OWNER — 5 minutes, the highest-value item here
+
+Sign up at tavily.com, take the free tier (1,000 searches/month), set `TAVILY_API_KEY` in **Doppler
+`prd`**. That single variable activates the whole open-web layer shipped in R1: five search angles
+per property — owner encumbrances, permits and planning, news and disputes, plat history,
+environmental and utility — deduped, authority-ranked, and written into the run as an analyzable
+document the AI reasons over.
+
+**Cost check before spending:** at five angles per run, 1,000 searches is ~200 property researches a
+month. Free tier is very likely sufficient; measure before upgrading.
+
+### I3 — Where else Tavily earns its keep ☐ scoped, not built
+
+Explored per the owner's ask. Ordered by value, and honest about which are speculative:
+
+1. **Lead enrichment** *(business — strong)*. A quote request arrives with a name and an address.
+   The same five-angle search would tell the office whether it is a builder with twelve permits or a
+   homeowner with a fence dispute — before anyone rings back. `lib/leads/` already has the intake
+   surface; this is the open-web module pointed at a lead instead of a project.
+2. **Competitor and market watch** *(business — moderate)*. Which surveyors are named in Central
+   Texas planning agendas and news. Directly feeds the county-page work in M4.
+3. **County portal change detection** *(research — strong, pairs with self-healing)*. The research
+   platform already has `self-heal-*` modules for adapters that break when a portal changes. A
+   scheduled search for *"<county> clerk records portal new system"* would catch a migration
+   **announced** before it is **encountered** — the difference between a planned adapter update and
+   a failed run.
+4. **Learning content freshness** *(educational — moderate)*. The FS/SIT exam material cites the
+   NCEES handbook and Texas statutes. A periodic search for revisions would flag content that has
+   silently gone stale. Note the risk: exam content must not be auto-edited from search results —
+   this flags for human review, it does not rewrite.
+5. **Regulatory watch** *(business — moderate)*. TBPELS rule changes, county filing fee changes,
+   FEMA map revisions affecting elevation certificates.
+
+**Not recommended:** using it to answer customer-facing questions directly. Search results are
+unverified by construction, and this firm's product is a licensed professional's assurance.
+
+### I4 — Turn Browserbase on, deliberately ☐ needs the worker
+
+You are paying for it, so the question is no longer whether to cancel but **which adapters should use
+it**. The per-adapter gate exists precisely so this is a decision rather than a global switch.
+
+The honest sequencing, once netcup is up:
+
+1. Run research on the new box with `BROWSER_BACKEND=local`. **The netcup IP is brand new and has no
+   reputation** — it may work everywhere, or be blocked immediately. Nobody can know before it runs.
+2. When a specific portal blocks the datacentre IP, add **that adapter's id** to
+   `BROWSERBASE_ENABLED_ADAPTERS` and set `BROWSER_BACKEND=browserbase`.
+3. Never make it the global default. It bills per session, and most portals will not need it.
+
+**Do not enable it speculatively before the worker exists.** With no worker there is nothing to route,
+and turning both switches on now would only convert "paying for zero sessions" into "paying for zero
+sessions with the warnings silenced".
+
+### I5 — Browserbase beyond scraping ☐ scoped, not built
+
+1. **Design-walk screenshots at real viewports** *(platform — moderate)*. The design tooling drives a
+   local browser today; hosted browsers would give consistent rendering across machines.
+2. **Customer-facing portal capture** *(business — weak)*. Rendering a county portal page as evidence
+   in a report. Local Chromium does this fine — no reason to pay unless the portal blocks us.
+3. **Explicitly rejected: using it as "internet access for the AI".** It is a place to run a browser.
+   It finds nothing and reads nothing. That is Tavily's job, and conflating them is what made
+   Browserbase look like the important one.
+
+---
+
+## 9. F — Future work, tracked so it is not rediscovered
+
+Everything named this session that is real, not yet done, and not on the critical path.
+
+### F1 — Google ☐
+
+- **Four Ads conversion actions** and the CSV upload path — see §M1. Needs no developer token.
+- **Search Console**: resubmit the sitemap, request indexing on the five retitled pages, read
+  Performance → Queries — §M2.
+- **Business Profile**: address correction pending Google's review, plus photos, description,
+  services, reviews — §G. Owner-paused deliberately.
+- **`sameAs` URLs** for the structured data — §M3.
+- **Google Ads API Basic access**: developer token still Test. Only blocks the *automatic* upload
+  path; the CSV route works today.
+- **Places API on the Maps key**: admin address autocomplete may be silently failing — §M5. Do not
+  widen the key's API restriction unless the symptom is real.
+
+### F2 — Facebook / Meta ☐ NOTHING EXISTS TODAY
+
+Named by the owner 2026-08-27. Stated plainly so nobody assumes otherwise: **there is no Meta
+integration of any kind** — no pixel, no conversions API, no page, no catalogue. `platform` in
+`ad_spend_daily` is deliberately not a CHECK constraint precisely so Facebook spend can land in that
+table the day anyone runs an ad, without a migration.
+
+If it is ever wanted, the order that avoids wasted work:
+
+1. **A Facebook Page first.** It is also a `sameAs` entry (§M3) and a local-SEO signal, and it costs
+   nothing. Do this regardless of whether ads follow.
+2. **Meta Pixel** on the site — same shape as the existing `gtag` component, and it must go behind
+   the same production-hostname gate, or preview deploys pollute the ad account exactly as they
+   nearly did with Google.
+3. **Conversions API** only if ads actually run. The lead-to-cash spine built for Google
+   (`lead_lifecycle_events`) is platform-agnostic; a Meta sink would sit beside the Ads one.
+4. **Do not build 2 or 3 before 1.** A pixel with no page and no campaign collects data nobody reads
+   — the exact shape of the Browserbase finding above.
+
+### F3 — netcup ☐
+
+- **Order review** must clear → server IP + Server Control Panel credentials.
+- **W2**: point `worker.starr-surveying.com` at the new IP. One A record.
+- **W5**: the reboot test — `systemctl is-enabled docker`, reboot, then curl from your own machine.
+- **Fill `worker/.env`** from Doppler `prd`, so `WORKER_API_KEY` matches by construction rather than
+  by transcription.
+- **Confirm the VAT 0% and business details** on the account (§2) — €7.50/month.
+- **Cancel DigitalOcean** once the migration is proven; check for orphaned snapshots, volumes and
+  reserved IPs, which bill independently of the destroyed droplet.
+- **Watch the first month's invoice** against the €40.27 estimate; netcup bills in EUR and the card's
+  FX fee is real.
+
+### F4 — Bigger builds, deliberately not started ☐
+
+- **R3 multi-tenancy.** Verified 2026-08-27: `org_id` appears nowhere in `lib/research`,
+  `worker/src`, or the research API routes. Serving other firms is tenant scoping, per-firm quotas
+  and billing attribution — software, not servers. **Do not size hardware for it yet.**
+- **M4 county landing pages.** Largest unbuilt organic opportunity; choose the counties from real
+  Search Console data rather than guessing across 46.
+- **I3 items 1–5** above.
+
+---
+
+## 10. Owner-gated — nothing proceeds without these
 
 1. **netcup order review** clears → server IP + SCP credentials
 2. **DigitalOcean** balance settled, account closed
