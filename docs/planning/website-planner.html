@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Starr Surveying — Website Planner</title>
+<style>
+  /* ── Palette. Light is the base set; dark redefines only the tokens. ───────────────────────── */
+  :root{
+    --bg:#f4f6f9; --surface:#ffffff; --sunk:#eef1f6; --raised:#ffffff;
+    --ink:#111827; --ink-2:#4b5563; --ink-3:#8b94a3;
+    --rule:#dfe4ec; --rule-2:#c6cddb;
+    --accent:#2f5d8a; --accent-soft:#e8f0f8;
+    --done:#15704a; --done-soft:#e6f4ee;
+    --warn:#8a5a05; --danger:#a3161c; --danger-soft:#fdeced;
+    --shadow:0 1px 2px rgba(17,24,39,.05), 0 8px 24px -14px rgba(17,24,39,.18);
+    --radius:8px;
+  }
+  html[data-theme="dark"]{
+    --bg:#0d1117; --surface:#161b22; --sunk:#11161d; --raised:#1c232d;
+    --ink:#e6edf3; --ink-2:#9aa5b4; --ink-3:#6e7887;
+    --rule:#242c37; --rule-2:#333d4b;
+    --accent:#7aa7d4; --accent-soft:#1a2531;
+    --done:#4fc08d; --done-soft:#14251e;
+    --warn:#e0a542; --danger:#ff7377; --danger-soft:#2a1618;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px 120px}
+
+  /* ── Header ───────────────────────────────────────────────────────────────────────────────── */
+  header.top{
+    position:sticky; top:0; z-index:40; background:var(--bg);
+    border-bottom:1px solid var(--rule); padding:18px 0 14px; margin-bottom:24px;
+  }
+  .top-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  h1{font-size:1.3rem;margin:0;letter-spacing:-.02em;flex:1;min-width:200px}
+  .sub{color:var(--ink-3);font-size:.8rem;margin:4px 0 0}
+  .overall{
+    font-size:.8rem;color:var(--ink-2);background:var(--sunk);
+    border:1px solid var(--rule);border-radius:999px;padding:5px 12px;white-space:nowrap;
+  }
+
+  /* ── Buttons ──────────────────────────────────────────────────────────────────────────────── */
+  button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--rule-2);
+    background:var(--surface);color:var(--ink);padding:7px 12px;transition:background .12s,border-color .12s}
+  button:hover{background:var(--sunk)}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn-primary:hover{filter:brightness(1.08);background:var(--accent)}
+  .btn-sm{padding:4px 9px;font-size:.8rem}
+  .btn-ghost{background:transparent;border-color:transparent;color:var(--ink-3)}
+  .btn-ghost:hover{background:var(--sunk);color:var(--ink)}
+  .btn-danger{color:var(--danger);border-color:transparent;background:transparent}
+  .btn-danger:hover{background:var(--danger-soft)}
+
+  /* ── Topic card ───────────────────────────────────────────────────────────────────────────── */
+  .topic{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);
+    margin-bottom:12px;box-shadow:var(--shadow);overflow:hidden}
+  .topic-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;user-select:none}
+  .topic-head:hover{background:var(--sunk)}
+  .chev{color:var(--ink-3);transition:transform .18s;flex:none;font-size:.85rem}
+  .topic.open .chev{transform:rotate(90deg)}
+  .topic-title{font-weight:600;flex:1;letter-spacing:-.01em;outline:none;min-width:40px}
+  .topic-title:focus{background:var(--accent-soft);border-radius:4px;padding:0 4px}
+  .count{font-size:.78rem;color:var(--ink-2);background:var(--sunk);border:1px solid var(--rule);
+    border-radius:999px;padding:3px 10px;white-space:nowrap;flex:none}
+  .count.all-done{color:var(--done);background:var(--done-soft);border-color:transparent}
+  .topic-body{display:none;padding:0 16px 16px;border-top:1px solid var(--rule)}
+  .topic.open .topic-body{display:block}
+
+  .group-label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
+    margin:16px 0 8px;font-weight:600}
+
+  /* ── Todo ─────────────────────────────────────────────────────────────────────────────────── */
+  .todo{border:1px solid var(--rule);border-radius:6px;margin-bottom:8px;background:var(--raised)}
+  .todo-head{display:flex;align-items:flex-start;gap:10px;padding:10px 12px}
+  .todo-head .chev{margin-top:3px;cursor:pointer}
+  .cb{appearance:none;width:17px;height:17px;border:1.5px solid var(--rule-2);border-radius:4px;
+    margin:2px 0 0;flex:none;cursor:pointer;position:relative;background:var(--surface)}
+  .cb:checked{background:var(--done);border-color:var(--done)}
+  .cb:checked::after{content:"✓";color:#fff;font-size:12px;position:absolute;top:-2px;left:2px}
+  .todo-title{flex:1;outline:none;min-width:40px;cursor:pointer}
+  .todo-title:focus{background:var(--accent-soft);border-radius:4px;padding:0 4px;cursor:text}
+  .todo.done .todo-title{color:var(--ink-3);text-decoration:line-through}
+  .todo-actions{display:flex;gap:2px;flex:none;opacity:0;transition:opacity .12s}
+  .todo:hover .todo-actions,.todo.open .todo-actions{opacity:1}
+  .todo-body{display:none;padding:0 12px 12px 39px}
+  .todo.open .todo-body{display:block}
+
+  .toolbar{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center}
+  .toolbar .hint{font-size:.72rem;color:var(--ink-3);margin-left:auto}
+  .notes{border:1px solid var(--rule);border-radius:6px;background:var(--sunk);padding:11px 13px;
+    min-height:74px;outline:none;font-size:.93rem;color:var(--ink-2)}
+  .notes:focus{border-color:var(--accent);background:var(--surface)}
+  .notes ul{margin:6px 0;padding-left:22px}
+  .notes p{margin:0 0 8px}
+  .notes p:last-child{margin-bottom:0}
+  .notes strong{color:var(--ink)}
+  .notes:empty::before{content:"Notes and instructions…";color:var(--ink-3)}
+
+  .add-row{margin-top:12px}
+  .empty{color:var(--ink-3);font-size:.87rem;padding:6px 2px}
+
+  /* ── Modal ────────────────────────────────────────────────────────────────────────────────── */
+  .backdrop{position:fixed;inset:0;background:rgba(9,12,17,.55);display:none;
+    align-items:center;justify-content:center;z-index:100;padding:20px}
+  .backdrop.show{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--rule);border-radius:10px;
+    box-shadow:var(--shadow);max-width:430px;width:100%;padding:22px}
+  .modal h3{margin:0 0 8px;font-size:1.05rem}
+  .modal p{margin:0 0 18px;color:var(--ink-2);font-size:.92rem}
+  .modal-actions{display:flex;gap:8px;justify-content:flex-end}
+
+  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);
+    background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:.86rem;
+    opacity:0;transition:all .25s;z-index:200;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:560px){
+    .wrap{padding:0 12px 100px}
+    .todo-body{padding-left:14px}
+    .todo-actions{opacity:1}
+  }
+  @media print{header.top{position:static} .todo-actions,.add-row,button{display:none}
+    .topic-body,.todo-body{display:block !important}}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap" style="padding-bottom:0">
+  <div class="top-row">
+    <div style="flex:1;min-width:200px">
+      <h1>Website Planner</h1>
+      <p class="sub">Starr Surveying · everything to build, fix and check</p>
+    </div>
+    <span class="overall" id="overall">0/0 objectives completed</span>
+    <button class="btn-sm" id="themeBtn" title="Toggle light / dark">🌙 Dark</button>
+    <button class="btn-sm btn-primary" id="saveBtn" title="Download this page with your changes baked in">💾 Save</button>
+  </div>
+</div></header>
+
+<div class="wrap">
+  <div id="topics"></div>
+  <div class="add-row"><button id="addTopic">+ Add topic</button></div>
+</div>
+
+<div class="backdrop" id="backdrop"><div class="modal">
+  <h3 id="mTitle">Confirm</h3><p id="mBody">Are you sure?</p>
+  <div class="modal-actions">
+    <button id="mNo">Cancel</button>
+    <button class="btn-primary" id="mYes">Confirm</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script id="planner-data" type="application/json">
+{
+ "savedAt": "2026-08-27T21:47:03.079Z",
+ "topics": [
+  {
+   "id": "seed008",
+   "title": "Hub Customizer",
+   "open": true,
+   "todos": [
+    {
+     "id": "seed001",
+     "title": "Sort widgets into categories",
+     "notes": "<p>Declutter the screen and cut the time it takes to find a specific widget.</p><p><strong>Outcome:</strong> every widget belongs to exactly one category, and the hub opens showing categories rather than a wall of widgets.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed002",
+     "title": "Category boxes with drop-down widget lists",
+     "notes": "<p>Once widgets are sorted, each category is a box with a dropdown containing its widgets.</p><p><strong>Behaviour when a category is selected:</strong></p><ul><li>The other categories slide down out of the way</li><li>The selected category expands in place, filling the freed space</li><li>Its widgets display in a drop-down underneath itself</li></ul>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed003",
+     "title": "Search widgets by category tags, not one flat list",
+     "notes": "<p>Searching should not scan every widget across every category.</p><p><strong>Instead:</strong> each category carries the tags of its own widgets.</p><ul><li>Categories with no matching keyword or phrase are hidden entirely</li><li>Within a matching category, widgets whose tags do not match are also hidden</li><li>Only relevant categories and relevant widgets remain on screen</li></ul>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed004",
+     "title": "Auto-open categories that match a search",
+     "notes": "<p>A category surfaced by a search should already be open.</p><p>The user should not have to click into a category to see why it matched.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed005",
+     "title": "Fade widgets and categories in and out — never pop",
+     "notes": "<p>Keywords update in real time as the user types, so things are constantly appearing and disappearing.</p><p><strong>Requirement:</strong> a slight fade in / fade out on both widgets and categories.</p><p>Without it the screen looks like items are popping in and out of existence — jittery and cheap-looking.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed006",
+     "title": "Remember open/closed state across a search",
+     "notes": "<p>Category open/closed state must survive a search and be restored when the search is cleared.</p><p><strong>Worked example:</strong></p><ul><li>Categories 1 and 2 are open, Category 3 is closed</li><li>User searches; results narrow to Category 2 only</li><li>User deletes the search</li><li><strong>Expected:</strong> 1 and 2 are open again, 3 is still closed — exactly as before the search</li></ul>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed007",
+     "title": "Audit every widget for formatting and function",
+     "notes": "<p>Go through each widget individually.</p><ul><li>Is it formatted well?</li><li>Does it actually work?</li></ul><p><strong>We do not need broken widgets.</strong> A widget that looks fine and does nothing is worse than one that is obviously missing.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  },
+  {
+   "id": "seed016",
+   "title": "Dev Mode & Dev Tools",
+   "open": false,
+   "todos": [
+    {
+     "id": "seed009",
+     "title": "Restrict Dev Mode and Dev Tools to the Dev role",
+     "notes": "<p>Developer Mode and Developer Tools should be limited to — and only visible to — users holding the <strong>Dev role</strong>.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed010",
+     "title": "Dev Mode toggle in the top-right, beside the account icon",
+     "notes": "<p>A UI toggle visible only to Dev-role users.</p><p><strong>Placement:</strong> top right of the screen, immediately to the right of the user's account icon.</p><p>For Jacob Maddux the icon shows as a coloured circle reading <strong>JM</strong>; the Dev Mode toggle sits to the right of it.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed011",
+     "title": "Dev Mode persists across every page",
+     "notes": "<p>Once toggled active, Dev Mode stays active on every page of the site until it is toggled off.</p><p>Navigating should never silently drop out of Dev Mode.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed012",
+     "title": "Role Viewer — see the page as a given role sees it",
+     "notes": "<p>Dev Mode includes view modes that limit the page to what a selected role would see, <strong>excluding dev tools</strong>, for testing.</p><p>Each role is a toggleable box labelled with that role's name.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed013",
+     "title": "Multiple roles active at once in Role Viewer",
+     "notes": "<p>More than one role view must be active simultaneously.</p><p><strong>Worked example:</strong> a user who is both a Student and an Employee, holding both roles, should see everything a basic Employee sees <strong>and</strong> everything a basic Student sees, at the same time.</p><p>So for testing, role views combine rather than replace one another.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed014",
+     "title": "Search for roles in Role Viewer",
+     "notes": "<p>Depending on how many roles exist, the Role Viewer may need a search box to find a specific role.</p><p>Scope this once the final role count is known.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed015",
+     "title": "Anchor active role toggles near the Dev Mode switch",
+     "notes": "<p>In Role Viewer mode, the active/toggled role views stay visible on screen, anchored near the Dev Mode toggle.</p><p>The tester should always be able to see which roles they are currently viewing as.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  },
+  {
+   "id": "seed020",
+   "title": "Dev Page Design (drag & drop builder)",
+   "open": false,
+   "todos": [
+    {
+     "id": "seed017",
+     "title": "Elements preview their real appearance in the palette",
+     "notes": "<p>An element in the selection panel should look like what it will become on the page.</p><p><strong>Current behaviour:</strong> elements appear as rounded-corner rectangles, and only become the real element after being dragged and dropped.</p><p><strong>Wanted:</strong> a text box should show what a text box looks like <strong>before</strong> you select it — before you even attempt to drag it.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed018",
+     "title": "Shrink large elements to fit the palette preview",
+     "notes": "<p>If an element is large, scale it down in the selection table so it still conveys its general style and visuals.</p><p>The preview should stay recognisable rather than being cropped or replaced with a placeholder.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed019",
+     "title": "Highlight the target grid cells while dragging",
+     "notes": "<p>While an element is being dragged over the page grid, highlight the cells it would occupy if released at that moment.</p><p>This shows where the element will snap to before the user commits, giving much finer control over placement.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  },
+  {
+   "id": "seed023",
+   "title": "Jobs & Projects",
+   "open": false,
+   "todos": [
+    {
+     "id": "seed021",
+     "title": "Duplicate \"New Job\" buttons near the top right",
+     "notes": "<p>There are <strong>two</strong> 'New Job' buttons near the top right of the page.</p><p>Decide which one is canonical and remove the other.</p>",
+     "done": false,
+     "open": false
+    },
+    {
+     "id": "seed022",
+     "title": "Duplicate \"Import\" buttons near the top right",
+     "notes": "<p>There are also <strong>two</strong> 'Import' buttons near the top right.</p><p>Same treatment — keep one, remove the duplicate.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  },
+  {
+   "id": "seed025",
+   "title": "Receipts",
+   "open": false,
+   "todos": [
+    {
+     "id": "seed024",
+     "title": "Add the first item",
+     "notes": "<p>Placeholder — open this to-do and replace this note with what needs doing.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  },
+  {
+   "id": "seed027",
+   "title": "Jobs",
+   "open": false,
+   "todos": [
+    {
+     "id": "seed026",
+     "title": "Add the first item",
+     "notes": "<p>Placeholder — open this to-do and replace this note with what needs doing.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  },
+  {
+   "id": "seed029",
+   "title": "Hour Management",
+   "open": false,
+   "todos": [
+    {
+     "id": "seed028",
+     "title": "Add the first item",
+     "notes": "<p>Placeholder — open this to-do and replace this note with what needs doing.</p>",
+     "done": false,
+     "open": false
+    }
+   ]
+  }
+ ]
+}
+</script>
+
+<script>
+(function(){
+  "use strict";
+
+  // ── State ────────────────────────────────────────────────────────────────────────────────────
+  // Loaded from the embedded JSON above, then overlaid with localStorage if that is newer. Saving
+  // rewrites the embedded JSON and downloads the whole file, so the document IS the save format —
+  // no server, no export step, and the file you reopen is the file you saved.
+  var STORE_KEY = "starr-website-planner-v1";
+  var state = {topics:[]};
+
+  function uid(){ return "id" + Math.random().toString(36).slice(2,10); }
+
+  function load(){
+    var embedded = {topics:[]};
+    try { embedded = JSON.parse(document.getElementById("planner-data").textContent) || {topics:[]}; } catch(e){}
+    var local = null;
+    try { var raw = localStorage.getItem(STORE_KEY); if (raw) local = JSON.parse(raw); } catch(e){}
+    // localStorage wins when it is newer than the file, which is the common case mid-session.
+    if (local && local.savedAt && (!embedded.savedAt || local.savedAt > embedded.savedAt)) state = local;
+    else state = embedded;
+    if (!state.topics) state.topics = [];
+  }
+
+  function persist(){
+    state.savedAt = new Date().toISOString();
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){}
+  }
+
+  // ── Modal ────────────────────────────────────────────────────────────────────────────────────
+  var backdrop = document.getElementById("backdrop");
+  function ask(title, body, yesLabel){
+    return new Promise(function(resolve){
+      document.getElementById("mTitle").textContent = title;
+      document.getElementById("mBody").textContent = body;
+      document.getElementById("mYes").textContent = yesLabel || "Confirm";
+      backdrop.classList.add("show");
+      function done(v){ backdrop.classList.remove("show"); cleanup(); resolve(v); }
+      function onYes(){ done(true); } function onNo(){ done(false); }
+      function onKey(e){ if(e.key==="Escape") done(false); if(e.key==="Enter") done(true); }
+      function onBackdrop(e){ if(e.target===backdrop) done(false); }
+      function cleanup(){
+        document.getElementById("mYes").removeEventListener("click",onYes);
+        document.getElementById("mNo").removeEventListener("click",onNo);
+        document.removeEventListener("keydown",onKey);
+        backdrop.removeEventListener("click",onBackdrop);
+      }
+      document.getElementById("mYes").addEventListener("click",onYes);
+      document.getElementById("mNo").addEventListener("click",onNo);
+      document.addEventListener("keydown",onKey);
+      backdrop.addEventListener("click",onBackdrop);
+      document.getElementById("mYes").focus();
+    });
+  }
+
+  var toastEl = document.getElementById("toast"), toastT;
+  function toast(msg){
+    toastEl.textContent = msg; toastEl.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove("show"); }, 1900);
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────────────────────
+  var host = document.getElementById("topics");
+
+  function render(){
+    host.innerHTML = "";
+    var totalDone = 0, total = 0;
+
+    state.topics.forEach(function(topic){
+      var done = topic.todos.filter(function(t){return t.done;}).length;
+      totalDone += done; total += topic.todos.length;
+      host.appendChild(renderTopic(topic, done));
+    });
+
+    document.getElementById("overall").textContent =
+      totalDone + "/" + total + " objectives completed";
+    persist();
+  }
+
+  function renderTopic(topic, doneCount){
+    var el = document.createElement("section");
+    el.className = "topic" + (topic.open ? " open" : "");
+
+    var head = document.createElement("div");
+    head.className = "topic-head";
+    head.innerHTML = '<span class="chev">▶</span>';
+
+    var title = document.createElement("div");
+    title.className = "topic-title"; title.contentEditable = "true";
+    title.textContent = topic.title;
+    title.addEventListener("click", function(e){ e.stopPropagation(); });
+    title.addEventListener("blur", function(){ topic.title = title.textContent.trim() || "Untitled topic"; persist(); });
+    head.appendChild(title);
+
+    var count = document.createElement("span");
+    count.className = "count" + (topic.todos.length && doneCount === topic.todos.length ? " all-done" : "");
+    count.textContent = doneCount + "/" + topic.todos.length + " objectives completed";
+    head.appendChild(count);
+
+    var del = document.createElement("button");
+    del.className = "btn-sm btn-danger"; del.textContent = "Delete"; del.title = "Delete this topic";
+    del.addEventListener("click", function(e){
+      e.stopPropagation();
+      ask("Delete topic?", 'This removes "' + topic.title + '" and all ' + topic.todos.length +
+          " of its to-dos. This cannot be undone.", "Delete").then(function(ok){
+        if(!ok) return;
+        state.topics = state.topics.filter(function(t){return t !== topic;});
+        render(); toast("Topic deleted");
+      });
+    });
+    head.appendChild(del);
+
+    head.addEventListener("click", function(){ topic.open = !topic.open; render(); });
+    el.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "topic-body";
+
+    var open = topic.todos.filter(function(t){return !t.done;});
+    var closed = topic.todos.filter(function(t){return t.done;});
+
+    body.appendChild(groupLabel("To do — " + open.length));
+    if(!open.length) body.appendChild(emptyNote("Nothing outstanding here."));
+    open.forEach(function(t){ body.appendChild(renderTodo(t, topic)); });
+
+    body.appendChild(groupLabel("Completed — " + closed.length));
+    if(!closed.length) body.appendChild(emptyNote("Nothing completed yet."));
+    closed.forEach(function(t){ body.appendChild(renderTodo(t, topic)); });
+
+    var add = document.createElement("div");
+    add.className = "add-row";
+    var addBtn = document.createElement("button");
+    addBtn.className = "btn-sm"; addBtn.textContent = "+ Add to-do";
+    addBtn.addEventListener("click", function(){
+      topic.todos.push({id:uid(), title:"New to-do", notes:"", done:false, open:true});
+      topic.open = true; render();
+    });
+    add.appendChild(addBtn); body.appendChild(add);
+
+    el.appendChild(body);
+    return el;
+  }
+
+  function groupLabel(text){
+    var d = document.createElement("div"); d.className = "group-label"; d.textContent = text; return d;
+  }
+  function emptyNote(text){
+    var d = document.createElement("div"); d.className = "empty"; d.textContent = text; return d;
+  }
+
+  function renderTodo(todo, topic){
+    var el = document.createElement("div");
+    el.className = "todo" + (todo.open ? " open" : "") + (todo.done ? " done" : "");
+
+    var head = document.createElement("div"); head.className = "todo-head";
+
+    var chev = document.createElement("span");
+    chev.className = "chev"; chev.textContent = "▶";
+    chev.addEventListener("click", function(){ todo.open = !todo.open; render(); });
+    head.appendChild(chev);
+
+    // ── The checkbox is a REQUEST, not a state change ──────────────────────────────────────────
+    // It asks first and reverts itself if the answer is no, so an accidental click never silently
+    // moves work into Completed.
+    var cb = document.createElement("input");
+    cb.type = "checkbox"; cb.className = "cb"; cb.checked = !!todo.done;
+    cb.addEventListener("click", function(e){
+      e.stopPropagation();
+      var wantDone = cb.checked;
+      cb.checked = !!todo.done;                       // hold the old state until confirmed
+      if(wantDone){
+        ask("Mark as complete?", 'Is "' + todo.title + '" really done? It will move to Completed.',
+            "Yes, it's done").then(function(ok){
+          if(ok){ todo.done = true; todo.open = false; render(); toast("Moved to Completed"); }
+        });
+      } else {
+        ask("Move back to To do?", 'This returns "' + todo.title + '" to the outstanding list.',
+            "Move back").then(function(ok){
+          if(ok){ todo.done = false; render(); toast("Moved back to To do"); }
+        });
+      }
+    });
+    head.appendChild(cb);
+
+    var title = document.createElement("div");
+    title.className = "todo-title"; title.contentEditable = "true"; title.textContent = todo.title;
+    title.addEventListener("blur", function(){ todo.title = title.textContent.trim() || "Untitled"; persist(); render(); });
+    title.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); title.blur(); } });
+    head.appendChild(title);
+
+    var actions = document.createElement("div"); actions.className = "todo-actions";
+
+    var copy = document.createElement("button");
+    copy.className = "btn-sm btn-ghost"; copy.textContent = "Copy"; copy.title = "Copy this to-do";
+    copy.addEventListener("click", function(e){
+      e.stopPropagation();
+      var tmp = document.createElement("div"); tmp.innerHTML = todo.notes || "";
+      var text = todo.title + "\n" + (tmp.textContent || "").trim();
+      if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){ toast("Copied"); },
+                                                 function(){ fallbackCopy(text); });
+      } else fallbackCopy(text);
+    });
+    actions.appendChild(copy);
+
+    var del = document.createElement("button");
+    del.className = "btn-sm btn-danger"; del.textContent = "Delete";
+    del.addEventListener("click", function(e){
+      e.stopPropagation();
+      ask("Delete to-do?", '"' + todo.title + '" and its notes will be removed. This cannot be undone.',
+          "Delete").then(function(ok){
+        if(!ok) return;
+        topic.todos = topic.todos.filter(function(t){return t !== todo;});
+        render(); toast("To-do deleted");
+      });
+    });
+    actions.appendChild(del);
+    head.appendChild(actions);
+    el.appendChild(head);
+
+    var body = document.createElement("div"); body.className = "todo-body";
+
+    var bar = document.createElement("div"); bar.className = "toolbar";
+    bar.appendChild(fmtBtn("B", "bold", "Bold (Ctrl+B)", true));
+    bar.appendChild(fmtBtn("• List", "insertUnorderedList", "Bullet list"));
+    var hint = document.createElement("span");
+    hint.className = "hint"; hint.textContent = "Click to edit — saves as you type";
+    bar.appendChild(hint);
+    body.appendChild(bar);
+
+    var notes = document.createElement("div");
+    notes.className = "notes"; notes.contentEditable = "true";
+    notes.innerHTML = todo.notes || "";
+    notes.addEventListener("input", function(){ todo.notes = notes.innerHTML; persist(); });
+    notes.addEventListener("blur", function(){ todo.notes = notes.innerHTML; persist(); });
+    body.appendChild(notes);
+
+    function fmtBtn(label, cmd, title, bold){
+      var b = document.createElement("button");
+      b.className = "btn-sm"; b.textContent = label; b.title = title;
+      if(bold) b.style.fontWeight = "700";
+      b.addEventListener("mousedown", function(e){ e.preventDefault(); });  // keep the caret
+      b.addEventListener("click", function(){
+        notes.focus(); document.execCommand(cmd, false, null);
+        todo.notes = notes.innerHTML; persist();
+      });
+      return b;
+    }
+
+    el.appendChild(body);
+    return el;
+  }
+
+  function fallbackCopy(text){
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand("copy"); toast("Copied"); }catch(e){ toast("Copy failed"); }
+    document.body.removeChild(ta);
+  }
+
+  // ── Save: rewrite the embedded JSON and download the whole document ──────────────────────────
+  function save(){
+    persist();
+    var clone = document.documentElement.cloneNode(true);
+    var slot = clone.querySelector("#planner-data");
+    slot.textContent = "\n" + JSON.stringify(state, null, 1) + "\n";
+    // Strip transient UI state so the saved file opens clean.
+    var bd = clone.querySelector("#backdrop"); if(bd) bd.classList.remove("show");
+    var ts = clone.querySelector("#toast"); if(ts) ts.classList.remove("show");
+    var html = "<!DOCTYPE html>\n" + clone.outerHTML;
+    var blob = new Blob([html], {type:"text/html"});
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "website-planner.html";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+    toast("Saved — replace your local file with the download");
+  }
+
+  // ── Theme ────────────────────────────────────────────────────────────────────────────────────
+  var themeBtn = document.getElementById("themeBtn");
+  function applyTheme(t){
+    document.documentElement.setAttribute("data-theme", t);
+    themeBtn.textContent = t === "dark" ? "☀ Light" : "🌙 Dark";
+    try{ localStorage.setItem(STORE_KEY + "-theme", t); }catch(e){}
+  }
+  themeBtn.addEventListener("click", function(){
+    applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+  });
+
+  document.getElementById("saveBtn").addEventListener("click", save);
+  document.getElementById("addTopic").addEventListener("click", function(){
+    state.topics.push({id:uid(), title:"New topic", open:true, todos:[]});
+    render();
+    var titles = host.querySelectorAll(".topic-title");
+    if(titles.length){ var last = titles[titles.length-1]; last.focus();
+      var r = document.createRange(); r.selectNodeContents(last);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
+  });
+  document.addEventListener("keydown", function(e){
+    if((e.ctrlKey||e.metaKey) && e.key === "s"){ e.preventDefault(); save(); }
+  });
+
+  // ── Boot ─────────────────────────────────────────────────────────────────────────────────────
+  var savedTheme = "light";
+  try{ savedTheme = localStorage.getItem(STORE_KEY + "-theme") || "light"; }catch(e){}
+  applyTheme(savedTheme);
+  load();
+  render();
+})();
+</script>
+</body>
+</html>
