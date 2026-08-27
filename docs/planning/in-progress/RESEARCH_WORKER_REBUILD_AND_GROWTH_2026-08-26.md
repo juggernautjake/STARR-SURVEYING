@@ -137,11 +137,30 @@ Added to `worker-healthcheck-contract.test.ts`, which already exists for exactly
 written after a Dockerfile polled `/healthz` while the worker only served `/health`, a defect that
 hid in the gap between two test suites. 9 tests green.
 
-### W5 — `pm2 startup` / compose `restart: unless-stopped`
+### W5 — surviving a host reboot ✅ RUNBOOK FIXED 2026-08-26 (execution is server-gated)
 
-Compose already sets `restart: unless-stopped`. Whatever supervises it must survive a **host reboot** —
-the previous droplet's silent disappearance is consistent with something that never came back after a
-restart.
+Compose already sets `restart: unless-stopped` on both services. But that only helps if the **Docker
+daemon** starts at boot, and the runbook had no step that confirmed it — it installed Docker, ran
+`compose up -d`, and moved on.
+
+**That is the exact shape of the failure that killed the last worker.** Not a crash: a silent absence.
+Unreachable from 2026-08-02, noticed weeks later, entirely consistent with a stack that never came
+back after a host restart. A runbook that cannot demonstrate the machine returns is a runbook that
+reproduces it.
+
+Added §3.4 to `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md`: `systemctl is-enabled docker` (Docker's
+Ubuntu packages normally enable it — *normally* being the operative word, and cheap to confirm),
+then an actual reboot, then `curl https://worker.starr-surveying.com/health` **from your own machine**.
+
+That one command exercises the whole chain the app depends on — DNS, firewall, Caddy, certificate,
+container, and the daemon that had to start it. `docker ps` over SSH proves only that the container
+is up, which was never the part in doubt.
+
+Also documented the sharp edge: `unless-stopped` means exactly that. A container stopped by hand
+before a reboot stays stopped, by design.
+
+**Execution is server-gated** — the reboot test can only be run once netcup provisions. The runbook
+step is what was missing, and it is no longer missing.
 
 ### W6 — compose limits vs the new box ✅ DONE 2026-08-26 — but not the fix predicted
 
