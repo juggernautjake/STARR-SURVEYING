@@ -783,6 +783,33 @@ If it is ever wanted, the order that avoids wasted work:
   Search Console data rather than guessing across 46.
 - **I3 items 1–5** above.
 
+### F5 — 764 lines of orphaned pipeline ☐ found 2026-08-27, owner's call
+
+`lib/research/prioritized-pipeline.ts` (378 lines) and `lib/research/prioritized-pipeline.service.ts`
+(386 lines) — **two near-identical files, neither imported anywhere.** `runPrioritizedPipeline`,
+`sortByPriority` and `recommendNextResources` all have zero callers outside their own definitions.
+
+Verified with a control search first, because three "this is not wired" findings this session turned
+out to be a broken ripgrep flag rather than broken code. `analyzeProject` returns callers from the
+same query shape; these return only themselves.
+
+The module describes something genuinely useful — analysing resources in order of expected
+information richness, cross-validating each finding against the cumulative baseline, and detecting
+conflicts early rather than after low-value sources have been paid for. The live path
+(`analyzeProject`) does not work that way.
+
+**Three possible resolutions, and it is not mine to pick:**
+
+1. **Wire it up** — if the prioritisation is what the pipeline should do, this is most of the work
+   already written.
+2. **Delete it** — if `analyzeProject` superseded it, 764 lines of plausible, well-commented dead
+   code is worse than none, because the next person to read it cannot tell it never ran.
+3. **Merge the two files first regardless** — near-duplicates with no callers means nobody knows
+   which one was the real one, and that question gets harder every month.
+
+Not touched tonight. Deleting working-looking code at 4am on the strength of a grep is exactly how a
+real feature gets removed, and wiring an untested 764-line path into the analysis run is worse.
+
 ---
 
 ## 10. Owner-gated — nothing proceeds without these
