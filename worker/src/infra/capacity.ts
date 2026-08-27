@@ -28,6 +28,7 @@
 // load test. The hard ceiling stays low deliberately; per-host politeness is enforced separately
 // (plan R12), and this is the second wall behind it.
 
+import fs from 'node:fs';
 import os from 'node:os';
 
 /** RAM budget per concurrent pipeline, in bytes. See the header for where 2.5 GB comes from. */
@@ -58,8 +59,69 @@ export interface CapacityPlan {
   overridden: boolean;
 }
 
-export function readMachine(): MachineFacts {
-  return { cores: os.cpus().length || 1, totalMemoryBytes: os.totalmem() };
+// ── READING THE CONTAINER, NOT THE HOST ─────────────────────────────────────────────────────────
+//
+// `os.totalmem()` and `os.cpus()` report the MACHINE, and this worker runs in a container with a
+// memory cap. On the netcup RS 4000 that is a 32 GB host and a 26 GB container
+// (`docker-compose.yml`, `deploy.resources.limits.memory`), so the host reading is 6 GB too
+// generous — memory the worker is not allowed to touch.
+//
+// Today the arithmetic survives that by luck: min(byMemory 11, byCpu 8, ceiling 6) lands on the
+// ceiling, so the wrong memory figure never decides anything. The compose file already warns that
+// "this limit and that calculation must be moved together" — and the moment the ceiling rises, or
+// the box changes, the worker would start admitting runs sized against memory the cgroup will not
+// give it. That failure is an OOM kill at minute 22 of a 25-minute run, after the paid documents
+// have been bought, which is precisely the outcome this module's header says it exists to prevent.
+//
+// So the limit is read from the cgroup first and the host is the fallback. Both cgroup versions are
+// handled: v2 exposes `memory.max` (the string "max" when uncapped), v1 exposes
+// `memory.limit_in_bytes` (a sentinel near 2^63 when uncapped). Anything unreadable, unparseable or
+// larger than the host falls back to `os.totalmem()` — a container is never given more than the
+// machine has, so a larger number means we misread the file.
+
+/** cgroup v2, then v1. Null when there is no cap, no cgroup, or the value makes no sense. */
+function readCgroupMemoryLimit(readFile: (p: string) => string): number | null {
+  const candidates: Array<{ path: string; uncapped: (raw: string) => boolean }> = [
+    { path: '/sys/fs/cgroup/memory.max', uncapped: (raw) => raw === 'max' },
+    // v1's "no limit" is a huge sentinel rather than a word. Treat anything past a petabyte as that.
+    { path: '/sys/fs/cgroup/memory/memory.limit_in_bytes', uncapped: (raw) => Number(raw) > 1024 ** 5 },
+  ];
+
+  for (const { path, uncapped } of candidates) {
+    let raw: string;
+    try {
+      raw = readFile(path).trim();
+    } catch {
+      continue; // not this cgroup version, or not in a container at all
+    }
+    if (!raw || uncapped(raw)) continue;
+    const bytes = Number(raw);
+    if (!Number.isFinite(bytes) || bytes <= 0) continue;
+    return bytes;
+  }
+  return null;
+}
+
+/**
+ * What this process may actually use.
+ *
+ * `readFile` is injected so the cgroup branch is testable without a container — the whole point of
+ * this function is behaviour that only occurs somewhere the test suite does not run.
+ */
+export function readMachine(
+  readFile: (p: string) => string = (p) => fs.readFileSync(p, 'utf8'),
+  hostMemoryBytes: number = os.totalmem(),
+  hostCores: number = os.cpus().length || 1,
+): MachineFacts {
+  const cgroupLimit = readCgroupMemoryLimit(readFile);
+  const totalMemoryBytes =
+    cgroupLimit !== null && cgroupLimit < hostMemoryBytes ? cgroupLimit : hostMemoryBytes;
+
+  // CPU is deliberately left as the host count. The compose file sets no `cpus` limit, so the
+  // container may use all of them, and `os.cpus().length` is correct for that. If a CPU quota is
+  // ever added, this needs the same treatment via `cpu.max` — flagged rather than pre-built,
+  // because an untested reader for a limit nobody sets is how the memory bug got here.
+  return { cores: hostCores, totalMemoryBytes };
 }
 
 /** Pure. Given the machine and the environment, decide the concurrency. */

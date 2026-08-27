@@ -83,6 +83,43 @@ export interface FidlarConfig {
  *
  * `fidlar` is not in `PROVEN_VENDORS`, so nothing routes here and no user is affected. Treat this as
  * a work list for R38/R39, and prove a portal by driving it — not by reading this block.
+ *
+ * ── CONFIRMED AT THE DNS LEVEL, 2026-08-27 ──────────────────────────────────────────────────────
+ *
+ * The 2026-08-02 sweep reported these hosts "unreachable", which left room for the hopeful reading
+ * that the ROOT was closed while the `searchPath` below might still serve. It does not, and the
+ * reason is one layer lower than HTTP:
+ *
+ *     laredo.fidlar.com    no A, no AAAA, no CNAME
+ *     jasper.fidlar.com    no A, no AAAA, no CNAME
+ *     ava.fidlar.com       A 216.81.182.51, CNAME ava.wip.fidlar.com   ← exists
+ *
+ * **The hosts do not exist.** No path on them can work, so every `searchPath` in this block is
+ * unreachable by construction and no amount of URL-tinkering will fix it.
+ *
+ * ── AND THE LEAD THAT DOES EXIST ────────────────────────────────────────────────────────────────
+ *
+ * Fidlar is not dead — this adapter is aimed at a hostname pattern that was invented. The live shape
+ * is the AVA portal, and `adapters/clerk-registry.ts` has had it all along for one county:
+ *
+ *     ava.fidlar.com/TXGalveston/AvaWeb/   200   live
+ *     ava.fidlar.com/TXBrazoria/AvaWeb/    404   so it is NOT a per-county pattern either
+ *
+ * ── THE DISCOVERY IS DONE, AND THERE IS NO SET TO WIN ───────────────────────────────────────────
+ *
+ * All 13 counties in this block were probed against the AVA pattern on 2026-08-27, plus Brazoria:
+ * **14 of 14 returned 404.** Galveston is the only live Fidlar portal, and Galveston is not one of
+ * the 46 counties this firm serves — it is on the Gulf Coast, ~200 miles from Belton.
+ *
+ * So the appealing theory — "prove one vendor, convert a whole set of counties" — does not hold for
+ * Fidlar. There is no set. Proving it would buy exactly one county the firm does not work in.
+ *
+ * **R2b is deferred on that measurement**, not on difficulty. Re-running the probe answers it again
+ * in fifteen seconds if Fidlar ever stands up portals inside the service area.
+ *
+ * Anyone tempted to promote `fidlar` on the strength of that single 200: it is a landing page.
+ * Reachability is the cheap half of proof; the rule is drive it against a real county and return a
+ * real document.
  */
 export const FIDLAR_CONFIGS: Record<string, FidlarConfig> = {
   '48475': {  // Ward County

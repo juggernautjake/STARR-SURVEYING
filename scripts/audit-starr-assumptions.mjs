@@ -115,6 +115,23 @@ const CORRECT_FOREVER = [
   // Every other file in app/components/* that names the site is already here; this was the only one
   // missed, and it arrived after the list was written.
   { prefix: 'app/components/GoogleAdsScript', bucket: 'own-site', why: 'gates the firm’s own conversion tag to its own domain' },
+
+  // Added 2026-08-27, and it is the SAME misclassification as the two above — third time now, which
+  // is worth saying plainly rather than quietly appending: **the `tenant` fallthrough means every new
+  // own-website file joins the backlog by default**, and the count goes red weeks later for a reason
+  // that has nothing to do with tenant debt.
+  //
+  // `lib/seo/business.ts` is the firm's own identity, in one file, because it was being spelled
+  // differently in four places — the address on the map, the phone in the footer, the hours on
+  // /contact, and the domain in three variants, one of which did not resolve. Consolidating those is
+  // the opposite of tenant debt: it is the prerequisite for ever making them per-tenant, because you
+  // cannot parameterise a value that is written out by hand in four files.
+  //
+  // It sits beside app/about, app/contact and app/privacy, all long since listed. The structured
+  // data it emits describes THE DATA CONTROLLER — the same argument the privacy policy won on.
+  { prefix: 'lib/seo/business', bucket: 'own-site', why: 'the firm’s own NAP and identity, consolidated — what /about and /contact already render' },
+  { prefix: 'lib/seo/page-metadata', bucket: 'own-site', why: 'titles and canonicals for the firm’s own public website' },
+  { prefix: 'app/components/StructuredData', bucket: 'own-site', why: 'JSON-LD describing the firm’s own site to crawlers' },
   { prefix: 'app/dnd', bucket: 'vendor', why: 'a separate product, explicitly out of this audit’s scope' },
 
   // Added 2026-08-02. Andrew Ash's voice-over platform — a different person's business, hosted here

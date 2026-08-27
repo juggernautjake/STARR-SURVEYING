@@ -14,6 +14,29 @@
 //
 // TexasFile answered 200 and serves all 254 Texas counties, so falling through to it is strictly
 // better than reaching for a dead host.
+//
+// ── RE-PROBED 2026-08-27, AND THE FINDING HOLDS ────────────────────────────────────────────────
+//
+// Three weeks later, spot-checked rather than taken on trust — a dead site can come back, and a
+// stale "all dead" is as misleading as a stale "all fine":
+//
+//   laredo.fidlar.com / jasper.fidlar.com   still unreachable   (the adapter's own pattern)
+//   idocket.com/TX/Collin                   still 404
+//   deed.traviscountyclerk.org              still unreachable   (Henschen)
+//
+// BUT ONE LIVE FIDLAR PORTAL TURNED UP, and it is not the shape this adapter builds:
+//
+//   ava.fidlar.com/TXGalveston/AvaWeb/      200   ← live
+//   ava.fidlar.com/TXBrazoria/AvaWeb/       404   ← so it is NOT a universal pattern
+//   ava.fidlar.com/                         403   ← host alive, no root page
+//
+// So Fidlar is not uniformly dead; the ADAPTER is pointed at the wrong URL shape. `<county>.fidlar.com`
+// is fabricated. `ava.fidlar.com/TX<County>/AvaWeb/` is real for at least Galveston and not for
+// Brazoria, which means proving Fidlar is per-county URL discovery, not a pattern fix.
+//
+// Deliberately NOT promoted to PROVEN_VENDORS on the strength of this. A 200 from a landing page is
+// reachability, not proof: the rule is that an adapter must be DRIVEN against a real county and
+// return a real document. Pinging is the cheap half.
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';

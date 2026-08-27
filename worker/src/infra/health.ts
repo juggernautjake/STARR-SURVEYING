@@ -194,5 +194,63 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
   if ((env.BROWSER_BACKEND ?? 'local') === 'browserbase' && !(env.BROWSERBASE_API_KEY && env.BROWSERBASE_PROJECT_ID)) {
     warn.push('BROWSER_BACKEND=browserbase but its credentials are missing — callers fall back to local');
   }
+
+  // ── Added 2026-08-26 for the netcup rebuild (plan W1/W3) ──────────────────────────────────────
+  //
+  // Three settings that are each ACCEPTED at boot and only fail later, which is the worst shape a
+  // misconfiguration can take on a box that runs 25-minute jobs.
+
+  // W3. The worker authenticates callers with this. Absent, it starts perfectly and every request
+  // from the app is rejected — which presents as "the research worker is not answering", sends the
+  // operator to check DNS and firewalls, and is neither.
+  if (!env.WORKER_API_KEY) {
+    warn.push('WORKER_API_KEY missing — the worker will run but reject every call from the app, which looks like an outage');
+  }
+
+  // W1, and the reason this check exists at all. `resolveBackend()` honours STORAGE_BACKEND=r2
+  // whether or not the credentials are there; the failure surfaces at the FIRST UPLOAD, part-way
+  // through a run, after paid documents have already been bought. The previous host wrote artifacts
+  // to local disk and lost them when it was destroyed, so `r2` is now the configured default —
+  // which makes forgetting these keys a live risk rather than a theoretical one.
+  if ((env.STORAGE_BACKEND ?? 'local').toLowerCase() === 'r2') {
+    const missing = (['R2_ACCOUNT_ID', 'R2_BUCKET', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY'] as const)
+      .filter((k) => !env[k]);
+    if (missing.length) {
+      warn.push(`STORAGE_BACKEND=r2 but ${missing.join(', ')} missing — uploads will fail mid-run, not at boot`);
+    }
+  }
+
+  // Same shape: the provider is selected by name, and the key is only reached when a portal actually
+  // presents a captcha — typically minutes into a run against a county site.
+  if ((env.CAPTCHA_PROVIDER ?? 'stub').toLowerCase() === 'capsolver' && !env.CAPSOLVER_API_KEY) {
+    warn.push('CAPTCHA_PROVIDER=capsolver but CAPSOLVER_API_KEY missing — solving fails the first time a portal asks');
+  }
+
+  // ── PAID BUT UNUSED (added 2026-08-27) ────────────────────────────────────────────────────────
+  //
+  // The opposite failure to everything above: not a missing key, but a key that is present, valid,
+  // billing, and unreachable by any code path. That is invisible by construction — nothing errors,
+  // nothing degrades, and the only symptom is an invoice.
+  //
+  // Measured 2026-08-27 against Browserbase's own API: valid credentials, project created
+  // 2026-04-23, **zero sessions ever run**. Four months of paying for infrastructure the config
+  // forbids the code from touching. It takes TWO switches to enable, and both were off.
+  if (env.BROWSERBASE_API_KEY && env.BROWSERBASE_PROJECT_ID) {
+    const backend = (env.BROWSER_BACKEND ?? 'local').toLowerCase();
+    const adapters = (env.BROWSERBASE_ENABLED_ADAPTERS ?? '').trim();
+    if (backend !== 'browserbase') {
+      warn.push(`Browserbase credentials are set and billing, but BROWSER_BACKEND=${backend} — no session can ever start`);
+    } else if (!adapters) {
+      warn.push('BROWSER_BACKEND=browserbase but BROWSERBASE_ENABLED_ADAPTERS is empty — per-adapter gating routes nothing');
+    }
+  }
+
+  // Tavily drives open-web research (lib/research/open-web.ts). Absent, that whole layer reports
+  // `not-configured` and the pipeline silently narrows to the sources it already knows — which is a
+  // working system producing a thinner answer, the hardest kind of gap to notice.
+  if (!env.TAVILY_API_KEY) {
+    warn.push('TAVILY_API_KEY missing — open-web research is inert; runs see county sources only');
+  }
+
   return warn;
 }

@@ -169,7 +169,39 @@ The app verifies this itself: `/admin/research` shows a banner naming the exact 
 unreachable, credentials disagree, or running-but-cannot-open-a-browser — and stays quiet when the
 worker is healthy.
 
-### 3.4 Updating
+### 3.4 Prove it survives a reboot — before you need it to
+
+**Do not skip this, and do not reason about it.** The previous worker's defining failure was not a
+crash: it was being *silently absent*. Unreachable since 2026-08-02, noticed weeks later, and
+consistent with a stack that never came back after a host restart. Nothing in this runbook up to
+this point actually demonstrates that it would.
+
+`restart: unless-stopped` in `docker-compose.yml` only helps if the Docker daemon itself starts at
+boot. Docker's Ubuntu packages normally enable it — *normally* is the operative word, and this is
+cheap to confirm and expensive to assume:
+
+```bash
+systemctl is-enabled docker        # must print: enabled
+systemctl enable docker            # if it did not
+
+reboot
+```
+
+Then, from **your own machine** rather than the server:
+
+```bash
+curl -m 10 https://worker.starr-surveying.com/health
+```
+
+That single command tests the whole chain the app depends on — DNS, the firewall, Caddy, the
+certificate, the container, and the daemon that had to start it. Checking `docker ps` over SSH
+proves only that the container is up, which is the part that was never in doubt.
+
+> One caveat worth knowing: `unless-stopped` means exactly that. A container you stopped by hand
+> before rebooting stays stopped, deliberately. If you stop the worker to debug something, start it
+> again rather than rebooting and expecting Docker to.
+
+### 3.5 Updating
 
 ```bash
 cd /opt/starr && git pull

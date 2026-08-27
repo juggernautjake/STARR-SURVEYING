@@ -68,3 +68,47 @@ describe('the container probes something that exists', () => {
     expect(definedGetRoutes()).toContain('/health');
   });
 });
+
+// ── The config-warning chain, end to end across four files ──────────────────────────────────────
+//
+// `configWarnings()` in the worker computes them; `/healthz` puts them in the body; the app's route
+// probes it; `interpretWorkerProbe` carries them onto the verdict; `WorkerStatusBanner` renders
+// them. Five hops, three directories, two test suites.
+//
+// Every hop was traced by hand on 2026-08-26 and the chain was intact — which is exactly when a test
+// is worth writing, because nothing is currently red to tell you it broke. Drop any single hop and
+// the warnings are still computed, still correct, and invisible: the worker would go on saying
+// "STORAGE_BACKEND=r2 but R2_ACCESS_KEY_ID missing" into a void while an operator watched a run die
+// twenty minutes in.
+
+describe('config warnings survive the trip from the worker to the banner', () => {
+  const healthSrc = read('worker/src/infra/health.ts');
+  const statusSrc = read('lib/research/worker-status.ts');
+  const bannerSrc = read('app/admin/research/components/WorkerStatusBanner.tsx');
+
+  it('the worker computes them and puts them in the healthz body', () => {
+    expect(healthSrc).toContain('export function configWarnings');
+    expect(healthSrc).toMatch(/warnings:\s*input\.warnings/);
+    expect(indexSrc).toContain('configWarnings()');
+  });
+
+  it('the app carries them onto the verdict rather than dropping them', () => {
+    // `warnings: probe.body?.warnings ?? []` — the `?? []` matters: a worker too old to send the
+    // field must not crash the banner.
+    expect(statusSrc).toMatch(/warnings:\s*probe\.body\?\.warnings\s*\?\?\s*\[\]/);
+  });
+
+  it('the banner actually renders them', () => {
+    // The last hop, and the one where "computed, transported, and never shown" ends.
+    expect(bannerSrc).toMatch(/verdict\.warnings\.length/);
+    expect(bannerSrc).toMatch(/verdict\.warnings\.map/);
+  });
+
+  it('warns about the settings that fail mid-run rather than at boot', () => {
+    // Added 2026-08-26 (plan W1/W3). Each is accepted at startup and fails later, which is the
+    // costly shape: a run that dies at minute 22 has already bought paid documents.
+    expect(healthSrc).toContain('WORKER_API_KEY');
+    expect(healthSrc).toContain('STORAGE_BACKEND');
+    expect(healthSrc).toContain('R2_SECRET_ACCESS_KEY');
+  });
+});

@@ -151,6 +151,100 @@ describe('config warnings', () => {
     expect(warnings.join(' ')).toContain('SUPABASE_URL');
   });
 
+  // ── The three checks added for the netcup rebuild (plan W1/W3) ────────────────────────────────
+  //
+  // Each guards a setting that is ACCEPTED at boot and only fails later. That shape is the point: a
+  // worker that refuses to start is a five-minute fix; one that dies at minute 22 of a run has
+  // already spent money on documents it will not deliver.
+
+  it('flags a missing WORKER_API_KEY, because the symptom looks like an outage', () => {
+    // Without it the worker starts perfectly and rejects every call from the app — which reads as
+    // "the research worker is not answering" and sends an operator to check DNS and firewalls.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('WORKER_API_KEY');
+    expect(warnings).toContain('looks like an outage');
+  });
+
+  it('flags r2 storage with no credentials, naming each missing key', () => {
+    // `resolveBackend()` honours r2 whether or not the keys exist, so the failure lands at the first
+    // upload rather than at boot. r2 became the configured default after the previous host was
+    // destroyed with locally-stored artifacts on it — which makes this live, not theoretical.
+    const warnings = configWarnings({ STORAGE_BACKEND: 'r2' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('R2_ACCOUNT_ID');
+    expect(warnings).toContain('R2_SECRET_ACCESS_KEY');
+    expect(warnings).toContain('mid-run');
+  });
+
+  it('is quiet when the r2 credentials are all present', () => {
+    const warnings = configWarnings({
+      STORAGE_BACKEND: 'r2',
+      R2_ACCOUNT_ID: 'a', R2_BUCKET: 'b', R2_ACCESS_KEY_ID: 'c', R2_SECRET_ACCESS_KEY: 'd',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('STORAGE_BACKEND');
+  });
+
+  it('does not demand r2 credentials when the backend is local', () => {
+    const warnings = configWarnings({ STORAGE_BACKEND: 'local' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('R2_');
+  });
+
+  it('flags capsolver selected without its key', () => {
+    const warnings = configWarnings({ CAPTCHA_PROVIDER: 'capsolver' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('CAPSOLVER_API_KEY');
+  });
+
+  it('leaves the stub captcha provider alone', () => {
+    const warnings = configWarnings({ CAPTCHA_PROVIDER: 'stub' } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('CAPSOLVER');
+  });
+
+  // ── The opposite failure: paid, valid, and unreachable ────────────────────────────────────────
+  //
+  // Measured 2026-08-27 against Browserbase's own API — valid key, project created 2026-04-23,
+  // ZERO sessions ever run. Nothing errored for four months because nothing was wrong: the
+  // credentials were fine and the config forbade the code from using them. The only symptom of that
+  // class of fault is an invoice, so it has to be asserted.
+
+  it('flags browserbase paid for but switched off at the backend', () => {
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p', BROWSER_BACKEND: 'local',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('billing');
+    expect(warnings).toContain('no session can ever start');
+  });
+
+  it('flags the second switch too — backend on, but no adapter routed', () => {
+    // It takes TWO switches. Fixing only the obvious one leaves it just as unused, and looks fixed.
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p',
+      BROWSER_BACKEND: 'browserbase', BROWSERBASE_ENABLED_ADAPTERS: '',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('BROWSERBASE_ENABLED_ADAPTERS is empty');
+  });
+
+  it('is quiet when browserbase is genuinely in use', () => {
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p',
+      BROWSER_BACKEND: 'browserbase', BROWSERBASE_ENABLED_ADAPTERS: 'bell-clerk',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('billing');
+    expect(warnings).not.toContain('ENABLED_ADAPTERS');
+  });
+
+  it('says nothing about browserbase when no credentials exist', () => {
+    // Not owning it is a valid state, not a fault. Warning here would train people to ignore this list.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('billing');
+  });
+
+  it('flags a missing TAVILY_API_KEY, because the pipeline just gets quieter', () => {
+    // Without it, open-web research reports `not-configured` and every run narrows to the county
+    // sources it already knew. A working system producing a thinner answer is the hardest gap to see.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('TAVILY_API_KEY');
+    expect(warnings).toContain('county sources only');
+  });
+
   it('flags browserbase configured without credentials', () => {
     const warnings = configWarnings({ BROWSER_BACKEND: 'browserbase' } as NodeJS.ProcessEnv);
     expect(warnings.join(' ')).toContain('browserbase');
@@ -162,6 +256,13 @@ describe('config warnings', () => {
       SUPABASE_URL: 'https://x.supabase.co',
       SUPABASE_SERVICE_ROLE_KEY: 'k',
       REDIS_URL: 'redis://x',
+      // Added 2026-08-26 with the WORKER_API_KEY check. The fixture is what a COMPLETE environment
+      // looks like, so a new requirement belongs here — this is the contract widening, not a test
+      // being loosened to accommodate a change.
+      WORKER_API_KEY: 'worker-secret',
+      // Added 2026-08-27 with the open-web layer. A "complete" environment now includes the search
+      // key, because a run without it silently sees county sources only.
+      TAVILY_API_KEY: 'tvly-x',
     } as NodeJS.ProcessEnv)).toEqual([]);
   });
 });
