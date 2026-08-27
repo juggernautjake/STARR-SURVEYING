@@ -454,10 +454,33 @@ most values. **A blank from `vercel env pull` proves nothing.**
 ### S3 — Worth checking ☐
 
 **Mapbox** (one geocoding fallback, duplicating Google) · **ElevenLabs** (tutor read-aloud only;
-degrades to the free browser voice) · **Twilio** (wired and reachable, but a rented number bills
-monthly — check messages actually sent in 90 days) · **managed Redis** (falls back to
-`redis://localhost:6379`; runs free on the netcup box) · **iDocket** (registry marks it a real
-subscription, est. **$50–200/month**).
+degrades to the free browser voice) · **managed Redis** (falls back to `redis://localhost:6379`; runs
+free on the netcup box) · **iDocket** (registry marks it a real subscription, est. **$50–200/month**).
+
+> #### Twilio — measured 2026-08-27, and my earlier guess was wrong
+>
+> I wrote *"a rented number bills monthly whether or not it sends anything — check the console"*.
+> Checked:
+>
+> | | |
+> |---|---|
+> | Account status | **active** |
+> | **Phone numbers rented** | **ZERO** |
+> | Messages ever | at least 5 |
+> | Most recent | **30 Jan 2026** — seven months ago, and **undelivered** |
+>
+> **So there is no monthly rental to cancel.** An active Twilio account holding no numbers bills
+> essentially nothing, and the cost concern I raised does not exist.
+>
+> **But something worse is true instead: SMS cannot work.** Outbound messages need a `from` number
+> and the account owns none — which is exactly why the last attempt in January is marked
+> `undelivered`. The code path is fully wired and reachable (`lib/saas/notifications/sms.ts`, called
+> from the Stripe webhook, signup, the trial-ending cron and invites), and `TWILIO_PHONE_NUMBER` is
+> set in config, naming a number the account does not hold.
+>
+> **A feature that is wired, configured, reachable, and structurally incapable of succeeding** — and
+> it has been failing quietly for seven months. Owner decision: rent a number if SMS is wanted, or
+> remove the notification path so it stops pretending. Not a cost item; a correctness one.
 
 > Several of these — county vendors, ATTOM, Regrid, Tavily, CapSolver — serve deep research, which has
 > been offline since at least 2 August. Usage-based ones cost nothing while idle; **subscriptions have
