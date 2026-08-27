@@ -677,6 +677,54 @@ sessions with the warnings silenced".
 
 ---
 
+## 8b. The full suite, run properly at last — and what it caught
+
+**I merged to `main` twice tonight without running the full root suite.** Scoped runs and
+`npm run build` were green, so nothing looked wrong. The full suite says otherwise, and the lesson is
+already written down in this repo: *"module-singleton pollution only fails in the whole-suite run"* —
+and so do ratchets.
+
+`26,378 tests, 2 failing.` Both **pre-existing on `main`**, verified by checking out `main` and
+running them there. Neither was introduced by this branch.
+
+### The `starr-assumptions` ratchet — 176, ceiling 160
+
+Named `lib/seo/business.ts` (6×) and `lib/seo/page-metadata.ts` (8×) among the worst offenders. Those
+are mine, from tonight.
+
+**Investigated before touching the ceiling, per [[feedback_ratchet_tests_before_re_baselining]] — and
+it was a misclassification, not debt.** The `tenant` bucket is a **fallthrough**: any path matching
+nothing in `CORRECT_FOREVER` is counted as tenant debt, so *every new own-website file joins the
+backlog by default*. That is now the **third** time this exact fault has produced a red ratchet — the
+first two were `app/privacy` and `app/components/GoogleAdsScript` on 2026-08-12.
+
+`lib/seo/business.ts` is the firm's own identity consolidated into one file, precisely because it was
+being spelled differently in four places. **That is the opposite of tenant debt** — you cannot
+parameterise a value that is hand-written in four files, so consolidating it is the prerequisite for
+ever making it per-tenant. Added to `CORRECT_FOREVER` beside `app/about`, `app/contact` and
+`app/privacy`, which won the same argument.
+
+**Result: 176 → 162. The ceiling was not raised and no debt was paid down; a measurement was
+corrected.**
+
+### What remains: 162, and it is not mine ☐
+
+At `760bd418e` — the commit **before** my first merge — the ratchet already read **162**. So two
+references over the ceiling predate this session entirely. Worst remaining offenders are
+`app/api/admin/learn/seed/route.ts` (10×), the research deep-analyze route (10×) and
+`lib/research/prompts.ts` (7×) — genuine tenant surfaces, genuine debt.
+
+**Left red deliberately.** Two over is a real breach and paying it down badly at 4am would be worse
+than leaving it visible. It is not a regression from tonight and the number is now honest.
+
+### `composition-serving` — also pre-existing ☐
+
+A regex asserting a `try/catch` shape in `lib/design/composition-server.ts`. Untouched by this branch,
+failing identically on `main`. Not investigated — out of scope for this doc, recorded so it is not
+mistaken for fallout from the worker rebuild.
+
+---
+
 ## 9. F — Future work, tracked so it is not rediscovered
 
 Everything named this session that is real, not yet done, and not on the critical path.
