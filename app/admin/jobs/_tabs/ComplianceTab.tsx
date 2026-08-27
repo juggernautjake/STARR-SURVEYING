@@ -34,6 +34,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, CalendarClock, CheckCircle2, FileWarning, Plus, ShieldCheck } from 'lucide-react';
 import type { ComplianceItem, ComplianceSummary, UnrecordedObligation } from '@/lib/compliance/register';
 import { describeDeadline } from '@/lib/compliance/register';
+import RegulatoryWatchPanel from './RegulatoryWatchPanel';
 
 const STATE_STYLE: Record<string, { label: string; color: string; bg: string }> = {
   expired: { label: 'Expired', color: 'var(--color-error-text)', bg: 'var(--color-error-surface)' },
@@ -226,6 +227,9 @@ export default function ComplianceTab() {
           </div>
         </section>
       )}
+
+      {/* I3.5 — the register says what we hold; this asks whether the rule behind it moved. */}
+      <RegulatoryWatchPanel />
     </div>
   );
 }

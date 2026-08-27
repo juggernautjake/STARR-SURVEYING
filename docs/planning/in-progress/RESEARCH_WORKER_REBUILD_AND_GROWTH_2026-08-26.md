@@ -843,7 +843,7 @@ document the AI reasons over.
 **Cost check before spending:** at five angles per run, 1,000 searches is ~200 property researches a
 month. Free tier is very likely sufficient; measure before upgrading.
 
-### I3 — Where else Tavily earns its keep ◐ items 1 + 3 SHIPPED 2026-08-27; 2, 4, 5 still scoped
+### I3 — Where else Tavily earns its keep ◐ items 1, 3 + 5 SHIPPED 2026-08-27; 2 and 4 still scoped
 
 Explored per the owner's ask. Ordered by value, and honest about which are speculative:
 
@@ -937,8 +937,41 @@ Explored per the owner's ask. Ordered by value, and honest about which are specu
    NCEES handbook and Texas statutes. A periodic search for revisions would flag content that has
    silently gone stale. Note the risk: exam content must not be auto-edited from search results —
    this flags for human review, it does not rewrite.
-5. **Regulatory watch** *(business — moderate)*. TBPELS rule changes, county filing fee changes,
-   FEMA map revisions affecting elevation certificates.
+5. **Regulatory watch** *(business — moderate)*. ✅ **BUILT AND WIRED 2026-08-27.**
+
+   `lib/compliance/regulatory-watch.ts` + `GET /api/admin/compliance/regulatory-watch` + a **"Has a
+   rule changed?"** panel at the foot of the compliance tab (`/admin/jobs?tab=compliance`).
+
+   Three topics, each with its reason written into the UI: **TBPELS rules** (seal requirements, CE
+   hours, what a survey must show), **FEMA flood maps** (a revised panel changes the zone an
+   elevation certificate reports for the same parcel), and **county recording fees** (filing fees
+   appear on quotes; an increase nobody noticed comes out of the job, not the client).
+
+   **The register next door answers "are we current". It cannot answer "has the thing we are current
+   WITH moved"** — and none of those three send an email. They are published, and then they are in
+   force.
+
+   **This is the second consumer `announcement-watch.ts` was extracted for**, which settles the note
+   in that file's header about a generic layer over a single caller being debt. A test asserts
+   neither watch re-implements the classifier and neither builds its own Tavily request.
+
+   **What is genuinely different is one number.** Portal migrations go stale in two years because the
+   portal has already moved; a rule adopted in 2021 is still the rule, so `staleAfterYears` is 12 for
+   TBPELS and a demotion for age would throw away the answer. Pinned by a test.
+
+   **The false positive here is the CE industry.** Continuing-education providers sell courses *about*
+   rule changes, so their pages name the board, use every change word, and announce nothing — the
+   single most common hit for any query in this area. Demoted by host, never promoted. Board pages
+   merely *describing* the rules that exist are rejected too: "rules", "requirements", "licensing" is
+   what a board page says every day of its life.
+
+   Not trusted because 21 tests passed first run — mutation-checked. Removing the CE hosts, making
+   rules expire like portals, and dropping the alternate subject names each break tests.
+
+   **Read-only and admin-gated from the start.** `GET /api/admin/compliance` once answered any
+   signed-in account with the whole register of licences and insurance; a sibling that read more
+   loosely would be a hole beside a door somebody already shut. And nothing here writes to the
+   register — a search result must not change what the firm believes about its own licence.
 
 **Not recommended:** using it to answer customer-facing questions directly. Search results are
 unverified by construction, and this firm's product is a licensed professional's assurance.
