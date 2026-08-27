@@ -717,11 +717,23 @@ references over the ceiling predate this session entirely. Worst remaining offen
 **Left red deliberately.** Two over is a real breach and paying it down badly at 4am would be worse
 than leaving it visible. It is not a regression from tonight and the number is now honest.
 
-### `composition-serving` — also pre-existing ☐
+### `composition-serving` — pre-existing, diagnosed, ✅ FIXED 2026-08-27
 
-A regex asserting a `try/catch` shape in `lib/design/composition-server.ts`. Untouched by this branch,
-failing identically on `main`. Not investigated — out of scope for this doc, recorded so it is not
-mistaken for fallout from the worker rebuild.
+The assertion was `/\} catch \(err\) \{[\s\S]{0,240}return null;\s*\}/` — a **character distance**
+standing in for a behaviour. Measured: the gap is **244 characters against a 240 budget**.
+
+**The code is entirely correct.** The catch logs and returns null, and the `console.error` count is
+exactly 2 as the same test asserts. Somebody added a line of explanation inside the catch block, and
+a comment growing four characters turned the test red.
+
+Raising 240 to 300 was the quick fix and would have left the same trap armed one comment further out.
+The property worth protecting is not proximity — it is that the catch **swallows and returns rather
+than rethrowing**. The test now extracts the catch body and asserts exactly that, so the prose inside
+it can grow to any length. 17 tests green.
+
+**Both of the suite's two failures are now understood**: this one was the instrument, and the
+`starr-assumptions` breach is genuine pre-existing tenant debt, two references over, deliberately
+left visible.
 
 ---
 

@@ -39,7 +39,24 @@ describe('nothing about a composition may break a page', () => {
   it('and so does anything else at all', () => {
     // The catch is the point: a client that could not connect, a JSON parse, a shape nobody
     // predicted. `compositionFor` has exactly one way to fail, and it is "the page stays as it was".
-    expect(SERVER).toMatch(/\} catch \(err\) \{[\s\S]{0,240}return null;\s*\}/);
+    //
+    // ── REWRITTEN 2026-08-27: this asserted a CHARACTER DISTANCE and had gone red ────────────────
+    //
+    // It was `/\} catch \(err\) \{[\s\S]{0,240}return null;\s*\}/` — the catch and its `return null`
+    // within 240 characters of each other. The gap is now **244**, because somebody added a line of
+    // explanation inside the catch. The handler is exactly as correct as it was; a comment grew.
+    //
+    // Raising 240 to 300 would have been the quick fix and would have left the same trap armed, one
+    // comment further out. The property actually worth protecting is not proximity — it is that the
+    // catch swallows and returns rather than rethrowing. So that is what is asserted now, and the
+    // prose inside it can grow to any length.
+    const start = SERVER.indexOf('} catch (err) {');
+    expect(start, 'the catch-all handler is gone').toBeGreaterThan(-1);
+    const body = SERVER.slice(start, SERVER.indexOf('\n}', start));
+
+    expect(body, 'the catch must return null, not fall through').toContain('return null;');
+    expect(body, 'a rethrow here takes the whole page down with it').not.toMatch(/\bthrow\b/);
+
     // And every one of those is recorded, or a broken table would hide behind the fallback forever.
     expect((SERVER.match(/console\.error\('\[design\]/g) ?? []).length).toBe(2);
   });
