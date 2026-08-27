@@ -7,6 +7,7 @@ import './styles/forms.css';
 import LayoutShell from './components/LayoutShell';
 import { Suspense } from 'react';
 import AttributionCapture from './components/AttributionCapture';
+import StructuredData from './components/StructuredData';
 
 // ============================================================================
 // SITE METADATA - Controls social sharing previews and SEO
@@ -205,6 +206,9 @@ export default function RootLayout({ children }: RootLayoutProps): React.ReactEl
         {/* Preconnect for faster font loading */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+
+        {/* Who this business is, in the form a crawler reads rather than infers. See the component. */}
+        <StructuredData />
       </head>
       <body>
         {/* G1-1 — records the ad click on the FIRST page of the session, wherever that is. It lives in the

@@ -317,7 +317,7 @@ export default function SurveyCalculator() {
 
       if (response.ok) {
         const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
-        trackConversion(ref);
+        trackConversion(ref, 'quote_calculator');
         setSubmitSuccess(true);
       } else {
         throw new Error('Failed');

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import CountiesDropdown from '../components/CountiesDropdown';
 import { getDirectionsUrl, OFFICE_ADDRESS } from '../components/ServiceAreaMap';
+import { SERVICE_AREA_COUNTIES } from '@/lib/seo/business';
 
 // Import Service Area page styles
 import '../styles/ServiceArea.css';
@@ -26,55 +27,10 @@ interface CoverageCard {
 }
 
 export default function ServiceAreaPage(): React.ReactElement {
-  // Counties within ~150 mile radius of Belton (ALPHABETICALLY SORTED)
-  const counties: string[] = [
-    'Austin County',
-    'Bastrop County',
-    'Bell County',
-    'Bexar County',
-    'Bosque County',
-    'Brazos County',
-    'Brown County',
-    'Burnet County',
-    'Caldwell County',
-    'Comanche County',
-    'Comal County',
-    'Coryell County',
-    'Dallas County',
-    'Denton County',
-    'Ellis County',
-    'Erath County',
-    'Falls County',
-    'Fayette County',
-    'Fort Bend County',
-    'Freestone County',
-    'Grimes County',
-    'Guadalupe County',
-    'Hamilton County',
-    'Harris County',
-    'Hays County',
-    'Hill County',
-    'Johnson County',
-    'Lampasas County',
-    'Lee County',
-    'Leon County',
-    'Limestone County',
-    'Madison County',
-    'McLennan County',
-    'Milam County',
-    'Mills County',
-    'Montgomery County',
-    'Navarro County',
-    'Robertson County',
-    'San Jacinto County',
-    'San Saba County',
-    'Tarrant County',
-    'Travis County',
-    'Trinity County',
-    'Walker County',
-    'Waller County',
-    'Williamson County',
-  ];
+  // Counties within ~150 mile radius of Belton, from lib/seo/business.ts — the SAME array the
+  // JSON-LD publishes as `areaServed`, so the coverage a visitor reads on this page and the coverage
+  // Google is told about cannot drift apart.
+  const counties: string[] = SERVICE_AREA_COUNTIES;
 
   const coverageCards: CoverageCard[] = [
     { icon: '🏠', title: 'Residential', description: 'Home buyers, property owners, fence lines' },

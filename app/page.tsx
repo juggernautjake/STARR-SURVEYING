@@ -199,8 +199,8 @@ export default function HomePage(): React.ReactElement {
       !formData.phone ||
       !formData.propertyStreet ||
       !formData.propertyCity ||
-      !formData.propertyCounty ||
-      !formData.propertyNumber
+      // Property ID deliberately NOT required — see app/api/contact/route.ts.
+      !formData.propertyCounty
     ) {
       setFormState((prev) => ({
         ...prev,
@@ -237,7 +237,7 @@ export default function HomePage(): React.ReactElement {
       if (response.ok) {
         // Keyed by the server's reference number so a retry cannot count the same lead twice.
         const ref = await response.clone().json().then((j) => j?.reference).catch(() => undefined);
-        trackConversion(ref);
+        trackConversion(ref, 'home_page');
 
         setFormState((prev) => ({ ...prev, submitted: true, loading: false }));
         setFormData({
@@ -621,10 +621,11 @@ export default function HomePage(): React.ReactElement {
                   />
                 </div>
 
-                {/* Property ID - Required */}
+                {/* Property ID — OPTIONAL. The county parcel number, which most customers have to
+                    leave the page to look up. See the note in app/api/contact/route.ts. */}
                 <div className="home-contact__form-group">
-                  <label htmlFor="propertyNumber" className="home-contact__label home-contact__label--required">
-                    Property ID
+                  <label htmlFor="propertyNumber" className="home-contact__label">
+                    Property ID <span className="home-contact__optional">(optional)</span>
                   </label>
                   <input
                     type="text"
@@ -633,8 +634,7 @@ export default function HomePage(): React.ReactElement {
                     value={formData.propertyNumber}
                     onChange={handleInputChange}
                     className="home-contact__input"
-                    placeholder="CAD account or parcel number"
-                    required
+                    placeholder="CAD account or parcel number — if you know it"
                   />
                 </div>
 

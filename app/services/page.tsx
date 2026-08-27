@@ -1,14 +1,23 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/page-metadata';
 import Link from 'next/link';
 import PayInvoiceCTA from '../components/PayInvoiceCTA';
 
 // Import Services page styles
 import '../styles/Services.css';
 
-export const metadata: Metadata = {
-  title: 'Services | Starr Surveying',
-  description: 'Professional land surveying services including GPS/GNSS surveying, boundary surveys, construction staking, plats, and legal descriptions in Central Texas.',
-};
+// THE BRAND WAS IN HERE TWICE. This title was `'Services | Starr Surveying'`, and the root layout's
+// template appends ` | Starr Surveying` to whatever a page sets — so production served
+// `Services | Starr Surveying | Starr Surveying`. Verified live 2026-08-25.
+//
+// Not merely untidy: a title tag is truncated in results at roughly 60 characters, and this one spent
+// 18 of them saying the brand a second time instead of naming what the page sells.
+export const metadata: Metadata = pageMetadata({
+  title: 'Land Surveying Services',
+  description:
+    'Professional land surveying in Central Texas: boundary and topographic surveys, ALTA/NSPS land title surveys, construction staking, GPS/GNSS positioning, plats and legal descriptions.',
+  path: '/services',
+});
 
 interface Service {
   icon: string;
