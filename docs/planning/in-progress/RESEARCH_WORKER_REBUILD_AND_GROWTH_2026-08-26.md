@@ -881,6 +881,33 @@ If it is ever wanted, the order that avoids wasted work:
 4. **Do not build 2 or 3 before 1.** A pixel with no page and no campaign collects data nobody reads
    — the exact shape of the Browserbase finding above.
 
+### F2b — Stripe / taking payments ☐ OFF BY DESIGN, not broken
+
+Checked 2026-08-27 while auditing keys, and it needed care not to be misreported.
+
+`STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` **exist as names in Doppler `prd` with empty values**
+— length 0, against Anthropic's 108 and Supabase's 219. In isolation that reads as a broken payment
+integration on a business that invoices customers.
+
+**It is not.** `PAYMENTS_LIVE` does not exist at all, and `lib/payments/live.ts` gates on
+`env.PAYMENTS_LIVE === 'true'`. Payments are **switched off deliberately**, and empty Stripe
+credentials are exactly the consistent state for that. The `/pay` portal, the composer and the
+`customer_invoices` work are all built and waiting behind the gate.
+
+**To take payments, three things together — and none alone is sufficient:**
+
+1. Real `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` in Doppler `prd` (live keys, not test).
+2. `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` to match — same account, same mode. A live secret with a test
+   publishable key fails at the browser, after the customer has decided to pay.
+3. `PAYMENTS_LIVE=true`.
+
+Setting 1 and 2 without 3 changes nothing; setting 3 without 1 and 2 breaks the portal for real
+customers. That is presumably why the gate exists.
+
+> Sixth near-miss of the session. "Empty credentials for the payment processor" is a sentence that
+> would have had somebody out of bed, and the difference between *broken* and *deliberately off* was
+> one variable that is absent rather than present. **Absence carried the meaning.**
+
 ### F3 — netcup ☐
 
 - **Order review** must clear → server IP + Server Control Panel credentials.
