@@ -196,7 +196,7 @@ to `extracted`, which is the status written here.
 
 24 tests, `tsc` clean, production build exit 0.
 
-### R2 — County coverage: deeper, not wider ☐
+### R2 — County coverage ◐ R2a SHIPPED 2026-08-26 · R2b open
 
 Measured 2026-08-26:
 
@@ -204,16 +204,54 @@ Measured 2026-08-26:
 |---|---|
 | **BIS CAD portals** (`services/bis-cad.ts`) | **108 Texas counties** — Bell outward in rings |
 | CAD adapters wired (`services/property-discovery.ts`) | 6 — BIS, Tyler, TrueAutomation, HCAD, TAD, **GenericCAD fallback** |
-| Clerk/deed registry (`adapters/clerk-registry.ts`) | **21 counties** — iDocket, Kofile, Fidlar, Henschen, CountyFusion, eDoctec, Aumentum |
+| Clerk/deed routing (`services/clerk-registry.ts`) | **all 254** — 22 Kofile + specific vendors, TexasFile as the proven universal fallback |
 | Government data sources (`worker/src/sources/`) | 10 — FEMA, NRCS, RRC, TCEQ, TNRIS, TxDOT, USGS, Comptroller, GLO |
 | Deep county modules (`counties/`) | **1** — Bell, 7 dedicated scrapers + analyzers |
 
-**The gap is depth and deeds, not breadth.** Appraisal-district coverage is 108 counties; deed coverage
-is 21. A property in a county with CAD but no clerk adapter gets valuation and geometry but no chain of
-title — which for a surveyor is the half that matters.
+> ### ⚠ CORRECTED 2026-08-26 — "deed coverage is 21 counties" was WRONG
+>
+> That number came from `adapters/clerk-registry.ts`. **There are two clerk registries**, and the one
+> that decides behaviour is `services/clerk-registry.ts`, which I had not found.
+>
+> `getClerkSystem()` routes by FIPS through Kofile → eDoctec → USLandRecords → Aumentum → iDocMarket
+> → CountyFusion → Tyler → Henschen → iDocket → Fidlar, **and falls back to `texasfile`** — which is
+> in `PROVEN_VENDORS`. So **every Texas county routes to a working clerk system.** Deed coverage is
+> 254 counties, not 21.
+>
+> The third false premise this session, and mine. Recorded rather than edited away.
 
-Priority: extend the clerk registry toward the CAD footprint, starting with the counties the firm
-actually works (Bell, McLennan, Williamson, Coryell, Falls, Milam, Burnet, Lampasas).
+**So what is the real gap?** Two narrower things:
+
+1. **Unproven vendors are skipped.** `countyfusion`, `henschen`, `idocket` and `fidlar` each have
+   adapters and FIPS sets, but are absent from `PROVEN_VENDORS`, so their branches never fire and
+   those counties fall through to TexasFile. That is the vendor-proving rule working as designed —
+   but it means we pay TexasFile per document for counties whose native portal is already coded.
+   Proving one vendor converts a whole set of counties at once. **Highest-value R2 work.**
+2. **TexasFile is pay-per-document.** A universal fallback that always works and always costs is a
+   different thing from native coverage, and the funnel does not currently distinguish them.
+
+**R2a — the registry is now checked rather than trusted. SHIPPED 2026-08-26.**
+
+Every `baseUrl` in `adapters/clerk-registry.ts` was fetched. Of 11 URLs: 6 fine, **4 wrong**.
+
+- **Bell — the home county, marked `implemented`, annotated "Fully tested" — pointed at
+  `www.bellcountyclerk.org`, which does not resolve.** Bell research has never been broken by it,
+  because `counties/bell/scrapers/clerk-scraper.ts` hardcodes the real host and never reads this
+  table; 215 rows in `research_documents` came from `bell.tx.publicsearch.us` while the registry
+  named a dead host. Corrected, and now pinned by a test against the scraper.
+- Coryell (404), Collin (404), Travis (unreachable) — annotated with the verification date rather
+  than nulled, because "no URL" reads as "no online system", which is a different and wronger claim.
+- Fort Bend was `http://` and the server redirects to https anyway — a county records search
+  travelling in plaintext for no benefit. **Found by the new test, not by the sweep.**
+
+`clerk-registry-truthfulness.test.ts` keeps it honest offline: the Bell entry must name a host the
+Bell scraper actually uses, `implemented` requires a URL and a note, every URL must be https, and a
+known-dead URL must carry its annotation. Deliberately no network calls — a test that fetches county
+servers on every CI run is both flaky and exactly the load-test behaviour the worker's concurrency
+ceiling exists to avoid.
+
+**R2b — prove a vendor ☐ NEXT.** Pick `fidlar` or `idocket`, drive it against a real county, and add
+it to `PROVEN_VENDORS`. Converts a set of counties from paid fallback to native portal in one change.
 
 ### R3 — Multi-tenancy does not exist ☐
 

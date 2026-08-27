@@ -62,16 +62,27 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     county: 'Bell',
     system: 'kofile',
     status: 'implemented',
-    baseUrl: 'https://www.bellcountyclerk.org/PublicSearch',
-    notes: 'Primary test county. Kofile PublicSearch. Fully tested.',
+    // CORRECTED 2026-08-26. This said `https://www.bellcountyclerk.org/PublicSearch` and described
+    // itself as "Fully tested" — a host that does not resolve at all. Bell County research has
+    // never been broken by it, because `counties/bell/scrapers/clerk-scraper.ts` hardcodes the real
+    // host and never reads this entry; 215 documents in `research_documents` came from it.
+    //
+    // That is the danger of the whole file: a registry entry that is wrong AND unread looks exactly
+    // like one that is right, and the first county to actually depend on this table inherits the rot.
+    // `registry-matches-scrapers.test.ts` now pins this against the scraper.
+    baseUrl: 'https://bell.tx.publicsearch.us',
+    notes: 'Primary county. Kofile PublicSearch. URL verified live 2026-08-26 and pinned by test.',
   },
   {
     fips: '099',
     county: 'Coryell',
     system: 'kofile',
     status: 'stub',
+    // Verified 2026-08-26: this URL returns 404. Kept rather than nulled because the county clerk
+    // plainly exists — what is missing is the current address, and a null would read as "no online
+    // system", which is a different and wronger claim.
     baseUrl: 'https://www.coryellcounty.org/county-clerk',
-    notes: 'Kofile PublicSearch — same adapter as Bell, URL needs verification.',
+    notes: 'DEAD LINK — 404 as of 2026-08-26. Needs the current Coryell clerk URL before use.',
   },
   {
     fips: '281',
@@ -152,8 +163,8 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     status: 'stub',
     baseUrl: 'https://deed.traviscountyclerk.org',
     notes:
-      'Travis County Clerk uses a custom search portal. ' +
-      'May require Henschen adapter or custom scraper.',
+      'UNREACHABLE as of 2026-08-26 (connection failed). Travis uses a custom search portal; ' +
+      'may require a Henschen adapter or a custom scraper once the live URL is confirmed.',
   },
 
   // ── Williamson County ─────────────────────────────────────────────────────
@@ -183,7 +194,7 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     system: 'idocket',
     status: 'stub',
     baseUrl: 'https://idocket.com/TX/Collin',
-    notes: 'iDocket system. Adapter not yet built.',
+    notes: 'DEAD LINK — 404 as of 2026-08-26. iDocket adapter not built, and this URL needs re-checking first.',
   },
 
   // ── Fort Bend County (custom ccweb portal) ────────────────────────────────
@@ -192,7 +203,10 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
     county: 'Fort Bend',
     system: 'fort_bend_custom',
     status: 'stub',
-    baseUrl: 'http://ccweb.co.fort-bend.tx.us/',
+    // Was `http://`. Verified 2026-08-26: the server itself redirects to https, so the plaintext
+    // form only bought an extra round trip and a window in which a county records search travelled
+    // unencrypted. Naming the destination directly costs nothing.
+    baseUrl: 'https://ccweb.co.fort-bend.tx.us/',
     notes:
       'Fort Bend County uses a custom "ccweb" portal (NOT publicsearch.us, NOT Henschen). ' +
       'Records from 1838 to present: deeds, plats, mortgages, easements, liens. ' +
