@@ -1,7 +1,22 @@
 // app/admin/components/AddressAutocomplete.tsx — Address input with auto-suggest
+//
+// THE INTERESTING BEHAVIOUR HERE IS WHAT HAPPENS WHEN GOOGLE SAYS NO.
+//
+// Every failure in this component used to look identical to success-with-no-matches: clear the list,
+// render nothing, keep accepting keystrokes. A key Google refuses, a script that 404s, and a Maps
+// script already on the page without the Places library all produced the same blank space under the
+// input as simply typing an address Google has not indexed.
+//
+// That is why the planning doc could only record this as "may be broken". The component was
+// incapable of telling anyone which it was. It now says.
+//
+// The input stays fully usable in every one of those states — it is a text box first and an
+// autocomplete second, so a denied key degrades to typing, which is what people were doing anyway.
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { classifyPlacesStatus, scriptProvidesPlaces } from '@/lib/maps/places-status';
+import './AddressAutocomplete.css';
 
 interface AddressSuggestion {
   placeId: string;
@@ -46,6 +61,8 @@ export default function AddressAutocomplete({
   const [loading, setLoading] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
   const [apiAvailable, setApiAvailable] = useState(false);
+  /** A one-line explanation shown where the dropdown would be. Null when there is nothing to say. */
+  const [notice, setNotice] = useState<string | null>(null);
   const autocompleteService = useRef<google.maps.places.AutocompleteService | null>(null);
   const placesService = useRef<google.maps.places.PlacesService | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -56,7 +73,12 @@ export default function AddressAutocomplete({
   // Initialize Google Places services
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return;
+    if (!apiKey) {
+      // Not a fault on a deployment that never configured Maps — but the caller put an autocomplete
+      // here expecting suggestions, so say why there are none.
+      setNotice('Address suggestions are not configured. Type the address manually.');
+      return;
+    }
 
     // Check if Google Maps is already loaded
     if (typeof google !== 'undefined' && google.maps?.places) {
@@ -64,11 +86,13 @@ export default function AddressAutocomplete({
       return;
     }
 
-    // Load the Google Places library if not already present
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existingScript) {
-      // Script exists, wait for it to load
+    // Reuse a Maps script already on the page ONLY if it actually carries Places. Reusing one loaded
+    // without `libraries=places` — the ordinary way to load a map — leaves `google.maps.places`
+    // undefined forever, and this component waits on a load event that will never help it.
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src*="maps.googleapis.com"]');
+    if (existingScript && scriptProvidesPlaces(existingScript.getAttribute('src'))) {
       existingScript.addEventListener('load', initServices);
+      existingScript.addEventListener('error', reportScriptFailure);
       // It might already be loaded
       if (typeof google !== 'undefined' && google.maps?.places) {
         initServices();
@@ -81,7 +105,14 @@ export default function AddressAutocomplete({
     script.async = true;
     script.defer = true;
     script.addEventListener('load', initServices);
+    // Without this, a 404, a blocked request or an offline laptop is indistinguishable from a script
+    // that is merely still loading — forever.
+    script.addEventListener('error', reportScriptFailure);
     document.head.appendChild(script);
+
+    function reportScriptFailure() {
+      setNotice('Address suggestions could not load. Type the address manually.');
+    }
 
     function initServices() {
       try {
@@ -92,8 +123,10 @@ export default function AddressAutocomplete({
         }
         placesService.current = new google.maps.places.PlacesService(hiddenMapDiv.current);
         setApiAvailable(true);
+        setNotice(null);
       } catch {
-        // Google Maps API not available
+        // The script loaded and the constructors still failed — Places is not in this bundle.
+        reportScriptFailure();
       }
     }
   }, []);
@@ -133,7 +166,9 @@ export default function AddressAutocomplete({
 
     autocompleteService.current.getPlacePredictions(request, (predictions, status) => {
       setLoading(false);
-      if (status === google.maps.places.PlacesServiceStatus.OK && predictions) {
+      const outcome = classifyPlacesStatus(status);
+
+      if (outcome.kind === 'ok' && predictions) {
         setSuggestions(predictions.map(p => ({
           placeId: p.place_id,
           description: p.description,
@@ -142,9 +177,18 @@ export default function AddressAutocomplete({
         })));
         setShowSuggestions(true);
         setHighlightIdx(-1);
-      } else {
-        setSuggestions([]);
+        setNotice(null);
+        return;
       }
+
+      setSuggestions([]);
+      // `empty` carries no message on purpose — an address that has not matched YET is the normal
+      // state of a half-typed street, and warning about it would fire on nearly every keystroke.
+      setNotice(outcome.message);
+
+      // A denial is permanent for this page load. Stop querying rather than spending a request per
+      // keystroke on an answer that cannot change.
+      if (outcome.kind === 'denied') setApiAvailable(false);
     });
   }, [biasTexas]);
 
@@ -175,10 +219,14 @@ export default function AddressAutocomplete({
           fields: ['address_components', 'formatted_address'],
         },
         (place, status) => {
-          if (status === google.maps.places.PlacesServiceStatus.OK && place?.address_components) {
+          if (classifyPlacesStatus(status).kind === 'ok' && place?.address_components) {
             const details = parseAddressComponents(place.address_components);
             onSelect(details);
+            return;
           }
+          // The suggestion was picked but the lookup that fills city/county/state/zip failed. Those
+          // fields silently staying blank is how a job gets filed against the wrong county.
+          setNotice('Could not load the full address details. Check the city, county and ZIP below.');
         }
       );
     }
@@ -218,6 +266,9 @@ export default function AddressAutocomplete({
         aria-autocomplete="list"
         aria-controls="address-suggestions-list"
       />
+      {notice && !(showSuggestions && suggestions.length > 0) && (
+        <p className="address-autocomplete__notice" role="status">{notice}</p>
+      )}
       {showSuggestions && suggestions.length > 0 && (
         <ul
           id="address-suggestions-list"

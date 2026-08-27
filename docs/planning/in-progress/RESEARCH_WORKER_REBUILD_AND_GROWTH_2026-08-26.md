@@ -625,10 +625,46 @@ services that county needs, real project references — not one template with th
 - **Homepage has no self-canonical.** It is a client component whose only layout is the root, and a
   canonical there applies site-wide — the exact bug that once made every page a duplicate of the
   homepage. Low value, real risk; left alone deliberately.
-- **Admin address autocomplete may be broken.** `app/admin/components/AddressAutocomplete.tsx` uses
-  `google.maps.places` with a key restricted to **Maps JavaScript API only**. Places requests are
-  attributed to Places API. Symptom: no dropdown when typing an address. Do not widen the restriction
-  unless the symptom is real.
+- **Admin address autocomplete — ✅ SHIPPED 2026-08-27, and the finding was two bugs, not one.**
+
+  The open question was *"is the symptom real?"*, and the answer turned out to be that **the component
+  was structurally incapable of telling anyone.** `getPlacePredictions` reports every outcome through
+  one status string, and the old code handled all of them in a single `else` branch: clear the list,
+  render nothing. So `REQUEST_DENIED` — which is exactly what a Maps-JS-only key returns for a Places
+  request — produced **the identical screen** to typing a rural address Google has never indexed.
+  Neither the user nor this doc could distinguish them, which is why the item sat here as *"may be
+  broken"* rather than as a yes or a no.
+
+  Fixed without touching the key restriction, because the restriction may well be correct:
+  `lib/maps/places-status.ts` classifies the status into `ok` / `empty` / `denied` / `transient` /
+  `broken`, and the component shows a one-line notice where the dropdown would be. `empty` stays
+  silent on purpose — a half-typed street has not matched *yet*, and warning on every keystroke would
+  make the real warning unreadable. **The next person to type an address will be told which it is**,
+  and the input remains a plain text box throughout, so a denied key degrades to typing rather than to
+  a dead control.
+
+  Three smaller failures shared the same silence and are also closed: a script `error` was never
+  listened for (a 404 or a blocked request looked exactly like "still loading", forever); a
+  `getDetails` failure left city/county/state/zip **silently blank**, which is how a job gets filed
+  against the wrong county; and the component adopted *any* `maps.googleapis.com` script on the page,
+  including one loaded without `libraries=places` — the ordinary way to load a map — after which
+  `google.maps.places` stays undefined and it waits on a load event that can never help it.
+
+- **The same component was rendering unstyled on `/admin/research`** — found while fixing the above,
+  and independent of any API key. `.address-autocomplete__*` was defined in `AdminJobs.css`, which
+  `app/admin/jobs/layout.tsx` imports, so it **loads on `/admin/jobs` and nowhere else.** The
+  component has two callers, and the second is `app/admin/research/_tabs/ProjectsTab.tsx`. There, the
+  suggestion list was a bare bulleted `<ul>` in normal document flow — no positioning, no background,
+  no border — shoving the rest of the form down the page every time somebody typed three characters.
+  Nothing errored, so nothing reported it.
+
+  Moved to `app/admin/components/AddressAutocomplete.css`, imported by the component itself, so it
+  reaches every consumer including ones not written yet. **This is the third time a shared class has
+  been defined inside a route-scoped stylesheet in this repo** (see
+  [[feedback_route_scoped_css_swallows_fixes]]); a test now asserts every class the component renders
+  is defined beside it, and that no copy remains in `AdminJobs.css` to drift.
+
+  17 tests, `tsc` and `next lint` clean.
 - **One `research_documents.storage_url` returns 400** — see W1; probably a casualty, not a bug.
 - **Saturday hours stay unpublished.** `/contact` says "by appointment", which schema.org cannot
   express; stating times would send someone to a closed office.

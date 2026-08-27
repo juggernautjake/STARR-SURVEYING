@@ -1,0 +1,98 @@
+/* app/admin/components/AddressAutocomplete.css — styles that travel WITH the component
+ *
+ * These rules used to live in `AdminJobs.css`, which is imported by `app/admin/jobs/layout.tsx` and
+ * therefore loads on the /admin/jobs tree AND NOWHERE ELSE. The component has two callers:
+ *
+ *   app/admin/jobs/new/page.tsx           inside that tree — styled
+ *   app/admin/research/_tabs/ProjectsTab.tsx   NOT in that tree — rendered as a bare <ul>
+ *
+ * So on /admin/research the suggestion list was an unstyled bulleted list in the normal document
+ * flow: no absolute positioning, no background, no border, shoving the rest of the form down the
+ * page every time somebody typed three characters. Nothing errored, so nothing reported it.
+ *
+ * This is the third time a shared class has been defined inside a route-scoped stylesheet in this
+ * repo. The rule that prevents a fourth: A COMPONENT'S STYLES BELONG BESIDE THE COMPONENT. Imported
+ * here, they reach every consumer — including ones not written yet, which is the half that a
+ * per-route fix can never cover.
+ */
+
+.address-autocomplete {
+  position: relative;
+  width: 100%;
+}
+
+.address-autocomplete__list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: var(--border-normal);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.address-autocomplete__item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-bg-subtle);
+  transition: background 0.1s;
+}
+
+.address-autocomplete__item:last-child {
+  border-bottom: none;
+}
+
+.address-autocomplete__item:hover,
+.address-autocomplete__item--active {
+  background: var(--color-info-bg);
+}
+
+.address-autocomplete__main {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.address-autocomplete__secondary {
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.75rem;
+  color: var(--color-text-tertiary);
+}
+
+.address-autocomplete__loading {
+  padding: 0.6rem 0.75rem;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* The suggestion layer speaking up instead of going blank. Sits in the same place the dropdown
+ * would, so the answer appears exactly where the user is already looking for it. */
+.address-autocomplete__notice {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  margin: 2px 0 0;
+  padding: 0.55rem 0.75rem;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: var(--color-text-secondary, #4B5563);
+  background: var(--color-warning-bg, #FEF3C7);
+  border: 1px solid var(--color-warning-border, #FDE68A);
+  border-radius: 8px;
+}
