@@ -354,6 +354,70 @@ export function canonicalUrl(url: string): string {
 interface TavilyApiResult { title?: string; url?: string; content?: string; score?: number }
 interface TavilyApiResponse { results?: TavilyApiResult[] }
 
+/** What one Tavily call can come back as. Mirrors `OpenWebSkip` minus the reasons that are about
+ *  the SUBJECT rather than about the call. */
+export type TavilyOutcome =
+  | { ok: true; results: Array<Omit<OpenWebResult, 'angle'>> }
+  | { ok: false; reason: 'not-configured' | 'search-failed' };
+
+export interface TavilySearchOptions {
+  /** Injected so every caller is testable without a network or an API key. */
+  fetchImpl?: typeof fetch;
+  apiKey?: string;
+  timeoutMs?: number;
+  maxResults?: number;
+}
+
+/**
+ * One search. The primitive under both the five-angle property research and the county portal watch.
+ *
+ * Extracted rather than copied: a second Tavily call elsewhere in the codebase would have its own
+ * relevance floor, its own content trim and its own idea of what a failure is, and the two would
+ * drift within a month. The angle-shaped wrapper stays in `searchOpenWeb`; what is genuinely shared
+ * is the request, the floor, and the distinction between "no key" and "the call failed".
+ */
+export async function tavilySearch(query: string, opts: TavilySearchOptions = {}): Promise<TavilyOutcome> {
+  const apiKey = opts.apiKey ?? process.env.TAVILY_API_KEY;
+  if (!apiKey) return { ok: false, reason: 'not-configured' };
+
+  const doFetch = opts.fetchImpl ?? fetch;
+  try {
+    const res = await doFetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        search_depth: 'advanced',
+        include_answer: false,
+        include_raw_content: false,
+        max_results: opts.maxResults ?? MAX_RESULTS_PER_ANGLE,
+      }),
+      signal: AbortSignal.timeout(opts.timeoutMs ?? 20_000),
+    });
+    if (!res.ok) return { ok: false, reason: 'search-failed' };
+
+    const data = (await res.json()) as TavilyApiResponse;
+    return {
+      ok: true,
+      results: (data.results ?? [])
+        .filter((r) => r.url && (r.score ?? 0) >= MIN_SCORE)
+        .map((r) => ({
+          url: r.url!,
+          title: (r.title ?? '').trim() || r.url!,
+          // Trimmed because this is fed to a model alongside other results; whole pages would crowd
+          // out the findings that matter.
+          content: (r.content ?? '').slice(0, 1200),
+          score: r.score ?? 0,
+          authority: domainAuthority(r.url!),
+        })),
+    };
+  } catch {
+    // Includes the timeout. Distinct from 'not-configured' on purpose — see OpenWebSkip.
+    return { ok: false, reason: 'search-failed' };
+  }
+}
+
 export interface SearchOpenWebOptions {
   /** Injected so every rule above is testable without a network or an API key. */
   fetchImpl?: typeof fetch;
@@ -404,41 +468,13 @@ export async function searchOpenWeb(
 
   const settled = await Promise.all(
     queries.map(async (q): Promise<OpenWebAngleReport> => {
-      try {
-        const res = await doFetch('https://api.tavily.com/search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-          body: JSON.stringify({
-            api_key: apiKey,
-            query: q.query,
-            search_depth: 'advanced',
-            include_answer: false,
-            include_raw_content: false,
-            max_results: MAX_RESULTS_PER_ANGLE,
-          }),
-          signal: AbortSignal.timeout(timeoutMs),
-        });
-        if (!res.ok) return { angle: q.angle, query: q.query, results: [], skipped: 'search-failed' };
+      const outcome = await tavilySearch(q.query, { fetchImpl: doFetch, apiKey, timeoutMs });
+      if (!outcome.ok) return { angle: q.angle, query: q.query, results: [], skipped: outcome.reason };
 
-        const data = (await res.json()) as TavilyApiResponse;
-        const results: OpenWebResult[] = (data.results ?? [])
-          .filter((r) => r.url && (r.score ?? 0) >= MIN_SCORE)
-          .map((r) => ({
-            angle: q.angle,
-            url: r.url!,
-            title: (r.title ?? '').trim() || r.url!,
-            // Trimmed because this is fed to Claude alongside four other angles; whole pages would
-            // crowd out the findings that matter.
-            content: (r.content ?? '').slice(0, 1200),
-            score: r.score ?? 0,
-            authority: domainAuthority(r.url!),
-          }));
-
-        return { angle: q.angle, query: q.query, results, skipped: null };
-      } catch {
-        // Includes the timeout. Distinct from 'not-configured' on purpose — see OpenWebSkip.
-        return { angle: q.angle, query: q.query, results: [], skipped: 'search-failed' };
-      }
+      // The angle is stamped on here rather than inside the primitive: it is what this wrapper adds,
+      // and the portal watch has no angles at all.
+      const results: OpenWebResult[] = outcome.results.map((r) => ({ ...r, angle: q.angle }));
+      return { angle: q.angle, query: q.query, results, skipped: null };
     }),
   );
 

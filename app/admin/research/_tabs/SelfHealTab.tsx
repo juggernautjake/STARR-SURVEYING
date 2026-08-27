@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import PortalWatchPanel from './PortalWatchPanel';
 
 interface Settings {
   autoapply_enabled: boolean;
@@ -357,6 +358,11 @@ export default function SelfHealTab(): React.ReactElement {
           </div>
         )}
       </section>
+
+      {/* §I3.3 — the leading half of self-heal. Placed directly above the review queue because the
+          queue is where a BROKEN adapter lands, and this is the question you ask before it gets
+          there: has the county announced that it is moving? */}
+      <PortalWatchPanel />
 
       <section style={styles.card}>
         <div style={styles.proposalsHeader}>

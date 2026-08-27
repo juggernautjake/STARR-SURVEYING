@@ -843,7 +843,7 @@ document the AI reasons over.
 **Cost check before spending:** at five angles per run, 1,000 searches is ~200 property researches a
 month. Free tier is very likely sufficient; measure before upgrading.
 
-### I3 — Where else Tavily earns its keep ◐ item 1 SHIPPED 2026-08-27, 2–5 still scoped
+### I3 — Where else Tavily earns its keep ◐ items 1 + 3 SHIPPED 2026-08-27; 2, 4, 5 still scoped
 
 Explored per the owner's ask. Ordered by value, and honest about which are speculative:
 
@@ -887,11 +887,52 @@ Explored per the owner's ask. Ordered by value, and honest about which are specu
    `tsc` and `next lint` clean.
 2. **Competitor and market watch** *(business — moderate)*. Which surveyors are named in Central
    Texas planning agendas and news. Directly feeds the county-page work in M4.
-3. **County portal change detection** *(research — strong, pairs with self-healing)*. The research
-   platform already has `self-heal-*` modules for adapters that break when a portal changes. A
-   scheduled search for *"<county> clerk records portal new system"* would catch a migration
-   **announced** before it is **encountered** — the difference between a planned adapter update and
-   a failed run.
+3. **County portal change detection** *(research — strong)*. ✅ **BUILT AND WIRED 2026-08-27.**
+
+   `lib/research/portal-watch.ts` + `GET /api/admin/research/portal-watch` + a **Portal migration
+   watch** panel on `/admin/research` → Self-heal, directly above the review queue.
+
+   The sweep next door probes an adapter and tells you it **broke** — lagging by construction. This
+   asks the same question earlier: four searches per county (the clerk's own page, an effective-date
+   announcement, the commissioners' court agenda where the contract is approved months ahead, and —
+   when the incumbent vendor is known — a search for a switch *away* from it).
+
+   **The only hard problem here was false positives, and that is where the whole module lives.**
+   Searching *"<county> clerk records portal new system"* always returns something: the vendors sell
+   exactly this product so their marketing matches perfectly, every county has a generic records-search
+   page, and a 2019 announcement reads identically to last week's. A watcher that flags all of those
+   gets muted within a fortnight — which leaves us **worse off than having no watcher**, because now
+   there is an alert everyone has learned to skip.
+
+   So four rules, every one of them a way of saying no: the county must be **named**; **migration**
+   vocabulary must appear, not merely records-portal vocabulary (*"search records online"* is what a
+   portal says every day of its life); a **vendor's own domain is evidence of marketing**, demoted and
+   never promoted; and a **date must be present**, with old ones demoted. `likely` requires all four
+   plus an official source. Everything else is `possible` or `noise`, and **nothing here ever
+   concludes that a migration is happening** — the output is a ranked "worth ten minutes" list with
+   the triggering sentence quoted, because the judgement is a person's.
+
+   Verified by mutation rather than by the tests passing: gutting the vendor list, removing the stale
+   demotion, and dropping the date requirement each break tests (2, 1 and 3 respectively). Every rule
+   is load-bearing.
+
+   **Noise is counted and displayed**, not hidden — a panel showing only its hits is indistinguishable
+   from a panel whose search is broken, and *"nothing announced"* is only reassuring if you can see
+   that something was checked. `status` separates `not-configured` / `search-failed` / `searched`
+   for the same reason it does in §I3.1.
+
+   **On demand, one county at a time — deliberately not a cron.** Four searches × 254 counties is a
+   bill nobody approved, on a free tier, for a question that changes on the timescale of months. If it
+   is ever scheduled, the right trigger is not the calendar but **the sweep flagging an adapter
+   `degraded`**, at which point the watch has both a reason to run and a specific county to run against.
+
+   One refactor came with it: the Tavily request was extracted from `searchOpenWeb` into an exported
+   `tavilySearch` primitive that both callers share. A second copy would have grown its own relevance
+   floor, its own content trim and its own notion of failure, and drifted inside a month — a test
+   asserts `api.tavily.com` appears exactly once in the codebase. Behaviour-preserving: the full
+   research + leads suite (1,038 tests) passes unchanged.
+
+   29 tests, `tsc` and `next lint` clean.
 4. **Learning content freshness** *(educational — moderate)*. The FS/SIT exam material cites the
    NCEES handbook and Texas statutes. A periodic search for revisions would flag content that has
    silently gone stale. Note the risk: exam content must not be auto-edited from search results —
