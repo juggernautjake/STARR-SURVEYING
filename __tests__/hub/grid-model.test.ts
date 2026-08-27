@@ -121,8 +121,8 @@ describe('Slice 7 — gridRectToPixels', () => {
 });
 
 describe('Slice 7 — call-site imports go through grid-model', () => {
-  const ADD_WIDGET = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'lib', 'hub', 'components', 'AddWidgetModal.tsx'),
+  const MOBILE_EDITOR = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'lib', 'hub', 'components', 'MobileEditor.tsx'),
     'utf8',
   );
   const GRID_EDITOR = fs.readFileSync(
@@ -130,16 +130,17 @@ describe('Slice 7 — call-site imports go through grid-model', () => {
     'utf8',
   );
 
-  it('AddWidgetModal imports HUB_GRID_COLS and uses it in compactLayout', () => {
-    expect(ADD_WIDGET).toMatch(/import \{ HUB_GRID_COLS \} from '@\/lib\/hub\/grid-model';/);
-    expect(ADD_WIDGET).toMatch(/compactLayout\([\s\S]*?,\s*HUB_GRID_COLS\)/);
-    expect(ADD_WIDGET).not.toMatch(/compactLayout\([\s\S]*?,\s*8\)/);
+  it('MobileEditor takes the column count from grid-model, not from a literal', () => {
+    expect(MOBILE_EDITOR).toMatch(/import \{ HUB_GRID_COLS \} from '@\/lib\/hub\/grid-model';/);
+    expect(MOBILE_EDITOR).toMatch(/Math\.min\(HUB_GRID_COLS,/);
+    expect(MOBILE_EDITOR).not.toMatch(/Math\.min\(8,/);
   });
 
-  // The second LayoutTab assertion this block originally carried is
-  // gone -- Slice 17 deleted LayoutTab along with the SettingsPanel
-  // rail. The HUB_GRID_COLS constant is still wired through every
-  // surviving call site (AddWidgetModal + the GridEditor constants).
+  // This block has now been trimmed twice by deletions, and the pattern is worth naming: Slice 17
+  // removed LayoutTab with the SettingsPanel rail, and 2026-08-27 removed AddWidgetModal, which the
+  // hub overhaul had retired long before. Each time the CALL SITE went and the RULE stayed — the
+  // column count comes from grid-model, never from a literal 8 — so the assertion moves to whichever
+  // surfaces are still mounted rather than being dropped along with the file it happened to sit on.
 
   it('GridEditor re-exports its constants from grid-model (no magic 8 literal)', () => {
     expect(GRID_EDITOR).toMatch(/import \{ HUB_EDITOR_ROWS, HUB_GRID_COLS \} from '@\/lib\/hub\/grid-model';/);

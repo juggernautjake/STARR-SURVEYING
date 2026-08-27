@@ -23,7 +23,7 @@
 // general principle that an empty palette is indistinguishable from a product with no widgets; it
 // turned out to be the thing that found the bug on the first request.
 //
-// Confirming rather than assuming: `AddWidgetModal` and `GridEditor` are the only two consumers of
+// Confirming rather than assuming: `GridEditor` and `MobileEditor` are the only two consumers of
 // `allWidgets()` in the codebase, and both are client components. There has never been a
 // server-side reader.
 //

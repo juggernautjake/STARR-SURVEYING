@@ -5,6 +5,8 @@
 // that searching leaves you looking at a small number of boxes rather than eleven mostly-empty ones.
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 // Side-effect barrel — the registry is EMPTY without it, because every widget registers itself from
 // its own module and nothing else pulls those modules in. `widget-palette.client.ts` imports this
 // for the same reason and throws a named error if it is missing. Found by the control assertion
@@ -169,35 +171,59 @@ describe('role gating changes what the catalog even offers', () => {
   });
 });
 
-describe('the modal is wired to all of it', () => {
-  it('renders category boxes and no longer renders the filter tabs', async () => {
-    const { readFileSync } = await import('node:fs');
-    const { join } = await import('node:path');
-    const src = readFileSync(join(process.cwd(), 'lib/hub/components/AddWidgetModal.tsx'), 'utf8');
+describe('both mounted surfaces are wired to all of it', () => {
+  // Pointed at GridEditor and MobileEditor, not at AddWidgetModal.
+  //
+  // The first version of this block read AddWidgetModal — a component nothing mounts — and passed,
+  // which is exactly how the wrong surface got rebuilt. Asserting that a file imports a module says
+  // nothing about whether anyone reaches that file. Both files below are reached: GridEditor from
+  // HubCanvas, MobileEditor from EditMode.
+  const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
+  const grid = read('lib/hub/components/GridEditor.tsx');
+  const mobile = read('lib/hub/components/MobileEditor.tsx');
+  const canvas = read('lib/hub/components/HubCanvas.tsx');
 
-    expect(src).toContain('buildCategorySections');
-    expect(src).toContain('isCategoryOpen');
-    expect(src).toContain('toggleCategory');
-    expect(src).toContain('onSearchChanged');
-    expect(src).toContain('<CategoryBox');
-    expect(src).toContain('aria-expanded={open}');
-
-    // The tab row answered the same question as the boxes and could only ever show one category.
-    expect(src).not.toContain('tabsRowStyle');
-    expect(src).not.toContain('renderGrouped');
-    expect(src).not.toContain('renderFlat');
+  it('the desktop palette builds category sections and tracks disclosure', () => {
+    expect(grid).toContain('buildCategorySections');
+    expect(grid).toContain('isCategoryOpen');
+    expect(grid).toContain('toggleCategory');
+    expect(grid).toContain('onSearchChanged');
+    expect(grid).toContain('aria-expanded={catOpen}');
   });
 
-  it('the fade is real CSS, not just a class name on an element', () => {
-    // A className with no rule behind it is the shape of "authored but not wired", and would look
-    // exactly like a fade that silently does nothing.
-    const { readFileSync } = require('node:fs');
-    const { join } = require('node:path');
-    const src = readFileSync(join(process.cwd(), 'lib/hub/components/AddWidgetModal.tsx'), 'utf8');
+  it('the mobile sheet does the same, and finally has a search', () => {
+    expect(mobile).toContain('buildCategorySections');
+    expect(mobile).toContain('isCategoryOpen');
+    expect(mobile).toContain('onSearchChanged');
+    // It had no search field at all before this.
+    expect(mobile).toContain('hub-msheet__cat-search');
+  });
 
-    expect(src).toContain('className="hub-cat-reveal"');
-    expect(src).toContain('@keyframes hub-cat-fade');
-    expect(src).toMatch(/\.hub-cat-reveal\s*\{[^}]*animation/);
-    expect(src).toContain('prefers-reduced-motion');
+  it('neither shows a raw category slug to a user', () => {
+    // Mobile printed `def.category` under every row — users read "time-pay".
+    for (const [name, src] of [['grid', grid], ['mobile', mobile]] as const) {
+      expect(src, name).toContain('CATEGORY_LABELS');
+    }
+    expect(mobile).not.toContain('{def.category}');
+  });
+
+  it('the desktop palette is actually reachable — HubCanvas mounts GridEditor', () => {
+    // The assertion the first attempt was missing entirely.
+    expect(canvas).toContain('GridEditor');
+  });
+
+  it('the fade is real CSS on both, not just a class name', () => {
+    // A className with no rule behind it looks exactly like a fade that silently does nothing.
+    expect(grid).toContain('className="hub-cat-reveal"');
+    expect(grid).toContain('@keyframes hub-cat-fade');
+    expect(grid).toContain('prefers-reduced-motion');
+
+    expect(mobile).toContain('hub-cat-reveal');
+    // Mobile's rules live in the stylesheet it imports; GridEditor does not import that file and
+    // needs its own inline block. Same principle, different answer per component.
+    const css = read('lib/hub/components/MobileEditor.css');
+    expect(css).toContain('@keyframes hub-cat-fade');
+    expect(css).toContain('prefers-reduced-motion');
+    expect(mobile).toContain("import './MobileEditor.css'");
   });
 });

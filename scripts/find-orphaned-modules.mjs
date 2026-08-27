@@ -138,16 +138,14 @@ const KNOWN = new Map([
     'Plan §F5. 378 lines, zero callers. Near-duplicate of prioritized-pipeline.service.ts and nobody knows which was real. Owner-gated: wire, delete, or merge.'],
   ['lib/research/prioritized-pipeline.service.ts',
     'Plan §F5. 386 lines, zero callers. The other half of the same pair.'],
-  ['lib/hub/components/AddWidgetModal.tsx',
-    'Retired by Slice 2 of the hub overhaul — HubCanvas says so in its header. The live pickers are GridEditor and MobileEditor. Improved 2026-08-27 before that was noticed; kept as the better starting point if a catalog modal is ever remounted.'],
 ]);
 
-// The ceiling. 62 when this was written, and it may only go DOWN.
+// The ceiling. 62 when this was written, 61 after AddWidgetModal was deleted, and it may only go DOWN.
 //
-// Not an enumerated allowlist, because I investigated three of these and would be inventing notes
-// for the other 59. A count is the honest instrument: it stops the next one being added by accident
+// Not an enumerated allowlist, because I investigated three of these (one of which is now deleted) and would be inventing notes
+// for the other 58. A count is the honest instrument: it stops the next one being added by accident
 // without pretending to know what the existing ones are.
-const MAX_ORPHANS = 62;
+const MAX_ORPHANS = 61;
 
 const listOnly = process.argv.includes('--list');
 
