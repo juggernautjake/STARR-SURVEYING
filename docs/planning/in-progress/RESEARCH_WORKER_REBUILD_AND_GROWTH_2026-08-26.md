@@ -337,7 +337,7 @@ on (a stale "all dead" is as misleading as a stale "all fine", so it was checked
 | `ava.fidlar.com/TXGalveston/AvaWeb/` | **200 — live** |
 | `ava.fidlar.com/TXBrazoria/AvaWeb/` | 404 — so it is *not* a universal pattern |
 | `ava.fidlar.com/` | 403 — host alive, no root page |
-| `laredo.fidlar.com` (what the adapter builds) | unreachable |
+| `laredo.fidlar.com` (what the adapter builds) | **no A, AAAA or CNAME — the host does not exist** |
 
 So Fidlar is not uniformly dead — **the adapter is pointed at the wrong URL shape.** That reframes
 R2b from "drive the adapter" to "discover the real per-county URLs, then drive it". Galveston is the
