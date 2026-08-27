@@ -119,3 +119,121 @@ export function scoreEntry(widget: WidgetDefinition, term: string): number {
   if (category.includes(term)) return 20;
   return 0;
 }
+
+// ── Category-level search ───────────────────────────────────────────────────────────────────────
+//
+// H3 of HUB_CUSTOMIZER_2026-08-27.md: *"Searching should not scan every widget across every
+// category. Instead, each category carries the tags of its own widgets."*
+//
+// `filterCatalog` above answers a per-widget question and leaves grouping as a rendering detail.
+// That produces a flat list of survivors which the modal then buckets — so a category is only ever
+// as present as its widgets, and there is no way to express "this whole box is irrelevant, remove
+// it" separately from "these tiles inside it are irrelevant".
+//
+// The distinction matters because the two hide different amounts of screen. With 11 categories and
+// 55 widgets, a search matching three widgets should leave the user looking at ONE box, not eleven
+// boxes of which ten are empty.
+//
+// ── A CATEGORY'S TAGS ARE ITS WIDGETS' TAGS ─────────────────────────────────────────────────────
+//
+// Deliberately derived rather than declared. A hand-maintained tag list on each category is a second
+// source of truth that goes stale the first time somebody adds a widget and forgets it — and the
+// failure is silent, because a missing tag looks exactly like a search with no results.
+
+/** Everything searchable about one widget, lower-cased. The category name is included so searching
+ *  "cad" finds the CAD widgets even when none of them says "cad" in its own label. */
+export function widgetTags(widget: WidgetDefinition): string[] {
+  return [widget.id, widget.label, widget.description, widget.category]
+    .join(' ')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+
+/** The union of every tag carried by the widgets in a category. */
+export function categoryTags(widgets: readonly WidgetDefinition[]): Set<string> {
+  const out = new Set<string>();
+  for (const w of widgets) for (const t of widgetTags(w)) out.add(t);
+  return out;
+}
+
+/**
+ * Does a category carry this term at all?
+ *
+ * Prefix rather than exact match, because the user is typing and "equip" must find Equipment before
+ * they finish the word — the whole feature updates per keystroke.
+ */
+export function categoryMatches(tags: ReadonlySet<string>, term: string): boolean {
+  const t = term.trim().toLowerCase();
+  if (!t) return true;
+  // Multi-word queries: every word must appear somewhere in the category, in any order.
+  return t.split(/\s+/).every((word) => {
+    for (const tag of tags) if (tag.startsWith(word) || tag.includes(word)) return true;
+    return false;
+  });
+}
+
+export interface CategorySection {
+  category: WidgetCategory;
+  /** The widgets to render inside this box — already narrowed by the search. */
+  widgets: WidgetDefinition[];
+  /** True when the search surfaced this category. Drives H4's auto-open. */
+  matched: boolean;
+  /** How many widgets this category holds with no search applied. Shown on the closed box so a
+   *  collapsed category still says how much is inside it. */
+  total: number;
+}
+
+/** Render order. Fixed rather than alphabetical so the catalog does not reshuffle between visits. */
+export const CATEGORY_ORDER: WidgetCategory[] = [
+  'personal', 'work', 'time-pay', 'equipment',
+  'cad', 'research', 'learning', 'communication',
+  'office', 'financial', 'operational',
+];
+
+/**
+ * Build the category boxes for the catalog.
+ *
+ * Returns ONLY the categories that survive the search — H3's *"categories with no matching keyword
+ * or phrase are hidden entirely"*. Within a surviving category, widgets that do not match are
+ * dropped too, so a box opened by a search shows the reason it opened rather than everything it owns.
+ *
+ * A category matching on its own NAME keeps all of its widgets: searching "cad" means "show me the
+ * CAD things", not "show me CAD things whose description also says cad".
+ */
+export function buildCategorySections(
+  catalog: WidgetDefinition[],
+  options: Omit<CatalogFilterOptions, 'category' | 'search'> & { search?: string },
+): CategorySection[] {
+  const term = options.search?.trim().toLowerCase() ?? '';
+
+  // Role and bundle gating first, and independently of the search: a widget the user may not add
+  // must not be counted in a category's total, or a box advertises tiles that will never appear.
+  const permitted = filterCatalog(catalog, { ...options, search: '', category: 'all' });
+  const byCategory = groupByCategory(permitted);
+
+  const sections: CategorySection[] = [];
+
+  for (const category of CATEGORY_ORDER) {
+    const all = byCategory.get(category) ?? [];
+    if (all.length === 0) continue;
+
+    if (!term) {
+      sections.push({ category, widgets: all, matched: false, total: all.length });
+      continue;
+    }
+
+    const tags = categoryTags(all);
+    if (!categoryMatches(tags, term)) continue;
+
+    // The category name itself matching is a request for the whole box.
+    const nameHit = category.toLowerCase().includes(term);
+    const widgets = nameHit ? all : all.filter((w) => scoreEntry(w, term) > 0);
+
+    // The category matched on a tag that no individual widget scores on — a description word split
+    // across fields, say. Showing an empty box would be worse than showing the box's contents.
+    sections.push({ category, widgets: widgets.length > 0 ? widgets : all, matched: true, total: all.length });
+  }
+
+  return sections;
+}

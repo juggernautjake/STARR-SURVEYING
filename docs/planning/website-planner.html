@@ -4,131 +4,204 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Starr Surveying — Website Planner</title>
+<link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%231D3095"/><rect x="17" y="10" width="30" height="8" rx="3" fill="%23fff"/><rect x="12" y="15" width="40" height="39" rx="6" fill="%23fff"/><path d="M19 27h12M19 35h12M19 43h8" stroke="%231D3095" stroke-width="3.4" stroke-linecap="round"/><path d="M35 41.5l4.5 4.5L48 33" stroke="%2315803D" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'>
 <style>
   /* ── Palette. Light is the base set; dark redefines only the tokens. ───────────────────────── */
   :root{
     --bg:#f4f6f9; --surface:#ffffff; --sunk:#eef1f6; --raised:#ffffff;
-    --ink:#111827; --ink-2:#4b5563; --ink-3:#8b94a3;
-    --rule:#dfe4ec; --rule-2:#c6cddb;
-    --accent:#2f5d8a; --accent-soft:#e8f0f8;
-    --done:#15704a; --done-soft:#e6f4ee;
-    --warn:#8a5a05; --danger:#a3161c; --danger-soft:#fdeced;
-    --shadow:0 1px 2px rgba(17,24,39,.05), 0 8px 24px -14px rgba(17,24,39,.18);
-    --radius:8px;
+    --line:#dde3ec; --line-soft:#e9edf3;
+    --ink:#141922; --ink-2:#4a5567; --ink-3:#79839a;
+    --brand:#1d3095; --brand-ink:#ffffff; --brand-soft:#e8ecfb;
+    --todo:#7b8598; --todo-bg:#eef1f6;
+    --prog:#b45309; --prog-bg:#fdf1dc;
+    --done:#15803d; --done-bg:#e4f5ea;
+    --danger:#b42318; --danger-bg:#fdeceb;
+    --shadow:0 1px 2px rgba(16,24,40,.05), 0 6px 20px rgba(16,24,40,.06);
+    --shadow-lg:0 18px 50px rgba(16,24,40,.22);
   }
   html[data-theme="dark"]{
-    --bg:#0d1117; --surface:#161b22; --sunk:#11161d; --raised:#1c232d;
-    --ink:#e6edf3; --ink-2:#9aa5b4; --ink-3:#6e7887;
-    --rule:#242c37; --rule-2:#333d4b;
-    --accent:#7aa7d4; --accent-soft:#1a2531;
-    --done:#4fc08d; --done-soft:#14251e;
-    --warn:#e0a542; --danger:#ff7377; --danger-soft:#2a1618;
-    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -14px rgba(0,0,0,.7);
+    --bg:#0e1219; --surface:#161c26; --sunk:#111721; --raised:#1c2431;
+    --line:#2a3444; --line-soft:#212a37;
+    --ink:#e9edf4; --ink-2:#a7b2c4; --ink-3:#76839a;
+    --brand:#7b8cf0; --brand-ink:#0e1219; --brand-soft:#1e2740;
+    --todo:#8b95ab; --todo-bg:#1c2431;
+    --prog:#f0b45c; --prog-bg:#33270f;
+    --done:#5ed394; --done-bg:#0f2b1c;
+    --danger:#f5836f; --danger-bg:#33191a;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
+    --shadow-lg:0 18px 50px rgba(0,0,0,.6);
   }
+
   *{box-sizing:border-box}
   body{
     margin:0; background:var(--bg); color:var(--ink);
-    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font:15px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:920px;margin:0 auto;padding:0 20px 120px}
+  .wrap{max-width:1000px; margin:0 auto; padding:0 20px 80px}
 
-  /* ── Header ───────────────────────────────────────────────────────────────────────────────── */
-  header.top{
-    position:sticky; top:0; z-index:40; background:var(--bg);
-    border-bottom:1px solid var(--rule); padding:18px 0 14px; margin-bottom:24px;
-  }
-  .top-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  h1{font-size:1.3rem;margin:0;letter-spacing:-.02em;flex:1;min-width:200px}
-  .sub{color:var(--ink-3);font-size:.8rem;margin:4px 0 0}
-  .overall{
-    font-size:.8rem;color:var(--ink-2);background:var(--sunk);
-    border:1px solid var(--rule);border-radius:999px;padding:5px 12px;white-space:nowrap;
-  }
+  /* ── Header ─────────────────────────────────────────────────────────────────────────────────── */
+  .top{position:sticky; top:0; z-index:30; background:var(--surface);
+       border-bottom:1px solid var(--line); box-shadow:var(--shadow)}
+  .top-row{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:14px 0}
+  h1{margin:0; font-size:1.15rem; font-weight:700; letter-spacing:-.01em}
+  .sub{margin:2px 0 0; font-size:.8rem; color:var(--ink-3)}
+  .overall{font-size:.78rem; font-weight:600; color:var(--ink-2); background:var(--sunk);
+           border:1px solid var(--line); border-radius:99px; padding:5px 12px; white-space:nowrap;
+           font-variant-numeric:tabular-nums}
+  .btn-sm{font:inherit; font-size:.8rem; padding:7px 12px; border-radius:8px; cursor:pointer;
+          border:1px solid var(--line); background:var(--raised); color:var(--ink)}
+  .btn-sm:hover{border-color:var(--brand)}
+  .btn-primary{background:var(--brand); border-color:var(--brand); color:var(--brand-ink); font-weight:600}
+  .btn-primary:hover{filter:brightness(1.08)}
 
-  /* ── Buttons ──────────────────────────────────────────────────────────────────────────────── */
-  button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid var(--rule-2);
-    background:var(--surface);color:var(--ink);padding:7px 12px;transition:background .12s,border-color .12s}
-  button:hover{background:var(--sunk)}
-  button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff}
-  .btn-primary:hover{filter:brightness(1.08);background:var(--accent)}
-  .btn-sm{padding:4px 9px;font-size:.8rem}
-  .btn-ghost{background:transparent;border-color:transparent;color:var(--ink-3)}
-  .btn-ghost:hover{background:var(--sunk);color:var(--ink)}
-  .btn-danger{color:var(--danger);border-color:transparent;background:transparent}
-  .btn-danger:hover{background:var(--danger-soft)}
-
-  /* ── Topic card ───────────────────────────────────────────────────────────────────────────── */
-  .topic{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);
-    margin-bottom:12px;box-shadow:var(--shadow);overflow:hidden}
-  .topic-head{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;user-select:none}
+  /* ── Topic ──────────────────────────────────────────────────────────────────────────────────── */
+  .topic{background:var(--surface); border:1px solid var(--line); border-radius:12px;
+         margin-top:14px; box-shadow:var(--shadow); overflow:hidden}
+  .topic-head{display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer;
+              user-select:none}
   .topic-head:hover{background:var(--sunk)}
-  .chev{color:var(--ink-3);transition:transform .18s;flex:none;font-size:.85rem}
-  .topic.open .chev{transform:rotate(90deg)}
-  .topic-title{font-weight:600;flex:1;letter-spacing:-.01em;outline:none;min-width:40px}
-  .topic-title:focus{background:var(--accent-soft);border-radius:4px;padding:0 4px}
-  .count{font-size:.78rem;color:var(--ink-2);background:var(--sunk);border:1px solid var(--rule);
-    border-radius:999px;padding:3px 10px;white-space:nowrap;flex:none}
-  .count.all-done{color:var(--done);background:var(--done-soft);border-color:transparent}
-  .topic-body{display:none;padding:0 16px 16px;border-top:1px solid var(--rule)}
+  .caret{flex:0 0 auto; width:16px; color:var(--ink-3); transition:transform .18s ease; font-size:.8rem}
+  .topic.open .caret{transform:rotate(90deg)}
+  .topic-title{flex:1; min-width:0; font-weight:650; font-size:.98rem;
+               outline:none; border-radius:5px; padding:1px 3px}
+  .topic-title:focus{background:var(--brand-soft); box-shadow:0 0 0 2px var(--brand)}
+  .count{flex:0 0 auto; font-size:.74rem; color:var(--ink-2); background:var(--sunk);
+         border:1px solid var(--line); border-radius:99px; padding:3px 10px; white-space:nowrap;
+         font-variant-numeric:tabular-nums}
+  .topic-body{display:none; padding:0 16px 16px}
   .topic.open .topic-body{display:block}
 
-  .group-label{font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);
-    margin:16px 0 8px;font-weight:600}
+  /* ── Three lanes ────────────────────────────────────────────────────────────────────────────── */
+  .lane{margin-top:16px}
+  .lane-head{display:flex; align-items:center; gap:8px; margin-bottom:8px}
+  .lane-dot{width:9px; height:9px; border-radius:50%; flex:0 0 auto}
+  .lane-name{font-size:.7rem; font-weight:750; letter-spacing:.07em; text-transform:uppercase}
+  .lane-rule{flex:1; height:1px; background:var(--line-soft)}
+  .lane[data-state="not-started"] .lane-dot{background:var(--todo)}
+  .lane[data-state="not-started"] .lane-name{color:var(--todo)}
+  .lane[data-state="in-progress"] .lane-dot{background:var(--prog)}
+  .lane[data-state="in-progress"] .lane-name{color:var(--prog)}
+  .lane[data-state="completed"] .lane-dot{background:var(--done)}
+  .lane[data-state="completed"] .lane-name{color:var(--done)}
+  .lane-empty{font-size:.8rem; color:var(--ink-3); font-style:italic; padding:2px 2px 4px}
 
-  /* ── Todo ─────────────────────────────────────────────────────────────────────────────────── */
-  .todo{border:1px solid var(--rule);border-radius:6px;margin-bottom:8px;background:var(--raised)}
-  .todo-head{display:flex;align-items:flex-start;gap:10px;padding:10px 12px}
-  .todo-head .chev{margin-top:3px;cursor:pointer}
-  .cb{appearance:none;width:17px;height:17px;border:1.5px solid var(--rule-2);border-radius:4px;
-    margin:2px 0 0;flex:none;cursor:pointer;position:relative;background:var(--surface)}
-  .cb:checked{background:var(--done);border-color:var(--done)}
-  .cb:checked::after{content:"✓";color:#fff;font-size:12px;position:absolute;top:-2px;left:2px}
-  .todo-title{flex:1;outline:none;min-width:40px;cursor:pointer}
-  .todo-title:focus{background:var(--accent-soft);border-radius:4px;padding:0 4px;cursor:text}
-  .todo.done .todo-title{color:var(--ink-3);text-decoration:line-through}
-  .todo-actions{display:flex;gap:2px;flex:none;opacity:0;transition:opacity .12s}
-  .todo:hover .todo-actions,.todo.open .todo-actions{opacity:1}
-  .todo-body{display:none;padding:0 12px 12px 39px}
+  /* ── To-do ──────────────────────────────────────────────────────────────────────────────────── */
+  .todo{border:1px solid var(--line); border-radius:10px; background:var(--raised); margin-bottom:8px;
+        overflow:hidden; animation:fade .18s ease}
+  .lane[data-state="in-progress"] .todo{border-left:3px solid var(--prog)}
+  .lane[data-state="completed"] .todo{border-left:3px solid var(--done)}
+  @keyframes fade{from{opacity:0; transform:translateY(-2px)} to{opacity:1; transform:none}}
+  .todo-head{display:flex; align-items:center; gap:10px; padding:10px 12px; flex-wrap:wrap}
+  .todo-caret{flex:0 0 auto; width:14px; color:var(--ink-3); cursor:pointer; font-size:.75rem;
+              transition:transform .18s ease}
+  .todo.open .todo-caret{transform:rotate(90deg)}
+  .todo-title{flex:1; min-width:160px; font-size:.9rem; font-weight:550;
+              outline:none; border-radius:5px; padding:1px 3px}
+  .todo-title:focus{background:var(--brand-soft); box-shadow:0 0 0 2px var(--brand)}
+  .todo[data-state="completed"] .todo-title{color:var(--ink-3); text-decoration:line-through}
+  .pill-imgs{flex:0 0 auto; font-size:.68rem; color:var(--ink-3); background:var(--sunk);
+             border:1px solid var(--line); border-radius:99px; padding:2px 8px; white-space:nowrap}
+
+  /* State chooser — three explicit choices, not a checkbox with a hidden middle. */
+  .states{display:flex; gap:4px; flex:0 0 auto}
+  .state-btn{font:inherit; font-size:.68rem; font-weight:650; letter-spacing:.02em; cursor:pointer;
+             border:1px solid var(--line); background:transparent; color:var(--ink-3);
+             border-radius:99px; padding:3px 9px; white-space:nowrap; transition:all .15s ease}
+  .state-btn:hover{border-color:var(--ink-3); color:var(--ink-2)}
+  .state-btn[aria-pressed="true"][data-s="not-started"]{background:var(--todo-bg); border-color:var(--todo); color:var(--todo)}
+  .state-btn[aria-pressed="true"][data-s="in-progress"]{background:var(--prog-bg); border-color:var(--prog); color:var(--prog)}
+  .state-btn[aria-pressed="true"][data-s="completed"]{background:var(--done-bg); border-color:var(--done); color:var(--done)}
+
+  .todo-body{display:none; padding:0 12px 12px 36px}
   .todo.open .todo-body{display:block}
+  .tools{display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px}
+  .tool{font:inherit; font-size:.72rem; padding:4px 9px; border-radius:6px; cursor:pointer;
+        border:1px solid var(--line); background:var(--surface); color:var(--ink-2)}
+  .tool:hover{border-color:var(--brand); color:var(--brand)}
+  .tool-danger:hover{border-color:var(--danger); color:var(--danger); background:var(--danger-bg)}
+  .notes{border:1px solid var(--line); border-radius:8px; background:var(--surface);
+         padding:10px 12px; min-height:52px; font-size:.86rem; color:var(--ink-2); outline:none}
+  .notes:focus{border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft)}
+  .notes p{margin:0 0 .55em} .notes p:last-child{margin-bottom:0}
+  .notes ul{margin:.2em 0 .55em; padding-left:1.25em} .notes li{margin:.12em 0}
+  .notes strong{color:var(--ink); font-weight:650}
+  .notes:empty:before{content:attr(data-ph); color:var(--ink-3); font-style:italic}
 
-  .toolbar{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center}
-  .toolbar .hint{font-size:.72rem;color:var(--ink-3);margin-left:auto}
-  .notes{border:1px solid var(--rule);border-radius:6px;background:var(--sunk);padding:11px 13px;
-    min-height:74px;outline:none;font-size:.93rem;color:var(--ink-2)}
-  .notes:focus{border-color:var(--accent);background:var(--surface)}
-  .notes ul{margin:6px 0;padding-left:22px}
-  .notes p{margin:0 0 8px}
-  .notes p:last-child{margin-bottom:0}
-  .notes strong{color:var(--ink)}
-  .notes:empty::before{content:"Notes and instructions…";color:var(--ink-3)}
+  /* ── Images ─────────────────────────────────────────────────────────────────────────────────── */
+  .imgbar{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:12px 0 6px}
+  .imgbar-label{font-size:.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+                color:var(--ink-3)}
+  .thumbs{display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:8px; margin-top:4px}
+  .thumb{position:relative; border:1px solid var(--line); border-radius:8px; overflow:hidden;
+         background:var(--sunk); cursor:zoom-in; animation:fade .18s ease}
+  .thumb img{display:block; width:100%; height:76px; object-fit:cover}
+  .thumb-cap{font-size:.66rem; color:var(--ink-2); padding:4px 6px; border-top:1px solid var(--line-soft);
+             white-space:nowrap; overflow:hidden; text-overflow:ellipsis; background:var(--surface)}
+  .thumb-cap.empty{color:var(--ink-3); font-style:italic}
+  .thumb-x{position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%;
+           border:none; background:rgba(0,0,0,.55); color:#fff; font-size:12px; line-height:1;
+           cursor:pointer; opacity:0; transition:opacity .15s ease}
+  .thumb:hover .thumb-x, .thumb-x:focus{opacity:1}
+  .drop{border:1px dashed var(--line); border-radius:8px; padding:10px; text-align:center;
+        font-size:.76rem; color:var(--ink-3); margin-top:8px}
+  .drop.over{border-color:var(--brand); background:var(--brand-soft); color:var(--brand)}
 
-  .add-row{margin-top:12px}
-  .empty{color:var(--ink-3);font-size:.87rem;padding:6px 2px}
+  /* ── Lightbox ───────────────────────────────────────────────────────────────────────────────── */
+  /* Solid, not translucent. At 94% the page still reads through against a light theme, and a
+     viewer whose whole job is "look closely at this screenshot" should not have the page it came
+     from ghosting behind it. */
+  .lb{position:fixed; inset:0; background:#080b10; z-index:60;
+      display:none; flex-direction:column; animation:fade .18s ease}
+  .lb.show{display:flex}
+  .lb-top{display:flex; align-items:center; gap:12px; padding:12px 16px; color:#e9edf4; flex:0 0 auto}
+  .lb-count{font-size:.8rem; opacity:.7; font-variant-numeric:tabular-nums}
+  .lb-x{margin-left:auto; background:transparent; border:none; color:#e9edf4; font-size:26px;
+        cursor:pointer; line-height:1; padding:2px 6px}
+  .lb-stage{flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
+            gap:10px; padding:0 12px}
+  .lb-stage img{max-width:100%; max-height:100%; object-fit:contain; border-radius:6px;
+                box-shadow:var(--shadow-lg)}
+  .lb-nav{flex:0 0 auto; width:44px; height:44px; border-radius:50%; border:none; cursor:pointer;
+          background:rgba(255,255,255,.12); color:#fff; font-size:20px}
+  .lb-nav:hover{background:rgba(255,255,255,.22)}
+  .lb-nav:disabled{opacity:.18; cursor:default}
+  .lb-bottom{flex:0 0 auto; padding:12px 16px 18px; display:flex; flex-direction:column; gap:8px;
+             align-items:center}
+  .lb-cap{width:min(680px,100%); font:inherit; font-size:.85rem; padding:9px 12px; border-radius:8px;
+          border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.08); color:#e9edf4}
+  .lb-cap::placeholder{color:rgba(233,237,244,.45)}
+  .lb-hint{font-size:.7rem; color:rgba(233,237,244,.45)}
+  .lb-strip{display:flex; gap:6px; overflow-x:auto; max-width:100%; padding:2px}
+  .lb-strip img{width:54px; height:38px; object-fit:cover; border-radius:4px; cursor:pointer;
+                opacity:.45; border:2px solid transparent; flex:0 0 auto}
+  .lb-strip img.on{opacity:1; border-color:#fff}
 
-  /* ── Modal ────────────────────────────────────────────────────────────────────────────────── */
-  .backdrop{position:fixed;inset:0;background:rgba(9,12,17,.55);display:none;
-    align-items:center;justify-content:center;z-index:100;padding:20px}
+  /* ── Modal + toast ──────────────────────────────────────────────────────────────────────────── */
+  .backdrop{position:fixed; inset:0; background:rgba(10,14,20,.5); display:none;
+            align-items:center; justify-content:center; z-index:70; padding:20px}
   .backdrop.show{display:flex}
-  .modal{background:var(--surface);border:1px solid var(--rule);border-radius:10px;
-    box-shadow:var(--shadow);max-width:430px;width:100%;padding:22px}
-  .modal h3{margin:0 0 8px;font-size:1.05rem}
-  .modal p{margin:0 0 18px;color:var(--ink-2);font-size:.92rem}
-  .modal-actions{display:flex;gap:8px;justify-content:flex-end}
+  .modal{background:var(--surface); border:1px solid var(--line); border-radius:12px;
+         box-shadow:var(--shadow-lg); width:min(430px,100%); padding:20px}
+  .modal h3{margin:0 0 8px; font-size:1rem}
+  .modal p{margin:0 0 16px; font-size:.86rem; color:var(--ink-2)}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end}
+  .modal-actions button{font:inherit; font-size:.83rem; padding:8px 14px; border-radius:8px;
+                        cursor:pointer; border:1px solid var(--line); background:var(--raised); color:var(--ink)}
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(60px);
+         background:var(--ink); color:var(--bg); font-size:.82rem; padding:9px 16px; border-radius:99px;
+         opacity:0; transition:all .22s ease; z-index:80; pointer-events:none; max-width:80vw;
+         text-align:center}
+  .toast.show{opacity:1; transform:translateX(-50%)}
 
-  .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);
-    background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:999px;font-size:.86rem;
-    opacity:0;transition:all .25s;z-index:200;pointer-events:none}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .add-row{margin-top:14px}
+  .add-row button, .add-todo{font:inherit; font-size:.82rem; padding:8px 14px; border-radius:8px;
+    cursor:pointer; border:1px dashed var(--line); background:transparent; color:var(--ink-2)}
+  .add-row button:hover, .add-todo:hover{border-color:var(--brand); color:var(--brand)}
+  .add-todo{margin-top:14px; font-size:.78rem; padding:6px 11px}
+  .empty{text-align:center; padding:40px 20px; color:var(--ink-3); font-size:.88rem}
 
-  @media (max-width:560px){
-    .wrap{padding:0 12px 100px}
-    .todo-body{padding-left:14px}
-    .todo-actions{opacity:1}
-  }
-  @media print{header.top{position:static} .todo-actions,.add-row,button{display:none}
-    .topic-body,.todo-body{display:block !important}}
+  @media (prefers-reduced-motion: reduce){ *{animation:none !important; transition:none !important} }
 </style>
 </head>
 <body>
@@ -139,7 +212,8 @@
       <h1>Website Planner</h1>
       <p class="sub">Starr Surveying · everything to build, fix and check</p>
     </div>
-    <span class="overall" id="overall">0/0 objectives completed</span>
+    <span class="overall" id="overall">0/0 completed</span>
+    <button class="btn-sm" id="folderBtn" title="Where uploaded images are stored">📁 Images</button>
     <button class="btn-sm" id="themeBtn" title="Toggle light / dark">🌙 Dark</button>
     <button class="btn-sm btn-primary" id="saveBtn" title="Download this page with your changes baked in">💾 Save</button>
   </div>
@@ -148,6 +222,24 @@
 <div class="wrap">
   <div id="topics"></div>
   <div class="add-row"><button id="addTopic">+ Add topic</button></div>
+</div>
+
+<div class="lb" id="lb">
+  <div class="lb-top">
+    <strong id="lbTitle" style="font-size:.9rem"></strong>
+    <span class="lb-count" id="lbCount"></span>
+    <button class="lb-x" id="lbX" title="Close (Esc)">×</button>
+  </div>
+  <div class="lb-stage">
+    <button class="lb-nav" id="lbPrev" title="Previous (←)">‹</button>
+    <img id="lbImg" alt="">
+    <button class="lb-nav" id="lbNext" title="Next (→)">›</button>
+  </div>
+  <div class="lb-bottom">
+    <input class="lb-cap" id="lbCap" placeholder="Label this image — what is it, and what should I notice?">
+    <span class="lb-hint">← → to move between images · Esc to close</span>
+    <div class="lb-strip" id="lbStrip"></div>
+  </div>
 </div>
 
 <div class="backdrop" id="backdrop"><div class="modal">
@@ -160,228 +252,34 @@
 
 <div class="toast" id="toast"></div>
 
+<input type="file" id="filePicker" accept="image/*" multiple style="display:none">
+
 <script id="planner-data" type="application/json">
-{
- "savedAt": "2026-08-27T21:47:03.079Z",
- "topics": [
-  {
-   "id": "seed008",
-   "title": "Hub Customizer",
-   "open": true,
-   "todos": [
-    {
-     "id": "seed001",
-     "title": "Sort widgets into categories",
-     "notes": "<p>Declutter the screen and cut the time it takes to find a specific widget.</p><p><strong>Outcome:</strong> every widget belongs to exactly one category, and the hub opens showing categories rather than a wall of widgets.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed002",
-     "title": "Category boxes with drop-down widget lists",
-     "notes": "<p>Once widgets are sorted, each category is a box with a dropdown containing its widgets.</p><p><strong>Behaviour when a category is selected:</strong></p><ul><li>The other categories slide down out of the way</li><li>The selected category expands in place, filling the freed space</li><li>Its widgets display in a drop-down underneath itself</li></ul>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed003",
-     "title": "Search widgets by category tags, not one flat list",
-     "notes": "<p>Searching should not scan every widget across every category.</p><p><strong>Instead:</strong> each category carries the tags of its own widgets.</p><ul><li>Categories with no matching keyword or phrase are hidden entirely</li><li>Within a matching category, widgets whose tags do not match are also hidden</li><li>Only relevant categories and relevant widgets remain on screen</li></ul>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed004",
-     "title": "Auto-open categories that match a search",
-     "notes": "<p>A category surfaced by a search should already be open.</p><p>The user should not have to click into a category to see why it matched.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed005",
-     "title": "Fade widgets and categories in and out — never pop",
-     "notes": "<p>Keywords update in real time as the user types, so things are constantly appearing and disappearing.</p><p><strong>Requirement:</strong> a slight fade in / fade out on both widgets and categories.</p><p>Without it the screen looks like items are popping in and out of existence — jittery and cheap-looking.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed006",
-     "title": "Remember open/closed state across a search",
-     "notes": "<p>Category open/closed state must survive a search and be restored when the search is cleared.</p><p><strong>Worked example:</strong></p><ul><li>Categories 1 and 2 are open, Category 3 is closed</li><li>User searches; results narrow to Category 2 only</li><li>User deletes the search</li><li><strong>Expected:</strong> 1 and 2 are open again, 3 is still closed — exactly as before the search</li></ul>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed007",
-     "title": "Audit every widget for formatting and function",
-     "notes": "<p>Go through each widget individually.</p><ul><li>Is it formatted well?</li><li>Does it actually work?</li></ul><p><strong>We do not need broken widgets.</strong> A widget that looks fine and does nothing is worse than one that is obviously missing.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  },
-  {
-   "id": "seed016",
-   "title": "Dev Mode & Dev Tools",
-   "open": false,
-   "todos": [
-    {
-     "id": "seed009",
-     "title": "Restrict Dev Mode and Dev Tools to the Dev role",
-     "notes": "<p>Developer Mode and Developer Tools should be limited to — and only visible to — users holding the <strong>Dev role</strong>.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed010",
-     "title": "Dev Mode toggle in the top-right, beside the account icon",
-     "notes": "<p>A UI toggle visible only to Dev-role users.</p><p><strong>Placement:</strong> top right of the screen, immediately to the right of the user's account icon.</p><p>For Jacob Maddux the icon shows as a coloured circle reading <strong>JM</strong>; the Dev Mode toggle sits to the right of it.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed011",
-     "title": "Dev Mode persists across every page",
-     "notes": "<p>Once toggled active, Dev Mode stays active on every page of the site until it is toggled off.</p><p>Navigating should never silently drop out of Dev Mode.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed012",
-     "title": "Role Viewer — see the page as a given role sees it",
-     "notes": "<p>Dev Mode includes view modes that limit the page to what a selected role would see, <strong>excluding dev tools</strong>, for testing.</p><p>Each role is a toggleable box labelled with that role's name.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed013",
-     "title": "Multiple roles active at once in Role Viewer",
-     "notes": "<p>More than one role view must be active simultaneously.</p><p><strong>Worked example:</strong> a user who is both a Student and an Employee, holding both roles, should see everything a basic Employee sees <strong>and</strong> everything a basic Student sees, at the same time.</p><p>So for testing, role views combine rather than replace one another.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed014",
-     "title": "Search for roles in Role Viewer",
-     "notes": "<p>Depending on how many roles exist, the Role Viewer may need a search box to find a specific role.</p><p>Scope this once the final role count is known.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed015",
-     "title": "Anchor active role toggles near the Dev Mode switch",
-     "notes": "<p>In Role Viewer mode, the active/toggled role views stay visible on screen, anchored near the Dev Mode toggle.</p><p>The tester should always be able to see which roles they are currently viewing as.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  },
-  {
-   "id": "seed020",
-   "title": "Dev Page Design (drag & drop builder)",
-   "open": false,
-   "todos": [
-    {
-     "id": "seed017",
-     "title": "Elements preview their real appearance in the palette",
-     "notes": "<p>An element in the selection panel should look like what it will become on the page.</p><p><strong>Current behaviour:</strong> elements appear as rounded-corner rectangles, and only become the real element after being dragged and dropped.</p><p><strong>Wanted:</strong> a text box should show what a text box looks like <strong>before</strong> you select it — before you even attempt to drag it.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed018",
-     "title": "Shrink large elements to fit the palette preview",
-     "notes": "<p>If an element is large, scale it down in the selection table so it still conveys its general style and visuals.</p><p>The preview should stay recognisable rather than being cropped or replaced with a placeholder.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed019",
-     "title": "Highlight the target grid cells while dragging",
-     "notes": "<p>While an element is being dragged over the page grid, highlight the cells it would occupy if released at that moment.</p><p>This shows where the element will snap to before the user commits, giving much finer control over placement.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  },
-  {
-   "id": "seed023",
-   "title": "Jobs & Projects",
-   "open": false,
-   "todos": [
-    {
-     "id": "seed021",
-     "title": "Duplicate \"New Job\" buttons near the top right",
-     "notes": "<p>There are <strong>two</strong> 'New Job' buttons near the top right of the page.</p><p>Decide which one is canonical and remove the other.</p>",
-     "done": false,
-     "open": false
-    },
-    {
-     "id": "seed022",
-     "title": "Duplicate \"Import\" buttons near the top right",
-     "notes": "<p>There are also <strong>two</strong> 'Import' buttons near the top right.</p><p>Same treatment — keep one, remove the duplicate.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  },
-  {
-   "id": "seed025",
-   "title": "Receipts",
-   "open": false,
-   "todos": [
-    {
-     "id": "seed024",
-     "title": "Add the first item",
-     "notes": "<p>Placeholder — open this to-do and replace this note with what needs doing.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  },
-  {
-   "id": "seed027",
-   "title": "Jobs",
-   "open": false,
-   "todos": [
-    {
-     "id": "seed026",
-     "title": "Add the first item",
-     "notes": "<p>Placeholder — open this to-do and replace this note with what needs doing.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  },
-  {
-   "id": "seed029",
-   "title": "Hour Management",
-   "open": false,
-   "todos": [
-    {
-     "id": "seed028",
-     "title": "Add the first item",
-     "notes": "<p>Placeholder — open this to-do and replace this note with what needs doing.</p>",
-     "done": false,
-     "open": false
-    }
-   ]
-  }
- ]
-}
+{"savedAt":"2026-08-27T22:39:46.595Z","topics":[{"id":"seed008","title":"Hub Customizer","open":true,"todos":[{"id":"seed001","title":"Sort widgets into categories","notes":"<p>Declutter the screen and cut the time it takes to find a specific widget.</p><p><strong>Outcome:</strong> every widget belongs to exactly one category, and the hub opens showing categories rather than a wall of widgets.</p>","open":false,"status":"not-started","images":[]},{"id":"seed002","title":"Category boxes with drop-down widget lists","notes":"<p>Once widgets are sorted, each category is a box with a dropdown containing its widgets.</p><p><strong>Behaviour when a category is selected:</strong></p><ul><li>The other categories slide down out of the way</li><li>The selected category expands in place, filling the freed space</li><li>Its widgets display in a drop-down underneath itself</li></ul>","open":false,"status":"not-started","images":[]},{"id":"seed003","title":"Search widgets by category tags, not one flat list","notes":"<p>Searching should not scan every widget across every category.</p><p><strong>Instead:</strong> each category carries the tags of its own widgets.</p><ul><li>Categories with no matching keyword or phrase are hidden entirely</li><li>Within a matching category, widgets whose tags do not match are also hidden</li><li>Only relevant categories and relevant widgets remain on screen</li></ul>","open":false,"status":"not-started","images":[]},{"id":"seed004","title":"Auto-open categories that match a search","notes":"<p>A category surfaced by a search should already be open.</p><p>The user should not have to click into a category to see why it matched.</p>","open":false,"status":"not-started","images":[]},{"id":"seed005","title":"Fade widgets and categories in and out — never pop","notes":"<p>Keywords update in real time as the user types, so things are constantly appearing and disappearing.</p><p><strong>Requirement:</strong> a slight fade in / fade out on both widgets and categories.</p><p>Without it the screen looks like items are popping in and out of existence — jittery and cheap-looking.</p>","open":false,"status":"not-started","images":[]},{"id":"seed006","title":"Remember open/closed state across a search","notes":"<p>Category open/closed state must survive a search and be restored when the search is cleared.</p><p><strong>Worked example:</strong></p><ul><li>Categories 1 and 2 are open, Category 3 is closed</li><li>User searches; results narrow to Category 2 only</li><li>User deletes the search</li><li><strong>Expected:</strong> 1 and 2 are open again, 3 is still closed — exactly as before the search</li></ul>","open":false,"status":"not-started","images":[]},{"id":"seed007","title":"Audit every widget for formatting and function","notes":"<p>Go through each widget individually.</p><ul><li>Is it formatted well?</li><li>Does it actually work?</li></ul><p><strong>We do not need broken widgets.</strong> A widget that looks fine and does nothing is worse than one that is obviously missing.</p>","open":false,"status":"not-started","images":[]}]},{"id":"seed016","title":"Dev Mode & Dev Tools","open":false,"todos":[{"id":"seed009","title":"Restrict Dev Mode and Dev Tools to the Dev role","notes":"<p>Developer Mode and Developer Tools should be limited to — and only visible to — users holding the <strong>Dev role</strong>.</p>","open":false,"status":"not-started","images":[]},{"id":"seed010","title":"Dev Mode toggle in the top-right, beside the account icon","notes":"<p>A UI toggle visible only to Dev-role users.</p><p><strong>Placement:</strong> top right of the screen, immediately to the right of the user's account icon.</p><p>For Jacob Maddux the icon shows as a coloured circle reading <strong>JM</strong>; the Dev Mode toggle sits to the right of it.</p>","open":false,"status":"not-started","images":[]},{"id":"seed011","title":"Dev Mode persists across every page","notes":"<p>Once toggled active, Dev Mode stays active on every page of the site until it is toggled off.</p><p>Navigating should never silently drop out of Dev Mode.</p>","open":false,"status":"not-started","images":[]},{"id":"seed012","title":"Role Viewer — see the page as a given role sees it","notes":"<p>Dev Mode includes view modes that limit the page to what a selected role would see, <strong>excluding dev tools</strong>, for testing.</p><p>Each role is a toggleable box labelled with that role's name.</p>","open":false,"status":"not-started","images":[]},{"id":"seed013","title":"Multiple roles active at once in Role Viewer","notes":"<p>More than one role view must be active simultaneously.</p><p><strong>Worked example:</strong> a user who is both a Student and an Employee, holding both roles, should see everything a basic Employee sees <strong>and</strong> everything a basic Student sees, at the same time.</p><p>So for testing, role views combine rather than replace one another.</p>","open":false,"status":"not-started","images":[]},{"id":"seed014","title":"Search for roles in Role Viewer","notes":"<p>Depending on how many roles exist, the Role Viewer may need a search box to find a specific role.</p><p>Scope this once the final role count is known.</p>","open":false,"status":"not-started","images":[]},{"id":"seed015","title":"Anchor active role toggles near the Dev Mode switch","notes":"<p>In Role Viewer mode, the active/toggled role views stay visible on screen, anchored near the Dev Mode toggle.</p><p>The tester should always be able to see which roles they are currently viewing as.</p>","open":false,"status":"not-started","images":[]}]},{"id":"seed020","title":"Dev Page Design (drag & drop builder)","open":false,"todos":[{"id":"seed017","title":"Elements preview their real appearance in the palette","notes":"<p>An element in the selection panel should look like what it will become on the page.</p><p><strong>Current behaviour:</strong> elements appear as rounded-corner rectangles, and only become the real element after being dragged and dropped.</p><p><strong>Wanted:</strong> a text box should show what a text box looks like <strong>before</strong> you select it — before you even attempt to drag it.</p>","open":false,"status":"not-started","images":[]},{"id":"seed018","title":"Shrink large elements to fit the palette preview","notes":"<p>If an element is large, scale it down in the selection table so it still conveys its general style and visuals.</p><p>The preview should stay recognisable rather than being cropped or replaced with a placeholder.</p>","open":false,"status":"not-started","images":[]},{"id":"seed019","title":"Highlight the target grid cells while dragging","notes":"<p>While an element is being dragged over the page grid, highlight the cells it would occupy if released at that moment.</p><p>This shows where the element will snap to before the user commits, giving much finer control over placement.</p>","open":false,"status":"not-started","images":[]}]},{"id":"seed023","title":"Jobs & Projects","open":false,"todos":[{"id":"seed021","title":"Duplicate \"New Job\" buttons near the top right","notes":"<p>There are <strong>two</strong> 'New Job' buttons near the top right of the page.</p><p>Decide which one is canonical and remove the other.</p>","open":false,"status":"not-started","images":[]},{"id":"seed022","title":"Duplicate \"Import\" buttons near the top right","notes":"<p>There are also <strong>two</strong> 'Import' buttons near the top right.</p><p>Same treatment — keep one, remove the duplicate.</p>","open":false,"status":"not-started","images":[]}]},{"id":"seed025","title":"Receipts","open":false,"todos":[{"id":"seed024","title":"Add the first item","notes":"<p>Placeholder — open this to-do and replace this note with what needs doing.</p>","open":false,"status":"not-started","images":[]}]},{"id":"seed027","title":"Jobs","open":false,"todos":[{"id":"seed026","title":"Add the first item","notes":"<p>Placeholder — open this to-do and replace this note with what needs doing.</p>","open":false,"status":"not-started","images":[]}]},{"id":"seed029","title":"Hour Management","open":false,"todos":[{"id":"seed028","title":"Add the first item","notes":"<p>Placeholder — open this to-do and replace this note with what needs doing.</p>","open":false,"status":"not-started","images":[]}]}]}
 </script>
 
 <script>
 (function(){
   "use strict";
 
-  // ── State ────────────────────────────────────────────────────────────────────────────────────
-  // Loaded from the embedded JSON above, then overlaid with localStorage if that is newer. Saving
-  // rewrites the embedded JSON and downloads the whole file, so the document IS the save format —
-  // no server, no export step, and the file you reopen is the file you saved.
+  // ── The file is the save format ──────────────────────────────────────────────────────────────
+  // State lives in the embedded JSON above. Saving clones the document, rewrites that block, and
+  // downloads the whole page — so the file you reopen IS the app plus your data. localStorage runs
+  // alongside as a mid-session safety net, and whichever copy is newer wins on load.
   var STORE_KEY = "starr-website-planner-v1";
-  var state = {topics:[]};
+  var STATES = ["not-started","in-progress","completed"];
+  var STATE_LABEL = {"not-started":"Not started","in-progress":"In progress","completed":"Completed"};
+  var LANE_EMPTY = {"not-started":"Nothing waiting.","in-progress":"Nothing underway.","completed":"Nothing finished yet."};
+  var MAX_IMAGES = 10;
 
+  // Images are stored as data URIs INSIDE the saved file — the only way one HTML document can carry
+  // them with no server. A phone screenshot is 3-6 MB, so ten of those across a few to-dos would
+  // produce a file a browser refuses to open. Every upload is therefore redrawn through a canvas at
+  // a bounded size before it is stored. Not an optimisation; a requirement. See downscale().
+  var MAX_EDGE = 1500;
+  var JPEG_Q = 0.82;
+
+  var state = {topics:[]};
   function uid(){ return "id" + Math.random().toString(36).slice(2,10); }
 
   function load(){
@@ -389,15 +287,36 @@
     try { embedded = JSON.parse(document.getElementById("planner-data").textContent) || {topics:[]}; } catch(e){}
     var local = null;
     try { var raw = localStorage.getItem(STORE_KEY); if (raw) local = JSON.parse(raw); } catch(e){}
-    // localStorage wins when it is newer than the file, which is the common case mid-session.
     if (local && local.savedAt && (!embedded.savedAt || local.savedAt > embedded.savedAt)) state = local;
     else state = embedded;
     if (!state.topics) state.topics = [];
+    migrate();
+  }
+
+  // Earlier files stored a boolean `done`. Read it once and drop it: a ticked to-do is completed and
+  // everything else starts where it should, at not-started. Runs on every load so a file saved by
+  // the old version still opens correctly here.
+  function migrate(){
+    state.topics.forEach(function(t){
+      if (!Array.isArray(t.todos)) t.todos = [];
+      t.todos.forEach(function(td){
+        if (!td.status) td.status = td.done ? "completed" : "not-started";
+        if (STATES.indexOf(td.status) < 0) td.status = "not-started";
+        delete td.done;
+        if (!Array.isArray(td.images)) td.images = [];
+      });
+    });
   }
 
   function persist(){
     state.savedAt = new Date().toISOString();
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch(e){}
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch(e){
+      // Quota — images are the only thing here big enough to cause it. Silently failing to save is
+      // the worst outcome, so say it out loud: the Save button still works, this is only the
+      // mid-session net that has run out of room.
+      toast("Too big for browser autosave — your work is safe, but press Save to keep it.");
+    }
   }
 
   // ── Modal ────────────────────────────────────────────────────────────────────────────────────
@@ -429,258 +348,622 @@
   var toastEl = document.getElementById("toast"), toastT;
   function toast(msg){
     toastEl.textContent = msg; toastEl.classList.add("show");
-    clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove("show"); }, 1900);
+    clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove("show"); }, 2400);
   }
+
+  // ── Images ───────────────────────────────────────────────────────────────────────────────────
+  /**
+   * Redraw a picked file through a canvas at a bounded size.
+   *
+   * 1500px on the long edge stays sharp enough to read UI text in the viewer, which is the entire
+   * point of attaching a screenshot to a to-do, while keeping each image to roughly a couple of
+   * hundred KB instead of several MB.
+   */
+  function downscale(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onerror = function(){ reject(new Error("could not read file")); };
+      reader.onload = function(){
+        var img = new Image();
+        img.onerror = function(){ reject(new Error("not an image")); };
+        img.onload = function(){
+          var w = img.naturalWidth, h = img.naturalHeight;
+          var scale = Math.min(1, MAX_EDGE / Math.max(w, h));
+          var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+          var c = document.createElement("canvas");
+          c.width = cw; c.height = ch;
+          var ctx = c.getContext("2d");
+          // Screenshots are usually flat UI on white; without this the JPEG gets a black ground
+          // wherever the source had transparency.
+          ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, cw, ch);
+          ctx.drawImage(img, 0, 0, cw, ch);
+          var src = c.toDataURL("image/jpeg", JPEG_Q);
+          // Both forms, because the caller does not yet know which mode it will store in — and a
+          // failed folder write has to be able to fall back without decoding the file twice.
+          c.toBlob(function(blob){ resolve({ src: src, blob: blob, w: cw, h: ch }); }, "image/jpeg", JPEG_Q);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ── Where images actually live ───────────────────────────────────────────────────────────────
+  //
+  // Two storage modes, chosen per image and recorded in the JSON:
+  //
+  //   { path: "planner-images/id.jpg" }   FOLDER — the file sits beside this HTML
+  //   { src:  "data:image/jpeg;base64…" } EMBEDDED — the bytes are inside this HTML
+  //
+  // Folder mode keeps this file small and lets you open the screenshots in any image viewer. It
+  // needs the File System Access API, which today means Chrome or Edge, and it needs you to point
+  // the page at the folder ONCE so the browser knows it has your permission to write there — a page
+  // cannot silently create files next to itself, and should not be able to.
+  //
+  // Embedded mode is the fallback and the old behaviour. It always works, in every browser, and the
+  // whole planner stays one file you can email.
+  //
+  // THE TRADE IS WORTH SAYING OUT LOUD: in folder mode this HTML and its `planner-images` folder
+  // travel together. Move the HTML on its own and the pictures stop resolving — they are not gone,
+  // they are just somewhere else. Embedded images can never come apart from the file.
+  var DIR_KEY = "starr-planner-dir";
+  var IMG_DIR = "planner-images";
+  var dirHandle = null;
+
+  // A tiny IndexedDB, only ever holding one directory handle. Wrapped because IndexedDB is
+  // unavailable on some file:// origins, and that must degrade to "ask again next time" rather than
+  // throwing on load.
+  function idb(mode, fn){
+    return new Promise(function(resolve){
+      var req;
+      try { req = indexedDB.open("starr-planner", 1); } catch(e){ resolve(null); return; }
+      req.onupgradeneeded = function(){ req.result.createObjectStore("kv"); };
+      req.onerror = function(){ resolve(null); };
+      req.onsuccess = function(){
+        var db = req.result;
+        try {
+          var tx = db.transaction("kv", mode);
+          var r = fn(tx.objectStore("kv"));
+          if (r) { r.onsuccess = function(){ resolve(r.result); }; r.onerror = function(){ resolve(null); }; }
+          else tx.oncomplete = function(){ resolve(true); };
+        } catch(e){ resolve(null); }
+      };
+    });
+  }
+
+  function rememberDir(h){ return idb("readwrite", function(st){ st.put(h, DIR_KEY); }); }
+  function recallDir(){ return idb("readonly", function(st){ return st.get(DIR_KEY); }); }
+
+  function folderSupported(){ return typeof window.showDirectoryPicker === "function"; }
+
+  /** Ask for the folder. Must be called from a real click — the browser requires user activation. */
+  async function linkFolder(){
+    if (!folderSupported()){
+      toast("This browser cannot write files — images stay inside the HTML. Chrome or Edge can.");
+      return false;
+    }
+    try {
+      var h = await window.showDirectoryPicker({ mode: "readwrite" });
+      dirHandle = h;
+      await rememberDir(h);
+      paintFolderBtn();
+      toast("Linked. New images will be saved into " + IMG_DIR + "/ beside this file.");
+      return true;
+    } catch(e){
+      // The user cancelled the picker, which is not an error.
+      return false;
+    }
+  }
+
+  /** Re-grant permission on a remembered handle. Chrome drops write permission between sessions. */
+  async function ensureDirPermission(silent){
+    if (!dirHandle) return false;
+    try {
+      var opts = { mode: "readwrite" };
+      if ((await dirHandle.queryPermission(opts)) === "granted") return true;
+      if (silent) return false;
+      return (await dirHandle.requestPermission(opts)) === "granted";
+    } catch(e){ return false; }
+  }
+
+  async function writeImageFile(id, blob){
+    var sub = await dirHandle.getDirectoryHandle(IMG_DIR, { create: true });
+    var fh = await sub.getFileHandle(id + ".jpg", { create: true });
+    var w = await fh.createWritable();
+    await w.write(blob); await w.close();
+    return IMG_DIR + "/" + id + ".jpg";
+  }
+
+  async function deleteImageFile(path){
+    if (!path || !dirHandle) return;
+    try {
+      var sub = await dirHandle.getDirectoryHandle(IMG_DIR, { create: false });
+      await sub.removeEntry(path.split("/").pop());
+    } catch(e){ /* already gone, or permission lapsed — not worth interrupting the user */ }
+  }
+
+  /** What an <img> should point at, whichever mode this image was stored in. */
+  function imgSrc(im){ return im.path || im.src || ""; }
+
+  function paintFolderBtn(){
+    var b = document.getElementById("folderBtn");
+    if (!folderSupported()){ b.textContent = "📁 In-file"; b.title = "This browser stores images inside the HTML."; return; }
+    b.textContent = dirHandle ? "📁 Folder" : "📁 Link folder";
+    b.title = dirHandle
+      ? "Images are saved into " + IMG_DIR + "/ beside this file. Click to choose a different folder."
+      : "Click to save images as real files beside this HTML instead of inside it.";
+  }
+
+  document.getElementById("folderBtn").addEventListener("click", function(){ linkFolder(); });
+
+  var picker = document.getElementById("filePicker");
+  var pickTarget = null;
+
+  function addFiles(todo, files){
+    var list = Array.prototype.slice.call(files).filter(function(f){ return /^image\//.test(f.type); });
+    if (!list.length) { toast("Those were not images."); return Promise.resolve(0); }
+
+    var room = MAX_IMAGES - todo.images.length;
+    if (room <= 0) { toast("This to-do already has all " + MAX_IMAGES + " images."); return Promise.resolve(0); }
+    var over = Math.max(0, list.length - room);
+    list = list.slice(0, room);
+
+    // Sequential rather than parallel: decoding ten full-size images at once spikes memory on a
+    // phone, and the ordering people expect is the order they picked them in.
+    var added = 0, wroteFiles = 0;
+    var chain = ensureDirPermission(false).then(function(canWrite){
+      var c = Promise.resolve();
+      list.forEach(function(f){
+        c = c.then(function(){
+          return downscale(f).then(function(r){
+            var id = uid();
+            var label = f.name.replace(/\.[^.]+$/, "").slice(0, 160);
+            if (canWrite){
+              return writeImageFile(id, r.blob).then(function(path){
+                todo.images.push({ id: id, path: path, w: r.w, h: r.h, label: label });
+                added++; wroteFiles++;
+              }).catch(function(){
+                // Writing failed mid-way — a revoked permission, a full disk. Keep the image rather
+                // than losing it: embedded is always available.
+                todo.images.push({ id: id, src: r.src, w: r.w, h: r.h, label: label });
+                added++;
+              });
+            }
+            todo.images.push({ id: id, src: r.src, w: r.w, h: r.h, label: label });
+            added++;
+          }).catch(function(){ /* one unreadable file must not lose the others */ });
+        });
+      });
+      return c;
+    });
+
+    return chain.then(function(){
+      render();
+      if (added){
+        toast(added + (added === 1 ? " image added" : " images added") +
+              (wroteFiles ? " → " + IMG_DIR + "/" : " (stored inside this file)") +
+              (over ? " · " + over + " skipped, limit is " + MAX_IMAGES : ""));
+      } else toast("None of those could be read as images.");
+      return added;
+    });
+  }
+
+  picker.addEventListener("change", function(){
+    if (pickTarget) addFiles(pickTarget, picker.files);
+    picker.value = "";
+  });
+
+  // ── Viewer ───────────────────────────────────────────────────────────────────────────────────
+  var lb = document.getElementById("lb"), lbImg = document.getElementById("lbImg"),
+      lbCap = document.getElementById("lbCap"), lbCount = document.getElementById("lbCount"),
+      lbTitle = document.getElementById("lbTitle"), lbStrip = document.getElementById("lbStrip");
+  var lbTodo = null, lbIdx = 0;
+
+  function openViewer(todo, idx){
+    lbTodo = todo; lbIdx = idx;
+    lb.classList.add("show");
+    paintViewer();
+  }
+  function closeViewer(){
+    lb.classList.remove("show");
+    lbTodo = null;
+    // Labels edited in the viewer have to reach the thumbnails behind it.
+    render();
+  }
+  function paintViewer(){
+    if (!lbTodo || !lbTodo.images.length) { closeViewer(); return; }
+    lbIdx = Math.max(0, Math.min(lbIdx, lbTodo.images.length - 1));
+    var im = lbTodo.images[lbIdx];
+    lbImg.src = imgSrc(im);
+    lbImg.alt = im.label || "Attached image";
+    lbCap.value = im.label || "";
+    lbTitle.textContent = lbTodo.title;
+    lbCount.textContent = (lbIdx + 1) + " / " + lbTodo.images.length;
+    document.getElementById("lbPrev").disabled = lbTodo.images.length < 2;
+    document.getElementById("lbNext").disabled = lbTodo.images.length < 2;
+    paintStrip();
+  }
+  function paintStrip(){
+    lbStrip.innerHTML = "";
+    if (!lbTodo || lbTodo.images.length < 2) return;
+    lbTodo.images.forEach(function(x, i){
+      var t = document.createElement("img");
+      t.src = imgSrc(x); t.alt = x.label || ("Image " + (i + 1));
+      t.title = x.label || ("Image " + (i + 1));
+      if (i === lbIdx) t.className = "on";
+      t.addEventListener("click", function(){ lbIdx = i; paintViewer(); });
+      lbStrip.appendChild(t);
+    });
+  }
+  function step(n){
+    if (!lbTodo || lbTodo.images.length < 2) return;
+    // Wraps, so it behaves like a carousel instead of dead-ending at both edges.
+    lbIdx = (lbIdx + n + lbTodo.images.length) % lbTodo.images.length;
+    paintViewer();
+  }
+  document.getElementById("lbPrev").addEventListener("click", function(){ step(-1); });
+  document.getElementById("lbNext").addEventListener("click", function(){ step(1); });
+  document.getElementById("lbX").addEventListener("click", closeViewer);
+  lb.addEventListener("click", function(e){ if (e.target === lb) closeViewer(); });
+
+  lbCap.addEventListener("input", function(){
+    if (!lbTodo) return;
+    lbTodo.images[lbIdx].label = lbCap.value.slice(0, 200);
+    persist();
+    // Only the strip's tooltip is refreshed. Repainting the stage would reload the image being
+    // labelled and flicker it on every keystroke.
+    var on = lbStrip.children[lbIdx];
+    if (on) { on.title = lbCap.value; on.alt = lbCap.value; }
+  });
+
+  document.addEventListener("keydown", function(e){
+    if (!lb.classList.contains("show")) return;
+    if (e.key === "Escape") { closeViewer(); return; }
+    // Arrows must not steal the caption field while it is being typed in.
+    if (document.activeElement === lbCap) return;
+    if (e.key === "ArrowLeft") step(-1);
+    if (e.key === "ArrowRight") step(1);
+  });
 
   // ── Render ───────────────────────────────────────────────────────────────────────────────────
   var host = document.getElementById("topics");
 
   function render(){
     host.innerHTML = "";
-    var totalDone = 0, total = 0;
+    var doneAll = 0, progAll = 0, totalAll = 0;
+
+    if (!state.topics.length){
+      var e = document.createElement("div");
+      e.className = "empty";
+      e.textContent = "Nothing here yet. Add a topic to begin.";
+      host.appendChild(e);
+    }
 
     state.topics.forEach(function(topic){
-      var done = topic.todos.filter(function(t){return t.done;}).length;
-      totalDone += done; total += topic.todos.length;
-      host.appendChild(renderTopic(topic, done));
+      var d = topic.todos.filter(function(t){ return t.status === "completed"; }).length;
+      var p = topic.todos.filter(function(t){ return t.status === "in-progress"; }).length;
+      doneAll += d; progAll += p; totalAll += topic.todos.length;
+      host.appendChild(renderTopic(topic, d, p));
     });
 
     document.getElementById("overall").textContent =
-      totalDone + "/" + total + " objectives completed";
+      doneAll + "/" + totalAll + " completed" + (progAll ? " · " + progAll + " in progress" : "");
     persist();
   }
 
-  function renderTopic(topic, doneCount){
+  function renderTopic(topic, doneCount, progCount){
     var el = document.createElement("section");
     el.className = "topic" + (topic.open ? " open" : "");
 
     var head = document.createElement("div");
     head.className = "topic-head";
-    head.innerHTML = '<span class="chev">▶</span>';
+
+    var caret = document.createElement("span"); caret.className = "caret"; caret.textContent = "▶";
 
     var title = document.createElement("div");
-    title.className = "topic-title"; title.contentEditable = "true";
+    title.className = "topic-title"; title.contentEditable = "true"; title.spellcheck = false;
     title.textContent = topic.title;
+    title.addEventListener("input", function(){ topic.title = title.textContent.trim(); persist(); });
     title.addEventListener("click", function(e){ e.stopPropagation(); });
-    title.addEventListener("blur", function(){ topic.title = title.textContent.trim() || "Untitled topic"; persist(); });
-    head.appendChild(title);
+    title.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); title.blur(); } });
 
     var count = document.createElement("span");
-    count.className = "count" + (topic.todos.length && doneCount === topic.todos.length ? " all-done" : "");
-    count.textContent = doneCount + "/" + topic.todos.length + " objectives completed";
-    head.appendChild(count);
+    count.className = "count";
+    count.textContent = doneCount + "/" + topic.todos.length + " objectives completed" +
+                        (progCount ? " · " + progCount + " in progress" : "");
 
     var del = document.createElement("button");
-    del.className = "btn-sm btn-danger"; del.textContent = "Delete"; del.title = "Delete this topic";
+    del.className = "tool tool-danger"; del.textContent = "Delete";
     del.addEventListener("click", function(e){
       e.stopPropagation();
-      ask("Delete topic?", 'This removes "' + topic.title + '" and all ' + topic.todos.length +
-          " of its to-dos. This cannot be undone.", "Delete").then(function(ok){
-        if(!ok) return;
-        state.topics = state.topics.filter(function(t){return t !== topic;});
+      ask("Delete topic?",
+          'This removes "' + topic.title + '" and all ' + topic.todos.length + ' of its to-dos. This cannot be undone.',
+          "Delete").then(function(ok){
+        if (!ok) return;
+        state.topics = state.topics.filter(function(t){ return t !== topic; });
         render(); toast("Topic deleted");
       });
     });
-    head.appendChild(del);
 
+    head.appendChild(caret); head.appendChild(title); head.appendChild(count); head.appendChild(del);
     head.addEventListener("click", function(){ topic.open = !topic.open; render(); });
     el.appendChild(head);
 
-    var body = document.createElement("div");
-    body.className = "topic-body";
+    var body = document.createElement("div"); body.className = "topic-body";
 
-    var open = topic.todos.filter(function(t){return !t.done;});
-    var closed = topic.todos.filter(function(t){return t.done;});
+    // All three lanes, always, in this order. Hiding an empty lane would make "nothing in progress"
+    // look like "this topic has no in-progress stage", and the point of the three sections is that
+    // you can see at a glance where the work sits.
+    STATES.forEach(function(s){
+      var lane = document.createElement("div");
+      lane.className = "lane"; lane.setAttribute("data-state", s);
 
-    body.appendChild(groupLabel("To do — " + open.length));
-    if(!open.length) body.appendChild(emptyNote("Nothing outstanding here."));
-    open.forEach(function(t){ body.appendChild(renderTodo(t, topic)); });
+      var items = topic.todos.filter(function(t){ return t.status === s; });
 
-    body.appendChild(groupLabel("Completed — " + closed.length));
-    if(!closed.length) body.appendChild(emptyNote("Nothing completed yet."));
-    closed.forEach(function(t){ body.appendChild(renderTodo(t, topic)); });
+      var lh = document.createElement("div"); lh.className = "lane-head";
+      var dot = document.createElement("span"); dot.className = "lane-dot";
+      var nm = document.createElement("span"); nm.className = "lane-name";
+      nm.textContent = STATE_LABEL[s] + " — " + items.length;
+      var rule = document.createElement("span"); rule.className = "lane-rule";
+      lh.appendChild(dot); lh.appendChild(nm); lh.appendChild(rule);
+      lane.appendChild(lh);
 
-    var add = document.createElement("div");
-    add.className = "add-row";
-    var addBtn = document.createElement("button");
-    addBtn.className = "btn-sm"; addBtn.textContent = "+ Add to-do";
-    addBtn.addEventListener("click", function(){
-      topic.todos.push({id:uid(), title:"New to-do", notes:"", done:false, open:true});
+      if (!items.length){
+        var em = document.createElement("div"); em.className = "lane-empty";
+        em.textContent = LANE_EMPTY[s];
+        lane.appendChild(em);
+      } else {
+        items.forEach(function(td){ lane.appendChild(renderTodo(td, topic)); });
+      }
+      body.appendChild(lane);
+    });
+
+    var add = document.createElement("button");
+    add.className = "add-todo"; add.textContent = "+ Add to-do";
+    add.addEventListener("click", function(){
+      topic.todos.push({ id: uid(), title: "New to-do", notes: "", status: "not-started", open: true, images: [] });
       topic.open = true; render();
     });
-    add.appendChild(addBtn); body.appendChild(add);
+    body.appendChild(add);
 
     el.appendChild(body);
     return el;
-  }
-
-  function groupLabel(text){
-    var d = document.createElement("div"); d.className = "group-label"; d.textContent = text; return d;
-  }
-  function emptyNote(text){
-    var d = document.createElement("div"); d.className = "empty"; d.textContent = text; return d;
   }
 
   function renderTodo(todo, topic){
     var el = document.createElement("div");
-    el.className = "todo" + (todo.open ? " open" : "") + (todo.done ? " done" : "");
+    el.className = "todo" + (todo.open ? " open" : "");
+    el.setAttribute("data-state", todo.status);
 
     var head = document.createElement("div"); head.className = "todo-head";
 
-    var chev = document.createElement("span");
-    chev.className = "chev"; chev.textContent = "▶";
-    chev.addEventListener("click", function(){ todo.open = !todo.open; render(); });
-    head.appendChild(chev);
-
-    // ── The checkbox is a REQUEST, not a state change ──────────────────────────────────────────
-    // It asks first and reverts itself if the answer is no, so an accidental click never silently
-    // moves work into Completed.
-    var cb = document.createElement("input");
-    cb.type = "checkbox"; cb.className = "cb"; cb.checked = !!todo.done;
-    cb.addEventListener("click", function(e){
-      e.stopPropagation();
-      var wantDone = cb.checked;
-      cb.checked = !!todo.done;                       // hold the old state until confirmed
-      if(wantDone){
-        ask("Mark as complete?", 'Is "' + todo.title + '" really done? It will move to Completed.',
-            "Yes, it's done").then(function(ok){
-          if(ok){ todo.done = true; todo.open = false; render(); toast("Moved to Completed"); }
-        });
-      } else {
-        ask("Move back to To do?", 'This returns "' + todo.title + '" to the outstanding list.',
-            "Move back").then(function(ok){
-          if(ok){ todo.done = false; render(); toast("Moved back to To do"); }
-        });
-      }
-    });
-    head.appendChild(cb);
+    var caret = document.createElement("span"); caret.className = "todo-caret"; caret.textContent = "▶";
+    caret.addEventListener("click", function(){ todo.open = !todo.open; render(); });
 
     var title = document.createElement("div");
-    title.className = "todo-title"; title.contentEditable = "true"; title.textContent = todo.title;
-    title.addEventListener("blur", function(){ todo.title = title.textContent.trim() || "Untitled"; persist(); render(); });
-    title.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); title.blur(); } });
-    head.appendChild(title);
+    title.className = "todo-title"; title.contentEditable = "true"; title.spellcheck = false;
+    title.textContent = todo.title;
+    title.addEventListener("input", function(){ todo.title = title.textContent.trim(); persist(); });
+    title.addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); title.blur(); } });
 
-    var actions = document.createElement("div"); actions.className = "todo-actions";
+    // Three explicit buttons rather than one checkbox with an invisible middle. "In progress" has to
+    // be exactly as easy to reach as "completed", or nobody ever records that they started.
+    var states = document.createElement("div"); states.className = "states";
+    STATES.forEach(function(s){
+      var b = document.createElement("button");
+      b.className = "state-btn"; b.setAttribute("data-s", s);
+      b.setAttribute("aria-pressed", String(todo.status === s));
+      b.textContent = STATE_LABEL[s];
+      b.addEventListener("click", function(e){
+        e.stopPropagation();
+        if (todo.status === s) return;
 
-    var copy = document.createElement("button");
-    copy.className = "btn-sm btn-ghost"; copy.textContent = "Copy"; copy.title = "Copy this to-do";
-    copy.addEventListener("click", function(e){
-      e.stopPropagation();
-      var tmp = document.createElement("div"); tmp.innerHTML = todo.notes || "";
-      var text = todo.title + "\n" + (tmp.textContent || "").trim();
-      if(navigator.clipboard && navigator.clipboard.writeText){
-        navigator.clipboard.writeText(text).then(function(){ toast("Copied"); },
-                                                 function(){ fallbackCopy(text); });
-      } else fallbackCopy(text);
-    });
-    actions.appendChild(copy);
-
-    var del = document.createElement("button");
-    del.className = "btn-sm btn-danger"; del.textContent = "Delete";
-    del.addEventListener("click", function(e){
-      e.stopPropagation();
-      ask("Delete to-do?", '"' + todo.title + '" and its notes will be removed. This cannot be undone.',
-          "Delete").then(function(ok){
-        if(!ok) return;
-        topic.todos = topic.todos.filter(function(t){return t !== todo;});
-        render(); toast("To-do deleted");
+        // ONLY completion asks, and it asks in both directions. Saying you have started something is
+        // cheap and reversible; filing it as finished is the claim that has to be true, and an
+        // accidental click there is the one that costs you — it moves the card off your working list.
+        if (s === "completed"){
+          ask("Mark as complete?",
+              'Is "' + todo.title + '" really done? It will move to Completed.',
+              "Yes, it's done").then(function(ok){
+            if (!ok) return;
+            todo.status = "completed"; todo.open = false; render(); toast("Moved to Completed");
+          });
+          return;
+        }
+        if (todo.status === "completed"){
+          ask("Reopen this?",
+              '"' + todo.title + '" is marked completed. Move it back to ' + STATE_LABEL[s] + '?',
+              "Yes, reopen").then(function(ok){
+            if (!ok) return;
+            todo.status = s; render(); toast("Moved to " + STATE_LABEL[s]);
+          });
+          return;
+        }
+        todo.status = s; render(); toast("Moved to " + STATE_LABEL[s]);
       });
+      states.appendChild(b);
     });
-    actions.appendChild(del);
-    head.appendChild(actions);
+
+    head.appendChild(caret); head.appendChild(title);
+    if (todo.images.length){
+      var pill = document.createElement("span");
+      pill.className = "pill-imgs";
+      pill.textContent = "🖼 " + todo.images.length;
+      pill.title = todo.images.length + " image" + (todo.images.length === 1 ? "" : "s") + " attached";
+      head.appendChild(pill);
+    }
+    head.appendChild(states);
     el.appendChild(head);
 
     var body = document.createElement("div"); body.className = "todo-body";
 
-    var bar = document.createElement("div"); bar.className = "toolbar";
-    bar.appendChild(fmtBtn("B", "bold", "Bold (Ctrl+B)", true));
-    bar.appendChild(fmtBtn("• List", "insertUnorderedList", "Bullet list"));
-    var hint = document.createElement("span");
-    hint.className = "hint"; hint.textContent = "Click to edit — saves as you type";
-    bar.appendChild(hint);
-    body.appendChild(bar);
+    var tools = document.createElement("div"); tools.className = "tools";
+    function tool(label, fn, danger){
+      var b = document.createElement("button");
+      b.className = "tool" + (danger ? " tool-danger" : "");
+      b.textContent = label;
+      // Keeps the caret in the notes field so execCommand has a selection to act on.
+      b.addEventListener("mousedown", function(e){ e.preventDefault(); });
+      b.addEventListener("click", fn);
+      tools.appendChild(b);
+      return b;
+    }
+    tool("B", function(){ document.execCommand("bold"); });
+    tool("• List", function(){ document.execCommand("insertUnorderedList"); });
+    tool("🖼 Add images", function(){ pickTarget = todo; picker.click(); });
+    tool("Copy", function(){
+      var tmp = document.createElement("div"); tmp.innerHTML = todo.notes || "";
+      var text = todo.title + "\n" + (tmp.textContent || "").trim();
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(function(){ toast("Copied"); });
+      else toast("Clipboard unavailable");
+    });
+    tool("Delete", function(){
+      ask("Delete to-do?",
+          'Remove "' + todo.title + '"?' + (todo.images.length ? " Its " + todo.images.length + " image(s) go with it." : "") +
+          " This cannot be undone.", "Delete").then(function(ok){
+        if (!ok) return;
+        topic.todos = topic.todos.filter(function(t){ return t !== todo; });
+        render(); toast("To-do deleted");
+      });
+    }, true);
+    body.appendChild(tools);
 
     var notes = document.createElement("div");
     notes.className = "notes"; notes.contentEditable = "true";
+    notes.setAttribute("data-ph", "Click to edit — saves as you type");
     notes.innerHTML = todo.notes || "";
     notes.addEventListener("input", function(){ todo.notes = notes.innerHTML; persist(); });
-    notes.addEventListener("blur", function(){ todo.notes = notes.innerHTML; persist(); });
     body.appendChild(notes);
 
-    function fmtBtn(label, cmd, title, bold){
-      var b = document.createElement("button");
-      b.className = "btn-sm"; b.textContent = label; b.title = title;
-      if(bold) b.style.fontWeight = "700";
-      b.addEventListener("mousedown", function(e){ e.preventDefault(); });  // keep the caret
-      b.addEventListener("click", function(){
-        notes.focus(); document.execCommand(cmd, false, null);
-        todo.notes = notes.innerHTML; persist();
+    // ── Images ─────────────────────────────────────────────────────────────────────────────────
+    var bar = document.createElement("div"); bar.className = "imgbar";
+    var bl = document.createElement("span"); bl.className = "imgbar-label";
+    bl.textContent = "Images " + todo.images.length + " / " + MAX_IMAGES;
+    bar.appendChild(bl);
+    body.appendChild(bar);
+
+    if (todo.images.length){
+      var grid = document.createElement("div"); grid.className = "thumbs";
+      todo.images.forEach(function(im, i){
+        var t = document.createElement("div"); t.className = "thumb";
+        t.title = im.label || "Open in viewer";
+
+        var img = document.createElement("img");
+        img.src = imgSrc(im); img.alt = im.label || ("Image " + (i + 1)); img.loading = "lazy";
+        t.appendChild(img);
+
+        var cap = document.createElement("div");
+        cap.className = "thumb-cap" + (im.label ? "" : " empty");
+        cap.textContent = im.label || "Untitled — open to label";
+        t.appendChild(cap);
+
+        var x = document.createElement("button");
+        x.className = "thumb-x"; x.textContent = "×"; x.title = "Remove this image";
+        x.addEventListener("click", function(e){
+          e.stopPropagation();
+          ask("Remove image?",
+              (im.label ? '"' + im.label + '"' : "This image") + " will be removed from this to-do.",
+              "Remove").then(function(ok){
+            if (!ok) return;
+            todo.images = todo.images.filter(function(y){ return y !== im; });
+            // Orphaned files in the folder would pile up invisibly.
+            ensureDirPermission(true).then(function(ok2){ if (ok2) deleteImageFile(im.path); });
+            render(); toast("Image removed");
+          });
+        });
+        t.appendChild(x);
+
+        t.addEventListener("click", function(){ openViewer(todo, i); });
+        grid.appendChild(t);
       });
-      return b;
+      body.appendChild(grid);
     }
+
+    var drop = document.createElement("div"); drop.className = "drop";
+    drop.textContent = todo.images.length >= MAX_IMAGES
+      ? "Limit reached — " + MAX_IMAGES + " images per to-do."
+      : "Drop screenshots here, or paste with Ctrl+V.";
+    drop.addEventListener("dragover", function(e){ e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", function(){ drop.classList.remove("over"); });
+    drop.addEventListener("drop", function(e){
+      e.preventDefault(); drop.classList.remove("over");
+      if (e.dataTransfer && e.dataTransfer.files) addFiles(todo, e.dataTransfer.files);
+    });
+    body.appendChild(drop);
+
+    // Paste lands on whichever open to-do the caret is inside — the one being looked at.
+    body.addEventListener("paste", function(e){
+      if (!e.clipboardData || !e.clipboardData.files || !e.clipboardData.files.length) return;
+      var imgs = Array.prototype.slice.call(e.clipboardData.files).filter(function(f){ return /^image\//.test(f.type); });
+      if (!imgs.length) return;
+      e.preventDefault();
+      addFiles(todo, imgs);
+    });
 
     el.appendChild(body);
     return el;
   }
 
-  function fallbackCopy(text){
-    var ta = document.createElement("textarea");
-    ta.value = text; ta.style.position="fixed"; ta.style.opacity="0";
-    document.body.appendChild(ta); ta.select();
-    try{ document.execCommand("copy"); toast("Copied"); }catch(e){ toast("Copy failed"); }
-    document.body.removeChild(ta);
-  }
-
-  // ── Save: rewrite the embedded JSON and download the whole document ──────────────────────────
+  // ── Save ─────────────────────────────────────────────────────────────────────────────────────
   function save(){
     persist();
     var clone = document.documentElement.cloneNode(true);
-    var slot = clone.querySelector("#planner-data");
-    slot.textContent = "\n" + JSON.stringify(state, null, 1) + "\n";
-    // Strip transient UI state so the saved file opens clean.
-    var bd = clone.querySelector("#backdrop"); if(bd) bd.classList.remove("show");
-    var ts = clone.querySelector("#toast"); if(ts) ts.classList.remove("show");
+    clone.querySelector("#planner-data").textContent = "\n" + JSON.stringify(state) + "\n";
+
+    // Transient UI must not be baked into the file. The rendered topics come out too — they are
+    // rebuilt from the JSON on load, and leaving them in would double every image in the file.
+    var bd = clone.querySelector("#backdrop"); if (bd) bd.classList.remove("show");
+    var lbc = clone.querySelector("#lb"); if (lbc) lbc.classList.remove("show");
+    var ts = clone.querySelector("#toast"); if (ts) { ts.classList.remove("show"); ts.textContent = ""; }
+    var li = clone.querySelector("#lbImg"); if (li) li.removeAttribute("src");
+    var st = clone.querySelector("#lbStrip"); if (st) st.innerHTML = "";
+    var tp = clone.querySelector("#topics"); if (tp) tp.innerHTML = "";
+
     var html = "<!DOCTYPE html>\n" + clone.outerHTML;
     var blob = new Blob([html], {type:"text/html"});
     var a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "website-planner.html";
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
-    toast("Saved — replace your local file with the download");
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+
+    var mb = Math.round(html.length / 1048576 * 10) / 10;
+    toast("Saved" + (mb >= 0.1 ? " · " + mb + " MB" : "") + " — replace your file with the download.");
   }
 
-  // ── Theme ────────────────────────────────────────────────────────────────────────────────────
+  document.getElementById("saveBtn").addEventListener("click", save);
+  document.addEventListener("keydown", function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s"){ e.preventDefault(); save(); }
+  });
+
+  document.getElementById("addTopic").addEventListener("click", function(){
+    state.topics.push({ id: uid(), title: "New topic", open: true, todos: [] });
+    render();
+  });
+
   var themeBtn = document.getElementById("themeBtn");
   function applyTheme(t){
     document.documentElement.setAttribute("data-theme", t);
-    themeBtn.textContent = t === "dark" ? "☀ Light" : "🌙 Dark";
-    try{ localStorage.setItem(STORE_KEY + "-theme", t); }catch(e){}
+    themeBtn.textContent = t === "dark" ? "☀️ Light" : "🌙 Dark";
+    state.theme = t;
   }
   themeBtn.addEventListener("click", function(){
     applyTheme(document.documentElement.getAttribute("data-theme") === "dark" ? "light" : "dark");
+    persist();
   });
 
-  document.getElementById("saveBtn").addEventListener("click", save);
-  document.getElementById("addTopic").addEventListener("click", function(){
-    state.topics.push({id:uid(), title:"New topic", open:true, todos:[]});
-    render();
-    var titles = host.querySelectorAll(".topic-title");
-    if(titles.length){ var last = titles[titles.length-1]; last.focus();
-      var r = document.createRange(); r.selectNodeContents(last);
-      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); }
-  });
-  document.addEventListener("keydown", function(e){
-    if((e.ctrlKey||e.metaKey) && e.key === "s"){ e.preventDefault(); save(); }
-  });
-
-  // ── Boot ─────────────────────────────────────────────────────────────────────────────────────
-  var savedTheme = "light";
-  try{ savedTheme = localStorage.getItem(STORE_KEY + "-theme") || "light"; }catch(e){}
-  applyTheme(savedTheme);
   load();
+  applyTheme(state.theme === "dark" ? "dark" : "light");
   render();
+
+  // Recall the folder silently. Permission is NOT requested here — Chrome only grants it off a real
+  // click, and a permission prompt the moment a page opens is the kind of thing people dismiss
+  // without reading. The first upload asks, in the context where it makes sense.
+  recallDir().then(function(h){
+    if (h) dirHandle = h;
+    paintFolderBtn();
+  });
+  paintFolderBtn();
 })();
 </script>
 </body>
