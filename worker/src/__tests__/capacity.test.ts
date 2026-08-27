@@ -15,6 +15,7 @@ import {
   RESERVED_RAM_BYTES,
   describeCapacity,
   planCapacity,
+  readMachine,
 } from '../infra/capacity.js';
 
 const GB = 1024 ** 3;
@@ -111,5 +112,72 @@ describe('the worker actually enforces it', () => {
 
   it('reports capacity on /healthz, so a wrong-sized box is visible from the app', () => {
     expect(index).toContain('capacity: CAPACITY');
+  });
+});
+
+describe('readMachine reads the container, not the host', () => {
+  // These cover the one branch that only runs somewhere the suite never does: inside a container
+  // with a cgroup memory cap. The bug being pinned is quiet — the worker reads 32 GB on a box that
+  // will only give the container 26 GB, admits runs against memory it cannot have, and the failure
+  // surfaces as an OOM kill at minute 22 of a 25-minute run.
+
+  const HOST = 32 * GB;
+  const CONTAINER = 26 * GB;
+  const missing = (): never => { throw new Error('ENOENT'); };
+
+  it('prefers the cgroup v2 limit over the host', () => {
+    const read = (p: string) => {
+      if (p === '/sys/fs/cgroup/memory.max') return String(CONTAINER);
+      return missing();
+    };
+    expect(readMachine(read, HOST, 12).totalMemoryBytes).toBe(CONTAINER);
+  });
+
+  it('falls back to cgroup v1 when v2 is absent', () => {
+    const read = (p: string) => {
+      if (p === '/sys/fs/cgroup/memory/memory.limit_in_bytes') return String(CONTAINER);
+      return missing();
+    };
+    expect(readMachine(read, HOST, 12).totalMemoryBytes).toBe(CONTAINER);
+  });
+
+  it('treats cgroup v2 "max" as uncapped and uses the host', () => {
+    const read = (p: string) => (p === '/sys/fs/cgroup/memory.max' ? 'max' : missing());
+    expect(readMachine(read, HOST, 12).totalMemoryBytes).toBe(HOST);
+  });
+
+  it('treats the cgroup v1 sentinel as uncapped', () => {
+    // v1 signals "no limit" with a huge number rather than a word. Believing it would compute a
+    // concurrency in the thousands.
+    const read = (p: string) =>
+      p === '/sys/fs/cgroup/memory/memory.limit_in_bytes' ? '9223372036854771712' : missing();
+    expect(readMachine(read, HOST, 12).totalMemoryBytes).toBe(HOST);
+  });
+
+  it('ignores a cgroup value larger than the host', () => {
+    // A container is never given more than the machine has, so a bigger number means we misread the
+    // file. Trusting it would be strictly worse than not reading it at all.
+    const read = (p: string) => (p === '/sys/fs/cgroup/memory.max' ? String(64 * GB) : missing());
+    expect(readMachine(read, HOST, 12).totalMemoryBytes).toBe(HOST);
+  });
+
+  it('ignores unparseable content', () => {
+    const read = (p: string) => (p === '/sys/fs/cgroup/memory.max' ? 'not-a-number' : missing());
+    expect(readMachine(read, HOST, 12).totalMemoryBytes).toBe(HOST);
+  });
+
+  it('uses the host when there is no cgroup at all — the dev-machine case', () => {
+    expect(readMachine(missing, HOST, 12).totalMemoryBytes).toBe(HOST);
+  });
+
+  it('changes nothing about today’s netcup answer, and that is the point', () => {
+    // 26 GB container: byMemory = (26-4)/2.5 = 8; byCpu = 12/1.5 = 8; ceiling 6 → still 6.
+    // The fix is latent by design: correct now, and still correct when the ceiling moves.
+    const read = (p: string) => (p === '/sys/fs/cgroup/memory.max' ? String(CONTAINER) : missing());
+    const plan = planCapacity(readMachine(read, HOST, 12), {} as NodeJS.ProcessEnv);
+    expect(plan.maxConcurrentPipelines).toBe(6);
+    expect(plan.limitedBy).toBe('ceiling');
+    // Pinned so the difference is visible: the host reading would have said 11 here.
+    expect(plan.byMemory).toBe(8);
   });
 });
