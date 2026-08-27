@@ -1028,6 +1028,30 @@ credentials arrives only after payment clears. Everything in §2 (W2–W5) waits
 and was pasted into a chat transcript. It should be rotated and 2FA enabled before that panel holds a
 running server. netcup documents 2FA in the same welcome mail.
 
+### F3b — Conclude netcup's DPA ☐ do it while paying the invoice
+
+The CCP prompts for a Data Processing Agreement (GDPR Art. 28(3)) at login and offers to defer for 14
+days. **Conclude it.** Declining is not a neutral skip — netcup records that you do not process
+personal data, and that would be false: the worker handles property **owner names**, addresses and
+deed records naming individuals, and the open-web layer (R1) searches on owner names specifically.
+
+**Scope it to the worker, not the whole platform.** netcup hosts only the research worker. Supabase
+holds the database and Vercel serves the app; each is a separate processor with its own agreement.
+Describing the entire system here overstates what netcup is responsible for.
+
+| Field | What applies |
+|---|---|
+| Categories of data | Owner names and mailing addresses from public county records; property addresses and legal descriptions; names in deeds, plats and clerk records (grantors, grantees, adjoiners); client-supplied property details |
+| Data subjects | Property owners, prior owners, parties named in public land records |
+| Purpose | Automated retrieval and analysis of public land records for professional land surveying |
+| Retention on netcup | **Transient only** — the worker's disk holds scratch; durable artifacts go to R2 and Supabase (see W1) |
+
+**Caveat, stated because it should not be lost:** GDPR targets EU data subjects, and this is a Texas
+firm serving Texas property owners, so its actual applicability is genuinely nuanced. netcup asks
+because they are a German processor. None of that changes the action — the DPA is free and the
+alternative is signing something untrue — but a real lawyer decides anything that turns on it. This
+note exists so nobody declines by accident while clicking through a login prompt.
+
 ### F3 — netcup ☐
 
 - **Order review** must clear → server IP + Server Control Panel credentials.
