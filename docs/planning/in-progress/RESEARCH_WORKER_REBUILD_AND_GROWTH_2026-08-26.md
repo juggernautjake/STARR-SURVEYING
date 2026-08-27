@@ -451,6 +451,48 @@ most values. **A blank from `vercel env pull` proves nothing.**
 **Doppler itself stays** — free Developer plan, and it is load-bearing infrastructure. An earlier
 "cancel it, zero code references" call in this session was wrong: it checked the wrong layer.
 
+### S2b — ⚠ 17 OF 18 VENDOR CREDENTIALS ARE EMPTY — measured 2026-08-27
+
+This reframes the entire cost audit, and it is the single most useful thing measured tonight.
+
+```
+HAS A VALUE (1):
+   NEXT_PUBLIC_GOOGLE_MAPS_API_KEY (39)
+
+EMPTY OR ABSENT (17):
+   ATTOM_API_KEY · REGRID_TOKEN · TNRIS_API_KEY · LANDEX_API_KEY · LANDEX_ACCOUNT_ID
+   USPS_USER_ID · MAPBOX_ACCESS_TOKEN · ELEVENLABS_API_KEY · GOOGLE_MAPS_API_KEY (server)
+   CSLEXI_USERNAME · TEXASFILE_USERNAME · GOVOS_ACCOUNT_USERNAME · KOFILE_USERNAME
+   TYLER_PAY_USERNAME · IDOCKET_PAY_USERNAME · HENSCHEN_PAY_USERNAME · FIDLAR_PAY_USERNAME
+```
+
+Same method that correctly read Anthropic at 108 characters and Supabase at 219 — these are genuinely
+length-zero, not a reading error.
+
+**So the cost half of the audit largely dissolves.** "Check the iDocket subscription", "check ATTOM
+and Regrid", "the county vendors have been billing through the outage" — **there are no credentials,
+which strongly suggests there are no accounts.** The three services that DO cost money are the three
+already measured: Browserbase (billing, unused), Anthropic (in use), and Google Maps (in use).
+
+**And it changes the research picture more than the cost one.** `worker/src/services/paid-platform-registry.ts`
+splits platforms by `authType`:
+
+| `authType` | Cost | Works with no credentials? |
+|---|---|---|
+| `none` | $0.00/page | **Yes** — free search and free documents |
+| `username_password` / `api_key` | ~$0.50/page | No |
+| `subscription` | included (iDocket, est. $50–200/mo) | No |
+
+So a deep run can still search the free platforms and read what they publish, and **cannot purchase a
+document from any paid one.** `TEXASFILE_USERNAME` being empty matters most: TexasFile is the
+universal clerk fallback that made "all 254 counties are routed" true in R2. The **routing** is real;
+the **retrieval** stops at the paywall.
+
+**Open question worth answering before buying anything:** how much of a useful survey packet comes
+from the free platforms alone? If the free tier carries the index and the paid tier only carries
+document images, the gap is narrower than it looks. That is measurable once the worker runs — and it
+is a much better basis for deciding which vendor account to open first than guessing.
+
 ### S3 — Worth checking ☐
 
 **Mapbox** (one geocoding fallback, duplicating Google) · **ElevenLabs** (tutor read-aloud only;
