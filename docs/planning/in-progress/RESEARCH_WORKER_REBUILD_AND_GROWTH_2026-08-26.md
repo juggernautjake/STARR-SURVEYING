@@ -1321,7 +1321,7 @@ the panel, entirely normal, and mildly funny given Stripe sits dormant in this s
   Search Console data rather than guessing across 46.
 - **I3 items 1–5** above.
 
-### F5 — 764 lines of orphaned pipeline ☐ found 2026-08-27, owner's call
+### F5 — 764 lines of orphaned pipeline ◐ the CLASS is now detected; this instance is still owner's call
 
 `lib/research/prioritized-pipeline.ts` (378 lines) and `lib/research/prioritized-pipeline.service.ts`
 (386 lines) — **two near-identical files, neither imported anywhere.** `runPrioritizedPipeline`,
@@ -1347,6 +1347,30 @@ conflicts early rather than after low-value sources have been paid for. The live
 
 Not touched tonight. Deleting working-looking code at 4am on the strength of a grep is exactly how a
 real feature gets removed, and wiring an untested 764-line path into the analysis run is worse.
+**◐ Partially addressed 2026-08-27 — the class of bug, not this instance.**
+
+Not resolved: wiring or deleting these 764 lines is still the owner's call, and deleting
+working-looking code on the strength of a grep is how a real feature disappears.
+
+What did change is that **the shape is now detected**. `scripts/find-orphaned-modules.mjs`
+(`npm run verify:orphans`, pinned by `__tests__/every-export-is-imported.test.ts`) finds every module
+under `lib/`, `app/` and `components/` that exports something no product code imports — tests
+excluded, because a module imported only by its own test is exactly the case worth catching.
+
+**It found 62, across 3,080 modules.** Both halves of this pair are on the list. So is
+`lib/hub/components/AddWidgetModal.tsx`, which I rebuilt on 2026-08-27 before discovering nothing
+mounts it — an afternoon that would have cost ten seconds against this check. So is
+`app/components/ContactForm.tsx`: 355 lines of a contact form, while `app/contact/page.tsx` renders
+its own inline one. Given this session began with lead generation, that one is worth a look.
+
+**It ratchets on the count, not on an allowlist.** Three of the 62 carry notes because I actually
+investigated them; writing notes for the other 59 would be inventing them. The number may only go
+down, and the check prints `scanned N modules; X% unreferenced` on every run so that a broken
+scanner is visible rather than silent — 2% is plausible, 90% would mean the instrument is what
+changed.
+
+Verified by control: adding a deliberately unreferenced module makes it exit 1; removing it exits 0.
+
 
 ---
 

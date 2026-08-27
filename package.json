@@ -51,7 +51,8 @@
     "generate:bestiary": "npx --yes vite-node -c vitest.config.ts scripts/generate-transposed-bestiary.mjs --",
     "import:open5e": "npx --yes vite-node -c vitest.config.ts scripts/import-open5e.mjs --",
     "derive:tiers": "node scripts/derive-tier-tables.mjs",
-    "audit:natives": "npx --yes vite-node -c vitest.config.ts scripts/audit-native-coverage.mjs --"
+    "audit:natives": "npx --yes vite-node -c vitest.config.ts scripts/audit-native-coverage.mjs --",
+    "verify:orphans": "node scripts/find-orphaned-modules.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
