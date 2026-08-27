@@ -1052,6 +1052,39 @@ because they are a German processor. None of that changes the action — the DPA
 alternative is signing something untrue — but a real lawyer decides anything that turns on it. This
 note exists so nobody declines by accident while clicking through a login prompt.
 
+#### The form's checkboxes, mapped to what the worker demonstrably does
+
+netcup's ANNEX 3 offers fixed categories and a free-text field. **The most important entries go in the
+free text**, because their list has no box for the people this system actually handles.
+
+**Data subjects** — ☑ Customers. Then, as additional data:
+`Property owners and prior owners named in public land records` ·
+`Parties named in deeds, plats and clerk records (grantors, grantees, adjoining owners)`
+
+Leave unchecked: suppliers, website visitors (Vercel's), employees (Supabase's), external employees,
+processors, newsletter subscribers. None of them reach netcup.
+
+**Personal data** — ☑ Name data · ☑ Contact and address data · ☑ Location and geographic information ·
+☑ **Photo, video, or audio data** · ☑ Customer contract data. Plus free text:
+`Public land record documents (deeds, plats, liens, easements) naming individuals`
+
+> **The photo box is the one that gets missed.** The worker captures portal screenshots, deed page
+> images, aerial and satellite imagery and plat scans — 215 such documents already exist in
+> `research_documents` for Bell County alone. Anyone reading "we process property records" would not
+> think to tick it.
+
+**"Data relevant to criminal law" — a real decision, not a default.** The open-web layer (R1) searches
+owner names for *lien OR judgment OR lawsuit OR foreclosure OR probate*. Those are **civil** matters,
+so strictly the answer is no. But a name-based web search can incidentally return criminal records,
+and we do not control what the engine hands back. **Under-declaring is the costly error and
+over-declaring costs nothing — lean towards checking it.**
+
+**Art. 9 special categories: none.** Land records carry no racial origin, religion, genetic, biometric,
+political, union, health or sexual-orientation data. That one is clean.
+
+**Not legal advice** — a mapping of what the code does onto their form, so nobody under-declares while
+clicking through at speed.
+
 ### F3 — netcup ☐
 
 - **Order review** must clear → server IP + Server Control Panel credentials.
