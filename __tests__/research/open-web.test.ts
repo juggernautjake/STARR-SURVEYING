@@ -5,6 +5,8 @@ import {
   canonicalUrl,
   dedupeAndRank,
   domainAuthority,
+  provenanceBand,
+  renderFindingsAsDocument,
   rankScore,
   searchOpenWeb,
   unsupportedAngles,
@@ -186,5 +188,56 @@ describe('searchOpenWeb', () => {
 
     await searchOpenWeb(SUBJECT, { apiKey: 'k', fetchImpl, only: ['permits-planning'] });
     expect(calls).toBe(1);
+  });
+});
+
+describe('renderFindingsAsDocument', () => {
+  // R1b: the findings become a research_documents row, so this text is what the AI reads and what
+  // gets embedded for search. What it omits, the model cannot know.
+  const result = (url: string, angle: OpenWebResult['angle'], score = 0.9): OpenWebResult => ({
+    angle, url, title: 'Lien filed against Ash Family Trust', content: 'Cause No. 12345  filed 2019',
+    score, authority: domainAuthority(url),
+  });
+
+  it('keeps the url, the angle and a readable provenance band on every finding', () => {
+    // Strip provenance and the AI gets a flat list of equally-credible-looking claims — which is
+    // precisely how a confident wrong answer gets written into a survey report.
+    const text = renderFindingsAsDocument(
+      { address: '3779 W FM 436', county: 'Bell', ownerName: 'Ash Family Trust' },
+      { angles: [], topResults: [result('https://co.bell.tx.us/case/1', 'owner-encumbrance')], steps: [] },
+    );
+    expect(text).toContain('https://co.bell.tx.us/case/1');
+    expect(text).toContain('owner-encumbrance');
+    expect(text).toContain('government record');
+  });
+
+  it('bands a blog differently from a county record', () => {
+    expect(provenanceBand(domainAuthority('https://co.bell.tx.us/x'))).toBe('government record');
+    expect(provenanceBand(domainAuthority('https://blog.example/x'))).toBe('open web — unverified');
+  });
+
+  it('says outright that these are not county records', () => {
+    // The document sits beside deeds and CAD extracts in the same list. Without this line a reader
+    // — human or model — has no reason to treat it differently.
+    const text = renderFindingsAsDocument({ address: 'x' }, { angles: [], topResults: [result('https://a.gov/1', 'news-disputes')], steps: [] });
+    expect(text).toMatch(/NOT county records/i);
+  });
+
+  it('reports an empty search as a result rather than an error', () => {
+    const text = renderFindingsAsDocument({ address: 'x' }, { angles: [], topResults: [], steps: [] });
+    expect(text).toContain('This is a result, not an error');
+  });
+
+  it('lists angles that did not run, so "could not ask" is not read as "found nothing"', () => {
+    const text = renderFindingsAsDocument(
+      { address: 'x' },
+      {
+        angles: [{ angle: 'owner-encumbrance', query: null, results: [], skipped: 'insufficient-subject' }],
+        topResults: [result('https://a.gov/1', 'news-disputes')],
+        steps: [],
+      },
+    );
+    expect(text).toContain('ANGLES NOT SEARCHED');
+    expect(text).toContain('owner-encumbrance: insufficient-subject');
   });
 });

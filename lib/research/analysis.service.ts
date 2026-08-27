@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { TEXAS_MIN_RURAL_RATIO, TEXAS_MIN_URBAN_RATIO } from '@/worker/src/lib/closure-tolerance';
 import { callAI, callVision, AIServiceError } from './ai-client';
 import { fetchSourceContent } from './document-analysis.service';
-import { searchOpenWeb, type OpenWebResult } from './open-web';
+import { searchOpenWeb, renderFindingsAsDocument, type OpenWebResult } from './open-web';
 // Matching a fact's quote back to the tile it was read from (plan R17).
 import { locateFactRegion, summariseLocations, type LocateResult, type OcrRegion } from './fact-regions';
 import { fetchBoundaryCalls, extractPublicsearchItems } from './boundary-fetch.service';
@@ -684,6 +684,68 @@ export async function analyzeProject(
         addLog('info', `[open-web] ${openWebFindings.length} distinct source(s) after dedupe, ranked by relevance and domain authority.`);
         for (const f of openWebFindings.slice(0, 5)) {
           addLog('info', `[open-web] ${f.angle}: ${f.title}`, f.url);
+        }
+
+        // ── R1b: hand the findings to the analysis machinery, not just the log ─────────────────
+        //
+        // Stored as a `research_documents` row so the existing pipeline reads it like any other
+        // source: data points extracted, cross-validated against the deed and the CAD record,
+        // embedded for AI search, listed in the UI. One insert inherits all of that. A bespoke
+        // "web findings" field would need every one of those rebuilt, and would be missed by
+        // whichever was written last.
+        //
+        // `linked_reference` and `property_report` are the honest fits within the CHECK constraints
+        // on this table — these are references to external pages, not records we hold. Inventing a
+        // `web_search` source_type would have failed at insert time, which is exactly the class of
+        // bug that only appears in production.
+        const openWebLabel = `Open-Web Research — ${projectRow?.property_address ?? projectId}`;
+        const { data: existingOpenWeb } = await supabaseAdmin
+          .from('research_documents')
+          .select('id')
+          .eq('research_project_id', projectId)
+          .eq('document_label', openWebLabel)
+          .eq('source_type', 'linked_reference')
+          .maybeSingle();
+
+        const openWebText = renderFindingsAsDocument(
+          {
+            address: projectRow?.property_address ?? undefined,
+            county: projectRow?.county ?? undefined,
+            ownerName: ownerName ?? undefined,
+          },
+          { angles: [], topResults: openWebFindings, steps: [] },
+        );
+
+        if (existingOpenWeb) {
+          // Re-running research should refresh the findings rather than accumulate a second copy —
+          // the web changes between runs, and two documents would be cross-validated against each
+          // other as though they were independent sources.
+          await supabaseAdmin.from('research_documents').update({
+            extracted_text: openWebText.substring(0, 40_000),
+            processing_status: 'extracted',
+            updated_at: new Date().toISOString(),
+          }).eq('id', (existingOpenWeb as { id: string }).id);
+          addLog('info', `[open-web] Refreshed the existing findings document.`);
+        } else {
+          const { data: newOpenWebDoc } = await supabaseAdmin.from('research_documents').insert({
+            research_project_id: projectId,
+            source_type: 'linked_reference',
+            document_type: 'property_report',
+            document_label: openWebLabel,
+            source_url: openWebFindings[0]?.url ?? null,
+            file_type: 'txt',
+            processing_status: 'extracted',
+            extracted_text: openWebText.substring(0, 40_000),
+            extracted_text_method: 'tavily-open-web',
+          }).select('*').single();
+
+          if (newOpenWebDoc) {
+            // Deliberately NOT pushed into `allDocuments`/`documents` — those are loaded from this
+            // same table a few lines below, filtered to `extracted`/`analyzed`, which is the status
+            // written here. The query picks it up on its own. Pushing as well would list it twice
+            // and have it cross-validated against itself as an independent source.
+            addLog('success', `[open-web] Stored findings as an analyzable document (${openWebText.length} chars).`);
+          }
         }
       }
     } catch (err) {

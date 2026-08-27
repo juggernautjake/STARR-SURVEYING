@@ -127,7 +127,7 @@ CPU deliberately still reads the host: compose sets no `cpus` limit, so all 12 r
 
 ## 3. R — Research capability
 
-### R1 — Open-web research via Tavily ◐ **R1a SHIPPED 2026-08-26 · R1b open**
+### R1 — Open-web research via Tavily ✅ DONE 2026-08-26 (R1a + R1b)
 
 `TAVILY_API_KEY` is configured and does exactly one job: guessing county CAD URLs, as "Method 9" in
 `lib/research/boundary-fetch.service.ts`. Free tier, 1,000 requests/month.
@@ -170,10 +170,31 @@ Every non-result carries a reason (`not-configured` / `insufficient-subject` / `
 following `lib/search/semantic.ts`. Non-fatal by construction: a web search being down can never
 fail a run that has already bought paid documents. 19 tests, `tsc` clean, 1,050 suite tests green.
 
-**R1b — feed the findings to the synthesis ☐ NEXT.** Today the findings land in the run log, where a
-surveyor reads them. They are not yet passed to the AI that writes the report, so the model cannot
-reason over a lien it can see in the log. That is the next slice and it is where most of the value
-is — deliberately split so R1a could ship wired rather than sitting behind a bigger change.
+**R1b — the findings reach the AI, not just the log. SHIPPED 2026-08-26.**
+
+Written as a `research_documents` row, so the existing pipeline reads them like any other source:
+data points extracted, cross-validated against the deed and the CAD record, embedded for AI search,
+listed in the UI. One insert inherits all of that. A bespoke "web findings" field would need every
+one of those rebuilt, and would be missed by whichever was written last.
+
+`source_type: 'linked_reference'` + `document_type: 'property_report'` — the honest fits inside this
+table's CHECK constraints, **read from the live database rather than guessed**. There is no
+`web_search` source type; inventing one would have failed at insert time, in production only.
+
+Three deliberate properties of the rendered document:
+
+- It states outright that these are **not** county records — it sits in the same list as deeds.
+- Every entry keeps its URL, angle and a **worded** provenance band ("government record" /
+  "open web — unverified"). Strip that and the AI gets a flat list of equally-credible-looking
+  claims, which is exactly how a confident wrong answer reaches a survey report.
+- Angles that did **not** run are listed, so "could not ask" is never read as "found nothing".
+
+Re-running refreshes the row rather than adding a second — two copies would be cross-validated
+against each other as though they were independent sources. The row is deliberately not pushed into
+the in-memory document arrays either: those are loaded from this same table moments later, filtered
+to `extracted`, which is the status written here.
+
+24 tests, `tsc` clean, production build exit 0.
 
 ### R2 — County coverage: deeper, not wider ☐
 

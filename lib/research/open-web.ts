@@ -265,6 +265,74 @@ export function dedupeAndRank(results: OpenWebResult[], limit = MAX_TOP_RESULTS)
   return [...best.values()].sort((a, b) => rankScore(b) - rankScore(a)).slice(0, limit);
 }
 
+/**
+ * Render findings as the text of one research document (plan R1b).
+ *
+ * ── WHY A DOCUMENT AND NOT A SPECIAL CASE ──────────────────────────────────────────────────────
+ *
+ * The pipeline already knows how to read a `research_documents` row: it extracts data points from
+ * it, cross-validates them against every other source, embeds it for AI search, and shows it in the
+ * documents list. Handing open-web findings to that machinery costs one insert and inherits all of
+ * it. A bespoke "web findings" field would need each of those built again, and would be forgotten by
+ * whichever one was written last.
+ *
+ * ── THE PROVENANCE STAYS ATTACHED, DELIBERATELY ────────────────────────────────────────────────
+ *
+ * Every entry keeps its URL, its angle and its authority band. A model reading this must be able to
+ * tell a county record from a blog post — the ranking already encodes that judgement, and stripping
+ * it here would hand the AI a flat list of equally-credible-looking claims. Which is precisely how a
+ * confident wrong answer gets written.
+ */
+export function renderFindingsAsDocument(subject: OpenWebSubject, report: OpenWebReport): string {
+  const lines: string[] = [
+    'OPEN-WEB RESEARCH FINDINGS',
+    '',
+    'Sources found by searching the public internet — NOT county records. Each entry carries the',
+    'search angle that found it and a provenance band. Weigh them accordingly: a .gov page and a',
+    'blog post can both appear here, and they are not equally good evidence.',
+    '',
+    `Subject: ${subject.address ?? subject.subdivision ?? '(unspecified)'}`,
+    subject.county ? `County: ${subject.county}` : '',
+    subject.ownerName ? `Owner searched: ${subject.ownerName}` : '',
+    '',
+  ];
+
+  // The angles that did not run are listed too. An absent angle reads as "nothing found", and the
+  // difference between "we could not ask" and "we asked and found nothing" changes what a surveyor
+  // does next.
+  const skipped = report.angles.filter((a) => a.skipped !== null);
+  if (skipped.length) {
+    lines.push('ANGLES NOT SEARCHED:');
+    for (const a of skipped) lines.push(`  - ${a.angle}: ${a.skipped}`);
+    lines.push('');
+  }
+
+  if (!report.topResults.length) {
+    lines.push('No sources above the relevance floor. This is a result, not an error.');
+    return lines.filter((l) => l !== '' || true).join('\n');
+  }
+
+  lines.push('FINDINGS:', '');
+  for (const [i, r] of report.topResults.entries()) {
+    lines.push(
+      `[${i + 1}] ${r.title}`,
+      `    angle: ${r.angle}   provenance: ${provenanceBand(r.authority)}   relevance: ${r.score.toFixed(2)}`,
+      `    url: ${r.url}`,
+      `    ${r.content.replace(/\s+/g, ' ').slice(0, 700)}`,
+      '',
+    );
+  }
+  return lines.join('\n');
+}
+
+/** Words rather than a number, because the number means nothing to a model or a person. */
+export function provenanceBand(authority: number): string {
+  if (authority >= 1.0) return 'government record';
+  if (authority >= 0.75) return 'primary records vendor';
+  if (authority >= 0.5) return 'news media';
+  return 'open web — unverified';
+}
+
 /** Strip the parts of a URL that do not change the page, so two sightings collapse. */
 export function canonicalUrl(url: string): string {
   try {
