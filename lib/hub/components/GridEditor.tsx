@@ -20,7 +20,14 @@ import {
   type WidgetCategory,
   type WidgetDefinition,
 } from '@/lib/hub/widget-registry';
-import { filterCatalog } from '@/lib/hub/widget-catalog-filter';
+import { buildCategorySections, CATEGORY_LABELS } from '@/lib/hub/widget-catalog-filter';
+import {
+  isCategoryOpen,
+  isSearchActive,
+  onSearchChanged,
+  toggleCategory,
+  type DisclosureState,
+} from '@/lib/hub/category-disclosure';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
 // Slice 7 (employee-hub-overhaul-2026-05-30) — single source of truth
@@ -243,10 +250,38 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
   }, [selectedType]);
 
   const catalog = useMemo(() => allWidgets(), []);
-  const filtered = useMemo(
-    () => filterCatalog(catalog, { roles, activeBundles, search, category: 'all' }),
+
+  // HUB_CUSTOMIZER_2026-08-27 H1-H6. The palette used to be one flat list of every permitted widget
+  // — 54 chips behind one scrollbar, which is the wall the owner asked to be rid of. It is now
+  // collapsible category boxes, and the search operates on categories rather than on one long list.
+  const sections = useMemo(
+    () => buildCategorySections(catalog, { roles, activeBundles, search }),
     [catalog, roles, activeBundles, search],
   );
+  // THE FIRST CATEGORY STARTS OPEN, and that is a considered difference from a catalog modal.
+  //
+  // This is a narrow left rail whose only purpose is adding widgets. Opening it fully collapsed
+  // would cost a click before anything can be done and would leave the rail looking empty — three
+  // existing tests assert the palette shows widget entries at rest, which is this surface's
+  // contract rather than an accident. One category open is still ~12 chips instead of 54, so the
+  // wall the owner objected to is gone either way.
+  const [disclosure, setDisclosure] = useState<DisclosureState>(() => ({
+    userOpened: new Set(sections.length ? [sections[0].category] : []),
+    searchOverrides: new Map(),
+  }));
+  const prevSearch = useRef('');
+  const searchActive = isSearchActive(search);
+
+  // Kept so the drag/keyboard code below can still resolve any widget by id regardless of which box
+  // it lives in, and so "no widgets match" stays a question about the whole palette.
+  const filtered = useMemo(() => sections.flatMap((sec) => sec.widgets), [sections]);
+
+  function onPaletteSearch(next: string) {
+    // Overrides belong to the query that produced them; they go when it changes.
+    setDisclosure((d) => onSearchChanged(d, next, prevSearch.current));
+    prevSearch.current = next;
+    setSearch(next);
+  }
   const selected = selectedType
     ? catalog.find((w) => w.id === selectedType) ?? null
     : null;
@@ -603,20 +638,70 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
         <div style={bodyStyle}>
           {/* ── Palette (left) ──────────────────────────────────────── */}
           <aside aria-label="Widget palette" style={paletteStyle} data-testid="grid-editor-palette">
+            {/* H5 — a fade, not a pop. Results update on every keystroke, so boxes and chips arrive
+                and leave constantly; without it the palette looks like things are blinking in and
+                out of existence. Inline rather than in MobileEditor.css, which this component does
+                NOT import — a rule written in a stylesheet a component never loads is the
+                route-scoped-CSS trap one floor down. Follows WidgetSkeleton's pattern. */}
+            <style>{`
+              @keyframes hub-cat-fade {
+                from { opacity: 0; transform: translateY(-3px); }
+                to   { opacity: 1; transform: none; }
+              }
+              .hub-cat-reveal { animation: hub-cat-fade 170ms ease both; }
+              .hub-cat-reveal > * { animation: hub-cat-fade 190ms ease both; }
+              @media (prefers-reduced-motion: reduce) {
+                .hub-cat-reveal, .hub-cat-reveal > * { animation: none !important; }
+              }
+            `}</style>
             <input
               ref={searchInputRef}
               type="search"
               placeholder="Search widgets…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => onPaletteSearch(e.target.value)}
               aria-label="Search widgets"
               style={paletteSearchStyle}
             />
-            <ul role="listbox" aria-label="Available widgets" style={paletteListStyle}>
-              {filtered.length === 0 && (
-                <li style={paletteEmptyStyle}>No widgets match.</li>
+            {/* The palette keeps its accessible name as a whole, and each category carries its own
+                listbox. A single listbox cannot contain group headers — role=option must be a direct
+                child of role=listbox — so splitting it per category is the correct structure, not a
+                workaround. */}
+            <div role="group" aria-label="Available widgets" style={paletteListStyle}>
+              {sections.length === 0 && (
+                <p style={paletteEmptyStyle}>No widgets match.</p>
               )}
-              {filtered.map((w) => {
+              {sections.map((section) => {
+              const catOpen = isCategoryOpen(disclosure, section.category, {
+                searchActive, matched: section.matched,
+              });
+              const narrowed = section.widgets.length !== section.total;
+              return (
+              <section key={section.category} data-category={section.category} data-open={catOpen ? 'true' : 'false'}>
+                <button
+                  type="button"
+                  onClick={() => setDisclosure((d) => toggleCategory(d, section.category, {
+                    searchActive, matched: section.matched,
+                  }))}
+                  aria-expanded={catOpen}
+                  style={catHeadStyle}
+                  data-testid={`grid-editor-palette-category-${section.category}`}
+                >
+                  <span aria-hidden="true" style={{ ...catCaretStyle, transform: catOpen ? 'rotate(90deg)' : 'none' }}>▸</span>
+                  <span style={catTitleStyle}>{CATEGORY_LABELS[section.category]}</span>
+                  {/* A closed box still says how much is inside; a narrowed one says both numbers so
+                      a shortened list never reads as a category that lost widgets. */}
+                  <span style={catCountStyle}>{narrowed ? `${section.widgets.length}/${section.total}` : section.total}</span>
+                </button>
+
+                {catOpen && (
+                <ul
+                  role="listbox"
+                  aria-label={`${CATEGORY_LABELS[section.category]} widgets`}
+                  style={catListStyle}
+                  className="hub-cat-reveal"
+                >
+              {section.widgets.map((w) => {
                 const isSelected = w.id === selectedType;
                 // Slice W1 — paint a "✓ placed" indicator on
                 // palette chips whose widget type is already on
@@ -740,7 +825,12 @@ function GridEditorBody({ onClose, roles, activeBundles }: GridEditorBodyProps) 
                   </li>
                 );
               })}
-            </ul>
+                </ul>
+                )}
+              </section>
+              );
+              })}
+            </div>
           </aside>
 
           {/* ── 8×12 Grid (right) ────────────────────────────────────── */}
@@ -1374,6 +1464,65 @@ const paletteListStyle: React.CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 4,
+};
+
+const catHeadStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  width: '100%',
+  padding: '7px 8px',
+  marginTop: 2,
+  border: 'none',
+  borderRadius: 6,
+  background: 'transparent',
+  color: 'var(--theme-fg-primary)',
+  font: 'inherit',
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  minHeight: 34,
+};
+
+const catCaretStyle: React.CSSProperties = {
+  flex: '0 0 auto',
+  width: 12,
+  // 10px rendered as a barely-visible dot rather than a triangle — and this caret IS the affordance
+  // that says the row opens. Seen in a screenshot, not in a test.
+  fontSize: 12,
+  lineHeight: 1,
+  color: 'var(--theme-fg-primary)',
+  transition: 'transform 160ms ease',
+};
+
+const catTitleStyle: React.CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+  fontSize: '0.78rem',
+  fontWeight: 650,
+};
+
+const catCountStyle: React.CSSProperties = {
+  flex: '0 0 auto',
+  fontSize: '0.7rem',
+  color: 'var(--theme-fg-secondary)',
+  fontVariantNumeric: 'tabular-nums',
+};
+
+const catListStyle: React.CSSProperties = {
+  listStyle: 'none',
+  margin: 0,
+  padding: '0 0 6px 0',
+  display: 'flex',
+  flexDirection: 'column' as const,
+  gap: 4,
+  // THE OPEN CATEGORY SCROLLS INSIDE ITSELF.
+  //
+  // Found by looking at it, not by a test: Personal holds 12 chips, and in a rail this short that
+  // pushed the other ten category headers below the fold — so opening one category hid the existence
+  // of the rest, which is most of what the boxes were for. Capping the open list keeps every header
+  // reachable without scrolling past somebody else's widgets.
+  maxHeight: 260,
+  overflowY: 'auto' as const,
 };
 
 const paletteEmptyStyle: React.CSSProperties = {

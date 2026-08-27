@@ -113,7 +113,7 @@ the UI is ever rebuilt.
 |---|---|---|---|
 | S1 | H1, H3 | Category-level tag aggregation + a filter returning categories with their surviving widgets. | ✅ 2026-08-27 |
 | S2 | H4, H6 | `lib/hub/category-disclosure.ts` — the derived-state model above. | ✅ 2026-08-27 |
-| S3 | H2, H5 | The modal rebuilt as collapsible boxes with fade transitions. | ✅ 2026-08-27 |
+| S3 | H2, H5 | Collapsible boxes with fade transitions — in GridEditor, the palette that is actually mounted. See §5. | ✅ 2026-08-27 |
 
 **All six shipped 2026-08-27.** `lib/hub/widget-catalog-filter.ts` (+`buildCategorySections`,
 `categoryTags`, `categoryMatches`, `widgetTags`, `CATEGORY_ORDER`), `lib/hub/category-disclosure.ts`,
@@ -167,3 +167,53 @@ empty catalog. A test now pins the gating difference so the next reader does not
 - The widget **grid** (drag, resize, reflow) is untouched. This is the catalog only.
 - Re-categorising any widget. The 11 categories and their memberships are the owner's, not mine to
   change; if a widget is in the wrong box that is a separate, one-line note.
+
+---
+
+## 5. Correction — the first attempt landed on a component nothing mounts
+
+**`AddWidgetModal` has no consumers.** `HubCanvas`'s own header says so: *"The old in-header
+add-widget button, the AddWidgetModal mount, and the floating EditModeBar are gone"* — Slice 2 of the
+hub overhaul retired it. The live palette is the left rail inside **`GridEditor`** (desktop) and
+`MobileEditor` (mobile).
+
+The first pass rebuilt the modal, and its wiring tests asserted *the modal imports the new modules* —
+which was true, and useless. **They never checked that anything imports the modal.** The test stopped
+one level short of the question that mattered, and only opening the hub in a browser revealed it:
+clicking Customize Hub produced a completely different picker.
+
+Redirected to `GridEditor`. `CATEGORY_LABELS` moved out of the modal into `widget-catalog-filter.ts`
+so both surfaces read the same names. The chip markup — drag source, custom drag ghost sized to the
+widget's grid footprint, ✓-placed state, duplicate-widget event, tooltip — is byte-identical; only
+the structure around it changed.
+
+### Three things the browser found that the tests could not
+
+**The palette cannot open fully collapsed.** Three existing tests assert it renders widget entries at
+rest, and that is this surface's contract rather than an accident: a left rail whose only purpose is
+adding widgets, showing nothing until you click, is a regression. The first category opens by
+default — still ~12 chips instead of 54.
+
+**Opening one category hid the other ten.** Personal holds 12 chips, which pushed every remaining
+header below the fold in a 621px rail — so the boxes cost you the overview they were meant to give.
+The open list now scrolls inside itself (`maxHeight: 260`). Measured: **7 of 11 headers visible,
+up from 1.**
+
+**The caret rendered as a barely-visible dot** at 10px, and it is the affordance that says the row
+opens. Now 12px in the primary ink.
+
+### One a11y correction
+
+A single `role="listbox"` cannot contain group headers — `role="option"` must be a direct child. So
+each category carries its own listbox named for it, and the container keeps `role="group"
+aria-label="Available widgets"` so the palette still has its accessible name. That also kept two
+existing assertions passing on their own terms rather than being re-baselined.
+
+### Verified in the browser, at 1440px
+
+11 categories · one open · 12 chips instead of 54 · the group label intact. And **the owner's worked
+example driven through the real UI**: Personal and CAD open → search "weather" → only Personal shown
+and open → clear → Personal and CAD open again, exactly as before. `restoredExactly: true`.
+
+`AddWidgetModal` is left as it is — improved but still unmounted. Deleting a retired component is a
+separate decision, and it is now the better of the two if anyone ever remounts a catalog modal.

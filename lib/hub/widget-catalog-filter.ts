@@ -190,6 +190,22 @@ export interface CategorySection {
   total: number;
 }
 
+/** Human labels for the categories. Lived in AddWidgetModal, which nothing mounts; moved here so
+ *  the live palette and any future surface read the same names. */
+export const CATEGORY_LABELS: Record<WidgetCategory, string> = {
+  personal:      'Personal',
+  work:          'Work',
+  'time-pay':    'Time & Pay',
+  equipment:     'Equipment',
+  cad:           'CAD',
+  research:      'Research',
+  learning:      'Learning',
+  communication: 'Communication',
+  office:        'Office',
+  financial:     'Financial',
+  operational:   'Operational',
+};
+
 /** Render order. Fixed rather than alphabetical so the catalog does not reshuffle between visits. */
 export const CATEGORY_ORDER: WidgetCategory[] = [
   'personal', 'work', 'time-pay', 'equipment',
