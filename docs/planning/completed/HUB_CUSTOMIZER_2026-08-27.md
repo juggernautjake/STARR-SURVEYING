@@ -223,7 +223,7 @@ separate decision, and it is now the better of the two if anyone ever remounts a
 
 ## 6. Mobile — the third surface
 
-There are three widget-picking surfaces and the first pass did one.  was the worst of
+There are three widget-picking surfaces and the first pass did one. `MobileEditor` was the worst of
 them: every addable widget in one column, on the smallest screen, **with no search field at all**.
 
 Same collapsible categories, same disclosure model, plus the search it was missing. Two things fixed
@@ -237,4 +237,4 @@ headers at once, so closed gives the whole map in one screen. Different surface,
 answer.
 
 Driven at 390px: 11 categories, search present, no raw slugs, 44px thumb targets, and the worked
-example again — CAD and Learning open, search, clear, both open again. .
+example again — CAD and Learning open, search, clear, both open again. `restoredExactly: true`.
