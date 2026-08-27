@@ -1105,6 +1105,31 @@ political, union, health or sexual-orientation data. That one is clean.
 **Not legal advice** — a mapping of what the code does onto their form, so nobody under-declares while
 clicking through at speed.
 
+### F3c — CCP account state, 2026-08-27
+
+**Done:** password rotated · **2FA activated** · **VAT rate confirmed 0%** (the business registration
+held — €7.50/month) · address matches what the site publishes.
+
+**⚠ The telephone number is malformed and should be corrected:**
+
+```
++2543151123     ← parses as +254 → KENYA, then 3151123
++12543151123    ← correct: US country code +1, area code 254
+```
+
+254 is the Texas area code, not a country code, and the field explicitly asks for one. This is the
+number netcup dials for account verification, fraud checks, or an incident on the server — as
+written, it rings the wrong continent. **The same applies to both DPA contact numbers**, entered as
+`2543151123` and `9366620077` with no `+1`.
+
+A close cousin of the `www` bug that has bitten this project four times: a value that is correct as a
+local string and wrong as a fully-qualified one.
+
+**Company name is support-mediated.** The CCP shows "Starr Surveying" beside a *"How to change
+ownership"* link rather than an editable field, so switching to the legal entity (*Starr Technical
+Services Inc.*) means a support ticket. Low priority — but if it is ever done, ask netcup to
+regenerate the DPA so the agreement names the entity rather than the trade name (see F3b).
+
 ### F3 — netcup ☐
 
 - **Order review** must clear → server IP + Server Control Panel credentials.
