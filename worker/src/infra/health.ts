@@ -222,6 +222,15 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
 
   // Same shape: the provider is selected by name, and the key is only reached when a portal actually
   // presents a captcha — typically minutes into a run against a county site.
+  //
+  // ⚠ THIS CHECKS PRESENCE, NOT VALIDITY, AND THE DIFFERENCE HAS BITTEN. Measured 2026-08-27: the
+  // configured `CAPSOLVER_API_KEY` is 68 characters long and CapSolver's API rejects it outright
+  // (`ERROR_KEY_DENIED_ACCESS`). A key that exists and is refused passes the check below in silence.
+  //
+  // Not fixed by probing the provider at boot, on purpose: a worker whose startup depends on a
+  // third-party API cannot start during that API's outage, which is worse than the problem. Validity
+  // belongs to the moment a provider is switched on — see R4a in
+  // docs/planning/in-progress/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
   if ((env.CAPTCHA_PROVIDER ?? 'stub').toLowerCase() === 'capsolver' && !env.CAPSOLVER_API_KEY) {
     warn.push('CAPTCHA_PROVIDER=capsolver but CAPSOLVER_API_KEY missing — solving fails the first time a portal asks');
   }

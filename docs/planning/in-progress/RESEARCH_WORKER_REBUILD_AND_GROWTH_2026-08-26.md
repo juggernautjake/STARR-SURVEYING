@@ -387,6 +387,35 @@ per-firm quotas, billing attribution — and it is *software*, not servers.
 > IP, not a bigger box. Four netcup servers = $184/mo, 48 dedicated cores, four IPs — half the price of
 > one equivalent DigitalOcean General Purpose droplet.
 
+### R4a — the CapSolver key is REJECTED ⚠ MEASURED 2026-08-27
+
+`CAPSOLVER_API_KEY` is set (68 characters) and their API refuses it:
+
+```
+POST api.capsolver.com/getBalance → 401
+ERROR_KEY_DENIED_ACCESS — account authorization is invalid: Code(41)
+```
+
+Expired, revoked, or from a closed account. Harmless today because
+`CAPTCHA_PROVIDER=stub` means nothing calls it — but **the moment anyone enables captcha solving it
+fails on the first portal that asks**, with an authorisation error rather than a solve failure, which
+sends the operator to debug the wrong thing entirely.
+
+**And it exposes a real gap in W3, which is my own work.** That check is
+`CAPTCHA_PROVIDER=capsolver && !CAPSOLVER_API_KEY` — it asserts **presence**. A key that exists and
+is rejected passes it silently. Same shape as the `vercel env pull` lesson: a value being there is
+not a value being right.
+
+**Deliberately not "fixed" by adding a validity probe at boot.** A worker whose startup depends on a
+third-party API is a worker that cannot start when that API has an outage — strictly worse than the
+problem. Validity is a thing to check when you turn a provider on, not on every boot, and that is now
+written down here where the turning-on happens.
+
+**Owner decision, one of two:** get a working key, or drop CapSolver from the stack. Three services
+have now been measured and all three were in a different broken state — Browserbase valid-and-never-
+used, Tavily never-configured, CapSolver present-and-rejected. **None of them would have been found
+by reading the config.**
+
 ### R4 — `CAPTCHA_PROVIDER=stub` ☐
 
 CapSolver is configured but the provider is set to `stub`, so captcha solving is not live. Decide
