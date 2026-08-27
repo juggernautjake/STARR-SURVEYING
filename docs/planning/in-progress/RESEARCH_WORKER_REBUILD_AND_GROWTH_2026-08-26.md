@@ -314,8 +314,40 @@ known-dead URL must carry its annotation. Deliberately no network calls — a te
 servers on every CI run is both flaky and exactly the load-test behaviour the worker's concurrency
 ceiling exists to avoid.
 
-**R2b — prove a vendor ☐ NEXT.** Pick `fidlar` or `idocket`, drive it against a real county, and add
-it to `PROVEN_VENDORS`. Converts a set of counties from paid fallback to native portal in one change.
+> ### ⚠ R2b's premise was also wrong — corrected 2026-08-27
+>
+> I wrote it as "pick a vendor, drive it, promote it", as though those four were unproven merely
+> because nobody had got round to it. `vendor-reachability.test.ts` records what actually happened:
+> **all 54 base URLs across Tyler, Henschen, iDocket and Fidlar were probed on 2026-08-02 and every
+> one was unreachable.** Not stale addresses — *fabricated patterns*. `<county>.co.texas.us`,
+> `idocket.com/TX/<County>`, `<county>.fidlar.com`: URL shapes that never existed.
+>
+> Four of six clerk adapters were routing research at domains that are not there, and it surfaced as
+> **"no records found"** — a statement about the property rather than about our routing, and
+> indistinguishable from a real answer. Fourth false premise of mine this session.
+
+**R2b — re-probed 2026-08-27, and it opened a real lead.** The 2026-08-02 finding holds three weeks
+on (a stale "all dead" is as misleading as a stale "all fine", so it was checked rather than trusted):
+`laredo.fidlar.com`, `idocket.com/TX/Collin` and `deed.traviscountyclerk.org` are all still gone.
+
+**But one live Fidlar portal turned up, in a shape the adapter does not build:**
+
+| URL | |
+|---|---|
+| `ava.fidlar.com/TXGalveston/AvaWeb/` | **200 — live** |
+| `ava.fidlar.com/TXBrazoria/AvaWeb/` | 404 — so it is *not* a universal pattern |
+| `ava.fidlar.com/` | 403 — host alive, no root page |
+| `laredo.fidlar.com` (what the adapter builds) | unreachable |
+
+So Fidlar is not uniformly dead — **the adapter is pointed at the wrong URL shape.** That reframes
+R2b from "drive the adapter" to "discover the real per-county URLs, then drive it". Galveston is the
+one county with a confirmed live endpoint and is the obvious starting point.
+
+**Deliberately NOT promoted to `PROVEN_VENDORS`.** A 200 from a landing page is reachability, not
+proof. The rule is that an adapter must be driven against a real county and return a real document;
+pinging is the cheap half, and promoting on it would put an unproven adapter in front of real records
+— which is the failure the proving rule exists to prevent. **Server-gated:** driving it needs the
+worker, which needs netcup.
 
 ### R3 — Multi-tenancy does not exist ☐
 
