@@ -245,6 +245,24 @@ describe('config warnings', () => {
     expect(warnings).toContain('county sources only');
   });
 
+  it('flags a missing TexasFile login, because the paywall is 20 minutes in', () => {
+    // Measured 2026-08-27: 17 of 18 vendor credentials are empty, TexasFile among them. It is the
+    // universal clerk fallback, so without it paid retrieval is impossible almost everywhere — and
+    // the run does not fail, it quietly returns less after spending the full 20 minutes.
+    const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).toContain('TEXASFILE');
+    expect(warnings).toContain('free sources only');
+  });
+
+  it('is quiet when the TexasFile pair is complete', () => {
+    // Both halves, deliberately: a username with no password buys nothing, and warning on only one
+    // of them would let a half-configured account read as working.
+    const warnings = configWarnings({
+      TEXASFILE_USERNAME: 'u', TEXASFILE_PASSWORD: 'p',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings).not.toContain('TEXASFILE');
+  });
+
   it('flags browserbase configured without credentials', () => {
     const warnings = configWarnings({ BROWSER_BACKEND: 'browserbase' } as NodeJS.ProcessEnv);
     expect(warnings.join(' ')).toContain('browserbase');
@@ -263,6 +281,10 @@ describe('config warnings', () => {
       // Added 2026-08-27 with the open-web layer. A "complete" environment now includes the search
       // key, because a run without it silently sees county sources only.
       TAVILY_API_KEY: 'tvly-x',
+      // Added 2026-08-27 with the paywall check. A "complete" environment can buy documents;
+      // without these the run finishes on free sources only, which is a quieter answer, not a failure.
+      TEXASFILE_USERNAME: 'u',
+      TEXASFILE_PASSWORD: 'p',
     } as NodeJS.ProcessEnv)).toEqual([]);
   });
 });

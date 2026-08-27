@@ -261,5 +261,23 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
     warn.push('TAVILY_API_KEY missing — open-web research is inert; runs see county sources only');
   }
 
+  // ── THE PAYWALL, WHICH IS REACHED 20 MINUTES INTO A RUN ────────────────────────────────────────
+  //
+  // Measured 2026-08-27: 17 of 18 vendor credentials in Doppler `prd` are empty, TexasFile among
+  // them. TexasFile is the UNIVERSAL clerk fallback — `getClerkSystem()` routes every county with no
+  // specific proven vendor to it — so with no TexasFile login, paid document retrieval is impossible
+  // almost everywhere, however well the routing works.
+  //
+  // Free platforms (`authType: 'none'` in paid-platform-registry) still search and still return what
+  // they publish, so a run does not fail. It quietly returns less, having spent the full 20 minutes
+  // getting there. That is the shape this whole warning list exists to catch.
+  //
+  // Deliberately NOT a re-implementation of `PaidPlatformRegistry.loadCredentialsFromEnv()`, which
+  // reads `process.env` directly and would defeat the injected env these checks are tested with. One
+  // pair, the one that decides the outcome, rather than a second copy of the whole map.
+  if (!env.TEXASFILE_USERNAME || !env.TEXASFILE_PASSWORD) {
+    warn.push('TEXASFILE credentials missing — the universal clerk fallback cannot buy documents; free sources only');
+  }
+
   return warn;
 }
