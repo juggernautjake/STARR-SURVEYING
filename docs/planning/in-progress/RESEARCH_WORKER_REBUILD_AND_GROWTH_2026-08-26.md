@@ -1130,6 +1130,31 @@ ownership"* link rather than an editable field, so switching to the legal entity
 Services Inc.*) means a support ticket. Low priority — but if it is ever done, ask netcup to
 regenerate the DPA so the agreement names the entity rather than the trade name (see F3b).
 
+### F3d — Paying netcup: the order matters, and SEPA is not an option
+
+**SEPA direct debit is unusable for this business.** It requires an IBAN in the SEPA zone; a US bank
+account has a routing and account number instead. The CCP offers the panel to everyone, so it looks
+available and is not.
+
+**And SEPA could not settle the first invoice regardless** — the CCP says so directly: *"Advance
+payments must be settled manually"* and *"Invoices with advance payments already made cannot be
+debited."* The first netcup invoice **is** an advance payment. Configuring any provider does not
+settle it retroactively.
+
+**So, in this order:**
+
+1. **Pay `nc-5513706` directly** via the PayPal link beside the open invoice. A one-off payment
+   against that specific invoice, no provider setup involved.
+2. **Then** configure **Credit card** for future months — the only viable recurring option for a US
+   account. Only one provider can be active at a time, so this is not hedgeable.
+3. **Leave "Apply to existing invoices" unchecked** afterwards. Both panels warn *"make sure you have
+   not yet initiated payment"*, and ticking it post-payment is how a double charge happens across a
+   currency boundary.
+
+*Card setup transmits the customer number and email to **Stripe**, netcup's processor — disclosed in
+the panel, entirely normal, and mildly funny given Stripe sits dormant in this stack behind
+`PAYMENTS_LIVE` (F2b).*
+
 ### F3 — netcup ☐
 
 - **Order review** must clear → server IP + Server Control Panel credentials.
