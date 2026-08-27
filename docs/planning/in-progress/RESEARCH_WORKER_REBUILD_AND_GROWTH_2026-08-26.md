@@ -609,6 +609,42 @@ Opened 2026-08-27 at the owner's request: *"make sure we can use BrowserBase and
 of the ways these things could be integrated."* Measured first, because both turned out to be in
 states nobody would have guessed.
 
+### I0b — Every third-party key, actually called ✅ MEASURED 2026-08-27
+
+Read-only account endpoints, no writes, nothing billable. Three of the first three were broken, so
+the rest were worth checking too.
+
+| Service | Result |
+|---|---|
+| **Anthropic** | ✅ valid — HTTP 200. The most-used key in the repo (67 files) and it works |
+| **Resend** | ✅ valid, **restricted to send-only** — correct practice, see the note below |
+| **Browserbase** | ⚠ valid, **zero sessions ever**, billing since 2026-04-23 |
+| **CapSolver** | ❌ **rejected** — `ERROR_KEY_DENIED_ACCESS`, identity refused |
+| **Tavily** | ❌ no key in `prd`, `dev` or `stg` |
+| **ElevenLabs** | — no key in Doppler at all (one of the 14 Vercel-only vars in S4) |
+| **Mapbox** | — no key in Doppler at all (same) |
+
+> ### ⚠ I nearly reported that email was broken
+>
+> Resend returned **401** on `/domains`, and a status-code-only check called that a dead key. The
+> body said otherwise:
+>
+> ```json
+> {"statusCode":401,"message":"This API key is restricted to only send emails","name":"restricted_api_key"}
+> ```
+>
+> **The key authenticated and was refused for SCOPE.** A send-only key is exactly what a production
+> mailer should hold. Reporting "your email provider is dead" would have sent somebody chasing a
+> non-existent outage — while the real broken key (CapSolver, `ERROR_KEY_DENIED_ACCESS`, an identity
+> refusal) sat two rows below it.
+>
+> **Two 401s, opposite meanings, and only the body distinguishes them.** Fourth time this session
+> that the probe rather than the system was the fault. See [[feedback_your_probe_can_be_the_bug]].
+
+**ElevenLabs and Mapbox being absent from Doppler is a finding, not a gap in the check.** They are
+among the 14 Vercel-only variables in S4 — which means they are also the two easiest to retire: if
+nothing has put them in the source of truth in four months, the case for keeping them is weak.
+
 ### I0 — What is actually true today ✅ MEASURED 2026-08-27
 
 | | Finding |
