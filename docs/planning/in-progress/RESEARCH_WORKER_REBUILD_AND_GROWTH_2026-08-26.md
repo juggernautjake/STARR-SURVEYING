@@ -53,7 +53,7 @@ The full build lives in `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md` — Docker
 **45-minute** proxy timeout (a run streams for 20–30 min; Caddy's default 100s would sever it), ufw
 locked to SSH + 443 with the worker bound to `127.0.0.1:3100`.
 
-### W1 — `STORAGE_BACKEND=local` must become `r2` ⚠ THE ONE THAT ALREADY COST US
+### W1 — `STORAGE_BACKEND=local` must become `r2` ✅ DONE 2026-08-26
 
 Doppler `prd` currently reads `STORAGE_BACKEND=local`, meaning the worker wrote research artifacts to
 **its own disk**. That disk was destroyed with the droplet.
@@ -62,9 +62,17 @@ The database rows survived and most files are in Supabase, but anything written 
 storage path is gone — which is the likeliest explanation for a `research_documents.storage_url` that
 returned **400** during verification while its siblings returned 200.
 
-Rebuilding with `local` would set the same trap, knowingly. **Set `r2`** (R2 credentials already exist
-in Doppler) or point it at Supabase. This also settles the cost audit's open question about R2: it is
-not optional, it is required.
+Rebuilding with `local` would set the same trap, knowingly.
+
+**Done 2026-08-26: `STORAGE_BACKEND=r2` in Doppler `prd`** — but only after proving the credentials,
+because switching to a backend that does not work is worse than the one that loses data on a rebuild.
+A real round-trip against `starr-recon-artifacts`: PUT, GET with byte-for-byte content match, DELETE.
+All three succeeded.
+
+Safe to change now precisely because **no worker is running** — nothing reads this until netcup is
+built, so the risky moment is a rebuild that has not happened yet rather than a live cutover.
+
+This also settles the cost audit's open question about R2: it is not optional, it is required.
 
 ### W2 — DNS is the only cutover step
 
@@ -90,14 +98,30 @@ Compose already sets `restart: unless-stopped`. Whatever supervises it must surv
 the previous droplet's silent disappearance is consistent with something that never came back after a
 restart.
 
-### W6 — check compose resource limits against the new box ☐
+### W6 — compose limits vs the new box ✅ DONE 2026-08-26 — but not the fix predicted
 
-`worker/docker-compose.yml` sets `deploy` limits sized for a 2–4 core droplet. On 12 cores / 32 GB
-they will throttle the machine we just paid for. `worker/src/infra/capacity.ts` computes concurrency at
-boot and `/healthz` publishes both the answer and the reason; expect
-`12 cores, 32 GB → max 6 concurrent (limited by ceiling)`. **6 is a politeness ceiling, not hardware** —
-county portals are small government servers and the fastest way to lose access is to look like a load
-test.
+**The predicted problem did not exist.** `worker/docker-compose.yml` was already written for the netcup
+box — `memory: 26g`, with a comment saying "Leaves ~6 GB for Redis, the OS and page cache on a 32 GB
+box", plus `shm_size: 1gb` for Chromium. Nothing to resize. Premise checked, premise false.
+
+**A real bug turned up underneath it.** `capacity.ts` called `os.totalmem()`, which inside a container
+reports the HOST rather than the cgroup — 32 GB against a 26 GB container cap. Fixed in `7d37b3c3c`:
+read cgroup v2 `memory.max`, then v1 `memory.limit_in_bytes`, falling back to the host; discard a
+cgroup value larger than the host, because that means the file was misread.
+
+**It is currently correct by luck, which is why it was worth fixing now.** Concurrency is
+`min(byMemory, byCpu, ceiling)` — host reading `min(11, 8, 6)`, true reading `min(8, 8, 6)`. Both give
+6, because the ceiling decides. But the compose file itself warns that "this limit and that calculation
+must be moved together", and the ceiling is the number most likely to move: it is a policy about not
+hammering small county servers, not a hardware fact. Raise it and the worker starts admitting runs
+sized against memory the cgroup will refuse — an OOM kill at minute 22, after the paid documents have
+been bought.
+
+8 new tests cover a branch that only executes inside a container, including one pinning today's netcup
+answer at 6 while asserting `byMemory` is 8 rather than 11 — so the fix is visible even though the
+outcome does not change. **6 remains a politeness ceiling, not hardware.**
+
+CPU deliberately still reads the host: compose sets no `cpus` limit, so all 12 really are available.
 
 ---
 
