@@ -95,6 +95,11 @@ const CORRECT_FOREVER = [
   { prefix: 'app/resources', bucket: 'own-site', why: 'the firm’s own public website' },
   { prefix: 'app/credentials', bucket: 'own-site', why: 'the firm’s own public website' },
   { prefix: 'app/sitemap.ts', bucket: 'own-site', why: 'the firm’s own public website' },
+  // Added 2026-08-27. `app/robots.ts` is `app/sitemap.ts`'s twin — both emit crawler directives for
+  // starr-surveying.com, both name the host because a robots.txt or a sitemap that does not state
+  // its own domain is useless. sitemap.ts has been listed since this file was written; robots.ts
+  // simply did not exist yet, and arrived straight into the `tenant` fallthrough.
+  { prefix: 'app/robots.ts', bucket: 'own-site', why: 'crawler directives for the firm’s own public website — sitemap.ts’s twin' },
   { prefix: 'app/layout.tsx', bucket: 'own-site', why: 'metadata for the firm’s own public website' },
   { prefix: 'app/components/Header', bucket: 'own-site', why: 'the public site’s chrome' },
   { prefix: 'app/components/Footer', bucket: 'own-site', why: 'the public site’s chrome' },

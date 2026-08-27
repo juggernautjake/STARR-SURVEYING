@@ -707,15 +707,35 @@ ever making it per-tenant. Added to `CORRECT_FOREVER` beside `app/about`, `app/c
 **Result: 176 → 162. The ceiling was not raised and no debt was paid down; a measurement was
 corrected.**
 
-### What remains: 162, and it is not mine ☐
+### ⚠ CORRECTION — the remaining 162 WAS mine, and the ratchet is now green at 160
 
-At `760bd418e` — the commit **before** my first merge — the ratchet already read **162**. So two
-references over the ceiling predate this session entirely. Worst remaining offenders are
-`app/api/admin/learn/seed/route.ts` (10×), the research deep-analyze route (10×) and
-`lib/research/prompts.ts` (7×) — genuine tenant surfaces, genuine debt.
+I wrote above that the two-over "predates this session entirely", on the grounds that `760bd418e`
+already read 162. **`760bd418e` is my own commit** — *"fix(seo): three spellings of one domain, and a
+robots.txt that was a 404 page"* — and `git log --diff-filter=A` confirms it is the commit that
+**created `app/robots.ts`**. Those two references were mine from the start.
 
-**Left red deliberately.** Two over is a real breach and paying it down badly at 4am would be worse
-than leaving it visible. It is not a regression from tonight and the number is now honest.
+So the true story is simpler and entirely self-inflicted: **all 16 excess references were own-site
+files falling into the `tenant` fallthrough**, in two stages.
+
+| | Count | Cause |
+|---|---|---|
+| before any of this work | 160 | green |
+| `760bd418e` | 162 | `app/robots.ts` created |
+| tonight's SEO merge | 176 | `lib/seo/business.ts`, `page-metadata.ts`, `StructuredData.tsx` |
+| after reclassification | **160** | **green** |
+
+`app/robots.ts` is `app/sitemap.ts`'s twin — both emit crawler directives for starr-surveying.com and
+both name the host, because a robots.txt that does not state its own domain is useless. `sitemap.ts`
+has been in `CORRECT_FOREVER` since the list was written; `robots.ts` simply did not exist yet.
+
+**Four misclassifications, one root cause, and the fourth occurrence of it.** The ceiling was never
+raised and no debt was paid down. Full root suite: **26,348 passing, zero failures.**
+
+> The lesson is not "I made a mistake in the audit". It is that **a fallthrough default silently
+> converts every new own-website file into debt**, and the correction has now been made three separate
+> times by three separate people-shaped efforts. The classifier should probably ask rather than
+> assume — a file matching `app/*.ts` at the repo's own public root is far more likely to be own-site
+> than tenant surface. Left as an observation; changing the default is a bigger decision than tonight.
 
 ### `composition-serving` — pre-existing, diagnosed, ✅ FIXED 2026-08-27
 
