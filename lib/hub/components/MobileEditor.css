@@ -266,7 +266,6 @@
 }
 
 .hub-msheet__catalog {
-  list-style: none;
   margin: 10px 0 0;
   padding: 0;
   display: flex;
@@ -300,10 +299,12 @@
   color: var(--theme-fg-primary, #0f1419);
 }
 
+/* Holds the widget DESCRIPTION now that the category name lives on the box header. Capitalising
+ * it was right for a slug and wrong for a sentence. */
 .hub-msheet__cat-cat {
   font-size: 0.72rem;
+  line-height: 1.35;
   color: var(--theme-fg-secondary, #6b7280);
-  text-transform: capitalize;
 }
 
 .hub-msheet__cat-plus {
@@ -363,4 +364,91 @@
     min-height: 44px;
     flex: 1 1 auto;
   }
+}
+
+/* ── Add-a-widget catalog: categories ──────────────────────────────────────────────────────────
+ *
+ * HUB_CUSTOMIZER_2026-08-27, the mobile half. The list had no search and rendered every addable
+ * widget in one column — the longest scroll of the three surfaces, on the smallest screen.
+ *
+ * These live here rather than inline because MobileEditor DOES import this stylesheet (unlike
+ * GridEditor, which needed its keyframes inline). Same rule either way: a rule belongs where the
+ * component that needs it will actually load it.
+ */
+
+.hub-msheet__cat-search {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border: 1px solid var(--theme-border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #ffffff);
+  color: var(--theme-fg-primary, #0f1419);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.hub-msheet__cat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  /* 44px, because this is a thumb target and the whole row opens the category. */
+  min-height: 44px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--theme-fg-primary, #0f1419);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hub-msheet__cat-caret {
+  flex-shrink: 0;
+  color: var(--theme-fg-secondary, #6b7280);
+  transition: transform 160ms ease;
+}
+
+.hub-msheet__cat-caret.is-open {
+  transform: rotate(90deg);
+}
+
+.hub-msheet__cat-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.hub-msheet__cat-count {
+  flex-shrink: 0;
+  font-size: 0.76rem;
+  color: var(--theme-fg-secondary, #6b7280);
+  font-variant-numeric: tabular-nums;
+}
+
+.hub-msheet__cat-list {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0 0 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* H5 — a fade, not a pop. Results update per keystroke, so rows arrive and leave constantly. */
+@keyframes hub-cat-fade {
+  from { opacity: 0; transform: translateY(-3px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.hub-cat-reveal { animation: hub-cat-fade 170ms ease both; }
+.hub-cat-reveal > * { animation: hub-cat-fade 190ms ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hub-cat-reveal,
+  .hub-cat-reveal > * { animation: none !important; }
 }

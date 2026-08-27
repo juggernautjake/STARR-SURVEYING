@@ -20,7 +20,7 @@
 //
 // hub-mobile-customization slice 1.
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -39,14 +39,21 @@ import {
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, Plus, X, SlidersHorizontal } from 'lucide-react';
+import { GripVertical, Trash2, Plus, X, SlidersHorizontal, ChevronRight } from 'lucide-react';
 
 import type { UserRole } from '@/lib/auth-roles';
 import type { BundleId } from '@/lib/saas/bundles';
 import { useHubStore } from '@/lib/hub/hub-store';
 import { useHubActions } from '@/lib/hub/use-hub-actions';
 import { getWidget, allWidgets, type WidgetDefinition } from '@/lib/hub/widget-registry';
-import { filterCatalog } from '@/lib/hub/widget-catalog-filter';
+import { buildCategorySections, CATEGORY_LABELS } from '@/lib/hub/widget-catalog-filter';
+import {
+  isCategoryOpen,
+  isSearchActive,
+  onSearchChanged,
+  toggleCategory,
+  type DisclosureState,
+} from '@/lib/hub/category-disclosure';
 import { HUB_GRID_COLS } from '@/lib/hub/grid-model';
 import type { WidgetInstance } from '@/lib/hub/types';
 import { generatePlacementId } from './GridEditor';
@@ -85,13 +92,43 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
 
   const catalog = useMemo(() => allWidgets(), []);
   const presentTypes = useMemo(() => new Set(widgets.map((w) => w.type)), [widgets]);
-  const available = useMemo(
-    () =>
-      filterCatalog(catalog, { roles, activeBundles, category: 'all' }).filter(
-        (w) => !presentTypes.has(w.id),
-      ),
-    [catalog, roles, activeBundles, presentTypes],
+
+  // HUB_CUSTOMIZER_2026-08-27, the mobile half. This list had no search at all and rendered every
+  // addable widget in one column — the longest scroll of the three surfaces, on the smallest screen.
+  //
+  // Widgets already on the hub are removed BEFORE the sections are built, so a category's count is
+  // what you can actually add rather than what exists. A box reading "4" that opens to two chips is
+  // worse than no count.
+  const addable = useMemo(
+    () => catalog.filter((w) => !presentTypes.has(w.id)),
+    [catalog, presentTypes],
   );
+
+  const [catSearch, setCatSearch] = useState('');
+  const [disclosure, setDisclosure] = useState<DisclosureState>(() => ({
+    userOpened: new Set<string>(),
+    searchOverrides: new Map<string, boolean>(),
+  }));
+  const prevCatSearch = useRef('');
+  const catSearchActive = isSearchActive(catSearch);
+
+  const sections = useMemo(
+    () => buildCategorySections(addable, { roles, activeBundles, search: catSearch }),
+    [addable, roles, activeBundles, catSearch],
+  );
+
+  // Kept so "every widget is already on your hub" stays a statement about the whole catalog rather
+  // than about the current search.
+  const available = useMemo(
+    () => buildCategorySections(addable, { roles, activeBundles }).flatMap((sec) => sec.widgets),
+    [addable, roles, activeBundles],
+  );
+
+  function onCatSearch(next: string) {
+    setDisclosure((d) => onSearchChanged(d, next, prevCatSearch.current));
+    prevCatSearch.current = next;
+    setCatSearch(next);
+  }
 
   if (!open) return null;
 
@@ -205,28 +242,78 @@ export default function MobileEditor({ open, roles, activeBundles = null }: Mobi
         </button>
 
         {showAdd && (
-          <ul className="hub-msheet__catalog">
-            {available.length === 0 && (
-              <li className="hub-msheet__cat-empty">
+          <div className="hub-msheet__catalog">
+            {available.length === 0 ? (
+              <p className="hub-msheet__cat-empty">
                 Every widget available to you is already on your hub.
-              </li>
+              </p>
+            ) : (
+              <>
+                <input
+                  type="search"
+                  className="hub-msheet__cat-search"
+                  placeholder="Search widgets…"
+                  aria-label="Search widgets"
+                  value={catSearch}
+                  onChange={(e) => onCatSearch(e.target.value)}
+                />
+
+                {sections.length === 0 && (
+                  <p className="hub-msheet__cat-empty">No widgets match that.</p>
+                )}
+
+                {sections.map((section) => {
+                  const catOpen = isCategoryOpen(disclosure, section.category, {
+                    searchActive: catSearchActive, matched: section.matched,
+                  });
+                  return (
+                    <section key={section.category} data-category={section.category} data-open={catOpen ? 'true' : 'false'}>
+                      <button
+                        type="button"
+                        className="hub-msheet__cat-head"
+                        aria-expanded={catOpen}
+                        onClick={() => setDisclosure((d) => toggleCategory(d, section.category, {
+                          searchActive: catSearchActive, matched: section.matched,
+                        }))}
+                      >
+                        <ChevronRight size={15} aria-hidden className={catOpen ? 'hub-msheet__cat-caret is-open' : 'hub-msheet__cat-caret'} />
+                        {/* The label, not the slug. This used to print the raw category id under
+                            every row, so mobile users read "time-pay" and "plat-subdivision". */}
+                        <span className="hub-msheet__cat-name">{CATEGORY_LABELS[section.category]}</span>
+                        <span className="hub-msheet__cat-count">
+                          {section.widgets.length !== section.total
+                            ? `${section.widgets.length}/${section.total}`
+                            : section.total}
+                        </span>
+                      </button>
+
+                      {catOpen && (
+                        <ul className="hub-msheet__cat-list hub-cat-reveal">
+                          {section.widgets.map((def) => (
+                            <li key={def.id}>
+                              <button
+                                type="button"
+                                className="hub-msheet__cat-item"
+                                onClick={() => handleAdd(def)}
+                              >
+                                <span className="hub-msheet__cat-text">
+                                  <span className="hub-msheet__cat-label">{def.label}</span>
+                                  {/* The description earns its place here now that the category name
+                                      lives on the header — it says what the widget DOES. */}
+                                  <span className="hub-msheet__cat-cat">{def.description}</span>
+                                </span>
+                                <Plus size={16} aria-hidden className="hub-msheet__cat-plus" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </section>
+                  );
+                })}
+              </>
             )}
-            {available.map((def) => (
-              <li key={def.id}>
-                <button
-                  type="button"
-                  className="hub-msheet__cat-item"
-                  onClick={() => handleAdd(def)}
-                >
-                  <span className="hub-msheet__cat-text">
-                    <span className="hub-msheet__cat-label">{def.label}</span>
-                    <span className="hub-msheet__cat-cat">{def.category}</span>
-                  </span>
-                  <Plus size={16} aria-hidden className="hub-msheet__cat-plus" />
-                </button>
-              </li>
-            ))}
-          </ul>
+          </div>
         )}
       </div>
 

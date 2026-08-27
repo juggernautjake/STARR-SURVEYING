@@ -217,3 +217,24 @@ and open → clear → Personal and CAD open again, exactly as before. `restored
 
 `AddWidgetModal` is left as it is — improved but still unmounted. Deleting a retired component is a
 separate decision, and it is now the better of the two if anyone ever remounts a catalog modal.
+
+
+---
+
+## 6. Mobile — the third surface
+
+There are three widget-picking surfaces and the first pass did one.  was the worst of
+them: every addable widget in one column, on the smallest screen, **with no search field at all**.
+
+Same collapsible categories, same disclosure model, plus the search it was missing. Two things fixed
+that were not part of the ask: every row printed the **raw category slug** (mobile users were reading
+*"time-pay"* and *"plat-subdivision"*, capitalised by CSS so it looked deliberate) — the header names
+the category now and that line shows the widget description instead; and counts are taken **after**
+already-placed widgets are removed, so Personal reads 9 rather than 12.
+
+All eleven start **closed** here, unlike the desktop rail — a full-screen sheet fits all eleven
+headers at once, so closed gives the whole map in one screen. Different surface, different right
+answer.
+
+Driven at 390px: 11 categories, search present, no raw slugs, 44px thumb targets, and the worked
+example again — CAD and Learning open, search, clear, both open again. .
