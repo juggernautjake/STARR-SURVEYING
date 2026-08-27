@@ -1028,7 +1028,27 @@ credentials arrives only after payment clears. Everything in §2 (W2–W5) waits
 and was pasted into a chat transcript. It should be rotated and 2FA enabled before that panel holds a
 running server. netcup documents 2FA in the same welcome mail.
 
-### F3b — Conclude netcup's DPA ☐ do it while paying the invoice
+### F3b — netcup DPA ✅ EXECUTED 2026-08-27 03:04
+
+`DSGVO-417617-20260827-87113.pdf`. Declarations as mapped below — customers plus property owners and
+parties named in public land records; name, contact/address, location, customer contract, **photo/
+video/audio** and criminal-law-relevant data; no Art. 9 special categories.
+
+**Two follow-ups, neither blocking:**
+
+1. **Download and archive the PDF.** It is a signed legal agreement and the CCP is not a records
+   archive — if the account ever lapses, access to it lapses too. Store it with the insurance
+   certificate and the RPLS licence.
+2. **The Client is named "Starr Surveying", which is the TRADE NAME.** The legal entity is
+   *Starr Technical Services Inc.* (as `/privacy` states, and as `lib/seo/business.ts` publishes in
+   `legalName`). A contract naming a trade name is generally enforceable where the entity is
+   identifiable, and the address is correct — so nothing is broken. But the legal entity is the
+   cleaner counterparty for an agreement anyone might one day need to rely on. Set in
+   **CCP → Master Data → company name**; it would flow into any regenerated contract.
+
+*(Original guidance retained below — it is the record of what was declared and why.)*
+
+### F3b-guidance — how the form was filled
 
 The CCP prompts for a Data Processing Agreement (GDPR Art. 28(3)) at login and offers to defer for 14
 days. **Conclude it.** Declining is not a neutral skip — netcup records that you do not process
