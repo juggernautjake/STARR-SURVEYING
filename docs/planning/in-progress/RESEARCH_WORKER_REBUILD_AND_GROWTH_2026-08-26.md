@@ -10,6 +10,33 @@ alternative is rediscovering it in three weeks.
 
 ---
 
+## START HERE — the six things that need a person
+
+This doc is 1,000 lines because a lot was measured. Everything below is real, and none of it is
+urgent except in the order given. If you read nothing else, read this table.
+
+| # | Do this | Where | Why it is first |
+|---|---|---|---|
+| 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable switches on the entire open-web research layer that is already built and wired. Five minutes, largest capability gain available. |
+| 2 | **Point `worker.starr-surveying.com` at the netcup IP** when the order clears | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
+| 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
+| 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
+| 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
+| 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
+
+**Two things you should know before you act on the cost sections:**
+
+- **17 of 18 vendor credentials are empty** (§S2b). Most of the "check this invoice" advice earlier in
+  this doc is probably moot — there are no accounts. The three services that genuinely cost money are
+  Anthropic, Google Maps, and Browserbase.
+- **Stripe is off by design, not broken** (§F2b). Empty keys plus a missing `PAYMENTS_LIVE` is the
+  correct state for "payments not switched on".
+
+**Nothing in this doc is a regression.** Every ✅ item shipped and is on `main`; every ☐ item either
+needs a server that does not exist yet, or needs a decision only you can make.
+
+---
+
 ## 0. What actually happened, in one paragraph
 
 The DigitalOcean droplet running the research worker was **destroyed** — the card paying for it was
