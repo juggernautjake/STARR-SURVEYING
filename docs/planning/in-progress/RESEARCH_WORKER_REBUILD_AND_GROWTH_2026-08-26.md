@@ -19,7 +19,7 @@ degrades while you decide. If you read nothing else, read this table.
 | # | Do this | Where | Why it is first |
 |---|---|---|---|
 | 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable now switches on **four** built-and-wired features, not one: the open-web research layer, lead enrichment (§I3.1), the county portal-migration watch (§I3.3) and the regulatory watch (§I3.5). All four report "not configured" today — inert, not broken, and each says so rather than showing a blank that reads as an all-clear. Five minutes, and by some distance the largest capability gain available. |
-| 2 | **Pay netcup invoice `nc-5513706` (€40.27) by card or PayPal** | §F3a | **Payment is in advance** — no server is provisioned until it clears, so this gates every other worker item. A US bank wire takes days; card takes minutes. |
+| 2 | ~~Pay netcup invoice `nc-5513706`~~ ✅ **PAID 2026-08-28** — server provisioned at `152.53.48.240` (Debian 13 trixie, Manassas). Root password was pasted into a transcript and **must be changed**. | §F3a | Cleared. The build is now unblocked; see `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md` §3. |
 | 2b | **Then point `worker.starr-surveying.com` at the new IP** | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
 | 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |

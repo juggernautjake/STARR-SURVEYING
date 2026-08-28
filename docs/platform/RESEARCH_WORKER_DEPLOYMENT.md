@@ -88,7 +88,35 @@ paid for.
 
 ## 3. Standing it up
 
-Assumes Ubuntu 24.04 LTS on the netcup RS, ordered in the **Manassas (MNZ)** location.
+**The machine that actually arrived (2026-08-28) runs Debian 13 "trixie" minimal, not Ubuntu 24.04.**
+netcup chose the image; this section was written against Ubuntu and has been corrected to match
+reality. Both work — the delta is one line, and it is called out in 3.1.
+
+> ### The reinstall this document nearly told you to do
+>
+> Seeing "Debian 13" where the runbook said "Ubuntu 24.04 LTS", the obvious move is to reinstall from
+> the SCP before building anything. **Don't.** Three things were checked instead of assumed, and all
+> three came back fine:
+>
+> | Worry | Checked | Result |
+> |---|---|---|
+> | Docker has no `trixie` repo yet | `download.docker.com/linux/debian/dists/trixie/Release` | **HTTP 200** — published |
+> | Caddy is missing or ancient on Debian | Debian package index | **2.6.2** in trixie; `reverse_proxy` + `transport http { read_timeout }` both fine |
+> | Playwright's browser libraries are Ubuntu-only | `worker/Dockerfile` | **Irrelevant** — the runtime stage is `mcr.microsoft.com/playwright:v1.58.2-jammy`, so Playwright brings its own Ubuntu userland inside the container |
+>
+> That last row is the one that settles it. **The host never runs Playwright**, so the host
+> distribution barely matters: it needs Docker, ufw, Caddy, swap and a timezone. A reinstall would
+> have cost an hour and bought nothing.
+>
+> The generalisable bit: when the environment differs from the runbook, check which of the runbook's
+> assumptions the difference actually touches, rather than forcing the environment back to match the
+> document.
+
+**Also leave the `netcup Mail Block` firewall policy in place.** netcup's provisioning email explains
+how to delete it, because most customers want to send mail. This worker never sends SMTP — outbound
+email is Resend, from Vercel — so deleting it opens outbound SMTP on a research box for no reason.
+
+Ordered in the **Manassas (MNZ)** location.
 
 ### 3.1 Host preparation
 
@@ -98,11 +126,15 @@ apt update && apt upgrade -y
 apt install -y ca-certificates curl git ufw fail2ban
 
 # Docker Engine + compose plugin
+#
+# THE ONE LINE THAT DIFFERS BY DISTRIBUTION: `linux/debian` vs `linux/ubuntu`. `$VERSION_CODENAME`
+# resolves itself (trixie / noble), so this block is otherwise identical on both. Everything else in
+# this runbook is distribution-agnostic — see the note at the top of §3.
 install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
   > /etc/apt/sources.list.d/docker.list
 apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
