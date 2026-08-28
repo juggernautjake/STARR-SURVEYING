@@ -10,15 +10,16 @@ alternative is rediscovering it in three weeks.
 
 ---
 
-## START HERE — the seven things that need a person
+## START HERE — five left; two cleared 2026-08-28
 
 This doc is 1,000 lines because a lot was measured. Everything below is real, and none of it is
-urgent except in the order given — with one exception now, item 7, which is the only one that
-degrades while you decide. If you read nothing else, read this table.
+urgent except in the order given — with one exception, item 7, which is the only one that degrades
+while you decide. Items 1 and 2 were cleared on 2026-08-28; the worker build (§3 of the runbook) is
+now the critical path. If you read nothing else, read this table.
 
 | # | Do this | Where | Why it is first |
 |---|---|---|---|
-| 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable now switches on **four** built-and-wired features, not one: the open-web research layer, lead enrichment (§I3.1), the county portal-migration watch (§I3.3) and the regulatory watch (§I3.5). All four report "not configured" today — inert, not broken, and each says so rather than showing a blank that reads as an all-clear. Five minutes, and by some distance the largest capability gain available. |
+| 1 | ~~Set `TAVILY_API_KEY`~~ ✅ **DONE 2026-08-28** — owner set it in Doppler `prd`; deployed. Verify from the UI: a lead's **Background** card should say "Searched the public web" rather than "no search key is configured". | §I2 | Cleared. It gates four features: open-web research, lead enrichment (§I3.1), the portal watch (§I3.3) and the regulatory watch (§I3.5). |
 | 2 | ~~Pay netcup invoice `nc-5513706`~~ ✅ **PAID 2026-08-28** — server provisioned at `152.53.48.240` (Debian 13 trixie, Manassas). Root password was pasted into a transcript and **must be changed**. | §F3a | Cleared. The build is now unblocked; see `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md` §3. |
 | 2b | **Then point `worker.starr-surveying.com` at the new IP** | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
 | 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
@@ -38,18 +39,29 @@ degrades while you decide. If you read nothing else, read this table.
 **Nothing in this doc is a regression.** Every ☐ item either needs a server that does not exist yet,
 or needs a decision only you can make.
 
-> ### ⚠ "✅" NO LONGER MEANS "ON `main`" — CORRECTED 2026-08-27
+> ### ✅ MERGED AND DEPLOYED 2026-08-28 — the warning below has been resolved
 >
-> This line used to read *"every ✅ item shipped and is on `main`"*. That was true when it was
-> written and is **not true now**. Everything marked ✅ on **2026-08-27** — §M0, §M5, §I3.1, §I3.3,
-> §I3.5, and the §F5 detector — is on the branch
-> `claude/address-autocomplete-visible-failures-2026-08-27`, **sixteen commits, unmerged**. It
-> fast-forwards cleanly; it has not been merged because the owner authorises each merge.
+> For one day this block warned that "✅" did **not** mean "on `main`": eighteen commits sat on
+> `claude/address-autocomplete-visible-failures-2026-08-27`, unmerged, because the owner authorises
+> each merge. **That is no longer the case.** Merged fast-forward to `main` on 2026-08-28 and
+> deployed.
 >
-> Correcting it here rather than leaving it, because this repo has already lost a whole feature to
-> exactly this sentence: the business-phone work was recorded as DONE for weeks while every commit
-> sat on an unmerged branch and the `calls` table held zero rows. **Check
-> `git merge-base --is-ancestor <sha> main` before believing anything in this doc is live.**
+> Checked rather than assumed, per the warning's own instruction — `git merge-base --is-ancestor`
+> returns true for every commit in the set, and the deploy was confirmed from outside by polling
+> `GET /api/admin/research/portal-watch` until it stopped returning **404** (old build) and started
+> returning **401** (route present, auth-gated as designed). That took about three minutes.
+>
+> **Keep the habit the warning describes.** This repo has already lost a whole feature to a document
+> that said DONE: the business-phone work was recorded as shipped for weeks while every commit sat on
+> an unmerged branch and the `calls` table held zero rows. A ✅ is a claim about a branch until
+> somebody checks, and the check is one command:
+>
+> ```
+> git merge-base --is-ancestor <sha> main
+> ```
+>
+> The reason this block was written and then resolved a day later, rather than deleted, is that the
+> failure it guards against is invisible from inside the document — only the repository can answer it.
 
 ---
 
