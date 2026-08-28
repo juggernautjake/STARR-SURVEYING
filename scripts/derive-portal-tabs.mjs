@@ -98,8 +98,20 @@ if (import.meta.url === `file://${process.argv[1].split(path.sep).join('/')}`
   const body = JSON.stringify({ portals }, null, 2) + '\n';
   const check = process.argv.includes('--check');
   const existing = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+
+  // LINE ENDINGS ARE NOT CONTENT.
+  //
+  // `body` is built with \n. Git checks this file out with CRLF on Windows, so the raw comparison
+  // below was ALWAYS unequal on a Windows clone regardless of what the file said — and the check
+  // therefore reported "behind the portal pages" on a byte-identical file, every single run.
+  //
+  // A check that can never pass is worse than no check: it goes red, stays red, and everybody learns
+  // to skip it. Found 2026-08-27 by regenerating the file and getting an EMPTY git diff, which is
+  // the only thing that distinguishes "the file is stale" from "the comparison is broken".
+  const normalise = (s) => s.split('\r\n').join('\n');
+
   if (check) {
-    if (existing !== body) {
+    if (normalise(existing) !== normalise(body)) {
       console.error(`${OUT} is behind the portal pages — run: node scripts/derive-portal-tabs.mjs`);
       process.exit(1);
     }
