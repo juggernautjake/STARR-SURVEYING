@@ -493,7 +493,7 @@ render `is_current === false` as.
 
 ---
 
-## `org_id` drift — 10 tables the tenant filter does not cover (found 2026-08-16, **re-measured 2026-08-25**)
+## `org_id` drift — 10 tables the tenant filter does not cover (found 2026-08-16, **re-measured 2026-08-27**)
 
 - [ ] **Apply `seeds/517_org_default.sql`, backfill, then add the 10 tables to `ORG_SCOPED_TABLES`.**
 
@@ -526,6 +526,30 @@ render `is_current === false` as.
 > Still correctly parked, for the reason below: seed, backfill, verify, and only then enrol. Not a
 > line in a merge. **But re-run the check before acting on any count in this entry** — it has been
 > wrong by three tables for over a week.
+> ### RE-MEASURED AGAIN 2026-08-27 — the table count held, the row count did not
+>
+> | | 2026-08-16 | 2026-08-25 | **2026-08-27** |
+> |---|---|---|---|
+> | carry `org_id`, not in `ORG_SCOPED_TABLES` | 7 | 10 | **10** |
+> | no `org_id` DEFAULT | 2 | 5 | **5** |
+> | `design_mockups` rows sitting unowned | — | 1,263 | **1,371** |
+>
+> **No new tables in two days** — the first re-measure to say that, and worth recording, because the
+> 08-25 note reasonably read the trend as "a new table every few weeks". Two days is not evidence
+> the leak is closed; it is evidence the count is worth re-running rather than extrapolating.
+>
+> **`design_mockups` grew by 108 rows in two days** with nothing stamping them. That is the half of
+> this entry that is not waiting on a decision — it gets worse on its own, and every one of those
+> rows is invisible to every scoped session the moment the table is enrolled.
+>
+> The ordering is unchanged and still the whole point: **seed the DEFAULT, backfill the 1,371, verify,
+> and only then enrol.** Enrolling first makes every design record vanish at once, which reads as
+> data loss rather than a filter.
+>
+> Measured with `npm run verify:org-scope` against the live database. It reads environment state, not
+> code — no branch can fix or cause it, which is why it sat unnoticed through a full-suite run: it is
+> not part of vitest.
+
 
 `npm run verify:org-scope` fails, and it is **not** a regression from any recent branch —
 `lib/saas/org-scope.ts` and the verifier are byte-identical to `main`. The live database drifted
