@@ -10,20 +10,22 @@ alternative is rediscovering it in three weeks.
 
 ---
 
-## START HERE — the six things that need a person
+## START HERE — the seven things that need a person
 
 This doc is 1,000 lines because a lot was measured. Everything below is real, and none of it is
-urgent except in the order given. If you read nothing else, read this table.
+urgent except in the order given — with one exception now, item 7, which is the only one that
+degrades while you decide. If you read nothing else, read this table.
 
 | # | Do this | Where | Why it is first |
 |---|---|---|---|
-| 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable switches on the entire open-web research layer **and**, since 2026-08-27, lead enrichment — the Background card on every lead detail page (§I3.1). Both are built and wired and both say "not configured" today. Five minutes, largest capability gain available. |
+| 1 | **Set `TAVILY_API_KEY`** in Doppler `prd` (free tier, tavily.com) | §I2 | One variable now switches on **four** built-and-wired features, not one: the open-web research layer, lead enrichment (§I3.1), the county portal-migration watch (§I3.3) and the regulatory watch (§I3.5). All four report "not configured" today — inert, not broken, and each says so rather than showing a blank that reads as an all-clear. Five minutes, and by some distance the largest capability gain available. |
 | 2 | **Pay netcup invoice `nc-5513706` (€40.27) by card or PayPal** | §F3a | **Payment is in advance** — no server is provisioned until it clears, so this gates every other worker item. A US bank wire takes days; card takes minutes. |
 | 2b | **Then point `worker.starr-surveying.com` at the new IP** | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
 | 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
+| 7 | **Backfill `design_mockups` before enrolling it** — seed the DEFAULT, backfill, verify, *then* enrol | BLOCKERS.md | Added 2026-08-27 because it is **the only item here that gets worse on its own**: 1,371 rows carry no `org_id`, up 108 in two days, and nothing stamps new ones. Enrolling the table before the backfill makes every design record vanish at once, which reads as data loss rather than a filter. |
 
 **Two things you should know before you act on the cost sections:**
 
@@ -33,8 +35,21 @@ urgent except in the order given. If you read nothing else, read this table.
 - **Stripe is off by design, not broken** (§F2b). Empty keys plus a missing `PAYMENTS_LIVE` is the
   correct state for "payments not switched on".
 
-**Nothing in this doc is a regression.** Every ✅ item shipped and is on `main`; every ☐ item either
-needs a server that does not exist yet, or needs a decision only you can make.
+**Nothing in this doc is a regression.** Every ☐ item either needs a server that does not exist yet,
+or needs a decision only you can make.
+
+> ### ⚠ "✅" NO LONGER MEANS "ON `main`" — CORRECTED 2026-08-27
+>
+> This line used to read *"every ✅ item shipped and is on `main`"*. That was true when it was
+> written and is **not true now**. Everything marked ✅ on **2026-08-27** — §M0, §M5, §I3.1, §I3.3,
+> §I3.5, and the §F5 detector — is on the branch
+> `claude/address-autocomplete-visible-failures-2026-08-27`, **sixteen commits, unmerged**. It
+> fast-forwards cleanly; it has not been merged because the owner authorises each merge.
+>
+> Correcting it here rather than leaving it, because this repo has already lost a whole feature to
+> exactly this sentence: the business-phone work was recorded as DONE for weeks while every commit
+> sat on an unmerged branch and the `calls` table held zero rows. **Check
+> `git merge-base --is-ancestor <sha> main` before believing anything in this doc is live.**
 
 ---
 
