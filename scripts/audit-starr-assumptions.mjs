@@ -80,6 +80,13 @@ const COUNTY_ADAPTERS = [
   // — the file exists BECAUSE the product must work anywhere — and "fixing" it would mean deleting
   // two counties from a national dataset.
   { prefix: 'lib/weather/us-counties', why: 'the national county table; Bell is 2 of 3,222 rows' },
+  // Added 2026-08-27 with the portal-migration watch. `county` here is a PARAMETER NAME, not a
+  // hard-coded county: `portalWatchProfile(county)` and `buildPortalWatchQueries({ county })` take
+  // whichever county the caller names and build the search from it. The word appears often precisely
+  // because nothing is assumed — which is the inversion the 2026-08-12 note in the ratchet test
+  // warns about, where the `tenant` bucket's fallthrough counted a privacy page as firm debt.
+  { prefix: 'lib/research/portal-watch', why: 'county is a parameter; the file assumes none' },
+  { prefix: 'lib/research/announcement-watch', why: 'the shared classifier behind portal-watch; same parameterisation' },
 ];
 
 /** Paths whose Starr references are CORRECT and must not be counted as debt. Prefix-matched, and each
