@@ -213,12 +213,68 @@ timedatectl set-timezone America/Chicago   # the firm's clock, so logs read the 
 ```bash
 git clone https://github.com/juggernautjake/STARR-SURVEYING.git /opt/starr
 cd /opt/starr/worker
-cp .env.example .env && $EDITOR .env      # fill the four REQUIRED values at minimum
+```
 
+**Then build `.env` by prompt rather than by editor.** Hand-editing this file in `nano` over SSH is
+the fiddliest step on the page, and the two mistakes it invites are the two that cost the most (see
+below). This asks for each value, writes them correctly, and never echoes them back:
+
+```bash
+cd /opt/starr/worker
+
+# Strip the keys we are about to set, so there is exactly one definition of each.
+grep -v -E '^#?\s*(WORKER_API_KEY|ANTHROPIC_API_KEY|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|STORAGE_BACKEND|R2_ACCOUNT_ID|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_BUCKET)=' .env.example > .env
+
+echo "Paste each value from Doppler prd, then Enter."
+read -r -p "WORKER_API_KEY (copy EXACTLY from Doppler): " V1
+read -r -p "ANTHROPIC_API_KEY: " V2
+read -r -p "SUPABASE_URL: " V3
+read -r -p "SUPABASE_SERVICE_ROLE_KEY: " V4
+read -r -p "R2_ACCOUNT_ID: " V5
+read -r -p "R2_ACCESS_KEY_ID: " V6
+read -r -p "R2_SECRET_ACCESS_KEY: " V7
+
+cat >> .env <<EOF
+
+WORKER_API_KEY=$V1
+ANTHROPIC_API_KEY=$V2
+SUPABASE_URL=$V3
+SUPABASE_SERVICE_ROLE_KEY=$V4
+STORAGE_BACKEND=r2
+R2_ACCOUNT_ID=$V5
+R2_ACCESS_KEY_ID=$V6
+R2_SECRET_ACCESS_KEY=$V7
+R2_BUCKET=starr-recon-artifacts
+EOF
+
+chmod 600 .env
+
+# Confirm they landed WITHOUT printing them: first six characters only.
+grep -E '^(WORKER_API_KEY|ANTHROPIC_API_KEY|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|STORAGE_BACKEND|R2_)' .env | sed -E 's/=(.{0,6}).*/=\1…/'
+```
+
+> **The two that bite, and they fail in opposite directions.**
+>
+> **`WORKER_API_KEY` must be COPIED from Doppler, never generated.** Generate a fresh one and the
+> worker runs perfectly while the app reports it unreachable — a failure that looks like a network
+> problem and is not. `configWarnings()` flags it at boot now, but matching the value avoids the
+> question.
+>
+> **`STORAGE_BACKEND` must be `r2`, not the default `local`.** `local` writes research artifacts to
+> the worker's own disk, and that disk is precisely what was destroyed with the DigitalOcean droplet.
+> Rebuilding on `local` sets the identical trap knowingly. The script above hard-codes `r2` for that
+> reason.
+>
+> The masked `grep` at the end exists because "I pasted it" and "it is in the file" are different
+> claims, and only one of them is checkable.
+
+```bash
 BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
 docker compose ps                          # worker should reach (healthy) within ~90s
 curl -s localhost:3100/healthz | jq
 ```
+
+The build pulls `mcr.microsoft.com/playwright` and takes several minutes the first time.
 
 A healthy response looks like:
 
