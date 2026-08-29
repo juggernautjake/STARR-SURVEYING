@@ -7,6 +7,35 @@
 
 ## 1. The recommendation
 
+> ## ⚠ WHAT WAS ACTUALLY PROVISIONED IS IN **VIENNA**, NOT MANASSAS — found 2026-08-29
+>
+> The SCP reports `Site: Vienna`. Measured from the office, the server answers in **142 ms** while
+> the Bell County records portal it exists to scrape answers in **56 ms** — a Manassas box would be
+> 30–50 ms. That is a transatlantic round trip on every page load.
+>
+> **§1's own table predicted this**, and it is the reason a US location was specified in the first
+> place: *"the worker's job is scraping Texas county portals and US paid-document platforms. A German
+> IP invites geo-blocks, extra captchas and outright bans."* The requirement was written down, and
+> the order did not carry it.
+>
+> **Latency is the smaller half.** The real exposure is that US county portals challenge or block
+> non-US addresses, and a brand-new European datacentre IP is the exact profile that gets challenged.
+>
+> **Test before deciding, and before building:**
+> ```bash
+> curl -s -o /dev/null -w "%{http_code}\n" https://bell.tx.publicsearch.us/
+> ```
+> `200` means Vienna is slower but usable. `403`/`429`/timeout means it is not, and the build should
+> wait.
+>
+> **A REINSTALL DOES NOT MOVE THE SERVER.** It wipes the OS on the same machine in the same
+> datacentre. Relocating means a support ticket asking for Manassas (MNZ), or a new order — not the
+> reinstall that looks like the obvious fix.
+>
+> If it is blocked, Browserbase is the answer already paid for: valid key, **zero sessions in four
+> months**, and per-adapter routing exists precisely so US browser sessions can be used for the
+> portals that object without becoming the global default.
+
 > **netcup RS 4000 G12 — 12 dedicated AMD EPYC 9645 (Zen 5) cores, 32 GB DDR5 ECC, 1 TB NVMe,
 > deployed in Manassas, Virginia (US).**
 > **€33.55/mo net ≈ $38.5/mo** at €1 = $1.1465 (2 Aug 2026). Roughly **55% of the budget**, leaving
