@@ -7,7 +7,7 @@
 
 ## 1. The recommendation
 
-> ## ⚠ WHAT WAS ACTUALLY PROVISIONED IS IN **VIENNA**, NOT MANASSAS — found 2026-08-29
+> ## THE MACHINE IS IN **VIENNA**, NOT MANASSAS — found 2026-08-29, and it turned out to be survivable
 >
 > The SCP reports `Site: Vienna`. Measured from the office, the server answers in **142 ms** while
 > the Bell County records portal it exists to scrape answers in **56 ms** — a Manassas box would be
@@ -21,12 +21,19 @@
 > **Latency is the smaller half.** The real exposure is that US county portals challenge or block
 > non-US addresses, and a brand-new European datacentre IP is the exact profile that gets challenged.
 >
-> **Test before deciding, and before building:**
+> **TESTED 2026-08-29, FROM THE SERVER ITSELF — `BELL: 200`. NOT BLOCKED.**
 > ```bash
 > curl -s -o /dev/null -w "%{http_code}\n" https://bell.tx.publicsearch.us/
 > ```
-> `200` means Vienna is slower but usable. `403`/`429`/timeout means it is not, and the build should
-> wait.
+> Vienna costs latency and nothing else, and the build proceeded on that basis.
+>
+> Worth being precise about what happened here: the geo-block fear was reasonable, well-founded in
+> §1's own table, and **wrong about this portal**. A ten-second curl settled a question that was
+> otherwise heading toward a support ticket and a relocation. Run it from the box before blaming a
+> European IP for anything, and run it first on any future machine outside the US — it is the
+> cheapest measurement on this page and it replaced an argument.
+>
+> It is also per-portal, not per-continent. Bell answering 200 does not promise the next county will.
 >
 > **A REINSTALL DOES NOT MOVE THE SERVER.** It wipes the OS on the same machine in the same
 > datacentre. Relocating means a support ticket asking for Manassas (MNZ), or a new order — not the
