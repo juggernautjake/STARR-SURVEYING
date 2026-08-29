@@ -117,15 +117,36 @@ paid for.
 
 ## 3. Standing it up
 
-**The machine that actually arrived (2026-08-28) runs Debian 13 "trixie" minimal, not Ubuntu 24.04.**
-netcup chose the image; this section was written against Ubuntu and has been corrected to match
-reality. Both work — the delta is one line, and it is called out in 3.1.
+**The live machine runs Ubuntu 24.04.4 LTS (noble) minimal, as this section always assumed.** It
+arrived as Debian 13 on 2026-08-28 and was reinstalled to Ubuntu on 2026-08-29 — for an unrelated
+reason, recorded below because the reason is the useful part.
 
-> ### The reinstall this document nearly told you to do
+> ### It was reinstalled because the ROOT PASSWORD was lost, not because Debian was wrong
 >
-> Seeing "Debian 13" where the runbook said "Ubuntu 24.04 LTS", the obvious move is to reinstall from
-> the SCP before building anything. **Don't.** Three things were checked instead of assumed, and all
-> three came back fine:
+> Two days went to a password: netcup's initial one, then a changed one that was not written down,
+> then a reset. **The fix that ended it was not remembering a password — it was ceasing to use one.**
+> The reinstall attached an SSH key from SCP and set *SSH password authentication* to **off**, so the
+> root password is now break-glass for the browser console only.
+>
+> Do that on day one next time. The install form takes a key, and the whole class of problem
+> disappears with it.
+>
+> **Two things worth knowing about that form**, both of which cost a round trip to discover:
+>
+> - Its **timezone list is Europe-only** — there is no `America/Chicago` to pick. Set it in the
+>   **Custom Script** box instead, which runs as root at the end of installation. Same for the
+>   locale.
+> - That Custom Script box will run the **whole of 3.1**. Pasting host prep there means the server
+>   comes up with Docker, ufw, swap and the right clock already done, and the first SSH login is a
+>   verification rather than a work session. It is the single biggest time saver on this page.
+>
+> Verify it actually ran before believing it: `timedatectl | grep "Time zone"` should say
+> `America/Chicago`. If it still says Berlin, the script did not fire and 3.1 must be pasted by hand.
+
+> ### The Debian delta, kept because the next machine may arrive as Debian too
+>
+> While the box ran Debian 13, the obvious move was to reinstall to match this runbook. Three worries
+> were checked instead of assumed, and all three came back fine:
 >
 > | Worry | Checked | Result |
 > |---|---|---|
@@ -134,12 +155,12 @@ reality. Both work — the delta is one line, and it is called out in 3.1.
 > | Playwright's browser libraries are Ubuntu-only | `worker/Dockerfile` | **Irrelevant** — the runtime stage is `mcr.microsoft.com/playwright:v1.58.2-jammy`, so Playwright brings its own Ubuntu userland inside the container |
 >
 > That last row is the one that settles it. **The host never runs Playwright**, so the host
-> distribution barely matters: it needs Docker, ufw, Caddy, swap and a timezone. A reinstall would
-> have cost an hour and bought nothing.
+> distribution barely matters: it needs Docker, ufw, Caddy, swap and a timezone. On Debian the only
+> change is `linux/debian` instead of `linux/ubuntu` in the Docker apt source.
 >
 > The generalisable bit: when the environment differs from the runbook, check which of the runbook's
 > assumptions the difference actually touches, rather than forcing the environment back to match the
-> document.
+> document. The reinstall that eventually happened was for the password, not the distribution.
 
 **Also leave the `netcup Mail Block` firewall policy in place.** netcup's provisioning email explains
 how to delete it, because most customers want to send mail. This worker never sends SMTP — outbound
@@ -156,14 +177,14 @@ apt install -y ca-certificates curl git ufw fail2ban
 
 # Docker Engine + compose plugin
 #
-# THE ONE LINE THAT DIFFERS BY DISTRIBUTION: `linux/debian` vs `linux/ubuntu`. `$VERSION_CODENAME`
-# resolves itself (trixie / noble), so this block is otherwise identical on both. Everything else in
-# this runbook is distribution-agnostic — see the note at the top of §3.
+# THE ONE LINE THAT DIFFERS BY DISTRIBUTION. The live box is Ubuntu, so this reads linux/ubuntu; on
+# Debian it is linux/debian and nothing else changes — `$VERSION_CODENAME` resolves itself (noble /
+# trixie). See the Debian note at the top of §3.
 install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
 chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
-  https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
   > /etc/apt/sources.list.d/docker.list
 apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
