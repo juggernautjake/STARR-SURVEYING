@@ -247,10 +247,19 @@ R2_SECRET_ACCESS_KEY=$V7
 R2_BUCKET=starr-recon-artifacts
 EOF
 
+# Keep the FIRST definition of each key and drop the rest. Running this block twice — which is easy
+# to do when a paste does not take the first time — otherwise leaves two sets of values in the file.
+# Compose reads the last one, so it still works, and that is exactly what makes it worth removing:
+# a secrets file with two answers is a question nobody wants to be asking in six months.
+awk -F= '!/^[A-Za-z_]+=/ { print; next } !seen[$1]++ { print }' .env > .env.tmp && mv .env.tmp .env
+
 chmod 600 .env
 
 # Confirm they landed WITHOUT printing them: first six characters only.
 grep -E '^(WORKER_API_KEY|ANTHROPIC_API_KEY|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|STORAGE_BACKEND|R2_)' .env | sed -E 's/=(.{0,6}).*/=\1…/'
+
+# Nine lines, not eighteen. If a key appears twice the dedupe did not run.
+test "$(grep -cE '^WORKER_API_KEY=' .env)" = "1" && echo "OK: one definition per key" || echo "DUPLICATES — rerun the awk line above"
 ```
 
 > **The two that bite, and they fail in opposite directions.**
