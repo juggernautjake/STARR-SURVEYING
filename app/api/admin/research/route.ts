@@ -82,7 +82,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { name, description, property_address, city, county, state, zip, owner_name, parcel_id, job_id } = body;
+  const { name, description, property_address, city, county, state, zip, owner_name, parcel_id, job_id, allow_paid_documents } = body;
 
   if (!name || !name.trim()) {
     return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
@@ -105,6 +105,11 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       parcel_id: parcel_id?.trim() || null,
       job_id: job_id || null,
       status: 'upload',
+      // Per-project spend gate (seed 620). Only an explicit `false` disables purchasing: an absent
+      // or malformed value keeps today's behaviour. Defaulting to `false` here would make every
+      // existing client silently produce cheaper, thinner runs with no explanation — worse than the
+      // cost it saves, because the operator would not know why the report shrank.
+      allow_paid_documents: allow_paid_documents === false ? false : true,
       // Store owner_name and notes in analysis_metadata for AI context
       analysis_metadata: {
         owner_name: owner_name?.trim() || null,

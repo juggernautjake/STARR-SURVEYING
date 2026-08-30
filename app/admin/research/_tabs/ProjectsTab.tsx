@@ -52,6 +52,9 @@ export default function ProjectsTab() {
     zip: '',
     owner_name: '',
     parcel_id: '',
+  // Spend gate (seed 620). ON by default so behaviour matches every existing project;
+    // the toggle below makes the choice explicit rather than inherited from a column default.
+    allow_paid_documents: true,
   });
 
   const userRoles = session?.user?.roles || ['employee'];
@@ -124,7 +127,7 @@ export default function ProjectsTab() {
       if (res.ok) {
         const data = await res.json();
         setShowCreate(false);
-        setNewProject({ name: '', description: '', property_address: '', city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '' });
+        setNewProject({ name: '', description: '', property_address: '', city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '', allow_paid_documents: true });
         router.push(`/admin/research/${data.project.id}`);
       } else {
         const err = await res.json();
@@ -431,6 +434,34 @@ export default function ProjectsTab() {
                     value={newProject.county}
                     onChange={e => setNewProject(p => ({ ...p, county: e.target.value }))}
                   />
+                </div>
+
+                {/* ── PAID DOCUMENTS ───────────────────────────────────────────────────────────
+                    Placed immediately after County on purpose: the county is what decides whether
+                    this run costs anything. Bell, Coryell, Milam, Lampasas and Bosque route to free
+                    clerk adapters; everywhere else falls through to TexasFile at roughly $1-3 a
+                    document. Asking the question next to the field that answers it. */}
+                <div className="research-modal__field research-modal__field--full">
+                  <label
+                    className="research-modal__label"
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={newProject.allow_paid_documents}
+                      onChange={e => setNewProject(p => ({ ...p, allow_paid_documents: e.target.checked }))}
+                      style={{ marginTop: 3, flexShrink: 0, width: 16, height: 16, cursor: 'pointer' }}
+                      data-testid="allow-paid-documents"
+                    />
+                    <span>
+                      <span style={{ fontWeight: 600 }}>Allow paid documents</span>
+                      <span style={{ display: 'block', fontWeight: 400, fontSize: 12.5, opacity: 0.75, marginTop: 3, lineHeight: 1.45 }}>
+                        {newProject.allow_paid_documents
+                          ? 'This run may buy deeds and plats where the county has no free portal — about $1–3 each, capped at $2.00 per run.'
+                          : 'Free county sources only. The run still completes; anything behind a paywall is skipped, and the report will say so rather than reporting it as missing from the record.'}
+                      </span>
+                    </span>
+                  </label>
                 </div>
                 <div className="research-modal__field">
                   <label className="research-modal__label">State</label>
