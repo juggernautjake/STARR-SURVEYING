@@ -100,6 +100,47 @@ verified by fetching deed page images (HTTP 200). The worker was genuinely state
 
 ## 2. W — The worker on netcup
 
+> ### ✅ THE WORKER IS LIVE — 2026-08-29, first build, healthy on the first try
+>
+> ```
+> starr-research-worker-1   Up (healthy)   127.0.0.1:3100->3100/tcp
+> {"status":"ok","version":"5.1.0","buildSha":"d4bc6ef04",
+>  "browser":{"backend":"local","ok":true,"durationMs":555},
+>  "queue":{"maxConcurrentPipelines":6,"limitedBy":"ceiling"}}
+> ```
+>
+> `limitedBy: "ceiling"` is the number §2 of the runbook predicted for this exact box: 12 cores and
+> 32 GB permit 11 by memory and 8 by CPU, and the worker holds itself to 6 because these are small
+> government servers and the fastest way to lose a county portal is to look like a load test. The
+> sizing model and the machine agree, which is the first time that has been checkable.
+>
+> **What the boot warnings caught, and it was not what they appeared to say.** `/healthz` reported:
+>
+> ```
+> "TAVILY_API_KEY missing — open-web research is inert; runs see county sources only"
+> "TEXASFILE credentials missing — the universal clerk fallback cannot buy documents"
+> ```
+>
+> The first reads as an owner who forgot a key. **It was a defect in the setup procedure.**
+> `TAVILY_API_KEY` appeared nowhere in `worker/.env.example` and nowhere in the runbook, and the
+> runbook builds a real `.env` by FILTERING that file — so the key could not be set by anyone
+> following the documented steps. The owner had set Tavily in Doppler on 08-28; that is the website's
+> environment, a different process on a different machine. Item 1 of START HERE was correctly marked
+> done and the worker still could not see it.
+>
+> Fixed as a class, not an instance: every `env.FOO` in `worker/src` checked against every `KEY=` in
+> `.env.example`, two found (`TAVILY_API_KEY`, `RECEIPT_EXTRACTION_POLLER`), both documented, and
+> `env-example-documents-every-key.test.ts` now fails when code reads a name the example omits.
+>
+> **Three defects in §3.3 of the runbook, found before the owner ran it:** `ufw` opened 443 but not
+> 80, which ACME HTTP-01 needs; the Caddyfile was written BEFORE the DNS record, so the first
+> certificate request validates against the destroyed droplet; and `systemctl reload` fails on a unit
+> that was never started.
+>
+> **Still open, and both are one step each:** the worker needs its own `TAVILY_API_KEY` line, and
+> `worker.starr-surveying.com` still resolves to `104.131.20.240`. Until the DNS record moves, the
+> worker is healthy and unreachable — which is precisely the state W4 exists to detect from outside.
+
 **Ordered 2026-08-26:** netcup RS 4000 G12, Manassas VA. 12 dedicated Zen 5 cores, 32 GB ECC, 1 TB
 NVMe. **€39.77 + €0.50 IPv4 = €40.27/month ≈ $46**, minimum 1-month term, no setup fee, **VAT 0%**
 (business details supplied). Awaiting netcup's manual order review.
@@ -431,11 +472,52 @@ pinging is the cheap half, and promoting on it would put an unproven adapter in 
 — which is the failure the proving rule exists to prevent. **Server-gated:** driving it needs the
 worker, which needs netcup.
 
-### R3 — Multi-tenancy does not exist ☐
+### R3 — Multi-tenancy is ~60% present in the schema and 0% present in the worker ◐ **RE-MEASURED 2026-08-29**
 
-The owner intends to eventually rent research capacity to other surveying firms. **There is no `org_id`
-anywhere in the research pipeline, worker services or routes.** That is a real build — tenant scoping,
-per-firm quotas, billing attribution — and it is *software*, not servers.
+The owner intends to eventually rent research capacity to other surveying firms.
+
+> **⚠ THE ORIGINAL CLAIM WAS WRONG, and wrong in the direction that inflates the work.** It read:
+> *"There is no `org_id` anywhere in the research pipeline, worker services or routes."* Measured
+> against the live schema on 2026-08-29 — the fourth parked premise this project has checked and the
+> fourth to be false or far narrower than written, see [[feedback_check_the_premise_before_building]].
+
+Of the **27 research tables**:
+
+| | count | what it means |
+|---|---|---|
+| carry `org_id` directly | **7** | `research_projects`, `research_runs`, `research_documents`, `research_usage_events`, `research_batch_jobs`, `research_subscriptions`, `research_clerk_lookups` — the ownership and billing spine already exists, and all seven are enrolled in `ORG_SCOPED_TABLES` as of 2026-08-29 |
+| reach an owner by foreign key | **9** | `research_adjoiners`, `research_chain_of_title`, `research_flood_zone`, `research_packets`, `research_survey_plans`, `research_tax`, `research_topo` (via `research_projects`); `research_requests`, `job_research` (via `jobs`). Child rows of an owned parent do not need their own column — a second one is a second answer to the same question |
+| no path to an owner | **11** | split below, and the split is the whole point |
+
+**Eight of those eleven SHOULD stay unowned, and giving them `org_id` would be the bug.**
+`research_counties` (254 rows), `research_site_adapters` (57), `research_data_vendors` (4),
+`research_county_data_sources` (1), `research_self_heal_settings` (1) and the three
+`research_adapter_*` health tables are **shared platform knowledge**. Bell County is Bell County for
+every firm; an adapter that learned to read its portal is worth more the more tenants use it. Copying
+that per-tenant is how one customer's outage stops being everyone's fix.
+
+**Three genuinely need tenant attribution, and all three are empty today:**
+
+- `research_document_purchases` (0 rows) — `worker/src/services/purchase-ledger.ts`
+- `research_vendor_accounts` (0 rows) — `worker/src/services/vendor-accounts.ts`
+- `research_vendor_topups` (0 rows) — `worker/src/services/vendor-accounts-policy.ts`
+
+These are **money**. You cannot bill firm A for firm B's document purchase, and a shared vendor
+balance is a shared invoice. Being empty is the opportunity: adding the column now costs one seed and
+no backfill. Adding it after they fill costs exactly what `design_mockups` cost — 1,371 rows, a
+snapshot, and an ordering trap where enrolling before backfilling makes every record vanish at once.
+**Not done here** because it is schema for a feature nobody has commissioned; flagged because the
+cheap moment is now and it closes silently.
+
+**The half of the original claim that was exactly right:** `grep -c org_id worker/src` returns **0**
+across 286 files. The worker does not read, write or filter the column anywhere — including on the
+seven tables that carry it. The schema is roughly a layer ahead of the code, which is a much better
+place to be than the reverse, but it also means the seven columns are decorative until something
+uses them.
+
+So R3 is three pieces, not one build: **(a)** teach the worker to stamp and filter `org_id` on the
+seven tables that already have it, **(b)** add the column to the three money tables while they are
+still empty, **(c)** per-firm quotas and billing attribution, which is the actual product work.
 
 > **Do not size hardware for this yet.** And when it comes: county portals rate-limit by **IP**, so ten
 > firms behind one address is how you get blocked. The scale-out unit is another cheap box with its own
