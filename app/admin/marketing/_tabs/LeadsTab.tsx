@@ -20,6 +20,9 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import { formatPhone, phoneHref } from '@/lib/format/phone';
+// The list below is leads that arrived. This looks for the next ones — plats and rezonings on
+// public agendas, which need a surveyor before they need a builder. §I3.2
+import MarketWatchPanel from './MarketWatchPanel';
 
 interface Lead {
   id: string;
@@ -388,6 +391,7 @@ export default function LeadsTab() {
           })}
         </div>
       )}
+      <MarketWatchPanel />
     </div>
   );
 }
