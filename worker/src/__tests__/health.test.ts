@@ -237,12 +237,28 @@ describe('config warnings', () => {
     expect(warnings).not.toContain('billing');
   });
 
-  it('flags a missing TAVILY_API_KEY, because the pipeline just gets quieter', () => {
-    // Without it, open-web research reports `not-configured` and every run narrows to the county
-    // sources it already knew. A working system producing a thinner answer is the hardest gap to see.
+  it('does NOT warn about TAVILY_API_KEY — it is the app\'s key, not this process\'s', () => {
+    // Inverted 2026-08-29. This used to assert the warning existed, and the warning was wrong in
+    // both directions.
+    //
+    // Every consumer of `lib/research/open-web.ts` is an APP module — the four watches, lead
+    // enrichment, and the CAD-URL guess in `boundary-fetch.service.ts`. `grep -rn TAVILY worker/src`
+    // returned only the warning line itself, against a control showing the worker really does read
+    // ANTHROPIC_API_KEY in four adapters. The deep pipeline has zero open-web references.
+    //
+    // So the worker was reading its OWN environment to report on a DIFFERENT process's config,
+    // which it cannot see:
+    //   · app has it, worker does not → warns falsely, and the operator "fixes" it by putting a key
+    //     on a machine that will never read it. That happened.
+    //   · worker has it, app does not → silent, while open-web is genuinely broken.
+    //
+    // The app reports it correctly and per-feature already. This asserts the worker stays out of it.
     const warnings = configWarnings({} as NodeJS.ProcessEnv).join(' ');
-    expect(warnings).toContain('TAVILY_API_KEY');
-    expect(warnings).toContain('county sources only');
+    expect(warnings).not.toContain('TAVILY');
+    expect(warnings).not.toContain('county sources only');
+    // Control: an empty env still produces the warnings that ARE this process's business, so this
+    // is not passing because `configWarnings` returned nothing at all.
+    expect(warnings).toContain('ANTHROPIC_API_KEY');
   });
 
   it('flags a missing TexasFile login, because the paywall is 20 minutes in', () => {

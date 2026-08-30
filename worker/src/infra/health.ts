@@ -254,12 +254,31 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
     }
   }
 
-  // Tavily drives open-web research (lib/research/open-web.ts). Absent, that whole layer reports
-  // `not-configured` and the pipeline silently narrows to the sources it already knows — which is a
-  // working system producing a thinner answer, the hardest kind of gap to notice.
-  if (!env.TAVILY_API_KEY) {
-    warn.push('TAVILY_API_KEY missing — open-web research is inert; runs see county sources only');
-  }
+  // ── TAVILY IS NOT THIS PROCESS'S BUSINESS — check removed 2026-08-29 ──────────────────────────
+  //
+  // This used to warn `TAVILY_API_KEY missing — open-web research is inert; runs see county sources
+  // only`. It was wrong in both directions, and it cost real time.
+  //
+  // Every consumer of `lib/research/open-web.ts` is an APP module: the portal, regulatory, market
+  // and learning watches, lead enrichment, and the CAD-URL guess ("Method 9") in
+  // `boundary-fetch.service.ts`. Measured — `grep -rn TAVILY worker/src` returned this line and
+  // nothing else, against a control showing the worker genuinely reads `ANTHROPIC_API_KEY` in four
+  // adapter files. And the deep research pipeline does not touch open-web at all: zero references in
+  // `analyze*.ts` or any `*pipeline*.ts`.
+  //
+  // So the worker was reading ITS OWN environment to report on a DIFFERENT PROCESS's configuration,
+  // which it cannot observe. Both failure modes follow:
+  //
+  //   · app has the key, worker does not  → warns falsely, and the operator "fixes" it by putting a
+  //     key on a machine that will never read it. This happened on 2026-08-29.
+  //   · worker has the key, app does not  → silent, while open-web is genuinely broken.
+  //
+  // The sentiment was not baseless — a worker run really does not include open-web research. But
+  // that is because the worker has no open-web step, not because a key is missing, so the warning
+  // named a cause that was wrong and a fix that did nothing.
+  //
+  // The app already reports this correctly and per-feature: `open-web.ts` returns a `not-configured`
+  // status and every watch surfaces it. That is the right place — the process that holds the key.
 
   // ── THE PAYWALL, WHICH IS REACHED 20 MINUTES INTO A RUN ────────────────────────────────────────
   //

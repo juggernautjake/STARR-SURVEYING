@@ -249,7 +249,6 @@ read -r -p "SUPABASE_SERVICE_ROLE_KEY: " V4 < /dev/tty
 read -r -p "R2_ACCOUNT_ID: " V5 < /dev/tty
 read -r -p "R2_ACCESS_KEY_ID: " V6 < /dev/tty
 read -r -p "R2_SECRET_ACCESS_KEY: " V7 < /dev/tty
-read -r -p "TAVILY_API_KEY (blank to skip: open-web research stays inert): " V8 < /dev/tty
 
 cat >> .env <<EOF
 
@@ -262,7 +261,6 @@ R2_ACCOUNT_ID=$V5
 R2_ACCESS_KEY_ID=$V6
 R2_SECRET_ACCESS_KEY=$V7
 R2_BUCKET=starr-recon-artifacts
-TAVILY_API_KEY=$V8
 EOF
 
 # NOTE THE CHARACTER CLASS: [A-Za-z_][A-Za-z0-9_]* , WITH DIGITS.

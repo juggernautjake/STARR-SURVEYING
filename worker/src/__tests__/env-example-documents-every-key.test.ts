@@ -78,9 +78,18 @@ describe('worker/.env.example documents every key the code reads', () => {
     expect(keysDocumented().size).toBeGreaterThan(30);
   });
 
-  it('reads TAVILY_API_KEY and documents it — the 2026-08-29 regression, pinned', () => {
-    expect(keysReadByCode()).toContain('TAVILY_API_KEY');
-    expect(keysDocumented()).toContain('TAVILY_API_KEY');
+  it('does NOT read TAVILY_API_KEY — that key belongs to the app process', () => {
+    // Inverted the same day it was written, which is worth recording rather than quietly editing.
+    //
+    // The original assertion pinned a real regression: the runbook could not set TAVILY_API_KEY
+    // because worker/.env.example never named it. Correct as far as it went — and the premise
+    // underneath it was wrong. The worker never READ the key either. Its health check warned about
+    // a variable used only by app modules, so the honest fix was not "document it here", it was
+    // "stop pretending this process uses it".
+    //
+    // A test that pins a fix built on a false premise is a test that defends the false premise.
+    expect(keysReadByCode()).not.toContain('TAVILY_API_KEY');
+    expect(keysDocumented()).not.toContain('TAVILY_API_KEY');
   });
 
   it('has no key that code reads and the example omits', () => {
@@ -92,8 +101,16 @@ describe('worker/.env.example documents every key the code reads', () => {
   it('parses commented-out keys as documented', () => {
     // A control on the parser itself: `# FOO=` must count. If this ever fails, the test above is
     // passing for the wrong reason and every optional key looks undocumented.
+    //
+    // The specimen was TAVILY_API_KEY until that entry was removed on 2026-08-29 — the worker does
+    // not read it, so documenting it here was what made somebody set it on a machine that ignores
+    // it. BROWSERBASE_API_KEY is the replacement: genuinely optional, genuinely read by this
+    // process, and genuinely commented out.
     const text = fs.readFileSync(path.join(ROOT, '.env.example'), 'utf8');
-    expect(text).toMatch(/^[ \t]*#[ \t]*TAVILY_API_KEY=/m);
-    expect(keysDocumented()).toContain('TAVILY_API_KEY');
+    expect(text).toMatch(/^[ \t]*#[ \t]*BROWSERBASE_API_KEY=/m);
+    expect(keysDocumented()).toContain('BROWSERBASE_API_KEY');
+    // And the specimen must be a key the code actually reads, or this control drifts into testing
+    // a comment nobody depends on.
+    expect(keysReadByCode()).toContain('BROWSERBASE_API_KEY');
   });
 });
