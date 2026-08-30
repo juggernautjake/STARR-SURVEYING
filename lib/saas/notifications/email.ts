@@ -27,8 +27,44 @@ export async function sendEmailViaResend(input: EmailDispatchInput): Promise<boo
   // no key is configured. Matches the existing contact-route behavior
   // so dev runs don't spam Resend.
   if (!apiKey || apiKey === 'your_resend_api_key') {
+    const why = apiKey ? 'RESEND_API_KEY is still the placeholder value' : 'RESEND_API_KEY is missing';
+
+    // ── IN PRODUCTION THIS IS AN ERROR, NOT A DEV CONVENIENCE ──────────────────────────────────
+    //
+    // Found 2026-08-29 while fixing the identical branch in `./sms.ts`, whose header says it copies
+    // this file's pattern. It does, including this.
+    //
+    // Unlike the SMS one, this is LATENT rather than active: `RESEND_API_KEY` is set in production
+    // today, so mail is genuinely sending and nothing is currently broken. What is armed is the day
+    // that key is rotated wrong, expires, or is dropped from a new environment — from that moment
+    // every email in the system would log `info`, say "DEV mode", return `true`, and vanish.
+    //
+    // The SMS version of exactly this went unnoticed for seven months. Email is the PRIMARY channel
+    // — password resets, invites, invoices, payment receipts — so the same failure here would be
+    // both quieter and far more damaging.
+    //
+    // The placeholder check matters as much as the missing one: `your_resend_api_key` in production
+    // is a deployment that was never finished, and it is worth saying so in those words.
+    if (process.env.NODE_ENV === 'production') {
+      if (typeof console !== 'undefined') {
+        console.error(`[notifications/email] NOT SENT — ${why}. `
+          + 'Email is wired and reachable but cannot deliver; the message was dropped.', {
+          to: input.to,
+          subject: input.subject,
+        });
+      }
+      // False, not true — and unlike the SMS adapter, this return is genuinely consumed.
+      //
+      // `app/api/cron/weekly-reports/route.ts` branches on it and, when true, INSERTS AN AUDIT LOG
+      // ROW saying `WEEKLY_REPORT_SENT`. So the old `return true` did not merely fail quietly: with
+      // a missing key in production it would have written a permanent, false record into the audit
+      // log for a report nobody received. An audit log is the one place in a system that is
+      // supposed to be believable without checking.
+      return false;
+    }
+
     if (typeof console !== 'undefined') {
-      console.info('[notifications/email] DEV mode (no RESEND_API_KEY) — would send:', {
+      console.info(`[notifications/email] DEV mode (${why}) — would send:`, {
         to: input.to,
         subject: input.subject,
       });
