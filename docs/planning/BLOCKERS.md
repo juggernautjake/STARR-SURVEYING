@@ -339,6 +339,37 @@ overwrite a deliberate design.
 > the project layer and the page consolidation is not a decision to make on someone's behalf at the
 > end of a long session.
 
+## A0c. Two PURE ratchets are unpinned and could be — recorded 2026-08-29
+
+- [ ] **Pin `verify:fs-figures` and `verify:fs-questions` the way the others are pinned.**
+
+> Swept all thirteen `verify:*` / `audit:*` scripts for whether anything runs them. Eleven are
+> accounted for:
+>
+> · **Pinned by a test CI runs** — `verify:orphans`, `verify:portal-tabs`, `verify:page-inventory`,
+>   `verify:inline-style-hex`, `audit:mobile`, `audit:bestiary`, `audit:natives`, and both scripts
+>   added today.
+> · **Unpinnable by design** — `verify:org-scope` and `audit:vendors` read live external state (A0b).
+>
+> **The two left over are PURE and simply unpinned:** `verify:fs-figures` and
+> `verify:fs-questions`, which validate the NCEES figure renderers and the generated exam
+> questions. Nothing runs them. Nothing would notice if a figure renderer or a generator broke.
+>
+> **The pattern to copy already exists and is not "shell out to the script".** `verify:inline-style-hex`
+> also runs under `tsx`, and `inline-style-hex-ratchet.test.ts` pins it by IMPORTING the logic rather
+>   than executing the CLI — which is why the suite passes in environments where the CLI would not
+>   run. Do the same for these two.
+>
+> ⚠ **Not done here, and the reason is honest rather than tidy: I could not verify they PASS.**
+> `tsx` does not execute in this working copy — the package is installed but `node_modules/.bin/`
+> does not exist at all, so there are no CLI shims. `npx` resolves `tsc`, `vitest` and `next` by
+> another route, which is why everything else worked; `tsx` is the one that does not. In CI,
+> `npm ci` builds `.bin` normally, so this is a local environment fault and NOT a repo defect.
+>
+> Pinning a check that cannot be run first would put an unverified assertion into CI — which is the
+> same mistake as raising a ratchet ceiling to make it green. Whoever has a working `tsx` should run
+> both, confirm they pass, and only then pin them.
+
 ## A0b. `verify:org-scope` still has nothing running it — recorded 2026-08-29
 
 - [ ] **Decide how the two live-state checks get run, or accept that they are run by hand.**
