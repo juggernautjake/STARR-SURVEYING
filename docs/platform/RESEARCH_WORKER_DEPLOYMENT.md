@@ -195,9 +195,15 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
   > /etc/apt/sources.list.d/docker.list
 apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
-# Firewall: SSH and HTTPS only. The worker itself binds to 127.0.0.1 and is never exposed directly.
+# Firewall: SSH, HTTP and HTTPS. The worker itself binds to 127.0.0.1 and is never exposed directly.
+#
+# PORT 80 IS NOT OPTIONAL, even though nothing is served on it. Caddy issues certificates with
+# ACME's HTTP-01 challenge, which Let's Encrypt validates by connecting to port 80. It can fall
+# back to TLS-ALPN-01 on 443, so a 443-only box eventually gets a certificate — after a failed
+# challenge, a retry and a confusing minute in the logs. Port 80 also serves the HTTP->HTTPS
+# redirect; blocked, an http:// URL hangs rather than redirecting.
 ufw default deny incoming && ufw default allow outgoing
-ufw allow OpenSSH && ufw allow 443/tcp && ufw --force enable
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
 
 # Swap as a safety net, not a strategy. If the worker is swapping regularly the concurrency is
 # wrong — fix that, don't add swap.
@@ -243,6 +249,7 @@ read -r -p "SUPABASE_SERVICE_ROLE_KEY: " V4 < /dev/tty
 read -r -p "R2_ACCOUNT_ID: " V5 < /dev/tty
 read -r -p "R2_ACCESS_KEY_ID: " V6 < /dev/tty
 read -r -p "R2_SECRET_ACCESS_KEY: " V7 < /dev/tty
+read -r -p "TAVILY_API_KEY (blank to skip: open-web research stays inert): " V8 < /dev/tty
 
 cat >> .env <<EOF
 
@@ -255,6 +262,7 @@ R2_ACCOUNT_ID=$V5
 R2_ACCESS_KEY_ID=$V6
 R2_SECRET_ACCESS_KEY=$V7
 R2_BUCKET=starr-recon-artifacts
+TAVILY_API_KEY=$V8
 EOF
 
 # NOTE THE CHARACTER CLASS: [A-Za-z_][A-Za-z0-9_]* , WITH DIGITS.
@@ -331,7 +339,21 @@ almost always a missing system library or an image/driver version mismatch.
 ### 3.3 TLS and the public edge
 
 The worker binds to `127.0.0.1:3100`. Put Caddy in front so Vercel can reach it over HTTPS with a
-real certificate:
+real certificate.
+
+> **DO THE DNS RECORD FIRST.** Caddy requests a certificate the moment it loads a config naming a
+> host, and Let's Encrypt validates that request by connecting to whatever `worker.starr-surveying.com`
+> resolves to. Point the `A` record at the server, wait for it to resolve, *then* write the
+> Caddyfile. Out of order it is not fatal — Caddy retries with backoff and succeeds once DNS
+> catches up — but the first minutes produce certificate errors that look like a broken config,
+> and the obvious response to those is to start changing the config that was right.
+>
+> ```bash
+> dig +short worker.starr-surveying.com    # must print the server IP before you continue
+> ```
+>
+> As of 2026-08-29 that record still points at `104.131.20.240` — the destroyed DigitalOcean
+> droplet. It must become `152.53.48.240`.
 
 ```bash
 apt install -y caddy
@@ -342,7 +364,13 @@ worker.starr-surveying.com {
     transport http { read_timeout 45m }
 }
 CADDY
-systemctl reload caddy
+# `reload` on a unit that has never started fails. `enable --now` is idempotent and covers both
+# the fresh install and the re-edit.
+systemctl enable --now caddy && systemctl reload caddy
+
+# Watch the certificate actually arrive rather than assuming it did — this is where DNS problems
+# surface, and they surface as ACME errors naming the host.
+journalctl -u caddy -n 30 --no-pager
 ```
 
 Then point an `A` record at the server and set, in the Vercel project:
