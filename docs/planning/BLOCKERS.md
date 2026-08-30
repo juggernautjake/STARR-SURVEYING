@@ -94,6 +94,36 @@ overwrite a deliberate design.
 > somebody believed the moment they parked it, and measuring the claim is cheaper than acting on it.
 > [[feedback_check_the_premise_before_building]]
 
+> ### AND THE D&D CHAIN CONTAINS A SEED COLLISION — measured 2026-08-29
+>
+> Thirteen commits: SRD magic items, bestiary search from the map, campaign thumbnails, invite links
+> that say what they are for, roller measurement, plus several docs closing items that turned out to
+> have been built already.
+>
+> **`seeds/571_dnd_campaign_thumbnail.sql` collides with main's `571_admin_push_subscriptions.sql`.**
+> Merging as-is puts two different `571_*.sql` files in `seeds/`, and which one a runner picks
+> depends on glob order rather than intent. Main's 571 is the push-notification table. Seeds in main
+> already run to **618**, so the branch's file needs renumbering to ~619 first. Small fix; the kind
+> that turns a merge into an incident if nobody looks.
+>
+> **And the SRD magic items are not anywhere.** Not in main, not in `seeds/`, and **no `%magic%`
+> table exists in the live database**. This repo's memory records them as shipped — *"237 CC-BY
+> items"* — and the only magic-item references in main are incidental mentions inside
+> artificer/rogue/paladin class features. `app/api/dnd/bestiary/` likewise has only `[id]`, not
+> `search`.
+>
+> **Three stale records found today, and the pattern is identical in all three:**
+>
+> | Record | Said | Measured 2026-08-29 |
+> |---|---|---|
+> | the phone project | "all 5 commits" | **17 commits, 73 absent files** |
+> | SRD magic items | shipped, 237 items | **not in main, no table in the live DB** |
+> | branches with unmerged work | *(would read as)* 12 lost projects | **3 bodies of work** |
+>
+> Every one was true when written. Every one has been trusted since. A record of a moving number is
+> a claim with an expiry date nobody prints on it, and the cost is that it gets believed exactly when
+> it stops being true. Memory corrected in place rather than left to be re-trusted.
+
 ## A00. 2,591 lines of finished work are in a gitignored worktree — found 2026-08-29
 
 - [ ] **Decide: merge `worktree-surveying-payments-2026-07-29`, cherry-pick from it, or delete it.**
