@@ -42,6 +42,40 @@ overwrite a deliberate design.
 > collision: `571_dnd_campaign_thumbnail.sql` against main's `571_admin_push_subscriptions.sql`.
 > Renumber to 619 and the rest is mechanical.
 >
+> ### ✅ THE TAX WORK WAS ACTUALLY MERGED IN A THROWAWAY WORKTREE — 2026-08-29
+>
+> The caveat below said a clean textual merge proves nothing about whether it builds. So it was
+> tried, in a detached worktree under the temp directory, and removed afterwards. Nothing on `main`
+> or any working branch was touched.
+>
+> | Check | Result |
+> |---|---|
+> | `git merge` against current `main` | **clean** — no conflicts, 995 commits of drift notwithstanding |
+> | `npx tsc --noEmit` | **exit 0** |
+> | its own tests (`sales-tax`, `records-deadlines`) | **76 passed** |
+> | `npm run verify:orphans` | ❌ **FAIL — 63, ceiling 61** |
+>
+> **It is orphaned.** `lib/payments/sales-tax.ts` (388 lines) and `lib/compliance/deadlines.ts`
+> (309) have **no product importer** — exactly +2, which is the whole difference between 61 and 63.
+> `records-catalogue.ts` is imported, but only by `deadlines.ts`, so the cluster is dead
+> transitively.
+>
+> That is precisely the defect the orphan guard exists for, and its own message says why it is hard
+> to see: *"orphaned code typechecks, lints, and passes its own tests."* This does all three.
+>
+> **So the recommendation flips.** "Zero conflicts, cheapest option" was true and beside the point.
+> Merging as-is adds **697 lines that nothing calls**, and the invoice would still take the
+> office-typed `tax_cents` because nothing routes to the calculator. The work is not a merge; it is
+> a merge **plus wiring `sales-tax.ts` into the invoice composer** — which is the part that was
+> never finished, and the reason it sat in a worktree.
+>
+> > **I nearly reported the opposite, twice.** First that it was fine (conflicts, tsc and tests were
+> > all green — I had not run the orphan guard). Then, when the guard failed, a `grep` for each
+> > basename reported "importers: 1, 4, 1" and I almost concluded the guard was wrong. The grep was
+> > matching the modules' own tests and each other. Asking the guard to NAME the files settled it.
+> > **Seventh instrument error of the session, and the seventh to be a search that could not tell a
+> > real importer from a mention.**
+>
 > ⚠ **"Zero conflicts" means git can merge the text. It does not mean it builds, typechecks, or
 > passes tests** — the tax work predates the `org_id` enrolment, the project layer above jobs, and
 > the page consolidation. A clean textual merge that fails `npm run build` is still a day's work,
