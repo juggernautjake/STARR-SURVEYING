@@ -713,6 +713,46 @@ free on the netcup box) · **iDocket** (registry marks it a real subscription, e
 > it has been failing quietly for seven months. Owner decision: rent a number if SMS is wanted, or
 > remove the notification path so it stops pretending. Not a cost item; a correctness one.
 
+> #### ✅ THE ADAPTER HALF IS FIXED — 2026-08-29, and reading the code found worse than the account did
+>
+> The measurement above says *why* SMS could not work. Opening `lib/saas/notifications/sms.ts` showed
+> what it did about that:
+>
+> ```js
+> if (!accountSid || !authToken || !fromNumber) {
+>   console.info('[notifications/sms] DEV mode (no Twilio creds) — would send:', ...)
+>   return true;
+> }
+> ```
+>
+> **No environment check.** In production, an SMS that could not possibly be sent logged at `info`,
+> said "DEV mode", and returned `true`. Every property of that line is wrong for finding it: the one
+> severity nobody greps, the one word that tells a reader it does not apply to them, and a return
+> value claiming success. Seven months of alerts announcing themselves as fine.
+>
+> **The header said where the next one was.** `sms.ts` states it copies "the same pattern as the
+> Resend adapter in ./email.ts". It does, including this. So the CLASS was swept rather than the
+> instance fixed — every direct Resend and Twilio caller in `lib/` and `app/`.
+>
+> | Where | Verdict |
+> |---|---|
+> | `lib/saas/notifications/sms.ts` | **Broken and active.** Fixed. |
+> | `lib/saas/notifications/email.ts` | **Broken, latent** — `RESEND_API_KEY` is set, so mail is sending. But the return value is CONSUMED: `weekly-reports` writes a `WEEKLY_REPORT_SENT` audit-log row when it is true. Fixed. |
+> | `app/api/contact/route.ts` | **Broken, latent.** Production logged nothing, and the customer was shown *"Form received (dev mode - check server logs)"*. The lead was never lost — the insert and the in-app notification already ran. Fixed. |
+> | `app/api/admin/email/send/route.ts` | **Broken, latent, and the worst-shaped**: wrote a send record claiming `sent_count: N, failed_count: 0` and returned `success: true`. Fixed — logs the attempt with the counts the other way round, and returns 502, which is this route's own convention for a mail-service failure. |
+> | `invoices/[id]/send`, `leads/[id]/reply`, `payment-attempts/[id]/clear`, `public/invoice/…/attempt`, `public/invoice/…/receipt` | **Already correct.** All four capture `send_error` and return it. Left alone. |
+> | `lib/learn/tutor-guard.ts` | Returns true without a key for a documented, unrelated reason. Left alone. |
+>
+> **Four of seven direct callers were already right**, which is worth recording as plainly as the
+> three that were not: the pattern was a copied mistake, not a house style.
+>
+> Every fix keeps the dev short-circuit unchanged — a local clone with no Resend or Twilio account
+> must not fail a signup — and every one was MUTATION-TESTED against the previous file rather than
+> merely run green. A suite that passes against both versions describes nothing.
+>
+> **The owner's question is untouched.** Rent a number or delete the SMS path is still a decision.
+> What is no longer a judgement call is that the code says which of those two worlds it is in.
+
 > Several of these — county vendors, ATTOM, Regrid, Tavily, CapSolver — serve deep research, which has
 > been offline since at least 2 August. Usage-based ones cost nothing while idle; **subscriptions have
 > been billing for a feature nobody could run.**

@@ -116,11 +116,40 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
 
   const RESEND_API_KEY = process.env.RESEND_API_KEY;
   if (!RESEND_API_KEY || RESEND_API_KEY === 'your_resend_api_key') {
+    // ── IN PRODUCTION: RECORD THE ATTEMPT HONESTLY, AND SAY IT FAILED ──────────────────────────
+    //
+    // Found 2026-08-29 sweeping every direct Resend caller. Of the seven, four already reported an
+    // unconfigured key honestly (they capture `send_error` and return it). This one did not, and it
+    // was the worst-shaped of the set:
+    //
+    //   · it wrote an email-send record claiming `sent_count: recipients.length, failed_count: 0`
+    //     — a PERMANENT FALSE RECORD of a delivery that did not happen, and
+    //   · it returned `success: true`, so the admin who just composed the message is told it went.
+    //
+    // `dev: true` was in the response, but a flag the UI does not read is not a disclosure, and the
+    // log row was already false by the time anybody could act on it.
+    //
+    // The route's own convention for "the mail service let us down" is a 502 (see the failure path
+    // below), so that is what this returns. The attempt is still logged, because it did happen —
+    // just with the counts the other way round, which is the difference between a record and a
+    // claim.
+    if (process.env.NODE_ENV === 'production') {
+      const why = RESEND_API_KEY ? 'RESEND_API_KEY is still the placeholder value' : 'RESEND_API_KEY is missing';
+      console.error(`[admin/email/send] NOT SENT to ${recipients.length} recipient(s) — ${why}.`);
+      await logEmailSend({
+        sender_email: senderEmail, subject, role: role || null,
+        recipient_count: recipients.length, sent_count: 0, failed_count: recipients.length,
+        recipients,
+      });
+      return NextResponse.json(
+        { error: `Email was not sent — ${why}. Nothing was delivered.`, failed: recipients },
+        { status: 502 },
+      );
+    }
+
     // Dev mode — log + return success so the UI flow is reachable
     // without a live Resend key configured.
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`[DEV] /admin/email/new send: from=${senderEmail} to=${recipients.join(', ')} subject=${subject}`);
-    }
+    console.log(`[DEV] /admin/email/new send: from=${senderEmail} to=${recipients.join(', ')} subject=${subject}`);
     await logEmailSend({
       sender_email: senderEmail, subject, role: role || null,
       recipient_count: recipients.length, sent_count: recipients.length, failed_count: 0,
