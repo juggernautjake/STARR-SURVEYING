@@ -403,6 +403,10 @@ export default function ResearchAnalysisPanel({
   // Results state
   const [resources, setResources] = useState<ResourceSummary[]>([]);
   const [finalSummary, setFinalSummary] = useState('');
+  // Why a run's results may be INCOMPLETE, in words — null when nothing was actually skipped.
+  // Without this the panel renders "found nothing behind the paywall" and "was told not to look"
+  // identically, which is the exact confusion lib/research/paid-documents.ts exists to prevent.
+  const [paidDocumentsNotice, setPaidDocumentsNotice] = useState<string | null>(null);
   const [logs, setLogs] = useState<PipelineLogEntry[]>([]);
   const [logsCopied, setLogsCopied] = useState(false);
 
@@ -437,6 +441,21 @@ export default function ResearchAnalysisPanel({
   }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
+
+  /* Ask the analyze endpoint whether anything was skipped behind a paywall, and why.
+   *
+   * Read at COMPLETION rather than polled: the count it reports is of documents a finished run
+   * declined to buy, so asking mid-run reports a number that is still climbing. A silent failure
+   * here leaves the notice null, which renders nothing — the honest default, since a notice that
+   * cannot be fetched must not become a claim that nothing was skipped. */
+  const refreshPaidDocumentsNotice = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/analyze`);
+      if (!res.ok) return;
+      const data = await res.json() as { paidDocumentsNotice?: string | null };
+      setPaidDocumentsNotice(data.paidDocumentsNotice ?? null);
+    } catch { /* leave the notice unset — see above */ }
+  }, [projectId]);
 
   const pollPipelineStatus = useCallback(async () => {
     try {
@@ -484,6 +503,7 @@ export default function ResearchAnalysisPanel({
         // Pipeline finished
         setIsRunning(false);
         setIsComplete(true);
+        void refreshPaidDocumentsNotice();
         setCurrentStage('final_summary');
         stopPolling();
 
@@ -546,7 +566,7 @@ export default function ResearchAnalysisPanel({
         onComplete?.();
       }
     } catch { /* keep polling */ }
-  }, [projectId, stopPolling, onComplete]);
+  }, [projectId, stopPolling, onComplete, refreshPaidDocumentsNotice]);
 
   async function handleInitiateResearch() {
     if (isRunning) return;
@@ -834,6 +854,8 @@ export default function ResearchAnalysisPanel({
             if (data.status !== 'analyzing') {
               clearInterval(analyzeInterval);
               setReanalyzing(false);
+              // This response IS the analyze status, so the notice is already in hand — no second fetch.
+              setPaidDocumentsNotice(data.paidDocumentsNotice ?? null);
               setFriendlyLogs(prev => [...prev, {
                 id: `reanalyze-done-${Date.now()}`,
                 ts: Date.now(),
@@ -1150,6 +1172,14 @@ export default function ResearchAnalysisPanel({
         </div>
 
         {error && <div className="ra-panel__error">{error}</div>}
+
+        {/* Above the summary on purpose: it qualifies how complete everything below it is, and a
+            caveat printed after the conclusion it qualifies has already been skipped. */}
+        {paidDocumentsNotice && (
+          <div className="ra-results__paid-notice" data-testid="paid-documents-notice" role="status">
+            {paidDocumentsNotice}
+          </div>
+        )}
 
         {/* Final Summary Section */}
         {finalSummary && (

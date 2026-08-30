@@ -71,12 +71,79 @@ now the critical path. If you read nothing else, read this table.
 | 2b | ~~Point `worker.starr-surveying.com` at the new IP~~ ✅ **DONE 2026-08-29** — A record moved to `152.53.48.240` at Squarespace/Google DNS, Caddy installed, Let's Encrypt certificate obtained. **Verified from OUTSIDE the box**, which is the only test that counts: `/health` returns 200 `"status":"healthy"`, TLS validates, port 80 returns a 308 to HTTPS, and the auth guard distinguishes a missing header (401) from a wrong key (403) — two different answers, which is what proves a key is loaded and compared rather than absent. `document_storage: backend=r2 bucket=starr-recon-artifacts` closes W1 end to end. | §W2 · §W4 | Cleared. |
 | 3 | ~~Reboot the new box and curl `/health` from your own machine~~ ✅ **PASSED 2026-08-29** — `uptime` came back reading **69.7s** where it had read 1102s an hour earlier, over HTTPS, from the owner's laptop. The whole chain restarted unattended: Docker on boot, both containers, Caddy serving TLS, Playwright launching Chromium, R2 and Supabase reconnected, and the Tavily key persisted. | §W5 | Cleared — and it is the check that matters most, because the previous worker died by silently never coming back. |
 | 3b | ~~TexasFile credentials~~ ✅ **DONE 2026-08-29** — set on the worker, card on file, balance funded. `/healthz` reports **zero warnings for the first time**. | §S2b | Cleared. It is the UNIVERSAL clerk fallback: every county with no specific proven vendor routes to it, so this was the difference between routing reaching 254 counties and retrieval reaching almost none. |
-| 3c | ~~`WS_TICKET_SECRET` on the worker~~ ✅ **DONE 2026-08-29** — confirmed on BOTH sides: `POST /api/ws/ticket` now answers **401** (not signed in) where it answered **503** (not configured). | §W | Cleared for presence. ⚠ NOT cleared for *equality* — it is an HMAC, the app signs and the worker verifies, and both having a value does not make it the same value. A mismatch closes the live-progress socket immediately with no useful error. Open a live run to prove it. |
+| 3c | ~~`WS_TICKET_SECRET` on the worker~~ **WITHDRAWN 2026-08-30 — the premise was wrong.** The worker does not verify tickets and never did: `verifyWsTicket` is called only by `server/ws.ts`, an APP process started by `npm run ws`, which is not in `docker-compose.yml` and cannot run on Vercel. Setting this key on the netcup box put a secret on a machine that will never read it — [[the TAVILY mistake]] repeated three weeks later, in the same doc, by the same reasoning. | §W | **No equality test is possible, so stop planning one.** "Open a live run to prove it" cannot pass: a WS upgrade to `wss://worker.starr-surveying.com` returns **404**, identical to a plain GET, because nothing there speaks WebSocket. Live progress is not running in production at all — and that is *known and accepted*: `research-modules-are-reachable.test.ts:84` records the publisher and `useResearchProgress` as connected at neither end, needing a long-lived process Vercel cannot host, and notes the UI polls instead. Confirmed: `ResearchAnalysisPanel` polls on a 3-second `setInterval`. Nothing is broken; the config just implies a feature that is switched off. |
 | 3d | **Run ONE research run against a real property, deliberately** | §3.5 of the runbook | The only complete test of the purchase path, and now the last unproven link. Presence is not function: the worker warns when `TEXASFILE_USERNAME` is absent and *cannot* warn when the login is wrong or the balance is spent — both of which produce a run that works perfectly until it reaches a paywall. Bounded at **\$2.00** per run by `run-budget.ts`, so the downside is a few dollars and the upside is knowing. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
 | 7 | ~~Backfill `design_mockups` before enrolling it~~ ✅ **DONE 2026-08-29** — snapshotted the 1,371 unowned ids, applied `seeds/517_org_default.sql` (1,371 → 0 unowned, DEFAULT on 168/168 tables), then enrolled all ten tables in `ORG_SCOPED_TABLES` (158 → 168). `npm run verify:org-scope` is green for the first time, and was mutation-tested in both directions before that green was believed. | BLOCKERS.md | Cleared. It was the only item here that got worse on its own — though the count had in fact stopped growing: 1,371 on 08-27 and 1,371 on 08-29. Do not extrapolate a trend; re-run the check. |
+
+> ### 🔎 FULL AUDIT 2026-08-30 — the server half holds up; one thing above was false
+>
+> Asked to confirm "the worker and pipeline work perfectly and nothing is left to set up", every
+> claim in the table above was re-measured against the live system rather than re-read.
+>
+> **What is genuinely proven.** `/healthz` v5.1.0, `warnings: []`, Playwright · Supabase · Anthropic ·
+> R2 · Redis all `ok`. The auth guard answers **401 / 403 / 200** to no-header / wrong-key /
+> real-key — three distinct answers, so it can prove a positive and not merely fail. Address
+> validation works live end to end: Belton→Bell returned `valid:true`, and a deliberate `Harris`
+> control returned 422 `ADDRESS_COUNTY_MISMATCH` with the right detected county. TexasFile reports
+> `configuredForUse: true` across 254 counties at \$1/page via the free
+> `/research/purchase/platforms/status` endpoint — **use that before spending money; §3.5 documents
+> it and it answers the credential question without buying anything.** Worker suite 1,621 pass; root
+> `tsc` 0 errors; research suite 1,107 pass; `npm run verify:worker` ✓ OK.
+>
+> **The Vercel→worker link is proven by evidence nobody had to generate:** the hourly watchdog wrote
+> `research_worker_health = {state: ok, latency_ms: 338}` at 12:17 UTC. That is production Vercel
+> reaching the box, which a laptop `curl` cannot demonstrate. The cron is registered in
+> `vercel.json` and firing.
+>
+> **Item 3c was wrong and is withdrawn above** — the worker never verifies WS tickets. Worth dwelling
+> on: this doc contains commit `615b6e543`'s lesson about TAVILY ("a key on a machine that ignores
+> it") and then made the identical mistake with `WS_TICKET_SECRET` four rows later. Writing the
+> lesson down did not prevent the repeat, because the check that would have caught it
+> (`warnings-are-about-this-process.test.ts`) guards `configWarnings` and this claim lives in the
+> `/health` handler.
+>
+> **The deployed worker is 4 commits behind `main`** (`buildSha d4bc6ef04`). None change pipeline
+> behaviour — docs, `.env.example`, tests, and the TAVILY warning removal — **but the staleness is
+> currently faking a green light.** The deployed build still contains the `TAVILY_API_KEY missing`
+> warning at `health.ts:260`, `main` deleted it, and `/healthz` reports `warnings: []`. That proves
+> `TAVILY_API_KEY` is set on the box, where no worker file reads it (controlled against
+> `ANTHROPIC_API_KEY`, which appears in 4+ adapter files). Redeploying per §3.6 makes the green
+> honest and costs nothing.
+>
+> **Item 3d is the whole remaining risk, and the database says so louder than this doc does:** the
+> newest `research_projects` row is **2026-03-31** and `research_document_purchases` has **0 rows**.
+> The purchase path has never executed once — not on netcup, not on the DigitalOcean box before it.
+> Every "✅" above proves the plumbing; none proves a run.
+>
+> **Two smaller things.** `worker/src/websocket/progress-server.ts` is an orphan whose
+> `validateToken` returns true for *any non-empty token* (line 263) — inert because nothing starts
+> it, but a live landmine for whoever wires it up. And `idocket_pay` is **\$0/page across 18
+> counties** and unconfigured, so those counties route to TexasFile at \$1/page instead;
+> `tyler_pay` (\$0.50, 7) and `fidlar_pay` (\$0.75, 13) are the same trade. Free money, not a defect.
+>
+> ---
+>
+> **SHIPPED IN THE SAME PASS — the paid-documents notice now reaches a reader.** The audit found the
+> switch shipped in `938160289` half-connected in this repo's signature way: the analyze-status route
+> computed `paidDocumentsNotice` and returned it on every response, and **no `.tsx` read it.** The
+> route's tests passed and `paid-documents.ts`'s eleven tests passed, while the reader still could
+> not tell "no deed exists" from "you told me not to look" — the exact confusion that module's header
+> says it exists to prevent.
+>
+> `ResearchAnalysisPanel` now reads the field when a run finishes (at completion, not mid-run: the
+> count is of documents a *finished* run declined to buy) and renders it above the final summary,
+> where a caveat still precedes the conclusion it qualifies. A failed fetch leaves it `null` rather
+> than empty-string, because a false all-clear is worse than silence. Styled as a caution, not an
+> error — the commonest reason is the operator's own deliberate choice, and rendering a correct
+> setting in error red teaches people to ignore red.
+>
+> Six new assertions in `paid-documents-toggle-is-wired.test.ts` check the **caller**, per
+> [[feedback_wiring_tests_must_check_the_caller]]. **Mutation-tested three ways** before the green was
+> believed: deleting the render fails it, renaming the CSS rule fails it, and changing `?? null` to
+> `?? ''` fails it. 13 pass; research suite 1,107 pass; `type-check` and `lint` exit 0.
 
 **Two things you should know before you act on the cost sections:**
 

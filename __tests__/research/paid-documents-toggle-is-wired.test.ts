@@ -79,3 +79,63 @@ describe('the paid-documents toggle is wired end to end', () => {
     expect(flat).toMatch(/existing project/i);
   });
 });
+
+// ── THE OTHER HALF: the notice REACHES A READER ────────────────────────────────────────────────
+//
+// The block above proves the flag is stored. It says nothing about whether anyone is ever TOLD that
+// a run was thinner because of it — and paid-documents.ts states in its own header that the telling
+// is the point ("`reasonForReader` is not decoration").
+//
+// Found on 2026-08-30 in exactly the state this repo keeps producing: the route computed
+// `paidDocumentsNotice`, returned it on every analyze-status response, and NOTHING rendered it. The
+// route's own tests passed, the module's eleven tests passed, and the reader still could not tell
+// "no deed exists" from "you told me not to look".
+//
+// So these assert the CALLER, not the callee. A test that only checked the panel imports something
+// would have passed all day while the panel rendered nothing.
+
+const PANEL = 'app/admin/research/components/ResearchAnalysisPanel.tsx';
+const STATUS_ROUTE = 'app/api/admin/research/[projectId]/analyze/route.ts';
+const PANEL_CSS = 'app/admin/styles/AdminResearch.css';
+
+describe('the paid-documents notice reaches the reader', () => {
+  it('the status route puts the notice on the response', () => {
+    const src = stripComments(read(STATUS_ROUTE));
+    expect(src).toMatch(/paidDocumentsNotice:\s*paidDocumentsNotice\(/);
+  });
+
+  it('the route counts BOTH skip reasons, not just the toggle', () => {
+    // `no_vendor_credentials` is the setup failure and `paid_disabled` is the deliberate choice.
+    // Counting only one produces a notice that says nothing was skipped when plenty was.
+    const src = stripComments(read(STATUS_ROUTE));
+    expect(src).toContain('paid_disabled');
+    expect(src).toContain('no_vendor_credentials');
+  });
+
+  it('THE PANEL READS THE FIELD — the assertion that was missing', () => {
+    const src = stripComments(read(PANEL));
+    expect(src).toMatch(/data\.paidDocumentsNotice/);
+  });
+
+  it('THE PANEL RENDERS IT — reading it into state is not showing it', () => {
+    const src = stripComments(read(PANEL));
+    // Rendered conditionally, and the value itself must appear inside the element.
+    expect(src).toMatch(/\{paidDocumentsNotice\s*&&/);
+    expect(src).toContain('data-testid="paid-documents-notice"');
+    expect(src).toMatch(/\{paidDocumentsNotice\}/);
+  });
+
+  it('a fetch failure leaves the notice unset rather than asserting nothing was skipped', () => {
+    // The dangerous default. If a failed fetch set the notice to a cheerful empty string, an
+    // unreachable API would render as "everything was retrieved" — a false all-clear, which is
+    // worse than silence because it is a claim.
+    const src = stripComments(read(PANEL));
+    expect(src).toMatch(/setPaidDocumentsNotice\(data\.paidDocumentsNotice \?\? null\)/);
+  });
+
+  it('the notice has a style, so it reads as a caveat rather than a stray line', () => {
+    // Most `.ra-results__*` classes in this panel have no rule at all. An unstyled caveat is
+    // indistinguishable from body copy, which for a warning is the same as not showing it.
+    expect(read(PANEL_CSS)).toMatch(/\.ra-results__paid-notice\s*\{/);
+  });
+});

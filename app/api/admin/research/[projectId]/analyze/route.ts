@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { mayBuyDocuments, paidDocumentsNotice } from '@/lib/research/paid-documents';
 import { analyzeProject, getAnalysisStatus } from '@/lib/research/analysis.service';
 
 function extractProjectId(req: NextRequest): string | null {
@@ -82,7 +83,39 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   if (!projectId) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
 
   const status = await getAnalysisStatus(projectId);
-  return NextResponse.json(status);
+
+  // ── WHY A NOTICE RIDES ALONG WITH THE STATUS ────────────────────────────────────────────────
+  //
+  // A run with `allow_paid_documents = false` finishes with fewer documents. Without this, the UI
+  // renders that identically to a run that searched everywhere and found nothing — and the reader
+  // cannot tell "this property has no recorded deed" from "you told me not to look behind the
+  // paywall". Those are opposite facts and only one of them is about the property.
+  //
+  // Deliberately silent when nothing was actually skipped: a Bell County run with the toggle off
+  // reaches no paywall, so announcing a restriction that changed no outcome would be noise, and
+  // noise is what makes real notices go unread.
+  const { data: project } = await supabaseAdmin
+    .from('research_projects')
+    .select('allow_paid_documents')
+    .eq('id', projectId)
+    .maybeSingle();
+
+  const { count: skippedCount } = await supabaseAdmin
+    .from('research_document_purchases')
+    .select('*', { count: 'exact', head: true })
+    .eq('research_project_id', projectId)
+    .in('status', ['paid_disabled', 'no_vendor_credentials']);
+
+  const decision = mayBuyDocuments({
+    allowPaidDocuments: (project as { allow_paid_documents?: boolean } | null)?.allow_paid_documents !== false,
+    // Presence, not validity — the worker warns separately when a login is wrong rather than absent.
+    hasVendorCredentials: Boolean(process.env.TEXASFILE_USERNAME),
+  });
+
+  return NextResponse.json({
+    ...status,
+    paidDocumentsNotice: paidDocumentsNotice(decision, skippedCount ?? 0),
+  });
 }, { routeName: 'research/analyze/status' });
 
 /* DELETE — Abort a running analysis and immediately reset to a clean state */

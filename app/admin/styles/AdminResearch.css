@@ -11845,3 +11845,24 @@
   font-size: 0.74rem;
   color: var(--theme-fg-muted, #6B7280);
 }
+
+/* ── "Some of this was not retrieved, and here is why" (ResearchAnalysisPanel) ──────────
+ *
+ * Sits above the final summary because it qualifies everything below it. Styled as a caution
+ * rather than an error on purpose: the commonest reason is `disabled-for-run`, which is the
+ * operator's own deliberate choice and not a fault. Rendering a correct setting in error red
+ * teaches people to ignore red.
+ *
+ * Fallback literals match the idiom of every rule in this file — the theme tokens are not
+ * defined on every route that mounts this panel, and a caveat nobody can read is not a caveat. */
+.ra-results__paid-notice {
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--theme-warning-border, #FDE68A);
+  border-left: 3px solid var(--theme-warning-fg, #D97706);
+  border-radius: 8px;
+  background: var(--theme-warning-bg, #FFFBEB);
+  color: var(--theme-fg-primary, #1F2937);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
