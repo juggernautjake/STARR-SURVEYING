@@ -40,6 +40,31 @@ overwrite a deliberate design.
 > | `docs/character-editing-consolidation-audit` | 2 | 1 | 1 |
 > | `claude/surveying-workmode-toolset-2026-07-18` | 1 | 1 | 1 |
 >
+> **The three small ones, characterised 2026-08-29 — and two of them are not what the table implies:**
+>
+> · `surveying-workmode-toolset` — **OBSOLETE, not orphaned.** Its one file targets
+>   `app/admin/work-mode/field_crew/_components/FieldCrewWorkspace.tsx`, a path that does not exist
+>   in `main`. The Work Mode surface shipped at `app/admin/jobs/[id]/field/` instead, and the AI
+>   field assistant at `/api/admin/field-assistant`. Forty content matches for "Work Mode" in main.
+>   Merging this would add a component to a directory nothing routes to. **Delete the branch.**
+>
+>   > Recorded because I nearly filed the opposite. A path-based search for `app/admin/work-mode`
+>   > returned zero files and read as "the whole surface is missing" — against a memory note saying
+>   > it shipped. The control (`git grep -l 'Starr'` → 112 matches) proved the search worked, which
+>   > forced the pattern to be wrong rather than the codebase. **Sixth instrument error of the
+>   > session, and every one of the six was a NEGATIVE produced by a search that could not have
+>   > produced a positive.**
+>
+> · `retire-legacy-payroll-engine` — the engine work landed, matching its record. One file absent:
+>   `scripts/check-payroll-runs-panel.mjs`, a verification helper. Cherry-pick or drop; nothing
+>   depends on it.
+>
+> · `docs/character-editing-consolidation-audit` — **a real dangling pointer.** This repo's memory
+>   names `docs/planning/pending/CHARACTER_EDITING_CONSOLIDATION_AUDIT_2026-07-24.md` as the audit
+>   cataloguing every interface that mutates a character. **That file is in no planning folder.** It
+>   exists only on this branch. Anyone following the reference finds nothing, and the audit is the
+>   input to a decision the owner is described as still making.
+>
 > **`job-lifecycle` is the business-phone project**, and this repo's own notes describe it as
 > *"BUILT, NEVER MERGED — all 5 commits on origin/claude/job-lifecycle-2026-08-14"*. **It is 17
 > commits and 73 absent files, not 5.** The note was written when it was true and has been trusted
