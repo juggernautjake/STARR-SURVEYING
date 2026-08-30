@@ -872,6 +872,44 @@ written for them. **Deliberately last:** building 46 pages on a guess produces 4
 ignores. Choose from real Search Console query data (M2), then build genuine pages — local context, the
 services that county needs, real project references — not one template with the name swapped.
 
+### M5b — The SEO work was VERIFIED AGAINST PRODUCTION ✅ 2026-08-29
+
+Not re-read in the repo — fetched from `https://www.starr-surveying.com` and parsed.
+
+| Claim | Verdict |
+|---|---|
+| `robots.txt` serves (was once a 404 page) | ✅ 200, correct `Disallow` set, `Sitemap:` and `Host:` both on `www` |
+| Apex redirects consistently | ✅ 307 → `www`, no third spelling anywhere |
+| Sitemap | ✅ 9 URLs, every one `www` |
+| "5 pages served the homepage's title" | ✅ **fixed and live** — all 9 sitemap pages serve distinct, specific titles |
+| LocalBusiness JSON-LD | ✅ live: a `@graph` of `[ProfessionalService, LocalBusiness]` + `WebSite`, with NAP, `legalName: Starr Technical Services Inc.`, hours and `areaServed` |
+| GA4 `G-V8715QJGBX` | ✅ live, in `app/layout` chunk alongside the googletagmanager loader |
+| Canonicals | ⚠ **two pages had none** — fixed, see below |
+
+**`/privacy` and `/pricing/software` served no `<link rel="canonical">`**, and neither served
+OpenGraph or a Twitter card either. Both hand-rolled a `metadata` object instead of calling
+`pageMetadata()`, and both had a title and a description — which is exactly why it went unseen. A
+raw metadata object looks finished because the two fields anybody thinks to check are present;
+`alternates` is not a field you notice missing. Fixed, with a guard whose exempt list is derived
+from the real `robots.txt` rules rather than hand-written.
+
+> ### ⚠ FOUR FALSE NEGATIVES IN ONE VERIFICATION PASS, ALL OF THEM THE INSTRUMENT
+>
+> Every "this is missing" below was wrong, and each would have been filed as a defect if the control
+> had not been run first. Recorded because the ratio is the point: in a single afternoon of checking
+> a live site, the tool was wrong four times and the site was wrong twice.
+>
+> | What I concluded | Why it was wrong |
+> |---|---|
+> | "JSON-LD has `@type: undefined`" | Read `@type` at the top level of a document whose top level is `@context` + `@graph`. The types are one level down. |
+> | "GA4 is not on the page" | `NEXT_PUBLIC_*` values are inlined into client JS chunks at build time, not into the served HTML. Wrong file. |
+> | "`NEXT_PUBLIC_GA4_MEASUREMENT_ID` is not in Vercel" | Grepped `GA\b|GA_`, and neither matches `GA4`. It is set, and was three days ago. |
+> | "the page references 0 JS chunks" | A `src="..."` regex that assumed an attribute order. There are 35 references and 22 script tags. |
+>
+> The one habit that caught all four is the same one: **before believing a negative, prove the
+> instrument can produce a positive.** Counting `_next/static` occurrences took one command and
+> turned "no chunks" into "my regex is wrong". See [[feedback_your_probe_can_be_the_bug]].
+
 ### M5 — Smaller open items ☐
 
 - **Homepage has no self-canonical.** It is a client component whose only layout is the root, and a
