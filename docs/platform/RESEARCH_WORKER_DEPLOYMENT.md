@@ -431,7 +431,60 @@ proves only that the container is up, which is the part that was never in doubt.
 > before rebooting stays stopped, deliberately. If you stop the worker to debug something, start it
 > again rather than rebooting and expecting Docker to.
 
-### 3.5 Updating
+### 3.5 Verify the AUTHENTICATED surface — the half /healthz cannot see
+
+`/healthz` is unauthenticated on purpose: it is what a laptop holding no secret can ask, and it is
+what the reboot check and the hourly watchdog use. That is also its limit. It cannot tell you:
+
+- whether the app's `WORKER_API_KEY` and the worker's are **the same string**, or
+- whether a vendor credential that is *present* actually **works**.
+
+Both are "configured" as far as `/healthz` is concerned, and both break a run twenty minutes in.
+
+**None of the commands below buys anything.** They read state.
+
+```bash
+cd /opt/starr/worker
+KEY=$(grep '^WORKER_API_KEY=' .env | cut -d= -f2-)
+
+# Do the keys agree? 200 = yes. 403 = the app and the worker hold different keys.
+# 401 would mean no header arrived, which is a problem with the command, not the deployment.
+curl -sS -o /dev/null -w "auth: HTTP %{http_code}\n" \
+  -H "Authorization: Bearer $KEY" localhost:3100/research/active
+
+# Which document platforms does the worker believe it can buy from?
+# This is where a funded TexasFile account shows up as usable rather than credential-less.
+curl -sS -H "Authorization: Bearer $KEY" localhost:3100/research/purchase/platforms/status | head -c 2000; echo
+
+# The routing view: which access platforms are reachable per county.
+curl -sS -H "Authorization: Bearer $KEY" localhost:3100/research/access/platforms | head -c 2000; echo
+
+# Per-vendor site health.
+curl -sS -H "Authorization: Bearer $KEY" localhost:3100/admin/health/sites | head -c 2000; echo
+```
+
+From a laptop, with the real environment, the same key question in one command:
+
+```bash
+doppler run --config prd -- npm run verify:worker
+```
+
+That runs the `/healthz` verdict AND the key check, and exits non-zero if the worker cannot take a
+deep run or if the key is rejected. Without `WORKER_API_KEY` it says the key check was SKIPPED
+rather than passing quietly — a laptop run must not be mistakable for a credential check.
+
+> **PRESENCE IS NOT FUNCTION, and this section exists because the distinction keeps costing time.**
+> The worker warns when `TEXASFILE_USERNAME` is absent. It cannot warn when the login is wrong, the
+> password has changed, or the account balance is spent — all of which produce a run that works
+> perfectly until it reaches a paywall. The same is true of `WS_TICKET_SECRET`: the app and the
+> worker can both have one and still not have the *same* one, and the symptom is a WebSocket that
+> closes immediately with no useful error.
+>
+> The only complete test of the purchase path is a research run against a real property, and that
+> spends money — roughly \$1–3 per document plus Anthropic tokens. Run it deliberately, once, after
+> funding the account, rather than discovering the answer during a job.
+
+### 3.6 Updating
 
 ```bash
 cd /opt/starr && git pull
