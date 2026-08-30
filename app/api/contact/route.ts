@@ -1407,6 +1407,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       if (process.env.NODE_ENV === 'development') {
         console.log(`[DEV] Contact form received (ref: ${referenceNumber}) from ${data.email}`);
       }
+
+      // ── IN PRODUCTION THIS BRANCH IS A FAULT, AND IT USED TO BE COMPLETELY SILENT ─────────────
+      //
+      // Found 2026-08-29 while sweeping every direct Resend caller after the same bug turned up in
+      // `lib/saas/notifications/{sms,email}.ts`.
+      //
+      // THE GOOD NEWS FIRST, because it is the part that matters: THE LEAD IS NOT LOST. The block
+      // below still inserts into `leads` and still notifies the intake staff, on purpose (Slice
+      // Q1/Q2). So even with Resend unconfigured, an enquiry reaches /admin/leads and lights the
+      // bell. That was a good decision and this change does not touch it.
+      //
+      // What was wrong is that nothing SAID so. The only log here is gated on
+      // `NODE_ENV === 'development'`, so in production this path was entirely silent — the one
+      // environment where it means the notification emails to the firm AND the confirmation to the
+      // customer both silently did not send.
+      if (process.env.NODE_ENV === 'production') {
+        console.error(
+          `[contact] EMAILS NOT SENT (ref: ${referenceNumber}) — `
+          + `${RESEND_API_KEY ? 'RESEND_API_KEY is still the placeholder value' : 'RESEND_API_KEY is missing'}. `
+          + 'The lead WAS saved and intake staff WERE notified in-app; only the emails were dropped.',
+        );
+      }
       // Slice Q1 — STILL insert into `leads` in dev mode so local UI
       // work against /admin/leads has real rows without needing
       // Resend wired. Failure here is silent on purpose.
@@ -1437,7 +1459,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json(
         {
           success: true,
-          message: 'Form received (dev mode - check server logs)',
+          // NOT "dev mode - check server logs". A customer who submits an enquiry on the live site
+          // must never be shown a developer's note, and "check server logs" is an instruction they
+          // cannot follow for a system they do not have. The claim also has to stay TRUE: the lead
+          // really was received and the firm really was notified in-app, so `success: true` is
+          // honest — what did not happen is the confirmation email, and promising one that will
+          // never arrive is the part worth avoiding.
+          message: process.env.NODE_ENV === 'production'
+            ? 'Request received. Our team has been notified and will be in touch.'
+            : 'Form received (dev mode - check server logs)',
           reference: referenceNumber,
         },
         { status: 200 }
