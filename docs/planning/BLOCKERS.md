@@ -1,9 +1,17 @@
-# Blockers — what only you can unblock (as of 2026-07-18)
+# Blockers — what only you can unblock (re-measured 2026-08-29)
 
-The four docs in `in-progress/` are each ~90% shipped. Everything that could be built, tested, and
-verified autonomously **is** — the app test suites are green (the dnd suite alone is **2,269 passing** as of
-2026-07-18). Per the project's own rubric (`docs/planning/README.md`), all four correctly REMAIN in
-`in-progress/`: each still contains action items not yet done, and none meets the COMPLETED bar ("the feature
+> **The header used to say "as of 2026-07-18" and "the four docs in `in-progress/`".** There is now
+> **one**, and the test count it quoted (2,269) is off by an order of magnitude. Corrected 2026-08-29
+> because this file spent the day cataloguing exactly that failure — records that were true when
+> written and trusted long after — and it should not be an example of its own subject.
+>
+> Measured today, exit codes read without a pipe: **26,575 app tests + 1,621 worker tests**,
+> `type-check` and `lint` both exit 0, production build compiles.
+
+The one doc in `in-progress/` is ~95% shipped. Everything that could be built, tested, and
+verified autonomously **is** — the app test suites are green (**26,575 passing** app-side and **1,621** in the worker as of
+2026-08-29). Per the project's own rubric (`docs/planning/README.md`), it correctly REMAINS in
+`in-progress/`: it still contains action items not yet done, and none meets the COMPLETED bar ("the feature
 has shipped"). What remains in all four is genuinely gated on your input: **decisions only you can make,
 content only you/Brendan have, and things that need eyes on a running app or a device build** — none of
 it is "cost exceeds value" busywork that could be honestly deferred to empty the folder. This memo
@@ -790,7 +798,8 @@ vocabulary character-scoped, privilege-escalation op names refused), grounding c
 (article/feat/power), `parseAuthCallbackUrl` (fragment-only, never-partial), character/campaign PATCH+POST
 (field whitelists — no mass-assignment — DM/owner-gated), `dev/enter` (open-access-flag + roster + password-guard).
 
-Full app test suite green (the dnd suite alone is now **2,269 passing**, grown with each guard). What's
+Full app test suite green (the dnd suite alone is **8,950 passing** across 626 files, re-measured
+2026-08-29 — it read 2,269 here, written when that was true and trusted for six weeks after). What's
 left is only Sections A–D above (owner decisions, Brendan's content, eyes-on-app / device work, and the
 deploy-time security config).
 
