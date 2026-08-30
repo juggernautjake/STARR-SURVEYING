@@ -10,7 +10,7 @@ alternative is rediscovering it in three weeks.
 
 ---
 
-## START HERE — five left; two cleared 2026-08-28
+## START HERE — four left, ALL owner-gated; item 7 cleared 2026-08-29
 
 This doc is 1,000 lines because a lot was measured. Everything below is real, and none of it is
 urgent except in the order given — with one exception, item 7, which is the only one that degrades
@@ -26,7 +26,7 @@ now the critical path. If you read nothing else, read this table.
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
-| 7 | **Backfill `design_mockups` before enrolling it** — seed the DEFAULT, backfill, verify, *then* enrol | BLOCKERS.md | Added 2026-08-27 because it is **the only item here that gets worse on its own**: 1,371 rows carry no `org_id`, up 108 in two days, and nothing stamps new ones. Enrolling the table before the backfill makes every design record vanish at once, which reads as data loss rather than a filter. |
+| 7 | ~~Backfill `design_mockups` before enrolling it~~ ✅ **DONE 2026-08-29** — snapshotted the 1,371 unowned ids, applied `seeds/517_org_default.sql` (1,371 → 0 unowned, DEFAULT on 168/168 tables), then enrolled all ten tables in `ORG_SCOPED_TABLES` (158 → 168). `npm run verify:org-scope` is green for the first time, and was mutation-tested in both directions before that green was believed. | BLOCKERS.md | Cleared. It was the only item here that got worse on its own — though the count had in fact stopped growing: 1,371 on 08-27 and 1,371 on 08-29. Do not extrapolate a trend; re-run the check. |
 
 **Two things you should know before you act on the cost sections:**
 

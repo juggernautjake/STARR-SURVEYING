@@ -495,7 +495,48 @@ render `is_current === false` as.
 
 ## `org_id` drift — 10 tables the tenant filter does not cover (found 2026-08-16, **re-measured 2026-08-27**)
 
-- [ ] **Apply `seeds/517_org_default.sql`, backfill, then add the 10 tables to `ORG_SCOPED_TABLES`.**
+- [x] **Apply `seeds/517_org_default.sql`, backfill, then add the 10 tables to `ORG_SCOPED_TABLES`.**
+      ✅ **DONE 2026-08-29 — `npm run verify:org-scope` is green for the first time since it was written.**
+
+> ### ✅ RESOLVED 2026-08-29 — all three steps, in the order this entry insisted on
+>
+> | | 2026-08-16 | 2026-08-25 | 2026-08-27 | **2026-08-29** |
+> |---|---|---|---|---|
+> | carry `org_id`, not in `ORG_SCOPED_TABLES` | 7 | 10 | 10 | **0** |
+> | no `org_id` DEFAULT | 2 | 5 | 5 | **0** |
+> | `design_mockups` rows sitting unowned | — | 1,263 | 1,371 | **0** |
+>
+> **The first thing measured was the count, and it had stopped growing.** 1,371 on 08-27 and 1,371
+> on 08-29 — flat across two days, where this entry predicted continued growth. That does not change
+> what needed doing, but it is worth recording that the extrapolation from 108-rows-in-two-days did
+> not hold. Re-run the check; do not trust the trend line.
+>
+> **Order, which was the entire point of parking this:**
+>
+> 1. **Snapshotted first.** Every row with a NULL `org_id` across all 168 tables carrying the column
+>    — it was `design_mockups` and nothing else, 1,371 ids — written to a file before anything was
+>    written to the database, so the backfill is reversible by id rather than by "everything stamped
+>    today".
+> 2. **`seeds/517_org_default.sql` applied to the live database.** 1,371 → 0 unowned; tables with a
+>    DEFAULT 163 → 168. The seed is self-undoing and guarded on `count(*) FROM organizations = 1`,
+>    so it stays correct on the day a second firm exists.
+> 3. **Then the ten names.** `lib/saas/org-scope.ts` 158 → 168, inserted by script that asserts the
+>    list is still sorted and unique and that the count rose by exactly ten — the list is alphabetical
+>    so its diffs read as diffs, and a hand-insert is how that quietly stops being true.
+>
+> **The verifier was mutation-tested rather than trusted.** Green on a check nobody has seen pass is
+> the least believable green there is, so both directions were forced: removing `design_mockups`
+> from the list reports it unscoped; adding a name for a table that does not exist reports it would
+> fail with 42703. Both caught, then restored, then green.
+>
+> **What this entry got right, and it was the whole call:** enrolling first would have filtered all
+> 1,371 design records out of every scoped session at once, with the app working perfectly. Parking
+> it for a fortnight to do it in three steps was correct.
+>
+> Still true, and the reason this will drift again: the verifier reads the LIVE database, so it is
+> not part of vitest and no branch can cause or fix what it finds. All ten stragglers came from work
+> done after the list was written. Run `npm run verify:org-scope` after any migration that adds a
+> table.
 
 > ### RE-MEASURED 2026-08-25 — THE DRIFT KEPT DRIFTING
 >

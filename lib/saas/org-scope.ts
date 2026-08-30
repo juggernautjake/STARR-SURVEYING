@@ -59,13 +59,28 @@
 /** The tenant column. One name, one place. */
 export const ORG_COLUMN = 'org_id';
 
-/** Every base table in the public schema carrying an `org_id` column, as of 2026-08-01.
+/** Every base table in the public schema carrying an `org_id` column, as of 2026-08-29.
  *
  *  Derived from the live schema rather than hand-written, and checked by
  *  `scripts/verify-org-scoped-tables.mjs` — a table that gains the column and not an entry here is a
  *  table that silently opts out of tenancy, which is indistinguishable from one that never needed it.
  *
- *  Order is alphabetical so a diff to this list reads as a diff. */
+ *  Order is alphabetical so a diff to this list reads as a diff.
+ *
+ *  ── THIS LIST DRIFTS, AND THE ORDER OF THE FIX MATTERS ─────────────────────────────────────────
+ *
+ *  It held 158 names from 2026-08-01 to 2026-08-29 while the schema grew to 168. Every one of the
+ *  ten stragglers — `projects`, `design_mockups`, `calls`, `research_runs` and the rest — came from
+ *  work done AFTER the list was written. A table gaining `org_id` and not an entry here is the
+ *  normal case, not an oversight, which is what the verifier is for: it reads the LIVE database, so
+ *  no branch can cause or fix the drift and vitest cannot see it.
+ *
+ *  Enrolling a table is the LAST of three steps, never the first. `design_mockups` held 1,371 rows
+ *  with a NULL `org_id` and no DEFAULT to stamp new ones. Adding its name here first would have
+ *  filtered all 1,371 out of every scoped session at once — the app working perfectly and a year of
+ *  design records apparently gone, which reads as data loss rather than a filter. So: run
+ *  `seeds/517_org_default.sql` (it sets the DEFAULT and backfills under a one-organisation guard),
+ *  confirm the verifier reports no unowned rows, and only then add the name. */
 export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'active_clock_sessions',
   'activity_log',
@@ -82,6 +97,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'cad_folders',
   'cad_point_files',
   'calibration_certificates',
+  'calls',
   'captcha_solves',
   'change_orders',
   'company_notes',
@@ -98,6 +114,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'customers',
   'daily_time_logs',
   'deliverables',
+  'design_mockups',
   'document_embeddings',
   'document_purchase_history',
   'document_wallet_balance',
@@ -132,14 +149,17 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'field_data_points',
   'fieldbook_entry_categories',
   'fieldbook_notes',
+  'file_comments',
   'file_nodes',
   'google_ads_connections',
   'google_calendar_connections',
   'google_conversion_events',
+  'hours_notification_preferences',
   'ingest_batches',
   'instrument_points',
   'instrument_sources',
   'invoices',
+  'job_briefings',
   'job_files',
   'job_payment_allocations',
   'job_tags',
@@ -169,6 +189,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'org_notifications',
   'org_settings',
   'organization_members',
+  'pay_advance_repayments',
   'pay_advance_requests',
   'pay_period_locks',
   'pay_raises',
@@ -188,6 +209,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'personnel_unavailability',
   'portal_stage_labels',
   'project_cleanup_log',
+  'projects',
   'proposal_templates',
   'pto_balances',
   'pto_transactions',
@@ -202,6 +224,7 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'research_clerk_lookups',
   'research_documents',
   'research_projects',
+  'research_runs',
   'research_subscriptions',
   'research_usage_events',
   'rewards_purchases',
@@ -213,6 +236,8 @@ export const ORG_SCOPED_TABLES: ReadonlySet<string> = new Set([
   'subscription_events',
   'subscriptions',
   'support_tickets',
+  'time_log_pay_decision_history',
+  'time_log_pay_decisions',
   'typing_indicators',
   'usage_events',
   'user_files',
