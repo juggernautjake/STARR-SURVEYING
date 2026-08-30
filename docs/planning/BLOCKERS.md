@@ -16,6 +16,60 @@ overwrite a deliberate design.
 
 ---
 
+## A00. 2,591 lines of finished work are in a gitignored worktree — found 2026-08-29
+
+- [ ] **Decide: merge `worktree-surveying-payments-2026-07-29`, cherry-pick from it, or delete it.**
+
+> ```
+> $ git worktree list
+> C:/dev/STARR-SURVEYING                                       [claude/org-scope-backfill-2026-08-29]
+> C:/dev/STARR-SURVEYING/.claude/worktrees/surveying-payments-2026-07-29  bbfef6094
+> ```
+>
+> One commit, **2026-07-29 — a month old**, not an ancestor of `main`:
+>
+> `feat(business): Texas taxes surveying — so the invoice has to prove it`
+>
+> | File | Lines | In `main`? |
+> |---|---|---|
+> | `lib/compliance/records-catalogue.ts` | 1,138 | **No** |
+> | `lib/payments/sales-tax.ts` | 387 | **No** |
+> | `lib/compliance/deadlines.ts` | 308 | **No** |
+> | `__tests__/compliance/records-deadlines.test.ts` | 291 | **No** |
+> | `__tests__/payments/sales-tax.test.ts` | 279 | **No** |
+> | `docs/planning/.../BUSINESS_RECORDS_AND_COMPLIANCE_2026-07-29.md` | 188 | **No** |
+>
+> **It is not urgent, and that is worth stating first.** `main` is correct by design, not broken:
+> `lib/payments/invoice-number.ts` says so in as many words — *"`tax_cents` is the office-typed
+> amount (we don't compute sales tax — the office knows the rate)"*. The invoice carries a
+> `tax_cents` column and the office types the number. The worktree would compute it instead. That is
+> an enhancement to a working decision, not a fix to a bug.
+>
+> **What makes it worth a blocker is that nothing would ever have found it.** `.claude/worktrees/` is
+> in `.gitignore` (line 79), so `git ls-files` — which every scanner in this repo uses, including
+> `verify:orphans` and the guards written today — cannot see it. It is on a branch nobody lists. It
+> surfaced only because a `find` for an unrelated filename returned two copies of the same file, and
+> the second path looked wrong.
+>
+> This is the pattern [[project_phone_calls_voicemail]] already records: work that is finished,
+> tested, and simply never merged, reading as shipped because it exists on somebody's disk. The rule
+> from that entry applies exactly — **`git merge-base --is-ancestor` before believing anything is
+> live**, and here it returns false.
+>
+> **Three resolutions, and it is the owner's call:**
+>
+> 1. **Merge it.** Texas does tax surveying services, and a computed rate is harder to get wrong than
+>    a typed one. 570 lines of its own tests came with it.
+> 2. **Cherry-pick.** The compliance half — a 1,138-line records catalogue and a deadlines module —
+>    is a separate concern from sales tax and may be wanted on a different timetable.
+> 3. **Delete the worktree.** If the office-typed amount is the deliberate long-term answer, 2,591
+>    lines of plausible unused code is worse than none, because the next person cannot tell it never
+>    ran.
+>
+> Not touched here beyond reading it. Merging a month-old branch that predates the `org_id` work,
+> the project layer and the page consolidation is not a decision to make on someone's behalf at the
+> end of a long session.
+
 ## A0. Spend has a per-run ceiling and no aggregate one — recorded 2026-08-29, BEFORE it matters
 
 - [ ] **Decide whether an aggregate spend cap is needed before `RESEARCH_QUEUE_POLLER=1` is ever set.**
