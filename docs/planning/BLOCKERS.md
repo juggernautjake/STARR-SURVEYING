@@ -16,6 +16,48 @@ overwrite a deliberate design.
 
 ---
 
+## A0. Spend has a per-run ceiling and no aggregate one — recorded 2026-08-29, BEFORE it matters
+
+- [ ] **Decide whether an aggregate spend cap is needed before `RESEARCH_QUEUE_POLLER=1` is ever set.**
+
+> Filed the day the owner put a card and a balance on the TexasFile account, because that is the day
+> "the worker can spend money" stopped being theoretical.
+>
+> **What already exists, and is well built** — `worker/src/infra/run-budget.ts`:
+>
+> | | |
+> |---|---|
+> | `maxCostUsd` | **$2.00** per run — AI, paid pages and captcha solves together |
+> | `maxPaidPages` | **20** — a SEPARATE ceiling, because "one \$50 plat set can pass the dollar limit in a single purchase, and that decision deserves its own bound" |
+> | `maxWallClockMs` | 25 minutes, clamped to 1–60 |
+>
+> It is enforced in the right place and the right way: `document-purchase-orchestrator.ts` calls
+> `checkBudget(projectId, estCostNum)` **before** each purchase, on the estimate — checking after
+> would mean the limit is discovered by exceeding it. And exceeding it SKIPS that document with
+> `status: 'budget_exceeded'` and the numbers logged, rather than aborting: a run that died would
+> waste the documents it had already paid for.
+>
+> **The gap: every one of those bounds is per run. There is no daily, weekly or account-wide cap.**
+> Ten runs is ten times two dollars, and nothing in the system knows that.
+>
+> **Today that is fine, for one specific reason and not by design.** Runs are started by a human, so
+> the human is the cap. `RESEARCH_QUEUE_POLLER` is unset, and `worker/.env.example` is explicit that
+> turning it on "is a deployment decision, not a code change".
+>
+> **The trigger is exact: the day `RESEARCH_QUEUE_POLLER=1` is set.** The poller's own header calls
+> it *"the one loop in the platform that spends money and touches other people's servers with no
+> human in the loop"*. It has real admission control — concurrency, per-county serialisation,
+> priority, back-pressure (R28/R29) — and **none of it is a spend cap**. Verified 2026-08-29 by
+> reading `queue-poller.ts`: no reference to cost, spend or budget anywhere in it.
+>
+> So the decision is: before that flag is ever set, either add an aggregate ceiling, or accept
+> per-run × unbounded-runs and rely on the TexasFile balance itself as the backstop — which is a
+> legitimate answer, since a spent balance simply fails purchases. It is only a bad answer if nobody
+> chose it.
+>
+> Not built here. An aggregate cap needs persistence and a reset window, and inventing a policy for
+> a loop that is switched off would be guessing at the owner's risk appetite with their money.
+
 ## A. Decisions (each converts directly to shipped code)
 
 - [x] **`auth.users` was empty while five NOT NULL FKs pointed at it — RESOLVED 2026-08-12 (R9).** Decision (owner): mirror the id — `auth.users.id == registered_users.id` — rather than repoint the FKs, because it satisfies the FKs AND keeps the four `user_id = auth.uid()` RLS policies on `receipts` correct. Shipped `seeds/582` (7/7 accounts backfilled, ids matching) + `public.ensure_auth_user()` (SECURITY DEFINER, service_role only) + `lib/auth/mirror-auth-user.ts` wired into all four creation paths, with the Google branch self-healing on every sign-in. **Proved end to end:** an `employee`-only account uploaded a receipt on a 390px viewport → 200, extraction `done` at 2c, every field plus 4 line items. *One trap recorded for anyone else inserting into `auth.users`: GoTrue reads eight token columns as non-nullable strings, so leaving them NULL makes its admin API 500 for every user — and that is the API the receipt upload uses to resolve the submitter. Details in the R9 note.* Original finding below, kept for the reasoning.
