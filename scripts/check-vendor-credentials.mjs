@@ -61,6 +61,50 @@ const MARK = {
 const env = process.env;
 const has = (k) => Boolean(env[k] && env[k].trim());
 
+// ── SAY WHICH ENVIRONMENT THIS READ, BECAUSE "EMPTY" IS AMBIGUOUS ───────────────────────────────
+//
+// This script reads `process.env` and nothing else. It loads no `.env` file. So running it on a
+// developer's laptop with a bare shell prints EMPTY for all eighteen services — output that is
+// visually IDENTICAL to a production run finding eighteen genuinely unset credentials.
+//
+// That is the exact trap this repo has already been caught by from the other direction: a
+// `vercel env pull` blanks encrypted values, so a blank proves nothing. Same lesson, same script's
+// output, opposite cause.
+//
+// Found 2026-08-29 by running it locally and reading a full sheet of EMPTY as a finding. The 08-27
+// run — the one the plan quotes, which found Anthropic valid, Resend scope-limited and Browserbase
+// billing with zero sessions — clearly had real credentials. Nothing in either output said which.
+//
+// So the run now declares itself. The threshold is deliberately crude: with almost nothing present,
+// the only honest reading is "this machine has no credentials", and the script says so in place of
+// letting a reader mistake it for a measurement.
+const ALL_KEYS = [
+  'ANTHROPIC_API_KEY', 'RESEND_API_KEY', 'BROWSERBASE_API_KEY', 'CAPSOLVER_API_KEY',
+  'TWILIO_ACCOUNT_SID', 'STRIPE_SECRET_KEY', 'TAVILY_API_KEY', 'TEXASFILE_USERNAME',
+  'ATTOM_API_KEY', 'REGRID_API_KEY', 'TNRIS_API_KEY', 'LANDEX_USERNAME', 'USPS_USER_ID',
+  'MAPBOX_ACCESS_TOKEN', 'ELEVENLABS_API_KEY', 'GOOGLE_MAPS_SERVER_KEY',
+  'KOFILE_USERNAME', 'IDOCKET_USERNAME', 'TYLER_USERNAME', 'HENSCHEN_USERNAME', 'FIDLAR_USERNAME',
+];
+const PRESENT_COUNT = ALL_KEYS.filter(has).length;
+const LOOKS_LOCAL = PRESENT_COUNT <= 2;
+
+function environmentBanner() {
+  if (!LOOKS_LOCAL) {
+    return `\nReading process.env — ${PRESENT_COUNT} of ${ALL_KEYS.length} known credentials present.\n`;
+  }
+  return '\n'
+    + '  ⚠  THIS RUN HAS NO CREDENTIALS. Read nothing into the EMPTY column below.\n'
+    + `     ${PRESENT_COUNT} of ${ALL_KEYS.length} known keys are present in this shell, which means this is a local\n`
+    + '     run against a bare environment, NOT a measurement of production.\n'
+    + '\n'
+    + '     EMPTY here means "not on this machine". It does NOT mean "not configured".\n'
+    + '\n'
+    + '     To audit production, run it with the real environment:\n'
+    + '         doppler run --config prd -- npm run audit:vendors\n'
+    + '     Doppler is the source of truth; Vercel mirrors it, and `vercel env pull` blanks\n'
+    + '     encrypted values — so a pulled file would produce this same misleading sheet.\n';
+}
+
 const checks = [];
 
 // ── Anthropic ───────────────────────────────────────────────────────────────────────────────────
@@ -80,8 +124,25 @@ checks.push(async () => {
   if (body?.name === 'restricted_api_key') {
     return ['Resend', SCOPED, 'send-only key — correct for a production mailer'];
   }
-  if (r.status === 401) return ['Resend', REJECTED, String(body?.message ?? '').slice(0, 60)];
-  return ['Resend', OK, 'HTTP ' + r.status];
+  if (r.status === 401 || r.status === 403) {
+    return ['Resend', REJECTED, `HTTP ${r.status} ${String(body?.message ?? '').slice(0, 48)}`];
+  }
+  // ── ONLY 200/404 PROVE THE KEY WORKS ──────────────────────────────────────────────────────────
+  //
+  // The id requested is all zeroes and does not exist, so a 404 means "you are authenticated and
+  // that email is not here" — which is the positive signal. A 200 would be the same thing with an
+  // improbable id collision.
+  //
+  // This used to read `return OK` for ANY status that was not 401, which made a malformed key
+  // report OK on the 400 Resend returns for one. Caught 2026-08-29 by running the script with a
+  // deliberately fake key as a control and getting `OK  HTTP 400` — the tool whose entire purpose
+  // is to distrust the config, trusting a value it had just been told was wrong.
+  //
+  // Anything else is genuinely unknown and now says so, rather than being rounded up to good news.
+  // That matters more here than the marker: this script's own footer tells the reader to interpret
+  // the status rather than the marker, and it was not taking its own advice.
+  if (r.status === 200 || r.status === 404) return ['Resend', OK, 'HTTP ' + r.status];
+  return ['Resend', ERROR, `HTTP ${r.status} — cannot tell; not proof the key works`];
 });
 
 // ── Browserbase. Valid credentials are only half the question. ──────────────────────────────────
@@ -147,7 +208,8 @@ const PRESENCE_ONLY = [
 ];
 
 const run = async () => {
-  console.log('\nVendor credentials — free, read-only checks. Nothing here bills.\n');
+  console.log('\nVendor credentials — free, read-only checks. Nothing here bills.');
+  console.log(environmentBanner());
 
   for (const check of checks) {
     let row;
