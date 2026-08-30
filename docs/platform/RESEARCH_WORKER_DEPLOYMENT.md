@@ -158,7 +158,7 @@ reason, recorded below because the reason is the useful part.
 > | Worry | Checked | Result |
 > |---|---|---|
 > | Docker has no `trixie` repo yet | `download.docker.com/linux/debian/dists/trixie/Release` | **HTTP 200** — published |
-> | Caddy is missing or ancient on Debian | Debian package index | **2.6.2** in trixie; `reverse_proxy` + `transport http { read_timeout }` both fine |
+> | Caddy is missing or ancient on Debian | Debian package index | **2.6.2**; `reverse_proxy` and `transport http` both exist at that version. ⚠ **This row checked that the DIRECTIVES exist, not that §3.3 nested them correctly — and it did not.** The config it vouched for made `transport` a sibling of `reverse_proxy` and used a one-line brace block, and 2.6.2 rejects both. A version check is not a config check. |
 > | Playwright's browser libraries are Ubuntu-only | `worker/Dockerfile` | **Irrelevant** — the runtime stage is `mcr.microsoft.com/playwright:v1.58.2-jammy`, so Playwright brings its own Ubuntu userland inside the container |
 >
 > That last row is the one that settles it. **The host never runs Playwright**, so the host
@@ -359,14 +359,29 @@ real certificate.
 apt install -y caddy
 cat > /etc/caddy/Caddyfile <<'CADDY'
 worker.starr-surveying.com {
-    reverse_proxy 127.0.0.1:3100
-    # A research run streams for 20–30 minutes; the default 100s proxy timeout would sever it.
-    transport http { read_timeout 45m }
+	# NESTING MATTERS. `transport` is a SUBdirective of `reverse_proxy`, not a site-level one, and
+	# Caddy 2.6.2 (what Ubuntu 24.04 ships) rejects the one-line `{ ... }` brace form outright:
+	#
+	#     Error during parsing: Unexpected next token after '{' on same line
+	#
+	# The first version of this runbook had them as siblings AND on one line. Both wrong, and the
+	# service refuses to start rather than starting with a default timeout — which is the good
+	# failure, but only because Caddy validates its whole config at load.
+	reverse_proxy 127.0.0.1:3100 {
+		# A research run streams for 20–30 minutes; the default 100s proxy timeout would sever it
+		# mid-run, and the app would see a truncated response rather than an error.
+		transport http {
+			read_timeout 45m
+		}
+	}
 }
 CADDY
 # `reload` on a unit that has never started fails. `enable --now` is idempotent and covers both
 # the fresh install and the re-edit.
-systemctl enable --now caddy && systemctl reload caddy
+# Validate BEFORE restarting: this parses the config without touching the running service, so a
+# typo is a message instead of a failed unit you then have to read journalctl to understand.
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+systemctl enable --now caddy && systemctl restart caddy
 
 # Watch the certificate actually arrive rather than assuming it did — this is where DNS problems
 # surface, and they surface as ACME errors naming the host.
