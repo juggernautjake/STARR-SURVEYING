@@ -973,7 +973,7 @@ document the AI reasons over.
 **Cost check before spending:** at five angles per run, 1,000 searches is ~200 property researches a
 month. Free tier is very likely sufficient; measure before upgrading.
 
-### I3 — Where else Tavily earns its keep ◐ items 1, 3 + 5 SHIPPED 2026-08-27; 2 and 4 still scoped
+### I3 — Where else Tavily earns its keep ◐ items 1, 3, 4 + 5 SHIPPED; only item 2 remains
 
 Explored per the owner's ask. Ordered by value, and honest about which are speculative:
 
@@ -1063,10 +1063,35 @@ Explored per the owner's ask. Ordered by value, and honest about which are specu
    research + leads suite (1,038 tests) passes unchanged.
 
    29 tests, `tsc` and `next lint` clean.
-4. **Learning content freshness** *(educational — moderate)*. The FS/SIT exam material cites the
-   NCEES handbook and Texas statutes. A periodic search for revisions would flag content that has
-   silently gone stale. Note the risk: exam content must not be auto-edited from search results —
-   this flags for human review, it does not rewrite.
+4. **Learning content freshness** *(educational — moderate)*. ✅ **BUILT AND WIRED 2026-08-29.**
+
+   `lib/learn/content-freshness-watch.ts` — the third profile over `announcement-watch`, watching
+   four subjects: the NCEES FS Reference Handbook, Occupations Code 1071, 22 TAC Ch. 138, and the
+   recording/platting statutes. Route `/api/admin/learn/content-freshness`; panel mounted in the
+   Knowledge portal's References tab, beside the library of what we hold.
+
+   **The risk this item names is enforced structurally, not by discipline.** The route has no
+   `POST`, `PUT`, `PATCH` or `DELETE`, and a test asserts their absence. Exam content cannot be
+   auto-edited from a search result because no code path exists that could. The output is a review
+   queue with the triggering sentence quoted and the source linked; a person opens the document.
+
+   **The subjects were COUNTED, not guessed** — grepped from what the material actually cites:
+   22 TAC Ch. 138 appears 78 times, Occupations Code 1071 forty-six, the NCEES FS Reference Handbook
+   thirty-two, Property Code 12/13 about twenty.
+
+   > **⚠ That count immediately caught a defect in item 5, shipped two days earlier.** The regulatory
+   > watch was tracking **22 TAC Chapter 663** — whose surveying standards HB 1523 (86th Leg.)
+   > **repealed and merged into Chapter 138**, effective 2021. 663 is now the engineering chapter. For
+   > a land surveying firm the watch was pointed at the one chapter that can no longer change the
+   > rules it works under, and would have reported "nothing found" with complete confidence forever.
+   >
+   > The sentence explaining the repeal is in this repo's own course material. A subject list derived
+   > from real citations found a defect that a subject list written from memory had shipped. Fixed in
+   > the same commit; 663 stays in the terms because a notice about the merge names both.
+
+   **The orphan guard caught its own author.** `npm run verify:orphans` went 61 → 62 the moment the
+   library landed with no caller — four days after that guard was built, for exactly this defect.
+   Wired properly rather than by raising the ceiling.
 5. **Regulatory watch** *(business — moderate)*. ✅ **BUILT AND WIRED 2026-08-27.**
 
    `lib/compliance/regulatory-watch.ts` + `GET /api/admin/compliance/regulatory-watch` + a **"Has a
