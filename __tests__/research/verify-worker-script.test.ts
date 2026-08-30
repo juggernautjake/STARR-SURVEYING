@@ -39,7 +39,11 @@ describe('verify-worker reuses the interpreter rather than reimplementing it', (
 
   it('gates the exit code on canRunDeep, the interpreter\'s own answer', () => {
     // Not on `state === 'ok'`, which would silently disagree the day a fifth state is added.
-    expect(src).toMatch(/process\.exit\(verdict\.canRunDeep \? 0 : 1\)/);
+    // The key check is ANDed in, so this matches the property rather than one exact string — an
+    // earlier version pinned the literal line and went red the moment the key check was added,
+    // which is a test asserting its own history rather than the rule it cares about.
+    expect(src).toMatch(/process\.exit\(\s*verdict\.canRunDeep\b/);
+    expect(src).not.toMatch(/process\.exit\([^)]*state === 'ok'/);
   });
 
   it('probes /healthz, the endpoint the interpreter was written against', () => {
