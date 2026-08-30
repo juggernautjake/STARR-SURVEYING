@@ -16,6 +16,41 @@ overwrite a deliberate design.
 
 ---
 
+## A000. THE FULL UNMERGED INVENTORY — swept 2026-08-29, and it is smaller than it looks
+
+- [ ] **Decide what happens to three bodies of finished work that are not on `main`.**
+
+> Found by asking the obvious follow-up to A00 below: if one worktree was invisible, what else is?
+> `git for-each-ref` lists **twelve** branches with commits main does not have. That number is
+> misleading, and the correction is the useful part.
+>
+> **Six of the D&D branches are ONE CHAIN.** `claude/dnd-streamer-audit-2026-08-03` contains
+> `dnd-roller-ink-fix`, `dnd-campaign-thumbnail`, `dnd-manual-roll`, `dnd-creature-picker` and
+> `dnd-session` — verified with `git merge-base --is-ancestor` on each. Six names, one body of work.
+> Counting branches would have reported six lost projects where there is one.
+>
+> **And unmerged is not lost.** A branch's files can already be in `main` via a different commit —
+> which is what makes the file-level check the real test, not the commit count.
+>
+> | Body of work | Commits | Files changed | **Files ABSENT from `main`** |
+> |---|---|---|---|
+> | `claude/job-lifecycle-2026-08-14` | 17 | 118 | **73** |
+> | `claude/dnd-streamer-audit-2026-08-03` (the chain) | 13 | 44 | **19** |
+> | `worktree-surveying-payments-2026-07-29` | 1 | 6 | **6** (see A00) |
+> | `docs/character-editing-consolidation-audit` | 2 | 1 | 1 |
+> | `claude/surveying-workmode-toolset-2026-07-18` | 1 | 1 | 1 |
+>
+> **`job-lifecycle` is the business-phone project**, and this repo's own notes describe it as
+> *"BUILT, NEVER MERGED — all 5 commits on origin/claude/job-lifecycle-2026-08-14"*. **It is 17
+> commits and 73 absent files, not 5.** The note was written when it was true and has been trusted
+> since. That is the same failure this entry is about, one level up: a recorded number outliving the
+> thing it counted.
+>
+> Nothing here is urgent and nothing is broken — `main` works. What is at stake is whether this work
+> is finished-and-waiting or abandoned, and right now nobody can tell, which is the worst of the
+> three states. Each branch is one `git merge-base --is-ancestor` away from an answer, and that
+> command is the whole lesson.
+
 ## A00. 2,591 lines of finished work are in a gitignored worktree — found 2026-08-29
 
 - [ ] **Decide: merge `worktree-surveying-payments-2026-07-29`, cherry-pick from it, or delete it.**
