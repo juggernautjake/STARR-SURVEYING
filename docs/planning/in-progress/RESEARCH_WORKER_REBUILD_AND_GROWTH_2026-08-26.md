@@ -1232,8 +1232,27 @@ warning about it would train people to ignore the list. 5 new tests; 24 in the f
 > key could not be set by anyone following the documented steps. Fixed as a class:
 > `env-example-documents-every-key.test.ts` now fails when code reads a name the example omits.
 >
-> ⚠ The worker is currently running the `tvly-dev-…` key, which carries the smaller included quota.
-> Exhausting it mid-run surfaces as thinner results rather than an error. Swap for the prd key.
+> ### ⚠⚠ AND THE WHOLE WORKER HALF OF THAT STORY WAS WRONG — corrected 2026-08-29
+>
+> **The worker does not read `TAVILY_API_KEY`.** Every consumer of `lib/research/open-web.ts` is an
+> APP module — the four watches, lead enrichment, and the CAD-URL guess in
+> `boundary-fetch.service.ts`. `grep -rn TAVILY worker/src` returns only the health warning itself,
+> against a control showing the worker genuinely reads `ANTHROPIC_API_KEY` in four adapters. The deep
+> pipeline has zero open-web references.
+>
+> So the worker's health check was reading its OWN environment to report on a DIFFERENT process's
+> configuration, which it cannot observe. I read that warning, had the owner set the key on the
+> worker, added a prompt for it to the runbook, and then reported the warning clearing as progress.
+> It proved only that a string had been written to a file.
+>
+> The half above that stands: `TAVILY_API_KEY` was genuinely absent from `worker/.env.example`, and
+> the runbook genuinely could not set it. Both true, and both about a key that should never have
+> been there. **A correct fix to a false premise is still a false premise** — which is why
+> `env-example-documents-every-key.test.ts` had a test pinning that "regression", and why it is now
+> inverted.
+>
+> Warning, example entry, runbook prompt and verification-list line all removed. Tavily is set in
+> Doppler for the app, which was done on 08-28 and was always the only thing required.
 
 Sign up at tavily.com, take the free tier (1,000 searches/month), set `TAVILY_API_KEY` in **Doppler
 `prd`**. That single variable activates the whole open-web layer shipped in R1: five search angles
