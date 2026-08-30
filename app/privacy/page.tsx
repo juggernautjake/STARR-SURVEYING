@@ -39,16 +39,27 @@
 
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pageMetadata } from '@/lib/seo/page-metadata';
 
 import '../styles/Privacy.css';
 
-export const metadata: Metadata = {
-  // Just the page name: the root layout's title template appends "| Starr Surveying", so including
-  // the brand here rendered as "Privacy Policy | Starr Surveying | Starr Surveying".
+// `pageMetadata`, not a hand-written object — measured live 2026-08-29 and this page was serving NO
+// canonical, no OpenGraph and no Twitter card, while every other page in the sitemap had all three.
+//
+// It is the only indexable page that hand-rolled its metadata, which is exactly how that happens: a
+// raw object looks complete because the two fields anybody thinks to check are present. `alternates`
+// is not a field you notice missing.
+//
+// Title is unchanged. It stays just the page name because the root layout's template appends
+// "| Starr Surveying" — writing the brand here rendered "Privacy Policy | Starr Surveying |
+// Starr Surveying" — and `pageMetadata` passes the string through untouched, so the template
+// resolves exactly as before.
+export const metadata: Metadata = pageMetadata({
   title: 'Privacy Policy',
   description:
     'How Starr Surveying collects, uses, and protects your information when you request a survey quote, pay an invoice, or browse our website.',
-};
+  path: '/privacy',
+});
 
 /** Shown in the header and in the "Changes" section, so it is stated once. */
 // Bumped 2026-08-07: the remarketing claim was corrected. The policy's own "Changes" section

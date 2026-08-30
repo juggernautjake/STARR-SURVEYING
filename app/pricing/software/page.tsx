@@ -9,6 +9,8 @@
 // until the marketing-site rework that moves it to /services/pricing.
 
 import Link from 'next/link';
+import type { Metadata } from 'next';
+import { pageMetadata } from '@/lib/seo/page-metadata';
 import {
   BUNDLES,
   BUNDLE_ORDER,
@@ -16,11 +18,20 @@ import {
   formatBundlePrice,
 } from '@/lib/saas/bundles';
 
-export const metadata = {
+// Live and indexable (HTTP 200, not disallowed in robots.txt) and it was serving no canonical.
+//
+// The title is deliberately NOT templated with "| Starr Surveying": this is the Starr Software
+// brand, the apps, not the surveying firm. That still works, and for a reason worth stating because
+// it is not obvious — `app/pricing/layout.tsx` sets `title` as a plain STRING, which ends the root
+// layout's `%s | Starr Surveying` template for this whole subtree. So a descendant's literal title
+// is served as written. `pageMetadata` passes `title` through untouched, so that resolution is
+// unchanged; only the canonical and the social cards are added.
+export const metadata: Metadata = pageMetadata({
   title: 'Software Pricing — Starr Software',
   description:
     '14-day free trial, no card required. Per-bundle pricing for Recon, Draft, Field, Office, Academy, and Firm Suite.',
-};
+  path: '/pricing/software',
+});
 
 export default function SoftwarePricingPage() {
   return (
