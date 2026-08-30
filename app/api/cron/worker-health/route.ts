@@ -92,18 +92,32 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   let notified = 0;
   if (decision.notify) {
-    // Every active admin. A worker outage is not one person's problem, and the one person it was
-    // routed to is the one person who is on holiday.
+    // Every admin who is not banned. A worker outage is not one person's problem, and the one
+    // person it was routed to is the one person who is on holiday.
+    //
+    // ── `registered_users`, NOT `users` ────────────────────────────────────────────────────────
+    //
+    // The first version of this queried `from('users')`, which is not a table in this system. It
+    // was the ONLY place in the repo that named it. `__tests__/schema-coverage.test.ts` caught it —
+    // every table the code queries must have a CREATE statement in `seeds/`, and this one had none.
+    //
+    // Worth dwelling on, because of what the bug was: a watchdog that queries a non-existent table
+    // gets nothing back, notifies nobody, and reports success. It would have been a watchdog that
+    // silently never barks — which is precisely the failure it was written to prevent, reproduced
+    // inside the fix for it. Nothing about the route's own tests would have shown this.
+    //
+    // The filter is `roles.cs.{admin}` because that is what every other admin lookup in this repo
+    // uses (equipment check-in, the role broadcast in admin/email/send). Doing it in Postgres also
+    // sidesteps the `roles: []` trap — an empty array means NO roles, not every role, and reading
+    // it back to filter in JS is where that has been got wrong before.
     const { data: admins } = await supabaseAdmin
-      .from('users')
-      .select('email, roles, status')
-      .eq('status', 'active');
+      .from('registered_users')
+      .select('email, is_banned')
+      .or('roles.cs.{admin}');
 
-    const recipients = ((admins ?? []) as Array<{ email: string; roles: string[] | null }>)
-      // `roles: []` means NO roles, not every role — a distinction that has produced wrong
-      // assertions in this repo before. An empty array must not receive an admin alert.
-      .filter((u) => Array.isArray(u.roles) && u.roles.includes('admin'))
-      .map((u) => u.email);
+    const recipients = ((admins ?? []) as Array<{ email: string | null; is_banned: boolean | null }>)
+      .filter((u) => u.email && !u.is_banned)
+      .map((u) => u.email as string);
 
     for (const email of recipients) {
       await notify({
