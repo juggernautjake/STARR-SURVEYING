@@ -1028,7 +1028,53 @@ Opened 2026-08-27 at the owner's request: *"make sure we can use BrowserBase and
 of the ways these things could be integrated."* Measured first, because both turned out to be in
 states nobody would have guessed.
 
-### I0a — Re-run this audit in one command ✅ SHIPPED 2026-08-27
+### I0a — Re-run this audit in one command ✅ SHIPPED 2026-08-27 · **hardened 2026-08-29 after re-running it**
+
+> **Re-ran it, got a full sheet of `EMPTY`, and nearly filed that as a finding. It was my shell.**
+>
+> The script reads `process.env` and loads no `.env` file, so a bare local run prints `EMPTY` for
+> all eighteen services in output **visually identical to a production run finding eighteen genuinely
+> unset credentials.** The 08-27 run this section quotes plainly had real keys — it found Anthropic
+> valid, Resend scope-limited and Browserbase billing with zero sessions. Nothing in either output
+> said which environment it read.
+>
+> Same trap as the one already recorded here, from the other side: `vercel env pull` blanks
+> encrypted values, so a blank proves nothing. Same script, opposite cause.
+>
+> The run now declares itself — with almost nothing present it says so, states that `EMPTY` means
+> "not on this machine" rather than "not configured", and gives the command that actually audits
+> production:
+>
+> ```bash
+> doppler run --config prd -- npm run audit:vendors
+> ```
+>
+> **⚠ So §S2b's "17 of 18 are empty" is worth re-confirming that way.** It was true on 08-27 and the
+> owner has set keys since; the number in a heading is the thing most likely to be trusted without
+> re-running it.
+>
+> #### And the control for that fix found a second bug
+>
+> Re-running with four deliberately fake keys — only to prove the banner disappears when credentials
+> exist — printed:
+>
+> ```
+> OK      Resend          HTTP 400
+> ```
+>
+> The Resend check returned `OK` for **any** status that was not 401, and a malformed key gets a
+> 400. A key invented thirty seconds earlier reported as working. The tool whose entire purpose is to
+> distrust the config was trusting a value it had just been told was wrong — while its own footer
+> instructs the reader to interpret the status rather than the marker.
+>
+> Only `200`/`404` count as proof now: the id requested is all zeroes and does not exist, so a 404
+> means *authenticated, and that email is not here*. `401`/`403` are rejections, and anything else
+> reports "cannot tell" rather than being rounded up to good news.
+>
+> **The other eight checks were already correct** — they branch on `r.ok`, so a 400 reads as
+> rejected. Resend was the only one that inverted the logic. Worth recording as plainly as the bug:
+> this was one loose check, not a house style. The sibling `worker/scripts/check-adapter-hosts.mjs`
+> reads no environment at all, so it cannot have the ambiguity either.
 
 ```bash
 doppler run --project starr-surveying --config prd -- npm run audit:vendors
