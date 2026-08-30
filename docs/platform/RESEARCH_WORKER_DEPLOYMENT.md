@@ -257,11 +257,17 @@ R2_SECRET_ACCESS_KEY=$V7
 R2_BUCKET=starr-recon-artifacts
 EOF
 
+# NOTE THE CHARACTER CLASS: [A-Za-z_][A-Za-z0-9_]* , WITH DIGITS.
+#
+# The first version of this line used [A-Za-z_]+ and silently failed on every key containing a digit
+# — R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY. Those fell into the "not a key=value
+# line" branch and were printed unconditionally, so WORKER_API_KEY deduped and the R2 keys did not.
+# Half a dedupe looks exactly like a whole one until you count per key.
 # Keep the FIRST definition of each key and drop the rest. Running this block twice — which is easy
 # to do when a paste does not take the first time — otherwise leaves two sets of values in the file.
 # Compose reads the last one, so it still works, and that is exactly what makes it worth removing:
 # a secrets file with two answers is a question nobody wants to be asking in six months.
-awk -F= '!/^[A-Za-z_]+=/ { print; next } !seen[$1]++ { print }' .env > .env.tmp && mv .env.tmp .env
+awk -F= '!/^[A-Za-z_][A-Za-z0-9_]*=/ { print; next } !seen[$1]++ { print }' .env > .env.tmp && mv .env.tmp .env
 
 # Drop anything that is not a comment, a blank line, or KEY=value. The dedupe above passes unknown
 # lines through untouched, so stray script text survives it — as it did on the live box.
@@ -269,6 +275,16 @@ grep -E '^[[:space:]]*(#|$)|^[A-Za-z_][A-Za-z0-9_]*=' .env > .env.tmp && mv .env
 
 # Must print 0. Anything else means a line survived that Compose will choke on.
 grep -cvE '^[[:space:]]*(#|$)|^[A-Za-z_][A-Za-z0-9_]*=' .env
+
+# THE CHECK THAT ACTUALLY SETTLES IT: every key exactly once. Every number must be 1.
+#
+# Three weaker checks preceded this one and each missed a real duplicate — eyeballing a masked list,
+# then counting a single key, then counting malformed lines. A file can have zero malformed lines and
+# still define R2_ACCOUNT_ID twice. Count what you care about, per key, and read the numbers.
+for k in WORKER_API_KEY ANTHROPIC_API_KEY SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY \
+         STORAGE_BACKEND R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET; do
+  printf "%-28s %s\n" "$k" "$(grep -cE "^$k=" .env)"
+done
 
 chmod 600 .env
 
