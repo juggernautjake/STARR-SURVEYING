@@ -35,9 +35,16 @@ const HEALTH = path.join(ROOT, 'src/infra/health.ts');
 
 /** Env names that `health.ts` reads — i.e. things it may form an opinion about. */
 function keysHealthChecks(): string[] {
+  // Comments explain keys that were REMOVED for exactly this reason. Reading them would make the
+  // test fail on its own documentation — `health.ts` now names TAVILY_API_KEY in the note recording
+  // why the check went away.
+  //
+  // LINE COMMENTS FIRST, THEN BLOCK COMMENTS. The order matters, and the reason is written down in
+  // `scripts/derive-portal-tabs.mjs`, which exports `stripComments` as the canonical copy. This is
+  // the one place that cannot import it — the worker is a separate project with no shared module
+  // boundary — so it is duplicated here knowingly rather than by accident.
   const src = fs.readFileSync(HEALTH, 'utf8')
-    // Comments explain keys that were REMOVED for exactly this reason. Reading them would make the
-    // test fail on its own documentation — the same trap that bit the worker-health route test.
+    .split('\r\n').join('\n')
     .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
     .replace(/\/\*[\s\S]*?\*\//g, '');
   return [...new Set([...src.matchAll(/\benv\.([A-Z][A-Z0-9_]{2,})\b/g)].map((m) => m[1]))];

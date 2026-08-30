@@ -56,9 +56,30 @@ function cleanLabel(raw) {
   return (at === -1 ? raw : raw.slice(0, at)).trim();
 }
 
-const strip = (s) => s.split('\r\n').join('\n')
+/**
+ * Source with comments removed. **Line comments FIRST, then block comments** — the order is the
+ * whole point and is explained in this file's header.
+ *
+ * Exported because this keeps being needed and keeps being re-typed. Any check of the form "this
+ * string must NOT appear in that file" is unsafe on a codebase whose comments explain what used to
+ * be there — and this repo's comments do exactly that, deliberately. Three separate places hit the
+ * trap on 2026-08-29 alone:
+ *
+ *   · this script, which derived a duplicate `contacts` tab from a comment discussing `id:
+ *     'contacts'` in prose (the original case, in the header above)
+ *   · `__tests__/research/worker-health-route.test.ts`, whose `not.toMatch(/from\('users'\)/)`
+ *     failed on the comment explaining that very bug
+ *   · `worker/src/__tests__/warnings-are-about-this-process.test.ts`, which would have found
+ *     `TAVILY_API_KEY` in the note recording why the check was removed
+ *
+ * The worker has its own copy by necessity — separate project, no shared module boundary. That is
+ * the one duplicate this cannot remove, and it is noted there.
+ */
+export const stripComments = (s) => s.split('\r\n').join('\n')
   .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
   .replace(/\/\*[\s\S]*?\*\//g, '');
+
+const strip = stripComments;
 
 /** Every portal in `app/admin`, with its tabs, sorted so the file is stable across machines. */
 export function derivePortalTabs(cwd = process.cwd()) {

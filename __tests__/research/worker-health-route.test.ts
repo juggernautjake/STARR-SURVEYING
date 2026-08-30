@@ -18,22 +18,20 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { stripComments } from '../../scripts/derive-portal-tabs.mjs';
+
 const raw = fs.readFileSync(path.join(process.cwd(), 'app/api/cron/worker-health/route.ts'), 'utf8');
 
-/** The file with comments removed — line comments first, then block comments.
+/** Comments removed before scanning.
  *
  *  Not fastidiousness. The first version of this test scanned the raw source and failed its own
  *  `not.toMatch(/from\('users'\)/)` assertion — because the comment explaining that bug QUOTES
  *  `from('users')` while describing it. The test was reading a sentence about the code as the code.
  *
- *  `scripts/derive-portal-tabs.mjs` has the same guard for the same reason, and its header records
- *  the same shape: `/admin/messages` derived a duplicate tab because a comment discussed `id:
- *  'contacts'` in prose. Any assertion of the form "this string must NOT appear" is unsafe on a
- *  codebase whose comments explain what used to be there. */
-const src = raw
-  .split('\r\n').join('\n')
-  .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '');
+ *  Imported rather than re-typed: `derive-portal-tabs.mjs` is where this was first got wrong and
+ *  first got right, and its header carries the reason the ORDER matters (line comments before block
+ *  comments). A fourth hand-rolled copy is a fourth chance to get that order wrong. */
+const src = stripComments(raw);
 
 describe('worker-health route — recipients', () => {
   it('reads registered_users, the table that exists', () => {
