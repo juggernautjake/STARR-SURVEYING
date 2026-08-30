@@ -13,6 +13,9 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Loader2, Upload, Trash2, FileText, BookOpen, AlertTriangle, CheckCircle2, ArrowRight } from 'lucide-react';
+// The library above is what we HOLD. This asks whether the documents it cites have moved — a new
+// NCEES handbook edition, an amended chapter. It flags for review and never edits content. §I3.4
+import ContentFreshnessPanel from './ContentFreshnessPanel';
 
 interface RefDoc {
   id: string;
@@ -182,6 +185,7 @@ export default function ReferencesTab() {
           ))}
         </div>
       )}
+      <ContentFreshnessPanel />
       <style>{`.spin{animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );

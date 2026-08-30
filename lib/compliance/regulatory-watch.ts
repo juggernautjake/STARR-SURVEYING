@@ -72,7 +72,23 @@ const TOPICS: Record<RegulatoryTopic, TopicSpec> = {
     label: 'TBPELS rules',
     // "TBPELS" alone is too narrow: the board is written several ways, and the rules live in
     // 22 TAC Chapter 663 which a notice may cite without naming the board.
-    terms: ['tbpels', 'board of professional engineers and land surveyors', 'professional land surveyor', '22 tac', 'chapter 663', 'texas board of professional'],
+    // ⚠ CHAPTER 138, NOT 663 — corrected 2026-08-29, and the firm's own course material is what
+    // caught it. HB 1523 (86th Leg.) REPEALED the surveying standards in 22 TAC Chapter 663 and
+    // merged them into Chapter 138, "Compliance and Professionalism for Surveyors", effective 2021.
+    // 663 is now the ENGINEERING chapter. This watch shipped naming only 663 — so for a land
+    // surveying firm it was watching the one chapter that can no longer change the rules it works
+    // under, and would have reported "nothing found" with complete confidence.
+    //
+    // Measured, not assumed: the learn content cites "22 TAC Ch. 138" 78 times and 663 eight, and
+    // every one of the eight is the sentence explaining the repeal.
+    //
+    // 663 stays in the list on purpose. A notice about the merge names both, older material still
+    // cites it, and the cost of a term that no longer fires is nothing.
+    terms: [
+      'tbpels', 'board of professional engineers and land surveyors', 'professional land surveyor',
+      '22 tac', 'chapter 138', 'chapter 663', 'texas board of professional',
+      'compliance and professionalism for surveyors',
+    ],
     queries: [
       {
         query: 'TBPELS "land surveyor" rule amendment adopted effective Texas',
@@ -83,8 +99,12 @@ const TOPICS: Record<RegulatoryTopic, TopicSpec> = {
         rationale: 'Proposed rules surface months before adoption, which is the whole point of watching.',
       },
       {
-        query: '"22 TAC" 663 surveying rule amendment Texas Register effective date',
-        rationale: 'The Texas Register is where it is published first; the chapter cite finds it without the board name.',
+        query: '"22 TAC" 138 surveying rule amendment Texas Register effective date',
+        rationale: 'The Texas Register publishes it first, and Chapter 138 is where the surveying standards actually live since HB 1523 merged them out of 663.',
+      },
+      {
+        query: 'TBPELS "Chapter 138" "Compliance and Professionalism for Surveyors" amendment adopted',
+        rationale: 'The chapter by its real title. A notice may name the title without the number, or the number without the board.',
       },
     ],
     // A rule adopted in 2021 is still the rule. Demoting it for age would throw away the answer.
