@@ -41,6 +41,18 @@ alternative is rediscovering it in three weeks.
 > npx vitest run       REAL exit 0    26,575 passed · 2 skipped · 0 failed
 > ```
 >
+> **The damage was scoped to the ROOT project only.** `worker/node_modules/.bin` is intact (60
+> binaries), so every "worker tsc clean" claim in these commits WAS valid — the worker has its own
+> dependency tree and the junction never pointed at it. Re-confirmed with real exit codes:
+>
+> ```
+> worker npx tsc --noEmit   REAL exit 0
+> worker npx vitest run     REAL exit 0    1,621 passed
+> ```
+>
+> Worth separating from the root-project correction above rather than lumping them together: an
+> over-broad retraction is its own kind of false record.
+>
 > The branch is sound. The point of recording it is that it was sound by luck for most of a
 > session: had any of the 41 changed files carried a type error, the same broken check would have
 > reported clean just as confidently.
