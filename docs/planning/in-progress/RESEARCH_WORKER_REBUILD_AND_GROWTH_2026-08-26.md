@@ -10,7 +10,7 @@ alternative is rediscovering it in three weeks.
 
 ---
 
-## START HERE — four left, ALL owner-gated; item 7 cleared 2026-08-29
+## START HERE — the worker is LIVE; what remains is owner-gated
 
 This doc is 1,000 lines because a lot was measured. Everything below is real, and none of it is
 urgent except in the order given — with one exception, item 7, which is the only one that degrades
@@ -21,7 +21,7 @@ now the critical path. If you read nothing else, read this table.
 |---|---|---|---|
 | 1 | ~~Set `TAVILY_API_KEY`~~ ✅ **DONE 2026-08-28** — owner set it in Doppler `prd`; deployed. Verify from the UI: a lead's **Background** card should say "Searched the public web" rather than "no search key is configured". | §I2 | Cleared. It gates four features: open-web research, lead enrichment (§I3.1), the portal watch (§I3.3) and the regulatory watch (§I3.5). |
 | 2 | ~~Pay netcup invoice `nc-5513706`~~ ✅ **PAID 2026-08-28** — server provisioned at `152.53.48.240` (Ubuntu 24.04.4 LTS after a 2026-08-29 reinstall, **Vienna — NOT Manassas**, see the runbook §1 warning). SSH is key-only now; password auth is off.. Root password was pasted into a transcript and **must be changed**. | §F3a | Cleared. The build is now unblocked; see `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md` §3. |
-| 2b | **Then point `worker.starr-surveying.com` at the new IP** | §W2 | One DNS record and deep research is back. Everything else about the worker is done. |
+| 2b | ~~Point `worker.starr-surveying.com` at the new IP~~ ✅ **DONE 2026-08-29** — A record moved to `152.53.48.240` at Squarespace/Google DNS, Caddy installed, Let's Encrypt certificate obtained. **Verified from OUTSIDE the box**, which is the only test that counts: `/health` returns 200 `"status":"healthy"`, TLS validates, port 80 returns a 308 to HTTPS, and the auth guard distinguishes a missing header (401) from a wrong key (403) — two different answers, which is what proves a key is loaded and compared rather than absent. `document_storage: backend=r2 bucket=starr-recon-artifacts` closes W1 end to end. | §W2 · §W4 | Cleared. |
 | 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
@@ -36,8 +36,31 @@ now the critical path. If you read nothing else, read this table.
 - **Stripe is off by design, not broken** (§F2b). Empty keys plus a missing `PAYMENTS_LIVE` is the
   correct state for "payments not switched on".
 
-**Nothing in this doc is a regression.** Every ☐ item either needs a server that does not exist yet,
-or needs a decision only you can make.
+**Nothing in this doc is a regression.** Every ☐ item now needs a decision or an account only the
+owner has — the server half is finished.
+
+### Why this doc is still in `in-progress/` — read this before trying to move it
+
+Per the rubric in `docs/planning/README.md`, a doc is IN-PROGRESS if it "contains action items not
+yet done". This one does, and **none of them are deferrable by an engineer**, which is the
+distinction that matters: the README's COMPLETED test is "the phase it describes has shipped", not
+"nobody is currently working on it".
+
+| Category | Items | Why it cannot be closed from the code side |
+|---|---|---|
+| **Needs a dashboard login** | S2, S3, S4, M1, M2, G1–G4, F1, F2 | Doppler, Vercel, Google Ads, Search Console, Business Profile, Meta. Credentials the owner holds. |
+| **Needs a purchase or a cancellation** | I4, I5, R4/R4a, S2b | Browserbase (valid key, zero sessions in four months), a working CapSolver key, TexasFile. Spending money is not an engineering call. |
+| **Needs the owner's own content** | M3, G2, G3, G4 | Profile URLs, reviews, photos, a services description. Nobody can write these for the firm. |
+| **Needs a physical act** | W5, S5 | Reboot the box and re-verify; rotate the credentials pasted into transcripts. |
+| **Correctly gated on another item** | M4 | County landing pages wait on Search Console data. Building 46 pages on a guess produces 46 thin pages Google ignores — that is the item's own reasoning and it still holds. |
+| **Explicitly deferred, with measurement** | R2b, F4, F5 | R2b: Galveston is the only live Fidlar portal and the firm does not work there. F5: 764 orphaned lines, and deleting working-looking code on the strength of a grep is how a real feature disappears. |
+| **Scoped, not commissioned** | R3 | Re-measured 2026-08-29 into three pieces; only the third is product work, and nobody has asked for multi-tenancy yet. |
+
+**What HAS shipped is the entire engineering half**: the worker rebuilt on netcup and verified from
+outside over TLS, R2 storage, the `org_id` drift closed, all five Tavily applications, and every
+defect the walkthrough surfaced in the runbook itself.
+
+Marking the rest "deferred" to empty the folder would be a lie about who is blocked.
 
 > ### ✅ MERGED AND DEPLOYED 2026-08-28 — the warning below has been resolved
 >
@@ -962,7 +985,20 @@ key; these two are the opposite — **present, valid, billing, unreachable**:
 Silent when Browserbase credentials are absent entirely — not owning it is a valid state, and
 warning about it would train people to ignore the list. 5 new tests; 24 in the file.
 
-### I2 — Turn Tavily on ☐ OWNER — 5 minutes, the highest-value item here
+### I2 — Turn Tavily on ✅ **DONE — but it took TWO keys, not one**
+
+> **Closed 2026-08-29.** The owner set `TAVILY_API_KEY` in Doppler `prd` on 08-28 and the website
+> half went live. The worker half did not, and the reason is worth keeping: **the worker is a
+> different process on a different machine with its own `.env`.** It booted healthy and announced
+> `TAVILY_API_KEY missing — open-web research is inert`, which reads as an owner who forgot a key.
+>
+> It was a defect in the setup procedure. `TAVILY_API_KEY` appeared nowhere in `worker/.env.example`
+> and nowhere in the runbook, and the runbook builds a real `.env` by FILTERING that file — so the
+> key could not be set by anyone following the documented steps. Fixed as a class:
+> `env-example-documents-every-key.test.ts` now fails when code reads a name the example omits.
+>
+> ⚠ The worker is currently running the `tvly-dev-…` key, which carries the smaller included quota.
+> Exhausting it mid-run surfaces as thinner results rather than an error. Swap for the prd key.
 
 Sign up at tavily.com, take the free tier (1,000 searches/month), set `TAVILY_API_KEY` in **Doppler
 `prd`**. That single variable activates the whole open-web layer shipped in R1: five search angles
@@ -973,7 +1009,7 @@ document the AI reasons over.
 **Cost check before spending:** at five angles per run, 1,000 searches is ~200 property researches a
 month. Free tier is very likely sufficient; measure before upgrading.
 
-### I3 — Where else Tavily earns its keep ◐ items 1, 3, 4 + 5 SHIPPED; only item 2 remains
+### I3 — Where else Tavily earns its keep ✅ **ALL FIVE SHIPPED — item 2 closed 2026-08-29**
 
 Explored per the owner's ask. Ordered by value, and honest about which are speculative:
 
@@ -1015,8 +1051,33 @@ Explored per the owner's ask. Ordered by value, and honest about which are specu
 
    So setting the key (START HERE #1) now lights up **both** the research pipeline and this. 27 tests,
    `tsc` and `next lint` clean.
-2. **Competitor and market watch** *(business — moderate)*. Which surveyors are named in Central
-   Texas planning agendas and news. Directly feeds the county-page work in M4.
+2. **Competitor and market watch** *(business — moderate)*. ✅ **BUILT AND WIRED 2026-08-29.**
+
+   `lib/leads/market-watch.ts` — the fourth profile over `announcement-watch`. Route
+   `/api/admin/marketing/market-watch`, panel mounted in the Marketing portal's Leads tab.
+
+   **The item as filed undersold it.** "Which surveyors are named in planning agendas" is the second
+   subject. The first is the useful one: a subdivision plat on a commissioners' court agenda, a
+   rezoning up for approval, a site plan filed with a city — each is a project that needs a surveyor
+   **before it needs almost anything else**, and each is published days or weeks ahead on a public
+   agenda. That is a lead source, not competitive curiosity.
+
+   **The geography is derived, not copied.** `SERVICE_AREA_COUNTIES` in `lib/seo/business.ts` is the
+   one list of where this firm works — the same array `/service-area` renders and the LocalBusiness
+   JSON-LD publishes. The eleven core counties here are names FILTERED against it, so the two cannot
+   disagree. A second copy is the defect this repo has hit repeatedly.
+
+   > That filter DROPS what it cannot match, so a typo would produce a smaller watch rather than an
+   > error — silently. A test pins the count at eleven for exactly that reason.
+
+   **And it says how much it does not cover.** Eleven of forty-six service-area counties; all
+   forty-six would be ninety-two searches a sweep to answer a question about places the firm rarely
+   bids. `coverageNote()` ships with every response and renders above the results, because a bounded
+   sweep that does not admit it is bounded reads as "nothing is being platted" when it means "we
+   looked at a quarter of it".
+
+   **Still true about M4:** this feeds it, and M4 remains correctly gated on Search Console data.
+   Agenda hits tell you which counties have activity; they do not tell you what people search for.
 3. **County portal change detection** *(research — strong)*. ✅ **BUILT AND WIRED 2026-08-27.**
 
    `lib/research/portal-watch.ts` + `GET /api/admin/research/portal-watch` + a **Portal migration
@@ -1131,7 +1192,7 @@ Explored per the owner's ask. Ordered by value, and honest about which are specu
 **Not recommended:** using it to answer customer-facing questions directly. Search results are
 unverified by construction, and this firm's product is a licensed professional's assurance.
 
-### I4 — Turn Browserbase on, deliberately ☐ needs the worker
+### I4 — Turn Browserbase on, deliberately ☐ **the worker now exists — this is a pure decision as of 2026-08-29**
 
 You are paying for it, so the question is no longer whether to cancel but **which adapters should use
 it**. The per-adapter gate exists precisely so this is a decision rather than a global switch.
