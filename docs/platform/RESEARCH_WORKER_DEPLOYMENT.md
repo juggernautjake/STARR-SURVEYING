@@ -225,14 +225,24 @@ cd /opt/starr/worker
 # Strip the keys we are about to set, so there is exactly one definition of each.
 grep -v -E '^#?\s*(WORKER_API_KEY|ANTHROPIC_API_KEY|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|STORAGE_BACKEND|R2_ACCOUNT_ID|R2_ACCESS_KEY_ID|R2_SECRET_ACCESS_KEY|R2_BUCKET)=' .env.example > .env
 
+# EVERY read HAS `< /dev/tty`, AND THAT IS NOT DECORATION.
+#
+# Without it, pasting this block feeds the script its OWN REMAINING LINES into the prompts. `read`
+# takes stdin, and stdin during a paste is the rest of the paste. The first run of this block on the
+# live box wrote the literal text `read -r -p "R2_ACCOUNT_ID: " V5` into .env as a value, and
+# `docker compose` then refused to start:
+#
+#     failed to read .env: line 229: unexpected character "\"" in variable name
+#
+# `< /dev/tty` forces each prompt to read the keyboard instead. Do not remove it to "simplify".
 echo "Paste each value from Doppler prd, then Enter."
-read -r -p "WORKER_API_KEY (copy EXACTLY from Doppler): " V1
-read -r -p "ANTHROPIC_API_KEY: " V2
-read -r -p "SUPABASE_URL: " V3
-read -r -p "SUPABASE_SERVICE_ROLE_KEY: " V4
-read -r -p "R2_ACCOUNT_ID: " V5
-read -r -p "R2_ACCESS_KEY_ID: " V6
-read -r -p "R2_SECRET_ACCESS_KEY: " V7
+read -r -p "WORKER_API_KEY (copy EXACTLY from Doppler): " V1 < /dev/tty
+read -r -p "ANTHROPIC_API_KEY: " V2 < /dev/tty
+read -r -p "SUPABASE_URL: " V3 < /dev/tty
+read -r -p "SUPABASE_SERVICE_ROLE_KEY: " V4 < /dev/tty
+read -r -p "R2_ACCOUNT_ID: " V5 < /dev/tty
+read -r -p "R2_ACCESS_KEY_ID: " V6 < /dev/tty
+read -r -p "R2_SECRET_ACCESS_KEY: " V7 < /dev/tty
 
 cat >> .env <<EOF
 
@@ -252,6 +262,13 @@ EOF
 # Compose reads the last one, so it still works, and that is exactly what makes it worth removing:
 # a secrets file with two answers is a question nobody wants to be asking in six months.
 awk -F= '!/^[A-Za-z_]+=/ { print; next } !seen[$1]++ { print }' .env > .env.tmp && mv .env.tmp .env
+
+# Drop anything that is not a comment, a blank line, or KEY=value. The dedupe above passes unknown
+# lines through untouched, so stray script text survives it — as it did on the live box.
+grep -E '^[[:space:]]*(#|$)|^[A-Za-z_][A-Za-z0-9_]*=' .env > .env.tmp && mv .env.tmp .env
+
+# Must print 0. Anything else means a line survived that Compose will choke on.
+grep -cvE '^[[:space:]]*(#|$)|^[A-Za-z_][A-Za-z0-9_]*=' .env
 
 chmod 600 .env
 
