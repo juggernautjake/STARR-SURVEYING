@@ -16,6 +16,38 @@ overwrite a deliberate design.
 
 ---
 
+## A0000. WHAT EACH UNMERGED BODY WOULD COST — measured 2026-08-29
+
+- [ ] **Pick from this table. The cheapest option is the largest one.**
+
+> Measured with `git merge-tree --write-tree`, which computes the merge without touching the index,
+> the working tree, or any branch. Nothing below was attempted.
+>
+> | Body of work | Lines/files | Drift | **Conflicts** | Extra work | Blocked? |
+> |---|---|---|---|---|---|
+> | `worktree-surveying-payments` — Texas sales tax + records catalogue + deadlines | 2,591 lines, 6 files | 995 | **0** | none | no |
+> | `dnd-streamer-audit` — SRD magic items, bestiary search, thumbnails | 19 files | 734 | **3** — `.gitignore`, `package.json`, one completed doc | renumber `seeds/571` → 619 | no |
+> | `retire-legacy-payroll-engine` — a verification helper | 1 file | 229 | **2** — payroll UI | none | no |
+> | `job-lifecycle` — jobs/receipts/notifier **+** phone | 73 files | 358 | **14** — all non-phone | conflict resolution across jobs + receipts | phone half only |
+> | `surveying-workmode-toolset` | 1 file | — | — | — | **obsolete, delete** |
+> | `character-editing-consolidation-audit` | 1 doc | — | — | — | it is the dangling pointer memory cites |
+>
+> **The ranking is the reverse of what size suggests.** The largest body — 2,591 lines of tax and
+> compliance code with 570 lines of its own tests — has **zero conflicts** despite 995 commits of
+> drift, because every one of its files is new. The smallest interesting one, `job-lifecycle`, has
+> fourteen, because its value is wired through files everyone else has been editing.
+>
+> **`dnd-streamer-audit`'s three conflicts are trivial** — `.gitignore`, `package.json` and a
+> planning doc already in `completed/`. **No source file conflicts.** Its one real hazard is the seed
+> collision: `571_dnd_campaign_thumbnail.sql` against main's `571_admin_push_subscriptions.sql`.
+> Renumber to 619 and the rest is mechanical.
+>
+> ⚠ **"Zero conflicts" means git can merge the text. It does not mean it builds, typechecks, or
+> passes tests** — the tax work predates the `org_id` enrolment, the project layer above jobs, and
+> the page consolidation. A clean textual merge that fails `npm run build` is still a day's work,
+> and the only way to know is to try it on a branch. What the table rules out is the *worst* case:
+> nothing here needs a hand-reconciliation of 2,591 lines.
+
 ## A000. THE FULL UNMERGED INVENTORY — swept 2026-08-29, and it is smaller than it looks
 
 - [ ] **Decide what happens to three bodies of finished work that are not on `main`.**
