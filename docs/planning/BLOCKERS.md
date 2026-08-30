@@ -119,6 +119,46 @@ overwrite a deliberate design.
 > somebody believed the moment they parked it, and measuring the claim is cheaper than acting on it.
 > [[feedback_check_the_premise_before_building]]
 
+> ### ⚠ AND THE OBVIOUS PLAN IS THE HARD ONE — measured 2026-08-29 with `git merge-tree`
+>
+> Having found that half the branch is not phone work, the natural recommendation is *"cherry-pick
+> the non-phone half, it is not blocked on Twilio."* **Measured before advising it, and the
+> difficulty is the exact reverse of what that sentence implies.**
+>
+> `main` has moved **358 commits** since this branch's merge-base. A read-only
+> `git merge-tree --write-tree` reports **14 content conflicts, and every one of them is non-phone:**
+>
+> ```
+> app/admin/jobs/[id]/page.tsx            app/api/admin/jobs/route.ts
+> app/admin/components/jobs/JobFileManager.tsx   app/api/admin/jobs/activity/route.ts
+> app/admin/receipts/page.tsx             app/api/admin/jobs/files/route.ts
+> app/admin/receipts/ReceiptSlideshow.tsx app/api/admin/jobs/payments/route.ts
+> app/admin/receipts/ReceiptSlideshow.css app/api/admin/receipts/[id]/route.ts
+> app/admin/settings/page.tsx             app/api/admin/settings/route.ts
+> lib/admin/route-icons.tsx               lib/admin/route-registry.ts
+> ```
+>
+> **The phone half has zero conflicts.** So the two halves are:
+>
+> | | new files | conflicts | blocked on |
+> |---|---|---|---|
+> | non-phone (jobs, receipts, notifier) | 37 | **14** | nothing |
+> | phone | 36 | **0** | a Twilio number that is not rented |
+>
+> Neither is the easy one. The unblocked half carries all the merge work, and the clean half cannot
+> run. That is worth knowing BEFORE starting, because "just take the non-phone part" sounds like the
+> cheap option and is not.
+>
+> **Why the conflicts cluster there:** the 73 absent files are NEW and cannot conflict — nothing in
+> `main` occupies those paths. The conflicts are in files that exist on both sides and have been
+> edited since: the job routes, the receipts screen, and `route-registry.ts`/`route-icons.tsx`, which
+> are where new screens get wired into the nav. The new files are the feature; the conflicted files
+> are its wiring, and you cannot take one without the other.
+>
+> Recorded rather than attempted. Resolving fourteen conflicts across 358 commits of drift is real
+> work with real regression risk on the jobs and receipts screens, and it is not a decision to make
+> on someone's behalf at the end of a session.
+
 > ### AND THE D&D CHAIN CONTAINS A SEED COLLISION — measured 2026-08-29
 >
 > Thirteen commits: SRD magic items, bestiary search from the map, campaign thumbnails, invite links
