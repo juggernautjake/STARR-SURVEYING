@@ -17,17 +17,67 @@
 
 import type { SMSDispatchInput } from './index';
 
+/** The sending number, under either of the two names this system has used.
+ *
+ *  ── TWO NAMES FOR ONE NUMBER, AND IT COST SEVEN MONTHS ─────────────────────────────────────────
+ *
+ *  This code has always read `TWILIO_FROM_NUMBER`. The configuration has `TWILIO_PHONE_NUMBER` —
+ *  that is the name the owner set, the name the Doppler consolidation migrated on 2026-08-26, and
+ *  the name the plan doc discusses. `BLOCKERS.md` spotted the divergence and asked for it to be
+ *  "reconciled during the merge"; it was not.
+ *
+ *  Both are now present in the Vercel project, so the mismatch may currently be masked. Reading both
+ *  removes the question permanently, and costs one `??`. `TWILIO_FROM_NUMBER` stays first because it
+ *  is what this code has always used and what `worker/.env.example` documents — preferring the newer
+ *  name would silently change which value wins on a deployment where the two differ.
+ */
+function sendingNumber(): string | undefined {
+  return process.env.TWILIO_FROM_NUMBER ?? process.env.TWILIO_PHONE_NUMBER;
+}
+
 /** Send one SMS via Twilio. Returns true on 2xx, false on any
  *  failure. Errors are logged but never thrown. */
 export async function sendSMSViaTwilio(input: SMSDispatchInput): Promise<boolean> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const fromNumber = process.env.TWILIO_FROM_NUMBER;
+  const fromNumber = sendingNumber();
 
-  // Dev-mode short-circuit
   if (!accountSid || !authToken || !fromNumber) {
+    const missing = [
+      !accountSid && 'TWILIO_ACCOUNT_SID',
+      !authToken && 'TWILIO_AUTH_TOKEN',
+      !fromNumber && 'TWILIO_FROM_NUMBER (or TWILIO_PHONE_NUMBER)',
+    ].filter(Boolean).join(', ');
+
+    // ── A MISSING CREDENTIAL IN PRODUCTION IS AN ERROR, NOT A DEV CONVENIENCE ───────────────────
+    //
+    // This branch used to log at `info` with the words "DEV mode (no Twilio creds)" and return
+    // `true` — in every environment, production included. So a security alert that could not
+    // possibly be sent produced a cheerful info line claiming it would be, and reported success.
+    //
+    // Measured 2026-08-27: the Twilio account is active, owns ZERO phone numbers, and its last
+    // message attempt — 30 January 2026 — is marked `undelivered`. Seven months of a notification
+    // path that is wired, configured, reachable, and structurally incapable of succeeding, saying
+    // nothing about it at a level anybody greps for.
+    //
+    // The dev short-circuit is genuinely useful and is kept, but only where it is true: outside
+    // production. In production this is now an error naming the exact variable, which is the
+    // difference between "why did nobody get the alert" taking ten minutes and taking seven months.
+    if (process.env.NODE_ENV === 'production') {
+      if (typeof console !== 'undefined') {
+        console.error(`[notifications/sms] NOT SENT — missing ${missing}. `
+          + `SMS is wired and reachable but cannot deliver; the message was dropped.`, {
+          to: input.to,
+          bodyPreview: input.body.slice(0, 50),
+        });
+      }
+      // False, not true. Nothing reads this return today — `events.ts` awaits and discards it — but
+      // returning `true` for a message that was never sent is a lie waiting for its first caller.
+      return false;
+    }
+
     if (typeof console !== 'undefined') {
-      console.info('[notifications/sms] DEV mode (no Twilio creds) — would send:', {
+      console.info(`[notifications/sms] DEV mode (missing ${missing}) — would send:`, {
         to: input.to,
         bodyPreview: input.body.slice(0, 50),
       });
