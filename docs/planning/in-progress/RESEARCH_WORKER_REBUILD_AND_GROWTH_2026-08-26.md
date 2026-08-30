@@ -22,7 +22,7 @@ now the critical path. If you read nothing else, read this table.
 | 1 | ~~Set `TAVILY_API_KEY`~~ ✅ **DONE 2026-08-28** — owner set it in Doppler `prd`; deployed. Verify from the UI: a lead's **Background** card should say "Searched the public web" rather than "no search key is configured". | §I2 | Cleared. It gates four features: open-web research, lead enrichment (§I3.1), the portal watch (§I3.3) and the regulatory watch (§I3.5). |
 | 2 | ~~Pay netcup invoice `nc-5513706`~~ ✅ **PAID 2026-08-28** — server provisioned at `152.53.48.240` (Ubuntu 24.04.4 LTS after a 2026-08-29 reinstall, **Vienna — NOT Manassas**, see the runbook §1 warning). SSH is key-only now; password auth is off.. Root password was pasted into a transcript and **must be changed**. | §F3a | Cleared. The build is now unblocked; see `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md` §3. |
 | 2b | ~~Point `worker.starr-surveying.com` at the new IP~~ ✅ **DONE 2026-08-29** — A record moved to `152.53.48.240` at Squarespace/Google DNS, Caddy installed, Let's Encrypt certificate obtained. **Verified from OUTSIDE the box**, which is the only test that counts: `/health` returns 200 `"status":"healthy"`, TLS validates, port 80 returns a 308 to HTTPS, and the auth guard distinguishes a missing header (401) from a wrong key (403) — two different answers, which is what proves a key is loaded and compared rather than absent. `document_storage: backend=r2 bucket=starr-recon-artifacts` closes W1 end to end. | §W2 · §W4 | Cleared. |
-| 3 | **Reboot the new box and curl `/health` from your own machine** | §3.4 of the runbook | The last worker died by silently never coming back. This is the only check that would have caught it. |
+| 3 | ~~Reboot the new box and curl `/health` from your own machine~~ ✅ **PASSED 2026-08-29** — `uptime` came back reading **69.7s** where it had read 1102s an hour earlier, over HTTPS, from the owner's laptop. The whole chain restarted unattended: Docker on boot, both containers, Caddy serving TLS, Playwright launching Chromium, R2 and Supabase reconnected, and the Tavily key persisted. | §W5 | Cleared — and it is the check that matters most, because the previous worker died by silently never coming back. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
@@ -256,7 +256,37 @@ Added to `worker-healthcheck-contract.test.ts`, which already exists for exactly
 written after a Dockerfile polled `/healthz` while the worker only served `/health`, a defect that
 hid in the gap between two test suites. 9 tests green.
 
-### W5 — surviving a host reboot ◐ **tooling SHIPPED 2026-08-29; the reboot itself is still owner-gated**
+### W5 — surviving a host reboot ✅ **PASSED 2026-08-29 — measured, not assumed**
+
+> **The evidence is one number: `uptime`.**
+>
+> | | |
+> |---|---|
+> | Earlier check | `"uptime": 1102` |
+> | After the reboot | `"uptime": 69.7` |
+>
+> The worker restarted and came back on its own, and the reply arrived over HTTPS at the public
+> hostname from the owner's laptop — so it is not merely the process that recovered. Every link in
+> the chain did, unattended: Docker started on boot, Redis came up healthy and the worker waited for
+> it, Caddy started and served a valid certificate, Playwright launched Chromium
+> (`playwright: ok`), and R2 and Supabase reconnected. The Tavily key survived, so `.env` is being
+> read from disk rather than held in a shell that is gone.
+>
+> ```
+> ✓ OK  https://worker.starr-surveying.com
+>   The research worker is up and idle.
+>   v5.1.0 (d4bc6ef04) · 647ms · 0 active
+>   exit=0
+> ```
+>
+> **This is the item that mattered most on the whole list**, because the previous worker died by
+> silently never coming back and nobody found out until somebody needed it. That failure mode is now
+> closed twice over: the machine demonstrably recovers, and `/api/cron/worker-health` watches hourly
+> in case a future one does not.
+>
+> One honest caveat, recorded rather than smoothed over: the uptime drop is proof the worker
+> RESTARTED, not proof of what caused it. If that was not a deliberate reboot, it is worth chasing —
+> `docker compose logs --tail 100 worker` would say why.
 
 > **Two things shipped that turn this from a thing somebody must remember into a thing that happens.**
 >
