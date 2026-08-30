@@ -125,7 +125,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   } else {
     sendError = 'RESEND_API_KEY not configured (dev mode)';
-    console.log(`[invoice-send] DEV — would send to ${recipient}: ${subject}\n${payLink}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[invoice-send] DEV — would send to ${recipient}: ${subject}\n${payLink}`);
   }
 
   // Flip the status to `issued` if it was a draft; leave `issued`

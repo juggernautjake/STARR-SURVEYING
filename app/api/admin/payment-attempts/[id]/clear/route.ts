@@ -216,7 +216,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       }
     } else {
       receiptSent = true;
-      console.log(`[clear] DEV — would send receipt to ${recipient}: ${subject}`);
+      if (process.env.NODE_ENV !== 'production') console.log(`[clear] DEV — would send receipt to ${recipient}: ${subject}`);
     }
 
     await supabaseAdmin.from('payment_receipts').insert({

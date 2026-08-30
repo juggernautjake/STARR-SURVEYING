@@ -133,7 +133,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   } else {
     sent = true;
-    console.log(`[receipt-resend] DEV — would send to ${to}: ${subject}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[receipt-resend] DEV — would send to ${to}: ${subject}`);
   }
 
   // Stamp a payment_receipts row so the office can see the resend

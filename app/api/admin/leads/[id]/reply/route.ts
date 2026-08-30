@@ -232,7 +232,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }
   } else {
     sendError = 'RESEND_API_KEY not configured (dev mode)';
-    console.log(`[lead-reply] DEV — would send to ${recipient}: ${subject}`);
+    if (process.env.NODE_ENV !== 'production') console.log(`[lead-reply] DEV — would send to ${recipient}: ${subject}`);
   }
 
   // Always record the reply — including failures — so the surveyor sees

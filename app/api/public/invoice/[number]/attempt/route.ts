@@ -187,6 +187,23 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       } catch (err) {
         pledgeEmailError = err instanceof Error ? err.message : String(err);
       }
+    } else if (process.env.NODE_ENV === 'production') {
+      // ── DO NOT CLAIM A CONFIRMATION THE PAYER WILL NEVER RECEIVE ─────────────────────────────
+      //
+      // This branch used to set `pledgeEmailSent = true` unconditionally and log at `console.log`.
+      // In production that told a customer who had just pledged payment that their confirmation
+      // email had been sent, when no key existed to send it with — and `pledge_email_sent` is
+      // returned straight to the payment page.
+      //
+      // Found 2026-08-29 by the guard in `__tests__/saas/senders-report-failure.test.ts`, AFTER a
+      // manual sweep of the same nine files had cleared this one. The sweep matched on
+      // `sendError`/`send_error`; this route calls it `pledgeEmailError`, so it read as honest at a
+      // glance. The automated check does not glance.
+      pledgeEmailError = process.env.RESEND_API_KEY
+        ? 'RESEND_API_KEY is still the placeholder value'
+        : 'RESEND_API_KEY is missing';
+      console.error(`[pledge] CONFIRMATION NOT SENT to ${row.payer_email} — ${pledgeEmailError}. `
+        + 'The pledge itself WAS recorded.');
     } else {
       // Dev mode — log + treat as sent so the UI surfaces the right
       // confirmation panel without forcing the office to set up
