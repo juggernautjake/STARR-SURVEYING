@@ -369,6 +369,55 @@ CPU deliberately still reads the host: compose sets no `cpus` limit, so all 12 r
 
 ## 3. R — Research capability
 
+> ### ✅ RESEARCH IS FULLY CREDENTIALLED — 2026-08-29, and the dead hosts do not touch it
+>
+> `/healthz` reports **zero warnings** for the first time. The owner set TexasFile and
+> `WS_TICKET_SECRET` on the worker:
+>
+> ```
+> ok   playwright                    ok   document_storage  backend=r2 bucket=starr-recon-artifacts
+> ok   supabase          HTTP 200    ok   research_events   REDIS_URL configured
+> ok   anthropic         Key present ok   websocket_auth    WS_TICKET_SECRET configured
+> ok   browser_factory   backend=local
+> OFF  captcha_solver    provider=stub          ← correct; the CapSolver key is rejected (§R4a)
+> ```
+>
+> `WS_TICKET_SECRET` is confirmed on BOTH sides, which matters because it is an HMAC: the app signs
+> a ticket and the worker verifies it. `POST /api/ws/ticket` now answers **401** where it used to
+> answer **503** — 401 is "you are not signed in", which is the correct reply to an unauthenticated
+> probe and proof the secret is present on Vercel.
+>
+> **Two things still cannot be verified from outside, and are stated rather than glossed:** whether
+> the TexasFile credentials WORK (the worker checks presence, and the real test is a run that hits
+> the paywall and spends money), and whether the two `WS_TICKET_SECRET` values are the SAME STRING
+> — both being set does not make them equal, and a mismatch shows up as a WebSocket that closes
+> immediately with no useful error.
+>
+> #### The 23 dead adapter hosts — re-measured, and NONE of them is routed
+>
+> `node worker/scripts/check-adapter-hosts.mjs`: **19 resolve, 23 do not**, unchanged since
+> 2026-08-02.
+>
+> | Adapter file | Dead | Routed? |
+> |---|---|---|
+> | `henschen-clerk-adapter.ts` | 8 | No — `henschen` is not in `PROVEN_VENDORS` |
+> | `fidlar-clerk-adapter.ts` | 6 | No — `fidlar` is not in `PROVEN_VENDORS` |
+> | `tyler-clerk-adapter.ts` | 6 | No — Tyler routing derives from `TYLER_EAGLE_PORTALS` in a *different* file, which has **zero** dead hosts |
+> | `kofile-clerk-adapter.ts` | 2 | No — Travis `48453` and McLennan `48309` are **not in `KOFILE_FIPS_SET`** |
+>
+> **Zero of the twenty-three are reachable by `getClerkSystem()`.** Every one sits in an adapter
+> config for a county that routing does not send there, and those counties fall through to TexasFile
+> — which now has credentials. Research capability is not degraded by any of this.
+>
+> **Control, because a DNS check reporting a dead world is the obvious way to be wrong:**
+> `williamson.tx.publicsearch.us` resolves to `35.247.2.99`. The `<county>.tx.publicsearch.us`
+> pattern is real for the counties that use it; Travis and McLennan simply do not.
+>
+> **This correction was needed because I got it wrong out loud first.** I reported the count and
+> added a consequence I had not checked — "runs route to them and get *no records found*". They do
+> not. The number was right and the sentence after it was invented, which is the more dangerous half
+> because it is the half somebody acts on.
+
 ### R1 — Open-web research via Tavily ✅ DONE 2026-08-26 (R1a + R1b)
 
 `TAVILY_API_KEY` is configured and does exactly one job: guessing county CAD URLs, as "Method 9" in
