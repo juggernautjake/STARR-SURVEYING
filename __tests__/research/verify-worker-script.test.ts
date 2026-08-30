@@ -55,6 +55,28 @@ describe('verify-worker reuses the interpreter rather than reimplementing it', (
     expect(src).toMatch(/transportError:/);
   });
 
+  it('checks whether the app and worker keys AGREE, which /healthz cannot answer', () => {
+    // `/healthz` is unauthenticated, so a worker can be healthy, reachable and TLS-valid while
+    // rejecting every request the app makes. The two keys live in different places and were typed
+    // on different days.
+    expect(src).toContain('/research/active');
+    expect(src).toMatch(/Authorization.*Bearer/);
+  });
+
+  it('distinguishes a rejected key (403) from a missing header (401)', () => {
+    // Both are 4xx and they mean opposite things: 403 is a deployment problem, 401 would be a bug
+    // in this script. Collapsing them is how somebody spends an afternoon on the wrong one.
+    expect(src).toMatch(/res\.status === 403/);
+    expect(src).toMatch(/401/);
+  });
+
+  it('a SKIPPED key check does not fail the run, but a REJECTED one does', () => {
+    // "We could not ask" must not read the same as "we asked and the answer was no". Hence the
+    // explicit `!== false` — null means unknown and only false means disagreement.
+    expect(src).toMatch(/keysAgree !== false/);
+    expect(src).toContain('key check SKIPPED');
+  });
+
   it('does not let warnings change the exit code', () => {
     // Warnings are the worker saying what it CANNOT do while otherwise being fine. A missing
     // TexasFile login is a real gap and not a reason for a post-reboot check to go red.

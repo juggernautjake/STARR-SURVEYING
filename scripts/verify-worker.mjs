@@ -28,12 +28,33 @@
 // `interpretWorkerProbe` reads the `/healthz` SHAPE — `browser.ok`, `queue`, `warnings` — so this
 // must ask for the same one the interpreter was written against.
 //
-// ── UNAUTHENTICATED ON PURPOSE ──────────────────────────────────────────────────────────────────
+// ── /healthz IS UNAUTHENTICATED, WHICH IS WHY THERE IS A SECOND CHECK ───────────────────────────
 //
-// `/healthz` takes no key, which is what makes this runnable from a laptop that holds no secret. The
-// authenticated surface is a separate question and a separate failure: a worker can be perfectly
-// reachable and still reject the app's key. That is `degraded`-adjacent and belongs to the banner,
-// which probes as the app.
+// `/healthz` takes no key, which is what makes the main check runnable from a laptop holding no
+// secret. But it therefore cannot answer the question that actually breaks deployments: **do the
+// app's key and the worker's key agree?**
+//
+// A worker can be perfectly healthy, publicly reachable, TLS-valid — and reject every request the
+// app makes. Nothing in `/healthz` would show it. The two keys live in different places (Doppler →
+// Vercel for the app; `/opt/starr/worker/.env` for the worker) and were typed on different days.
+//
+// So: when `WORKER_API_KEY` is present in the environment, this also calls an authenticated
+// endpoint and reports whether that key is accepted.
+//
+//     doppler run --config prd -- npm run verify:worker
+//
+// `GET /research/active` is the right endpoint for it — authenticated, read-only, and it starts
+// nothing and spends nothing. It returns the list of in-flight runs.
+//
+// The three outcomes are deliberately kept distinct, because two of them are 4xx and they mean
+// opposite things:
+//
+//     200  the keys agree
+//     403  reached the worker, key REJECTED — the app and the worker disagree
+//     401  no Authorization header sent — a bug in THIS script, not in the deployment
+//
+// Absent `WORKER_API_KEY`, the check is skipped and says so. Skipping silently would let a laptop
+// run look like a passing credential check.
 
 import { interpretWorkerProbe } from '../lib/research/worker-status.ts';
 
@@ -83,6 +104,52 @@ if (verdict.version) {
 // reason for a post-reboot check to go red.
 for (const w of verdict.warnings) console.log(`  ⚠ ${w}`);
 
+/** Do the app's key and the worker's key agree? Only asked when we hold a key to ask with. */
+async function checkCredentials() {
+  const key = process.env.WORKER_API_KEY;
+  if (!base) return null;
+  if (!key) {
+    console.log('  · key check SKIPPED — no WORKER_API_KEY in this environment.');
+    console.log('    Run `doppler run --config prd -- npm run verify:worker` to check it.');
+    return null;
+  }
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(`${base}/research/active`, {
+      headers: { Authorization: `Bearer ${key}` },
+      signal: ac.signal,
+    });
+    if (res.status === 200) {
+      const body = await res.json().catch(() => ({}));
+      console.log(`  ✓ WORKER_API_KEY accepted — ${body.count ?? 0} run(s) in flight.`);
+      return true;
+    }
+    if (res.status === 403) {
+      console.log('  ✗ WORKER_API_KEY REJECTED (403). The app and the worker hold DIFFERENT keys.');
+      console.log('    Compare Doppler `prd` against /opt/starr/worker/.env — they must be identical.');
+      return false;
+    }
+    // 401 means no header reached the worker, which would be a bug here rather than a deployment
+    // problem. Saying which is the whole point of separating them.
+    console.log(`  ? key check inconclusive — HTTP ${res.status}.`
+      + (res.status === 401 ? ' No Authorization header arrived; that is a bug in this script.' : ''));
+    return null;
+  } catch (e) {
+    console.log(`  ? key check could not run — ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const keysAgree = await checkCredentials();
+
 // `degraded` exits 1 deliberately. It is worse than down because it looks up: the worker answers,
 // accepts work, and fails it twenty minutes in.
-process.exit(verdict.canRunDeep ? 0 : 1);
+//
+// A REJECTED key also exits 1: a worker the app cannot authenticate to is, from the app's side,
+// no worker at all. `null` — skipped or inconclusive — does not, because "we could not ask" must
+// not read the same as "we asked and the answer was no". That distinction is the one this whole
+// script exists to preserve.
+process.exit(verdict.canRunDeep && keysAgree !== false ? 0 : 1);
