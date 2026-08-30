@@ -1651,14 +1651,49 @@ information richness, cross-validating each finding against the cumulative basel
 conflicts early rather than after low-value sources have been paid for. The live path
 (`analyzeProject`) does not work that way.
 
-**Three possible resolutions, and it is not mine to pick:**
+> ### ⚠ "NEAR-IDENTICAL" IS WRONG — measured 2026-08-29, and it changes the decision
+>
+> Nobody had diffed them. **They share ZERO exported names.**
+>
+> | `prioritized-pipeline.ts` (378 lines) | `prioritized-pipeline.service.ts` (386 lines) |
+> |---|---|
+> | `runPrioritizedPipeline`, `sortByPriority`, `recommendNextResources` | `executePrioritizedPipeline`, `classifyResourcePriority` |
+> | `PipelineResult`, `PipelineStepResult` | `PrioritizedPipelineResult`, `PipelinePhaseResult`, `PrioritizedResource`, `ResourcePriority`, `ComparisonResult` |
+> | imports `callAI` — makes its own model calls | imports `PipelineLogger` — structured run logging |
+> | **5** priority steps: ArcGIS → deeds/plats → visual → tax/flood | **6** priority steps: ArcGIS → **tax** → plats → deeds → satellite → maps |
+>
+> Same *idea* — analyse resources richest-first, cross-validate each finding against the cumulative
+> baseline. **Two independent implementations of it**, with different APIs, different type
+> vocabularies, and **different answers to the question the feature exists to answer**: what order to
+> read sources in. One puts tax records second; the other does not rank them until fourth.
+>
+> Both were committed on **2026-03-20**, in two separate commits, and neither has been touched since.
+> Five months. Neither has a test of its own.
+>
+> **This kills option 3.** "Merge the two files first regardless" assumed a mechanical
+> de-duplication. There is nothing to merge — no shared function to reconcile, no diff to resolve.
+> It is a choice between two designs, and the substantive part of that choice is the ordering.
+>
+> **The fifth false premise checked this session, and the fifth to be false.** The pattern is now
+> consistent enough to be a rule: a parked item's description records what somebody believed at the
+> moment they parked it, and the cheapest possible first step is to measure the claim rather than
+> act on it. See [[feedback_check_the_premise_before_building]].
+
+**So the resolutions are two, not three, and it is still not mine to pick:**
 
 1. **Wire it up** — if the prioritisation is what the pipeline should do, this is most of the work
    already written.
 2. **Delete it** — if `analyzeProject` superseded it, 764 lines of plausible, well-commented dead
    code is worse than none, because the next person to read it cannot tell it never ran.
-3. **Merge the two files first regardless** — near-duplicates with no callers means nobody knows
-   which one was the real one, and that question gets harder every month.
+3. ~~**Merge the two files first regardless**~~ — **not available.** They share no exported name,
+   so there is no de-duplication to perform. What looked like tidying is actually the whole decision
+   in disguise: picking one design over another, and with it a resource ordering that determines
+   what the pipeline reads first and therefore what it pays for.
+
+**If it helps the choice:** `.service.ts` is the better-instrumented of the two (it has
+`PipelineLogger`; the other logs nothing), and its ordering puts tax records second, which is the
+cheapest authoritative source of owner and legal description in most Texas counties. That is an
+argument, not a recommendation — neither has ever run.
 
 Not touched tonight. Deleting working-looking code at 4am on the strength of a grep is exactly how a
 real feature gets removed, and wiring an untested 764-line path into the analysis run is worse.
