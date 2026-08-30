@@ -51,6 +51,49 @@ overwrite a deliberate design.
 > three states. Each branch is one `git merge-base --is-ancestor` away from an answer, and that
 > command is the whole lesson.
 
+> ### ⚠ AND `job-lifecycle` IS NOT "THE PHONE PROJECT" — measured 2026-08-29
+>
+> It is filed here, and in this repo's memory, as the business-phone work: *"BUILT, NEVER MERGED …
+> `calls` table live with 0 rows"*. Reading the seventeen commits, that is roughly half of it.
+>
+> ```
+> feat(jobs): the office can finally write the field crew's instructions
+> feat(jobs): deliverables get a screen
+> feat(jobs): one notifier for job events — and every dropped notification was silent
+> feat(jobs): briefings you can record, and every job event reaches the crew
+> feat(jobs): where the money stands, and the lead arrives with its files
+> feat(receipts): review them as a slideshow, with zoom, and correct anything
+> feat(receipts): re-run the AI across a whole filtered set
+> fix(ui): --color-danger is not a token, so those colours rendered as nothing
+> feat(phone): … × 5
+> ```
+>
+> **Of the 73 files absent from `main`: 36 are phone/Twilio, and 37 are not.**
+>
+> | Not phone | |
+> |---|---|
+> | `lib/jobs` + `app/admin/jobs/[id]` | briefings, deliverables, financials — 9 files |
+> | `__tests__/jobs` | 6 |
+> | `seeds` | 4 |
+> | `lib/notifications` + `__tests__/notifications` | the job-event notifier — 4 |
+> | `app/api/cron/job-event-digest`, `app/api/admin/me/job-notifications` | 2 |
+> | `lib/leads` | the lead arriving with its files |
+>
+> **Why that matters:** the phone half genuinely IS blocked — §S3 measured the Twilio account as
+> active with **zero numbers rented**, so inbound calls cannot work until a number is bought. But
+> job briefings, the deliverables screen, job financials, the event notifier and the receipt
+> slideshow **do not touch Twilio at all**, and they have been parked for a fortnight behind a
+> blocker that does not apply to them.
+>
+> The last commit reads `fix(phone): three defects browser QA and a live call found; doc to
+> completed/` — so this was driven in a browser and tested with a real call, and its own plan doc was
+> moved to `completed/`. It was finished work, not an experiment.
+>
+> **This is the fifth or sixth parked premise checked this session and the fifth or sixth to be
+> false or much narrower than written.** The rule has earned its place: a parked item records what
+> somebody believed the moment they parked it, and measuring the claim is cheaper than acting on it.
+> [[feedback_check_the_premise_before_building]]
+
 ## A00. 2,591 lines of finished work are in a gitignored worktree — found 2026-08-29
 
 - [ ] **Decide: merge `worktree-surveying-payments-2026-07-29`, cherry-pick from it, or delete it.**
