@@ -339,6 +339,40 @@ overwrite a deliberate design.
 > the project layer and the page consolidation is not a decision to make on someone's behalf at the
 > end of a long session.
 
+## A0b. `verify:org-scope` still has nothing running it — recorded 2026-08-29
+
+- [ ] **Decide how the two live-state checks get run, or accept that they are run by hand.**
+
+> Checked which guards actually execute, because a guard nobody runs is a guard that does not
+> exist — which is this session's own lesson pointed at its own work.
+>
+> **The good news, measured:** CI runs `npm test`, so all 26,600 vitest tests execute on every push
+> and PR — including the five guards added today. And most ratchets are pinned by tests CI runs:
+> `verify:orphans` → `every-export-is-imported.test.ts`, `verify:portal-tabs`,
+> `verify:page-inventory`, `verify:inline-style-hex`, and both new scripts. Those are covered.
+>
+> **Two are not pinned, and cannot be:** `verify:org-scope` and `audit:vendors` read LIVE external
+> state — the database and third-party APIs. vitest cannot hold them, and that is correct design
+> rather than an oversight.
+>
+> **But `verify:org-scope` is the check that sat RED FOR WEEKS and nobody noticed**, precisely
+> because nothing runs it. Ten tables drifted out of the tenant filter and 1,371 rows sat unowned.
+> That was fixed today. Nothing prevents it recurring, and the next drift will be just as silent.
+>
+> **Two ways to close it, and both are owner decisions:**
+>
+> 1. **Run it in CI** — needs `SUPABASE_DB_URL` as a GitHub secret. Simplest, but it puts a
+>    production database credential in CI, which is a real security decision and not mine.
+> 2. **A cron route**, like the worker watchdog added today. `pg` IS already a dependency
+>    (`^8.22.0`) — **but no app route uses it**, so this would be the first direct database
+>    connection from a serverless function alongside PostgREST. On Vercel that raises connection
+>    pooling: get it wrong and it exhausts Supabase connections under load. Not a decision to make
+>    quietly at the end of a session.
+>
+> Recorded rather than built. The measurement that matters is already one command away
+> (`npm run verify:org-scope`); what is missing is somebody or something running it, and choosing
+> who is the owner's call.
+
 ## A0. Spend has a per-run ceiling and no aggregate one — recorded 2026-08-29, BEFORE it matters
 
 - [ ] **Decide whether an aggregate spend cap is needed before `RESEARCH_QUEUE_POLLER=1` is ever set.**
