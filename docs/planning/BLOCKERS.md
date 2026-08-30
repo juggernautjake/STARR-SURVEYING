@@ -37,6 +37,36 @@ overwrite a deliberate design.
 > drift, because every one of its files is new. The smallest interesting one, `job-lifecycle`, has
 > fourteen, because its value is wired through files everyone else has been editing.
 >
+> ### ✅ AND THE D&D CHAIN WAS MERGED IN A PROBE TOO — 2026-08-29, and it is the clean one
+>
+> Same method: detached worktree under temp, merged, tested, removed. The three conflicts were
+> resolved the obvious way — keep `main`'s `.gitignore` and `package.json`, take the branch's planning doc.
+>
+> | Check | Tax work | **D&D chain** |
+> |---|---|---|
+> | conflicts | 0 | 3, all trivial |
+> | `tsc --noEmit` | exit 0 | **exit 0** |
+> | `verify:orphans` | ❌ **+2 orphans** | ✅ **"No new orphans"** |
+> | its own new modules wired? | **no** — `sales-tax.ts`, `deadlines.ts` have no importer | **yes** — magic items, bestiary search and the thumbnail all have callers |
+>
+> **So the two swap places once you look past the conflict count.** The tax work merges more
+> cleanly and lands 697 lines nothing calls. The D&D chain needs three one-line resolutions and
+> lands work that is actually reachable.
+>
+> That is the argument for probing rather than reading merge-tree output: a conflict count measures
+> textual overlap and says nothing about whether the result is WIRED — which is this repo's most
+> common defect.
+>
+> **Its one real hazard is now concrete rather than inferred.** The merged tree contains BOTH:
+>
+> ```
+> seeds/571_admin_push_subscriptions.sql     ← main's, in use
+> seeds/571_dnd_campaign_thumbnail.sql       ← the branch's
+> ```
+>
+> Two files claiming 571 in one directory, with glob order deciding which runs. Renumber the
+> branch's to **619** (main's seeds reach 618) before merging, and the rest is mechanical.
+>
 > **`dnd-streamer-audit`'s three conflicts are trivial** — `.gitignore`, `package.json` and a
 > planning doc already in `completed/`. **No source file conflicts.** Its one real hazard is the seed
 > collision: `571_dnd_campaign_thumbnail.sql` against main's `571_admin_push_subscriptions.sql`.
