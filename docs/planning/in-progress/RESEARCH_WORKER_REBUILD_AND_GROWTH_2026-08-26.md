@@ -256,7 +256,36 @@ Added to `worker-healthcheck-contract.test.ts`, which already exists for exactly
 written after a Dockerfile polled `/healthz` while the worker only served `/health`, a defect that
 hid in the gap between two test suites. 9 tests green.
 
-### W5 — surviving a host reboot ✅ RUNBOOK FIXED 2026-08-26 (execution is server-gated)
+### W5 — surviving a host reboot ◐ **tooling SHIPPED 2026-08-29; the reboot itself is still owner-gated**
+
+> **Two things shipped that turn this from a thing somebody must remember into a thing that happens.**
+>
+> **1. `npm run verify:worker`** — probes `/healthz` over the real hostname and prints a verdict with
+> an exit code. W4 had argued against a CLI check and was right about the reason: `/admin/research`
+> already renders `WorkerStatusBanner`, and a CLI that RE-DERIVED that judgement would be a second,
+> worse copy. This imports `interpretWorkerProbe` instead — one brain, three callers. The exit code
+> gates on `verdict.canRunDeep`, not on `state === 'ok'`, so it cannot silently disagree the day a
+> fifth state exists. Verified against all four paths on the live worker.
+>
+> **2. `/api/cron/worker-health`, hourly at :17.** This is the actual answer to "the last worker died
+> by silently never coming back". There were nineteen crons in `vercel.json` and **not one looked at
+> the worker.** A banner needs somebody looking at it, and the whole problem was that nobody was.
+>
+> **It alerts on the TRANSITION, not on the state**, which is the entire design. A worker down for
+> three days is one piece of news, not seventy-two — notify every tick and the third day looks like
+> the first, everyone mutes the channel, and the next real outage lands somewhere nobody reads.
+> Recovery is announced too, because a watchdog that only reports bad news makes silence ambiguous:
+> is it fine, or did the watchdog die? `degraded` escalates above `unreachable` — it looks up, and
+> will accept a run and fail it twenty minutes in after documents have been paid for.
+>
+> **An exhaustive test over every (previous, current) pair caught a real bug in the policy.** The
+> recovery branch was written as "was bad, is no longer bad", which fires on
+> `unreachable → not_configured` and announces *"the research worker is back"*. It is not back —
+> somebody removed `WORKER_URL`. A cheerful lie, and the kind nobody double-checks because good news
+> is not suspicious.
+>
+> **Still owner-gated:** the reboot itself. `reboot`, wait 60s, then `npm run verify:worker` from a
+> laptop. Steps are in `STARR-WORKER-SETUP-STEPS.txt` in the owner's Downloads.
 
 Compose already sets `restart: unless-stopped` on both services. But that only helps if the **Docker
 daemon** starts at boot, and the runbook had no step that confirmed it — it installed Docker, ran
