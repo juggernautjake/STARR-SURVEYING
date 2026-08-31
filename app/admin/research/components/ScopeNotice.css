@@ -1,0 +1,56 @@
+/* app/admin/research/components/ScopeNotice.css — Phase S3.
+ *
+ * Imported by ScopeNotice.tsx, not appended to AdminResearch.css — that sheet is route-scoped to
+ * /admin/research/**, and this notice belongs anywhere a run can be started, including screens
+ * outside that tree. Third instance of a shared component rendering unstyled because it relied on a
+ * route-scoped sheet, so: a caller cannot forget to bring the styles.
+ *
+ * Every colour is a `--color-*` token with its literal as the fallback, which is what makes this
+ * follow all eleven palettes. F2 (2026-08-31) measured what happens otherwise: a hard-coded pale
+ * panel with themed text reads at 1.04:1 on high-contrast-dark, and the reason is always the same —
+ * an element that brings its own background has to bring its own foreground, or take both from the
+ * theme. This takes both. */
+
+.research-scope-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+/* Runnable, and it costs. */
+.research-scope-notice--warn {
+  color: var(--color-warning-text, #B54708);
+  background: var(--color-warning-surface, #FFFAEB);
+  border-color: var(--color-warning-border, #FDE68A);
+}
+
+/* Not runnable. */
+.research-scope-notice--block {
+  /* `--color-error-*`, not `--color-danger-*`. The danger names do not exist, and a token that
+   * is READ and defined nowhere renders correctly through its fallback while quietly opting the
+   * whole notice out of theming — tokens.css:110 records the last time that happened here. */
+  color: var(--color-error-text, #B42318);
+  background: var(--color-error-surface, #FEF3F2);
+  border-color: var(--color-error-border, #FECACA);
+}
+
+/* The word, not the colour, is what carries the meaning — see the note in the component. */
+.research-scope-notice__label {
+  flex-shrink: 0;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  padding-top: 0.1rem;
+  white-space: nowrap;
+}
+
+.research-scope-notice__body {
+  min-width: 0;
+}

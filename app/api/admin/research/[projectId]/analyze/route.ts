@@ -5,6 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { mayBuyDocuments, paidDocumentsNotice } from '@/lib/research/paid-documents';
 import { analyzeProject, getAnalysisStatus } from '@/lib/research/analysis.service';
+import { checkScope, scopeRefusal } from '@/lib/research/scope';
 
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
@@ -22,7 +23,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists and is in a valid state
   const { data: project } = await supabaseAdmin
     .from('research_projects')
-    .select('id, status')
+    .select('id, status, state, county')
     .eq('id', projectId)
     .single();
 
@@ -62,6 +63,22 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     }, { status: 400 });
   }
 
+  // ── SCOPE, BEFORE ANYTHING EXPENSIVE (Phase S2) ────────────────────────────────────────────
+  //
+  // This is the LAST place a run can be stopped, and it is the one that has to hold: the browser
+  // can be bypassed, and the batch form is a different screen with its own copy of the button.
+  // Before this there was no state check anywhere in the system, so an out-of-state property
+  // geocoded, routed to a Texas aggregator, and spent money reporting on no property at all.
+  //
+  // 422 rather than 400: the request is well formed and the operator did nothing wrong. The body
+  // carries the verdict and a next step, because a refusal with no next step is a dead end.
+  //
+  // A resume is checked too. A project can be edited between runs, and the second run is exactly
+  // the one that slips through a guard that only watches the first.
+  const scope = checkScope(project.state as string | null, project.county as string | null);
+  if (!scope.canRun) {
+    return NextResponse.json(scopeRefusal(scope), { status: 422 });
+  }
   // Start analysis asynchronously
   analyzeProject(projectId, config).catch(err => {
     console.error(`[Analysis API] Background analysis failed for ${projectId}:`, err);

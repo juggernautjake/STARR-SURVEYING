@@ -41,6 +41,9 @@ import { propertyReviewFields, type ProjectLike } from './_sections/property-rev
 import { surveyReviewData } from './_sections/survey-review-data';
 import { summaryReviewData } from './_sections/summary-review-data';
 import { easementsReviewData } from './_sections/easements-review-data';
+// The same verdict the API refuses on, so the button and the server can never disagree (S3).
+import { checkScope } from '@/lib/research/scope';
+import ScopeNotice, { scopeDescribedBy } from '../components/ScopeNotice';
 import {
   coherenceReviewData, scoreFillColor, deltaColor, deedCompleteColor,
   DEED_BREAKS_COLOR, MISSING_INSTRUMENTS_COLOR,
@@ -1618,6 +1621,18 @@ export default function ResearchProjectPage() {
         const postAnalysis = ['review', 'drawing', 'verifying', 'complete'].includes(project.status);
         const hasInputs = Boolean(project.property_address || project.parcel_id) || documents.length > 0;
 
+        // ── SCOPE, ON THE BUTTON (Phase S3) ─────────────────────────────────────────────────────
+        //
+        // The API refuses an out-of-scope run with a 422, and that is the guard. This is the other
+        // half: a button that starts a run it already knows will be refused is worse than a
+        // disabled one, because the operator learns the answer after the wait rather than before
+        // the click.
+        //
+        // Same verdict, same module, both sides — so the two can never disagree. `canRun` is what
+        // gates the button; the notice explains it, including the `degraded` case where the answer
+        // is yes and it costs money.
+        const scope = checkScope(project.state, project.county);
+
         if (isAnalyzing) {
           return (
             <div className="research-action-bar research-action-bar--running" data-testid="research-action-bar">
@@ -1633,7 +1648,14 @@ export default function ResearchProjectPage() {
                 <CheckCircle2 size={16} className="research-action-bar__ok" aria-hidden="true" />
                 Analysis complete. Re-run STARR RECON to refresh with new documents or parameters.
               </span>
-              <button className="research-action-bar__btn" onClick={() => setShowRerunConfirm(true)}>
+              <ScopeNotice scope={scope} id="scope-rerun" />
+              <button
+                className="research-action-bar__btn"
+                disabled={!scope.canRun}
+                aria-describedby={scopeDescribedBy(scope, 'scope-rerun')}
+                title={scope.canRun ? 'Re-run the AI research pipeline' : scope.message}
+                onClick={() => setShowRerunConfirm(true)}
+              >
                 <Sparkles size={16} aria-hidden="true" /> Re-run analysis
               </button>
             </div>
@@ -1647,10 +1669,16 @@ export default function ResearchProjectPage() {
                 ? <>Ready to analyze. STARR RECON will search public records, capture sources, and extract data with AI.</>
                 : <>Add a property address (or parcel id), or upload a document, to start the AI analysis.</>}
             </span>
+            <ScopeNotice scope={scope} id="scope-start" />
             <button
               className="research-action-bar__btn"
-              disabled={!hasInputs}
-              title={hasInputs ? 'Start the AI research pipeline' : 'Add an address/parcel id or a document first'}
+              disabled={!hasInputs || !scope.canRun}
+              aria-describedby={scopeDescribedBy(scope, 'scope-start')}
+              title={
+                !scope.canRun ? scope.message
+                  : hasInputs ? 'Start the AI research pipeline'
+                  : 'Add an address/parcel id or a document first'
+              }
               onClick={handleStartAnalysis}
             >
               <Sparkles size={16} aria-hidden="true" /> Start AI analysis

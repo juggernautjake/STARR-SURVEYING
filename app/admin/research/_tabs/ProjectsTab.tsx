@@ -19,6 +19,8 @@ import WorkerStatusBanner from '../components/WorkerStatusBanner';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import { checkCounty } from '@/lib/research/county-input';
 import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
+import { checkScope } from '@/lib/research/scope';
+import ScopeNotice from '../components/ScopeNotice';
 import { Accordion, ErrorState } from '../components/ui';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
@@ -621,6 +623,17 @@ export default function ProjectsTab() {
                   Enter a property address or a Property ID — either one identifies the parcel.
                 </div>
               )}
+
+              {/* ── SCOPE, BEFORE THE PROJECT EXISTS (Phase S3) ─────────────────────────────────
+                  Shown here and NOT enforced here, deliberately. Creating a record for a property
+                  we cannot research is a reasonable thing to do — you may want it on file, or you
+                  may be about to correct the state. What is refused is the RUN, on the button that
+                  starts one and again in the API.
+
+                  Finding out at creation rather than three screens later is the whole value: the
+                  county field already warns about spelling, and this is the same courtesy for the
+                  question that decides whether the pipeline can do anything at all. */}
+              <ScopeNotice scope={checkScope(newProject.state, newProject.county)} id="scope-create" />
 
               <div className="research-modal__actions">
                 <button type="button" className="research-modal__cancel" onClick={() => setShowCreate(false)}>

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+import { checkScope, scopeRefusal } from '@/lib/research/scope';
 
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
@@ -36,6 +37,40 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   }
   if (body.properties.length > 50) {
     return NextResponse.json({ error: 'Maximum 50 properties per batch' }, { status: 400 });
+  }
+
+  // ── SCOPE, PER ROW, BEFORE THE WORKER IS TOLD ANYTHING (Phase S2) ──────────────────────────────
+  //
+  // The guard has to sit on BOTH run paths or it is not a guard: this form is a different screen
+  // from the project page, with its own copy of the button, and it is the path that actually buys
+  // documents. A batch of fifty with one New Mexico row in it would previously have queued fifty.
+  //
+  // ALL the bad rows are reported, not the first. Fifty rows fixed one refusal at a time is fifty
+  // round trips, and the operator would rightly stop trusting the form.
+  //
+  // A DEGRADED row is not refused here — it is a price, and the spend limit on this form is exactly
+  // the control for it. Only `canRun === false` stops the batch.
+  const refusals = body.properties
+    .map((p, i) => ({ i, p, scope: checkScope(p.state ?? 'TX', p.county) }))
+    .filter((r) => !r.scope.canRun);
+
+  if (refusals.length > 0) {
+    const first = refusals[0]!;
+    return NextResponse.json({
+      ...scopeRefusal(first.scope),
+      error: refusals.length === 1
+        ? `Row ${first.i + 1}: ${first.scope.message}`
+        : `${refusals.length} of ${body.properties.length} properties are outside our coverage, so no part of this batch was started.`,
+      rows: refusals.map((r) => ({
+        index: r.i,
+        address: r.p.address,
+        county: r.p.county,
+        state: r.p.state ?? 'TX',
+        verdict: r.scope.verdict,
+        message: r.scope.message,
+        nextStep: r.scope.nextStep,
+      })),
+    }, { status: 422 });
   }
 
   const workerRes = await fetch(`${WORKER_URL}/research/batch`, {

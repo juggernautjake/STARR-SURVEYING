@@ -68,7 +68,7 @@ findings there:
 
 ## Phase S — the scope guard *(first, because it is the one that spends money)*
 
-### S1 — What "in scope" means, as data ☐
+### S1 — What "in scope" means, as data ✅ **SHIPPED 2026-08-31** — `lib/research/scope.ts`
 
 One module, `lib/research/scope.ts`, that answers one question: **can this platform research this
 property, and how well?** It is the only place the answer lives, and both run paths and the UI read
@@ -95,7 +95,7 @@ proof — it is Texas-only by construction and by accident at the same time.
 county to the registry moves it into scope with no second list to update. A hand-maintained list of
 supported counties beside a registry of adapters is G12 waiting to happen.
 
-### S2 — The guard on both run paths ☐
+### S2 — The guard on both run paths ✅ **SHIPPED 2026-08-31**
 
 `analyze/route.ts` and `batch/route.ts` both call `inScope` before doing anything expensive, and
 return a **422 with a structured body** — verdict, reason, and what the operator can do — not a bare
@@ -103,7 +103,7 @@ return a **422 with a structured body** — verdict, reason, and what the operat
 
 The test asserts the **route** refuses, not that the function returns the right string.
 
-### S3 — Say it before they click, not after ☐
+### S3 — Say it before they click, not after ✅ **SHIPPED 2026-08-31** — `ScopeNotice`
 
 The New Research Project modal and the batch form already have `CountyNote`. They gain the scope
 verdict beside it: state and county resolved together, with the adapter's real status named. The
@@ -229,5 +229,68 @@ doing it was 76 findings.
 
 ## Slice log
 
+
 | Date | Slice | What shipped |
 |---|---|---|
+| 2026-08-31 | S1 · S2 · S3 | `lib/research/scope.ts` — four verdicts derived from `CLERK_REGISTRY`, never a second list. Guards on **both** run paths, 422 with a renderable body. `ScopeNotice` on all three surfaces that start a run. 66 tests; eleven mutations, two of which survived the first round. |
+
+### S1–S3 — the scope guard, shipped 2026-08-31
+
+#### Two mutations survived, and both were the ones that mattered
+
+`checkScope` imported, ordered before `analyzeProject`, and a `scopeRefusal(` somewhere in the file
+— all asserted, all true, and all satisfied by a guard whose condition is `if (false)`. Replacing
+`if (!scope.canRun)` with exactly that left **all 46 tests green**. The check was present, imported,
+ordered correctly, and did nothing.
+
+Renaming the batch route's filtered list survived the same way: `.filter((r) => !r.scope.canRun)`
+was still in the file and `rows:` was still in the file, so both assertions passed while nothing was
+checked. `tsc` would have caught that particular slip — and a guard that leans on the compiler to
+notice is one refactor away from not being a guard.
+
+Both read the **condition** now rather than the presence: the nearest `if (…)` above the refusal has
+to mention `scope.canRun`, and the list the batch route builds has to be the list it tests. Seven
+more mutations across the module and the three UI surfaces, all red.
+
+#### What the guard refuses, and what it deliberately does not
+
+| | |
+|---|---|
+| `out-of-scope` | A state we have not built — **the case the owner asked for**, and there was no state check anywhere in the system before this. Also a string that is not one of Texas's 254 counties. |
+| `unavailable` | One of the three counties whose clerk has no online system at all. An automated run returns nothing, so it does not start, and the message says what has to happen instead. |
+| `degraded` | **Not refused.** 18 of the 25 registry entries are stubs, and the other 229 counties route the same way — refusing them would refuse most of Texas. It is a price, so the notice states the price. |
+| `unknown` | A blank form. Renders nothing: a form somebody has not filled in yet is not a problem to report at them. |
+
+The only hand-written list in the module is `SUPPORTED_STATES`, and it has one entry. A
+`SUPPORTED_COUNTIES` array beside `CLERK_REGISTRY` would be G12 with money attached: it would go
+stale the first time somebody built an adapter, and it would go stale **silently**, because the run
+would still be refused and nobody would find out why.
+
+#### Ordering, which is most of the message
+
+The state is answered before the county. Checking the county first reports *"Sandoval is not a Texas
+county"* for a New Mexico property — true, useless, and it points the operator at the wrong field.
+
+#### Three surfaces, one function
+
+The project page's run button is `disabled` on `!scope.canRun` and points `aria-describedby` at the
+notice, so a disabled button is never a dead end for somebody not looking at the amber box. The
+batch form blocks submit on any refused row and names the rows, because the API returns 422 for the
+whole batch and a form that let you send one would be a guaranteed round trip to a red banner. The
+create modal **warns and does not block** — recording a property we cannot research is reasonable,
+and what is refused is the run.
+
+The batch form and the batch route both default a blank state column to `TX`, and the test asserts
+them against each other. Two defaults that disagree is how a form comes to promise what the API
+refuses.
+
+#### And a token that did not exist
+
+`ScopeNotice.css` was first written against `--color-danger-text` and `--color-danger-bg`. Those
+names are defined nowhere; the real ones are `--color-error-*`. It would have rendered perfectly
+through its fallbacks and quietly opted the whole notice out of theming — the exact defect
+`tokens.css:110` records in its own words. The test now asserts that every token the sheet reads is
+defined somewhere.
+
+Driven in a browser on `starr-default` and `starr-dark`, and checked on all eleven palettes: no
+unthemed surfaces, no unreadable text.

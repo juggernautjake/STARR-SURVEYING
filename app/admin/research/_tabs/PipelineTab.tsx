@@ -13,6 +13,8 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import SpendLimitSlider from '../components/SpendLimitSlider';
 import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
+import { checkScope } from '@/lib/research/scope';
+import ScopeNotice from '../components/ScopeNotice';
 import { EmptyState, ErrorState, LoadingState } from '../components/ui';
 import { checkCounty } from '@/lib/research/county-input';
 
@@ -123,6 +125,24 @@ export default function PipelineTab() {
   // One check per row, recomputed as you type. `checkCounty` is a list comparison over 254
   // entries — cheap enough that memoising it would be more code than it saves.
   const rowChecks = batchRows.map(r => checkCounty(r.county));
+
+  // ── AND THE SAME VERDICT THE API WILL REFUSE ON (Phase S3) ──────────────────────────────────
+  //
+  // The county check answers *"is this a Texas county?"* while somebody types. This answers *"can
+  // we research it, and what will it cost?"* — the more expensive question here, because the batch
+  // path is the one that actually buys documents.
+  //
+  // `state || 'TX'` mirrors `batch/route.ts` exactly, so a blank column reads the same on both
+  // sides. Two defaults that disagree is how a form comes to promise something the API refuses.
+  const rowScopes = batchRows.map(r => checkScope(r.state || 'TX', r.county));
+
+  // Rows the API will refuse. The route returns 422 for the WHOLE batch on any of them, so a form
+  // that let you submit one would be a guaranteed round trip to a red banner. Only rows that are
+  // otherwise ready count: a half-typed row is not yet a refusal.
+  const blockedRows = batchRows
+    .map((r, i) => ({ i, r, scope: rowScopes[i]! }))
+    .filter(x => isReadyRow(x.r) && !x.scope.canRun);
+
   // ONE predicate, used by the count, the estimate and the submit. It was two identical
   // expressions a moment ago, which is how a form comes to say "3 ready" and send two.
   const readyRows = batchRows.filter(isReadyRow).length;
@@ -265,6 +285,7 @@ export default function PipelineTab() {
                       typed={row.county}
                       onPick={c => updateBatchRow(idx, 'county', c)}
                     />
+                    <ScopeNotice scope={rowScopes[idx]!} id={`batch-scope-${idx}`} />
                   </div>
                   <input
                     className="research-pipeline__input research-pipeline__input--short"
@@ -338,7 +359,23 @@ export default function PipelineTab() {
                 {readyRows} of {batchRows.length} ready
               </span>
               {batchError && <span className="research-pipeline__error">{batchError}</span>}
-              <button type="submit" className="research-pipeline__submit-btn" disabled={batchCreating}>
+              {/* Named, not counted. "1 property is outside our coverage" makes somebody scan
+                  fifty rows; naming the county points at the row. */}
+              {blockedRows.length > 0 && (
+                <span className="research-pipeline__error" role="alert">
+                  {blockedRows.length === 1
+                    ? `Row ${blockedRows[0]!.i + 1} (${blockedRows[0]!.r.county || 'no county'}) is outside our coverage.`
+                    : `${blockedRows.length} rows are outside our coverage: ${blockedRows.map(b => `row ${b.i + 1}`).join(', ')}.`}
+                </span>
+              )}
+              <button
+                type="submit"
+                className="research-pipeline__submit-btn"
+                disabled={batchCreating || blockedRows.length > 0}
+                title={blockedRows.length > 0
+                  ? 'One or more properties are outside our coverage — the whole batch would be refused'
+                  : undefined}
+              >
                 {batchCreating ? 'Submitting…' : 'Submit Batch'}
               </button>
             </div>
