@@ -24,7 +24,8 @@
 // what a header should be able to do.
 
 import React from 'react';
-import { MapPin, Pencil } from 'lucide-react';
+import { MapPin, Pencil, Link2 } from 'lucide-react';
+import { jobLabel, type JobSummary } from '../../components/JobLinkPicker';
 
 /** Only the fields the header actually reads. A wider type would invite it to grow. */
 export interface ProjectHeaderProject {
@@ -39,9 +40,11 @@ export interface ProjectHeaderProps {
   project: ProjectHeaderProject;
   onEdit: () => void;
   onArchive: () => void;
+  /** The job this project is attached to, if any (J1). */
+  linkedJob?: JobSummary | null;
 }
 
-export default function ProjectHeader({ project, onEdit, onArchive }: ProjectHeaderProps) {
+export default function ProjectHeader({ project, linkedJob, onEdit, onArchive }: ProjectHeaderProps) {
   return (
     <div className="research-page__header">
       <div>
@@ -60,6 +63,19 @@ export default function ProjectHeader({ project, onEdit, onArchive }: ProjectHea
         {project.description && (
           <div style={{ color: 'var(--theme-fg-secondary, #4B5563)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
             {project.description}
+          </div>
+        )}
+        {/* ── THE JOB THIS BELONGS TO (Phase J1) ────────────────────────────────────────────────
+            In the header rather than only inside the edit modal: research that is not attached to
+            a job is research nobody bills for, and "is this attached?" is a question you ask while
+            looking at the project, not while editing it. Absent when there is no link — an empty
+            row saying "No job" on every unlinked project is noise. */}
+        {linkedJob && (
+          <div style={{ fontSize: '0.85rem', marginTop: '0.35rem' }}>
+            <Link2 size={14} style={{ verticalAlign: '-2px', marginRight: '0.35rem' }} aria-hidden="true" />
+            <a href={`/admin/jobs/${linkedJob.id}`} className="research-project-header__job">
+              {jobLabel(linkedJob)}
+            </a>
           </div>
         )}
       </div>

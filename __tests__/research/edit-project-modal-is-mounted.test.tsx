@@ -29,6 +29,8 @@ const VALUE = {
   property_address: '101 E Central Ave',
   county: 'Bell',
   state: 'TX',
+  // J1 — the job link. `null` is the ordinary case: most projects are not attached to one.
+  job_id: null,
 };
 
 const render = (over: Partial<React.ComponentProps<typeof EditProjectModal>> = {}) =>
@@ -41,7 +43,11 @@ const render = (over: Partial<React.ComponentProps<typeof EditProjectModal>> = {
 
 describe('the page still mounts it', () => {
   it('imports the section', () => {
-    expect(PAGE).toContain("import EditProjectModal from './_sections/EditProjectModal'");
+    // The type came along in J1 (`EditProjectValue` now carries `job_id`), so the import is no
+    // longer bare. Matched on the module rather than the exact clause: the property this asserts is
+    // "the page uses THIS file", and pinning the punctuation would make every future named export
+    // a test failure with nothing wrong.
+    expect(PAGE).toMatch(/import EditProjectModal[^;]*from '\.\/_sections\/EditProjectModal'/);
   });
 
   it('renders it unconditionally — the open/closed decision moved INSIDE', () => {

@@ -54,7 +54,8 @@ import RunConsoleBar from '../components/RunConsoleBar';
 import RunDiffPanel from '../components/RunDiffPanel';
 // What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
 import ReportCardPanel from '../components/ReportCardPanel';
-import EditProjectModal from './_sections/EditProjectModal';
+import EditProjectModal, { type EditProjectValue } from './_sections/EditProjectModal';
+import { type JobSummary } from '../components/JobLinkPicker';
 import ResearchStagePanel from './_sections/ResearchStagePanel';
 import UploadStagePanel from './_sections/UploadStagePanel';
 import FinalDocumentTab from './_sections/FinalDocumentTab';
@@ -262,7 +263,10 @@ export default function ResearchProjectPage() {
 
   // Project editing state
   const [showEditProject, setShowEditProject] = useState(false);
-  const [editProjectData, setEditProjectData] = useState({ name: '', description: '', property_address: '', county: '', state: '' });
+  const [editProjectData, setEditProjectData] = useState<EditProjectValue>({ name: '', description: '', property_address: '', county: '', state: '', job_id: null });
+  // The job the project is linked to, fetched once so the picker can NAME it rather than render
+  // "Linked" and make somebody open another tab to find out to what (J1).
+  const [linkedJob, setLinkedJob] = useState<JobSummary | null>(null);
   const [savingProject, setSavingProject] = useState(false);
 
   const userRoles = session?.user?.roles || ['employee'];
@@ -321,6 +325,30 @@ export default function ResearchProjectPage() {
     if (projectId) init();
   }, [projectId, loadProject, loadDocuments]);
 
+  // ── THE LINKED JOB, NAMED (Phase J1) ────────────────────────────────────────────────────────
+  //
+  // Fetched separately and only when there is one to fetch. A picker that renders "Linked" and
+  // nothing else makes somebody open another tab to find out to WHAT, and the research API returns
+  // the id rather than the job.
+  //
+  // A failure here is silent on purpose: the link is still shown by id, and a job lookup that 404s
+  // must not stop the project page loading around it.
+  useEffect(() => {
+    const jobId = (project as { job_id?: string | null } | null)?.job_id;
+    if (!jobId) { setLinkedJob(null); return; }
+    if (linkedJob?.id === jobId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/jobs?id=${jobId}`);
+        if (!res.ok) return;
+        const body = await res.json() as { job?: JobSummary };
+        if (!cancelled && body.job) setLinkedJob(body.job);
+      } catch { /* the link still renders by id */ }
+    })();
+    return () => { cancelled = true; };
+  }, [project, linkedJob?.id]);
+
   // Poll for document processing status changes
   useEffect(() => {
     const hasPending = documents.some(d => d.processing_status === 'pending' || d.processing_status === 'extracting');
@@ -341,6 +369,7 @@ export default function ResearchProjectPage() {
       property_address: project.property_address || '',
       county: project.county || '',
       state: project.state || 'TX',
+      job_id: (project as { job_id?: string | null }).job_id ?? null,
     });
     setShowEditProject(true);
   }
@@ -1603,6 +1632,7 @@ export default function ResearchProjectPage() {
       {/* Header */}
       <ProjectHeader
         project={project}
+        linkedJob={linkedJob}
         onEdit={openEditProject}
         onArchive={handleArchiveProject}
       />
@@ -3292,6 +3322,7 @@ export default function ResearchProjectPage() {
       <EditProjectModal
         open={showEditProject}
         value={editProjectData}
+        linkedJob={editProjectData.job_id ? linkedJob : null}
         onChange={setEditProjectData}
         onSubmit={handleSaveProject}
         onClose={() => setShowEditProject(false)}

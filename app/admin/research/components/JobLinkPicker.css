@@ -1,0 +1,123 @@
+/* app/admin/research/components/JobLinkPicker.css — Phase J1.
+ *
+ * Imported by the component, not appended to AdminResearch.css: that sheet is route-scoped to
+ * /admin/research/**, and this picker belongs anywhere a research project is edited — including the
+ * job side of the link, which is not under that route. Third instance in this repo of a shared
+ * component rendering completely unstyled because it relied on a route-scoped sheet.
+ *
+ * Every colour is a `--theme-*` token with its literal as the fallback, so it follows all eleven
+ * palettes. F2 measured what happens otherwise. */
+
+.job-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.job-link--set {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.job-link__label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.job-link__input {
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #111827);
+  font-size: 0.85rem;
+}
+
+.job-link__input:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+  border-color: var(--theme-accent, #1D3095);
+}
+
+.job-link__current {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--theme-accent, #1D3095);
+  text-decoration: underline;
+}
+
+.job-link__clear {
+  background: none;
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 6px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #374151);
+  cursor: pointer;
+}
+
+.job-link__clear:hover {
+  background: var(--theme-bg-elevated, #F1F5F9);
+}
+
+.job-link__note {
+  font-size: 0.75rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.job-link__note--error {
+  color: var(--color-error-text, #B42318);
+}
+
+/* The result list floats, so a long list does not push the form's submit button off-screen. */
+.job-link__results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0.2rem 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: 14rem;
+  overflow-y: auto;
+  background: var(--theme-bg-surface, #FFFFFF);
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.job-link__result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.82rem;
+  color: var(--theme-fg-primary, #111827);
+  cursor: pointer;
+}
+
+.job-link__result:hover,
+.job-link__result:focus-visible {
+  background: var(--theme-bg-elevated, #F1F5F9);
+  outline: none;
+}
+
+.job-link__stage {
+  flex-shrink: 0;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--theme-fg-muted, #6B7280);
+}

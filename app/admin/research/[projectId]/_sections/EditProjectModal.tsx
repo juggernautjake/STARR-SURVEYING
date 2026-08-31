@@ -17,6 +17,7 @@
 // unchanged and the byte-comparison against HEAD holds.
 
 import React from 'react';
+import JobLinkPicker, { type JobSummary } from '../../components/JobLinkPicker';
 
 export interface EditProjectValue {
   name: string;
@@ -24,11 +25,15 @@ export interface EditProjectValue {
   property_address: string;
   county: string;
   state: string;
+  /** Phase J1 — the column has existed since seeds/090 and had no UI at all. */
+  job_id: string | null;
 }
 
 export interface EditProjectModalProps {
   open: boolean;
   value: EditProjectValue;
+  /** The job currently linked, so the picker can name it without a second fetch. */
+  linkedJob?: JobSummary | null;
   onChange: (update: (prev: EditProjectValue) => EditProjectValue) => void;
   onSubmit: (e: React.FormEvent) => void;
   onClose: () => void;
@@ -36,7 +41,7 @@ export interface EditProjectModalProps {
 }
 
 export default function EditProjectModal({
-  open, value, onChange, onSubmit, onClose, saving,
+  open, value, linkedJob, onChange, onSubmit, onClose, saving,
 }: EditProjectModalProps) {
   if (!open) return null;
 
@@ -105,6 +110,20 @@ export default function EditProjectModal({
               rows={3}
             />
           </div>
+          {/* ── THE JOB LINK (Phase J1) ──────────────────────────────────────────────────────
+              Owner: "can link the research to a specific job if they want". Optional, and last in
+              the form because it is: everything above describes the property, and this describes
+              what the firm is doing about it. */}
+          <div className="research-modal__field">
+            <JobLinkPicker
+              id="edit-project-job"
+              value={value.job_id}
+              linked={linkedJob ?? null}
+              onChange={jobId => onChange(p => ({ ...p, job_id: jobId }))}
+              disabled={saving}
+            />
+          </div>
+
           <div className="research-modal__actions">
             <button type="button" className="research-modal__cancel" onClick={() => onClose()}>
               Cancel

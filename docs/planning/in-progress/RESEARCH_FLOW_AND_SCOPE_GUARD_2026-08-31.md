@@ -123,11 +123,43 @@ real. The confirmation says the county, the adapter, and the spend limit that wi
 
 ## Phase J — the job link
 
-### J1 — Link a research project to a job ☐
+### J1 — Link a research project to a job ✅ **SHIPPED 2026-08-31** — `JobLinkPicker`
 
-`job_id` exists on the row and nothing writes it. The project header gets a job picker; the job page
-gets the reverse link. Two screens, one column, and the reason it matters: research that is not
-attached to a job is research nobody bills for.
+**A column, an index, and no way in the product to use either.** `research_projects.job_id` has
+existed since `seeds/090_research_tables.sql:141` with `idx_research_projects_job` on it and a
+comment reading *"optional link to a jobs record"*. Measured before this slice:
+
+- **zero** `.tsx` under `app/admin/research` mentioned it;
+- the POST route accepted it, and no form ever sent it;
+- the PATCH allowlist did not include it at all.
+
+So the only way to attach a project to a job was to send `job_id` at creation, from a form that did
+not offer the field — and once created, nothing could change it.
+
+That is this repository's *other* recurring shape, beside the cast-that-matches-nothing: work that
+exists, is indexed, is half-wired, and is unreachable. `api-routes-are-reachable.test.ts` records
+eleven at the module level; this is the column-level equivalent.
+
+#### What shipped
+
+`JobLinkPicker` — a **search**, not a `<select>`. A dropdown of every job is fine at two jobs and
+useless at two hundred, and what somebody knows is the job number or the address, not its position
+in a list. Debounced against `/api/admin/jobs?search=`, the same shape the project list already uses.
+
+It names the linked job rather than reporting that one exists. A row reading "Linked" makes somebody
+open another tab to find out to what, so the header carries `26135 — Anthony ProTech Survey · 311
+Morning Dove Lane, Buda` as a real link to the job. `jobLabel` never returns an empty string, for
+the same reason `titleOf` does not: a blank option is one nobody can choose and looks like a bug.
+
+**`null` is a real value on PATCH.** Unlinking is a thing somebody does, so `undefined` means "the
+caller did not mention it" and `null` means "detach". Folding the two together — which is what the
+neighbouring `|| null` fields do, correctly, because they have nothing to preserve — would have made
+unlinking impossible. That distinction is a test and a mutation.
+
+A search failure is said out loud rather than rendered as "no matches": they are different answers
+to *"which jobs are there"*, and one of them means try again.
+
+Checked on four palettes; every colour is a token that exists, asserted.
 
 ### J2 — Carry the job's property into the form ☐
 

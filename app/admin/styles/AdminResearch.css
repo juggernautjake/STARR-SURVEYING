@@ -13065,3 +13065,10 @@
   outline: 2px solid var(--theme-accent, #1D3095);
   outline-offset: 2px;
 }
+
+/* The job a research project is attached to, in its header (J1). */
+.research-project-header__job {
+  color: var(--theme-accent, #1D3095);
+  font-weight: 600;
+  text-decoration: underline;
+}

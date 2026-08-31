@@ -152,6 +152,18 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     }
     allowed.status = updates.status;
   }
+  // ── job_id WAS ACCEPTED ON CREATE AND NOWHERE ELSE (Phase J1) ────────────────────────────────
+  //
+  // The column has existed since seeds/090 with an index on it and a comment reading "optional link
+  // to a jobs record". POST took it; PATCH did not; and no `.tsx` under app/admin/research mentioned
+  // it at all. So the only way to link a research project to a job was to send it at creation, from
+  // a form that never did — and once created, nothing could change it.
+  //
+  // `null` is a real value here: unlinking is a thing somebody does, and `|| null` would make an
+  // empty string mean the same as "leave it alone" if this were folded into the pattern above.
+  if (updates.job_id !== undefined) {
+    allowed.job_id = updates.job_id ? String(updates.job_id) : null;
+  }
   if (updates.analysis_template_id !== undefined) allowed.analysis_template_id = updates.analysis_template_id;
   if (updates.analysis_filters !== undefined) allowed.analysis_filters = updates.analysis_filters;
 
