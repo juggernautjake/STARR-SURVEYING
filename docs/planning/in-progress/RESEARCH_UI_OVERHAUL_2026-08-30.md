@@ -1047,25 +1047,54 @@ precedence over the project value there. Now covered.
 
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
-Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
-found while checking premises (A4, D0) and two premises withdrawn as false (B1, E1).
+**Planned and shipped:** A1 A2 A3 A4 · B2 B3 B4/B5 B6 · C1 C2 C3 · D0 · E1 E2 · F1.
+**Withdrawn as false premises:** B1, E1 (both replaced by what checking them revealed).
 
-What is left is **not deferred and must not be marked so**. Every remaining item is real work with
-real value; none is blocked; none costs more than it is worth. They are simply not done.
+**Unplanned, and the reason this doc grew:** G1–G10. Ten findings, none of them on the plan, all
+in the property-research software. Seven were live defects:
+
+| | What it was |
+|---|---|
+| G1 | Two working API routes nothing could reach — `/boundary-calls` and `/browser-fetch` |
+| G3 | The run console said *"no time limit is configured"* on every run that had one |
+| G4 | Every full extraction discarded its report — a column that does not exist |
+| G5 | **Every share link returning 404**, CAD export dead, three copies of a vendor bug |
+| G7 | A full extraction wiped the project's logs and API spend record |
+| G9 | The owner's own "do not close on outside click" applied to one modal of three |
+| G10 | **The owner name was collected, saved, displayed, and never used** — the worker's owner-based clerk search never ran |
+
+Three came back clean (filters, the placeholder scan, the app/worker HTTP contract) and each now
+has a guard so it stays that way. Plus a live Chromium leak and bounded concurrent capture in the
+worker doc.
+
+**The pattern, stated once:** every single one lived in a gap between a producer and a consumer —
+a column written under one name and read under another, a route with no caller, a component
+nothing mounts, a cast claiming a field that does not exist. None was visible to `tsc`, to either
+test suite, or to the production build. All of them were found by comparing two sides that no
+check compared.
+
+### What is left
+
+Not deferred, and must not be marked so. Every remaining item is real work with real value; none is
+blocked; none costs more than it is worth. They are simply not done.
 
 | Item | Why it is still open |
 |---|---|
-| **B1a / B2-B5** | Splitting `[projectId]/page.tsx` (3,680 lines) by section. Pure refactor of working code — no user-visible change — but the 600-line target is a genuine maintainability goal, not a nicety. Needs one extraction per slice, each with a wiring test asserting the page MOUNTS it. |
-| **D1 / D2** | `ResearchRunPanel` (1,771) + `PipelineProgressPanel` (1,521). **Re-scoped by D0**: the run visibility these were meant to add already existed and was broken by one word. What remains is a size problem, so it ranks below B1a rather than above it. |
-| **D3** | Run console + diff into the tab shell rather than floating. Small; blocked only by B1a landing first, since it moves into the shell B1a creates. |
-| **E1b** | Sixteen admin portals still hand-roll the tablist keyboard; three have none at all. The shared `tabKeyDown` exists and adoption is one prop each. Outside this doc (admin shell, not the research portal) and wants its own QA pass across sixteen pages. |
-| **E2b** | Re-theme `BillingTab` + `LibraryTab`. A page rewrite, not a state consolidation — see the entry for why half-fixing them is worse than leaving them. |
-| **E3** | Responsive pass. Needs measurement in a browser at 1440 and 390 against a **production** build; dev-server layout differs. That is QA work, not a code slice. |
-| **F2** | Contrast. 232 problems are recorded repo-wide; the research subset needs measuring before anything is changed, and the ratchet must not be re-baselined without investigating — both prior breaches were real bugs. |
+| **B1a remainder** | Three sections extracted (`ProjectStats`, `ProjectHeader`, `EditProjectModal`); `page.tsx` is **3,680 → 3,549**. `RunControls`, `DocumentsSummary` and `AnalysisSection` remain — the big ones. Same shape each time: move, compare byte-for-byte against `HEAD`, assert the page still mounts it. |
+| **D1 / D2** | `ResearchRunPanel` (1,771) + `PipelineProgressPanel` (1,521). Re-scoped by D0: the run visibility these were meant to add already existed and was broken by one word. A size problem now, so it ranks below B1a. |
+| **D3** | Run console + diff into the tab shell. Small; wants B1a first, since it moves into the shell B1a creates. |
+| **E1b** | Sixteen admin portals still hand-roll the tablist keyboard; three have none. `tabKeyDown` exists and adoption is one prop each. Outside this doc — admin shell, not the research portal — and wants its own QA pass. |
+| **E2b** | Re-theme `BillingTab` + `LibraryTab`. A page rewrite, not a state consolidation. |
+| **E3** | Responsive pass. Needs a browser at 1440 and 390 against a **production** build. QA work, not a code slice. |
+| **F2** | Contrast. 232 problems repo-wide; the research subset needs measuring first, and the ratchet must not be re-baselined without investigating — both prior breaches were real bugs. |
 
-**Do not empty this folder by deferring these.** The rubric allows a deferral when implementation
-cost clearly exceeds value. That is true of none of them.
+### And the thing no amount of this can settle
 
+Three of today's fixes change what a run actually **finds** — the owner-based clerk search, 
+Browserbase on the CAD adapter, and bounded concurrent capture. None is verifiable from here.
+`research_document_purchases` still has **0 rows**: no run has ever bought a document.
+
+**One real run is worth more than the next ten slices.**
 ## Deliberately NOT in scope
 
 - **`DrawingCanvas.tsx` (2,677 lines).** A canvas editor is its own project with its own interaction
