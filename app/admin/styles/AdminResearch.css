@@ -13024,3 +13024,44 @@
 [data-theme="high-contrast-dark"] {
   --recon-danger-text: #F87171;   /* 6.84:1 on #0B1020 */
 }
+
+/* ── Secondary header actions (U3-A) ──────────────────────────────────────────
+ *
+ * The portal header carried THREE buttons in a row, in three different colours:
+ * a green "Coverage", a purple "Testing Lab" and a blue "+ New Research Project",
+ * each an inline `background:` override on the primary button class. Everything
+ * was emphasised, so nothing was — and two of the three duplicate tabs sitting
+ * directly above them in the portal tab bar.
+ *
+ * One primary per screen. The other two become secondary: same size and shape,
+ * so the row still reads as a group, but tinted and outlined rather than filled.
+ * They also stop being three arbitrary brand colours, which is what made the
+ * header look like three different products.
+ *
+ * `--theme-*` throughout, so this follows all eleven palettes — the inline hexes
+ * did not, and a purple button on the plum theme was indistinguishable from the
+ * page behind it. */
+.research-page__secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-secondary, #374151);
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.research-page__secondary-btn:hover {
+  background: var(--theme-bg-elevated, #F1F5F9);
+  border-color: var(--theme-border-strong, #9CA3AF);
+}
+
+.research-page__secondary-btn:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+}

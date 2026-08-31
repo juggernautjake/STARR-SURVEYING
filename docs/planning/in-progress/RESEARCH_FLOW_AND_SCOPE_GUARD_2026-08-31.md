@@ -283,9 +283,47 @@ Recorded here rather than fixed in the same pass, one cluster per slice:
 | H | `library--desktop.png`, `billing--desktop.png` | 429 and 519 characters on a 1440px page. Near-empty screens with no empty state explaining what would fill them. |
 
 
-### U3 — Fix what U2 found ☐
+### U3 — Fix what U2 found ◐ **FIRST BATCH SHIPPED 2026-08-31**
 
-One slice per cluster, not one per screenshot.
+Six of the eight clusters. Each was found in a picture, and none of them by an assertion.
+
+| # | Finding | What shipped |
+|---|---|---|
+| **A** | Three primary buttons in a row, in three colours, two of them duplicating tabs directly above | One primary. `Coverage` and `Testing Lab` became `.research-page__secondary-btn` — same size and shape so the row still reads as a group, tinted and outlined rather than filled. Their inline `#0F766E` and `#7C3AED` are gone: those followed no palette, and a purple button on the plum theme was indistinguishable from the page behind it. |
+| **B** | Two buttons that start a run, on one screen, with two different names | One name for one act. Both now read **Start AI analysis** — the action bar's words, because they are the ones that describe what happens. `Initiate Research & Analysis` is gone from the form, its header, and its re-run label. |
+| **C** | The property form sat below seventeen documents | The form comes first now. On this project it was ~2,400px down, under a list nobody came here to read — and it carries the run button. The owner's own description of this flow is four steps and **step one was last**. |
+| **D** | "Step 1 of 7" on the card, "Stage 1 of 4" on the project page, same project | One numbering. Seven is the count of DB statuses; four is the count of stages a person works through, and `PIPELINE_STAGES` was already the mapping. The card follows the stepper — `Stage 1 of 4 — Upload` — derived from the same constant, so a fifth stage moves both. |
+| **F** | The same seventeen documents were **"Pending"** on one screen and **"unreadable"** on the other | See below. This one was not cosmetic. |
+| — | "Property Information" rendered twice, sixty pixels apart, each with its own paragraph | The embedded form drops its own heading when the caller supplies one, which is exactly what `hideResultsAndProgress` already meant. |
+
+#### F was a real defect wearing a cosmetic one
+
+`DocumentUploadPanel` had a six-entry status map and this fallback:
+
+```ts
+PROCESSING_STATUS_LABELS[doc.processing_status] || PROCESSING_STATUS_LABELS.pending
+```
+
+`unreadable` was not one of the six. **Seventeen documents the pipeline could not read were
+reported, permanently, as "Pending"** — and "Pending" means give it a minute. These needed somebody
+to look at them, and nothing on that screen ever said so.
+
+The vocabulary moved to `document-rows.ts`, both screens read it, and the fallback now renders the
+raw value rather than choosing a friendlier word at random. An unfamiliar status looking unfamiliar
+is the honest failure; an unfamiliar status looking like "Pending" is the one that cost seventeen
+documents. `#F59E0B` (2.15:1) and `#059669` (3.77:1) went with it.
+
+**And the check tripped over its own prose for the eleventh time**: the assertion that the lying
+fallback is gone matched the *comment in `DocumentUploadPanel` explaining what it used to do*.
+`stripJs` before scanning, with a control asserting both directions.
+
+#### Still open
+
+| # | Finding |
+|---|---|
+| **E** | The stats row reads `17 / 0 / 0 / –`. Considered and **kept**: the em-dash is "no discrepancies to resolve yet", which `0/0` would misstate. Recorded rather than changed, because the existing code reasoned about it explicitly and overriding that on cosmetic grounds is the wrong call. |
+| **G** | The document rows carry a circle that reads as a radio button beside "Select all" / "Deselect all". It is a real `<input type="checkbox">` — the affordance is the bug, not the behaviour. |
+| **H** | `library` and `billing` render 429 and 519 characters on a 1440px page, with no empty state saying what would fill them. |
 
 ### U4 — Every new surface, on every palette ☐
 

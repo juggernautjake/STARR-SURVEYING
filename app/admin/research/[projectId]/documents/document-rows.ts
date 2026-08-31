@@ -193,3 +193,48 @@ export const NEVER_PRODUCED_KEYS = [
   'documentId', 'instrumentNumber', 'pageCount', 'fileFormat', 'sizeBytes', 'recordedDate',
   'purchasedAt', 'purchaseCost', 'localPath', 'thumbnailUrl', 'usedInAnalysis', 'relevanceScore',
 ] as const;
+
+// ── ONE VOCABULARY FOR `processing_status` ──────────────────────────────────────────────────────
+//
+// The project page and the Document Library showed the same seventeen documents with different
+// words — "Pending" on one screen and "unreadable" on the other. Both read `processing_status`;
+// only one of them had a label for the value it got.
+//
+// `DocumentUploadPanel` had a five-entry map and `|| PROCESSING_STATUS_LABELS.pending` as its
+// fallback, so **every status it did not know about reported as "Pending"** — and `unreadable` is
+// not in that map. Seventeen documents the pipeline could not read were reported, permanently, as
+// waiting to be processed. That is not a cosmetic inconsistency: "pending" means give it a minute,
+// and this needed somebody to look at it.
+//
+// So the map lives here, both screens read it, and the fallback SHOWS THE RAW VALUE rather than
+// picking a friendly word at random. An unfamiliar status looking unfamiliar is the honest failure
+// mode; an unfamiliar status looking like "Pending" is the one that cost seventeen documents.
+
+export interface StatusLabel {
+  label: string;
+  /** `neutral` | `working` | `good` | `bad` — the caller maps tone to its own palette. */
+  tone: 'neutral' | 'working' | 'good' | 'bad';
+}
+
+const STATUS_LABELS: Record<string, StatusLabel> = {
+  pending: { label: 'Pending', tone: 'neutral' },
+  queued: { label: 'Queued', tone: 'neutral' },
+  extracting: { label: 'Extracting…', tone: 'working' },
+  extracted: { label: 'Extracted', tone: 'good' },
+  analyzing: { label: 'Analyzing…', tone: 'working' },
+  analyzed: { label: 'Analyzed', tone: 'good' },
+  // The one that was missing, and the reason this map moved.
+  unreadable: { label: 'Unreadable', tone: 'bad' },
+  failed: { label: 'Failed', tone: 'bad' },
+  error: { label: 'Error', tone: 'bad' },
+};
+
+/** Never invents a friendlier word than the truth. An unknown status renders as itself. */
+export function statusLabel(status: string | null | undefined): StatusLabel {
+  const key = (status ?? '').toLowerCase();
+  if (!key) return { label: 'Unknown', tone: 'neutral' };
+  return STATUS_LABELS[key] ?? { label: key.replace(/_/g, ' '), tone: 'neutral' };
+}
+
+/** Every status the map knows, for the test that holds both screens to it. */
+export const KNOWN_STATUSES = Object.keys(STATUS_LABELS);

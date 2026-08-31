@@ -60,9 +60,19 @@ describe('the page still mounts it', () => {
 });
 
 describe('the section keeps both panels and the note', () => {
-  it('renders the upload panel, the note and the search panel, in that order', async () => {
-    // The note sits BETWEEN the header and the upload control on purpose: it has to be read before
-    // somebody clicks the thing it is about.
+  it('renders the header, the note, the property form and then the uploads, in that order', async () => {
+    // ── THE FORM MOVED ABOVE THE UPLOADS (U3-C, 2026-08-31) ─────────────────────────────────────
+    //
+    // It used to be header → note → uploads → form, and this test asserted exactly that. On a
+    // project with seventeen retrieved documents, that put the property details — the thing you
+    // fill in FIRST, and the thing carrying the run button — roughly 2,400px down the page, below
+    // a list nobody came here to read. Found by photographing the screen (U1).
+    //
+    // The owner describes this flow in four steps: input the information, hit the research button,
+    // wait for it to finish, review the results. Step one was last.
+    //
+    // The note still sits between the header and everything else, for its original reason: it has
+    // to be read before somebody clicks the thing it is about.
     //
     // Two probe bugs, both caught by the answer being absurd rather than by reading the code:
     //   · `DocumentUploadPanel` matched the IMPORT at the top, so the panels appeared to come
@@ -74,7 +84,7 @@ describe('the section keeps both panels and the note', () => {
     expect(code).toContain('export default function UploadStagePanel');
 
     const order = ['<div className="research-step-header"', 'research-pipeline-note',
-      '<DocumentUploadPanel', '<PropertySearchPanel']
+      '<PropertySearchPanel', '<DocumentUploadPanel']
       .map((n) => code.indexOf(n));
     expect(order.every((i) => i > -1), 'something went missing in the move').toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);

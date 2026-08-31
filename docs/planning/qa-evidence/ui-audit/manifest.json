@@ -1,19 +1,19 @@
 {
   "base": "http://localhost:3050",
   "theme": "starr-default",
-  "capturedAt": "2026-08-31T16:14:31.185Z",
+  "capturedAt": "2026-08-31T16:37:33.684Z",
   "shots": [
     {
       "route": "/admin/research",
       "width": "desktop",
       "file": "portal--desktop.png",
-      "chars": 792
+      "chars": 802
     },
     {
       "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54",
       "width": "desktop",
       "file": "6588a845-faf4-4f47-9e60-5011ea000a54--desktop.png",
-      "chars": 3237
+      "chars": 3215
     },
     {
       "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/boundary",
@@ -79,13 +79,13 @@
       "route": "/admin/research",
       "width": "phone",
       "file": "portal--phone.png",
-      "chars": 1011
+      "chars": 1021
     },
     {
       "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54",
       "width": "phone",
       "file": "6588a845-faf4-4f47-9e60-5011ea000a54--phone.png",
-      "chars": 3400
+      "chars": 3378
     },
     {
       "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/boundary",

@@ -25,7 +25,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
-  toCards, formatBytes, type DocumentCard, type DocumentKind,
+  toCards, formatBytes, statusLabel, type DocumentCard, type DocumentKind,
 } from './document-rows';
 
 type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved';
@@ -39,12 +39,14 @@ const KIND_LABEL: Record<DocumentKind, string> = {
   plat: 'Plat', deed: 'Deed', easement: 'Easement', survey: 'Survey', other: 'Other',
 };
 
-/** `analyzed` / `pending` / `failed` — what the pipeline did with the file, in one word. */
-function statusTone(status: string): string {
-  if (status === 'analyzed' || status === 'extracted') return 'bg-green-900 text-green-200';
-  if (status === 'failed' || status === 'error') return 'bg-red-900 text-red-200';
-  return 'bg-gray-700 text-gray-200';
-}
+/** The chip's colours, from the shared vocabulary's tone. The WORDS come from `statusLabel`, so
+ *  this screen and the project page cannot disagree about what a status is called. */
+const TONE_CLASS: Record<string, string> = {
+  neutral: 'bg-gray-700 text-gray-200',
+  working: 'bg-amber-900 text-amber-100',
+  good: 'bg-green-900 text-green-200',
+  bad: 'bg-red-900 text-red-200',
+};
 
 export default function ProjectDocumentsPage() {
   const { status: sessionStatus } = useSession();
@@ -246,8 +248,8 @@ export default function ProjectDocumentsPage() {
                           {doc.isImage && (
                             <span className="text-xs px-2 py-0.5 bg-gray-700 text-gray-200 rounded">Image</span>
                           )}
-                          <span className={`text-xs px-2 py-0.5 rounded ${statusTone(doc.status)}`}>
-                            {doc.status}
+                          <span className={`text-xs px-2 py-0.5 rounded ${TONE_CLASS[statusLabel(doc.status).tone]}`}>
+                            {statusLabel(doc.status).label}
                           </span>
                         </div>
                         {/* The title. It is never blank — `titleOf` falls back through the filename
@@ -329,7 +331,7 @@ export default function ProjectDocumentsPage() {
                   <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Recorded</dt><dd>{selected.recordedDate}</dd></div>
                 )}
                 <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Source</dt><dd>{selected.sourceLabel}</dd></div>
-                <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Status</dt><dd>{selected.status}</dd></div>
+                <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Status</dt><dd>{statusLabel(selected.status).label}</dd></div>
                 {selected.pageCount != null && (
                   <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Pages</dt><dd>{selected.pageCount}</dd></div>
                 )}

@@ -5,6 +5,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ResearchDocument, DocumentType } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import SourceDocumentViewer from './SourceDocumentViewer';
+// One vocabulary for `processing_status`, shared with the Document Library. See the note below.
+import { statusLabel } from '../[projectId]/documents/document-rows';
 
 interface DocumentUploadPanelProps {
   projectId: string;
@@ -26,13 +28,23 @@ const ACCEPTED_MIME_TYPES = new Set([
   'text/plain', 'text/rtf', 'application/rtf',
 ]);
 
-const PROCESSING_STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending:    { label: 'Pending', color: 'var(--theme-fg-muted, #9CA3AF)' },
-  extracting: { label: 'Extracting...', color: '#F59E0B' },
-  extracted:  { label: 'Extracted', color: '#3B82F6' },
-  analyzing:  { label: 'Analyzing...', color: '#F59E0B' },
-  analyzed:   { label: 'Analyzed', color: '#059669' },
-  error:      { label: 'Error', color: 'var(--color-error)' },
+// ── THE STATUS VOCABULARY MOVED, AND THE FALLBACK WAS THE BUG (U3-F) ──────────────────────────
+//
+// This map had six entries and fell back to `PROCESSING_STATUS_LABELS.pending` for anything else.
+// `unreadable` was not one of the six, so seventeen documents the pipeline COULD NOT READ were
+// reported here as "Pending" — permanently. The Document Library showed the same seventeen as
+// "unreadable", which is how it was found: two screens, one column, two different words.
+//
+// "Pending" means give it a minute. These needed somebody to look at them.
+//
+// The map is `document-rows.ts` now and both screens read it, and its fallback renders the raw
+// value rather than choosing a friendlier word at random. Tone rather than a hex, so the colour is
+// decided once, here, against this panel's own surface.
+const STATUS_TONE: Record<string, string> = {
+  neutral: 'var(--theme-fg-muted, #6B7280)',
+  working: '#B45309',   // 5.02:1 on white — #F59E0B was 2.15:1
+  good:    '#047857',   // 5.48:1 — #059669 was 3.77:1
+  bad:     'var(--color-error-text, #B42318)',
 };
 
 function formatFileSize(bytes: number | null): string {
@@ -513,7 +525,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           {docsOpen && (
             <div className="research-upload__list-body">
               {documents.map(doc => {
-                const status = PROCESSING_STATUS_LABELS[doc.processing_status] || PROCESSING_STATUS_LABELS.pending;
+                const status = statusLabel(doc.processing_status);
                 const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
                 const isChecked = activeSelected.has(doc.id);
 
@@ -543,7 +555,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
                         {typeInfo && <span>{typeInfo.label}</span>}
                         {doc.file_size_bytes ? <span>{formatFileSize(doc.file_size_bytes)}</span> : null}
                         {doc.page_count ? <span>{doc.page_count} page{doc.page_count !== 1 ? 's' : ''}</span> : null}
-                        <span style={{ color: status.color, fontWeight: 600 }}>{status.label}</span>
+                        <span style={{ color: STATUS_TONE[status.tone], fontWeight: 600 }}>{status.label}</span>
                       </div>
                       {doc.processing_error && (
                         <div className="research-upload__doc-error">

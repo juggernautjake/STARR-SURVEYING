@@ -621,23 +621,34 @@ export default function PropertySearchPanel({
     }
     if (liteRunning) return `⏳ ${liteStage || 'Researching…'}`;
     if (searching) return '⏳ Searching public records…';
-    if (isStage2Mode && isPipelineDone) return '🔄 Re-run Research & Analysis';
-    return '🔍 Initiate Research & Analysis';
+    if (isStage2Mode && isPipelineDone) return '🔄 Re-run analysis';
+    // ── ONE NAME FOR ONE ACT (U3-B) ─────────────────────────────────────────────────────
+    //
+    // This button and the always-visible action bar's were called different things —
+    // "Initiate Research & Analysis" here, "Start AI analysis" there — on the same screen, for
+    // the same run. A screenshot of Stage 1 shows both, and reads as two doors to two rooms.
+    // One act, one name, everywhere it appears.
+    return '🔍 Start AI analysis';
   }
 
   return (
     <div className="research-search">
       {/* Header — hidden in Stage 2 mode since page.tsx already provides a title */}
-      {!isStage2Mode && (
+      {/* ── ONE HEADING, NOT TWO (U3) ──────────────────────────────────────────────────────────
+          In Stage 1 the parent already renders a step header reading "Property Information", so
+          this rendered the same words again, sixty pixels below itself, with its own explanatory
+          paragraph beside the parent's. Two headings for one form is how a screen comes to look
+          like ninety separately authored ones. The heading is skipped when the caller supplies it
+          — which is exactly what `hideResultsAndProgress` means: this panel is embedded. */}
+      {!isStage2Mode && !hideResultsAndProgress && (
         <div className="research-search__header">
           <h3 className="research-search__title">
-            {hideResultsAndProgress ? 'Property Information' : 'Research & Analysis'}
+            Research &amp; Analysis
           </h3>
           <p className="research-search__desc">
-            {hideResultsAndProgress
-              ? <>Enter the property details below, then click <strong>Initiate Research &amp; Analysis</strong> to begin. You can also upload deeds, plats, and field notes using the panel above.</>
-              : <>The AI is searching all public records, navigating county CAD and deed/records office websites, capturing screenshots of relevant documents, and extracting all available property information — including bearings, coordinates, acreage, and legal descriptions.</>
-            }
+            The AI is searching all public records, navigating county CAD and deed/records office
+            websites, capturing screenshots of relevant documents, and extracting all available
+            property information — including bearings, coordinates, acreage, and legal descriptions.
           </p>
         </div>
       )}

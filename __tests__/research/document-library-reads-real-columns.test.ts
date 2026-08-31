@@ -31,9 +31,10 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { stripJs } from '@/scripts/audit-research-contrast.mjs';
 import {
   toCard, toCards, kindOf, titleOf, instrumentOf, isImageRow, sourceLabelOf, formatBytes,
-  DOCUMENT_ROW_COLUMNS, NEVER_PRODUCED_KEYS, type DocumentRow,
+  DOCUMENT_ROW_COLUMNS, NEVER_PRODUCED_KEYS, statusLabel, KNOWN_STATUSES, type DocumentRow,
 } from '@/app/admin/research/[projectId]/documents/document-rows';
 
 const ROOT = process.cwd();
@@ -205,5 +206,74 @@ describe('a row becomes something a person can read', () => {
     expect(formatBytes(709976)).toBe('693.3 KB');
     expect(formatBytes(2_200_000)).toBe('2.1 MB');
     expect(formatBytes(null)).toBe('');
+  });
+});
+
+// ── ONE VOCABULARY FOR `processing_status` ──────────────────────────────────────────────────────
+//
+// The project page and the Document Library showed the same seventeen documents with different
+// words. `DocumentUploadPanel` had a six-entry map and fell back to `PROCESSING_STATUS_LABELS
+// .pending` for everything else — and `unreadable` was not one of the six. Seventeen documents the
+// pipeline could not read were reported, permanently, as **"Pending"**.
+//
+// "Pending" means give it a minute. These needed somebody to look at them.
+
+describe('one status vocabulary, shared by both screens', () => {
+  it('knows the status the fallback used to swallow', () => {
+    expect(statusLabel('unreadable').label).toBe('Unreadable');
+    expect(statusLabel('unreadable').tone, 'unreadable is a failure, not a neutral state').toBe('bad');
+  });
+
+  it('NEVER invents a friendlier word than the truth', () => {
+    // The whole finding. An unknown status renders as itself; it does not become "Pending".
+    const unknown = statusLabel('some_new_status');
+    expect(unknown.label).toBe('some new status');
+    expect(unknown.label.toLowerCase()).not.toBe('pending');
+  });
+
+  it('and an absent status says so', () => {
+    expect(statusLabel(null).label).toBe('Unknown');
+    expect(statusLabel(undefined).label).toBe('Unknown');
+    expect(statusLabel('').label).toBe('Unknown');
+  });
+
+  it('covers every status the codebase actually sets', () => {
+    // Swept rather than typed: a status written somewhere and unknown here is the next
+    // "Pending"-for-unreadable waiting to happen.
+    for (const s of ['pending', 'extracting', 'extracted', 'analyzing', 'analyzed', 'unreadable', 'failed', 'error']) {
+      expect(KNOWN_STATUSES, `${s} is set in the codebase and has no label`).toContain(s);
+    }
+  });
+
+  it('and BOTH screens read it', () => {
+    // "Authored but not wired", the shared-module edition. A vocabulary only one screen uses is
+    // exactly the situation that produced the disagreement.
+    const panel = read('app/admin/research/components/DocumentUploadPanel.tsx');
+    const library = read('app/admin/research/[projectId]/documents/page.tsx');
+    expect(panel).toContain('statusLabel(doc.processing_status)');
+    expect(library).toContain('statusLabel(doc.status)');
+    // stripJs, because the first version of this matched the COMMENT in DocumentUploadPanel that
+    // explains what the old fallback did. Eleventh time a check in this repository has read its
+    // own prose as evidence; the control below asserts both directions.
+    expect(stripJs(panel), 'the six-entry map with the lying fallback is back')
+      .not.toContain('PROCESSING_STATUS_LABELS.pending');
+  });
+
+  it('and that check reads CODE, not the note explaining the old bug', () => {
+    const panel = read('app/admin/research/components/DocumentUploadPanel.tsx');
+    expect(panel, 'the explanatory comment is gone, so the control above is vacuous')
+      .toContain('PROCESSING_STATUS_LABELS.pending');
+    expect(stripJs("const a = 1; // PROCESSING_STATUS_LABELS.pending")).not.toContain('PROCESSING_STATUS_LABELS');
+    expect(stripJs("const x = PROCESSING_STATUS_LABELS.pending;"), 'the stripper is eating code')
+      .toContain('PROCESSING_STATUS_LABELS');
+  });
+
+  it('and neither one paints it in a colour that cannot be read', () => {
+    // `#F59E0B` is 2.15:1 on white and `#059669` is 3.77:1 — both were in the old map, and both are
+    // hexes this repository retired on 2026-08-31.
+    const panel = read('app/admin/research/components/DocumentUploadPanel.tsx');
+    for (const hex of ['#F59E0B', '#059669']) {
+      expect(panel, `${hex} is back in the status colours`).not.toContain(`working: '${hex}'`);
+    }
   });
 });

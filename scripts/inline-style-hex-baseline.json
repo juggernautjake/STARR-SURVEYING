@@ -127,7 +127,7 @@
   "app/admin/receipts/new/page.tsx": 24,
   "app/admin/reports/job/[jobId]/page.tsx": 1,
   "app/admin/research/_tabs/CoverageTab.tsx": 2,
-  "app/admin/research/_tabs/ProjectsTab.tsx": 3,
+  "app/admin/research/_tabs/ProjectsTab.tsx": 1,
   "app/admin/research/_tabs/SelfHealTab.tsx": 22,
   "app/admin/research/[projectId]/_sections/FinalDocumentTab.tsx": 18,
   "app/admin/research/[projectId]/_sections/ProjectHeader.tsx": 1,

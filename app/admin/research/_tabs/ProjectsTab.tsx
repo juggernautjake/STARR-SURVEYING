@@ -13,7 +13,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePageError } from '../../hooks/usePageError';
 import type { ResearchProject, WorkflowStep } from '@/types/research';
-import { WORKFLOW_STEPS } from '@/types/research';
+import { PIPELINE_STAGES, workflowStepToStage } from '@/types/research';
 import Tooltip from '../components/Tooltip';
 import WorkerStatusBanner from '../components/WorkerStatusBanner';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
@@ -165,9 +165,19 @@ export default function ProjectsTab() {
     setCreating(false);
   }
 
-  function getStepNumber(status: WorkflowStep): number {
-    const step = WORKFLOW_STEPS.find(s => s.key === status);
-    return step?.number || 1;
+  // ── ONE NUMBERING SYSTEM (U3-D) ────────────────────────────────────────────────────────────
+  //
+  // This card said "Step 1 of 7" and the project page's stepper said "Stage 1 of 4", about the
+  // same project, on two screens somebody moves between in one click. Seven is the count of DB
+  // statuses; four is the count of stages a person actually works through, and `PIPELINE_STAGES`
+  // in types/research.ts is already the mapping between them.
+  //
+  // The stages are what the pipeline stepper draws and what the operator is told they are on, so
+  // the card follows the stepper rather than the other way round. Derived from the same constant,
+  // so a fifth stage moves both.
+  function stageNumber(status: WorkflowStep): number {
+    const stage = workflowStepToStage(status);
+    return Math.max(1, PIPELINE_STAGES.findIndex(s => s.key === stage) + 1);
   }
 
   if (!session?.user) return null;
@@ -188,18 +198,20 @@ export default function ProjectsTab() {
         <div className="research-page__header">
           <h1 className="research-page__title">Property Research</h1>
           <div className="research-page__actions">
+            {/* Secondary, not three primaries in three colours — see the note on
+                .research-page__secondary-btn. Both of these also exist as portal tabs directly
+                above; they stay because they are the two a researcher reaches for from here. */}
             <button
-              className="research-page__new-btn"
-              style={{ background: '#0F766E' }}
+              className="research-page__secondary-btn"
               onClick={() => router.push('/admin/research/coverage')}
-              title="Texas county clerk adapter coverage"
+              title="Which Texas counties we have clerk adapters for"
             >
               Coverage
             </button>
             <button
-              className="research-page__new-btn"
-              style={{ background: '#7C3AED' }}
+              className="research-page__secondary-btn"
               onClick={() => router.push('/admin/research/testing')}
+              title="Run a single scraper or adapter by hand"
             >
               Testing Lab
             </button>
@@ -343,7 +355,7 @@ export default function ProjectsTab() {
                 )}
                 <div className="research-card__meta">
                   <span className="research-card__meta-item">
-                    Step {getStepNumber(project.status)} of 7
+                    Stage {stageNumber(project.status)} of {PIPELINE_STAGES.length} — {STATUS_LABELS[project.status]}
                   </span>
                 </div>
                 <div className="research-card__date">

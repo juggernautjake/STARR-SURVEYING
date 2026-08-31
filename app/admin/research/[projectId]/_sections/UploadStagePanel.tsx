@@ -51,9 +51,10 @@ export default function UploadStagePanel({
             <div className="research-step-header__body">
               <h2 className="research-step-header__title">Property Information</h2>
               <p className="research-step-header__desc">
-                Upload deeds, plats, field notes, and other surveying documents, and provide the property details below.
-                When ready, click <strong>Initiate Research &amp; Analysis</strong> to proceed to Stage 2 — STARR RECON will search all public records,
-                capture screenshots of county CAD and deed websites, extract all data with AI, and log any discrepancies.
+                Give the property details below, then click <strong>Start AI analysis</strong>. STARR RECON
+                searches the public records, captures the county CAD and deed sites, extracts the data with
+                AI, and logs any discrepancies. You can also add your own deeds, plats and field notes in
+                the panel underneath.
               </p>
             </div>
           </div>
@@ -83,12 +84,14 @@ export default function UploadStagePanel({
             </button>
             {' '}for a worker run that can buy documents, with a spend limit.
           </div>
-          <DocumentUploadPanel
-            projectId={projectId}
-            documents={documents}
-            onDocumentsChanged={onDocumentsChanged}
-          />
-          {/* Property info form only — search results and pipeline progress are shown in Stage 2 */}
+          {/* ── THE FORM COMES FIRST (U3-C) ──────────────────────────────────────────────────
+              It used to come after the document panel, which on a project with seventeen
+              retrieved documents put the property details — the thing you must fill in FIRST,
+              and the thing the run button lives on — roughly 2,400px down the page, below a
+              list you did not come here to read.
+
+              The owner's description of this flow is four steps: *"input information, hit the
+              research button, wait for it to finish, review results."* Step one was last. */}
           <PropertySearchPanel
             projectId={projectId}
             defaultAddress={address}
@@ -98,6 +101,11 @@ export default function UploadStagePanel({
             hideResultsAndProgress
             onNavigateAway={onNavigateAway}
             onImported={onDocumentsChanged}
+          />
+          <DocumentUploadPanel
+            projectId={projectId}
+            documents={documents}
+            onDocumentsChanged={onDocumentsChanged}
           />
     </>
   );
