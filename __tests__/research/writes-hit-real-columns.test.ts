@@ -337,6 +337,112 @@ describe('every research select names a real column', () => {
   });
 });
 
+// ── The FILTER side ─────────────────────────────────────────────────────────────────────────────
+//
+// `.eq()`, `.order()`, `.in()` and friends fail the whole query exactly like a bad select does — a
+// filter on a column that does not exist is a 400, not an empty result. Third of the three ways to
+// name a column, and the only one that came back CLEAN when it was swept.
+//
+// It is guarded anyway. A check written only after something breaks arrives one incident late, and
+// this one costs the same nine lines whether or not it ever fires. Its controls are what make the
+// zero meaningful.
+
+// `[A-Za-z0-9_.]`, not `[a-z0-9_.]`. The lowercase-only version could not match
+// `.eq('limits.maxCostUsd', …)` AT ALL — the closing quote never followed the match — so every
+// camelCase JSONB path was invisible to this check, and the test that claimed to prove JSONB paths
+// are handled passed without ever matching one. A mutation removing the path-splitting survived,
+// which is how that was noticed.
+const FILTER_OPS = /\.(eq|neq|gt|gte|lt|lte|like|ilike|is|in|contains|order)\(\s*['"`]([A-Za-z_][A-Za-z0-9_.]*)['"`]/g;
+
+function badFilters(cols: Map<string, Set<string>>, files: string[]): Finding[] {
+  const found: Finding[] = [];
+  for (const file of files) {
+    const raw = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const m of raw.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)/g)) {
+      const known = cols.get(m[1]);
+      if (!known) continue;
+      // The chain runs until the next `.from(` — anything after that belongs to another table.
+      let chain = raw.slice(m.index! + m[0].length, m.index! + 1200);
+      const next = chain.indexOf('.from(');
+      if (next >= 0) chain = chain.slice(0, next);
+
+      for (const f of chain.matchAll(FILTER_OPS)) {
+        // `metadata.foo` addresses a key INSIDE a JSONB column; the column is the part before the
+        // dot, and that is what has to exist.
+        const col = f[2].split('.')[0].toLowerCase();
+        if (!known.has(col)) {
+          found.push({ file, table: m[1], key: `${f[1]}('${col}')`, line: raw.slice(0, m.index!).split('\n').length });
+        }
+      }
+    }
+  }
+  return found;
+}
+
+describe('every research filter names a real column', () => {
+  it('SEES an .eq() on a column that does not exist', () => {
+    const code = `await db.from('research_runs').select('*').eq('fake_filter_col', 1);`;
+    const tmp = path.join(ROOT, 'lib/research/__filter_probe_eq__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_eq__.ts']).length).toBe(1);
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('SEES an .order() on one too — sorting is a column reference as much as filtering is', () => {
+    const code = `await db.from('research_runs').select('*').order('nonexistent_sort');`;
+    const tmp = path.join(ROOT, 'lib/research/__filter_probe_order__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_order__.ts']).length).toBe(1);
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('does not flag a JSONB path — `limits.maxCostUsd` addresses a key inside a real column', () => {
+    const code = `await db.from('research_runs').select('*').eq('limits.maxCostUsd', 2);`;
+    const tmp = path.join(ROOT, 'lib/research/__filter_probe_jsonb__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_jsonb__.ts'])).toEqual([]);
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('does not attribute a filter to the wrong table', () => {
+    // Two chains in one file. Without the stop at the next `.from(`, the second chain's filters
+    // would be checked against the FIRST table's columns — which is how the very first version of
+    // the write sweep produced 136 findings including one table's columns on another.
+    const code = [
+      `await db.from('research_runs').select('*').eq('phase', p);`,
+      `await db.from('research_projects').select('*').eq('county', c);`,
+    ].join('\n');
+    const tmp = path.join(ROOT, 'lib/research/__filter_probe_two__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_two__.ts'])).toEqual([]);
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('has no filter naming a column the seeds do not define', () => {
+    const bad = badFilters(COLUMNS, FILES);
+    const lines = [...new Set(bad.map((b) => `${b.table}.${b.key}  (${b.file}:${b.line})`))];
+    expect(
+      lines,
+      lines.length
+        ? 'A filter on a column that does not exist is a 400, not an empty result — the whole query '
+          + `fails:\n  ${lines.join('\n  ')}`
+        : '',
+    ).toEqual([]);
+  });
+});
+
 describe('every research write hits a real column', () => {
   it('has no write to a column the seeds do not define', () => {
     const bad = badWrites(COLUMNS, FILES);

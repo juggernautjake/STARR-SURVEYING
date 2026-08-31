@@ -822,6 +822,33 @@ read as a new defect) and an embedded resource. The embedded-resource skip is do
 **redundant rather than load-bearing**, because a mutation proved the name-shape test already
 rejects those fragments.
 
+## G6 — The third way to name a column, and it was clean (2026-08-31)
+
+There are three ways research code names a database column, and each fails the same way — the
+whole query, not the one field:
+
+| | Found |
+|---|---|
+| **write** — `.insert({ col: … })` | 1 bug: the extraction report thrown away (G4) |
+| **select** — `.select('col')` | 5 bugs: every share link 404, CAD export dead, 3× vendor (G5) |
+| **filter** — `.eq('col')`, `.order('col')` | **0** |
+
+**Clean is a result, and it is only worth having because the controls make it mean something.**
+Two of them: an injected `.eq()` on a fake column, and an injected `.order()`. Both are seen. A
+zero from a probe that cannot fail is a green light, and this check has produced four of those
+already today.
+
+Guarded anyway. A check written only after something breaks arrives one incident late, and this
+one costs the same nine lines whether or not it ever fires.
+
+**A mutation found the guard lying about its own coverage.** Removing the JSONB-path split
+(`limits.maxCostUsd` → the column is `limits`) survived — because the op regex was
+`[a-z0-9_.]` and could not match the uppercase in `maxCostUsd` **at all**. Every camelCase JSONB
+filter was invisible, and the test asserting "JSONB paths are handled" passed without ever
+matching one. Widened to `[A-Za-z0-9_.]`; the mutation now fails, and no new findings appeared.
+
+That is the second vacuous test caught by mutation today. Both looked like passing assertions.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
