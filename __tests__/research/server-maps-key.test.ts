@@ -10,6 +10,14 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+// The CANONICAL stripper, not a hand-rolled one.
+//
+// The first version of this file rolled its own three-line version and it removed 37KB from
+// boundary-fetch.service.ts — block-comment matching goes wrong once line comments have been
+// deleted out from under it. The guard then reported a file as not using the helper it plainly
+// does use. That is exactly why this lives in one place, and why
+// warnings-are-about-this-process.test.ts records the ordering rule beside its own copy.
+import { stripComments } from '../../scripts/derive-portal-tabs.mjs';
 import {
   resolveServerMapsKey,
   SERVER_MAPS_KEY_VARS,
@@ -17,10 +25,6 @@ import {
 } from '@/lib/maps/server-key';
 
 const ROOT = process.cwd();
-const stripComments = (s: string) => s
-  .split('\r\n').join('\n')
-  .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('resolveServerMapsKey', () => {
   it('prefers the dedicated server variable', () => {
@@ -82,6 +86,7 @@ describe('no server-side caller keeps the public fallback', () => {
   const CALLERS = [
     'lib/research/parcel-map-capture.service.ts',
     'lib/research/progressive-zoom.service.ts',
+    'lib/research/boundary-fetch.service.ts',
     'worker/src/counties/bell/analyzers/lot-correlator.ts',
   ];
 
@@ -89,6 +94,34 @@ describe('no server-side caller keeps the public fallback', () => {
     for (const f of CALLERS) {
       expect(fs.existsSync(path.join(ROOT, f)), `${f} moved — update this guard`).toBe(true);
     }
+  });
+
+  it('resolves through the shared helper, so BOTH server variable names are honoured', () => {
+    // Not the same assertion as the one below, and adding boundary-fetch.service.ts to the list
+    // without this would have been vacuous: that file never had the public fallback, so the
+    // NEXT_PUBLIC check passes for it whether or not this slice changed anything.
+    //
+    // What it DID have was `process.env.GOOGLE_MAPS_API_KEY` alone. An operator who set
+    // GOOGLE_MAPS_SERVER_KEY — the name the runbook and distance-provider ask for — got "skipped,
+    // GOOGLE_MAPS_API_KEY not configured": a message naming the variable they had not set, which
+    // sends them to the wrong screen. Honouring one of two documented names is its own bug.
+    const APP_SIDE = CALLERS.filter((f) => f.startsWith('lib/'));
+    expect(APP_SIDE.length).toBeGreaterThanOrEqual(3);
+
+    const offenders = APP_SIDE.filter(
+      (f) => !stripComments(fs.readFileSync(path.join(ROOT, f), 'utf8')).includes('resolveServerMapsKey('),
+    );
+    expect(offenders, `these read the environment directly instead of the shared resolver, so they '
+      + 'will miss a key set under the other accepted name:\n  ${offenders.join('\n  ')}`).toEqual([]);
+  });
+
+  it('the worker copy honours both names too, since it cannot import the helper', () => {
+    // Separate TS project, own rootDir — it duplicates knowingly. The duplication is only safe
+    // while it stays equivalent, so the equivalence is asserted rather than trusted.
+    const src = stripComments(
+      fs.readFileSync(path.join(ROOT, 'worker/src/counties/bell/analyzers/lot-correlator.ts'), 'utf8'),
+    );
+    for (const v of SERVER_MAPS_KEY_VARS) expect(src).toContain(v);
   });
 
   it('has no `|| NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` left in executable code', () => {

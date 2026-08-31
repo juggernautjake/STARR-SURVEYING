@@ -7,6 +7,7 @@ import { convertLength, type LengthUnit } from '@/worker/src/services/survey-uni
 // One set of closure numbers for the whole platform.
 import { DEFAULT_CLOSURE_THRESHOLDS, READING_SUSPECT_RATIO } from '@/worker/src/lib/closure-tolerance';
 import { callAI } from './ai-client';
+import { resolveServerMapsKey, NO_SERVER_MAPS_KEY_MESSAGE } from '@/lib/maps/server-key';
 import {
   queryParcelByPropId,
   queryParcelByAddress,
@@ -998,9 +999,13 @@ async function geocodeWithGoogle(
   address: string,
   steps: string[],
 ): Promise<{ lat: number; lon: number } | null> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  // Reads BOTH accepted server-key names. This used to read only GOOGLE_MAPS_API_KEY, so an
+  // operator who set GOOGLE_MAPS_SERVER_KEY — the name the runbook and distance-provider ask for —
+  // got a skip message naming the variable they had NOT set, which sends them to the wrong screen.
+  // The public browser key is excluded on purpose; see lib/maps/server-key.ts.
+  const { key: apiKey } = resolveServerMapsKey();
   if (!apiKey) {
-    steps.push('[Method 7e] Google Geocoding skipped — GOOGLE_MAPS_API_KEY not configured.');
+    steps.push(`[Method 7e] Google Geocoding skipped — ${NO_SERVER_MAPS_KEY_MESSAGE}`);
     return null;
   }
   steps.push(`[Method 7e] Google Maps Geocoding: "${address}"`);
@@ -1011,10 +1016,19 @@ async function geocodeWithGoogle(
     if (!res.ok) { steps.push(`[Method 7e] HTTP ${res.status}`); return null; }
     const data = await res.json() as {
       status: string;
+      error_message?: string;
       results?: Array<{ geometry?: { location?: { lat: number; lng: number } }; formatted_address?: string }>;
     };
     if (data.status !== 'OK' || !data.results?.length) {
-      steps.push(`[Method 7e] Google Geocoding status: ${data.status}`);
+      // `error_message` is the half that says WHICH failure. On 2026-08-30 the same key produced
+      // REQUEST_DENIED for three different reasons within one session — "legacy API not enabled",
+      // "not activated", and "API keys with referer restrictions cannot be used with this API" —
+      // and only this field distinguished them. Logging the status alone reduces three different
+      // people's problems to one unactionable word.
+      steps.push(
+        `[Method 7e] Google Geocoding status: ${data.status}`
+        + (data.error_message ? ` — ${data.error_message}` : ''),
+      );
       return null;
     }
     const loc = data.results[0].geometry?.location;

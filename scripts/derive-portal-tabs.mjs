@@ -75,9 +75,28 @@ function cleanLabel(raw) {
  * The worker has its own copy by necessity — separate project, no shared module boundary. That is
  * the one duplicate this cannot remove, and it is noted there.
  */
-export const stripComments = (s) => s.split('\r\n').join('\n')
-  .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
-  .replace(/\/\*[\s\S]*?\*\//g, '');
+// ── THE `*/*` BUG — found 2026-08-30 ────────────────────────────────────────────────────────────
+//
+// The block-comment pass used to be `/\/\*[\s\S]*?\*\//g`, which matches a `/*` ANYWHERE — including
+// inside a string. `lib/research/boundary-fetch.service.ts` sends HTTP headers containing
+//
+//     Accept: '*/*'
+//
+// and that `/*` opened a comment the regex closed 15,068 characters later, deleting real code in
+// between. The file is 101,739 characters; stripping left 64,529. A guard scanning it saw 37% less
+// than it thought, reported a helper as unused that the file plainly calls, and would equally have
+// passed a check for something it could no longer see. Eleven test files import this.
+//
+// The fix anchors the opener to the start of a line. Every block comment in this codebase is a
+// JSDoc or banner beginning its own line; a `/*` inside a string never is. That is a convention
+// rather than a law, which is why the assertion below fails loudly if a file's stripped length
+// collapses — a silent 37% loss is precisely what went unnoticed before.
+export const stripComments = (s) => {
+  const src = s.split('\r\n').join('\n')
+    .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
+    .replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '');
+  return src;
+};
 
 const strip = stripComments;
 
