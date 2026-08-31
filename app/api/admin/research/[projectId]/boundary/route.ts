@@ -13,6 +13,7 @@
 //
 // POST — Re-fetches data from the worker (bypasses any stale cache).
 import { NextRequest, NextResponse } from 'next/server';
+import { parseBearing } from '@/lib/cad/geometry/bearing';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
@@ -35,31 +36,17 @@ function extractProjectId(req: NextRequest): string | null {
 // ── Bearing parser ────────────────────────────────────────────────────────────
 // Converts "N 45°30'00\" E" to decimal degrees (north=0, clockwise).
 
-function parseBearingToDecimal(bearing: string | null): number | null {
-  if (!bearing) return null;
-  const m = bearing.match(
-    /^([NS])\s*(\d{1,3})[°\s]+(\d{1,2})[''′]?\s*(\d{0,2})[""″]?\s*([EW])/i,
-  );
-  if (!m) return null;
-  const ns = m[1].toUpperCase();
-  const ew = m[5].toUpperCase();
-  const deg = parseFloat(m[2]);
-  const min = parseFloat(m[3] || '0');
-  const sec = parseFloat(m[4] || '0');
-  const quad = deg + min / 60 + sec / 3600;
-  // Convert quadrant bearing to azimuth (clockwise from North, 0-360°).
-  // Quadrant bearings use the form N/S + degrees + E/W, measuring the angle
-  // from either North or South toward either East or West.
-  // NE quadrant: azimuth = quad
-  // SE quadrant: azimuth = 180° - quad (flip about E-W axis)
-  // SW quadrant: azimuth = 180° + quad
-  // NW quadrant: azimuth = 360° - quad
-  if (ns === 'N' && ew === 'E') return quad;
-  if (ns === 'S' && ew === 'E') return 180 - quad;
-  if (ns === 'S' && ew === 'W') return 180 + quad;
-  if (ns === 'N' && ew === 'W') return 360 - quad;
-  return null;
-}
+// The quadrant-bearing parser lived here, because the shared one in lib/cad/geometry/bearing.ts
+// REQUIRED seconds and so returned null for `N 30° 15' E` — an ordinary deed call written to the
+// minute. An unparseable leg collapses to zero length below, so a plat with minute-precision calls
+// drew a boundary with sides missing and said nothing about it.
+//
+// The shared parser was widened instead (2026-08-31). This copy is gone, and with it the second
+// difference nobody intended: it was unanchored, so `N 30°15'20" E and more` parsed happily. The
+// shared one anchors, and a bearing with trailing text is now rejected — which is right, because
+// it is not a bearing.
+const parseBearingToDecimal = (bearing: string | null): number | null =>
+  bearing ? parseBearing(bearing) : null;
 
 // ── Traverse walk ─────────────────────────────────────────────────────────────
 // Returns SVG-ready line segments (x1,y1 → x2,y2) in local Cartesian feet.

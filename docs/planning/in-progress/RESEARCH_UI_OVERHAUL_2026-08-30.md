@@ -340,6 +340,42 @@ else.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
+## G11 — `N 30° 15' E` did not parse (2026-08-31)
+
+Found by sweeping for duplicated geometry *after* the previous slice duplicated some itself. The
+sweep was meant to be housekeeping. It turned up a defect.
+
+`lib/cad/geometry/bearing.ts` **required seconds**. A quadrant bearing written to the minute — an
+entirely ordinary deed call — returned `null`.
+
+The research boundary route had grown its **own** parser accepting `(d{0,2})` seconds, precisely
+because the shared one would not take them. And that route collapses an unparseable leg to a
+zero-length segment:
+
+> **A plat with minute-precision calls drew a boundary with sides missing, and said nothing.**
+
+On the CAD side the same input is rejected at entry, by five components.
+
+### Two parsers that disagreed, and the narrower one was the shared one
+
+That is the worst arrangement of the two: only one of them ever gets fixed, and it is not the one
+that quietly works around the gap. The second, unintended difference was that the route's regex
+was **unanchored** — `N 30°15'20" E and more` parsed happily, taking the prefix. Consolidating
+makes that stricter, which is right: silently accepting the prefix of a mis-OCR'd call is how a
+confident wrong number gets into a report.
+
+### Widened, not replaced
+
+Every string that parsed before parses identically; the only new acceptances are ones that should
+always have worked. **The existing 35 bearing tests passing unchanged is the evidence** — that is
+what made it safe to touch code five CAD components depend on.
+
+Mutation-tested four ways: reverting the widening, defaulting missing seconds to something other
+than zero, dropping the anchor, and unwiring the route. The last one **survived the first pass** —
+the test checked that the route imported the shared parser and no longer held its own quadrant
+arithmetic, but not that it CALLED it. Replacing the body with `bearing ? 0 : null` passed both:
+every leg would have come out due north.
+
 ### B1a — ninth slice: **correcting the eighth** — SHIPPED 2026-08-31
 
 The eighth slice extracted the traverse maths and tested it. The maths was right and the tests

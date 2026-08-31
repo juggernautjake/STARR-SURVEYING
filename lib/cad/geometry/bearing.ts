@@ -74,15 +74,30 @@ export function formatDMS(degrees: number): string {
 export function parseBearing(input: string): number | null {
   const s = input.trim().toUpperCase();
 
-  // Quadrant bearing: N dd°mm'ss" E
-  const qbMatch = s.match(/^([NS])\s*(\d+)[°\-\s]+(\d+)['\-\s]+(\d+\.?\d*)["\s]*([EW])$/);
+  // Quadrant bearing: N dd°mm'ss" E — SECONDS OPTIONAL.
+  //
+  // ── `N 30° 15' E` USED TO RETURN null ────────────────────────────────────────────────────────
+  //
+  // The seconds group was mandatory, so a bearing written to the minute — an entirely ordinary deed
+  // call — did not parse at all. Measured 2026-08-31 against the research boundary route, which had
+  // grown its OWN parser accepting `(\d{0,2})` seconds precisely because this one would not take
+  // them; that route collapses an unparseable leg to zero length, so a plat with minute-precision
+  // calls drew a boundary with missing sides and said nothing.
+  //
+  // On the CAD side the same input is simply rejected at entry.
+  //
+  // Widened rather than replaced: every string that parsed before parses the same way, and the only
+  // new acceptances are the ones that should always have worked. Seconds default to zero, which is
+  // what "N 30° 15' E" means.
+  const qbMatch = s.match(/^([NS])\s*(\d+)[°\-\s]+(\d+)['′\-\s]*(?:(\d+\.?\d*)["″\s]*)?([EW])$/);
   if (qbMatch) {
+    const secs = qbMatch[4] !== undefined ? parseFloat(qbMatch[4]) : 0;
     const qb: QuadrantBearing = {
       direction1: qbMatch[1] as 'N' | 'S',
       degrees: parseInt(qbMatch[2]),
       minutes: parseInt(qbMatch[3]),
-      seconds: Math.floor(parseFloat(qbMatch[4])),
-      tenthSeconds: Math.round((parseFloat(qbMatch[4]) % 1) * 10),
+      seconds: Math.floor(secs),
+      tenthSeconds: Math.round((secs % 1) * 10),
       direction2: qbMatch[5] as 'E' | 'W',
     };
     return quadrantToAzimuth(qb);
