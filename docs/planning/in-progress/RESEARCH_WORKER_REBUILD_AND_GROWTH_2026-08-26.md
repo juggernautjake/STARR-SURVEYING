@@ -1338,7 +1338,36 @@ from the real `robots.txt` rules rather than hand-written.
    where storage_path is null and storage_url is not null;
   ```
 
-  Also found while counting: **306 of 654 `research_documents` rows have `storage_url IS NULL`.**
+  **The 306 NULLs: measured 2026-08-30, and they are FINE. Item closed.**
+
+  `storage_url IS NULL` on 306 of 654 rows — 47% of the table — looked alarming enough to write
+  down. It is not a defect, and the measurement says so four ways:
+
+  | Check | Result | Reading |
+  |---|---|---|
+  | null `storage_url` **and** null `storage_path` | **306 / 306** | The two columns agree — precisely what the 22 broken rows above did not do. |
+  | `storage_path` set but `storage_url` null | **0** | No row holds a file it fails to advertise. The inverse defect does not exist. |
+  | null-url rows carrying `extracted_text` | **290 / 306**, avg 1,083 chars, min 94 | Genuine text records: the portal was read, the text captured, no file downloaded. |
+  | null-url rows carrying `source_url` | **306 / 306** | Every one says where it came from. |
+
+  So the common case is a *text-only* document — exactly the "indexed but not retrieved" reading the
+  original note guessed at.
+
+  **The 16 rows with neither file nor text are pre-fix residue — verified, not assumed.** They are
+  15 plats and 1 deed, all from `bell.tx.publicsearch.us`, all created **2026-03-17 → 03-19**, all
+  marked `processing_status: 'extracted'` — a status claiming success over nothing at all. That IS a
+  real bug, and it was already fixed: `assessOcr` (plan R18) stopped `document.service.ts` writing
+  `'extracted'` unconditionally, its own comment noting the old behaviour "became a document with no
+  facts and no explanation". That fix landed in `54947d3cf` on **2026-08-02** — nearly five months
+  after these rows were written.
+
+  **No code change, deliberately.** Asking whether current code could still produce the state is
+  what stopped this becoming a second fix for a bug already fixed — the same premise-check that
+  stopped the Static Maps 403 being blamed for the 22 broken URLs an hour earlier. The 16 rows carry
+  a `source_url`, so they are re-fetchable rather than lost; not worth a migration.
+
+  <!-- superseded note, kept for the trail: -->
+  Originally recorded as: **306 of 654 `research_documents` rows have `storage_url IS NULL`.**
   Not investigated here — a null may legitimately mean "indexed but not retrieved" — but it is
   recorded so the next person does not re-measure it, and it is 47% of the table.
 - **Saturday hours stay unpublished.** `/contact` says "by appointment", which schema.org cannot
