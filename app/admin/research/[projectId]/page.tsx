@@ -54,9 +54,10 @@ import {
   undo as undoAnnotations,
   type AnnotationHistoryState,
 } from './_sections/annotation-history';
-import {
-  advance, azimuthToBearing, closingLeg, needsClosing,
-} from './_sections/traverse-geometry';
+import { needsClosing } from './_sections/traverse-geometry';
+// The coordinate geometry is the CAD library's, not this page's — see the header of
+// _sections/traverse-geometry.ts for why a local copy was written and then removed.
+import { forwardPoint, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import ProjectHeader from './_sections/ProjectHeader';
 import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
@@ -909,7 +910,7 @@ export default function ResearchProjectPage() {
     // Azimuth is from NORTH, so easting takes sin and northing takes cos — see
     // `_sections/traverse-geometry.ts`, where that convention is stated and tested. It was inline
     // here and untested for as long as it existed.
-    const { x: newX, y: newY } = advance(last, leg);
+    const { x: newX, y: newY } = forwardPoint(last, leg.azimuth, leg.distance);
     const vertex: TraverseVertex = {
       id: `tv-${Date.now()}-${coordVertices.length}`,
       x: newX,
@@ -941,8 +942,11 @@ export default function ResearchProjectPage() {
     // closing them just retraces the same leg — and no zero-length leg onto an already-closed
     // figure, which would show in the report as a leg of 0.00 feet.
     if (!needsClosing(coordVertices)) return;
-    const leg = closingLeg(coordVertices[0], coordVertices[coordVertices.length - 1]);
-    handleAddLeg({ ...leg, bearing: azimuthToBearing(leg.azimuth) });
+    const leg = inverseBearingDistance(coordVertices[0], coordVertices[coordVertices.length - 1]);
+    // `formatBearing` is what the CAD side shows. The page used to render its own
+    // `N 30° 0' 0" E`; the canonical form is the zero-padded `N 30°00'00" E`, and one product
+    // showing a bearing two ways is a defect of its own.
+    handleAddLeg({ ...leg, bearing: formatBearing(leg.azimuth) });
   }
 
   // Delete a coord vertex by index
@@ -989,13 +993,10 @@ export default function ResearchProjectPage() {
     } else if (updates.azimuth !== undefined && updates.distance !== undefined) {
       // Bearing/distance: compute new end point from start
       if (geom.type === 'line') {
+        // Third copy of the azimuth-to-coordinate maths in this file when it was found. Editing a
+        // vertex by bearing and distance now goes through the same tested function as adding a leg.
         const start = geom.start as { x: number; y: number };
-        const rad = (updates.azimuth * Math.PI) / 180;
-        const newEnd = {
-          x: start.x + updates.distance * Math.sin(rad),
-          y: start.y + updates.distance * Math.cos(rad),
-        };
-        geom.end = newEnd;
+        geom.end = forwardPoint(start, updates.azimuth, updates.distance);
       }
     }
 

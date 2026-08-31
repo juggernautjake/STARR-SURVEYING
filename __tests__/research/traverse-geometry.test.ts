@@ -1,172 +1,113 @@
 // __tests__/research/traverse-geometry.test.ts
 //
-// The coordinate geometry behind the traverse entry panel. **It shipped untested** — three closures
-// inside a 3,300-line component, unreachable and therefore uncalled by any test.
+// ── WHAT THIS FILE USED TO BE, AND WHY IT IS SMALLER NOW ────────────────────────────────────────
 //
-// Every rule here is a convention that is easy to get backwards and impossible to notice by reading:
-// azimuth is from NORTH so easting takes `sin`; `atan2` is passed `(dx, dy)` rather than the usual
-// `(y, x)`; and quadrant bearings measure back from south in two of the four quadrants.
+// The previous slice pulled the traverse maths out of `page.tsx` and wrote seventeen tests for it.
+// The maths was correct and the tests were good. The module was still a **mistake**: this repository
+// already had `lib/cad/geometry/bearing.ts` — `forwardPoint`, `inverseBearingDistance`,
+// `azimuthToQuadrant`, `formatBearing` — with its own tests and five CAD components using it.
 //
-// **A wrong closing leg does not throw.** It produces a parcel that closes to the wrong corner by a
-// few feet — the size of error a surveyor might blame on the record rather than the software.
+// So that slice fixed "untested" by introducing "duplicated", which is the worse of the two. A
+// second copy of a coordinate convention drifts, and the page's copy is the one that runs. The
+// commit message for that very slice said so about `azimuthToBearingSimple`.
+//
+// Found by grepping `Math.sin(rad)` across the repo while chasing a THIRD copy inside
+// `handleUpdateVertex` — the search that should have run before any of it was written.
+//
+// What is tested here now is what is actually this page's: **when** a traverse should close, and
+// **that the page uses the shared geometry** rather than growing another copy. The maths itself is
+// covered by `__tests__/cad/geometry/bearing.test.ts`, where it belongs.
 
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  CLOSED_TOLERANCE, advance, azimuthToBearing, closingLeg, needsClosing,
-} from '../../app/admin/research/[projectId]/_sections/traverse-geometry';
+import { CLOSED_TOLERANCE, needsClosing } from '../../app/admin/research/[projectId]/_sections/traverse-geometry';
+import { forwardPoint, inverseBearingDistance } from '../../lib/cad/geometry/bearing';
 
-const near = (a: number, b: number, p = 6) => expect(a).toBeCloseTo(b, p);
-
-describe('advance — a leg from a point', () => {
-  it('due north increases the northing only', () => {
-    const p = advance({ x: 0, y: 0 }, { azimuth: 0, distance: 100 });
-    near(p.x, 0); near(p.y, 100);
-  });
-
-  it('due east increases the easting only', () => {
-    // The assertion that fails if sin and cos are swapped. Azimuth 90 is EAST, so x moves.
-    const p = advance({ x: 0, y: 0 }, { azimuth: 90, distance: 100 });
-    near(p.x, 100); near(p.y, 0);
-  });
-
-  it('due south and due west go the other way', () => {
-    const s = advance({ x: 0, y: 0 }, { azimuth: 180, distance: 50 });
-    near(s.x, 0); near(s.y, -50);
-    const w = advance({ x: 0, y: 0 }, { azimuth: 270, distance: 50 });
-    near(w.x, -50); near(w.y, 0);
-  });
-
-  it('45° splits the distance evenly between north and east', () => {
-    const p = advance({ x: 0, y: 0 }, { azimuth: 45, distance: Math.SQRT2 });
-    near(p.x, 1); near(p.y, 1);
-  });
-
-  it('is relative to where you already are', () => {
-    const p = advance({ x: 10, y: 20 }, { azimuth: 90, distance: 5 });
-    near(p.x, 15); near(p.y, 20);
-  });
-});
-
-describe('closingLeg — back to the first corner', () => {
-  it('a leg due north closes due south', () => {
-    const leg = closingLeg({ x: 0, y: 0 }, { x: 0, y: 100 });
-    near(leg.azimuth, 180); near(leg.distance, 100);
-  });
-
-  it('a leg due east closes due west', () => {
-    // The assertion that fails if atan2's arguments are the conventional way round: with `(dy, dx)`
-    // this comes out 180 instead of 270, and every closing leg is rotated 90°.
-    const leg = closingLeg({ x: 0, y: 0 }, { x: 100, y: 0 });
-    near(leg.azimuth, 270); near(leg.distance, 100);
-  });
-
-  it('never returns a negative azimuth', () => {
-    // `atan2` returns -π..π. Without the `+360 % 360` normalisation, half of all closing legs are
-    // negative and every bearing derived from them lands in the wrong quadrant.
-    for (const last of [{ x: 5, y: 5 }, { x: -5, y: 5 }, { x: 5, y: -5 }, { x: -5, y: -5 }]) {
-      const { azimuth } = closingLeg({ x: 0, y: 0 }, last);
-      expect(azimuth).toBeGreaterThanOrEqual(0);
-      expect(azimuth).toBeLessThan(360);
-    }
-  });
-
-  it('round-trips: closing a leg and walking it lands on the first corner', () => {
-    // The property that matters. Any sign or argument-order error breaks this even when the
-    // individual numbers look reasonable.
-    const first = { x: 12.5, y: -3.25 };
-    const last = { x: -40, y: 88 };
-    const back = advance(last, closingLeg(first, last));
-    near(back.x, first.x, 6); near(back.y, first.y, 6);
-  });
-});
-
-describe('needsClosing', () => {
+describe('needsClosing — a decision, not geometry', () => {
   it('refuses fewer than three vertices', () => {
-    // Two points are a line; "closing" them retraces the same leg backwards.
+    // Two points are a line; closing them retraces the same leg backwards, and the report shows a
+    // second leg lying on top of the first.
     expect(needsClosing([])).toBe(false);
     expect(needsClosing([{ x: 0, y: 0 }])).toBe(false);
     expect(needsClosing([{ x: 0, y: 0 }, { x: 1, y: 1 }])).toBe(false);
   });
 
-  it('is true for an open triangle', () => {
+  it('is true for an open figure', () => {
     expect(needsClosing([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }])).toBe(true);
   });
 
-  it('is false when the figure already closes', () => {
-    // Adding a zero-length leg would put a duplicate vertex on top of the first one, which then
-    // shows in the report as a leg of 0.00 feet.
-    const v = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 0 }];
-    expect(needsClosing(v)).toBe(false);
+  it('is false when it already closes', () => {
+    // A zero-length leg puts a duplicate vertex on the first corner, and the deliverable shows a
+    // leg of 0.00 feet.
+    expect(needsClosing([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: 0, y: 0 }])).toBe(false);
   });
 
   it('treats within-tolerance as closed', () => {
     const v = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }, { x: CLOSED_TOLERANCE / 2, y: 0 }];
     expect(needsClosing(v)).toBe(false);
   });
-});
 
-describe('azimuthToBearing', () => {
-  it('names the four cardinal directions from the right quadrant', () => {
-    expect(azimuthToBearing(0)).toBe(`N 0° 0' 0" E`);
-    expect(azimuthToBearing(90)).toBe(`N 90° 0' 0" E`);
-    expect(azimuthToBearing(180)).toBe(`S 0° 0' 0" E`);
-    expect(azimuthToBearing(270)).toBe(`S 90° 0' 0" W`);
-  });
-
-  it('measures BACK from south in the south-east quadrant', () => {
-    // The rule that is one subtraction away from wrong. Azimuth 150 is S 30 E, not S 150 E and not
-    // N 30 W — and a reversed subtraction gives a bearing that reads fine and points elsewhere.
-    expect(azimuthToBearing(150)).toBe(`S 30° 0' 0" E`);
-    expect(azimuthToBearing(210)).toBe(`S 30° 0' 0" W`);
-    expect(azimuthToBearing(330)).toBe(`N 30° 0' 0" W`);
-  });
-
-  it('converts the fraction to minutes and seconds', () => {
-    expect(azimuthToBearing(30.5)).toBe(`N 30° 30' 0" E`);
-    expect(azimuthToBearing(30.25)).toBe(`N 30° 15' 0" E`);
-    // 0.0025° = 9 seconds exactly.
-    expect(azimuthToBearing(30.0025)).toBe(`N 30° 0' 9" E`);
-  });
-
-  it('normalises angles outside 0–360 instead of producing nonsense', () => {
-    // A closing leg computed before normalisation, or a user typing 450, must not yield "N 450 E".
-    expect(azimuthToBearing(450)).toBe(azimuthToBearing(90));
-    expect(azimuthToBearing(-90)).toBe(azimuthToBearing(270));
+  it('measures the gap with the shared inverse, not its own', () => {
+    // The one line of geometry left in this module delegates. If it grew its own distance formula
+    // the two would drift, which is the whole reason this file shrank.
+    const src = fs.readFileSync(
+      path.join(process.cwd(), 'app/admin/research/[projectId]/_sections/traverse-geometry.ts'),
+      'utf8',
+    );
+    expect(src).toContain("from '@/lib/cad/geometry/bearing'");
+    expect(src, 'a local distance formula is how the copies started').not.toContain('Math.sqrt');
   });
 });
 
-describe('the page actually uses this geometry', () => {
-  // Correct geometry nobody calls is worth nothing, and a rules module is the easiest place to
-  // leave that mistake: it compiles, its own tests pass, and the page keeps the maths it always
-  // had. This session found that defect nine times in the research code; it is not going to be
-  // introduced here.
+describe('the round trip, as a property of the shared geometry', () => {
+  it('closing a leg and walking it lands on the first corner', () => {
+    // Kept from the previous slice because it is the assertion that catches a sign or
+    // argument-order slip even when the individual numbers look plausible. It now exercises the
+    // CANONICAL functions, which is what the page calls.
+    const first = { x: 12.5, y: -3.25 };
+    const last = { x: -40, y: 88 };
+    const leg = inverseBearingDistance(first, last);
+    // `inverseBearingDistance(from, to)` gives the leg FROM first TO last, so walking it from
+    // `first` must arrive at `last`.
+    const there = forwardPoint(first, leg.azimuth, leg.distance);
+    expect(there.x).toBeCloseTo(last.x, 6);
+    expect(there.y).toBeCloseTo(last.y, 6);
+  });
+});
+
+describe('the page uses the shared geometry, and has no copy of its own', () => {
   const PAGE = fs.readFileSync(
     path.join(process.cwd(), 'app/admin/research/[projectId]/page.tsx'),
     'utf8',
   );
 
-  it('imports the rules', () => {
-    expect(PAGE).toContain("from './_sections/traverse-geometry'");
+  it('imports it from the CAD library', () => {
+    expect(PAGE).toContain("from '@/lib/cad/geometry/bearing'");
   });
 
-  it('adds a leg through `advance`', () => {
-    expect(PAGE).toContain('advance(last, leg)');
+  it('adds a leg, closes a traverse and edits a vertex through it', () => {
+    // Three call sites; the third — `handleUpdateVertex` — was a separate copy of the same maths
+    // and is what led to finding the duplication at all.
+    expect(PAGE.split('forwardPoint(').length - 1, 'both forward call sites should use it')
+      .toBeGreaterThanOrEqual(2);
+    expect(PAGE).toContain('inverseBearingDistance(coordVertices[0]');
   });
 
-  it('closes a traverse through `needsClosing` and `closingLeg`', () => {
-    expect(PAGE).toContain('needsClosing(coordVertices)');
-    expect(PAGE).toContain('closingLeg(coordVertices[0]');
-  });
-
-  it('no longer carries its own copy of the maths', async () => {
-    // Two implementations of a coordinate convention is how they drift, and the page's copy is the
-    // one that would run. `azimuthToBearingSimple` was the page's own; it is gone.
+  it('carries no local azimuth-to-coordinate maths', async () => {
+    // The signature of every copy: `Math.sin(rad)` on the easting. Three of them lived in this
+    // file. A fourth must not appear.
     const { stripComments } = await import('../../scripts/audit-starr-assumptions.mjs');
     const code = stripComments(PAGE);
     expect(code).toContain('function handleCloseTraverse');   // control: the stripper kept the code
-    expect(code, 'the page still defines its own bearing conversion').not.toContain('azimuthToBearingSimple');
-    expect(code, 'the page still computes its own closing azimuth').not.toContain('Math.atan2(dx, dy)');
+    expect(code, 'a local copy of the azimuth maths is back').not.toContain('Math.sin(rad)');
+    expect(code).not.toContain('azimuthToBearingSimple');
+  });
+
+  it('shows bearings the way the rest of the product does', () => {
+    // The page rendered `N 30° 0' 0" E` while every CAD surface rendered `N 30°00'00" E`. One
+    // product, two bearing formats, is a defect of its own — and the survey-standard zero-padded
+    // form is the one five other components already use.
+    expect(PAGE).toContain('formatBearing(leg.azimuth)');
   });
 });
