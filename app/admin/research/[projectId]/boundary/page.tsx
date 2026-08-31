@@ -417,8 +417,15 @@ export default function BoundaryViewerPage() {
             )
           }
 
-          {/* Zoom controls */}
-          <div className="absolute bottom-4 right-4 flex flex-col gap-1">
+          {/* Zoom controls.
+
+              `bottom-4`, not `bottom-28`, put the reset button underneath the global floating
+              action menu — `.fab-menu` is `position: fixed; bottom: 1.5rem; right: 1.5rem` at
+              z-index 90, so it occupied the bottom ~90px of the right edge and swallowed the tap.
+              Found by E3's occlusion probe, which asks `elementFromPoint` rather than looking at a
+              screenshot: the two rectangles overlapping is not the defect, the click landing on the
+              FAB is. 7rem clears the pill with room for its shadow. */}
+          <div className="absolute bottom-28 right-4 flex flex-col gap-1">
             <button onClick={() => setSvgScale(s => Math.min(s * 1.2, 10))}
               className="w-8 h-8 bg-gray-700 rounded text-white hover:bg-gray-600 font-bold text-lg">+</button>
             <button onClick={() => setSvgScale(s => Math.max(s * 0.8, 0.2))}

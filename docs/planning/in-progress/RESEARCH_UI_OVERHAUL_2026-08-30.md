@@ -1412,10 +1412,83 @@ consolidation.
 
 A test pins the deferral: if either stops being a dark full-page layout, `one-state-vocabulary`
 fails and names this entry. A deferral that no longer applies should not sit silently in a doc.
-### E3 — Responsive pass ☐
+### E3 — Responsive pass ✅ **SHIPPED 2026-08-31** — `e2e/research-responsive.spec.ts`
 
-Measure at **1440 and 390** against a **production build** — dev-server layout differs. Watch for
-Tailwind's `svg{display:block}` breaking icon headings. See [[project_ui_fit_sweep_and_preflight]].
+The last open slice on this doc, and the only one a browser rather than a test had to settle. It is
+a browser now, driven, against a **production** build on `next start -p 3050` — not a person
+scrolling and forming an opinion.
+
+**Twenty-six checks: twelve routes × two widths, plus the eight Review tabs at each.** Every one
+passes.
+
+#### What it asks
+
+The existing `mobile-overflow-audit.spec.ts` covers twenty-two admin routes at 360px and asserts one
+thing. **Not one research route is in its list** — this portal has been outside every responsive
+measurement the repo has. This adds them, at both widths the doc names, and asks three questions:
+
+1. does the page scroll sideways — what a reader actually sees;
+2. is any control unreachable because something is parked on it — measured with `elementFromPoint`
+   at the *end* of the page, not from a screenshot, for the reason that file already records;
+3. at 1440, does the content collapse into a narrow column of a wide empty page.
+
+(3) is the desktop half, and it is why "responsive" is not a synonym for "works on a phone". A
+portal that lays out a 600px column in a 1440px window has failed no assertion and is still the
+wrong answer for a screen whose job is reading a deed beside a plat. Floor: two thirds of the
+window. Worst measured is `/self-heal` at 1036 of 1440.
+
+The probes moved to `e2e/_responsive-probes.ts`. Importing them from a `.spec` **executes** it, so
+every test that file registers would run again under the importing one; copying them would be G12
+with a longer fuse, because the copy that stops being maintained is the one that goes on reporting
+clean.
+
+#### G16 — the reset-view button could not be clicked
+
+`/admin/research/[projectId]/boundary`. The boundary viewer's zoom stack is `absolute bottom-4
+right-4`; `.fab-menu` is `position: fixed; bottom: 1.5rem; right: 1.5rem` at z-index 90. The
+bottom-most of the three — **reset view** — sat under the pill, and the tap landed on the FAB. Moved
+to `bottom-28`, which clears it with room for the shadow.
+
+Found by the occlusion probe, which is the whole argument for asking `elementFromPoint` rather than
+looking: two rectangles overlapping is not the defect, the click landing on the wrong one is.
+
+#### The Review tabs are state, not routes — so they are driven
+
+Nothing route-based ever renders `easements`, `survey` or the coherence panel: they are behind a tab
+bar that only appears at `status: 'review'`, and the one project on this account sits at `upload`. A
+responsive pass that measured the default tab would have measured one eighth of the screen — the
+seven eighths this doc spent the day rewriting being the other seven.
+
+Two ways forward and only one acceptable: advance the owner's real project through the pipeline, or
+hand the page a project. The first writes to live data to make a layout test pass, which is how a QA
+suite gets banned. So `page.route` replaces exactly one response and everything else stays live.
+
+**And the fixture is deliberately verbose.** These panels render nothing when their data is absent,
+so an empty run would have measured eight empty tabs and pronounced the portal responsive. It
+carries a three-pass coherence review, a four-link chain of title with a real break, a plat
+analysis, FEMA and TxDOT readings, two recorded easements and two covenants — with real instrument
+numbers and real bearings, because overflow is a function of content length and `"foo"` in every
+field is how a layout audit passes a layout that breaks.
+
+Measured content per tab at 390: Summary 3,732 chars, Survey Data 1,790, Easements 1,656. None
+scrolls sideways at either width.
+
+#### Two instrument failures worth keeping
+
+Both cost a wrong answer before they cost a fix.
+
+**A stale server serves 400s for its own assets.** `next build` replaced `.next` under a running
+`next start`, the second `next start` could not bind the port and exited quietly, and the first went
+on serving HTML that referenced chunk files the rebuild had deleted. Every asset 400'd, React never
+hydrated, and the page sat on the admin shell's *"⏳ Loading…"* — which reads exactly like a broken
+session cookie. `pkill -f` does not kill it on Windows; `Get-NetTCPConnection -LocalPort 3050 |
+Stop-Process` does.
+
+**A Playwright URL glob does not match a query string** the way its path part suggests.
+`**/api/admin/research?id=…` matched nothing, silently. A predicate on `url.pathname` and
+`url.searchParams` does. The assertion that caught it — *"the review panel did not render; the
+fixture is not reaching the page"* — is an `expect`, not a `test.skip`, precisely so a fixture that
+stops arriving turns the file red rather than quietly measuring air.
 
 ---
 
@@ -1985,8 +2058,8 @@ precedence over the project value there. Now covered.
 **Planned and shipped:** A1 A2 A3 A4 · B2 B3 B4/B5 B6 · C1 C2 C3 · D0 · E1 E2 · F1.
 **Withdrawn as false premises:** B1, E1 (both replaced by what checking them revealed).
 
-**Unplanned, and the reason this doc grew:** G1–G15. Fifteen findings, none of them on the plan,
-all in the property-research software. Twelve were live defects:
+**Unplanned, and the reason this doc grew:** G1–G16. Sixteen findings, none of them on the plan,
+all in the property-research software. Thirteen were live defects:
 
 | | What it was |
 |---|---|
@@ -2002,6 +2075,7 @@ all in the property-research software. Twelve were live defects:
 | G13 | The contrast pass said *"clean"* while 131 inline styles went unmeasured |
 | G14 | **A ternary background was never measured at all** — four buttons and labels down to 2.15:1 |
 | G15 | **The chain of title rendered white on white** — 1.23:1, plus 18 more the ancestor-blind scanner could not reach |
+| G16 | The boundary viewer’s **reset-view button sat under the floating dock** and could not be clicked |
 
 Three came back clean (filters, the placeholder scan, the app/worker HTTP contract) and each now
 has a guard so it stays that way. Plus a live Chromium leak and bounded concurrent capture in the
@@ -2032,7 +2106,7 @@ blocked; none costs more than it is worth. They are simply not done.
 | **D3** | ✅ **CLOSED 2026-08-31** — already shipped. |
 | **E1b** | ☐ Open, and correctly outside this doc — admin shell, not the research portal. |
 | **E2b** | ✅ **BOTH SHIPPED 2026-08-31** — `BillingTab` and `LibraryTab` re-themed; the Billing pass found a button with no `onClick` at all. |
-| **E3** | ☐ **Genuinely open.** Responsive pass at 1440 and 390 against a **production** build. QA work, not a code slice — and the one remaining item on this doc that a browser, not a test, has to settle. |
+| **E3** | ✅ **SHIPPED 2026-08-31** — `e2e/research-responsive.spec.ts`: 12 routes × 2 widths plus the 8 Review tabs at each, 26 checks, all green against a production build. Found G16, a reset-view button under the floating dock. |
 | **F2** | ◐ **Static half SHIPPED** (51 real failures fixed; `verify:contrast` reports *no contrast failures* across **930** pairs, with only 120 skipped — the scanner now reads ternary branches AND resolves the nearest ancestor that paints a background, which is how the chain of title was found rendering white on white). The browser half stays a programme, and pairs with E3. |
 
 ### And the thing no amount of this can settle

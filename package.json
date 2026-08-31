@@ -55,7 +55,8 @@
     "verify:orphans": "node scripts/find-orphaned-modules.mjs",
     "verify:contrast": "node scripts/audit-research-contrast.mjs",
     "verify:worker": "node --experimental-strip-types --no-warnings scripts/verify-worker.mjs",
-    "verify:unmerged": "node scripts/verify-unmerged.mjs"
+    "verify:unmerged": "node scripts/verify-unmerged.mjs",
+    "e2e:research-responsive": "playwright test e2e/research-responsive.spec.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
