@@ -85,10 +85,25 @@ function unstyled(): Map<string, string> {
   for (const file of walk(path.join(ROOT, 'app/admin/research'))) {
     const src = fs.readFileSync(file, 'utf8');
 
-    // Styles the component carries itself, e.g. PipelineProgressPanel's <style>{`…`}</style>.
+    // Styles the component carries itself. TWO mechanisms, and missing either makes the guard
+    // report a correctly-styled component as broken:
+    //
+    //   1. an embedded <style>{`…`}</style> block — PipelineProgressPanel defines ~107 that way
+    //   2. a CO-LOCATED stylesheet it imports, e.g. `import './ResearchAnalysisPanel.css'`
+    //
+    // (2) was missing when this guard shipped, and it showed up immediately: styling that panel
+    // produced no change in the count, because the guard only knew a hardcoded list of sheets.
+    // A fixed list cannot describe a codebase where components are meant to bring their own
+    // styles — which is the very convention A2 established.
     const own = new Set<string>();
     for (const block of src.matchAll(/<style[^>]*>\{`([\s\S]*?)`\}<\/style>/g)) {
       for (const c of classesIn(block[1]!)) own.add(c);
+    }
+    for (const imp of src.matchAll(/^import\s+['"](\.[^'"]+\.css)['"]/gm)) {
+      const sheet = path.resolve(path.dirname(file), imp[1]!);
+      if (fs.existsSync(sheet)) {
+        for (const c of classesIn(fs.readFileSync(sheet, 'utf8'))) own.add(c);
+      }
     }
 
     const rendered = new Set<string>();
@@ -114,12 +129,17 @@ function unstyled(): Map<string, string> {
 }
 
 /**
- * Measured 2026-08-30. MAY ONLY GO DOWN.
+ * MAY ONLY GO DOWN.
  *
- * Raising it is not a maintenance step — both times a ratchet was re-baselined upward in this repo,
- * the breach turned out to be a real bug rather than debt.
+ *   534  measured 2026-08-30 when this guard shipped
+ *   461  after styling ResearchAnalysisPanel — the mounted, wholly unstyled panel the guard found
+ *
+ * Raising it is not a maintenance step. Both times a ratchet was re-baselined upward in this repo,
+ * the breach turned out to be a real bug rather than debt. Lowering it as files are fixed is the
+ * intended motion, and this constant coming down is what "the UI overhaul is progressing" looks
+ * like as a number rather than as an impression.
  */
-const UNSTYLED_BASELINE = 534;
+const UNSTYLED_BASELINE = 461;
 
 describe('rendered classes resolve to a rule that loads on the route', () => {
   it('finds the sheets and the components — a broken scan would pass everything', () => {

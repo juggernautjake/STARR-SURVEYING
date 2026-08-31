@@ -7,6 +7,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import './ResearchAnalysisPanel.css';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
