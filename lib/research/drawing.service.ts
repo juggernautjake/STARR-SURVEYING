@@ -69,10 +69,24 @@ export async function createDrawing(
   const template = templateResult.data;
 
   // Build document metadata lookup for confidence scoring
-  type DocMeta = { document_type: string | null; recorded_date: string | null; ocr_confidence: number | null; source_type: string };
+  // `id` belongs in the type. It was cast in at the point of use —
+  // `(doc as unknown as { id: string }).id` — which is the same shape as a cast that produced a
+  // real bug elsewhere today: `owner_name` was cast onto a project, the column did not exist, and
+  // the value was silently `undefined` for the life of the feature.
+  //
+  // This one was harmless — every row has an `id` — but the two are indistinguishable at a glance,
+  // and that is the problem with reaching for a cast to read a field. Declared instead, so the
+  // compiler is the thing confirming it rather than the author.
+  type DocMeta = {
+    id: string;
+    document_type: string | null;
+    recorded_date: string | null;
+    ocr_confidence: number | null;
+    source_type: string;
+  };
   const docMetaMap = new Map<string, DocMeta>();
   for (const doc of (documentsResult.data || []) as DocMeta[]) {
-    docMetaMap.set((doc as unknown as { id: string }).id, doc);
+    docMetaMap.set(doc.id, doc);
   }
 
   // 2. Extract NormalizedCall sequence from call data points
