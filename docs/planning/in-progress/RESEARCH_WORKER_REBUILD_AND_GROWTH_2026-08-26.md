@@ -1294,6 +1294,50 @@ from the real `robots.txt` rules rather than hand-written.
   Places and Geocoding — **it is a dependency the code already has.** See the enablement list in
   §M5b; enabling it is the same one-click action.
 
+  **✅ ROOT CAUSE FOUND AND FIXED 2026-08-30 — and it was NOT the disabled API.** The Static Maps
+  403 is a real finding but a red herring for these rows: `fetchMapImage` already checks `res.ok`
+  **and** that the content-type starts with `image/`, so a denied request returns null and nothing
+  is stored. Checking that premise before building on it is the only reason this was caught.
+
+  The actual cause is one line, and it is this codebase's signature shape.
+  `supabaseAdmin.storage.from(bucket).getPublicUrl(path)` **builds a string** — it never asks the
+  bucket whether anything is there. Three of the four services that store research artifacts called
+  it unconditionally, right after code that deliberately tolerates a failed upload:
+
+  ```ts
+  if (uploadError) { console.warn(...); /* Continue — create the DB record */ }
+  const { data: urlData } = supabase.storage.from(BUCKET).getPublicUrl(storagePath);
+  ...
+  storage_path: uploadError ? null : storagePath,   // honest
+  storage_url:  urlData?.publicUrl || null,         // NOT honest
+  ```
+
+  The row then says two opposite things at once: `storage_path: null` meaning *not stored*, beside a
+  `storage_url` meaning *here it is*. The URL 400s forever, and nothing noticed because a warning
+  was logged and the insert went ahead regardless.
+
+  Fixed in `map-image.service.ts`, `parcel-map-capture.service.ts` and `progressive-zoom.service.ts`.
+  **`browser-scrape.service.ts` already had it right** (`if (!uploadError)`) — the correct pattern
+  was in the repo the whole time, which is why the guard is worth more than the fix: the next
+  service will be written by somebody reading one of the three that were wrong.
+
+  `__tests__/research/storage-url-implies-a-stored-file.test.ts` pins the invariant across all four.
+  **The guard caught itself first:** scanning raw source, it read the *explanatory comment* quoting
+  `if (!uploadError)` as evidence of the pattern, so reverting the fix still passed. It now strips
+  comments — a guard that reads its own documentation will certify anything that merely talks about
+  being correct. Mutation-tested after: un-guarding each of the three services fails it.
+
+  **The 22 existing rows are still in the table.** Nulling their `storage_url` is a data repair
+  rather than a code change, and is left for the owner to authorise:
+
+  ```sql
+  -- Restores truth to rows that advertise a file that was never written.
+  -- Verify first:  select count(*) from research_documents
+  --                where storage_path is null and storage_url is not null;
+  update research_documents set storage_url = null
+   where storage_path is null and storage_url is not null;
+  ```
+
   Also found while counting: **306 of 654 `research_documents` rows have `storage_url IS NULL`.**
   Not investigated here — a null may legitimately mean "indexed but not retrieved" — but it is
   recorded so the next person does not re-measure it, and it is 47% of the table.

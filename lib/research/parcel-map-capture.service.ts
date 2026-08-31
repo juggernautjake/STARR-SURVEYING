@@ -251,9 +251,13 @@ async function storeMapImage(
       .from(RESEARCH_DOCUMENTS_BUCKET)
       .upload(storagePath, imageBuffer, { contentType: 'image/png', upsert: false });
 
-    const { data: urlData } = supabaseAdmin.storage
-      .from(RESEARCH_DOCUMENTS_BUCKET)
-      .getPublicUrl(storagePath);
+    // Only on a successful upload — `getPublicUrl` builds a string and never checks the object
+    // exists, so recording it after a failure writes a row that claims to hold a file it does not.
+    // See the note in map-image.service.ts; 22 such rows were measured in production on
+    // 2026-08-30, all of them map images.
+    const { data: urlData } = uploadError
+      ? { data: null }
+      : supabaseAdmin.storage.from(RESEARCH_DOCUMENTS_BUCKET).getPublicUrl(storagePath);
 
     const { data: doc, error: docError } = await supabaseAdmin
       .from('research_documents')

@@ -272,10 +272,23 @@ async function storeImageAsDocument(
       // Continue — create the DB record without storage_path
     }
 
-    // Get public URL
-    const { data: urlData } = supabaseAdmin.storage
-      .from(RESEARCH_DOCUMENTS_BUCKET)
-      .getPublicUrl(storagePath);
+    // Get public URL.
+    //
+    // `getPublicUrl` BUILDS A STRING. It does not ask the bucket whether anything is there, so it
+    // returns a perfectly well-formed URL for an object that was never written. Recording it after
+    // a failed upload produced a row saying two opposite things at once — `storage_path: null`
+    // ("not stored") beside `storage_url: https://…` ("here it is") — and the URL then 400s
+    // forever. Measured 2026-08-30: 22 of 347 stored research documents were exactly this, every
+    // one of them a map image, and nothing had noticed because a warning was logged and the row
+    // was written anyway.
+    //
+    // So the URL is recorded ONLY on a successful upload. A row without one still carries its
+    // source_url and extracted text and is worth keeping; a row that lies about holding a file is
+    // not. `browser-scrape.service.ts` had this right — `if (!uploadError)` — and is the pattern
+    // the other three services now match.
+    const { data: urlData } = uploadError
+      ? { data: null }
+      : supabaseAdmin.storage.from(RESEARCH_DOCUMENTS_BUCKET).getPublicUrl(storagePath);
 
     const storageUrl = urlData?.publicUrl || null;
 
