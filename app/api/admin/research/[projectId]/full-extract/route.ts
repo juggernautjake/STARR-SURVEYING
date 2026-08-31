@@ -208,29 +208,65 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   const displayData = formatSynthesisForDisplay(synthesis);
   steps.push({ step: 'Generate synthesis', status: 'done', duration_ms: Date.now() - stepStart7 });
 
-  // ── Step 8: Store synthesis results ─────────────────────────────
-  try {
-    await supabaseAdmin
-      .from('research_projects')
-      .update({
-        analysis_metadata: {
-          full_extraction_synthesis: {
-            generated_at: synthesis.generated_at,
-            overall_confidence: synthesis.overall_confidence,
-            confidence_tier: synthesis.confidence_tier,
-            total_data_points: synthesis.total_data_points,
-            confirmed_count: synthesis.confirmed_count,
-            conflicted_count: synthesis.conflicted_count,
-            data_found: synthesis.data_found,
-            data_gaps: synthesis.data_gaps,
-            resource_count: reports.length,
-          },
-          full_extraction_timestamp: new Date().toISOString(),
+  // ── Step 8: Store synthesis results ───────────────────────────────────────────────────────────
+  //
+  // ── THIS REPLACED THE WHOLE COLUMN ────────────────────────────────────────────────────────────
+  //
+  // `analysis_metadata` is a shared JSONB bag on the project. The seed calls it "prompt versions,
+  // model used, etc."; `analysis.service.ts` keeps the run LOGS in it and — per its own comment at
+  // line 560 — tracks **API spend per project** there.
+  //
+  // Writing a fresh object to a JSONB column REPLACES it. So running a full extraction destroyed
+  // the project's logs, its recorded error and error_category, and its accumulated cost tracking.
+  // Nothing said so: the update succeeded, and what was lost was whatever had been there before.
+  //
+  // `analysis.service.ts` already had the right shape — read, spread, write:
+  //
+  //     const existing = current?.analysis_metadata ?? {};
+  //     .update({ analysis_metadata: { ...existing, ...extraMeta, logs } })
+  //
+  // Two writers to one bag, one merging and one overwriting. The merging one is correct and this
+  // now matches it.
+  //
+  // ── AND THE `catch` COULD NEVER HAVE FIRED ────────────────────────────────────────────────────
+  //
+  // The Supabase client does not throw on a rejected write; it returns `{ error }`. A bare
+  // `catch { /* Non-fatal */ }` around it is not error handling, it is the appearance of it — and
+  // that appearance is what let a sibling route write to a non-existent column for its whole life
+  // (seed 621).
+  const { data: currentMeta } = await supabaseAdmin
+    .from('research_projects')
+    .select('analysis_metadata')
+    .eq('id', projectId)
+    .single();
+
+  const { error: synthErr } = await supabaseAdmin
+    .from('research_projects')
+    .update({
+      analysis_metadata: {
+        ...((currentMeta?.analysis_metadata as Record<string, unknown>) ?? {}),
+        full_extraction_synthesis: {
+          generated_at: synthesis.generated_at,
+          overall_confidence: synthesis.overall_confidence,
+          confidence_tier: synthesis.confidence_tier,
+          total_data_points: synthesis.total_data_points,
+          confirmed_count: synthesis.confirmed_count,
+          conflicted_count: synthesis.conflicted_count,
+          data_found: synthesis.data_found,
+          data_gaps: synthesis.data_gaps,
+          resource_count: reports.length,
         },
-      })
-      .eq('id', projectId);
-  } catch {
-    // Non-fatal
+        full_extraction_timestamp: new Date().toISOString(),
+      },
+    })
+    .eq('id', projectId);
+
+  if (synthErr) {
+    // Still non-fatal — the synthesis is in the response below — but said out loud rather than
+    // discarded, so a persistent failure is findable instead of invisible.
+    console.error(
+      `[full-extract] could not store synthesis for project ${projectId}: ${synthErr.message}`,
+    );
   }
 
   steps.push({ step: 'Complete', status: 'done', duration_ms: Date.now() - startTime });

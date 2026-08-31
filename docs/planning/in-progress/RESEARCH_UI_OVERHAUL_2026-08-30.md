@@ -849,6 +849,57 @@ matching one. Widened to `[A-Za-z0-9_.]`; the mutation now fails, and no new fin
 
 That is the second vacuous test caught by mutation today. Both looked like passing assertions.
 
+## G7 — A full extraction wiped the project's spend record (2026-08-31)
+
+G4 and G5 were both hidden by the same mechanism, so this slice went after the mechanism instead
+of another instance:
+
+```ts
+try {
+  await supabaseAdmin.from('research_projects').update({ … });
+} catch {
+  // Non-fatal
+}
+```
+
+**The Supabase client does not throw on a rejected write — it returns `{ error }`.** So that catch
+cannot fire. Not "rarely": cannot. The error sits in a value nobody read, and the shape gives every
+appearance of having been considered.
+
+### And behind one of them was a real bug
+
+`[projectId]/full-extract` stored its synthesis by writing a **fresh object** to
+`analysis_metadata`. Writing to a JSONB column REPLACES it — and that column is a shared bag:
+`analysis.service.ts` keeps the run logs there, the recorded error and error_category, and (its own
+comment, line 560) **the per-project API spend tracking.**
+
+So running a full extraction destroyed the project's logs and its cost record. `analysis.service`
+already had the correct shape — read, spread, write — so this was two writers to one bag, one
+merging and one overwriting. Now both merge.
+
+`lite-pipeline` had the same inert catch around its `parcel_id` save: a failure there is invisible,
+and every downstream service then works without a parcel id.
+
+### Narrowing the rule was most of the work
+
+A first sweep said **126 of 195** research writes discard their error. Too many to be a defect
+list, and a guard at that number is the noisy check nobody runs. Tightening to "result bound to
+nothing" gave 79 — still debt, not bugs.
+
+The rule that works is narrow: **a `try` whose only awaited calls are Supabase, with a catch that
+does nothing.** There, the catch is unreachable by construction. Two catches in the research code
+match "does nothing" and are CORRECT — `requests/claim` wraps `notify()`, which really throws, and
+`analysis.service` wraps a network fetch — so they are not flagged. Having a comment is not the
+discriminator either: both bugs said `// Non-fatal`.
+
+### The guard looked broken and was not
+
+A mutation that hand-rewrote the fixed route back into its old shape did **not** fail the check.
+The obvious conclusion was "the guard is broken", and acting on it would have meant loosening a
+correct rule. Running the rule over the **original file content from git** reported exactly what it
+should — handler empty, awaits `["supabaseAdmin"]`, all Supabase. The reconstruction was wrong, not
+the guard.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
