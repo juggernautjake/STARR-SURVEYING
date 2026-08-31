@@ -11,6 +11,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Workflow, BookOpen, Waves, Link2, Package, Landmark, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import SpendLimitSlider from '../components/SpendLimitSlider';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -63,6 +64,10 @@ export default function PipelineTab() {
     { address: '', county: '', state: 'TX' },
   ]);
   const [batchCreating, setBatchCreating] = useState(false);
+  // Defaults mirror the worker: $2.00 is DEFAULT_LIMITS.maxCostUsd, and purchasing off is the
+  // safe starting point for a batch that may cover many counties.
+  const [batchBudget, setBatchBudget] = useState(2);
+  const [autoPurchase, setAutoPurchase] = useState(false);
   const [batchError, setBatchError] = useState<string | null>(null);
 
   // Selected job for detail view
@@ -131,7 +136,8 @@ export default function PipelineTab() {
       const res = await fetch('/api/admin/research/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ properties }),
+        // `options` is forwarded to the worker verbatim by the API route.
+        body: JSON.stringify({ properties, options: { budget: batchBudget, autoPurchase } }),
       });
       const data = await res.json() as { batchId?: string; error?: string };
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -237,6 +243,35 @@ export default function PipelineTab() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            {/* ── The money question, asked where it binds ──────────────────────────────────
+                This form is the ONE place in the UI that reaches the research worker, so it is
+                the only place a spend limit can honestly be offered. Both values ride in
+                `options`, which the API forwards to the worker verbatim. */}
+            <div className="research-pipeline__batch-options">
+              <SpendLimitSlider
+                value={batchBudget}
+                onChange={setBatchBudget}
+                hint="Applies to each property in the batch, not to the batch as a whole."
+              />
+
+              <label className="research-pipeline__option-toggle">
+                <input
+                  type="checkbox"
+                  checked={autoPurchase}
+                  onChange={e => setAutoPurchase(e.target.checked)}
+                  data-testid="batch-auto-purchase"
+                />
+                <span>
+                  <span className="research-pipeline__option-title">Buy documents automatically</span>
+                  <span className="research-pipeline__option-help">
+                    {autoPurchase
+                      ? 'Paid documents are purchased without asking, up to the limit above.'
+                      : 'Nothing is bought. The run still completes on free county sources, and the report says which documents it skipped rather than reporting them as missing from the record.'}
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="research-pipeline__batch-actions">
