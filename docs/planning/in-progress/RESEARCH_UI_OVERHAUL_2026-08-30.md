@@ -785,7 +785,60 @@ clamp stays: it starts mattering at four stages or fewer.
 Four of five mutations caught, including restoring the original ordering — which is what proves
 the defect was real rather than a reading of the code.
 
-### D2 — `PipelineProgressPanel` (1,521 lines) ☐
+### D2 — `PipelineProgressPanel` — first extraction SHIPPED 2026-08-31, with two defects
+
+1,521 → 1,470 lines. As with D1, the extraction is the excuse; what it exposed is the value.
+
+### "Done" was defined twice, differently, and agreed only by coincidence
+
+This panel had an allowlist:
+
+```ts
+status === 'success' || status === 'partial' || status === 'failed' || status === 'complete'
+```
+
+`ResearchRunPanel`, polling the **same endpoint**, had a denylist:
+
+```ts
+normalizedStatus !== 'running' && normalizedStatus !== 'starting'
+```
+
+They agree today because the worker returns exactly four statuses. They fail in **opposite
+directions** the moment that set grows:
+
+· a new **non-terminal** status (`queued`, `retrying`) is *done* to the denylist — the run panel
+  stops polling and reports the run finished — and *running* to the allowlist, so the panel beside
+  it goes on spinning;
+· a new **terminal** status (`cancelled`, `timeout`) is *done* to the denylist and *still running*
+  to the allowlist, so the progress panel spins forever on a run that has stopped.
+
+One definition now, naming both sets explicitly, and **an unknown status counts as still
+running** — the safe direction, because declaring a run finished when it is not is the error that
+loses the rest of the log.
+
+### A run that retrieved nothing did not say so
+
+```ts
+result.documentCount != null && result.documentCount > 0 && (…)
+```
+
+The `> 0` hid the row entirely, so a run that found **nothing** rendered identically to one where
+the field was never reported — "we looked and found none" against "we do not know". That is the
+distinction this portal keeps losing, and the repo's own `SegmentedTab.count` already states the
+rule: *0 renders — "0 documents" is information, not absence.* It reads **"none retrieved"** now.
+
+A smaller one alongside it: `verified` was a bare `✓` carrying the entire meaning, announced as
+"check mark" or as nothing. The word is the signal now; the glyph decorates it.
+
+### A `try`/`catch` that could never fire
+
+`formatTimestamp` wrapped `toLocaleTimeString` in a catch. It does not throw on an Invalid Date —
+it **returns the string `"Invalid Date"`**, which went straight into the copied diagnostic log. An
+explicit `Number.isNaN(d.getTime())` check replaces a guard that had never once run.
+
+Eight mutations, all caught — including the unknown-status direction, the two lists overlapping,
+the denylist returning, and the zero-document row being hidden again.
+
 
 **Re-scoped by D0.** The reason to split these was to surface run visibility; the visibility turned
 out to exist and be broken by one word. What remains is genuine but is now a *size* problem rather

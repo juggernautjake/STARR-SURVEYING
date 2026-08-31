@@ -19,6 +19,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   MICRO_STAGES, inferMicroStage, progressPercent, type MicroStageId,
 } from './run-progress';
+import { isDoneStatus } from './pipeline-log';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -393,7 +394,12 @@ export default function ResearchRunPanel({
         setCurrentMessage('Starting research pipeline…');
       }
 
-      if (normalizedStatus !== 'running' && normalizedStatus !== 'starting') {
+      // D2 — the SAME definition of "done" the progress panel uses. This was a denylist
+      // (`!== 'running' && !== 'starting'`) while the panel had an allowlist; they agreed only
+      // because the worker returns exactly four statuses. A new non-terminal one — `queued`,
+      // `retrying` — would have stopped polling here and declared the run finished, while the panel
+      // beside it went on spinning.
+      if (isDoneStatus(normalizedStatus)) {
         console.log(
           `[ResearchRunPanel] ${projectId}: pipeline DONE status=${normalizedStatus} logs=${newLogCount} failureReason=${data.failureReason ?? 'none'}`,
         );

@@ -6,6 +6,11 @@
 // Stage is inferred from the "Stage N:" prefix in the `message` field.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+// D2 — the pure parts, with their own tests. `isDoneStatus` was an allowlist here and a denylist
+// in ResearchRunPanel; see pipeline-log.ts for why two definitions of "done" is a live hazard.
+import {
+  isDoneStatus, statusIcon, formatTimestamp, formatLogAsText, formatDetailedLogAsText,
+} from './pipeline-log';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -80,10 +85,7 @@ export interface PipelineProgressProps {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Returns true for any status that means the pipeline has finished running. */
-function isDoneStatus(status: string | null): boolean {
-  return status === 'success' || status === 'partial' || status === 'failed' || status === 'complete';
-}
+
 
 function Spinner() {
   return (
@@ -119,10 +121,17 @@ function ResultCard({ result }: { result: PipelineResultSummary }) {
           <span className="ppanel__result-value">{result.acreage} ac</span>
         </div>
       )}
-      {result.documentCount != null && result.documentCount > 0 && (
+      {/* `> 0` used to hide this row. A run that retrieved NOTHING is the single most important
+          thing this card can say, and hiding it made a zero-document run look identical to one
+          where the field was never reported — the difference between "we looked and found none"
+          and "we do not know", which is the distinction this portal keeps losing. The repo's own
+          `SegmentedTab.count` states the rule: 0 renders, because it is information, not absence. */}
+      {result.documentCount != null && (
         <div className="ppanel__result-row">
           <span className="ppanel__result-label">Documents</span>
-          <span className="ppanel__result-value">{result.documentCount}</span>
+          <span className="ppanel__result-value">
+            {result.documentCount === 0 ? 'none retrieved' : result.documentCount}
+          </span>
         </div>
       )}
       {result.boundary && (
@@ -136,7 +145,11 @@ function ResultCard({ result }: { result: PipelineResultSummary }) {
                 {confPct}%
               </span>
             )}
-            {result.boundary.verified && <span className="ppanel__verified">✓</span>}
+            {/* A bare ✓ carried the whole meaning and was announced as "check mark" or as nothing
+                at all. The word is the signal; the glyph decorates it. */}
+            {result.boundary.verified && (
+              <span className="ppanel__verified"><span aria-hidden="true">✓</span> verified</span>
+            )}
           </span>
         </div>
       )}
@@ -312,66 +325,13 @@ function DetailedLogEntry({ entry, idx }: { entry: PipelineLogEntry; idx: number
 type LogFilter = 'all' | 'errors' | 'warnings' | 'info';
 
 /** Return the status icon character for a log entry. */
-function statusIcon(status: PipelineLogEntry['status']): string {
-  switch (status) {
-    case 'success': return '✓';
-    case 'fail':    return '✕';
-    case 'warn':    return '⚠';
-    case 'partial': return '~';
-    default:        return '−';
-  }
-}
 
-/** Format a timestamp to a short HH:MM:SS string for display. */
-function formatTimestamp(ts: string | undefined): string {
-  if (!ts) return '';
-  try {
-    return new Date(ts).toLocaleTimeString('en-US', { hour12: false });
-  } catch {
-    return '';
-  }
-}
 
-/** Format all basic log entries as plain text for clipboard copy. */
-function formatLogAsText(log: PipelineLogEntry[]): string {
-  return log.map(e => {
-    const icon = statusIcon(e.status);
-    const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
-    const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
-    const ts   = e.timestamp ? `[${formatTimestamp(e.timestamp)}] ` : '';
-    // For info/warn/error entries (source===method===level), emit the message directly
-    const isMsg = e.source === 'info' || e.source === 'warn' || e.source === 'error';
-    const line = isMsg
-      ? `${icon} ${ts}${e.layer}: ${e.details ?? e.error ?? e.method}${pts}`
-      : `${icon} ${ts}${e.layer} | ${e.source} | ${e.method}${pts}${dur}`;
-    const extras: string[] = [];
-    if (!isMsg && e.details) extras.push(`Details: ${e.details}`);
-    if (e.error && !isMsg)   extras.push(`Error: ${e.error}`);
-    return extras.length ? `${line}\n    ${extras.join('\n    ')}` : line;
-  }).join('\n');
-}
 
-/** Format all log entries with full details, steps, and inputs (detailed diagnostic log). */
-function formatDetailedLogAsText(log: PipelineLogEntry[]): string {
-  return log.map((e, idx) => {
-    const icon = statusIcon(e.status);
-    const pts  = e.dataPointsFound > 0 ? ` [${e.dataPointsFound} pts]` : '';
-    const dur  = e.duration_ms > 0 ? ` (${(e.duration_ms / 1000).toFixed(2)}s)` : '';
-    const ts   = e.timestamp ? ` @ ${e.timestamp}` : '';
-    const isMsg = e.source === 'info' || e.source === 'warn' || e.source === 'error';
-    let out = `--- Entry ${idx + 1} ---\n`;
-    out += `${icon} [${e.layer}] ${e.source} → ${e.method}${pts}${dur}${ts}\n`;
-    if (e.input)   out += `  Input:   ${e.input}\n`;
-    if (isMsg)     out += `  Message: ${e.details ?? e.error ?? ''}\n`;
-    else if (e.details) out += `  Details: ${e.details}\n`;
-    if (e.error && !isMsg)   out += `  Error:   ${e.error}\n`;
-    if (e.steps?.length) {
-      out += `  Steps (${e.steps.length}):\n`;
-      out += e.steps.map(s => `    ↳ ${s}`).join('\n') + '\n';
-    }
-    return out;
-  }).join('\n');
-}
+
+
+
+
 
 export function PipelineProgressPanel({
   status,
