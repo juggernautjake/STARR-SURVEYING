@@ -658,6 +658,46 @@ reachability chain — the exact state the slice was undoing, and a lesson B2 ha
 this file had not carried over. And reverting the `.tsx` filter passed everything, which is what
 produced the coverage control above.
 
+## G2 — The API surface, swept (2026-08-31)
+
+G1 found two working routes nothing could reach. The obvious next question is how many more there
+are, so all **80** research API routes were checked for a caller.
+
+**Eleven have none.** They fall into four honest categories, which is the point — a flat list of
+eleven "unreachable endpoints" would be alarming and mostly wrong:
+
+| | Routes | What it means |
+|---|---|---|
+| **Called from elsewhere** | `requests`, `requests/claim` | The WORKER calls these to claim queued work. In daily use. |
+| **Operator-triggered by design** | `self-heal/evaluate` | Its own module says admin-triggered. SelfHealTab wires the other three. |
+| **Redundant** | `flood-zone`, `bell-cad-gis` | The data reaches the user another way — flood zone via the pipeline results, ArcGIS via `arcgis-fields.ts`. Nobody is missing anything. |
+| **Dead capability** | `document-access`, `deep-lot-analysis`, `topo`, `verify-lot`, `templates/drawing/[id]/thumbnail` | Owner calls. Built, working, unreachable, with no equivalent. |
+
+The distinction that took the most work is **redundant vs dead**. `flood-zone` looks identical to
+`topo` from the route list — both Phase-11/13 proxies with no caller — but the worker computes FEMA
+flood zone during every run and it lands in the results, while topo reaches the user nowhere at
+all. One is a spare door; the other is a missing one.
+
+### The matcher was wrong twice, in opposite directions
+
+Both were caught by controls rather than by review, and both would have been damaging:
+
+1. **False negative.** Including `worker/src` as a caller directory made every proxy look called —
+   *by its own mirror image*. The worker serves `/research/flood-zone`; the app proxies it at
+   `/api/admin/research/[projectId]/flood-zone`. Same tail segment, different service.
+2. **False positive.** A tail-only match reported `/templates/analysis` as unreachable when
+   `TemplateManager` fetches `/templates/${type}` — the segment never appears as a literal because
+   it is a variable. Then the fix for that was too loose: with `research` allowed as a parent,
+   `/research/${projectId}/…` matched everything, including a deliberately fake endpoint.
+
+A false positive is the worse direction here. It invites somebody to "fix" a route that already
+works, or to write a permanent exception for a lie.
+
+So the guard carries **four controls**: it finds routes, it finds callers, it reports a route known
+to be called as called, and it reports a route known NOT to exist as uncalled. The last one is what
+caught the loose parent rule. Mutation-tested three ways, including collapsing the caller
+directories — which the coverage controls fail on, rather than passing in silence.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
