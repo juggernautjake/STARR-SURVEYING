@@ -230,7 +230,36 @@ The address line has two mutually exclusive branches — county-as-badge, or a b
 are pinned, along with the case where neither is known. Collapsing them would print the state twice.
 
 Mutation-tested six ways; all six fail.
-### B4 — Extract Boundary ☐
+### B4/B5 — ~~Third extraction~~ SHIPPED 2026-08-31 — `_sections/EditProjectModal.tsx`
+
+81 lines out; **3,621 → 3,549**. Three sections extracted now (`ProjectStats`, `ProjectHeader`,
+`EditProjectModal`), and the page is down 131 lines from where B2 started.
+
+**The fix landed first, in its own commit, with its own guard — then the code moved.** This modal
+had a live bug in it an hour earlier (G9: the overlay dismissed on an outside click and discarded
+every edit). Doing both at once would have turned the diff from *"these lines moved"* into *"these
+lines moved AND something changed"*, which is the shape a regression hides in — and here the
+change was the whole point, so burying it would have been worse than usual.
+
+79 moved lines compared byte-for-byte against `HEAD`, allowing only the prop renames.
+
+**The open/closed decision moved INSIDE the component.** The page passes `open` and the modal
+returns `null` itself, so the page has no condition left to get wrong — a stronger answer to B2's
+`{false && <X />}` lesson than asserting the mount line has no `&&`. A test pins that a closed
+modal renders *nothing*: an overlay that stays mounted while invisible covers the page with a
+layer that swallows every click, and that reads as "the page stopped responding".
+
+**The G9 guard went red, correctly.** It asserted `page.tsx` contained the Escape handler, and
+the handler moved. A guard that asserts on a FILE has to follow the code out of it — the
+alternative is one that silently stops covering anything, which is exactly what the reachability
+check did when `.tsx` fell outside its filter. Third time today an extraction moved a guard's
+subject, and the third time the red was the guard working.
+
+Mutation-tested six ways, including restoring the overlay `onClick` — which fails both this file
+and the G9 guard, from two directions.
+
+**Remaining under B1a:** `RunControls`, `DocumentsSummary`, `AnalysisSection` — the three big
+ones. Same shape each time: move, compare against `HEAD`, assert the page still mounts it.
 ### B5 — Extract Report ☐
 
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring

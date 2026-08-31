@@ -144,9 +144,16 @@ describe('no research form modal is dismissed by an outside click', () => {
 
   it('the two known form modals still offer a deliberate way out', () => {
     // Removing the dismissal must not leave somebody trapped. Both keep Escape and a button.
-    const page = fs.readFileSync(path.join(ROOT, 'app/admin/research/[projectId]/page.tsx'), 'utf8');
-    expect(page).toContain("if (e.key === 'Escape') setShowEditProject(false)");
-    expect(page).toContain('onClick={() => setShowEditProject(false)}');   // the Cancel button
+    //
+    // The Edit Project modal moved into `_sections/EditProjectModal.tsx` (B5) an hour after this
+    // check was written, and the check went red — correctly. A guard that asserts on a FILE has to
+    // follow the code out of it; the alternative is a guard that silently stops covering anything,
+    // which is what the reachability check did when `.tsx` fell outside its filter. Third time
+    // today that an extraction moved a guard's subject.
+    const modal = fs.readFileSync(
+      path.join(ROOT, 'app/admin/research/[projectId]/_sections/EditProjectModal.tsx'), 'utf8');
+    expect(modal).toContain("if (e.key === 'Escape') onClose()");
+    expect(modal).toContain('research-modal__cancel');   // the Cancel button
 
     const tab = fs.readFileSync(path.join(ROOT, 'app/admin/research/_tabs/ProjectsTab.tsx'), 'utf8');
     expect(tab).toContain("if (e.key === 'Escape') setShowCreate(false)");

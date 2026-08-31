@@ -43,6 +43,7 @@ import RunConsoleBar from '../components/RunConsoleBar';
 import RunDiffPanel from '../components/RunDiffPanel';
 // What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
 import ReportCardPanel from '../components/ReportCardPanel';
+import EditProjectModal from './_sections/EditProjectModal';
 import ProjectHeader from './_sections/ProjectHeader';
 import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
@@ -3520,87 +3521,14 @@ export default function ResearchProjectPage() {
           INSIDE the form reaching the overlay's close handler. With no handler there, it guards
           nothing — and a stray `stopPropagation` is the kind of line that makes the next person
           wonder what it was protecting. */}
-      {showEditProject && (
-        <div
-          className="research-modal-overlay"
-          onKeyDown={e => { if (e.key === 'Escape') setShowEditProject(false); }}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Edit Project Details"
-        >
-          <div className="research-modal">
-            <h2 className="research-modal__title">Edit Project Details</h2>
-            <form onSubmit={handleSaveProject}>
-              <div className="research-modal__field">
-                <label className="research-modal__label" htmlFor="edit-project-name">Project Name *</label>
-                <input
-                  id="edit-project-name"
-                  className="research-modal__input"
-                  type="text"
-                  value={editProjectData.name}
-                  onChange={e => setEditProjectData(p => ({ ...p, name: e.target.value }))}
-                  autoFocus
-                  required
-                />
-              </div>
-              <div className="research-modal__field">
-                <label className="research-modal__label" htmlFor="edit-project-address">Property Address</label>
-                <input
-                  id="edit-project-address"
-                  className="research-modal__input"
-                  type="text"
-                  value={editProjectData.property_address}
-                  onChange={e => setEditProjectData(p => ({ ...p, property_address: e.target.value }))}
-                />
-              </div>
-              <div className="research-modal__row">
-                <div className="research-modal__field">
-                  <label className="research-modal__label" htmlFor="edit-project-county">County</label>
-                  <input
-                    id="edit-project-county"
-                    className="research-modal__input"
-                    type="text"
-                    value={editProjectData.county}
-                    onChange={e => setEditProjectData(p => ({ ...p, county: e.target.value }))}
-                  />
-                </div>
-                <div className="research-modal__field">
-                  <label className="research-modal__label" htmlFor="edit-project-state">State</label>
-                  <input
-                    id="edit-project-state"
-                    className="research-modal__input"
-                    type="text"
-                    value={editProjectData.state}
-                    onChange={e => setEditProjectData(p => ({ ...p, state: e.target.value }))}
-                  />
-                </div>
-              </div>
-              <div className="research-modal__field">
-                <label className="research-modal__label" htmlFor="edit-project-desc">Description</label>
-                <textarea
-                  id="edit-project-desc"
-                  className="research-modal__textarea"
-                  value={editProjectData.description}
-                  onChange={e => setEditProjectData(p => ({ ...p, description: e.target.value }))}
-                  rows={3}
-                />
-              </div>
-              <div className="research-modal__actions">
-                <button type="button" className="research-modal__cancel" onClick={() => setShowEditProject(false)}>
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="research-modal__submit"
-                  disabled={!editProjectData.name.trim() || savingProject}
-                >
-                  {savingProject ? 'Saving...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      <EditProjectModal
+        open={showEditProject}
+        value={editProjectData}
+        onChange={setEditProjectData}
+        onSubmit={handleSaveProject}
+        onClose={() => setShowEditProject(false)}
+        saving={savingProject}
+      />
 
       {/* Toast notification */}
       {toast && (
