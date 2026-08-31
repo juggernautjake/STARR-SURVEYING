@@ -340,6 +340,53 @@ else.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
+### B1a — sixth extraction: `_sections/FinalDocumentTab.tsx` — SHIPPED 2026-08-31
+
+The Final Job Package tab — the deliverable a surveyor hands over. 271 lines out;
+**3,526 → 3,278**. Six sections; the page is **402 lines lighter** than when B2 started.
+
+### The whole-stage approach stopped working, and that was measured first
+
+The four earlier extractions each took a stage. `jobprep` will not go that way: it references
+**79 identifiers** from the page — the CAD canvas, annotation history, the undo stack, tool
+settings, layer state. **A component with a 79-prop interface moves the complexity without
+reducing any of it** and adds a prop-drilling layer on top. Counted before attempting it, which is
+why it was not attempted.
+
+So the stage comes apart from the inside, largest coherent piece first. This tab is display plus
+three actions and holds no state.
+
+**The Drawing tab is where the other seventy-odd live.** Its state wants extracting into a hook
+*before* its markup moves — a different technique from the six mechanical moves so far, and its
+own slice rather than something smuggled into this one.
+
+### A placeholder type is a cast wearing an interface
+
+The first draft guessed the prop shapes: `{ id?: string; name?: string }` for the drawing,
+`{ overall_confidence?: number }` for the comparison, `() => void` for the export. **`tsc`
+rejected four of them across three rounds**, and the fix each time was to use the type the CHILD
+already declares — `RenderedDrawing`, `ComparisonResult`,
+`(format: ExportFormat, viewMode: ViewMode) => Promise<void>`.
+
+Guessing a type to make an extraction compile is the same mistake as G10's cast: both tell the
+compiler to stop asking a question that had a real answer. `onChangeTab: (tab: string) => void`
+would have accepted `'finaldocument'` with no type error anywhere; it is the three-value union now.
+
+### The inline-hex ratchet caught the move and was told the truth
+
+It went red in both directions: `page.tsx` improved (141 → 123) and a new file appeared
+(0 → 18). **Exactly balanced — a move, not an improvement**, and the baseline records it as that.
+The totals were reconciled before re-baselining rather than after, because a "1 file improved"
+message on a pure move is precisely the shape of false progress.
+
+### The substring flaw, for the third time today
+
+`toContain('<SurveyPlanPanel')` passed a mutation renaming it to `<SurveyPlanPanelX`. Same shape
+as C2 (`research-modal__county-note` matched while `--warn` was renamed away) and as the
+pipeline-note guard an hour ago (`research-pipeline-note` matched the button's
+`research-pipeline-note__link`). **An element has to END somewhere** — matching the name alone
+matches every name that starts with it.
+
 ### B6 — ~~Say which pipeline this page runs~~ ✅ **SHIPPED 2026-08-30**
 
 Per the READ FIRST section. The "Start Analysis" control states plainly that it runs the in-app
