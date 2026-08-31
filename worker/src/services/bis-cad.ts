@@ -12,6 +12,7 @@ import { PipelineLogger } from '../lib/logger.js';
 import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
 import { acquireBrowser } from '../lib/browser-factory.js';
+import { hostCircuit, tripHost } from '../infra/host-circuit.js';
 
 // ── BIS Consultants eSearch Configuration ──────────────────────────────────
 
@@ -356,6 +357,17 @@ async function searchCadHttp(
   logger: PipelineLogger,
   diagnostics: SearchDiagnostics,
 ): Promise<CadSearchResult[] | null> {
+  // The host already refused a connection this run — do not spend another 26s finding out again.
+  const httpCircuit = hostCircuit(baseUrl);
+  if (httpCircuit.down) {
+    logger.warn(
+      'Stage1A',
+      `Skipping CAD HTTP — ${baseUrl} did not answer ${Math.round((httpCircuit.ageMs ?? 0) / 1000)}s ago `
+      + `(${httpCircuit.reason}). Not retrying until the circuit reopens.`,
+    );
+    return null;
+  }
+
   const exactVariants = variants.filter((v) => !v.isPartial).sort((a, b) => a.priority - b.priority);
   if (exactVariants.length === 0) return null;
 
@@ -393,6 +405,9 @@ async function searchCadHttp(
     recaptchaTracker({ status: 'fail', error: `[${category}] ${detail}` });
     // If we can't even reach the server, no point trying variants
     if (category === 'network' || category === 'timeout') {
+      // Remember it. Every later variant and layer paid its own full timeout re-discovering this
+      // same fact — 213 seconds in the 2026-08-30 run. See infra/host-circuit.ts.
+      tripHost(baseUrl, err);
       logger.warn('Stage1A', `Cannot reach ${baseUrl} — [${category}] ${detail}`);
       return null;
     }
@@ -734,6 +749,18 @@ async function searchCadPlaywright(
   diagnostics: SearchDiagnostics,
   options?: { ownerName?: string; propertyId?: string; ownerId?: string },
 ): Promise<{ results: CadSearchResult[]; screenshot: Buffer | null; validation: PropertyValidation | null }> {
+  // Playwright pays the largest single timeout of the lot — 70s in the owner's run, on a host that
+  // had already refused a TCP connection twice. Check the circuit before launching a browser.
+  const pwCircuit = hostCircuit(baseUrl);
+  if (pwCircuit.down) {
+    logger.warn(
+      'Stage1B',
+      `Skipping CAD Playwright — ${baseUrl} did not answer ${Math.round((pwCircuit.ageMs ?? 0) / 1000)}s ago `
+      + `(${pwCircuit.reason}). Falling through to GIS/Clerk without launching a browser.`,
+    );
+    return { results: [], screenshot: null, validation: null };
+  }
+
   // Sort: exact variants first, then partials
   const sortedVariants = [...variants].sort((a, b) => {
     if (a.isPartial !== b.isPartial) return a.isPartial ? 1 : -1;

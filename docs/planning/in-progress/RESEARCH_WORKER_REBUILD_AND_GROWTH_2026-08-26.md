@@ -447,7 +447,38 @@ In order; each independently shippable.
 
 Together these should take an hour-long run to roughly **12–18 minutes**.
 
-#### E5e — Bell CAD is unreachable, and takes 213 seconds to say so ☐
+#### E5e — ~~Bell CAD is unreachable, and takes 213 seconds to say so~~ ◐ **HALF SHIPPED 2026-08-30**
+
+**The 213 seconds are fixed.** `infra/host-circuit.ts` remembers a host that refused a connection,
+and the CAD's HTTP *and* Playwright paths consult it before trying. The run log's sequence — three
+26s keyword retries, an 8s recaptcha probe and a 70s Playwright navigation, each re-discovering the
+same dead host — now short-circuits after the first failure with a message saying which host, how
+long ago, and why.
+
+**Only connection-level failures trip it.** An HTTP 403/404/500 means the host *answered*: a working
+host with a problem, where the next request may well succeed. Tripping on those would blacklist a
+live portal over one bad page — the same distinction three different Google 403s turned on earlier
+in this project. An unrecognised error is treated as NOT connection-level, so anything unfamiliar
+degrades to today's retry behaviour rather than to a blacklisted host.
+
+**TTL, not a run flag.** The worker is long-lived and hosts recover; a permanent blacklist would turn
+a ten-minute county outage into a dead adapter until somebody restarted the box — trading a slow run
+for a silently broken one, which is worse. It re-closes after 10 minutes.
+
+Per HOST, which the run proved matters: the CAD was unreachable for the whole hour while the CLERK,
+on a different host, worked perfectly. A per-county or global flag would have skipped both.
+
+15 tests; mutation-tested both wiring points (removing the trip fails 1; removing the Playwright
+guard fails 1). Worker tsc 0 · worker suite **1,687 pass**.
+
+**Still open: WHY it is unreachable.** ☐ The circuit makes the symptom cheap, not absent — Bell CAD
+data is still missing from every run. `bell.tx.publicsearch.us` answers fine from the box and
+`esearch.bellcad.org` does not, which is the per-portal geo-block the deployment doc predicted. That
+is the Browserbase case: **one adapter**, `BROWSERBASE_ENABLED_ADAPTERS=cad`, not a global default.
+Credentials are present and now **proven** (`GET /v1/projects` → 200, project id matches, concurrency
+3) — what is missing is the decision and one env var.
+
+<details><summary>Original entry</summary>
 
 `bell.tx.publicsearch.us` (the **clerk**) works fine from the box — every clerk search in the log
 succeeded. `esearch.bellcad.org` (the **CAD**) does not: connection-level `fetch failed`, then a
@@ -464,6 +495,8 @@ Two fixes, in order:
 
 Worth noting: the run still succeeded without CAD. Bell GIS supplied owner, subdivision, lot and
 acreage. So this is 3.5 minutes of latency and a confidence penalty, not a broken run.
+
+</details>
 
 ### E4 — Install the auto-updater ☐ *(owner action, one command)*
 
