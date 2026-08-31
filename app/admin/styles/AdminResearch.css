@@ -12697,3 +12697,227 @@
   color: #4B5563;
   font-style: italic;
 }
+
+/* ── Review tab → Easements & Encumbrances ────────────────────────────────────
+ *
+ * E2b / B1a, 2026-08-31. This tab was written as a DARK panel — `#0f172a` cards
+ * with `#e2e8f0` text — inside a light portal, and then given light-theme greys
+ * and light-theme status colours on top of it. Four of its five text colours
+ * failed AA against its own background, and the failures were not decoration:
+ *
+ *   #4B5563  2.36:1  every "no data available" line, and the DESCRIPTION of
+ *                    every recorded easement
+ *   #B91C1C  2.76:1  "YES — flood insurance required"
+ *   #047857  3.26:1  the not-in-SFHA reading
+ *   #64748b  3.75:1  every field label on the tab
+ *
+ * The stylesheet sweep could not see any of them — no stylesheet contained
+ * them — and the inline sweep skipped them, because the colour and the
+ * background it sits on are declared on DIFFERENT elements. See G15.
+ *
+ * Re-themed to the same light card treatment as the Property and Survey tabs
+ * rather than to darker text on the dark card: a lone dark island in a light
+ * portal is the thing that produced this in the first place. */
+
+.review-encumbrance-box {
+  background: var(--theme-bg-elevated, #F8FAFC);
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.review-encumbrance-box__title {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--theme-fg-secondary, #1E293B);
+  margin-bottom: 0.5rem;
+}
+
+.review-encumbrance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.6rem;
+}
+
+.review-encumbrance-field__label {
+  font-size: 0.7rem;
+  color: #4B5563;               /* 7.22:1 on #F8FAFC — was #64748b at 3.75:1 */
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.review-encumbrance-field__value {
+  font-size: 0.9rem;
+  color: #1E293B;
+  font-weight: 500;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.review-encumbrance-field__value--strong {
+  font-weight: 600;
+}
+
+/* The SFHA reading. Red/green ALONE says nothing to a red-green colour-blind
+ * reader, so the words carry it — "YES — flood insurance required" / "No" —
+ * and the colour only reinforces. Both clear 4.5:1 on the card. */
+.review-encumbrance-field__value--flag-on {
+  color: #B91C1C;               /* 6.18:1 on #F8FAFC */
+  font-weight: 700;
+}
+
+.review-encumbrance-field__value--flag-off {
+  color: #047857;               /* 5.24:1 on #F8FAFC */
+  font-weight: 600;
+}
+
+.review-encumbrance-field__value--unknown {
+  color: #4B5563;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.review-encumbrance-link {
+  color: #1D4ED8;               /* 6.41:1 on #F8FAFC */
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.review-encumbrance-empty {
+  color: #4B5563;
+  font-style: italic;
+  font-size: 0.85rem;
+}
+
+.review-encumbrance-list {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.review-encumbrance-list li {
+  color: #1E293B;
+  font-size: 0.85rem;
+  margin-bottom: 0.2rem;
+}
+
+.review-encumbrance-item {
+  background: var(--theme-bg-elevated, #F8FAFC);
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.review-encumbrance-item__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1E293B;
+}
+
+.review-encumbrance-item__desc {
+  color: #374151;               /* 9.85:1 on #F8FAFC — was #4B5563 at 2.36:1 on the dark card */
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+  line-height: 1.45;
+}
+
+.review-encumbrance-item__meta {
+  color: #4B5563;
+  font-size: 0.85rem;
+  margin-top: 0.15rem;
+}
+
+.review-encumbrance-section {
+  margin-bottom: 1rem;
+}
+
+/* ── Review tab → Survey Data: the chain of title and the plat cards ──────────
+ *
+ * G15, 2026-08-31. `.review-table` and `.review-data-section` are rendered by
+ * `[projectId]/page.tsx` and defined in NO stylesheet — two of the 534 in the
+ * unstyled-class baseline. So the chain-of-title table had no background of its
+ * own and sat directly on `.review-summary-panel`, which is `#fff`, while every
+ * value cell was written `color: '#e2e8f0'`.
+ *
+ *     #e2e8f0 on #ffffff = 1.23:1
+ *
+ * The date, the grantor, the grantee and the instrument number of every link in
+ * the chain of title have been rendering white on white. Not dim — gone.
+ *
+ * The plat cards below it were the other half of the same mistake in the other
+ * direction: a real dark card, `#0f172a`, with light-theme greys on it —
+ * `#4B5563` at 2.36:1 for the AI narrative and `#64748b` at 3.75:1 for the
+ * adjacent-plat references.
+ *
+ * Both re-themed to the portal's light treatment, for the reason recorded above
+ * the encumbrance block: a dark island inside a light portal is what produces
+ * this, and it produced it twice on one tab. */
+
+.review-data-section {
+  margin-bottom: 1rem;
+}
+
+.review-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+.review-table th {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  color: #374151;               /* 10.31:1 on #fff */
+  font-weight: 700;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+}
+
+.review-table td {
+  padding: 0.35rem 0.6rem;
+  color: #1E293B;               /* 14.68:1 on #fff — was #e2e8f0 at 1.23:1 */
+  border-bottom: 1px solid var(--theme-border, #F1F5F9);
+}
+
+.review-table td.review-table__muted {
+  color: #4B5563;               /* 7.56:1 on #fff */
+}
+
+.review-table td.review-table__mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.review-plat-card {
+  background: var(--theme-bg-elevated, #F8FAFC);
+  border: 1px solid var(--theme-border, #E2E8F0);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.5rem;
+}
+
+.review-plat-card__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #1E293B;
+  margin-bottom: 0.3rem;
+}
+
+.review-plat-card__narrative {
+  color: #374151;               /* 9.85:1 on #F8FAFC — was #4B5563 at 2.36:1 on #0f172a */
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.45;
+}
+
+.review-plat-card__adjacent {
+  font-size: 0.8rem;
+  color: #4B5563;               /* 7.22:1 on #F8FAFC — was #64748b at 3.75:1 on #0f172a */
+  margin-top: 0.3rem;
+}
+
+.review-data-points {
+  margin-top: 1rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+  padding-top: 1rem;
+}

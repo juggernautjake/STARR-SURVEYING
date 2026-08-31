@@ -32,7 +32,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   audit, contrast, parseHex, colourOf, readVars, backgroundFor, requiredRatio, inlinePair, paintsDark,
-  auditInline,
+  auditInline, jsxTags, ancestorSurfaces, styleObjects,
 } from '../../scripts/audit-research-contrast.mjs';
 
 describe('the contrast maths', () => {
@@ -251,6 +251,165 @@ describe('a ternary is two colours, and only one of them used to be measured', (
 
   it('sees a dark branch when deciding whether a file paints dark', () => {
     expect(paintsDark("<div style={{ background: dark ? '#0F172A' : '#FFFFFF' }} />")).toBe(true);
+  });
+});
+
+describe('G15 — the colour and the surface are almost never on the same element', () => {
+  // ── WHAT THIS FOUND ───────────────────────────────────────────────────────────────────────────
+  //
+  // Everything above measures a `color` against a `background` in the SAME style object. That is
+  // not how these screens are built: a card sets the background, its children set the text. So the
+  // common shape was unmeasurable, and the fallback — "the page, if the file paints nothing dark" —
+  // blinded a whole FILE the moment one card in it was dark.
+  //
+  // `page.tsx` has dark `#0f172a` cards on two tabs. That one fact skipped every unpaired inline
+  // colour in its 3,200 lines, including the Survey Data tab's chain of title:
+  //
+  //     <table className="review-table">                       ← defined in no stylesheet
+  //       <td style={{ color: '#e2e8f0' }}>{link.instrumentNumber}</td>
+  //
+  // Surface `#fff`, text `#e2e8f0`. **1.23:1** — the date, grantor, grantee and instrument number
+  // of every link in the chain of title, white on white.
+  //
+  // Nineteen findings on the first run, all real. Skipped fell 278 → 120.
+
+  it('parses the tags it needs and ignores the ones it must not', () => {
+    const tags = jsxTags("<div a={1}><span /></div>");
+    expect(tags.map((t) => `${t.kind}:${t.name}`)).toEqual(['open:div', 'self:span', 'close:div']);
+  });
+
+  it('does not read a generic or a comparison as a tag', () => {
+    // `useState<'a' | 'b'>` and `{i < 3 && …}` are both in this codebase. A `<` followed by a quote
+    // or a space is not a tag; `<Foo>` from a real generic IS indistinguishable and is handled by
+    // being harmless rather than by being detected — see the pop-until-match rule.
+    expect(jsxTags("useState<'summary' | 'property'>('summary')")).toEqual([]);
+    expect(jsxTags('{i < 3 && x}')).toEqual([]);
+    expect(jsxTags('<>{x}</>'), 'fragments have no attributes and no background').toEqual([]);
+  });
+
+  it('keeps a `>` inside an attribute expression out of the tag name', () => {
+    const [tag] = jsxTags('<div onClick={() => go()} className="a">');
+    expect(tag.kind).toBe('open');
+    expect(tag.name).toBe('div');
+    expect(tag.attrs).toContain('className="a"');
+  });
+
+  it('finds the enclosing background for a child element', () => {
+    const src = "<div style={{ background: '#0f172a' }}><span style={{ color: '#4B5563' }}>x</span></div>";
+    const marks = ancestorSurfaces(src);
+    const child = marks.find((m) => src.slice(m.at).startsWith("style={{ color: '#4B5563'"));
+    expect(child, 'the child style object was not marked').toBeTruthy();
+    expect(child!.surface).toEqual(parseHex('#0f172a'));
+  });
+
+  it('leaves the outermost element with no surface, so the caller can use the page', () => {
+    const src = "<div style={{ color: '#e2e8f0' }}>x</div>";
+    expect(ancestorSurfaces(src)[0].surface).toBeUndefined();
+  });
+
+  it('does not attribute a SIBLING background to the text beside it', () => {
+    // The whole reason the stylesheet half of this checker was wrong four times. A sibling is not
+    // an ancestor, and reporting it as one produced twenty false findings in one run.
+    const src = "<div><i style={{ background: '#0f172a' }} /><span style={{ color: '#4B5563' }}>x</span></div>";
+    const child = ancestorSurfaces(src).find((m) => src.slice(m.at).startsWith("style={{ color:"));
+    expect(child!.surface, 'a self-closing sibling painted the text next to it').toBeUndefined();
+  });
+
+  it('closes the subtree at the closing tag', () => {
+    const src = "<a style={{ background: '#0f172a' }}><b>x</b></a><c style={{ color: '#4B5563' }}>y</c>";
+    const after = ancestorSurfaces(src).find((m) => src.slice(m.at).startsWith("style={{ color:"));
+    expect(after!.surface, 'the dark card leaked past its own closing tag').toBeUndefined();
+  });
+
+  it('skips rather than guesses when an ancestor paints something it cannot read', () => {
+    const src = "<div style={{ background: severity.color }}><span style={{ color: '#4B5563' }}>x</span></div>";
+    const child = ancestorSurfaces(src).find((m) => src.slice(m.at).startsWith("style={{ color:"));
+    expect(child!.surface, 'an unreadable ancestor background must be null, not undefined').toBeNull();
+  });
+
+  it('treats a dark Tailwind ancestor as unreadable rather than as the page', () => {
+    const src = '<div className="bg-gray-900"><span style={{ color: \'#4B5563\' }}>x</span></div>';
+    const child = ancestorSurfaces(src).find((m) => src.slice(m.at).startsWith("style={{ color:"));
+    expect(child!.surface).toBeNull();
+  });
+
+  it('and a light Tailwind ancestor does not blind it', () => {
+    const src = '<div className="bg-white p-4"><span style={{ color: \'#e2e8f0\' }}>x</span></div>';
+    const child = ancestorSurfaces(src).find((m) => src.slice(m.at).startsWith("style={{ color:"));
+    expect(child!.surface).toBeUndefined();
+  });
+
+  it('measures a child against its card, end to end', () => {
+    const { findings, checked } = auditInline([{
+      rel: 'x.tsx',
+      src: "<div style={{ background: '#0f172a' }}><span style={{ color: '#4B5563', fontSize: '0.85rem' }}>x</span></div>",
+    }]);
+    expect(checked).toBe(1);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ratio).toBeCloseTo(2.36, 1);
+    expect(findings[0].bgFrom).toBe('the nearest ancestor that paints one');
+  });
+
+  it('and the white-on-white case that started this', () => {
+    const { findings } = auditInline([{
+      rel: 'x.tsx',
+      src: '<table className="review-table"><td style={{ color: \'#e2e8f0\' }}>Vol 412</td></table>',
+    }]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ratio).toBeCloseTo(1.23, 2);
+  });
+
+  it('one dark card no longer blinds the rest of the file', () => {
+    // This is the regression the whole change is about. Before, `paintsDark` was a FILE-level fact:
+    // the dark div below made the white-on-white table beside it unmeasurable.
+    const { findings } = auditInline([{
+      rel: 'x.tsx',
+      src: "<div><i style={{ background: '#0f172a', color: '#e2e8f0' }}>ok</i>"
+        + "<td style={{ color: '#e2e8f0' }}>invisible</td></div>",
+    }]);
+    expect(findings, 'the dark card is still blinding the file').toHaveLength(1);
+    expect(findings[0].fg).toBe('#e2e8f0');
+  });
+
+  it('but a dark Tailwind class still does, because nothing can resolve it', () => {
+    const { findings, skipped } = auditInline([{
+      rel: 'x.tsx',
+      src: '<div className="bg-gray-900"><span style={{ color: \'#e2e8f0\' }}>x</span></div>',
+    }]);
+    expect(findings).toEqual([]);
+    expect(skipped).toBe(1);
+  });
+});
+
+describe('the style object matcher brace-matches', () => {
+  // `[^{}]*` stopped at the first nested brace, so a style object containing a template literal
+  // with `${…}` was invisible ENTIRELY — SurveyPlanPanel's done/not-done checkbox. The finding on
+  // it was real but named the wrong surface, and a checker that names the wrong surface gets
+  // argued with rather than fixed.
+
+  it('reads through a template literal that contains braces', () => {
+    const src = "<div style={{ border: `2px solid ${d ? '#059669' : '#ccc'}`, background: '#059669' }}>";
+    const [o] = styleObjects(src);
+    expect(o, 'the style object was invisible').toBeTruthy();
+    expect(inlinePair(o.body).backgrounds).toEqual([parseHex('#059669')]);
+  });
+
+  it('reads through a nested object', () => {
+    const [o] = styleObjects("<div style={{ a: { b: 1 }, color: '#111111' }}>");
+    expect(inlinePair(o.body).colors).toEqual([parseHex('#111111')]);
+  });
+
+  it('reports the offset of `style=`, which is what the ancestor map keys on', () => {
+    const src = "  <div style={{ color: '#111111' }}>";
+    expect(styleObjects(src)[0].at).toBe(src.indexOf('style={{'));
+  });
+
+  it('finds every object in a file, not just the first', () => {
+    expect(styleObjects("<a style={{ color: '#111' }} /><b style={{ color: '#222' }} />")).toHaveLength(2);
+  });
+
+  it('and drops an unterminated one rather than swallowing the file', () => {
+    expect(styleObjects("<div style={{ color: '#111111' ")).toEqual([]);
   });
 });
 

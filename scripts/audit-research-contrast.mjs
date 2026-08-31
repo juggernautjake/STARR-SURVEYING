@@ -247,7 +247,52 @@ export function requiredRatio(body) {
 
 const PAGE_BACKGROUND = [255, 255, 255];
 
-const STYLE_OBJECT = /style=\{\{([^{}]*)\}\}/g;
+/**
+ * Every `style={{ … }}` in the source: `{ at, body }`, where `at` is the offset of `style=`.
+ *
+ * ── `[^{}]*` STOPS AT THE FIRST NESTED BRACE, AND THAT IS NOT A CORNER CASE ─────────────────────
+ *
+ * `SurveyPlanPanel.tsx:88` is a done/not-done checkbox:
+ *
+ *     <div style={{ border: `2px solid ${item.done ? '#059669' : '#D1D5DB'}`,
+ *                   background: item.done ? '#059669' : '#fff' }}>
+ *       <span style={{ color: '#fff' }}>✓</span>
+ *
+ * The `${…}` in the template literal put a brace inside the object, so the regex matched nothing at
+ * all — the whole style object was invisible. The ancestor walk then found no background for the
+ * tick, fell through to the page, and reported white-on-white. The finding was real (white on
+ * `#059669` is 3.77:1) but the surface it named was wrong, and a checker that names the wrong
+ * surface gets argued with rather than fixed.
+ *
+ * Brace-matched, quote-aware. Same lesson the inline-hex ratchet learned in its own words: a lazy
+ * `[^}]*` reports an improvement that never happened.
+ */
+export function styleObjects(src) {
+  const out = [];
+  const re = /style=\{\{/g;
+  let m;
+  while ((m = re.exec(src))) {
+    const start = m.index + m[0].length;
+    let depth = 2;
+    let quote = null;
+    let i = start;
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (quote) {
+        if (c === '\\') { i++; continue; }
+        if (c === quote) quote = null;
+        continue;
+      }
+      if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+      if (c === '{') depth++;
+      else if (c === '}' && --depth === 0) break;
+    }
+    if (depth !== 0) continue;
+    out.push({ at: m.index, body: src.slice(start, i - 1) });
+    re.lastIndex = i;
+  }
+  return out;
+}
 
 /**
  * `{ color, background, declaresBackground }` for one inline style object's body.
@@ -352,14 +397,136 @@ export function paintsDark(src) {
   const code = stripJs(src);
   if (/\bbg-(gray|slate|zinc|neutral|stone)-(7|8|9)\d{2}\b/.test(code)) return true;
   if (/\bbg-(black|gray-950)\b/.test(code)) return true;
-  for (const m of code.matchAll(STYLE_OBJECT)) {
+  for (const { body } of styleObjects(code)) {
     // Every branch, not just the first: `background: dark ? '#111' : '#fff'` paints dark half the
     // time, and half the time is enough to make an unpaired colour elsewhere unknowable.
-    for (const background of inlinePair(m[1]).backgrounds) {
+    for (const background of inlinePair(body).backgrounds) {
       if (luminance(background) < 0.25) return true;
     }
   }
   return false;
+}
+
+// ── JSX ancestry ────────────────────────────────────────────────────────────────────────────────
+//
+// ── THE COLOUR AND THE SURFACE ARE ALMOST NEVER ON THE SAME ELEMENT ─────────────────────────────
+//
+// Everything above measures a `color` against a `background` written in the SAME style object. That
+// is not how these screens are built. A card sets the background; its children set the text. So the
+// common shape was unmeasurable, and the fallback — "the page, if the file paints nothing dark" —
+// blinded a whole FILE the moment one card in it was dark.
+//
+// `page.tsx` has dark `#0f172a` cards on two tabs. That single fact caused every unpaired inline
+// colour in its 3,200 lines to be skipped, including this, on the Survey Data tab:
+//
+//     <table className="review-table">                          ← no background of its own
+//       <td style={{ color: '#e2e8f0' }}>{link.instrumentNumber}</td>
+//
+// `.review-table` is not defined in any stylesheet — it is one of the 534 in the unstyled-class
+// baseline — so the surface is `.review-summary-panel`, which is `#fff`. **1.23:1.** The chain of
+// title — dates, grantors, grantees, instrument numbers — has been rendering white on white.
+//
+// The fix is to answer the question that was actually being asked: not "does this FILE paint
+// something dark", but "what does the nearest ANCESTOR paint". Tags are walked, backgrounds are
+// pushed onto a stack, and a colour is measured against the surface it is really on.
+
+/**
+ * Every JSX tag in source order: `{ kind, name, attrs, index }`.
+ *
+ * Deliberately tolerant. `useState<AnnotationHistoryState>` parses as an opening `<AnnotationHistoryState>`
+ * that never closes, and there is no way to tell it from a component without a type checker. It is
+ * harmless: a bogus entry declares no background, so it is transparent to the lookup, and the
+ * pop-until-name-matches rule below clears it at the next real close tag.
+ */
+export function jsxTags(src) {
+  const tags = [];
+  for (let i = 0; i < src.length; i++) {
+    if (src[i] !== '<') continue;
+    const closing = src[i + 1] === '/';
+    const nameStart = i + (closing ? 2 : 1);
+    if (!/[A-Za-z]/.test(src[nameStart] ?? '')) continue;   // `<>`, `< 3`, `<'a'`
+
+    // Consume to the `>` that ends the tag, ignoring any inside strings or braces.
+    let j = nameStart;
+    let depth = 0;
+    let quote = null;
+    for (; j < src.length; j++) {
+      const c = src[j];
+      if (quote) { if (c === quote && src[j - 1] !== '\\') quote = null; continue; }
+      if (c === "'" || c === '"' || c === '`') { quote = c; continue; }
+      if (c === '{') depth++;
+      else if (c === '}') depth--;
+      else if (c === '>' && depth === 0) break;
+      else if (c === '<' && depth === 0) { j = -1; break; }   // never closed — not a tag
+    }
+    if (j < 0 || j >= src.length) continue;
+
+    const body = src.slice(nameStart, j);
+    const name = /^[\w.]+/.exec(body)?.[0] ?? '';
+    const selfClosing = src[j - 1] === '/';
+    tags.push({
+      kind: closing ? 'close' : selfClosing ? 'self' : 'open',
+      name,
+      attrs: body.slice(name.length),
+      index: i,
+    });
+    i = j;
+  }
+  return tags;
+}
+
+/** Tailwind background utilities dark enough that text on them cannot be the page's. */
+const DARK_BG_CLASS = /\bbg-(?:black|gray-950|(?:gray|slate|zinc|neutral|stone)-(?:7|8|9)\d{2})\b/;
+
+/**
+ * One mark per inline `style={{` in the file: where it starts, and the surface ENCLOSING it.
+ *
+ *   `surface` is a colour  → an ancestor paints that, measure against it
+ *   `surface` is `null`    → an ancestor declares a background this cannot read — skip, do not guess
+ *   `surface` is undefined → nothing encloses it; the caller falls back to the page
+ *
+ * The offset is the position of the `style={{` itself, so the caller can look up the match it
+ * already has rather than trying to re-derive which tag a match belongs to.
+ */
+export function ancestorSurfaces(src, vars = new Map()) {
+  const marks = [];
+  const stack = [];
+  const OPAQUE_STYLE = /style=\{(?!\{)/;
+  // The style objects, by the offset of their `style=`, so a tag can find its own without
+  // re-parsing it — and so the offsets here are the same ones `auditInline` looks up.
+  const objects = new Map(styleObjects(src).map((o) => [o.at, o.body]));
+
+  for (const tag of jsxTags(src)) {
+    if (tag.kind === 'close') {
+      const at = stack.map((e) => e.name).lastIndexOf(tag.name);
+      if (at >= 0) stack.length = at;
+      continue;
+    }
+
+    const inherited = stack.length ? stack[stack.length - 1].bg : undefined;
+    // `<div` is 1 + the name's length; the attributes follow, and the style object is somewhere in
+    // them. Its absolute offset is what both this map and the caller key on.
+    const attrsAt = tag.index + 1 + tag.name.length;
+    let body;
+    let bodyAt = -1;
+    for (const [at, b] of objects) {
+      if (at >= attrsAt && at < attrsAt + tag.attrs.length) { body = b; bodyAt = at; break; }
+    }
+
+    let own;
+    if (body !== undefined) {
+      const { backgrounds, declaresBackground } = inlinePair(body, vars);
+      if (backgrounds.length) own = backgrounds[0];
+      else if (declaresBackground) own = null;
+      marks.push({ at: bodyAt, surface: inherited });
+    } else if (OPAQUE_STYLE.test(tag.attrs)) {
+      own = null;
+    }
+    if (own === undefined && DARK_BG_CLASS.test(tag.attrs)) own = null;
+
+    if (tag.kind === 'open') stack.push({ name: tag.name, bg: own !== undefined ? own : inherited });
+  }
+  return marks;
 }
 
 export function auditInline(files, vars = new Map()) {
@@ -370,10 +537,13 @@ export function auditInline(files, vars = new Map()) {
   for (const { rel, src } of files) {
     // stripJs: an inline colour written inside a COMMENT is not applied to anything.
     const blanked = stripJs(src);
-    const dark = paintsDark(src);
+    // Only CLASS-painted darkness is a file-level fact now. Inline dark backgrounds are handled by
+    // the ancestor walk below, exactly where they apply, instead of blinding the whole file.
+    const dark = DARK_BG_CLASS.test(blanked);
+    const enclosing = new Map(ancestorSurfaces(blanked, vars).map((k) => [k.at, k.surface]));
 
-    for (const m of blanked.matchAll(STYLE_OBJECT)) {
-      const { colors, backgrounds, declaresBackground } = inlinePair(m[1], vars);
+    for (const { at, body } of styleObjects(blanked)) {
+      const { colors, backgrounds, declaresBackground } = inlinePair(body, vars);
       if (!colors.length) continue;
 
       // A pair is measured directly. A background that is DECLARED but unresolvable — `background:
@@ -385,13 +555,35 @@ export function auditInline(files, vars = new Map()) {
       // A ternary is neither case: both branches are known, so BOTH are measured and the worst one
       // is what the button actually renders half the time.
       const paired = backgrounds.length > 0;
-      const surfaces = paired
-        ? backgrounds
-        : (declaresBackground || dark ? [] : [PAGE_BACKGROUND]);
+
+      // What this text is actually on, in order of how much it is really known:
+      //   1. a literal background in its OWN style object;
+      //   2. the nearest ANCESTOR element whose inline style declares a literal background;
+      //   3. the page — only when nothing enclosing it declares an unreadable background and the
+      //      file paints nothing dark by class.
+      // `null` from the ancestor walk means "something encloses this and cannot be read", which is
+      // a skip and never a guess.
+      const ancestor = enclosing.get(at);
+      let surfaces;
+      let bgFrom;
+      if (paired) {
+        surfaces = backgrounds;
+        bgFrom = 'the same style object';
+      } else if (declaresBackground) {
+        surfaces = [];
+      } else if (ancestor) {
+        surfaces = [ancestor];
+        bgFrom = 'the nearest ancestor that paints one';
+      } else if (ancestor === null || dark) {
+        surfaces = [];
+      } else {
+        surfaces = [PAGE_BACKGROUND];
+        bgFrom = 'the page (nothing enclosing it paints a background)';
+      }
       if (!surfaces.length) { skipped++; continue; }
 
       checked++;
-      const need = requiredRatio(m[1].replace(/fontSize:\s*'([\d.]+)rem'/, 'font-size: $1rem')
+      const need = requiredRatio(body.replace(/fontSize:\s*'([\d.]+)rem'/, 'font-size: $1rem')
         .replace(/fontWeight:\s*'?(\d+)'?/, 'font-weight: $1'));
 
       // The worst combination any branch can produce. One finding per style object, not one per
@@ -409,13 +601,11 @@ export function auditInline(files, vars = new Map()) {
         const branches = colors.length * surfaces.length;
         findings.push({
           file: rel,
-          line: blanked.slice(0, m.index).split('\n').length,
+          line: blanked.slice(0, at).split('\n').length,
           selector: 'inline style',
           fg: hex(worst.color),
           bg: hex(worst.background),
-          bgFrom: paired
-            ? `the same style object${branches > 1 ? ` (worst of ${branches} branches)` : ''}`
-            : 'the page (this file paints nothing dark)',
+          bgFrom: branches > 1 ? `${bgFrom} (worst of ${branches} branches)` : bgFrom,
           ratio: Number(worst.ratio.toFixed(2)),
           need,
         });

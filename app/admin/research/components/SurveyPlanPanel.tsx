@@ -81,8 +81,8 @@ function ChecklistItem({ item, onToggle }: { item: SurveyPlanItem & { id: string
       <div style={{ flexShrink: 0, marginTop: 2 }}>
         <div style={{
           width: 20, height: 20, borderRadius: 4,
-          border: `2px solid ${item.done ? '#059669' : '#D1D5DB'}`,
-          background: item.done ? '#059669' : '#fff',
+          border: `2px solid ${item.done ? '#047857' : '#D1D5DB'}`,
+          background: item.done ? '#047857' : '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {item.done && <span style={{ color: '#fff', fontSize: 12, lineHeight: 1 }}>✓</span>}
@@ -363,7 +363,7 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
             )}
             {plan.closure_check && (
               <div style={{ marginTop: '1.25rem', padding: '0.75rem 1rem', borderRadius: 8, background: plan.closure_check.acceptable ? '#F0FDF4' : '#FEF2F2', border: `1px solid ${plan.closure_check.acceptable ? '#BBF7D0' : '#FECACA'}` }}>
-                <div style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: '0.25rem', color: plan.closure_check.acceptable ? '#059669' : '#DC2626' }}>
+                <div style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: '0.25rem', color: plan.closure_check.acceptable ? '#047857' : '#DC2626' }}>
                   {plan.closure_check.acceptable ? '✓' : '⚠'} Deed Closure: {plan.closure_check.closure_ratio}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #374151)' }}>{plan.closure_check.note}</div>
@@ -382,7 +382,7 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
               </p>
             )}
             {completedPre > 0 && (
-              <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: '#059669', fontWeight: 600 }}>
+              <div style={{ marginBottom: '0.75rem', fontSize: '0.85rem', color: '#047857', fontWeight: 600 }}>
                 ✓ {completedPre} of {totalPre} items completed
               </div>
             )}
@@ -464,7 +464,7 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
                     <div style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #374151)' }}>{mon.search_method}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase', marginBottom: '0.2rem' }}>If Found</div>
+                    <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#047857', textTransform: 'uppercase', marginBottom: '0.2rem' }}>If Found</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--theme-fg-secondary, #374151)' }}>{mon.found_action}</div>
                   </div>
                   <div style={{ gridColumn: '1 / -1' }}>
@@ -506,7 +506,7 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
             )}
             {plan.boundary_reconstruction?.potential_conflicts && plan.boundary_reconstruction.potential_conflicts.length > 0 && (
               <div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#D97706', marginBottom: '0.5rem' }}>⚠ Potential Conflicts:</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#B45309', marginBottom: '0.5rem' }}>⚠ Potential Conflicts:</div>
                 {plan.boundary_reconstruction.potential_conflicts.map((c, i) => (
                   <div key={i} style={{ padding: '0.5rem 0.75rem', marginBottom: '0.5rem', background: '#FFFBEB', borderRadius: 6, border: '1px solid #FDE68A' }}>
                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: '#92400E', marginBottom: '0.25rem' }}>{c.description}</div>
@@ -523,7 +523,7 @@ export default function SurveyPlanPanel({ projectId }: SurveyPlanPanelProps) {
           <div>
             <SectionHeader title="Discrepancies to Investigate" icon="⚠️" />
             {(!plan.discrepancies_to_investigate || plan.discrepancies_to_investigate.length === 0) ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: '#059669' }}>
+              <div style={{ padding: '2rem', textAlign: 'center', color: '#047857' }}>
                 <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✓</div>
                 No discrepancies identified yet.
               </div>

@@ -179,7 +179,7 @@ export default function FieldReportPage() {
   if (loading || authStatus === 'loading') {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
-        <p style={{ color: '#9ca3af', fontSize: 15 }}>Loading field report…</p>
+        <p style={{ color: '#4b5563', fontSize: 15 }}>Loading field report…</p>
       </div>
     );
   }
@@ -281,7 +281,7 @@ export default function FieldReportPage() {
               color={confidenceColor(confScore)}
             />
             {boundary?.verified && (
-              <p style={{ textAlign: 'center', fontSize: 14, color: '#16a34a', marginTop: 8 }}>
+              <p style={{ textAlign: 'center', fontSize: 14, color: '#047857', marginTop: 8 }}>
                 ✓ Boundary verified
               </p>
             )}
@@ -388,7 +388,7 @@ export default function FieldReportPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
                       <SeverityPill severity={d.severity} />
                       {d.resolved && (
-                        <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>✓ Resolved</span>
+                        <span style={{ fontSize: 12, color: '#047857', fontWeight: 600 }}>✓ Resolved</span>
                       )}
                       {d.field && (
                         <span style={{ fontSize: 13, color: 'var(--theme-fg-secondary, #6b7280)' }}>{d.field}</span>
@@ -417,7 +417,7 @@ export default function FieldReportPage() {
 
         {/* Footer */}
         <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-          <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>
+          <p style={{ fontSize: 12, color: '#4b5563', margin: 0 }}>
             Powered by <strong style={{ color: '#2563eb' }}>Starr Recon</strong> — Starr Surveying Company, Belton, TX
           </p>
           <Link

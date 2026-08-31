@@ -33,6 +33,8 @@ import { SURVEY_RESULT_KEYS, surveyReviewData } from
   '../../app/admin/research/[projectId]/_sections/survey-review-data';
 import { SUMMARY_RESULT_KEYS, summaryReviewData, formatDuration } from
   '../../app/admin/research/[projectId]/_sections/summary-review-data';
+import { EASEMENT_RESULT_KEYS, easementsReviewData, EASEMENT_DATA_SOURCES } from
+  '../../app/admin/research/[projectId]/_sections/easements-review-data';
 
 const ROOT = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -113,9 +115,10 @@ describe('every key the Survey panel reads is one the worker writes', () => {
     // Control: an empty list agrees with everything.
     expect(SURVEY_RESULT_KEYS.length).toBeGreaterThanOrEqual(29);
     expect(SUMMARY_RESULT_KEYS.length).toBeGreaterThanOrEqual(26);
+    expect(EASEMENT_RESULT_KEYS.length).toBeGreaterThanOrEqual(27);
   });
 
-  it.each([...SURVEY_RESULT_KEYS, ...SUMMARY_RESULT_KEYS])('%s is produced', (key) => {
+  it.each([...SURVEY_RESULT_KEYS, ...SUMMARY_RESULT_KEYS, ...EASEMENT_RESULT_KEYS])('%s is produced', (key) => {
     expect(
       isWritten(key),
       `The Survey panel reads \`${key}\`, and nothing in the worker or the API writes it. `
@@ -275,5 +278,146 @@ describe('the Summary panel is wired', () => {
     // survey; it was being signalled in two colours at ratios neither of which could be read.
     expect(PAGE).not.toContain("'#f87171'");
     expect(PAGE).not.toContain("'#4ade80'");
+  });
+});
+
+// ── The Easements panel — the last cast on the Review tab ──────────────────────────────────────
+//
+// Twenty-seven keys across four nested structures: FEMA, TxDOT, the clerk's recorded easements, and
+// two lists the plat analyser hangs off `boundary`. Checked against the same producer corpus above,
+// which is why they are in this file rather than in one of their own — the coherence panel gets its
+// own file precisely because it is the one panel this corpus does NOT produce.
+
+describe('the Easements panel shaping', () => {
+  const withResult = (result: Record<string, unknown> | null) => ({ result });
+
+  it('defaults every list rather than handing the panel undefined', () => {
+    const d = easementsReviewData(withResult(null));
+    expect(d.easements).toEqual([]);
+    expect(d.covenants).toEqual([]);
+    expect(d.rowWidths).toEqual([]);
+    expect(d.platEasements).toEqual([]);
+    expect(d.summary).toBe('');
+    expect(d.fema).toBeNull();
+    expect(d.txdot).toBeNull();
+  });
+
+  it('survives metadata of every wrong shape', () => {
+    for (const junk of [null, undefined, 'a string', 42, [], { result: 'nope' }, { result: [] }]) {
+      expect(() => easementsReviewData(junk), String(junk)).not.toThrow();
+    }
+    expect(easementsReviewData({ result: { easements: 'not an array' } }).easements).toEqual([]);
+    expect(easementsReviewData({ result: { boundary: 'not an object' } }).rowWidths).toEqual([]);
+  });
+
+  it('treats an EMPTY fema object as no reading, not as a reading', () => {
+    // `result.fema = {}` renders a grid of six blank fields under a heading that says the data is
+    // there. The empty state — "requires valid coordinates from geocoding" — is the true answer and
+    // is the one a surveyor can act on.
+    expect(easementsReviewData(withResult({ fema: {} })).fema).toBeNull();
+    expect(easementsReviewData(withResult({ txdot: {} })).txdot).toBeNull();
+    expect(easementsReviewData(withResult({ fema: { floodZone: 'AE' } })).fema).not.toBeNull();
+  });
+
+  // ── hasData COUNTED FOUR OF THE SIX SECTIONS IT RENDERS ──────────────────────────────────────
+  //
+  // `fema || txdot || easements.length || covenants.length`. The two plat-derived lists were not in
+  // it, so a run that read the plats and found nothing at the courthouse listed the right-of-way
+  // widths and then printed "No easement or encumbrance data found" underneath them. Not a hidden
+  // section — a contradiction, on the tab whose job is to say what encumbers the tract.
+
+  it.each([
+    ['fema', { fema: { floodZone: 'X' } }],
+    ['txdot', { txdot: { rowWidth: 80 } }],
+    ['easements', { easements: [{ type: 'Utility' }] }],
+    ['covenants', { restrictiveCovenants: ['No mobile homes'] }],
+    ['rowWidths', { boundary: { rowWidths: ['60 ft ROW'] } }],
+    ['platEasements', { boundary: { platEasements: ['10 ft UE along the east line'] } }],
+  ])('hasData is true when only %s came back', (_source, result) => {
+    expect(easementsReviewData(withResult(result)).hasData).toBe(true);
+  });
+
+  it('and false when nothing did', () => {
+    expect(easementsReviewData(withResult({})).hasData).toBe(false);
+    expect(easementsReviewData(withResult({
+      easements: [], restrictiveCovenants: [], boundary: { rowWidths: [], platEasements: [] },
+    })).hasData).toBe(false);
+  });
+
+  it('a summary alone does NOT count as data', () => {
+    // The summary is prose the model wrote about the sections; it is not a source. If it counted,
+    // the empty state would never render on a run that produced a paragraph and nothing else.
+    expect(easementsReviewData(withResult({ easementSummary: 'No easements were located.' })).hasData)
+      .toBe(false);
+  });
+
+  it('returns a BOOLEAN, not the first truthy source', () => {
+    expect(typeof easementsReviewData(withResult({ fema: { floodZone: 'X' } })).hasData).toBe('boolean');
+    expect(typeof easementsReviewData(withResult({})).hasData).toBe('boolean');
+  });
+
+  it('every source it renders is one hasData counts', () => {
+    // The list is what stops a seventh section being added above the empty state without being
+    // counted — which is exactly how the two plat lists got there.
+    const shaped = easementsReviewData(withResult({}));
+    for (const source of EASEMENT_DATA_SOURCES) {
+      expect(shaped, `EASEMENT_DATA_SOURCES names ${source}, which the shaping does not return`)
+        .toHaveProperty(source);
+    }
+    expect(EASEMENT_DATA_SOURCES.length, 'a source was added to the tab but not to the list').toBe(6);
+  });
+});
+
+describe('the Easements panel is wired, and is no longer a dark island', () => {
+  const PAGE = read('app/admin/research/[projectId]/page.tsx');
+  const CSS = read('app/admin/styles/AdminResearch.css');
+
+  it('imports and calls the shaping function', () => {
+    expect(PAGE).toContain("from './_sections/easements-review-data'");
+    expect(PAGE).toContain('easementsReviewData(project.analysis_metadata)');
+  });
+
+  it('no longer carries the inline cast', () => {
+    expect(PAGE, 'the 20-line inline cast is back')
+      .not.toContain("const easementSummary = (result?.easementSummary ?? '') as string;");
+    expect(PAGE).not.toContain('const hasData = fema || txdot');
+  });
+
+  it('renders no #0f172a card on this page any more', () => {
+    // The tab was a dark panel inside a light portal, and then had light-theme greys put on it.
+    // #4B5563 on #0f172a is 2.36:1 — the description of every recorded easement, and all three
+    // "no data available" lines.
+    expect(PAGE, 'the dark encumbrance cards are back').not.toContain("'#0f172a'");
+    expect(PAGE).not.toContain("'#1e293b'");
+    expect(PAGE).not.toContain("'#64748b'");
+  });
+
+  it('and the classes it moved to are actually defined', () => {
+    // "Authored but not wired", the stylesheet half: a class that no rule defines renders unstyled,
+    // and an unstyled dark-card replacement is a white box with no border.
+    for (const cls of [
+      'review-encumbrance-box', 'review-encumbrance-box__title', 'review-encumbrance-grid',
+      'review-encumbrance-field__label', 'review-encumbrance-field__value',
+      'review-encumbrance-field__value--flag-on', 'review-encumbrance-field__value--flag-off',
+      'review-encumbrance-field__value--unknown', 'review-encumbrance-field__value--strong',
+      'review-encumbrance-link', 'review-encumbrance-empty', 'review-encumbrance-list',
+      'review-encumbrance-item', 'review-encumbrance-item__title', 'review-encumbrance-item__desc',
+      'review-encumbrance-item__meta', 'review-encumbrance-section',
+    ]) {
+      expect(CSS, `.${cls} is used by the page and defined nowhere`).toContain(`.${cls}`);
+    }
+  });
+
+  it('shows the easement LOCATION, which was cast and never rendered', () => {
+    // `location?: string | null` was in the inline cast, is produced by the worker, and appeared in
+    // no JSX. Same shape as the owner name (G10): collected, typed, never shown. It says WHERE on
+    // the tract the easement runs, which is the thing a field crew needs.
+    expect(PAGE).toContain('Location: {e.location}');
+  });
+
+  it('does not signal the flood hazard by colour alone', () => {
+    // Red/green carries nothing for a red-green colour-blind reader, and this one is a material
+    // fact about the property. The words carry it; the colour reinforces.
+    expect(PAGE).toContain("'YES — flood insurance required' : 'No'");
   });
 });

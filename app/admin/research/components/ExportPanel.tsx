@@ -108,8 +108,8 @@ export default function ExportPanel({
           <div className="research-export__summary-row">
             <span className="research-export__summary-label">Confidence</span>
             <span className="research-export__summary-value" style={{
-              color: comparison.overall_confidence >= 75 ? '#059669'
-                : comparison.overall_confidence >= 55 ? '#F59E0B'
+              color: comparison.overall_confidence >= 75 ? '#047857'
+                : comparison.overall_confidence >= 55 ? '#B45309'
                 : 'var(--color-error)',
               fontWeight: 700,
             }}>

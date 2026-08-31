@@ -139,7 +139,11 @@ function unstyled(): Map<string, string> {
  * intended motion, and this constant coming down is what "the UI overhaul is progressing" looks
  * like as a number rather than as an impression.
  */
-const UNSTYLED_BASELINE = 461;
+// 461 -> 454: G15 defined `.review-table`, `.review-data-section` and the plat/encumbrance
+// cards, which page.tsx had been rendering against no rule at all. The chain-of-title table being
+// unstyled is exactly why its text sat on #fff and was invisible — the two ratchets were measuring
+// the same defect from opposite sides.
+const UNSTYLED_BASELINE = 454;
 
 describe('rendered classes resolve to a rule that loads on the route', () => {
   it('finds the sheets and the components — a broken scan would pass everything', () => {

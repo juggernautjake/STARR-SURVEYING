@@ -264,6 +264,120 @@ exist. Do not plan the next one from a name that has not been grepped.
 **Done:** behaviour identical; the route renders the same markup; each extraction is separately
 revertable.
 
+### B1a — thirteenth extraction: `_sections/easements-review-data.ts` — SHIPPED 2026-08-31
+
+**The last cast on the Review tab.** Twenty-seven keys off `analysis_metadata.result` across four
+nested structures — FEMA, TxDOT, the clerk's recorded easements, and two lists the plat analyser
+hangs off `boundary`. Held against `worker/src` by the existing contract test, unlike the coherence
+panel, whose producer is a prompt.
+
+#### The tab said "no data" while showing data
+
+```
+hasData = fema || txdot || easements.length > 0 || covenants.length > 0
+```
+
+Four of the six sections it renders. `rowWidths` and `platEasements` both come from the plat
+analyser rather than from the courthouse, so a run that read the plats and found nothing at the
+clerk listed the right-of-way widths, listed the plat easements, and then printed
+
+> No easement or encumbrance data found. Run the full research pipeline to populate this section.
+
+underneath them. Not a hidden section this time — a **contradiction**, on the tab whose entire job
+is to say what encumbers the tract. `EASEMENT_DATA_SOURCES` now enumerates all six and the test
+asserts the shaping returns every one, so a seventh section cannot be added without being counted.
+
+Also: `result.fema = {}` counted as a FEMA reading and rendered a grid of six blank fields under a
+heading claiming the data was there. An empty object is not a reading; the empty state — *"requires
+valid coordinates from geocoding"* — is the true answer and the one a surveyor can act on.
+
+And `location` was in the cast, is produced by the worker, and appeared in no JSX. Same shape as
+G10's owner name: collected, typed, never shown. It says *where on the tract* the easement runs. It
+renders now — the one deliberate behaviour change in this slice.
+
+#### The tab was a dark island in a light portal
+
+`#0f172a` cards with light-theme greys on them. Four of its five text colours failed AA against its
+own background:
+
+| | |
+|---|---|
+| `#4B5563` | **2.36:1** — all three "no data available" lines, and the DESCRIPTION of every recorded easement |
+| `#B91C1C` | **2.76:1** — "YES — flood insurance required" |
+| `#047857` | 3.26:1 — the not-in-SFHA reading |
+| `#64748b` | 3.75:1 — every field label on the tab |
+
+Re-themed to the same light card treatment as the Property and Survey tabs, in
+`AdminResearch.css`, rather than to lighter text on the dark card: a lone dark island inside a
+light portal is what produced this, and — see below — it produced it twice on one screen.
+
+`page.tsx` is **3,222 → 3,289**. Up, and honestly so: the cast came out, but the re-theme turned
+dense inline-styled one-liners into structured class-based markup. Line count is a proxy for the
+thing this doc is after, not the thing itself.
+
+---
+
+## G15 — the colour and the surface are almost never on the same element (2026-08-31)
+
+Every inline measurement so far compared a `color` with a `background` in the **same style object**.
+That is not how these screens are built. A card sets the background; its children set the text.
+
+So the common shape was unmeasurable — and the fallback made it worse. "The page, if the file
+paints nothing dark" was a **file-level** fact, so one dark card blinded 3,200 lines. `page.tsx`
+has dark `#0f172a` cards on two tabs. That single fact skipped every unpaired inline colour in it,
+including this, on the Survey Data tab:
+
+```tsx
+<table className="review-table">                        {/* defined in NO stylesheet */}
+  <td style={{ color: '#e2e8f0' }}>{link.instrumentNumber}</td>
+```
+
+`.review-table` and `.review-data-section` are two of the 534 in the unstyled-class baseline, so the
+table has no background of its own and sits straight on `.review-summary-panel` — `#fff`.
+
+**1.23:1.** The date, the grantor, the grantee and the instrument number of **every link in the
+chain of title** have been rendering white on white. Not dim. Gone.
+
+Two ratchets were measuring the same defect from opposite sides and neither could see it: the
+unstyled-class guard knew `.review-table` had no rule, and the contrast guard knew nothing about
+what that implied.
+
+### What the walk does
+
+`jsxTags` walks the tags; `ancestorSurfaces` keeps a stack of backgrounds; a colour is measured
+against the nearest ancestor that paints one. `null` means an ancestor paints something unreadable —
+skip, never guess, which is the rule that kept the 61 false findings from coming back. The
+file-level check now covers only **class**-painted darkness, which is the part a stack cannot
+resolve.
+
+`styleObjects` replaced the `[^{}]*` matcher at the same time, and had to: a style object containing
+a template literal with `${…}` was invisible *entirely*. SurveyPlanPanel's done/not-done checkbox is
+one, and the run reported its tick as white-on-white when the real surface was `#059669`. The
+finding was right and the surface was wrong, and a checker that names the wrong surface gets argued
+with rather than fixed.
+
+### The sweep
+
+**Nineteen findings, all real.** Skipped fell 278 → 120; checked rose 809 → 930.
+
+| Where | What |
+|---|---|
+| `page.tsx` ×4 | **The chain of title at 1.23:1** — white on white |
+| `page.tsx` ×2 | The plat cards' AI narrative at 2.36:1 and adjacent references at 3.75:1 |
+| `page.tsx` | The empty-documents icon at 2.85:1 |
+| `SurveyPlanPanel` ×6 | Deed closure, completed count, "If Found", potential conflicts, the no-discrepancies state, the checkbox tick |
+| `report/page.tsx` ×4 | **The field report** — the page a crew opens on a phone standing on the tract. "Loading field report…" at 2.43:1, "✓ Boundary verified" and "✓ Resolved" at 2.99:1, the footer at 2.31:1 |
+| `ExportPanel` | The export confidence readout, `#F59E0B` at **2.15:1** |
+| `ResearchRunPanel` | The elapsed timer — 1.1rem/600 is 17.6px, just under the 18.66px large-bold floor, so 4.5:1 applies |
+
+All fixed to the hexes `AdminResearch.css:12` had already retired to. The unstyled-class ratchet
+came down 461 → 454 in the same pass, because defining `.review-table` was part of the fix.
+
+**Mutations:** never popping the stack on a close tag → red (3). A self-closing sibling pushing its
+background → red. An unreadable ancestor falling through to the page → red. `styleObjects`
+collapsing at the first nested brace → red.
+
+
 ### B1a — twelfth extraction: `_sections/coherence-review-data.ts` — SHIPPED 2026-08-31
 
 The Review → Summary tab's **Quality & Coherence Review** panel: seventeen keys read off
@@ -1871,8 +1985,8 @@ precedence over the project value there. Now covered.
 **Planned and shipped:** A1 A2 A3 A4 · B2 B3 B4/B5 B6 · C1 C2 C3 · D0 · E1 E2 · F1.
 **Withdrawn as false premises:** B1, E1 (both replaced by what checking them revealed).
 
-**Unplanned, and the reason this doc grew:** G1–G14. Fourteen findings, none of them on the plan,
-all in the property-research software. Eleven were live defects:
+**Unplanned, and the reason this doc grew:** G1–G15. Fifteen findings, none of them on the plan,
+all in the property-research software. Twelve were live defects:
 
 | | What it was |
 |---|---|
@@ -1887,6 +2001,7 @@ all in the property-research software. Eleven were live defects:
 | G12 | Four hand-written copies of one list |
 | G13 | The contrast pass said *"clean"* while 131 inline styles went unmeasured |
 | G14 | **A ternary background was never measured at all** — four buttons and labels down to 2.15:1 |
+| G15 | **The chain of title rendered white on white** — 1.23:1, plus 18 more the ancestor-blind scanner could not reach |
 
 Three came back clean (filters, the placeholder scan, the app/worker HTTP contract) and each now
 has a guard so it stays that way. Plus a live Chromium leak and bounded concurrent capture in the
@@ -1912,13 +2027,13 @@ blocked; none costs more than it is worth. They are simply not done.
 
 | Item | State, measured 2026-08-31 |
 |---|---|
-| **B1a remainder** | ☐ **Real, and smaller than written.** TWELVE extractions now live in `_sections/`, and every one is verified imported by `page.tsx` — not one is an orphan. `page.tsx` is **3,680 → 3,222**. The three named targets above never existed. Every CAST on the Review tab is now extracted and contract-tested — `summary`, `property`, `survey`, and the coherence review, whose contract is a PROMPT rather than the worker. What remains is the `easements` branch and the surrounding markup: JSX, not logic. |
+| **B1a remainder** | ✅ **CLOSED 2026-08-31.** Thirteen extractions live in `_sections/`, every one verified imported by `page.tsx`. Every cast on the Review tab is now extracted and contract-tested — `summary`, `property`, `survey`, the coherence review (against a PROMPT) and the easements. The three named targets in the original row never existed. |
 | **D1 / D2** | ✅ **SHIPPED 2026-08-31**, and each found a live defect — the Stage 3.5 label and the two disagreeing definitions of "done". Both panels remain large (`ResearchRunPanel` 1,753, `PipelineProgressPanel` 1,481); that is a size question, not an open slice. |
 | **D3** | ✅ **CLOSED 2026-08-31** — already shipped. |
 | **E1b** | ☐ Open, and correctly outside this doc — admin shell, not the research portal. |
 | **E2b** | ✅ **BOTH SHIPPED 2026-08-31** — `BillingTab` and `LibraryTab` re-themed; the Billing pass found a button with no `onClick` at all. |
 | **E3** | ☐ **Genuinely open.** Responsive pass at 1440 and 390 against a **production** build. QA work, not a code slice — and the one remaining item on this doc that a browser, not a test, has to settle. |
-| **F2** | ◐ **Static half SHIPPED** (32 real failures fixed; `verify:contrast` reports *no contrast failures* across **809** pairs — the inline scanner now reads both branches of a ternary, which is how the last four were found). The browser half stays a programme, and pairs with E3. |
+| **F2** | ◐ **Static half SHIPPED** (51 real failures fixed; `verify:contrast` reports *no contrast failures* across **930** pairs, with only 120 skipped — the scanner now reads ternary branches AND resolves the nearest ancestor that paints a background, which is how the chain of title was found rendering white on white). The browser half stays a programme, and pairs with E3. |
 
 ### And the thing no amount of this can settle
 

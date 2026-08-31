@@ -844,7 +844,7 @@ export default function ResearchRunPanel({
           fontSize: '1.1rem',
           fontWeight: 600,
           fontVariantNumeric: 'tabular-nums',
-          color: isDone ? (isSuccess ? '#059669' : '#DC2626') : '#2563EB',
+          color: isDone ? (isSuccess ? '#047857' : '#DC2626') : '#2563EB',
           margin: '0.25rem 0',
         }}>
           {Math.floor(elapsedSeconds / 60).toString().padStart(2, '0')}:{(elapsedSeconds % 60).toString().padStart(2, '0')}

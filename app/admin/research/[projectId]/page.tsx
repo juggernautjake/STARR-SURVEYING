@@ -40,6 +40,7 @@ import ResearchRunPanel from '../components/ResearchRunPanel';
 import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
 import { surveyReviewData } from './_sections/survey-review-data';
 import { summaryReviewData } from './_sections/summary-review-data';
+import { easementsReviewData } from './_sections/easements-review-data';
 import {
   coherenceReviewData, scoreFillColor, deltaColor, deedCompleteColor,
   DEED_BREAKS_COLOR, MISSING_INSTRUMENTS_COLOR,
@@ -2338,30 +2339,35 @@ export default function ResearchProjectPage() {
                       </div>
                     )}
 
-                    {/* Chain of Title */}
+                    {/* Chain of Title.
+
+                        G15 — every value cell here was `color: '#e2e8f0'`, and `.review-table` is
+                        defined in no stylesheet, so the table sat straight on `.review-summary-panel`
+                        at `#fff`. 1.23:1: the date, grantor, grantee and instrument number of every
+                        link have been rendering white on white. The colours are in the sheet now. */}
                     {hasChain && (
-                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                      <div className="review-data-section">
                         <div className="review-narrative__label">Chain of Title ({chainOfTitle.length} links)</div>
-                        <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
+                        <div className="admin-table-wrap"><table className="review-table">
                           <thead>
-                            <tr style={{ borderBottom: '1px solid #334155' }}>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>#</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>Date</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>From</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>To</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>Instrument</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>Type</th>
+                            <tr>
+                              <th>#</th>
+                              <th>Date</th>
+                              <th>From</th>
+                              <th>To</th>
+                              <th>Instrument</th>
+                              <th>Type</th>
                             </tr>
                           </thead>
                           <tbody>
                             {chainOfTitle.map((link, i) => (
-                              <tr key={i} style={{ borderBottom: '1px solid #1e293b' }}>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#64748b' }}>{link.order}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.date || '—'}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.from}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.to}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0', fontFamily: 'monospace' }}>{link.instrumentNumber || '—'}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#4B5563' }}>{link.type}</td>
+                              <tr key={i}>
+                                <td className="review-table__muted">{link.order}</td>
+                                <td>{link.date || '—'}</td>
+                                <td>{link.from}</td>
+                                <td>{link.to}</td>
+                                <td className="review-table__mono">{link.instrumentNumber || '—'}</td>
+                                <td className="review-table__muted">{link.type}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2369,18 +2375,22 @@ export default function ResearchProjectPage() {
                       </div>
                     )}
 
-                    {/* Per-Plat AI Analysis Details */}
+                    {/* Per-Plat AI Analysis Details.
+
+                        The other half of the same mistake, in the other direction: a real dark
+                        `#0f172a` card carrying light-theme greys — the AI narrative at 2.36:1 and
+                        the adjacent-plat references at 3.75:1. Re-themed light, like the rest. */}
                     {hasPlats && (
-                      <div className="review-data-section" style={{ marginBottom: '1rem' }}>
+                      <div className="review-data-section">
                         <div className="review-narrative__label">Plat Analysis Details</div>
                         {platAnalyses.map((plat, pi) => (
-                          <div key={pi} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginTop: '0.5rem' }}>
-                            <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.3rem' }}>
+                          <div key={pi} className="review-plat-card">
+                            <div className="review-plat-card__title">
                               {plat.name}{plat.instrumentNumber ? ` (Inst# ${plat.instrumentNumber})` : ''}{plat.date ? ` — ${plat.date}` : ''}
                             </div>
-                            {plat.narrative && <div style={{ color: '#4B5563', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{plat.narrative}</div>}
+                            {plat.narrative && <div className="review-plat-card__narrative">{plat.narrative}</div>}
                             {plat.adjacentReferences.length > 0 && (
-                              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.3rem' }}>
+                              <div className="review-plat-card__adjacent">
                                 Adjacent: {plat.adjacentReferences.join('; ')}
                               </div>
                             )}
@@ -2390,7 +2400,7 @@ export default function ResearchProjectPage() {
                     )}
 
                     {/* Fallback: DataPointsPanel for any extracted data points */}
-                    <div style={{ marginTop: '1rem', borderTop: '1px solid #1e293b', paddingTop: '1rem' }}>
+                    <div className="review-data-points">
                       <div className="review-narrative__label" style={{ marginBottom: '0.5rem' }}>Extracted Data Points</div>
                       <DataPointsPanel
                         projectId={projectId}
@@ -2414,80 +2424,136 @@ export default function ResearchProjectPage() {
               {reviewTab === 'easements' && <EncumbrancePanel projectId={projectId} />}
 
               {reviewTab === 'easements' && (() => {
-                const meta = project.analysis_metadata as Record<string, unknown> | null;
-                const result = meta?.result as Record<string, unknown> | null;
-                const easementSummary = (result?.easementSummary ?? '') as string;
-                const fema = result?.fema as {
-                  floodZone?: string; zoneSubtype?: string | null; inSFHA?: boolean;
-                  firmPanel?: string | null; effectiveDate?: string | null; sourceUrl?: string;
-                } | null;
-                const txdot = result?.txdot as {
-                  rowWidth?: number | null; csjNumber?: string | null; highwayName?: string | null;
-                  highwayClass?: string | null; district?: string | null; acquisitionDate?: string | null;
-                  sourceUrl?: string;
-                } | null;
-                const easements = (result?.easements ?? []) as Array<{
-                  type: string; description: string; instrumentNumber: string | null;
-                  width?: string | null; location?: string | null; sourceUrl: string | null; source: string;
-                }>;
-                const covenants = (result?.restrictiveCovenants ?? []) as string[];
-                const rowWidths = ((result?.boundary as Record<string, unknown> | null)?.rowWidths ?? []) as string[];
-                const platEasements = ((result?.boundary as Record<string, unknown> | null)?.platEasements ?? []) as string[];
-
-                const hasData = fema || txdot || easements.length > 0 || covenants.length > 0;
+                // B1a — the 20-line cast this used to open with moved to
+                // `_sections/easements-review-data.ts`, the last one on the Review tab. It reads
+                // 27 keys across four nested structures, and `hasData` counted four of the six
+                // sources it renders — so a run that read the plats and found nothing at the
+                // courthouse printed "No easement or encumbrance data found" UNDERNEATH the
+                // right-of-way widths it had just listed.
+                //
+                // The dark `#0f172a` cards went with it. Four of this tab's five text colours
+                // failed AA against its own background — including the description of every
+                // recorded easement at 2.36:1 and "YES — flood insurance required" at 2.76:1 —
+                // and neither contrast sweep could see them, because the colour and the
+                // background it sat on were declared on different elements. See G15.
+                const {
+                  summary, fema, txdot, easements, covenants, rowWidths, platEasements, hasData,
+                } = easementsReviewData(project.analysis_metadata);
 
                 return (
                   <div className="review-tab-content">
-                    {/* Easement Summary */}
-                    {easementSummary && (
+                    {summary && (
                       <div className="review-narrative" style={{ marginBottom: '1rem' }}>
                         <div className="review-narrative__label">Easements &amp; Encumbrances Summary</div>
-                        <div className="review-narrative__text">{easementSummary}</div>
+                        <div className="review-narrative__text">{summary}</div>
                       </div>
                     )}
 
                     {/* FEMA Flood Zone */}
-                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                      <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>FEMA Flood Zone</div>
+                    <div className="review-encumbrance-box">
+                      <div className="review-encumbrance-box__title">FEMA Flood Zone</div>
                       {fema ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem' }}>
-                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Zone</span><br/><span style={{ color: fema.inSFHA ? '#B91C1C' : '#047857', fontWeight: 600 }}>{fema.floodZone}</span></div>
-                          {fema.zoneSubtype && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Subtype</span><br/><span style={{ color: '#e2e8f0' }}>{fema.zoneSubtype}</span></div>}
-                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>In SFHA?</span><br/><span style={{ color: fema.inSFHA ? '#B91C1C' : '#047857', fontWeight: 600 }}>{fema.inSFHA ? 'YES — flood insurance required' : 'No'}</span></div>
-                          {fema.firmPanel && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>FIRM Panel</span><br/><span style={{ color: '#e2e8f0' }}>{fema.firmPanel}</span></div>}
-                          {fema.effectiveDate && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Effective Date</span><br/><span style={{ color: '#e2e8f0' }}>{fema.effectiveDate}</span></div>}
-                          {fema.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={fema.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>FEMA MSC</a></div>}
+                        <div className="review-encumbrance-grid">
+                          <div>
+                            <div className="review-encumbrance-field__label">Zone</div>
+                            <div className={`review-encumbrance-field__value review-encumbrance-field__value--${fema.inSFHA ? 'flag-on' : 'flag-off'}`}>{fema.floodZone}</div>
+                          </div>
+                          {fema.zoneSubtype && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Subtype</div>
+                              <div className="review-encumbrance-field__value">{fema.zoneSubtype}</div>
+                            </div>
+                          )}
+                          <div>
+                            <div className="review-encumbrance-field__label">In SFHA?</div>
+                            <div className={`review-encumbrance-field__value review-encumbrance-field__value--${fema.inSFHA ? 'flag-on' : 'flag-off'}`}>
+                              {fema.inSFHA ? 'YES — flood insurance required' : 'No'}
+                            </div>
+                          </div>
+                          {fema.firmPanel && (
+                            <div>
+                              <div className="review-encumbrance-field__label">FIRM Panel</div>
+                              <div className="review-encumbrance-field__value">{fema.firmPanel}</div>
+                            </div>
+                          )}
+                          {fema.effectiveDate && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Effective Date</div>
+                              <div className="review-encumbrance-field__value">{fema.effectiveDate}</div>
+                            </div>
+                          )}
+                          {fema.sourceUrl && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Source</div>
+                              <a href={fema.sourceUrl} target="_blank" rel="noopener noreferrer" className="review-encumbrance-link">FEMA MSC</a>
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div style={{ color: '#4B5563', fontStyle: 'italic' }}>No FEMA flood zone data available. Requires valid coordinates from geocoding.</div>
+                        <div className="review-encumbrance-empty">No FEMA flood zone data available. Requires valid coordinates from geocoding.</div>
                       )}
                     </div>
 
                     {/* TxDOT Right-of-Way */}
-                    <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                      <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>TxDOT Right-of-Way</div>
+                    <div className="review-encumbrance-box">
+                      <div className="review-encumbrance-box__title">TxDOT Right-of-Way</div>
                       {txdot ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem' }}>
-                          {txdot.highwayName && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Highway</span><br/><span style={{ color: '#e2e8f0', fontWeight: 600 }}>{txdot.highwayName}</span></div>}
-                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>ROW Width</span><br/><span style={{ color: txdot.rowWidth ? '#e2e8f0' : '#94a3b8', fontWeight: 600 }}>{txdot.rowWidth ? `${txdot.rowWidth} ft` : 'Unknown'}</span></div>
-                          {txdot.highwayClass && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Classification</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.highwayClass}</span></div>}
-                          {txdot.csjNumber && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>CSJ Number</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.csjNumber}</span></div>}
-                          {txdot.district && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>District</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.district}</span></div>}
-                          {txdot.acquisitionDate && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Acquisition Date</span><br/><span style={{ color: '#e2e8f0' }}>{txdot.acquisitionDate}</span></div>}
-                          {txdot.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={txdot.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>TxDOT GIS</a></div>}
+                        <div className="review-encumbrance-grid">
+                          {txdot.highwayName && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Highway</div>
+                              <div className="review-encumbrance-field__value review-encumbrance-field__value--strong">{txdot.highwayName}</div>
+                            </div>
+                          )}
+                          <div>
+                            <div className="review-encumbrance-field__label">ROW Width</div>
+                            <div className={`review-encumbrance-field__value${txdot.rowWidth ? ' review-encumbrance-field__value--strong' : ' review-encumbrance-field__value--unknown'}`}>
+                              {txdot.rowWidth ? `${txdot.rowWidth} ft` : 'Unknown'}
+                            </div>
+                          </div>
+                          {txdot.highwayClass && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Classification</div>
+                              <div className="review-encumbrance-field__value">{txdot.highwayClass}</div>
+                            </div>
+                          )}
+                          {txdot.csjNumber && (
+                            <div>
+                              <div className="review-encumbrance-field__label">CSJ Number</div>
+                              <div className="review-encumbrance-field__value">{txdot.csjNumber}</div>
+                            </div>
+                          )}
+                          {txdot.district && (
+                            <div>
+                              <div className="review-encumbrance-field__label">District</div>
+                              <div className="review-encumbrance-field__value">{txdot.district}</div>
+                            </div>
+                          )}
+                          {txdot.acquisitionDate && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Acquisition Date</div>
+                              <div className="review-encumbrance-field__value">{txdot.acquisitionDate}</div>
+                            </div>
+                          )}
+                          {txdot.sourceUrl && (
+                            <div>
+                              <div className="review-encumbrance-field__label">Source</div>
+                              <a href={txdot.sourceUrl} target="_blank" rel="noopener noreferrer" className="review-encumbrance-link">TxDOT GIS</a>
+                            </div>
+                          )}
                         </div>
                       ) : (
-                        <div style={{ color: '#4B5563', fontStyle: 'italic' }}>No TxDOT ROW data available. Requires valid coordinates from geocoding.</div>
+                        <div className="review-encumbrance-empty">No TxDOT ROW data available. Requires valid coordinates from geocoding.</div>
                       )}
                     </div>
 
                     {/* ROW Widths from Plats */}
                     {rowWidths.length > 0 && (
-                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                        <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>Right-of-Way Widths (from Plats)</div>
-                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                      <div className="review-encumbrance-box">
+                        <div className="review-encumbrance-box__title">Right-of-Way Widths (from Plats)</div>
+                        <ul className="review-encumbrance-list">
                           {rowWidths.map((w, i) => (
-                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{w}</li>
+                            <li key={i}>{w}</li>
                           ))}
                         </ul>
                       </div>
@@ -2495,11 +2561,11 @@ export default function ResearchProjectPage() {
 
                     {/* Easements from Plats */}
                     {platEasements.length > 0 && (
-                      <div style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginBottom: '1rem' }}>
-                        <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>Easements Shown on Plats ({platEasements.length})</div>
-                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                      <div className="review-encumbrance-box">
+                        <div className="review-encumbrance-box__title">Easements Shown on Plats ({platEasements.length})</div>
+                        <ul className="review-encumbrance-list">
                           {platEasements.map((e, i) => (
-                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{e}</li>
+                            <li key={i}>{e}</li>
                           ))}
                         </ul>
                       </div>
@@ -2507,14 +2573,15 @@ export default function ResearchProjectPage() {
 
                     {/* Recorded Easements from Clerk */}
                     {easements.length > 0 && (
-                      <div style={{ marginBottom: '1rem' }}>
+                      <div className="review-encumbrance-section">
                         <div className="review-narrative__label">Recorded Easements ({easements.length})</div>
                         {easements.map((e, i) => (
-                          <div key={i} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginTop: '0.5rem' }}>
-                            <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{e.type}{e.instrumentNumber ? ` — Inst# ${e.instrumentNumber}` : ''}</div>
-                            <div style={{ color: '#4B5563', fontSize: '0.85rem', marginTop: '0.25rem' }}>{e.description}</div>
-                            {e.width && <div style={{ color: '#60a5fa', fontSize: '0.85rem', marginTop: '0.15rem' }}>Width: {e.width}</div>}
-                            {e.sourceUrl && <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.8rem' }}>View Source</a>}
+                          <div key={i} className="review-encumbrance-item">
+                            <div className="review-encumbrance-item__title">{e.type}{e.instrumentNumber ? ` — Inst# ${e.instrumentNumber}` : ''}</div>
+                            <div className="review-encumbrance-item__desc">{e.description}</div>
+                            {e.width && <div className="review-encumbrance-item__meta">Width: {e.width}</div>}
+                            {e.location && <div className="review-encumbrance-item__meta">Location: {e.location}</div>}
+                            {e.sourceUrl && <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer" className="review-encumbrance-link">View Source</a>}
                           </div>
                         ))}
                       </div>
@@ -2522,18 +2589,18 @@ export default function ResearchProjectPage() {
 
                     {/* Restrictive Covenants */}
                     {covenants.length > 0 && (
-                      <div style={{ marginBottom: '1rem' }}>
+                      <div className="review-encumbrance-section">
                         <div className="review-narrative__label">Restrictive Covenants ({covenants.length})</div>
-                        <ul style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>
+                        <ul className="review-encumbrance-list">
                           {covenants.map((c, i) => (
-                            <li key={i} style={{ color: '#e2e8f0', fontSize: '0.85rem', marginBottom: '0.2rem' }}>{c}</li>
+                            <li key={i}>{c}</li>
                           ))}
                         </ul>
                       </div>
                     )}
 
                     {!hasData && (
-                      <div style={{ color: '#4B5563', fontStyle: 'italic', padding: '1rem 0' }}>
+                      <div className="review-encumbrance-empty" style={{ padding: '1rem 0' }}>
                         No easement or encumbrance data found. Run the full research pipeline to populate this section.
                       </div>
                     )}
@@ -2692,7 +2759,7 @@ export default function ResearchProjectPage() {
             if (documents.length === 0) {
               return (
                 <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #4B5563)', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, marginTop: '1rem' }}>
-                  <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #999)" }}><Inbox size={30} strokeWidth={1.5} /></div>
+                  <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #6B7280)" }}><Inbox size={30} strokeWidth={1.5} /></div>
                   <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>No documents captured</div>
                   <div style={{ fontSize: '0.85rem' }}>Go back to Research &amp; Analysis to run the pipeline.</div>
                 </div>
