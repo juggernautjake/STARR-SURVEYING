@@ -300,7 +300,44 @@ Preparing the owner's three-county test then turned up four things that are nobo
 are defects and unfinished wiring, and none of them were written down anywhere. Parking a doc does
 not stop the code under it from being wrong; it only stops anyone looking.
 
-### E1 — `SITUS_ADDR` does not exist, and three services ask for it ☐ **highest value**
+### E1 — ~~`SITUS_ADDR` does not exist, and three services ask for it~~ ✅ **SHIPPED 2026-08-30**
+
+Fixed in all three, and proved against the live layer rather than reasoned about:
+
+```
+OLD outFields=PROP_ID,…,SITUS_ADDR,…   → HTTP 400  "'outFields' parameter is invalid"
+NEW outFields=*                        → 2,000 parcels, addresses composed correctly
+                                          e.g. prop_id 61334 · FOWLER, ALLISON … · "1211 SHARON" · 3.33 ac
+```
+
+**`outFields=*`, not a corrected lower-case list.** ArcGIS rejects the *whole* query when one named
+field is absent, so an explicit list turns a renamed column into **zero parcels** rather than one
+missing value — the failure mode that hid this for as long as the code has existed. There is already
+a national Esri fallback layer with a different schema; `*` cannot break on it.
+
+`lib/research/arcgis-fields.ts` then reads defensively: case-insensitive candidate lists, and the
+situs address **composed** from `situs_num` / `situs_street_prefx` / `situs_street` /
+`situs_street_sufix`, because Bell CAD has no single address column. `SITUS_ADDR` is kept as a
+*fallback* — a different layer may genuinely have it; it is Bell's schema that does not.
+`boundary-fetch.service.ts` already had this instinct and the other three never copied it, so it is
+now shared rather than a fourth hand-rolled copy.
+
+The query is also **bounded** (`resultRecordCount: 500`) — it had never had its payload size tested,
+because it had never succeeded.
+
+15 tests, every fixture using field names read off the layer's own schema endpoint (a test written
+from the same imagination would pin the same fiction). Mutation-tested both halves: restoring the
+broken field list fails 2, dropping the shared reader fails 1. Comments stripped before scanning —
+all three files now *explain* the bug at length, and a raw scan would read the explanation as the
+offence.
+
+Root tsc 0 · lint 0 errors · research suite **1,179 pass** · `npm run build` exit 0.
+
+> **What this changes for a run today:** Bell County runs get their nearby-parcel context for the
+> first time — the data lot correlation depends on. Any run completed before this had it silently
+> empty.
+
+<details><summary>Original entry</summary>
 
 Measured against the live Bell CAD layer, with a control:
 
@@ -320,6 +357,8 @@ including the lowercase ones. The right pattern is in the repo, in a file nobody
 
 **Done:** the three queries use real field names, the address is composed from the parts, a test
 pins the field list against the layer's advertised schema, and a Bell run returns non-empty parcels.
+
+</details>
 
 ### E2 — The captcha solver has zero callers ☐
 

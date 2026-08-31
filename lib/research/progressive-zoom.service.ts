@@ -19,6 +19,7 @@ import { PipelineLogger } from './pipeline-logger';
 import { fetchParcelCentroidWgs84 as fetchSharedCentroid } from './bell-cad-arcgis.service';
 import { classifyStaticMapFailure } from '@/lib/maps/static-map-status';
 import { resolveServerMapsKey, NO_SERVER_MAPS_KEY_MESSAGE } from '@/lib/maps/server-key';
+import { PARCEL_OUT_FIELDS, readParcelAttributes } from '@/lib/research/arcgis-fields';
 
 // ── Parcel Centroid Lookup ───────────────────────────────────────────────────
 
@@ -247,7 +248,14 @@ function buildBellCadParcelQueryUrl(lat: number, lon: number, radiusDeg: number)
   const params = new URLSearchParams({
     geometry: envelope, geometryType: 'esriGeometryEnvelope',
     inSR: '4326', spatialRel: 'esriSpatialRelIntersects',
-    outFields: 'PROP_ID,FILE_AS_NAME,SITUS_ADDR,TRACT_OR_LOT,BLOCK,LEGAL_ACREAGE',
+    // '*' — a named field that the layer does not have makes ArcGIS reject the WHOLE query.
+    // Bell CAD has no SITUS_ADDR, which is why this returned 400 and every run silently had no
+    // nearby parcels. See lib/research/arcgis-fields.ts.
+    outFields: PARCEL_OUT_FIELDS,
+    // Bounded now that this query actually succeeds. The envelopes here are small (a lot, not a
+    // county), so 500 is far above any real result — but `*` returns every column, and an
+    // unbounded query that had always failed has never had its payload size tested.
+    resultRecordCount: '500',
     returnGeometry: 'false', f: 'json',
   });
   return `${BELL_CAD_FEATURE_SERVER}/0/query?${params}`;
@@ -272,12 +280,9 @@ async function fetchParcelData(queryUrl: string, logger?: PipelineLogger, zoom?:
       return [];
     }
     const parcels = data.features.map((f: Record<string, Record<string, unknown>>) => ({
-      prop_id: Number(f.attributes?.PROP_ID ?? 0),
-      owner: f.attributes?.FILE_AS_NAME ? String(f.attributes.FILE_AS_NAME) : null,
-      address: f.attributes?.SITUS_ADDR ? String(f.attributes.SITUS_ADDR) : null,
-      lot: f.attributes?.TRACT_OR_LOT ? String(f.attributes.TRACT_OR_LOT) : null,
-      block: f.attributes?.BLOCK ? String(f.attributes.BLOCK) : null,
-      acreage: f.attributes?.LEGAL_ACREAGE ? Number(f.attributes.LEGAL_ACREAGE) : null,
+      // Field names are read case-insensitively through a candidate list, and the situs address
+      // is COMPOSED from situs_num/situs_street/suffix — Bell CAD has no single address column.
+      ...readParcelAttributes(f.attributes),
     }));
     const elapsed = Date.now() - start;
     const withLots = parcels.filter((p: NearbyParcel) => p.lot != null).length;
