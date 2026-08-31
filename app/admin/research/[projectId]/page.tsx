@@ -60,6 +60,32 @@ import { JOB_NOTES_PLACEHOLDER, RESEARCH_SOURCES, ReviewDocCard } from './Review
 // ── Page-level constants ─────────────────────────────────────────────────────
 
 
+/**
+ * The owner name a person typed when creating this project.
+ *
+ * ── IT WAS BEING READ FROM THE WRONG PLACE ──────────────────────────────────────────────────────
+ *
+ * This was `(project as unknown as { owner_name?: string }).owner_name` — a cast that silences the
+ * compiler about a field the type does not declare, because `research_projects` HAS NO `owner_name`
+ * COLUMN. The create route stores it inside `analysis_metadata` instead, with the comment "Store
+ * owner_name and notes in analysis_metadata for AI context".
+ *
+ * So the expression was always `undefined`, and the owner name fell through to `''`.
+ *
+ * That is not cosmetic. `ResearchRunPanel` sends `ownerName` with the run, and the worker's clerk
+ * scraper branches on `if (input.ownerName)` to run its owner-based searches — one of the main ways
+ * documents are found for a property. **Every project created through the form ran with that path
+ * switched off**, and nothing said so: the field accepted the name, saved it, and showed it back.
+ *
+ * Typed rather than cast. A cast is what hid this for as long as it existed.
+ */
+function projectOwnerName(project: ResearchProject | null): string | undefined {
+  const meta = project?.analysis_metadata;
+  if (!meta || typeof meta !== 'object') return undefined;
+  const owner = (meta as Record<string, unknown>).owner_name;
+  return typeof owner === 'string' && owner.trim() ? owner.trim() : undefined;
+}
+
 export default function ResearchProjectPage() {
   const { data: session, status: sessionStatus } = useSession();
   const router = useRouter();
@@ -521,7 +547,7 @@ export default function ResearchProjectPage() {
             address: project.property_address || '',
             county: project.county || '',
             parcelId: project.parcel_id || '',
-            ownerName: (project as unknown as { owner_name?: string }).owner_name || '',
+            ownerName: projectOwnerName(project) || '',
           });
           setShouldAutoStartPipeline(true);
           setHoldOnResearchStage(true);
@@ -554,7 +580,7 @@ export default function ResearchProjectPage() {
       address: project.property_address || '',
       county: project.county || '',
       parcelId: project.parcel_id || '',
-      ownerName: (project as unknown as { owner_name?: string }).owner_name || '',
+      ownerName: projectOwnerName(project) || '',
     });
     setShouldAutoStartPipeline(true);
     setHoldOnResearchStage(true);
@@ -1743,7 +1769,7 @@ export default function ResearchProjectPage() {
             defaultAddress={project.property_address || ''}
             defaultCounty={project.county || ''}
             defaultParcelId={project.parcel_id || ''}
-            defaultOwnerName={((project as unknown as Record<string, unknown>).analysis_metadata as Record<string, unknown>)?.owner_name as string || ''}
+            defaultOwnerName={projectOwnerName(project) || ''}
             hideResultsAndProgress
             onNavigateAway={(params) => {
               setPendingSearchParams(params);
@@ -1783,7 +1809,7 @@ export default function ResearchProjectPage() {
               address={pendingSearchParams?.address ?? project.property_address ?? ''}
               county={pendingSearchParams?.county ?? project.county ?? ''}
               parcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
-              ownerName={pendingSearchParams?.ownerName ?? (project as unknown as { owner_name?: string }).owner_name ?? ''}
+              ownerName={pendingSearchParams?.ownerName ?? projectOwnerName(project) ?? ''}
               autoStart={shouldAutoStartPipeline}
               onPipelineStart={() => {
                 setPipelineHasStarted(true);
@@ -2245,14 +2271,25 @@ export default function ResearchProjectPage() {
 
               {/* ── Tab: Property Info ── */}
               {reviewTab === 'property' && (() => {
+                // ── THREE OF THESE COLUMNS DO NOT EXIST ─────────────────────────────────────────
+                //
+                // The cast claimed `owner_name`, `legal_description` and `acreage` on
+                // `research_projects`. None of them is a column: the owner lives in
+                // `analysis_metadata`, the legal description column is
+                // `legal_description_summary`, and acreage is only ever a run result.
+                //
+                // Every one had a working fallback, so the display was correct and the first
+                // operand of each `||` was simply dead. Harmless here — and the identical cast on
+                // the same field WAS doing damage three lines up the file, where an always-`undefined`
+                // `owner_name` meant the worker's owner-based clerk search never ran.
+                //
+                // Narrowed to the fields that are real. The dead operands are gone rather than left
+                // to suggest a column exists.
                 const proj = project as unknown as {
                   property_address?: string | null;
                   county?: string | null;
                   state?: string | null;
-                  owner_name?: string | null;
                   parcel_id?: string | null;
-                  legal_description?: string | null;
-                  acreage?: number | null;
                 };
                 const meta = project.analysis_metadata as Record<string, unknown> | null;
                 const result = meta?.result as Record<string, unknown> | null;
@@ -2266,13 +2303,13 @@ export default function ResearchProjectPage() {
                   { label: 'Property Address', value: proj.property_address || (result?.situsAddress as string) },
                   { label: 'County', value: proj.county },
                   { label: 'State', value: proj.state },
-                  { label: 'Owner Name', value: proj.owner_name || ownerFromResult },
+                  { label: 'Owner Name', value: projectOwnerName(project) || ownerFromResult },
                   { label: 'Parcel / Property ID', value: proj.parcel_id || propertyIdFromResult },
                   { label: 'Lot', value: lotNumber || null },
                   { label: 'Block', value: blockNumber || null },
                   { label: 'Subdivision', value: subdivisionName || null },
-                  { label: 'Legal Description', value: proj.legal_description || legalFromResult || project.legal_description_summary, wide: true },
-                  { label: 'Acreage', value: proj.acreage ? `${proj.acreage} ac` : (result?.acreage ? `${result.acreage} ac` : null) },
+                  { label: 'Legal Description', value: legalFromResult || project.legal_description_summary, wide: true },
+                  { label: 'Acreage', value: result?.acreage ? `${result.acreage} ac` : null },
                 ].filter(r => r.value);
                 return (
                   <div className="review-tab-content">

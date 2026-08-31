@@ -1000,6 +1000,51 @@ dialog fail — which is how that distinction stays real rather than decorative.
 Mutation-tested four ways, including removing the Escape handler: closing a door must not trap
 anyone behind it.
 
+## G10 — The owner name was collected, saved, displayed, and never used (2026-08-31)
+
+Found while scoping the next extraction, in the line the extraction would have moved.
+
+```ts
+ownerName={pendingSearchParams?.ownerName
+  ?? (project as unknown as { owner_name?: string }).owner_name ?? ''}
+```
+
+**`research_projects` has no `owner_name` column.** The create route stores it inside
+`analysis_metadata` and says so in its own comment. So that expression was always `undefined` and
+the owner fell through to `''`.
+
+Not cosmetic. `ResearchRunPanel` sends `ownerName` with the run, and the worker's clerk scraper
+branches on `if (input.ownerName)` to run its owner-based searches — one of the main ways
+documents are found for a property. **Every project created through the form ran with that search
+path switched off.** Nothing indicated it: the field accepted the name, saved it, and showed it
+back.
+
+**Four sites, not one.** Two seed `pendingSearchParams` on the auto-start and re-run paths; one
+feeds the run panel; one displays it. A fifth read the RIGHT place already, through a
+`((project as unknown as Record<string, unknown>).analysis_metadata as ...)` cast chain — so
+somebody had worked this out before and fixed only the site in front of them.
+
+### The cast is what hid it, and there were three more in the same object
+
+`as unknown as { owner_name?: string }` tells the compiler to stop asking. `ResearchProject` does
+not declare `owner_name` **precisely because the column does not exist** — the type was right and
+the cast overrode it.
+
+The same file cast a project to an object claiming `owner_name`, `legal_description` AND `acreage`.
+None is a column; the real ones are `analysis_metadata.owner_name` and
+`legal_description_summary`, and acreage only ever comes from a run result. All three had working
+fallbacks, so those displays were correct and the first operand of each `||` was simply dead —
+harmless there, and the identical cast on the same field was doing real damage a few hundred lines
+up. The cast is narrowed to the fields that exist.
+
+Read through a typed accessor now, which is what makes it checkable at all. A blank or whitespace
+owner is treated as absent rather than passed on: `'   '` would satisfy `if (input.ownerName)` and
+run an owner search for nothing.
+
+**A mutation blanking the two re-run seeds passed every other assertion** — the re-run path is
+exactly where an operator lands after a disappointing run, and `pendingSearchParams` takes
+precedence over the project value there. Now covered.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
