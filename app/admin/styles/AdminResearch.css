@@ -12689,3 +12689,11 @@
   font-size: 0.7rem;
   color: #6B7280;
 }
+
+/* The Review tab's property empty state. Was an inline `color: '#94a3b8'` —
+ * 2.56:1 on white, and invisible to the stylesheet sweep because no stylesheet
+ * contained it. #4B5563 is 6.90:1. */
+.review-property-empty {
+  color: #4B5563;
+  font-style: italic;
+}

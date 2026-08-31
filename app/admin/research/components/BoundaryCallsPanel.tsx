@@ -507,7 +507,7 @@ export default function BoundaryCallsPanel({
               <summary className="research-boundary__legal-desc-summary">
                 Legal Description ({result.legal_description.length} chars)
                 {result.legal_description && (
-                  <span style={{ color: '#059669', marginLeft: '0.5rem', fontWeight: 600, fontSize: '0.78rem' }}>
+                  <span style={{ color: '#047857', marginLeft: '0.5rem', fontWeight: 600, fontSize: '0.78rem' }}>
                     ✓ Saved to project documents
                   </span>
                 )}

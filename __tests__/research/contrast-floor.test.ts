@@ -31,7 +31,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  audit, contrast, parseHex, colourOf, readVars, backgroundFor, requiredRatio,
+  audit, contrast, parseHex, colourOf, readVars, backgroundFor, requiredRatio, inlinePair, paintsDark,
 } from '../../scripts/audit-research-contrast.mjs';
 
 describe('the contrast maths', () => {
@@ -111,6 +111,42 @@ describe('background resolution — the part that was wrong twice more', () => {
   });
 });
 
+describe('inline JSX styles — the blind spot the first pass left', () => {
+  // F2 measured the stylesheets and reported clean while the portal carried 131 inline
+  // `style={{ color: … }}` declarations that no stylesheet contains. One of them sat in the Review
+  // tab's own empty state at 2.56:1.
+  //
+  // A first sweep assumed white behind every one and produced 64 findings, 61 of them wrong:
+  // `style={{ background: '#059669', color: '#fff' }}` is a green button with white text and
+  // reported at 1:1. What is measured now is a real pair, or the page when the file paints nothing
+  // dark anywhere — and nothing else.
+
+  it('measures a pair declared in the same object', () => {
+    const got = inlinePair("background: '#FEF2F2', color: '#DC2626'");
+    expect(got.color).toEqual(parseHex('#DC2626'));
+    expect(got.background).toEqual(parseHex('#FEF2F2'));
+  });
+
+  it('reports a background it cannot resolve as DECLARED, not as absent', () => {
+    // `background: severity.color` is a coloured pill. Treating it as the page reported white text
+    // on it at 1:1 in two components.
+    const got = inlinePair("background: severity.color, color: '#fff'");
+    expect(got.background).toBeNull();
+    expect(got.declaresBackground, 'a declared background must not fall through to the page').toBe(true);
+  });
+
+  it('knows when a file paints something dark', () => {
+    expect(paintsDark("<div className='bg-gray-900'>")).toBe(true);
+    expect(paintsDark("<div style={{ background: '#0F172A' }}>")).toBe(true);
+    expect(paintsDark("<div className='bg-white' style={{ color: '#111' }}>")).toBe(false);
+  });
+
+  it('and does not read its own prose as paint', () => {
+    // Control for the stripper: this repository has had eight guards match their own comments.
+    expect(paintsDark('// this file used to use bg-gray-900 everywhere\nconst x = 1;')).toBe(false);
+  });
+});
+
 describe('the research stylesheets clear WCAG AA on the default theme', () => {
   const result = audit();
 
@@ -121,8 +157,17 @@ describe('the research stylesheets clear WCAG AA on the default theme', () => {
   });
 
   it('and does not skip most of them', () => {
-    // The other half of the control. Skipping is honest, but skipping everything is not a pass.
-    expect(result.skipped / (result.checked + result.skipped)).toBeLessThan(0.25);
+    // The other half of the control. Skipping is honest — an unresolvable background must not be
+    // guessed — but skipping everything is not a pass.
+    //
+    // The threshold is 0.4, not the 0.25 it started at, and the reason is worth stating rather than
+    // quietly raising: adding inline-style scanning brought in ~130 more colours, most of which have
+    // no paired background, so the skip rate moved from 12% to 25% BY DESIGN. 0.4 still catches the
+    // failure this guards against — a parser change that makes everything unresolvable — while
+    // leaving room for the inline half. If it ever creeps toward 0.4 for real, that is a signal the
+    // resolution rules have stopped working, not a number to raise again.
+    const ratio = result.skipped / (result.checked + result.skipped);
+    expect(ratio, `skipping ${(ratio * 100).toFixed(0)}% of colour pairs`).toBeLessThan(0.4);
   });
 
   it('has no failures', () => {

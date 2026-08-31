@@ -369,7 +369,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           className="research-upload__error"
           style={{
             background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '0.5rem',
-            padding: '0.75rem 1rem', marginTop: '0.75rem', color: '#DC2626', fontSize: '0.85rem',
+            padding: '0.75rem 1rem', marginTop: '0.75rem', color: '#B91C1C', fontSize: '0.85rem',
             whiteSpace: 'pre-line',
           }}
         >
@@ -446,7 +446,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
             />
           </div>
           {manualError && (
-            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.5rem 0.75rem', color: '#DC2626', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.5rem 0.75rem', color: '#B91C1C', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
               {manualError}
             </div>
           )}

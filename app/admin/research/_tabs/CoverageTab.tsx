@@ -216,7 +216,7 @@ export default function CoverageTab() {
         </div>
       </section>
 
-      <p style={{ marginTop: 16, fontSize: '12px', color: '#94A3B8' }}>
+      <p style={{ marginTop: 16, fontSize: '12px', color: '#4B5563' }}>
         Source of truth:{' '}
         <code>worker/src/adapters/clerk-registry.ts</code>. Add a county or
         promote a stub by editing that file.

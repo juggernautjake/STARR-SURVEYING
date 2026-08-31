@@ -60,9 +60,20 @@ export function contrast(fg, bg) {
 
 // ── Reading the sheet ───────────────────────────────────────────────────────────────────────────
 
-/** Strip comments so prose quoting a hex is not read as a declaration. */
+/**
+ * Strip CSS comments so prose quoting a hex is not read as a declaration.
+ *
+ * LENGTH-PRESERVING: newlines are kept and everything else becomes a space. A stripper that
+ * collapses a block comment to one character shifts every line number after it, which is how the
+ * first inline sweep reported findings against lines that had nothing on them.
+ */
 function stripComments(css) {
   return css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+}
+
+/** The same, for TSX — where `//` IS a comment and `stripComments` alone leaves it standing. */
+function stripJs(src) {
+  return stripComments(src).replace(/(^|[^:'"`])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
 }
 
 /**
@@ -215,6 +226,118 @@ export function requiredRatio(body) {
   return px >= 24 || (bold && px >= 18.66) ? 3 : 4.5;
 }
 
+// ── Inline JSX styles ───────────────────────────────────────────────────────────────────────────
+//
+// ── THE BLIND SPOT THE CSS PASS LEFT ────────────────────────────────────────────────────────────
+//
+// F2 measured the stylesheets and reported clean. The research portal also carries **131 inline
+// `style={{ color: … }}` declarations** in TSX, which no stylesheet contains and which that pass
+// could not see. One of them — `#94A3B8` at 2.56:1 — sits in the Review tab's own empty state.
+//
+// ── WHY THIS ONLY REPORTS PAIRS ─────────────────────────────────────────────────────────────────
+//
+// A first sweep assumed white behind every inline colour and produced 64 findings. Most were wrong:
+// `style={{ background: '#059669', color: '#fff' }}` is a green button with white text, perfectly
+// legible, and it reported at 1:1. An inline colour whose background comes from a className, or from
+// an ancestor, is genuinely unknowable from the source.
+//
+// So this reports **only style objects that declare both** — a real pair, measured, no assumption.
+// Everything else is counted as skipped. That leaves inline text on a class-styled background
+// unchecked, which is a gap this states rather than papers over: the browser checker sees those.
+
+const PAGE_BACKGROUND = [255, 255, 255];
+
+const STYLE_OBJECT = /style=\{\{([^{}]*)\}\}/g;
+
+/**
+ * `{ color, background, declaresBackground }` for one inline style object's body.
+ *
+ * `declaresBackground` is true whenever a background key is PRESENT, resolvable or not. The same
+ * rule as the stylesheet side, and for the same reason: `style={{ background: severity.color,
+ * color: '#fff' }}` is a coloured severity pill with white text, and treating its unresolvable
+ * background as the page reported it at 1:1 in two components.
+ */
+export function inlinePair(body, vars = new Map()) {
+  const cm = body.match(/(?:^|[,{\s])color\s*:\s*('[^']*'|"[^"]*"|`[^`]*`)/);
+  const bLiteral = body.match(/(?:^|[,{\s])(?:background|backgroundColor)\s*:\s*('[^']*'|"[^"]*"|`[^`]*`)/);
+  const bAny = /(?:^|[,{\s])(?:background|backgroundColor)\s*:/.test(body);
+  const strip = (v) => (v ? v.slice(1, -1) : null);
+  return {
+    color: cm ? colourOf(strip(cm[1]), vars) : null,
+    background: bLiteral ? colourOf(strip(bLiteral[1]), vars) : null,
+    declaresBackground: bAny,
+  };
+}
+
+/**
+ * Does this file paint anything dark?
+ *
+ * An unpaired inline `color` sits on whatever a class or an ancestor painted, which is unknowable
+ * from the source — UNLESS the file paints nothing dark anywhere, in which case the page background
+ * is the only thing it can be sitting on, and this portal's page is light.
+ *
+ * That is a real inference, not a guess, and it is what turns most of the skipped inline styles
+ * into measured ones. It is also why it is conservative: one dark utility or one dark inline
+ * background anywhere in the file and every unpaired colour in it goes back to being skipped.
+ */
+export function paintsDark(src) {
+  // `stripJs`, not `stripComments`: the shared one removes CSS `/* */` only, because in a stylesheet
+  // `//` is not a comment. Running it over TSX left every `// … bg-gray-900 …` line intact, so a
+  // comment EXPLAINING that a file used to be dark marked it as dark. Ninth time a check in this
+  // repository has read its own prose — caught here by its own control rather than in review.
+  const code = stripJs(src);
+  if (/\bbg-(gray|slate|zinc|neutral|stone)-(7|8|9)\d{2}\b/.test(code)) return true;
+  if (/\bbg-(black|gray-950)\b/.test(code)) return true;
+  for (const m of code.matchAll(STYLE_OBJECT)) {
+    const { background } = inlinePair(m[1]);
+    if (background && luminance(background) < 0.25) return true;
+  }
+  return false;
+}
+
+export function auditInline(files, vars = new Map()) {
+  const findings = [];
+  let checked = 0;
+  let skipped = 0;
+
+  for (const { rel, src } of files) {
+    // stripJs: an inline colour written inside a COMMENT is not applied to anything.
+    const blanked = stripJs(src);
+    const dark = paintsDark(src);
+
+    for (const m of blanked.matchAll(STYLE_OBJECT)) {
+      const { color, background: paired, declaresBackground } = inlinePair(m[1], vars);
+      if (!color) continue;
+
+      // A pair is measured directly. A background that is DECLARED but unresolvable — `background:
+      // severity.color` — is not the page either. Without one, the page background is the honest
+      // answer only when the file paints nothing dark; otherwise the text may be sitting on a dark
+      // surface this cannot see, and assuming white would invent failures. An earlier sweep did
+      // exactly that and produced 64 findings of which 61 were wrong.
+      const background = paired ?? (declaresBackground || dark ? null : PAGE_BACKGROUND);
+      if (!background) { skipped++; continue; }
+
+      checked++;
+      const ratio = contrast(color, background);
+      const need = requiredRatio(m[1].replace(/fontSize:\s*'([\d.]+)rem'/, 'font-size: $1rem')
+        .replace(/fontWeight:\s*'?(\d+)'?/, 'font-weight: $1'));
+      if (ratio < need) {
+        findings.push({
+          file: rel,
+          line: blanked.slice(0, m.index).split('\n').length,
+          selector: 'inline style',
+          fg: `#${color.map((c) => c.toString(16).padStart(2, '0')).join('')}`,
+          bg: `#${background.map((c) => c.toString(16).padStart(2, '0')).join('')}`,
+          bgFrom: paired ? 'the same style object' : 'the page (this file paints nothing dark)',
+          ratio: Number(ratio.toFixed(2)),
+          need,
+        });
+      }
+    }
+  }
+  return { checked, skipped, findings };
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────────────────────────
 
 export function audit() {
@@ -284,7 +407,33 @@ export function audit() {
     }
   }
 
-  return { checked, skipped, findings };
+  // The TSX half. `stripComments` is length-preserving — the first version of this sweep collapsed
+  // each block comment to a single space, so every line number it reported after one was wrong.
+  // That is the offset-misalignment `writes-hit-real-columns` already records in its header; it
+  // recurs whenever a probe strips a source and then indexes into it.
+  const tsx = [];
+  const walkTsx = (rel) => {
+    const abs = path.join(ROOT, rel);
+    if (!fs.existsSync(abs)) return;
+    for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+      if (e.name === 'node_modules' || e.name.startsWith('.')) continue;
+      const next = `${rel}/${e.name}`;
+      if (e.isDirectory()) walkTsx(next);
+      else if (e.name.endsWith('.tsx')) {
+        tsx.push({ rel: next, src: fs.readFileSync(path.join(ROOT, next), 'utf8') });
+      }
+    }
+  };
+  walkTsx('app/admin/research');
+
+  const inline = auditInline(tsx, vars);
+  findings.push(...inline.findings);
+
+  return {
+    checked: checked + inline.checked,
+    skipped: skipped + inline.skipped,
+    findings,
+  };
 }
 
 if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`

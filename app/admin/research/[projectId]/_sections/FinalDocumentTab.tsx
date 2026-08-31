@@ -172,7 +172,7 @@ export default function FinalDocumentTab({
             <div className="research-final-doc__section">
               <h3 className="research-final-doc__section-title"><Pencil size={16} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Boundary Drawing</h3>
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--theme-fg-secondary, #4B5563)', background: '#F9FAFB', border: '1px dashed #D1D5DB', borderRadius: 8 }}>
-                <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #999)" }}><DraftingCompass size={24} strokeWidth={1.5} /></div>
+                <div style={{ marginBottom: "0.5rem", display: "flex", justifyContent: "center", color: "var(--text-tertiary, #4B5563)" }}><DraftingCompass size={24} strokeWidth={1.5} /></div>
                 <div style={{ fontSize: '0.88rem' }}>
                   No drawing generated yet. Go to the <button onClick={() => onChangeTab('drawing')} style={{ background: 'none', border: 'none', color: '#1D4ED8', cursor: 'pointer', textDecoration: 'underline', fontSize: 'inherit', padding: 0 }}>Drawing tab</button> to generate an AI boundary drawing.
                 </div>

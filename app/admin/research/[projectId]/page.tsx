@@ -37,6 +37,7 @@ import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
 import ResearchRunPanel from '../components/ResearchRunPanel';
+import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
 // What the run has spent and how much of its budget is left (research plan R22).
 import RunConsoleBar from '../components/RunConsoleBar';
 // What changed since the last run — research is not a one-shot (research plan R27).
@@ -1966,7 +1967,7 @@ export default function ResearchProjectPage() {
                         <div className="review-narrative__text">{finalSummary}</div>
                       </div>
                     ) : (
-                      <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '1rem 0' }}>
+                      <div style={{ color: '#4B5563', fontStyle: 'italic', padding: '1rem 0' }}>
                         No summary available. Run the full research pipeline to generate a summary.
                       </div>
                     )}
@@ -2217,50 +2218,20 @@ export default function ResearchProjectPage() {
 
               {/* ── Tab: Property Info ── */}
               {reviewTab === 'property' && (() => {
-                // ── THREE OF THESE COLUMNS DO NOT EXIST ─────────────────────────────────────────
-                //
-                // The cast claimed `owner_name`, `legal_description` and `acreage` on
-                // `research_projects`. None of them is a column: the owner lives in
-                // `analysis_metadata`, the legal description column is
-                // `legal_description_summary`, and acreage is only ever a run result.
-                //
-                // Every one had a working fallback, so the display was correct and the first
-                // operand of each `||` was simply dead. Harmless here — and the identical cast on
-                // the same field WAS doing damage three lines up the file, where an always-`undefined`
-                // `owner_name` meant the worker's owner-based clerk search never ran.
-                //
-                // Narrowed to the fields that are real. The dead operands are gone rather than left
-                // to suggest a column exists.
-                const proj = project as unknown as {
-                  property_address?: string | null;
-                  county?: string | null;
-                  state?: string | null;
-                  parcel_id?: string | null;
-                };
-                const meta = project.analysis_metadata as Record<string, unknown> | null;
-                const result = meta?.result as Record<string, unknown> | null;
-                const ownerFromResult = (result?.ownerName ?? '') as string;
-                const legalFromResult = (result?.legalDescription ?? '') as string;
-                const propertyIdFromResult = (result?.propertyId ?? '') as string;
-                const lotNumber = (result?.lotNumber ?? '') as string;
-                const blockNumber = (result?.blockNumber ?? '') as string;
-                const subdivisionName = (result?.subdivisionName ?? '') as string;
-                const fields = [
-                  { label: 'Property Address', value: proj.property_address || (result?.situsAddress as string) },
-                  { label: 'County', value: proj.county },
-                  { label: 'State', value: proj.state },
-                  { label: 'Owner Name', value: projectOwnerName(project) || ownerFromResult },
-                  { label: 'Parcel / Property ID', value: proj.parcel_id || propertyIdFromResult },
-                  { label: 'Lot', value: lotNumber || null },
-                  { label: 'Block', value: blockNumber || null },
-                  { label: 'Subdivision', value: subdivisionName || null },
-                  { label: 'Legal Description', value: legalFromResult || project.legal_description_summary, wide: true },
-                  { label: 'Acreage', value: result?.acreage ? `${result.acreage} ac` : null },
-                ].filter(r => r.value);
+                // B1a — the field precedence moved to `_sections/property-review-fields.ts`,
+                // where it can be asserted rather than read. Every field here has a fallback,
+                // and which side wins is the only thing in this block a surveyor would notice
+                // being wrong.
+                const fields = propertyReviewFields(
+                  project as unknown as ProjectLike,
+                  projectOwnerName(project),
+                );
                 return (
                   <div className="review-tab-content">
                     {fields.length === 0 ? (
-                      <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                      // Was an inline `color: '#4B5563'` — 2.56:1 on white, and invisible to the
+                      // F2 stylesheet sweep because no stylesheet contains it.
+                      <div className="review-property-empty">
                         No property information on file. Go back to Property Information to add details.
                       </div>
                     ) : (
@@ -2412,12 +2383,12 @@ export default function ResearchProjectPage() {
                         <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem', marginTop: '0.5rem' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid #334155' }}>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>#</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Date</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>From</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>To</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Instrument</th>
-                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#94a3b8' }}>Type</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>#</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>Date</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>From</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>To</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>Instrument</th>
+                              <th style={{ textAlign: 'left', padding: '0.4rem 0.6rem', color: '#4B5563' }}>Type</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2428,7 +2399,7 @@ export default function ResearchProjectPage() {
                                 <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.from}</td>
                                 <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0' }}>{link.to}</td>
                                 <td style={{ padding: '0.3rem 0.6rem', color: '#e2e8f0', fontFamily: 'monospace' }}>{link.instrumentNumber || '—'}</td>
-                                <td style={{ padding: '0.3rem 0.6rem', color: '#94a3b8' }}>{link.type}</td>
+                                <td style={{ padding: '0.3rem 0.6rem', color: '#4B5563' }}>{link.type}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2445,7 +2416,7 @@ export default function ResearchProjectPage() {
                             <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.3rem' }}>
                               {plat.name}{plat.instrumentNumber ? ` (Inst# ${plat.instrumentNumber})` : ''}{plat.date ? ` — ${plat.date}` : ''}
                             </div>
-                            {plat.narrative && <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{plat.narrative}</div>}
+                            {plat.narrative && <div style={{ color: '#4B5563', fontSize: '0.85rem', marginBottom: '0.5rem' }}>{plat.narrative}</div>}
                             {plat.adjacentReferences.length > 0 && (
                               <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.3rem' }}>
                                 Adjacent: {plat.adjacentReferences.join('; ')}
@@ -2526,7 +2497,7 @@ export default function ResearchProjectPage() {
                           {fema.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={fema.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>FEMA MSC</a></div>}
                         </div>
                       ) : (
-                        <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>No FEMA flood zone data available. Requires valid coordinates from geocoding.</div>
+                        <div style={{ color: '#4B5563', fontStyle: 'italic' }}>No FEMA flood zone data available. Requires valid coordinates from geocoding.</div>
                       )}
                     </div>
 
@@ -2544,7 +2515,7 @@ export default function ResearchProjectPage() {
                           {txdot.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={txdot.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>TxDOT GIS</a></div>}
                         </div>
                       ) : (
-                        <div style={{ color: '#94a3b8', fontStyle: 'italic' }}>No TxDOT ROW data available. Requires valid coordinates from geocoding.</div>
+                        <div style={{ color: '#4B5563', fontStyle: 'italic' }}>No TxDOT ROW data available. Requires valid coordinates from geocoding.</div>
                       )}
                     </div>
 
@@ -2579,7 +2550,7 @@ export default function ResearchProjectPage() {
                         {easements.map((e, i) => (
                           <div key={i} style={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.5rem', padding: '0.75rem', marginTop: '0.5rem' }}>
                             <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{e.type}{e.instrumentNumber ? ` — Inst# ${e.instrumentNumber}` : ''}</div>
-                            <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.25rem' }}>{e.description}</div>
+                            <div style={{ color: '#4B5563', fontSize: '0.85rem', marginTop: '0.25rem' }}>{e.description}</div>
                             {e.width && <div style={{ color: '#60a5fa', fontSize: '0.85rem', marginTop: '0.15rem' }}>Width: {e.width}</div>}
                             {e.sourceUrl && <a href={e.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.8rem' }}>View Source</a>}
                           </div>
@@ -2600,7 +2571,7 @@ export default function ResearchProjectPage() {
                     )}
 
                     {!hasData && (
-                      <div style={{ color: '#94a3b8', fontStyle: 'italic', padding: '1rem 0' }}>
+                      <div style={{ color: '#4B5563', fontStyle: 'italic', padding: '1rem 0' }}>
                         No easement or encumbrance data found. Run the full research pipeline to populate this section.
                       </div>
                     )}

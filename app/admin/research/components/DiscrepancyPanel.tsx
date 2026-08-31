@@ -126,7 +126,7 @@ export default function DiscrepancyPanel({ projectId, onCountChange }: Discrepan
     <div className="research-disc-panel">
       {/* Error banner */}
       {error && (
-        <div className="research-disc-panel__error" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+        <div className="research-disc-panel__error" style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', padding: '0.5rem 0.75rem', borderRadius: '0.375rem', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
           {error}
           <button onClick={() => setError(null)} style={{ float: 'right', background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', fontWeight: 'bold' }}>&times;</button>
         </div>

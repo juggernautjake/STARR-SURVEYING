@@ -169,6 +169,17 @@ This is the fifth parked premise in this repo to turn out false when checked. Ch
 
 ### B1a — Split the Overview route by SECTION, not by tab ☐ *(replaces B1)*
 
+**Review → Property SHIPPED 2026-08-31.** 3,283 → 3,254 lines. The field PRECEDENCE moved to
+`_sections/property-review-fields.ts`, where it can be asserted: every field has a fallback, and
+which side wins is the only thing in that block a surveyor would notice being wrong — a stale
+intake address beating a researched one, or an owner name the run found hidden behind an empty
+column. The address prefers intake; the legal description prefers the run. Those are opposite, and
+both are deliberate.
+
+Two shortcuts went with it: whitespace-only values reached the grid as labelled blank rows, and
+`result.acreage ? …` dropped a genuine `0` — the same shortcut that hid a zero document count two
+components away, where it mattered a great deal.
+
 Same goal — no file over ~600 lines — reached without inventing a second nav. Extract in place, one
 section per slice, each with a wiring test asserting the page mounts it:
 
@@ -406,6 +417,50 @@ rejects, one the constraint accepts unasked, one dropped from each UI list, `Par
 restored, and a parser regex broken so it returns an empty set. **All six caught**, the last by the
 control: an empty set agrees with everything, which is how a check like this passes while enforcing
 nothing. Two more against the moved probes confirmed they still fail when their scanner is broken.
+
+## G13 — the contrast pass said "clean" while 131 inline styles went unmeasured (2026-08-31)
+
+Found while extracting the Review tab's Property panel for B1a. Its empty state was
+`style={{ color: '#94a3b8', fontStyle: 'italic' }}` — **2.56:1 on white**, sitting inside a block
+F2 had just declared clean.
+
+> F2 measured **stylesheets**. No stylesheet contains an inline style, so 131 of them were never
+> looked at. A green tick that covers less than the reader assumes is worse than no tick.
+
+### The first sweep of them was wrong, in the now-familiar way
+
+Assuming white behind every inline colour produced **64 findings, 61 of them wrong**:
+`style={{ background: '#059669', color: '#fff' }}` is a green button with white text, reported at
+1:1. And the scratch probe collapsed each block comment to a single space before counting lines, so
+every line number after one was wrong — the offset-misalignment `writes-hit-real-columns` already
+records in its header, reproduced exactly.
+
+What the auditor measures now is a **real pair** in the same style object, or the page background
+when the file paints nothing dark anywhere — and nothing else. A background that is declared but
+unresolvable (`background: severity.color`) is not the page either, which is the same rule the
+stylesheet side already had. **Three genuine failures** survived that, and are fixed.
+
+### The new check read its own prose — and its own control caught it
+
+`paintsDark` used the shared `stripComments`, which removes CSS `/* */` only, because in a
+stylesheet `//` is not a comment. Over TSX that left every `// … bg-gray-900 …` line standing, so a
+comment **explaining** that a file used to be dark marked the file as dark — and every unpaired
+colour in it went unmeasured.
+
+Ninth instance of a check in this repository matching its own prose. The first one it did not take
+a human to notice: the control asserting exactly this failed on the first run.
+
+### Fourteen more in the Review tab
+
+`page.tsx` carries fourteen inline `#94a3b8` text colours. The tool **skips that file** — it paints
+something dark somewhere, so it cannot honestly assume the page behind them. They are raised to
+`#4B5563` (2.56:1 → 6.90:1) on the strength of reading the panel, and that distinction is stated
+rather than blurred: the tool did not verify these.
+
+`verify:contrast` now measures 799 pairs and skips 271. The skip ratio moved from 12% to 25% by
+design — most inline colours have no paired background — and the control's threshold moved with it,
+to 0.4, with the reason written down rather than the number quietly raised.
+
 
 ## G11 — `N 30° 15' E` did not parse (2026-08-31)
 
