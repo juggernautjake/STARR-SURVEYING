@@ -18,6 +18,7 @@ import {
   checkBudget,
   endRun,
   limitsFor,
+  MAX_COST_CEILING_USD,
   mayRun,
   notePaidPages,
   recordSkipped,
@@ -44,6 +45,44 @@ describe('the limits themselves', () => {
     // properly. A worker that accepts it holds a concurrency slot the whole time.
     expect(limitsFor({ maxResearchTimeMinutes: 240 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(60 * 60_000);
     expect(limitsFor({ maxResearchTimeMinutes: 0 }, {} as NodeJS.ProcessEnv).maxWallClockMs).toBe(60_000);
+  });
+
+  // ── Per-run spend limit (owner request, 2026-08-30) ────────────────────────────────────────
+  //
+  // $2.00 is the right default — most runs are Bell/Coryell/Milam/Lampasas/Bosque and cost nothing
+  // but AI time — but a chain of title behind TexasFile can legitimately need more, and until now
+  // the only way to raise it was to edit this file.
+
+  it('honours a caller’s per-run spend limit', () => {
+    expect(limitsFor({ maxCostUsd: 7.5 }, {} as NodeJS.ProcessEnv).maxCostUsd).toBe(7.5);
+  });
+
+  it('clamps a request above the ceiling instead of rejecting the run', () => {
+    // A typo of 1000 for 10.00 must not become a thousand-dollar run. Satisfied AT the maximum
+    // rather than refused: failing a run outright over a too-large budget helps nobody.
+    expect(limitsFor({ maxCostUsd: 1000 }, {} as NodeJS.ProcessEnv).maxCostUsd).toBe(MAX_COST_CEILING_USD);
+    expect(MAX_COST_CEILING_USD).toBe(10);
+  });
+
+  it('treats a requested 0 as "free sources only", not as "unset"', () => {
+    // The bug this pins: `requested.maxCostUsd || fallback` reads 0 as absent and silently hands
+    // back the $2.00 default — the run then spends money the caller explicitly forbade.
+    expect(limitsFor({ maxCostUsd: 0 }, {} as NodeJS.ProcessEnv).maxCostUsd).toBe(0);
+    expect(
+      limitsFor({ maxCostUsd: 0 }, { RUN_MAX_COST_USD: '5' } as NodeJS.ProcessEnv).maxCostUsd,
+    ).toBe(0);
+  });
+
+  it('ignores a negative or unusable request rather than trusting it', () => {
+    expect(limitsFor({ maxCostUsd: -5 }, {} as NodeJS.ProcessEnv).maxCostUsd).toBe(DEFAULT_LIMITS.maxCostUsd);
+    expect(limitsFor({ maxCostUsd: NaN }, {} as NodeJS.ProcessEnv).maxCostUsd).toBe(DEFAULT_LIMITS.maxCostUsd);
+  });
+
+  it('clamps the environment default too — the ceiling is not a UI-only rule', () => {
+    // A deployment that sets RUN_MAX_COST_USD=250 is the same mistake with a different author.
+    expect(
+      limitsFor(undefined, { RUN_MAX_COST_USD: '250' } as NodeJS.ProcessEnv).maxCostUsd,
+    ).toBe(MAX_COST_CEILING_USD);
   });
 
   it('reads deployment defaults from the environment', () => {

@@ -328,11 +328,58 @@
   overflow-y: auto;
 }
 
+.research-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
 .research-modal__title {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--theme-fg-primary, #1F2937);
-  margin: 0 0 1.25rem 0;
+  margin: 0;
+}
+
+/* The only way out besides Cancel and Escape, now that the overlay no longer
+   discards a half-typed form on a stray click. Sized to a comfortable target
+   rather than a decorative glyph. */
+.research-modal__close {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.research-modal__close:hover {
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.06));
+  color: var(--theme-fg-primary, #1F2937);
+}
+
+.research-modal__close:focus-visible {
+  outline: 2px solid var(--color-brand-blue, #2563EB);
+  outline-offset: 2px;
+}
+
+.research-modal__hint {
+  font-size: 0.8rem;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.04));
+  border-radius: 6px;
+  padding: 0.5rem 0.7rem;
+  margin-bottom: 0.75rem;
 }
 
 .research-modal__field {

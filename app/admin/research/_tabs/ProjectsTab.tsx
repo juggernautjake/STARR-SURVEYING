@@ -57,6 +57,13 @@ export default function ProjectsTab() {
     allow_paid_documents: true,
   });
 
+  /** A run needs SOME way to find the parcel — an address or a CAD id. Either is enough;
+   *  neither is not. Declared here so the submit handler and the button agree on one rule
+   *  rather than each testing its own condition and drifting apart. */
+  const hasIdentifier = Boolean(
+    newProject.parcel_id.trim() || newProject.property_address.trim(),
+  );
+
   const userRoles = session?.user?.roles || ['employee'];
   const canAccessResearch = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('researcher') || userRoles.includes('drawer') || userRoles.includes('field_crew') || userRoles.includes('tech_support');
 
@@ -113,10 +120,13 @@ export default function ProjectsTab() {
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
-    if (!newProject.parcel_id.trim() || creating) return;
+    // Either identifier will do. Requiring the CAD id sent people to the appraisal district
+    // website before they could start a run they already had the address for — and the server
+    // never required it (`parcel_id?.trim() || null`).
+    if (!hasIdentifier || creating) return;
     // Auto-generate project name from address or parcel ID if not provided
     const projectName = newProject.name.trim()
-      || (newProject.property_address ? `${newProject.property_address}` : `Property ${newProject.parcel_id}`);
+      || (newProject.property_address.trim() || `Property ${newProject.parcel_id.trim()}`);
     setCreating(true);
     try {
       const res = await fetch('/api/admin/research', {
@@ -333,23 +343,47 @@ export default function ProjectsTab() {
 
       {/* Create Project Modal */}
       {showCreate && (
+        // ── CLOSING IS DELIBERATE ONLY ──────────────────────────────────────────────────────
+        // The overlay used to close on any click. Everything in this form is typed by hand —
+        // the address, the county, the notes — and a stray click on the dimmed area threw all
+        // of it away with no confirmation and no undo. A dismissal that costs five minutes of
+        // typing must be something you MEANT to do, so it now takes the × or Cancel.
+        //
+        // Escape still works. It is a deliberate keypress rather than a slip, and a dialog you
+        // cannot dismiss from the keyboard is a trap for anyone not using a mouse.
         <div
           className="research-modal-overlay"
-          onClick={() => setShowCreate(false)}
           onKeyDown={e => { if (e.key === 'Escape') setShowCreate(false); }}
           role="dialog"
           aria-modal="true"
           aria-label="New Research Project"
         >
-          <div className="research-modal" onClick={e => e.stopPropagation()}>
-            <h2 className="research-modal__title">New Research Project</h2>
+          <div className="research-modal">
+            <div className="research-modal__header">
+              <h2 className="research-modal__title">New Research Project</h2>
+              <button
+                type="button"
+                className="research-modal__close"
+                onClick={() => setShowCreate(false)}
+                aria-label="Close"
+                title="Close without saving"
+              >
+                ×
+              </button>
+            </div>
             <form onSubmit={handleCreate}>
-              {/* ── Property ID (Required) ── */}
+              {/* ── Property ID (optional — an address identifies a parcel too) ──────────────
+                  It was `required` here and NEVER required on the server, which stores
+                  `parcel_id?.trim() || null`. So the only thing the asterisk did was send you
+                  to the appraisal district website before you could start a run you already
+                  had the address for. What a run genuinely needs is SOME way to find the
+                  parcel; an address is one, a CAD id is a better one. The form now asks for
+                  at least one and says which. */}
               <div className="research-modal__field">
                 <label className="research-modal__label">
                   <span className="job-form__label-row">
-                    Property ID <span style={{ color: 'var(--color-brand-red)' }}>*</span>
-                    <Tooltip text="The county appraisal district property ID. This is the primary identifier used to look up the exact parcel, retrieve deed/plat records, and center the GIS viewer. Find it on the county appraisal district website." position="right">
+                    Property ID <span style={{ opacity: 0.6, fontWeight: 400 }}>(optional)</span>
+                    <Tooltip text="The county appraisal district property ID. Optional — an address works too, and the run resolves the parcel from it. Supplying both is best: the ID pins the exact parcel where an address is ambiguous, and it centres the GIS viewer. Find it on the county appraisal district site." position="right">
                       <span className="job-form__info-icon">?</span>
                     </Tooltip>
                   </span>
@@ -361,7 +395,6 @@ export default function ProjectsTab() {
                   value={newProject.parcel_id}
                   onChange={e => setNewProject(p => ({ ...p, parcel_id: e.target.value }))}
                   autoFocus
-                  required
                 />
               </div>
 
@@ -532,11 +565,24 @@ export default function ProjectsTab() {
                 />
               </div>
 
+              {/* A disabled button with no explanation is its own bug — it reads as broken
+                  rather than as unmet. Say what is missing, and only while it is missing. */}
+              {!hasIdentifier && (
+                <div className="research-modal__hint" role="status">
+                  Enter a property address or a Property ID — either one identifies the parcel.
+                </div>
+              )}
+
               <div className="research-modal__actions">
                 <button type="button" className="research-modal__cancel" onClick={() => setShowCreate(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="research-modal__submit" disabled={!newProject.parcel_id.trim() || creating}>
+                <button
+                  type="submit"
+                  className="research-modal__submit"
+                  disabled={!hasIdentifier || creating}
+                  title={hasIdentifier ? undefined : 'Enter an address or a Property ID first'}
+                >
                   {creating ? 'Creating...' : 'Create Project'}
                 </button>
               </div>

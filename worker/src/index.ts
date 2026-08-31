@@ -1072,7 +1072,12 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   // Budget + timebox (plan R5). The owner's ask is a run that works for 20–30 minutes and is "as
   // cheap but as effective as possible" — both halves are ceilings, and without them a run that
   // finds an interesting chain of title follows it for an hour.
-  const budgetLimits = limitsFor({ maxResearchTimeMinutes: researchInput.maxResearchTimeMinutes });
+  const budgetLimits = limitsFor({
+    maxResearchTimeMinutes: researchInput.maxResearchTimeMinutes,
+    // Was dropped on the floor here: limitsFor() has accepted a per-run cost since it was written
+    // and no caller ever passed one, so every run got the $2.00 default whatever it asked for.
+    maxCostUsd: researchInput.maxCostUsd,
+  });
   resetRunSpend(projectId);
   startRun(projectId, budgetLimits);
   console.log(

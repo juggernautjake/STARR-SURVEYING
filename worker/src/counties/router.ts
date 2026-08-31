@@ -51,6 +51,8 @@ export interface CountyResearchInput {
   includeAdjacentProperties?: boolean;
   /** Max research time (minutes) */
   maxResearchTimeMinutes?: number;
+  /** Max USD for this run. Clamped to MAX_COST_CEILING_USD; 0 means free sources only. */
+  maxCostUsd?: number;
 }
 
 // ── Unified Progress ────────────────────────────────────────────────
@@ -480,6 +482,7 @@ export async function runCountyResearch(
             uploadedFiles: input.uploadedFiles,
             includeAdjacentProperties: input.includeAdjacentProperties,
             maxResearchTimeMinutes: input.maxResearchTimeMinutes,
+            maxCostUsd: input.maxCostUsd,
           },
           onProgress,
           signal,

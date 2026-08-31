@@ -44,6 +44,19 @@ export const DEFAULT_LIMITS: BudgetLimits = {
   maxPaidPages: 20,
 };
 
+/** The most a single run may spend, whatever the caller or the environment asks for.
+ *
+ *  The owner's number. $2.00 is the right DEFAULT — most runs are Bell/Coryell/Milam/Lampasas/Bosque
+ *  and cost nothing but AI time — but a McLennan chain of title behind TexasFile can legitimately
+ *  need more, and until now the only way to get it was to edit code.
+ *
+ *  A ceiling and a default are different things and both are needed. Without the ceiling, "per-run
+ *  limit" is not a limit: a typo of 1000 instead of 10.00, or a caller that forwards a number from a
+ *  form, becomes a thousand-dollar run with no second opinion. The clamp is silent on purpose —
+ *  a request for more is satisfied AT the maximum rather than rejected, because failing a run
+ *  outright over a too-large budget helps nobody. `limitsFor` reports what it actually applied. */
+export const MAX_COST_CEILING_USD = 10;
+
 export type ExceededReason = 'wall_clock' | 'cost' | 'paid_pages';
 
 export interface SkippedWork {
@@ -91,10 +104,19 @@ export function limitsFor(
   const minutes = requested?.maxResearchTimeMinutes
     ?? (Number.isFinite(envMinutes) && envMinutes > 0 ? envMinutes : DEFAULT_LIMITS.maxWallClockMs / 60_000);
 
+  // A requested cost of 0 is meaningful — "spend nothing, free sources only" — so it must survive,
+  // which `||` would not: `0 || fallback` is the fallback. Only a missing or unusable number falls
+  // through to the environment, and only then to the default.
+  const requestedCost = requested?.maxCostUsd;
+  const cost = Number.isFinite(requestedCost) && (requestedCost as number) >= 0
+    ? (requestedCost as number)
+    : (Number.isFinite(envCost) && envCost > 0 ? envCost : DEFAULT_LIMITS.maxCostUsd);
+
   return {
     maxWallClockMs: clamp(minutes, 1, 60) * 60_000,
-    maxCostUsd: requested?.maxCostUsd
-      ?? (Number.isFinite(envCost) && envCost > 0 ? envCost : DEFAULT_LIMITS.maxCostUsd),
+    // Clamped like the clock, and for the same reason: a per-run limit that any caller can raise
+    // without bound is not a limit. See MAX_COST_CEILING_USD.
+    maxCostUsd: clamp(cost, 0, MAX_COST_CEILING_USD),
     maxPaidPages: Number.isFinite(envPages) && envPages > 0 ? envPages : DEFAULT_LIMITS.maxPaidPages,
   };
 }

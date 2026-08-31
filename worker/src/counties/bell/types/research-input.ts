@@ -33,6 +33,9 @@ export interface BellResearchInput {
   includeAdjacentProperties?: boolean;
   /** Maximum time in minutes to spend on research (default 30) */
   maxResearchTimeMinutes?: number;
+  /** Maximum USD this run may spend — AI, paid pages, captcha solves.
+   *  Clamped to MAX_COST_CEILING_USD by limitsFor(); 0 means free sources only. */
+  maxCostUsd?: number;
 }
 
 export type SurveyType =
