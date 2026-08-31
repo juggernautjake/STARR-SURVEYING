@@ -12,6 +12,8 @@ import { Workflow, BookOpen, Waves, Link2, Package, Landmark, X } from 'lucide-r
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import SpendLimitSlider from '../components/SpendLimitSlider';
+import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
+import { checkCounty } from '@/lib/research/county-input';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +49,12 @@ const STATUS_COLORS: Record<BatchJob['status'], string> = {
   failed:    'var(--color-error)',
   cancelled: '#9CA3AF',
 };
+
+/** A row the worker can actually act on. The count, the exposure estimate and the submit all
+ *  ask this one question, so they cannot disagree about the answer. */
+function isReadyRow(r: BatchProperty): boolean {
+  return r.address.trim() !== '' && r.county.trim() !== '';
+}
 
 // ── Page Component ─────────────────────────────────────────────────────────────
 
@@ -111,6 +119,25 @@ export default function PipelineTab() {
     return () => clearInterval(id);
   }, [batchJobs, loadBatchJobs]);
 
+  // One check per row, recomputed as you type. `checkCounty` is a list comparison over 254
+  // entries — cheap enough that memoising it would be more code than it saves.
+  const rowChecks = batchRows.map(r => checkCounty(r.county));
+  // ONE predicate, used by the count, the estimate and the submit. It was two identical
+  // expressions a moment ago, which is how a form comes to say "3 ready" and send two.
+  const readyRows = batchRows.filter(isReadyRow).length;
+
+  // ── What this batch can cost ────────────────────────────────────────────────────────────────
+  //
+  // The slider sets a PER-PROPERTY limit — the hint beside it has always said so, and the worker
+  // enforces it that way (run-budget.ts applies the ceiling to one run). But the form accepts up
+  // to 50 properties, so a $10 slider on a 50-row batch is a $500 decision presented as a $10 one.
+  //
+  // Multiplying is the whole feature. It is a CEILING, not a forecast: most counties in this
+  // firm's working area route to free portals and spend nothing, so the honest phrasing is
+  // "up to", and the estimate is $0 when purchasing is off — because then nothing can be bought
+  // at all, whatever the slider says.
+  const maxSpend = autoPurchase ? readyRows * batchBudget : 0;
+
   function addBatchRow() {
     setBatchRows(r => [...r, { address: '', county: '', state: 'TX' }]);
   }
@@ -125,7 +152,7 @@ export default function PipelineTab() {
 
   async function submitBatch(e: React.FormEvent) {
     e.preventDefault();
-    const properties = batchRows.filter(r => r.address.trim() && r.county.trim());
+    const properties = batchRows.filter(isReadyRow);
     if (properties.length === 0) {
       setBatchError('Add at least one property with address and county.');
       return;
@@ -216,14 +243,28 @@ export default function PipelineTab() {
                     onChange={e => updateBatchRow(idx, 'address', e.target.value)}
                     required
                   />
-                  <input
-                    className="research-pipeline__input"
-                    type="text"
-                    placeholder="Bell"
-                    value={row.county}
-                    onChange={e => updateBatchRow(idx, 'county', e.target.value)}
-                    required
-                  />
+                  {/* C3 parity. This form is the only UI that reaches the worker, so it is the
+                      form where a wrong county costs MONEY rather than just time: county picks the
+                      clerk portal, and a county with no adapter falls through to TexasFile at
+                      roughly $1-3 a document. It had no check at all until now. */}
+                  <div className="research-pipeline__cell">
+                    <input
+                      className="research-pipeline__input"
+                      type="text"
+                      placeholder="Bell"
+                      value={row.county}
+                      onChange={e => updateBatchRow(idx, 'county', e.target.value)}
+                      aria-invalid={isCountyInvalid(rowChecks[idx])}
+                      aria-describedby={countyDescribedBy(rowChecks[idx], `batch-county-${idx}`)}
+                      required
+                    />
+                    <CountyNote
+                      check={rowChecks[idx]}
+                      id={`batch-county-${idx}`}
+                      typed={row.county}
+                      onPick={c => updateBatchRow(idx, 'county', c)}
+                    />
+                  </div>
                   <input
                     className="research-pipeline__input research-pipeline__input--short"
                     type="text"
@@ -272,6 +313,20 @@ export default function PipelineTab() {
                   </span>
                 </span>
               </label>
+
+              {/* The number the slider does not show on its own. See `maxSpend` above. */}
+              <p className="research-pipeline__spend-estimate" data-testid="batch-spend-estimate">
+                {autoPurchase ? (
+                  <>
+                    <strong>Up to ${maxSpend.toFixed(2)}</strong> for this batch —
+                    {' '}${batchBudget.toFixed(2)} × {readyRows}{' '}
+                    {readyRows === 1 ? 'property' : 'properties'}. A ceiling, not a forecast:
+                    {' '}counties with a free portal spend nothing.
+                  </>
+                ) : (
+                  <><strong>$0.00.</strong> Purchasing is off, so nothing can be bought whatever the limit says.</>
+                )}
+              </p>
             </div>
 
             <div className="research-pipeline__batch-actions">
@@ -279,7 +334,7 @@ export default function PipelineTab() {
                 + Add Property
               </button>
               <span className="research-pipeline__batch-count">
-                {batchRows.filter(r => r.address && r.county).length} of {batchRows.length} ready
+                {readyRows} of {batchRows.length} ready
               </span>
               {batchError && <span className="research-pipeline__error">{batchError}</span>}
               <button type="submit" className="research-pipeline__submit-btn" disabled={batchCreating}>

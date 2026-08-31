@@ -11127,7 +11127,30 @@
   display: grid;
   grid-template-columns: 1fr 200px 80px 36px;
   gap: 0.5rem;
-  align-items: center;
+  /* `center` until C3. The county cell can now grow — it carries a validation note underneath —
+   * and centring made every other cell in the row drift downwards when one appeared, so a warning
+   * about county visibly nudged the address field. Top alignment keeps the row still. */
+  align-items: start;
+}
+
+/* The county cell is now input + note rather than a bare input, so it needs to BE the grid cell. */
+.research-pipeline__cell {
+  min-width: 0;
+}
+
+/* ── What this batch can cost (C3) ─────────────────────────────────────────
+ * The slider sets a PER-PROPERTY limit and always said so, but the form takes up to 50
+ * properties — so a $10 slider on a 50-row batch was a $500 decision presented as a $10 one.
+ * Multiplying it out is the whole feature. */
+.research-pipeline__spend-estimate {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: var(--color-info-bg, #EFF6FF);
+  border: 1px solid var(--color-info-border, #BFDBFE);
+  color: var(--color-info-text, #175CD3);
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .research-pipeline__batch-header {

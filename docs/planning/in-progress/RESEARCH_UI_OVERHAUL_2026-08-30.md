@@ -248,10 +248,49 @@ silently did **not** apply — CRLF line endings meant `;\n` never matched `;\r\
 passing, which would have been a green light for an unrun test. Second time today that exact trap
 appeared.
 
-### C3 — Batch form parity ☐
+### C3 — ~~Batch form parity~~ ✅ **SHIPPED 2026-08-30**
 
-`PipelineTab`'s batch form now carries the spend slider and purchase toggle. Bring the rest of it up
-to the same standard: per-row validation, the county checker from C2, a running cost estimate.
+**A $10 slider on a 50-row batch was a $500 decision presented as a $10 one.** Every individual
+piece of that was accurate — the slider sets a per-property limit, its hint said so, and the worker
+enforces it that way. Nothing was lying. The multiplication was simply never done anywhere the
+operator could see it. The form now states the batch ceiling: *"Up to $500.00 — $10.00 × 50
+properties."*
+
+Phrased as a ceiling, never a forecast. Most counties in this firm's working area route to a free
+portal and spend nothing, so *"estimated cost: $500"* would be wrong for nearly every real batch and
+would train people to ignore the line. It reads **$0.00** when purchasing is off — a false alarm on
+the default path is how a real alarm gets ignored.
+
+**The county checker now runs per row.** This is the only UI that reaches the worker, so it is the
+form where a wrong county costs *money* rather than just time: county picks the clerk portal, and a
+county with no adapter falls through to TexasFile at roughly $1–3 a document. It had no check at all
+until now — the modal got one in C2 and the form that actually spends money did not.
+
+**One component, not copied JSX.** The batch form asks the same question N times, so the C2 block
+became `CountyNote.tsx` and both forms mount it. That is the defect this portal is made of:
+`SectionHeader` alone exists five separate times under `app/admin` (CAD ×3, finances,
+SurveyPlanPanel), each subtly different. Its styles travel with it rather than living in the
+route-scoped sheet — third instance of that bug in this repo.
+
+**Each row needs its own note id.** Duplicate ids would make every row's input point
+`aria-describedby` at the *first* row's note, so a screen-reader user filling in row four hears a
+warning about row one — confidently, and wrongly. Worse than no note. Pinned by a test.
+
+**And the "ready" count was two expressions for one fact.** The displayed count and the submit
+filter were identical but separate, which is how a form comes to say "3 ready" and send two. Now one
+`isReadyRow` predicate, with a test asserting exactly one place defines what ready *means*.
+
+Also: `align-items: center` on the batch row meant a county warning appearing visibly nudged the
+address field down. Top alignment now.
+
+**The wiring test had to follow the extraction, and got stronger for it.** Moving the render out of
+`ProjectsTab` correctly turned the C2 guard red. It now asserts *both* halves — that `CountyNote`
+renders the branches AND that the form mounts it — because checking only the component would pass
+while nothing mounted it, which is this repo's most common defect one level up.
+
+Mutation-tested five ways: estimate ignoring the purchase toggle, estimate showing the per-property
+figure instead of the batch exposure, the two counts drifting apart, every row sharing one note id,
+and the check removed from the batch form outright. All five fail.
 
 ---
 
