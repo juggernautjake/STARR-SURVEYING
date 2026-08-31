@@ -296,8 +296,44 @@ and the check removed from the batch form outright. All five fail.
 
 ## Phase D — run visibility
 
+### D0 — ~~The skipped list said "unnamed work"~~ ✅ **SHIPPED 2026-08-30** *(found while scoping D1)*
+
+D1/D2 were written to "surface the skipped list". Before splitting 3,292 lines to display it, the
+display was checked. **It was already built, already wired end to end, and rendering nothing
+usable.**
+
+```
+the worker writes   { step, reason, at }        run-budget.ts
+the app read        s.what ?? 'unnamed work'    run-console.ts + report-card.ts
+```
+
+Nothing has ever written `what`. So every skipped item rendered as **"unnamed work"** — beside a
+perfectly real reason like *"the run reached its spending limit ($2.00)"*. **That pairing is what
+made it survive.** A blank would have looked broken; a placeholder next to a real sentence looks
+like a feature that works and simply has nothing interesting to say.
+
+**Neither side's tests could see it.** `run-budget.test.ts` asserts the worker records `step`. The
+app's tests assert the console renders what it is handed. Both were right. The defect lived exactly
+in the gap — and `RunFinishInput.skippedWork` was typed **`unknown[]`**, which accepts any shape by
+definition, so the compiler had nothing to object to either. That type is now `SkippedWork[]`, and
+a control confirmed the fix works: passing a `{ what }` array to `recordRunFinish` is now a
+`TS2353` at the call site.
+
+The new test is a round trip rather than a source scan — the worker's literal shape fed through the
+app's reader — because the mismatch was invisible in every individual file and existed only between
+them. Mutation-tested three ways, including fixing one consumer and leaving the other broken, which
+is the likeliest way for half of this to come back.
+
+This is [[project_map_and_surveying_backend_complete]]'s "written in units nobody produces" defect,
+and it is the third time this repo has shipped a display that renders a key its producer does not
+write.
+
 ### D1 — `ResearchRunPanel` (1,771 lines) ☐
 ### D2 — `PipelineProgressPanel` (1,521 lines) ☐
+
+**Re-scoped by D0.** The reason to split these was to surface run visibility; the visibility turned
+out to exist and be broken by one word. What remains is genuine but is now a *size* problem rather
+than a *missing feature* problem, and should be prioritised as such.
 
 Split each into a container plus presentational sections; surface phase, elapsed, spend-so-far and
 the **skipped list** (`run-budget.ts` records what a run did not do and why — a partial result that

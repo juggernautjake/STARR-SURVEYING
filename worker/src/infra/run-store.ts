@@ -29,6 +29,7 @@
 // assumes the feature works.
 
 import { getSupabase } from '../services/pipeline.js';
+import type { SkippedWork } from './run-budget.js';
 
 export type RunStatus = 'running' | 'complete' | 'failed' | 'interrupted' | 'cancelled';
 
@@ -45,7 +46,17 @@ export interface RunFinishInput {
   status: Exclude<RunStatus, 'running'>;
   costUsd?: number;
   paidPages?: number;
-  skippedWork?: unknown[];
+  /** The worker's own SkippedWork, not `unknown[]`.
+   *
+   *  It WAS `unknown[]`, and that is the entire reason the app side spent its life reading
+   *  `s.what` — a key nothing has ever written — while the worker wrote `s.step`. Every skipped
+   *  item rendered as "unnamed work" beside a perfectly real reason, so the render looked like it
+   *  was working. `unknown[]` accepts any shape by definition, so tsc could not object, and both
+   *  sides had their own passing tests.
+   *
+   *  Typed now, so the producer and the consumer are bound together by the compiler rather than by
+   *  someone remembering. */
+  skippedWork?: SkippedWork[];
   budgetSummary?: string | null;
   failureReason?: string | null;
 }

@@ -31,7 +31,7 @@ export interface RunRow {
   cost_usd: number | string;
   paid_pages: number;
   limits: { maxMinutes?: number; maxUsd?: number } | null;
-  skipped_work: Array<{ what?: string; reason?: string }> | null;
+  skipped_work: Array<{ step?: string; what?: string; reason?: string }> | null;
   budget_summary: string | null;
   failure_reason: string | null;
 }
@@ -134,7 +134,7 @@ export function buildConsole(run: RunRow, events: UsageRow[], now: number): RunC
   const time = timeStatus(run, now);
 
   const skipped = (run.skipped_work ?? []).map((s) => ({
-    what: s.what ?? 'unnamed work',
+    what: s.step ?? s.what ?? 'unnamed work',
     reason: s.reason ?? 'no reason recorded',
   }));
 
