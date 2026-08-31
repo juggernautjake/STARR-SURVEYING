@@ -9,6 +9,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import RotationPanel from '../../components/RotationPanel';
+import BoundaryCallsPanel from '../../components/BoundaryCallsPanel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ export default function BoundaryViewerPage() {
   );
   const [measureMode, setMeasureMode] = useState(false);
   const [rotationOpen, setRotationOpen] = useState(false);
+  const [fetchOpen, setFetchOpen] = useState(false);
   const [svgPanOffset, setSvgPanOffset] = useState({ x: 0, y: 0 });
   const [svgScale, setSvgScale] = useState(1);
 
@@ -348,7 +350,40 @@ export default function BoundaryViewerPage() {
             >
               ⟳ Rotate to my basis
             </button>
+
+            {/* ── Fetch the calls from the county ───────────────────────────────────────────
+                `BoundaryCallsPanel` was written, styled, and left unmounted. Two live API routes
+                existed to serve it and it was their ONLY caller: `/boundary-calls` (fetch the
+                metes and bounds from the county CAD) and `/browser-fetch`. Both are routed, both
+                work, and nothing in the product could reach either.
+
+                That is not dead UI — it is dead CAPABILITY, and reading a boundary out of the
+                county record is close to the centre of what this software is for.
+
+                Here rather than anywhere else because this is the screen already showing the
+                calls: "where do these come from, and can I get the rest?" is asked looking at
+                them, not from a menu two routes away. `onImported` re-runs the same loader the
+                page already uses, so an import appears in the viewer without a reload. */}
+            <button
+              onClick={() => setFetchOpen((v) => !v)}
+              className="w-full text-left text-sm py-1 text-gray-300 hover:text-white"
+              aria-expanded={fetchOpen}
+              title="Fetch the boundary calls for this property from the county appraisal district"
+            >
+              {fetchOpen ? '▾' : '▸'} Fetch calls from the county
+            </button>
           </div>
+
+          {fetchOpen && (
+            <div className="p-3 border-b border-gray-800">
+              <BoundaryCallsPanel
+                projectId={projectId}
+                defaultAddress={viewState?.address}
+                defaultCounty={viewState?.countyName}
+                onImported={loadBoundary}
+              />
+            </div>
+          )}
 
           {/* Boundary summary */}
           {viewState && (

@@ -47,6 +47,14 @@ const LIBRARY_DIRS = [
   'worker/src/lib',
   'worker/src/infra',
   'lib/research',
+  // Added 2026-08-31. The list above skipped the app-side research components, and the omission
+  // hid dead CAPABILITY rather than dead code: BoundaryCallsPanel (596 lines) was the ONLY caller
+  // of two live API routes — /boundary-calls (fetch the metes and bounds from the county CAD) and
+  // /browser-fetch — and nothing mounted it, so neither route could be reached from the product.
+  //
+  // This file already warned about exactly this: "a guard is only as good as its coverage, and the
+  // directories it skips are exactly where the next orphan will be."
+  'app/admin/research/components',
 ];
 
 /** Directories searched for callers. */
@@ -58,6 +66,19 @@ const CALLER_DIRS = ['worker/src', 'lib', 'app'];
  * Anything NOT on this list must be imported by something that is not a test.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
+  // ── Found 2026-08-31, when this check was widened to .tsx and to app/admin/research/components
+  //
+  // Both are OWNER CALLS, recorded rather than resolved. One is a duplicate of a live page; the
+  // other is a working feature with no obvious home, and inventing a home for it is a design
+  // decision rather than a fix.
+  //
+  // The third find in this sweep, BoundaryCallsPanel.tsx, was WIRED instead of listed — it had an
+  // obvious home on the boundary page, which already shows the calls it fetches.
+  'app/admin/research/components/InteractiveBoundaryViewer.tsx':
+    'SUPERSEDED, not parked. app/admin/research/[projectId]/boundary/page.tsx is a 472-line re-implementation that renders its own SVG inline and imports only RotationPanel; this is the original 689-line version, left behind. The live route works. OWNER CALL: delete it, or replace the page with it — keeping both means the next person edits whichever they find first.',
+  'app/admin/research/components/TemplateManager.tsx':
+    'Dead CAPABILITY, not dead code: it is the ONLY caller of /api/admin/research/templates (GET, POST, DELETE), which is routed and works. Analysis and drawing templates cannot be managed from anywhere in the product. Not wired here because it has no obvious home — unlike BoundaryCallsPanel, which belonged on the page already showing its data — and picking one is a design decision. OWNER CALL: say where it belongs, or drop the routes with it.',
+
   // A category this check did not anticipate: a module whose CONSUMER IS A TEST, legitimately.
   //
   // `golden-plat.ts` measures extraction against plats whose answers are known. Its runner is
@@ -112,7 +133,21 @@ function listModules(dir: string): string[] {
   const abs = path.join(REPO, dir);
   if (!fs.existsSync(abs)) return [];
   return fs.readdirSync(abs)
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts') && !f.endsWith('.test.ts'))
+    // ── `.tsx` WAS EXCLUDED, WHICH MEANT REACT COMPONENTS WERE INVISIBLE HERE ──────────────────
+    //
+    // This filter read `f.endsWith('.ts')`. Every React component in this repository ends in
+    // `.tsx`, so for as long as this guard has existed it could not see one — and "authored but
+    // not wired" is a defect that happens to COMPONENTS more than to anything else, because a
+    // module with no importer at least looks odd while an unmounted component looks finished.
+    //
+    // Adding `app/admin/research/components` to LIBRARY_DIRS first appeared to surface nothing,
+    // which was the giveaway: the directory contains 43 components and not one `.ts` file. The
+    // probe was the bug, not the code.
+    //
+    // Found via `BoundaryCallsPanel.tsx` — 596 lines, the only caller of two live API routes, and
+    // mounted by nothing.
+    .filter((f) => (f.endsWith('.ts') || f.endsWith('.tsx'))
+      && !f.endsWith('.d.ts') && !f.endsWith('.test.ts') && !f.endsWith('.test.tsx'))
     .map((f) => `${dir}/${f}`);
 }
 
@@ -146,7 +181,14 @@ function allSourceFiles(): string[] {
  *  reaches a module, and the earlier version of this sweep missed the last two and produced false
  *  accusations. */
 function hasCaller(modulePath: string, sources: Array<{ abs: string; text: string }>): boolean {
-  const base = path.basename(modulePath, '.ts');
+  // `.tsx` before `.ts`: `path.basename(p, '.ts')` only strips an EXACT suffix, so it leaves
+  // "CountyNote.tsx" whole and the pattern then hunts for `'…CountyNote.tsx'` — a string no import
+  // ever contains, because imports omit the extension. Every component read as an orphan, including
+  // ones with three importers. Caught by the result being absurd rather than by the code looking
+  // wrong.
+  const base = modulePath.endsWith('.tsx')
+    ? path.basename(modulePath, '.tsx')
+    : path.basename(modulePath, '.ts');
   const selfAbs = path.join(REPO, modulePath);
   const pattern = new RegExp(`['"\`][^'"\`]*\\b${base.replace(/\./g, '\\.')}(\\.js)?['"\`]`);
   // `includes` first, regex only on the survivors. This is a NECESSARY condition, not a heuristic:
@@ -171,6 +213,27 @@ function hasCaller(modulePath: string, sources: Array<{ abs: string; text: strin
 describe('every research module is reachable, or says why not', () => {
   const sources = allSourceFiles().map((abs) => ({ abs, text: fs.readFileSync(abs, 'utf8') }));
   const modules = LIBRARY_DIRS.flatMap(listModules);
+
+  // ── A CONTROL ON THIS CHECK'S OWN COVERAGE ────────────────────────────────────────────────
+  //
+  // Reverting the .tsx filter made this whole file pass again, silently. The orphan check found
+  // nothing because components were no longer scanned; the stale-entry check found nothing because
+  // it only flags listed modules that HAVE a caller. Coverage vanished and every assertion stayed
+  // green — which is the same failure as a search that cannot return a positive.
+  //
+  // So the scan proves it can see the categories it claims to cover, before it reports on them.
+  it('scans both .ts and .tsx — a guard that stops covering a file type reports nothing, loudly', () => {
+    expect(modules.some((m) => m.endsWith('.ts')), 'no .ts modules scanned').toBe(true);
+    expect(
+      modules.some((m) => m.endsWith('.tsx')),
+      'no .tsx scanned — React components are invisible to this check again',
+    ).toBe(true);
+    expect(
+      modules.some((m) => m.startsWith('app/admin/research/components/')),
+      'the app-side research components are not being scanned',
+    ).toBe(true);
+  });
+
 
   it('finds the modules and the sources at all', () => {
     // A sweep that silently matched nothing would pass forever and defend nothing.
