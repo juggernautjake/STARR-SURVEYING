@@ -119,14 +119,44 @@ never in a route-scoped stylesheet:
 
 **Done:** six components, each with a story-free render test and styles that load with the component.
 
-### A3 — The guard that stops the trap recurring ☐
+### A2 — ~~The primitives~~ ✅ **SHIPPED 2026-08-30**
 
-A test asserting: every `className` a research component renders resolves to a rule in a stylesheet
-that actually loads on that component's route.
+`app/admin/research/components/ui/` — Accordion, Toggle, SegmentedTabs, SectionHeader, StatPill,
+EmptyState, with `primitives.css` **imported by the component file**, not added to
+`AdminResearch.css`. `SpendLimitSlider` (shipped earlier) is the seventh.
 
-**Done:** the guard passes, and mutation-testing it (rename one rendered class) fails it. Existing
-violations may be listed as a known-set baseline rather than fixed here — but the baseline must only
-shrink.
+18 tests, asserting what breaks *silently* rather than "does it render": `aria-expanded` /
+`aria-selected`; the Accordion **hiding** its panel rather than unmounting, so a half-typed input
+survives a collapse; and every rendered class existing in the sheet beside it. The composed
+`rui-stat-pill--${tone}` is checked by enumerating the tone union — a literal that never appears
+cannot be grepped, per A1. Mutation-tested: deleting one tone rule fails 1, dropping
+`aria-expanded` fails 2.
+
+### A3 — ~~The guard that stops the trap recurring~~ ✅ **SHIPPED 2026-08-30**
+
+`__tests__/research/rendered-classes-are-styled.test.ts`.
+
+**The obvious version of this test is useless, and measuring that was the work.** A naive "is every
+rendered class in a .css file" scan reports **959** violations here — and a guard that cries wolf 959
+times is a guard nobody runs. The breakdown:
+
+| | |
+|---|---|
+| Tailwind utilities (`flex`, `h-full`, `md:grid-cols-2`) | **591** — generated on demand, correctly absent from every authored sheet |
+| Styled by the component's own `<style>{…}</style>` block | **191** — e.g. `PipelineProgressPanel` defines ~107 of its own |
+| **Genuinely unstyled** | **534** |
+
+So the guard excludes Tailwind, reads each component's embedded styles, and applies A1's stem rule.
+
+**534 is real, and one finding stands out:** `ResearchAnalysisPanel` renders 60 classes — `ra-panel`,
+`ra-panel__header`, `ra-panel__title` — that appear in **no stylesheet anywhere in the repo**, and it
+is mounted by `[projectId]/page.tsx`. That panel is genuinely unstyled on the screen the firm uses
+most. It is concrete evidence for *why* the research pages look the way they do, and it is work for
+phases B–E rather than for the slice that found it.
+
+**Baselined at 534, may only shrink.** A new unstyled class fails immediately. Re-baselining upward
+is not a maintenance step — both times a ratchet was raised in this repo, the breach was a real bug.
+Mutation-tested: renaming one rule a primitive depends on fails it.
 
 ---
 
