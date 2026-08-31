@@ -900,6 +900,42 @@ correct rule. Running the rule over the **original file content from git** repor
 should — handler empty, awaits `["supabaseAdmin"]`, all Supabase. The reconstruction was wrong, not
 the guard.
 
+## G8 — The app/worker HTTP contract, checked (2026-08-31)
+
+The last boundary in the research stack that nothing was checking. The app and the worker are
+separate processes, deployed separately, in separate directories, with separate test suites. They
+agree on a set of HTTP paths and **nothing enforced that agreement**: `tsc` sees two unrelated
+string literals, both suites pass, the production build is happy, and a drifted path is a 404 at
+runtime — on the machine that spends money.
+
+Same shape as three defects found today: `skipped_work` (`{step}` written, `{what}` read), `limits`
+(`maxWallClockMs` written, `maxMinutes` read), and five selects naming columns that do not exist.
+Each lived only in the gap between a producer and a consumer.
+
+**19 paths called, 69 served, 0 mismatches.** Clean — the third clean sweep today, after filters
+and the placeholder scan, and worth as much as the ones that found bugs precisely because it might
+not have been.
+
+### A line-based grep would have made this check dangerous
+
+**Twelve of the seventy worker registrations put the path on the NEXT line:**
+
+```ts
+app.post(
+  '/research/flood-zone',
+  requireAuth,
+```
+
+A line-anchored scan sees 58 of 70 and silently under-counts what the worker serves — which
+produces **false positives**, the direction that sends somebody to "fix" a route that already
+works. My own `grep -c` reported 58 and briefly convinced me the probe was broken; it was the grep
+that was line-based, not the probe, whose `s*` spans newlines. Verified by asking the served set
+directly for `/research/flood-zone` rather than reasoning about the regex.
+
+Mutation-tested four ways: renaming a real worker route (its caller surfaces), dropping the
+parameter normalisation (`:projectId` vs `${projectId}` — every parameterised route would read as a
+mismatch), keeping the query string, and narrowing the scan to one line. All four fail.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
