@@ -221,12 +221,32 @@ with state and carries specific wording about what a run will and will not buy; 
 the generic primitive would have risked the message for a cosmetic gain. Deferred deliberately, not
 missed.
 
-### C2 — Address + county feedback ☐
+### C2 — ~~Address + county feedback~~ ✅ **SHIPPED 2026-08-30**
 
-The county checker (shipped 2026-08-30) and the Places notice are both present but visually
-incidental. Give them one consistent inline-validation treatment.
+They were arriving in **different ambers** — `#FEF3C7` hardcoded on the county note against
+`--color-warning-bg` (`#FFFBEB`) on the Places notice. Two shades of warning on one form reads as
+two severities, and there is only one. The county note now reads the same tokens.
 
-**Done:** a wrong county and a dead Places key look like the same *kind* of message.
+**And one of those tokens did not exist.** `AddressAutocomplete.css` read
+`var(--color-warning-border, #FDE68A)`, and `--color-warning-border` was defined **nowhere**. It
+rendered — the fallback saw to that — so nothing ever failed. The token was a fiction, and a theme
+change would have moved the notice's background while leaving its border behind. That is the quiet
+half of the bug that once had 16 theme tokens read by 159 rules and defined nowhere: the loud half
+renders as nothing and gets noticed; this half renders correctly and silently opts out of theming.
+All four status-border tokens are now defined, so the set is complete rather than patched at the one
+place that happened to be spotted.
+
+**A wider scan was run and deliberately NOT turned into a guard.** Across `app/**.css`: 427 tokens
+defined, ~19 read with no fallback, ~38 read with a fallback but never defined. Those counts
+over-report — `--p-x` and `--p-y` are set from JS (`'--p-x': p.x` in `EmployeePond.tsx`), and
+`--theme-` was a regex artefact. Shipping a noisy token guard would have produced the 959-violation
+problem A3 already had to solve. Recorded here as a candidate for **F2** with the caveat attached,
+rather than as a check nobody would run.
+
+Mutation-tested: removing `--color-warning-border` fails the guard. The first mutation attempt
+silently did **not** apply — CRLF line endings meant `;\n` never matched `;\r\n` — and reported 6
+passing, which would have been a green light for an unrun test. Second time today that exact trap
+appeared.
 
 ### C3 — Batch form parity ☐
 

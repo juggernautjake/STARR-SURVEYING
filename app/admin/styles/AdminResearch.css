@@ -382,10 +382,17 @@
   color: var(--theme-fg-muted, #6B7280);
 }
 
+/* Reads the SAME tokens as the Places notice in AddressAutocomplete.css, which is the point of
+ * C2: a wrong county and a dead Places key are the same KIND of message — inline validation on the
+ * address block — and were arriving in different ambers (#FEF3C7 here against the token's #FFFBEB
+ * there). Two shades of warning on one form reads as two severities, and there is only one.
+ *
+ * Tokens rather than hex so a theme change moves both together; `--color-warning-border` did not
+ * exist until this slice and is now defined in tokens.css. */
 .research-modal__county-note--warn {
-  color: #92400E;
-  background: #FEF3C7;
-  border: 1px solid #FDE68A;
+  color: var(--color-warning-text, #92400E);
+  background: var(--color-warning-bg, #FFFBEB);
+  border: 1px solid var(--color-warning-border, #FDE68A);
   border-radius: 6px;
   padding: 0.4rem 0.55rem;
 }

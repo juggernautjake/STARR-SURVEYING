@@ -105,6 +105,21 @@
   --color-warning-bg: #FFFBEB;
   --color-error:      #EF4444;
   --color-error-bg:   #FEF2F2;
+
+  /* ── Status BORDERS ────────────────────────────────────────────────────
+   * Added 2026-08-30. `--color-warning-border` was already being READ —
+   * `AddressAutocomplete.css:96` has `var(--color-warning-border, #FDE68A)` —
+   * and was defined nowhere. It rendered, because of the fallback, so nothing
+   * ever failed; the token was simply a fiction, and a theme change would have
+   * moved the notice's background and left its border behind.
+   *
+   * That is the softer half of the bug that once had 16 theme tokens read by
+   * 159 rules and defined nowhere. The loud half renders as nothing; this half
+   * renders correctly and quietly opts out of theming. */
+  --color-success-border: #A7F3D0;
+  --color-warning-border: #FDE68A;
+  --color-error-border:   #FECACA;
+  --color-info-border:    #BFDBFE;
   --color-info:       #3B82F6;
   --color-info-bg:    #EFF6FF;
 
