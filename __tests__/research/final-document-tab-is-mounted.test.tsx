@@ -64,7 +64,10 @@ describe('the page still mounts it', () => {
     const at = PAGE.indexOf('<FinalDocumentTab');
     const el = PAGE.slice(at, PAGE.indexOf('/>', at));
     for (const p of ['onExport={handleExportDrawing}', 'onOpenInCAD={handleOpenInCAD}',
-      'onMarkComplete={handleMarkComplete}', 'onJobNotesChange={handleJobNotesChange}']) {
+      // N2 — the debounced save moved INTO <ProjectNotes>, which the tab now renders. The page
+      // keeps the value and hands down a plain setter; the handler that used to wrap it (and
+      // swallowed its own failures) is gone.
+      'onMarkComplete={handleMarkComplete}', 'onJobNotesChange={setJobNotes}']) {
       expect(el, `${p} is missing`).toContain(p);
     }
   });

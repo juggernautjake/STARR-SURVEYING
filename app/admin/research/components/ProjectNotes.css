@@ -1,0 +1,115 @@
+/* app/admin/research/components/ProjectNotes.css — Phase N2.
+ *
+ * Imported by the component. Same reason as ScopeNotice and JobLinkPicker: AdminResearch.css is
+ * route-scoped to /admin/research/**, and a caller cannot forget to bring these.
+ *
+ * Every colour is a token with its literal as the fallback, so this follows all eleven palettes. */
+
+.project-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.project-notes--panel {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.project-notes__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.project-notes__toggle:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.project-notes__heading {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.project-notes__badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  background: var(--theme-bg-elevated, #F1F5F9);
+  color: var(--theme-fg-secondary, #374151);
+}
+
+.project-notes__chevron {
+  margin-left: auto;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.project-notes__textarea {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid var(--theme-border, #D1D5DB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #FFFFFF);
+  color: var(--theme-fg-primary, #111827);
+  font: inherit;
+  font-size: 0.87rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.project-notes__textarea:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+  border-color: var(--theme-accent, #1D3095);
+}
+
+/* ── THE SAVE STATE IS NOT DECORATION ─────────────────────────────────────────
+ *
+ * The old save swallowed its own failure in a bare catch whose comment read
+ * "silently ignore — next save will retry". There is no next save once somebody
+ * stops typing, which is what they do when the note is finished. Notes are the
+ * one category the system cannot regenerate, so a dropped write has to be
+ * visible and recoverable. */
+.project-notes__state {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--theme-fg-muted, #6B7280);
+  min-height: 1.2rem;
+}
+
+.project-notes__state--saved {
+  color: var(--color-success-text, #027A48);
+}
+
+.project-notes__state--failed {
+  color: var(--color-error-text, #B42318);
+  font-weight: 600;
+}
+
+.project-notes__retry {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 5px;
+  padding: 0.1rem 0.45rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}

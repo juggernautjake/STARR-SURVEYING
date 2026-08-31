@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import SurveyPlanPanel from '../../components/SurveyPlanPanel';
 import ExportPanel from '../../components/ExportPanel';
+import ProjectNotes from '../../components/ProjectNotes';
 import type { ResearchProject, ResearchDocument } from '@/types/research';
 import type { ComparisonResult, ExportFormat, RenderedDrawing, ViewMode } from '@/types/research';
 
@@ -49,7 +50,6 @@ export interface FinalDocumentTabProps {
   comparisonResult: ComparisonResult | null;
   sanitizedDrawingSvg: string | null;
   jobNotes: string;
-  savingJobNotes: boolean;
   isExporting: boolean;
   isOpeningInCAD: boolean;
   lastExport: { format: string; filename: string } | null;
@@ -62,13 +62,9 @@ export interface FinalDocumentTabProps {
   onChangeTab: (tab: JobPrepTab) => void;
 }
 
-/** Placeholder for the job-notes box. Moved with the tab that shows it. */
-const JOB_NOTES_PLACEHOLDER =
-  'Notes for the crew: access, gates, dogs, where to park, who to call on site.';
-
 export default function FinalDocumentTab({
   project, projectId, documents, stats, activeDrawing, comparisonResult, sanitizedDrawingSvg,
-  jobNotes, savingJobNotes, isExporting, isOpeningInCAD, lastExport, showUITooltips,
+  jobNotes, isExporting, isOpeningInCAD, lastExport, showUITooltips,
   onJobNotesChange, onExport, onOpenInCAD, onMarkComplete, onChangeTab,
 }: FinalDocumentTabProps) {
   return (
@@ -281,15 +277,16 @@ export default function FinalDocumentTab({
           <div className="research-final-doc__section research-final-doc__section--editable">
             <h3 className="research-final-doc__section-title">
               <FileText size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Job Notes &amp; Field Instructions
-              <span style={{ marginLeft: '0.5rem', fontSize: '0.72rem', fontWeight: 400, color: 'var(--theme-fg-secondary, #6B7280)', textTransform: 'none', letterSpacing: 0 }}>
-                {savingJobNotes ? '⏳ Saving…' : '(editable — auto-saved)'}
-              </span>
             </h3>
-            <textarea
-              className="research-final-doc__notes-textarea"
+            {/* ── ONE NOTES COMPONENT, NOT TWO TEXTAREAS (N2) ──────────────────────────────
+                This box and the one on the project page write the same
+                `analysis_metadata.job_notes`. Two hand-written textareas against one column is
+                how two boxes come to disagree about what was typed — and the save that used to
+                live here swallowed its own failures. */}
+            <ProjectNotes
+              projectId={projectId}
               value={jobNotes}
-              onChange={e => onJobNotesChange(e.target.value)}
-              placeholder={JOB_NOTES_PLACEHOLDER}
+              onChange={onJobNotesChange}
               rows={10}
             />
           </div>

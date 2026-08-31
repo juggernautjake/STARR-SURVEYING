@@ -229,11 +229,61 @@ good outcome, and is noted where it happened.
 Driven in a browser: Stage 3 → Stage 1 → back to Stage 3, with the banner appearing and clearing,
 and no write in between. Four palettes clean.
 
-### N2 — Notes that survive ☐
+### N2 — Notes that survive ✅ **SHIPPED 2026-08-31** — `ProjectNotes`
 
-`analysis_metadata.job_notes` and `user_notes` both exist. Notes get a real surface — per project,
-and per document — that autosaves and says when it saved. "Write notes and stuff" is the owner's
-phrase for the thing that makes a research packet usable by the person who did not run it.
+**The notes existed, three levels down, and lost writes silently.**
+
+`analysis_metadata.job_notes` was already persisted, already debounced, and already had a good
+placeholder. It rendered in exactly one place: **Stage 4 → the Job Prep tab → the "Final Document"
+sub-tab.** So the notes somebody takes *while reading the results* — which is when a surveyor takes
+them — had nowhere to go until the project reached the last stage.
+
+#### And the save swallowed its own failure
+
+```ts
+} catch { /* silently ignore — next save will retry */ }
+```
+
+The comment is honest about the intent and wrong about the consequence. **There is no next save if
+the person stops typing**, and stopping is exactly what somebody does when the note is finished. A
+dropped request left the text in the box, gone on reload, with nothing ever saying so.
+
+It also never looked at the response. `await fetch(...)` with no `res.ok` treats a 500 as a save,
+and this API returns those.
+
+Notes are the one category of content the system **cannot regenerate**. Losing one quietly is the
+worst version of this repository's most common failure, which is the symptom being silence. So the
+state is on the screen and it is one of four things: *Auto-saves as you type* · *Saving…* · *Saved
+6:49:58 PM* · **Not saved — HTTP 500 [Retry]**.
+
+The retry posts **the text that failed**, not whatever is in state by then — without that, a retry
+after a re-render sends the wrong content and reports success.
+
+#### One component, two places
+
+The Job Prep tab keeps its notes box; it is now the same component reading the same field. Two
+hand-written textareas against one column is how two boxes come to disagree about what was typed —
+and the page's own debounce, PATCH and status flag are gone, because two savers racing on one field
+is worse than one that reports what happened.
+
+On the project page it is a **collapsed** panel between the stage banner and the run control, so it
+does not compete with the primary action but is one click away from every stage. Collapsed, it says
+how many words it is holding: a collapsed panel that gives no sign it contains anything is a panel
+nobody opens twice.
+
+#### The assertion that survived its own mutation
+
+The first version of *"the notes panel is not gated to one stage"* checked that `<ProjectNotes`
+appears **before** the first `{currentStage === 'upload' && …}`. Wrapping the panel in
+`{currentStage === 'jobprep' && …}` keeps it before that point, so the mutation survived: the panel
+was gated to one stage and the test was happy. Position is not the property.
+
+Rewritten to read the code immediately before the tag — and it then found the tag inside a `//`
+comment explaining that the save had moved into it. **Twelfth time a check here has read its own
+prose.** `stripJs`, as the house rule says.
+
+Five mutations, all red. Driven in a browser including a forced 500: the box says *Not saved — HTTP
+500* with a working Retry. Four palettes clean.
 
 ### N3 — Every retrieved file, and every image ☐
 

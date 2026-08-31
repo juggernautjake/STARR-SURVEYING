@@ -68,6 +68,7 @@ import {
 } from './_sections/annotation-history';
 import { needsClosing } from './_sections/traverse-geometry';
 import { resolveViewStage, stageLabel } from './_sections/stage-view';
+import ProjectNotes from '../components/ProjectNotes';
 // The coordinate geometry is the CAD library's, not this page's — see the header of
 // _sections/traverse-geometry.ts for why a local copy was written and then removed.
 import { forwardPoint, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
@@ -196,8 +197,6 @@ export default function ResearchProjectPage() {
   const [jobPrepTab, setJobPrepTab] = useState<'drawing' | 'fieldplan' | 'finaldoc'>('drawing');
   // Editable job notes for the Final Document (persisted in analysis_metadata.job_notes)
   const [jobNotes, setJobNotes] = useState('');
-  const [savingJobNotes, setSavingJobNotes] = useState(false);
-  const jobNotesTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drawing state
   const [drawings, setDrawings] = useState<(RenderedDrawing & { element_count: number })[]>([]);
@@ -422,22 +421,10 @@ export default function ResearchProjectPage() {
     }
   }
 
-  /** Auto-saves job notes to the server (debounced). */
-  function handleJobNotesChange(value: string) {
-    setJobNotes(value);
-    if (jobNotesTimerRef.current) clearTimeout(jobNotesTimerRef.current);
-    jobNotesTimerRef.current = setTimeout(async () => {
-      setSavingJobNotes(true);
-      try {
-        await fetch('/api/admin/research', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: projectId, job_notes: value }),
-        });
-      } catch { /* silently ignore — next save will retry */ }
-      setSavingJobNotes(false);
-    }, 1200);
-  }
+  // The debounce, the PATCH and the save state all live in <ProjectNotes> now. The copy that
+  // used to be here swallowed its own failures — see the note in that component — and two
+  // savers racing on one field is worse than one that reports what happened.
+
 
   async function handleStatusUpdate(newStatus: WorkflowStep) {
     // Any deliberate move of the PROJECT drops the reader back to following it. Otherwise starting
@@ -1689,6 +1676,23 @@ export default function ResearchProjectPage() {
           </button>
         </div>
       )}
+
+      {/* ── NOTES, FROM EVERY STAGE (Phase N2) ──────────────────────────────────────────────────
+          `analysis_metadata.job_notes` already existed and rendered in exactly one place: Stage 4
+          → Job Prep → the Final Document sub-tab. So the notes you take WHILE READING THE RESULTS
+          — which is when a surveyor takes them — had nowhere to go until the last stage.
+
+          Collapsed by default so it does not compete with the run control, and it says how many
+          words it is holding when closed: a collapsed panel that gives no sign it contains
+          anything is a panel nobody opens twice. */}
+      <ProjectNotes
+        projectId={projectId}
+        value={jobNotes}
+        onChange={setJobNotes}
+        heading="Notes for this project"
+        startCollapsed
+        rows={7}
+      />
 
       {/* R1 — Always-visible primary action: start or re-run the AI pipeline.
           Label + behavior derive from project.status so the run control is never
@@ -3324,12 +3328,11 @@ export default function ResearchProjectPage() {
             comparisonResult={comparisonResult}
             sanitizedDrawingSvg={sanitizedDrawingSvg}
             jobNotes={jobNotes}
-            savingJobNotes={savingJobNotes}
             isExporting={isExporting}
             isOpeningInCAD={isOpeningInCAD}
             lastExport={lastExport}
             showUITooltips={showUITooltips}
-            onJobNotesChange={handleJobNotesChange}
+            onJobNotesChange={setJobNotes}
             onExport={handleExportDrawing}
             onOpenInCAD={handleOpenInCAD}
             onMarkComplete={handleMarkComplete}
