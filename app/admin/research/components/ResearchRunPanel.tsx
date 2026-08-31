@@ -14,6 +14,11 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+// D1 — the stage inference lives in its own file with its own tests. It reported `Stage 3.5`
+// as stage 3 for as long as it has existed; see run-progress.ts for why that was unreachable.
+import {
+  MICRO_STAGES, inferMicroStage, progressPercent, type MicroStageId,
+} from './run-progress';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,41 +114,13 @@ export interface ResearchRunPanelProps {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-/** Worker pipeline stage names derived from the message field */
-const MICRO_STAGES = [
-  { id: 'compiling',        label: 'Compiling Resources',        stageNums: [0, 1] },
-  { id: 'validating',       label: 'Validating Information',      stageNums: [1] },
-  { id: 'analyzing',        label: 'Analyzing Resources',         stageNums: [2] },
-  { id: 'extracting',       label: 'Extracting Data',             stageNums: [3] },
-  { id: 'compiling_data',   label: 'Compiling Data',              stageNums: [3] },
-  { id: 'validating_data',  label: 'Validating Data',             stageNums: [3, 4] },
-  { id: 'resource_summary', label: 'Building Resource Summary',   stageNums: [5] },
-  { id: 'final_summary',    label: 'Building Final Summary',      stageNums: [6] },
-] as const;
 
-type MicroStageId = (typeof MICRO_STAGES)[number]['id'];
 
 type LogFilter = 'all' | 'errors' | 'warn' | 'info';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function inferMicroStage(message: string | undefined, status: string | null, docCount: number): MicroStageId {
-  if (!status || status === 'starting') return 'compiling';
-  if (status === 'success' || status === 'partial' || status === 'complete') return 'final_summary';
-  if (!message) return 'compiling';
-  const lower = message.toLowerCase();
-  if (/stage\s*0/i.test(message) || /stage\s*1/i.test(message) || /normaliz/i.test(lower) || /searching.*cad/i.test(lower)) return 'compiling';
-  if (/stage\s*2/i.test(message) || /retrieving/i.test(lower)) return docCount > 0 ? 'validating' : 'compiling';
-  if (/stage\s*3/i.test(message) || /extract/i.test(lower) || /claude/i.test(lower)) {
-    if (/validat/i.test(lower)) return 'validating_data';
-    if (/summar/i.test(lower)) return 'resource_summary';
-    if (/compil/i.test(lower)) return 'compiling_data';
-    return 'extracting';
-  }
-  if (/stage\s*3\.5/i.test(message) || /reconcil/i.test(lower)) return 'validating_data';
-  if (/stage\s*4/i.test(message) || /valid/i.test(lower) || /quality/i.test(lower)) return 'validating_data';
-  return 'analyzing';
-}
+
 
 function statusIcon(status: string) {
   switch (status) {
@@ -687,11 +664,10 @@ export default function ResearchRunPanel({
   const stageDef = MICRO_STAGES.find(s => s.id === currentMicroStage) ?? MICRO_STAGES[0];
   const stageNumber = Math.max(0, MICRO_STAGES.findIndex(s => s.id === currentMicroStage));
 
-  // R3 — determinate progress %: map the current micro-stage to its position in
-  // the ordered MICRO_STAGES list. A finished success pins to 100%.
-  const progressPct = isSuccess
-    ? 100
-    : Math.min(96, Math.max(6, Math.round(((stageNumber + 1) / MICRO_STAGES.length) * 100)));
+  // R3 — determinate progress %: map the current micro-stage to its position in the ordered
+  // MICRO_STAGES list. A finished success pins to 100%. The arithmetic moved to run-progress.ts
+  // with the stage inference it belongs to; the clamp is the interesting part and it is tested.
+  const progressPct = progressPercent(currentMicroStage, isSuccess);
 
   // Whether the component is in an idle state (no pipeline started, or page refreshed with no active run)
   const isIdle = pipelineStatus === null && !started;

@@ -738,7 +738,53 @@ This is [[project_map_and_surveying_backend_complete]]'s "written in units nobod
 and it is the third time this repo has shipped a display that renders a key its producer does not
 write.
 
-### D1 — `ResearchRunPanel` (1,771 lines) ☐
+### D1 — `ResearchRunPanel` — first extraction SHIPPED 2026-08-31, and it found a defect
+
+The size problem is barely dented — 1,771 → 1,747 lines. **What came out of it is the point.**
+
+### `Stage 3.5` reported itself as stage 3, for as long as the panel has existed
+
+`inferMicroStage` ran its checks in source order, testing for stage 3 before stage 3.5:
+
+```ts
+if (/stage\s*3/i.test(message) || …) { … return 'extracting'; }
+if (/stage\s*3\.5/i.test(message) || /reconcil/i.test(lower)) return 'validating_data';
+```
+
+`/stage\s*3/` matches inside `"Stage 3.5"`, so **the second line could not be reached by stage
+number at all**. `worker/src/services/pipeline.ts:2023` posts exactly `Stage 3.5: Geometric
+reconciliation…`, and "reconciliation" contains none of `validat`/`summar`/`compil` — so the
+stage-3 block fell through to its default:
+
+> The panel displayed **"Extracting Data"** for the whole of geometric reconciliation — a stage
+> that runs for minutes on a plat with many curves. The progress bar sat on the extraction step,
+> and an operator watching a long run had no way to tell it had moved on.
+
+The `/reconcil/` half of that dead line would have caught it. It never got the chance.
+
+Specific before general is the rule it violated. Both halves of the fix are in: the 3.5 test runs
+first, **and** the general stage-3 pattern refuses a decimal, so a future `Stage 3.7` cannot
+reintroduce the same bug through a reorder.
+
+### The test is written against the worker's real strings
+
+Including a check that the worker still posts them. An inference over a message another service
+produces is only as good as the strings it is tested with — and a suite that keeps passing against
+messages nothing sends any more is how a progress display drifts away from the pipeline it claims
+to describe. That is [[project_map_and_surveying_backend_complete]]'s defect pattern, pointed at
+the test rather than the code.
+
+### One mutant survived, and it is genuinely equivalent
+
+`progressPercent` clamps to 6–96. The ceiling binds; **the floor cannot** — eight stages put the
+first at 13%, so `Math.max(6, …)` never changes a returned value. Mutating it to `Math.max(0, …)`
+survives, correctly. It is written down in both the function and the test rather than papered over
+with a contrived assertion, so nobody later reads the surviving mutant as a missing test. The
+clamp stays: it starts mattering at four stages or fewer.
+
+Four of five mutations caught, including restoring the original ordering — which is what proves
+the defect was real rather than a reading of the code.
+
 ### D2 — `PipelineProgressPanel` (1,521 lines) ☐
 
 **Re-scoped by D0.** The reason to split these was to surface run visibility; the visibility turned
