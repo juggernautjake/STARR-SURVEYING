@@ -12367,3 +12367,323 @@
   font-size: 0.8125rem;
   color: #4B5563;
 }
+
+/* ── Billing & Usage (E2b, second half) ─────────────────────────────────────
+ *
+ * The other dark full-page layout inside a light portal: 63 dark Tailwind
+ * utilities, its own <header>, a `min-h-screen` that fills nothing inside a
+ * tab panel.
+ *
+ * The sub-tabs, the three data states and every status pill come from the
+ * shared primitives. What is here is the subscription card, the tables and the
+ * small bar chart — the parts that are genuinely this tab's. */
+
+.research-billing__plan {
+  padding: 1.5rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #fff);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.75rem 1.5rem;
+}
+
+.research-billing__plan-main { min-width: 0; }
+
+.research-billing__plan-side {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.research-billing__plan-id {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+
+/* The tier name was `text-2xl font-bold` with `style={{ color: TIER_COLORS[tier] }}`.
+ * It keeps its size — it is the heading of the card — but not a colour that
+ * changes meaning per plan for no reason a reader can act on. */
+.research-billing__tier {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.research-billing__price {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #6B7280;
+}
+
+.research-billing__trial {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.8125rem;
+  color: #B45309;
+}
+
+.research-billing__next-amount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.research-billing__next-date {
+  font-size: 0.8125rem;
+  color: #6B7280;
+}
+
+.research-billing__manage-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.research-billing__manage-btn:hover:not(:disabled) { background: #F3F4F6; }
+.research-billing__manage-btn:disabled { opacity: 0.6; cursor: progress; }
+
+.research-billing__manage-btn:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+}
+
+/* The 503 explaining that Stripe is not wired yet. Neutral, not an error
+ * banner: it is the expected answer today, and dressing it in red would make a
+ * deliberate configuration look like a fault. */
+.research-billing__portal-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  background: #F9FAFB;
+  font-size: 0.8125rem;
+  color: #374151;
+}
+
+.research-billing__usage-bar { grid-column: 1 / -1; }
+
+.research-billing__usage-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.3rem;
+  font-size: 0.8125rem;
+  color: #6B7280;
+}
+
+.research-billing__usage-count { color: #111827; font-weight: 600; }
+
+.research-billing__meter {
+  height: 8px;
+  border-radius: 999px;
+  background: #E5E7EB;
+  overflow: hidden;
+}
+
+.research-billing__meter-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #2563EB;
+  transition: width 0.2s;
+}
+
+.research-billing__batch {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6D28D9;
+}
+
+.research-billing__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+@media (min-width: 768px) {
+  .research-billing__grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+.research-billing__stat,
+.research-billing__panel {
+  padding: 1rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #fff);
+}
+
+.research-billing__panel--wide { grid-column: span 2; }
+
+.research-billing__stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.research-billing__stat-label {
+  margin-top: 0.2rem;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+.research-billing__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid #F3F4F6;
+  font-size: 0.8125rem;
+  color: #4B5563;
+}
+
+.research-billing__row:last-child { border-bottom: none; }
+.research-billing__row-value { color: #111827; font-weight: 600; }
+
+.research-billing__vendors { margin-bottom: 1.25rem; }
+
+/* A wide table must scroll inside its own box. The dark version let eight
+ * columns of purchase figures push the whole page sideways at 390px. */
+.research-billing__table-wrap {
+  overflow-x: auto;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #fff);
+}
+
+.research-billing__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+/* Visible, not sr-only. Four tables on one tab, and a reader arriving on the
+ * Purchases tab should not have to infer which one they are looking at. */
+.research-billing__caption {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.research-billing__table th {
+  padding: 0.6rem 1rem;
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6B7280;
+  background: #F9FAFB;
+  border-bottom: 1px solid #E5E7EB;
+}
+
+.research-billing__table td {
+  padding: 0.7rem 1rem;
+  border-top: 1px solid #F3F4F6;
+  color: #374151;
+}
+
+.research-billing__table tbody tr:hover { background: #F9FAFB; }
+
+.research-billing__num { text-align: right; }
+.research-billing__num--total { font-weight: 600; color: #111827; }
+
+.research-billing__table--pairs th[scope='row'] {
+  background: none;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: #6B7280;
+  border-bottom: none;
+  border-top: 1px solid #F3F4F6;
+}
+
+.research-billing__instrument {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.7rem;
+  color: #6B7280;
+}
+
+.research-billing__muted { color: #9CA3AF; }
+
+.research-billing__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #1D4ED8;
+  text-decoration: none;
+}
+
+.research-billing__link:hover { text-decoration: underline; }
+
+.research-billing__link:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.research-billing__usage { display: grid; gap: 1rem; }
+
+.research-billing__chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  height: 8rem;
+}
+
+.research-billing__bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+/* The count was carried by `title=` alone, which never appears on a touch
+ * device and is not announced. */
+.research-billing__bar-value {
+  font-size: 0.7rem;
+  color: #4B5563;
+  margin-bottom: 0.2rem;
+}
+
+.research-billing__bar {
+  width: 100%;
+  border-radius: 4px 4px 0 0;
+  background: #2563EB;
+  transition: height 0.2s;
+}
+
+.research-billing__bar-label {
+  margin-top: 0.25rem;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 0.7rem;
+  color: #9CA3AF;
+}

@@ -11,7 +11,15 @@ import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  CreditCard, ExternalLink, AlertTriangle, Check, FileText, Receipt,
+} from 'lucide-react';
 import VendorAccountsPanel from '../components/VendorAccountsPanel';
+// E2b — the shared portal vocabulary. `SegmentedTabs` brings the tablist contract with it: this
+// tab's four sub-tabs were plain buttons with no role, no `aria-selected` and no arrow keys.
+import {
+  LoadingState, ErrorState, EmptyState, StatPill, SegmentedTabs, SectionHeader, type StatTone,
+} from '../components/ui';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -115,11 +123,6 @@ const TIER_LABELS: Record<SubscriptionInfo['tier'], string> = {
   firm_unlimited: 'Firm Unlimited',
 };
 
-const TIER_COLORS: Record<SubscriptionInfo['tier'], string> = {
-  free: '#9CA3AF',
-  surveyor_pro: '#3B82F6',
-  firm_unlimited: '#8B5CF6',
-};
 
 const TIER_PRICES: Record<SubscriptionInfo['tier'], string> = {
   free: 'Free (2 reports/mo)',
@@ -127,12 +130,20 @@ const TIER_PRICES: Record<SubscriptionInfo['tier'], string> = {
   firm_unlimited: '$299/month',
 };
 
-const STATUS_COLORS: Record<SubscriptionInfo['status'], string> = {
-  active: '#10B981',
-  trialing: '#F59E0B',
-  past_due: 'var(--color-error)',
-  cancelled: '#9CA3AF',
-  none: '#9CA3AF',
+/**
+ * Subscription status as a named meaning rather than a hex code.
+ *
+ * The dark version carried `STATUS_COLORS` — five hex values applied as `backgroundColor`. A pill
+ * whose only signal is its colour says nothing to a reader who cannot distinguish amber from green,
+ * and "past due" is not a state to communicate in a colour alone. `StatPill` takes a tone, and the
+ * word is always rendered beside it.
+ */
+export const STATUS_TONES: Record<SubscriptionInfo['status'], StatTone> = {
+  active: 'good',
+  trialing: 'warn',
+  past_due: 'bad',
+  cancelled: 'neutral',
+  none: 'neutral',
 };
 
 function formatCurrency(amount: number): string {
@@ -257,351 +268,408 @@ export default function BillingTab() {
 
   useEffect(() => { loadBillingData(); }, [loadBillingData]);
 
+  // ── "Manage Subscription ↗" was a button with no onClick ───────────────────────────────────
+  //
+  // It rendered an external-link arrow and did nothing at all. `/api/admin/billing/customer-portal`
+  // has existed the whole time: it opens a Stripe portal session when `STRIPE_SECRET_KEY` and a
+  // `stripe_customer_id` are both present, and otherwise returns a 503 whose `message` explains that
+  // billing is still being finalised.
+  //
+  // That 503 is the answer most operators will get today — Stripe is deliberately off — and it is a
+  // far better answer than a button that swallows the click. Showing it is the point: the previous
+  // behaviour was indistinguishable from a broken page.
+  const [portalBusy, setPortalBusy] = useState(false);
+  const [portalNote, setPortalNote] = useState<string | null>(null);
+
+  const openCustomerPortal = useCallback(async () => {
+    setPortalBusy(true);
+    setPortalNote(null);
+    try {
+      const res = await fetch('/api/admin/billing/customer-portal', { method: 'POST' });
+      const body = (await res.json().catch(() => ({}))) as { url?: string; message?: string; error?: string };
+      if (res.ok && body.url) { window.location.href = body.url; return; }
+      setPortalNote(
+        body.message
+          ?? body.error
+          ?? `The billing portal could not be opened (HTTP ${res.status}).`,
+      );
+    } catch (err) {
+      setPortalNote(`The billing portal could not be reached: ${String(err)}`);
+    } finally {
+      setPortalBusy(false);
+    }
+  }, []);
+
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  //
+  // ── E2b: THE SECOND DARK FULL-PAGE LAYOUT INSIDE A LIGHT PORTAL ────────────────────────────
+  //
+  // 63 dark Tailwind utilities, its own `<header>`, and a `min-h-screen` that fills nothing inside
+  // a tab panel — left from when this was `/admin/research/billing/page.tsx` and owned the viewport.
+  // The Library tab was the first half of this entry; this is the second and larger one.
+  //
+  // Three things were wrong underneath the paint, and none of them were about colour:
+  //
+  //   · the four sub-tabs were plain `<button>`s — no `role="tablist"`, no `aria-selected`, no
+  //     arrow keys — in a portal that has a `SegmentedTabs` primitive carrying all three;
+  //   · "Manage Subscription ↗" had no `onClick` at all;
+  //   · every table was bare `<table>` markup with no caption and no `scope` on its headers, so a
+  //     screen reader read eight columns of purchase figures with nothing to tie them to.
+
   if (sessionStatus === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-gray-300 text-center">
-          <div className="text-4xl mb-4 animate-spin">⟳</div>
-          <p>Loading billing data…</p>
-        </div>
+      <div className="research-page">
+        <LoadingState label="Loading billing and usage…" />
       </div>
     );
   }
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 mb-4">Failed to load billing data</p>
-          <p className="text-gray-500 text-sm mb-6">{loadError}</p>
-          <button onClick={loadBillingData} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-            Retry
-          </button>
-        </div>
+      <div className="research-page">
+        <ErrorState
+          title="Billing data could not be loaded"
+          message={loadError}
+          onRetry={loadBillingData}
+        />
       </div>
     );
   }
 
+  const TABS = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'invoices', label: 'Invoices', count: invoices.length },
+    { id: 'purchases', label: 'Purchases', count: purchases.length },
+    { id: 'usage', label: 'Usage' },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
-      {/* ── Header ── */}
-      <header className="bg-gray-900 border-b border-gray-800 px-6 py-4">
-        <div className="flex items-center gap-3">
-          {/* C11b: a "← Research" link sat here. This IS Research now — it pointed at the portal it
-            * renders inside, which lands you on the Projects tab and reads as a bug. Fourth slice
-            * running that an absorbed body carried one; five of the seven did here. */}
-          <h1 className="text-xl font-bold text-gray-100">💳 Billing & Usage</h1>
-        </div>
-      </header>
+    <div className="research-page">
+      <div className="research-page__header">
+        <h1 className="research-page__title">
+          <CreditCard size={20} strokeWidth={1.75} aria-hidden="true" /> Billing &amp; Usage
+        </h1>
+      </div>
 
-      <div className="max-w-5xl mx-auto px-6 py-6">
-        {/* ── Subscription card ── */}
-        {subscription && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 mb-6">
-            <div className="flex items-start justify-between flex-wrap gap-4">
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h2
-                    className="text-2xl font-bold"
-                    style={{ color: TIER_COLORS[subscription.tier] }}
-                  >
-                    {TIER_LABELS[subscription.tier]}
-                  </h2>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                    style={{ backgroundColor: STATUS_COLORS[subscription.status] }}
-                  >
-                    {subscription.status.replace('_', ' ').toUpperCase()}
-                  </span>
-                </div>
-                <p className="text-gray-400 text-sm">{TIER_PRICES[subscription.tier]}</p>
-                {subscription.status === 'trialing' && subscription.trialEndsAt && (
-                  <p className="text-yellow-400 text-sm mt-1">
-                    ⚠ Trial ends {formatDate(subscription.trialEndsAt)}
-                  </p>
-                )}
-              </div>
-
-              <div className="text-right">
-                {subscription.nextInvoiceAmount !== null && (
-                  <div className="text-2xl font-bold text-white">
-                    {formatCurrency(subscription.nextInvoiceAmount)}
-                  </div>
-                )}
-                <div className="text-gray-400 text-sm">
-                  Next billing: {formatDate(subscription.currentPeriodEnd)}
-                </div>
-                <button className="mt-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm">
-                  Manage Subscription ↗
-                </button>
-              </div>
+      {subscription && (
+        <section className="research-billing__plan" aria-labelledby="billing-plan-heading">
+          <div className="research-billing__plan-main">
+            <div className="research-billing__plan-id">
+              <h2 id="billing-plan-heading" className="research-billing__tier">
+                {TIER_LABELS[subscription.tier]}
+              </h2>
+              {/* Tone, not a hex code. The status was a pill coloured by `STATUS_COLORS` — "past
+                  due" is not a thing to say in amber alone. */}
+              <StatPill tone={STATUS_TONES[subscription.status]}>
+                {subscription.status.replace('_', ' ')}
+              </StatPill>
             </div>
-
-            {/* Usage bar */}
-            <div className="mt-4">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="text-gray-400">Reports this period</span>
-                <span className="text-white">
-                  {subscription.reportsUsedThisPeriod}
-                  {subscription.reportsLimit !== 'unlimited'
-                    ? ` / ${subscription.reportsLimit}`
-                    : ' / ∞'}
-                </span>
-              </div>
-              <div className="bg-gray-800 rounded-full h-2">
-                <div
-                  className="h-2 rounded-full transition-all"
-                  style={{
-                    width: subscription.reportsLimit === 'unlimited'
-                      ? '20%'
-                      : `${Math.min(100, (subscription.reportsUsedThisPeriod / (subscription.reportsLimit as number)) * 100)}%`,
-                    backgroundColor: TIER_COLORS[subscription.tier],
-                  }}
-                />
-              </div>
-            </div>
-
-            {subscription.batchEnabled && (
-              <div className="mt-3 text-xs text-purple-400">✓ Batch processing enabled</div>
+            <p className="research-billing__price">{TIER_PRICES[subscription.tier]}</p>
+            {subscription.status === 'trialing' && subscription.trialEndsAt && (
+              <p className="research-billing__trial">
+                <AlertTriangle size={14} strokeWidth={2} aria-hidden="true" />
+                Trial ends {formatDate(subscription.trialEndsAt)}
+              </p>
             )}
           </div>
-        )}
 
-        {/* ── Tabs ──
-            admin-ui-alignment-2026-08-15 (A11) — four tabs do not fit 390px, and the row neither
-            wrapped nor scrolled, so "usage" sat 16px off the right edge. Scrolls sideways, the same
-            call the research library's filter chips and the file explorer's type chips make. */}
-        <div className="flex gap-1 mb-4 overflow-x-auto max-w-full [&>button]:shrink-0">
-          {(['overview', 'invoices', 'purchases', 'usage'] as const).map(tab => (
+          <div className="research-billing__plan-side">
+            {subscription.nextInvoiceAmount !== null && (
+              <div className="research-billing__next-amount">
+                {formatCurrency(subscription.nextInvoiceAmount)}
+              </div>
+            )}
+            <div className="research-billing__next-date">
+              Next billing: {formatDate(subscription.currentPeriodEnd)}
+            </div>
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded text-sm font-medium transition-colors capitalize ${
-                activeTab === tab
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
+              type="button"
+              className="research-billing__manage-btn"
+              onClick={openCustomerPortal}
+              disabled={portalBusy}
             >
-              {tab}
+              {portalBusy ? 'Opening…' : 'Manage Subscription'}
+              <ExternalLink size={13} strokeWidth={2} aria-hidden="true" />
             </button>
-          ))}
-        </div>
+          </div>
 
-        {/* ── Overview tab ── */}
-        {activeTab === 'overview' && usage && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Total Reports', value: usage.totalReports, color: '#3B82F6' },
-              { label: 'This Month', value: usage.reportsThisMonth, color: '#10B981' },
-              { label: 'Docs Purchased', value: usage.totalDocumentsPurchased, color: '#F59E0B' },
-              { label: 'Doc Spend', value: formatCurrency(usage.totalDocumentSpend), color: 'var(--color-error)' },
-            ].map(stat => (
-              <div key={stat.label} className="bg-gray-900 border border-gray-800 rounded-lg p-4">
-                <div className="text-2xl font-bold" style={{ color: stat.color }}>
-                  {stat.value}
-                </div>
-                <div className="text-xs text-gray-400 mt-1">{stat.label}</div>
-              </div>
-            ))}
+          {/* The 503 this endpoint returns while Stripe is off is a real answer, and the button used
+              to swallow it along with everything else. `role="status"`, not `alert`: it is the
+              expected reply today, not an interruption. */}
+          {portalNote && (
+            <p className="research-billing__portal-note" role="status">{portalNote}</p>
+          )}
 
-            {/* Top counties */}
-            {(usage.topCounties?.length ?? 0) > 0 && (
-              <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-lg p-4">
-                <h3 className="text-sm font-semibold mb-3 text-gray-300">Top Counties</h3>
-                {usage.topCounties.slice(0, 5).map(({ county, count }) => (
-                  <div key={county} className="flex justify-between text-sm py-1 border-b border-gray-800 last:border-0">
-                    <span className="text-gray-300">{county}</span>
-                    <span className="text-blue-400 font-medium">{count}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Avg report time */}
-            <div className="col-span-2 bg-gray-900 border border-gray-800 rounded-lg p-4">
-              <h3 className="text-sm font-semibold mb-3 text-gray-300">Performance</h3>
-              <div className="flex justify-between text-sm py-1 border-b border-gray-800">
-                <span className="text-gray-400">Avg report time</span>
-                <span className="text-white">{(usage.avgReportTimeMs / 60_000).toFixed(1)} min</span>
-              </div>
-              <div className="flex justify-between text-sm py-1 border-b border-gray-800">
-                <span className="text-gray-400">AI tokens used</span>
-                <span className="text-white">{usage.totalAiTokensUsed.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-sm py-1">
-                <span className="text-gray-400">AI cost estimate</span>
-                <span className="text-yellow-400">{formatCurrency(usage.aiCostEstimate)}</span>
-              </div>
+          <div className="research-billing__usage-bar">
+            <div className="research-billing__usage-labels">
+              <span>Reports this period</span>
+              <span className="research-billing__usage-count">
+                {subscription.reportsUsedThisPeriod}
+                {subscription.reportsLimit !== 'unlimited'
+                  ? ` / ${subscription.reportsLimit}`
+                  : ' / ∞'}
+              </span>
+            </div>
+            <div
+              className="research-billing__meter"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={subscription.reportsLimit === 'unlimited' ? undefined : Number(subscription.reportsLimit)}
+              aria-valuenow={subscription.reportsUsedThisPeriod}
+              aria-label="Reports used this billing period"
+            >
+              {/* The width is genuinely dynamic, so it stays inline. The COLOUR does not need to be:
+                  it was `TIER_COLORS[tier]`, a hex per plan, which made the meter mean one thing on
+                  Pro and another on Free for no reason a reader could act on. */}
+              <div
+                className="research-billing__meter-fill"
+                style={{
+                  width: subscription.reportsLimit === 'unlimited'
+                    ? '20%'
+                    : `${Math.min(100, (subscription.reportsUsedThisPeriod / (subscription.reportsLimit as number)) * 100)}%`,
+                }}
+              />
             </div>
           </div>
-        )}
 
-        {/* ── Invoices tab ── */}
-        {activeTab === 'invoices' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            {invoices.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">No invoices yet.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider">
-                  <tr>
-                    <th className="px-4 py-3 text-left">Date</th>
-                    <th className="px-4 py-3 text-left">Description</th>
-                    <th className="px-4 py-3 text-right">Amount</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-center">PDF</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map(inv => (
-                    <tr key={inv.invoiceId} className="border-t border-gray-800 hover:bg-gray-800/50">
-                      <td className="px-4 py-3 text-gray-300">{formatDate(inv.date)}</td>
-                      <td className="px-4 py-3 text-gray-200">{inv.description}</td>
-                      <td className="px-4 py-3 text-right font-medium">{formatCurrency(inv.amount)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          inv.status === 'paid' ? 'bg-green-900 text-green-300' :
-                          inv.status === 'open' ? 'bg-yellow-900 text-yellow-300' :
-                          'bg-gray-700 text-gray-400'
-                        }`}>
-                          {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        {inv.pdfUrl ? (
-                          <a href={inv.pdfUrl} target="_blank" rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300 text-xs">PDF ↗</a>
-                        ) : '—'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+          {subscription.batchEnabled && (
+            <p className="research-billing__batch">
+              <Check size={13} strokeWidth={2.5} aria-hidden="true" /> Batch processing enabled
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* Four sub-tabs that were plain buttons. `SegmentedTabs` carries `role="tablist"`, roving
+          tabIndex, arrow keys that wrap, and Home/End — the contract seventeen admin portals declare
+          and three implement. It also scrolls sideways rather than wrapping, which is what the
+          alignment audit asked for when "usage" sat 16px off the right edge at 390px. */}
+      <SegmentedTabs
+        tabs={TABS}
+        activeId={activeTab}
+        onChange={(id) => setActiveTab(id as typeof activeTab)}
+        aria-label="Billing sections"
+      />
+
+      {activeTab === 'overview' && usage && (
+        <div className="research-billing__grid">
+          {[
+            { label: 'Total Reports', value: usage.totalReports },
+            { label: 'This Month', value: usage.reportsThisMonth },
+            { label: 'Docs Purchased', value: usage.totalDocumentsPurchased },
+            { label: 'Doc Spend', value: formatCurrency(usage.totalDocumentSpend) },
+          ].map(stat => (
+            <div key={stat.label} className="research-billing__stat">
+              {/* These four were `color: '#3B82F6' | '#10B981' | '#F59E0B' | var(--color-error)`.
+                  Nothing distinguished them — the colours were decoration standing where a reader
+                  expects meaning, and "Doc Spend" being red said something untrue about it. */}
+              <div className="research-billing__stat-value">{stat.value}</div>
+              <div className="research-billing__stat-label">{stat.label}</div>
+            </div>
+          ))}
+
+          {(usage.topCounties?.length ?? 0) > 0 && (
+            <div className="research-billing__panel research-billing__panel--wide">
+              <SectionHeader title="Top Counties" />
+              {usage.topCounties.slice(0, 5).map(({ county, count }) => (
+                <div key={county} className="research-billing__row">
+                  <span>{county}</span>
+                  <span className="research-billing__row-value">{count}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="research-billing__panel research-billing__panel--wide">
+            <SectionHeader title="Performance" />
+            <div className="research-billing__row">
+              <span>Avg report time</span>
+              <span className="research-billing__row-value">{(usage.avgReportTimeMs / 60_000).toFixed(1)} min</span>
+            </div>
+            <div className="research-billing__row">
+              <span>AI tokens used</span>
+              <span className="research-billing__row-value">{usage.totalAiTokensUsed.toLocaleString()}</span>
+            </div>
+            <div className="research-billing__row">
+              <span>AI cost estimate</span>
+              <span className="research-billing__row-value">{formatCurrency(usage.aiCostEstimate)}</span>
+            </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* ── Purchases tab ──
-            The vendor accounts sit above the purchase log because they are what DECIDES whether the
-            next purchase can happen: an account with no balance and no top-up limits will simply
-            stop a run, and the log only shows what already succeeded. */}
-        {activeTab === 'purchases' && (
-          <div className="mb-6">
+      {activeTab === 'invoices' && (
+        invoices.length === 0 ? (
+          <EmptyState
+            icon={<FileText size={40} strokeWidth={1.5} />}
+            title="No invoices yet."
+            body="Invoices appear here once a billing period closes on a paid plan."
+          />
+        ) : (
+          <div className="research-billing__table-wrap">
+            <table className="research-billing__table">
+              <caption className="research-billing__caption">Invoice history</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Description</th>
+                  <th scope="col" className="research-billing__num">Amount</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.map(inv => (
+                  <tr key={inv.invoiceId}>
+                    <td>{formatDate(inv.date)}</td>
+                    <td>{inv.description}</td>
+                    <td className="research-billing__num">{formatCurrency(inv.amount)}</td>
+                    <td>
+                      <StatPill tone={inv.status === 'paid' ? 'good' : inv.status === 'open' ? 'warn' : 'neutral'}>
+                        {inv.status}
+                      </StatPill>
+                    </td>
+                    <td>
+                      {inv.pdfUrl ? (
+                        <a
+                          href={inv.pdfUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="research-billing__link"
+                        >
+                          PDF <ExternalLink size={11} strokeWidth={2} aria-hidden="true" />
+                        </a>
+                      ) : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )
+      )}
+
+      {activeTab === 'purchases' && (
+        <>
+          {/* The vendor accounts sit above the purchase log because they are what DECIDES whether
+              the next purchase can happen: an account with no balance and no top-up limits will
+              simply stop a run, and the log only shows what already succeeded. */}
+          <div className="research-billing__vendors">
             <VendorAccountsPanel />
           </div>
-        )}
 
-        {activeTab === 'purchases' && (
-          <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-            {purchases.length === 0 ? (
-              <div className="p-8 text-center text-gray-500">No document purchases yet.</div>
-            ) : (
-              <table className="w-full text-sm">
-                <thead className="bg-gray-800 text-gray-400 text-xs uppercase tracking-wider">
+          {purchases.length === 0 ? (
+            <EmptyState
+              icon={<Receipt size={40} strokeWidth={1.5} />}
+              title="No document purchases yet."
+              // Not a neutral fact. `research_document_purchases` has never had a row, and a run
+              // that bought nothing may have been budget-capped rather than finished — so this says
+              // where to look rather than leaving an empty box to interpret.
+              body="A run buys documents only when a vendor account is funded and the run's budget allows it. Check the vendor accounts above and the skipped list on a run."
+            />
+          ) : (
+            <div className="research-billing__table-wrap">
+              <table className="research-billing__table">
+                <caption className="research-billing__caption">Document purchases</caption>
+                <thead>
                   <tr>
-                    <th className="px-4 py-3 text-left">Date</th>
-                    <th className="px-4 py-3 text-left">Document</th>
-                    <th className="px-4 py-3 text-left">Property</th>
-                    <th className="px-4 py-3 text-left">Vendor</th>
-                    <th className="px-4 py-3 text-right">Cost</th>
-                    <th className="px-4 py-3 text-right">Fee</th>
-                    <th className="px-4 py-3 text-right">Total</th>
-                    <th className="px-4 py-3 text-center">Status</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Document</th>
+                    <th scope="col">Property</th>
+                    <th scope="col">Vendor</th>
+                    <th scope="col" className="research-billing__num">Cost</th>
+                    <th scope="col" className="research-billing__num">Fee</th>
+                    <th scope="col" className="research-billing__num">Total</th>
+                    <th scope="col">Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {purchases.map(p => (
-                    <tr key={p.transactionId} className="border-t border-gray-800 hover:bg-gray-800/50">
-                      <td className="px-4 py-3 text-gray-400 text-xs">{formatDate(p.purchasedAt)}</td>
-                      <td className="px-4 py-3">
-                        <div className="text-gray-200 text-xs">{p.documentType}</div>
+                    <tr key={p.transactionId}>
+                      <td>{formatDate(p.purchasedAt)}</td>
+                      <td>
+                        <div>{p.documentType}</div>
                         {p.instrumentNumber && (
-                          <div className="text-gray-500 font-mono text-xs">{p.instrumentNumber}</div>
+                          <div className="research-billing__instrument">{p.instrumentNumber}</div>
                         )}
                       </td>
-                      <td className="px-4 py-3">
+                      <td>
                         {p.projectAddress ? (
-                          <Link href={`/admin/research/${p.projectId}`}
-                            className="text-blue-400 hover:text-blue-300 text-xs truncate max-w-32 block">
+                          <Link href={`/admin/research/${p.projectId}`} className="research-billing__link">
                             {p.projectAddress}
                           </Link>
                         ) : (
-                          <span className="text-gray-500 text-xs">{p.projectId}</span>
+                          <span className="research-billing__muted">{p.projectId}</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-400 text-xs">{p.vendor}</td>
-                      <td className="px-4 py-3 text-right text-gray-300">{formatCurrency(p.amount)}</td>
-                      <td className="px-4 py-3 text-right text-gray-400">{formatCurrency(p.serviceFee)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-white">{formatCurrency(p.total)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`px-2 py-0.5 rounded text-xs ${
-                          p.status === 'completed' ? 'bg-green-900 text-green-300' :
-                          p.status === 'failed' ? 'bg-red-900 text-red-300' :
-                          'bg-gray-700 text-gray-400'
-                        }`}>
+                      <td>{p.vendor}</td>
+                      <td className="research-billing__num">{formatCurrency(p.amount)}</td>
+                      <td className="research-billing__num">{formatCurrency(p.serviceFee)}</td>
+                      <td className="research-billing__num research-billing__num--total">{formatCurrency(p.total)}</td>
+                      <td>
+                        <StatPill tone={p.status === 'completed' ? 'good' : p.status === 'failed' ? 'bad' : 'neutral'}>
                           {p.status}
-                        </span>
+                        </StatPill>
                       </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* ── Usage tab ── */}
-        {activeTab === 'usage' && usage && (
-          <div className="space-y-4">
-            {/* Monthly report chart (simple bar chart) */}
-            {(usage.reportsByMonth?.length ?? 0) > 0 && (
-              <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-                <h3 className="text-sm font-semibold mb-4 text-gray-300">Reports per Month</h3>
-                <div className="flex items-end gap-2 h-24">
-                  {usage.reportsByMonth.slice(-12).map(({ month, count }) => {
-                    const maxCount = Math.max(...usage.reportsByMonth.map(r => r.count), 1);
-                    const pct = (count / maxCount) * 100;
-                    return (
-                      <div key={month} className="flex flex-col items-center flex-1 min-w-0">
-                        <div
-                          className="w-full bg-blue-600 rounded-t transition-all"
-                          style={{ height: `${Math.max(pct, 4)}%` }}
-                          title={`${month}: ${count}`}
-                        />
-                        <div className="text-xs text-gray-500 mt-1 truncate w-full text-center">
-                          {month.slice(5)} {/* Show MM part */}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Usage details table */}
-            <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
-                <tbody>
-                  {[
-                    ['Total reports run', usage.totalReports.toString()],
-                    ['Reports this month', usage.reportsThisMonth.toString()],
-                    ['Documents purchased', usage.totalDocumentsPurchased.toString()],
-                    ['Total document spend', formatCurrency(usage.totalDocumentSpend)],
-                    ['AI tokens used', usage.totalAiTokensUsed.toLocaleString()],
-                    ['Estimated AI cost', formatCurrency(usage.aiCostEstimate)],
-                    ['Avg pipeline time', `${(usage.avgReportTimeMs / 60_000).toFixed(1)} minutes`],
-                  ].map(([label, value]) => (
-                    <tr key={label} className="border-t border-gray-800 first:border-0">
-                      <td className="px-5 py-3 text-gray-400">{label}</td>
-                      <td className="px-5 py-3 text-right font-medium text-white">{value}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'usage' && usage && (
+        <div className="research-billing__usage">
+          {(usage.reportsByMonth?.length ?? 0) > 0 && (
+            <div className="research-billing__panel">
+              <SectionHeader title="Reports per Month" />
+              <div className="research-billing__chart">
+                {usage.reportsByMonth.slice(-12).map(({ month, count }) => {
+                  const maxCount = Math.max(...usage.reportsByMonth.map(r => r.count), 1);
+                  const pct = (count / maxCount) * 100;
+                  return (
+                    <div key={month} className="research-billing__bar-col">
+                      {/* A bar chart carried entirely by `title=`, which never appears on a touch
+                          device and is not announced. The figure is text now, above the bar. */}
+                      <span className="research-billing__bar-value">{count}</span>
+                      <div
+                        className="research-billing__bar"
+                        style={{ height: `${Math.max(pct, 4)}%` }}
+                      />
+                      <div className="research-billing__bar-label">{month.slice(5)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="research-billing__table-wrap">
+            <table className="research-billing__table research-billing__table--pairs">
+              <caption className="research-billing__caption">Usage detail</caption>
+              <tbody>
+                {[
+                  ['Total reports run', usage.totalReports.toString()],
+                  ['Reports this month', usage.reportsThisMonth.toString()],
+                  ['Documents purchased', usage.totalDocumentsPurchased.toString()],
+                  ['Total document spend', formatCurrency(usage.totalDocumentSpend)],
+                  ['AI tokens used', usage.totalAiTokensUsed.toLocaleString()],
+                  ['Estimated AI cost', formatCurrency(usage.aiCostEstimate)],
+                  ['Avg pipeline time', `${(usage.avgReportTimeMs / 60_000).toFixed(1)} minutes`],
+                ].map(([label, value]) => (
+                  <tr key={label}>
+                    <th scope="row">{label}</th>
+                    <td className="research-billing__num">{value}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

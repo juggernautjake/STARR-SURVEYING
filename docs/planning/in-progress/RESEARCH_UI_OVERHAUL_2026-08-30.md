@@ -853,7 +853,7 @@ because that string still *contains* `<ErrorState`. The assertion now covers the
 error rendered inside the empty-state container looks like an empty list again, whatever the
 component is called.
 
-### E2b — Re-theme `BillingTab` and `LibraryTab` — **LibraryTab SHIPPED 2026-08-31**, Billing open
+### E2b — Re-theme `BillingTab` and `LibraryTab` ✅ **BOTH SHIPPED 2026-08-31**
 
 `LibraryTab` is re-themed. 36 dark Tailwind utilities → **zero in live code**: the portal's
 `research-page` shell, the shared primitives for the three data states, and a new
@@ -911,9 +911,45 @@ time that substring flaw has got through here), and testing the helper is not te
 hard-coding `title={'Your document library is empty.'}` left every string the helper returns still
 sitting in the file. Thirteen mutations in total, all caught.
 
-**Still open: `BillingTab`** (607 lines, 63 dark utilities). Same treatment, larger surface — it
-carries tier pricing tables and a Stripe-ish billing history, so it is a slice of its own rather
-than a second half of this one. The tripwire now names Billing alone.
+### `BillingTab` — the second half, shipped the same day
+
+63 dark utilities → **zero in live code**. But the paint was the least of it; three things were
+wrong underneath, and none of them were about colour:
+
+· **"Manage Subscription ↗" had no `onClick` at all.** It rendered an external-link arrow and
+  swallowed every click. `/api/admin/billing/customer-portal` has existed the whole time — it opens
+  a Stripe portal session when configured and otherwise returns a **503 whose message explains that
+  billing is still being finalised**. That 503 is the answer most operators get today, because
+  Stripe is deliberately off, and it is a far better answer than silence: the old behaviour was
+  indistinguishable from a broken page.
+· **The four sub-tabs were plain `<button>`s** — no `role="tablist"`, no `aria-selected`, no arrow
+  keys — in a portal that has carried `SegmentedTabs`, with the whole keyboard contract, all along.
+· **Every table was bare markup**: no caption, no `scope` on any header. A screen reader read eight
+  columns of purchase figures with nothing tying them together.
+
+Two colour-as-meaning maps went with it. `STATUS_COLORS` painted subscription status in five hex
+values — "past due" is not a thing to say in amber alone — and `TIER_COLORS` coloured both the tier
+heading and the usage meter per plan, decoration standing where a reader expects meaning. Status is
+a `StatPill` tone with the word beside it; `TIER_COLORS` is deleted, not merely unused. The monthly
+chart's figures were carried by `title=` alone, which never appears on a touch device and is not
+announced; they are text now.
+
+### The tripwire fired, hours after being fixed
+
+The previous slice found this entry's own deferral test passing for the wrong reason — it matched
+the comment explaining the re-theme. Fixed, it then **failed the moment BillingTab was re-themed**,
+which is exactly what writing a deferral down as an executable claim is for. It is inverted now:
+it holds both tabs light, and checks the tablist, the wired button, the tones and the captions.
+
+`panel-contrast` needed no edit at all — the swept `DARK_SURFACES` dropped BillingTab by itself.
+That is the derived list paying for itself one slice after it replaced six typed paths.
+
+Seven mutations: a dark utility restored, the tabs un-primitived, the button unwired, the 503
+swallowed, `scope` removed, captions dropped, and `role="status"` swapped for `alert`. One survived
+first time — asserting `portalNote` was *present* passed while `{false && (` stopped it rendering,
+because the name still sat in the state declaration. Testing for a name is not testing for a
+render.
+
 
 
 **Why they were left out rather than half-fixed.** Both are entirely dark-themed pages —

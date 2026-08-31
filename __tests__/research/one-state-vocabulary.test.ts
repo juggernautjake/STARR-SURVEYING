@@ -131,17 +131,23 @@ describe('the primitives are honest about motion and overflow', () => {
   });
 });
 
-describe('the dark pair is recorded, not forgotten', () => {
-  // ── THIS CHECK PASSED FOR THE WRONG REASON ────────────────────────────────────────────────────
+describe('the dark pair is gone — E2b closed 2026-08-31', () => {
+  // ── THIS CHECK ONCE PASSED FOR THE WRONG REASON ───────────────────────────────────────────────
   //
   // It used to run `read(f).includes('min-h-screen bg-gray-950')` over the RAW file. When LibraryTab
-  // was re-themed (E2b, 2026-08-31) the check still counted it as dark — because the comment
-  // explaining the re-theme quotes the very string being searched for.
+  // was re-themed the check still counted it as dark — because the comment explaining the re-theme
+  // quotes the very string being searched for.
   //
   // So the deferral tripwire, whose entire job is to fire when a deferral stops applying, went green
   // on a file that no longer contained a single dark utility in live code. Ninth time a guard in
   // this repository has matched its own prose. Comments are stripped now, and a control below
   // proves the stripper did not simply blank the file.
+  //
+  // ── AND THEN IT DID ITS JOB ───────────────────────────────────────────────────────────────────
+  //
+  // Once fixed, it failed the moment BillingTab was re-themed a few hours later — which is the whole
+  // point of writing a deferral down as an executable claim rather than a paragraph. Both tabs are
+  // light now, so the tripwire is inverted: it holds them there.
 
   const LIB = 'app/admin/research/_tabs/LibraryTab.tsx';
   const BILL = 'app/admin/research/_tabs/BillingTab.tsx';
@@ -220,13 +226,48 @@ describe('the dark pair is recorded, not forgotten', () => {
     }
   });
 
-  it('BillingTab is still dark, and that is why it is still deferred', () => {
-    // The remaining half of E2b. If somebody re-themes it, this fails and points at the plan doc —
-    // which is the intent. A deferral that no longer applies should not sit silently for months.
-    expect(
-      code(BILL),
-      'If BillingTab is no longer a dark full-page layout, wire it to the shared states and close '
-      + 'E2b in docs/planning/in-progress/RESEARCH_UI_OVERHAUL_2026-08-30.md.',
-    ).toContain('min-h-screen bg-gray-950');
+  it('BillingTab is re-themed too — no dark utility survives in live code', () => {
+    const src = code(BILL);
+    for (const util of ['min-h-screen', 'bg-gray-950', 'bg-gray-900', 'bg-gray-800', 'text-gray-100']) {
+      expect(src, `${util} is still applied in BillingTab`).not.toContain(util);
+    }
+  });
+
+  it('and its four sub-tabs use the accessible primitive', () => {
+    // They were plain `<button>`s: no `role="tablist"`, no `aria-selected`, no arrow keys, in a
+    // portal that has carried `SegmentedTabs` — with the whole keyboard contract — the entire time.
+    expect(code(BILL)).toMatch(/<SegmentedTabs[\s/>]/);
+  });
+
+  it('and the Manage Subscription button actually does something', () => {
+    // It rendered an external-link arrow with NO onClick at all. `/api/admin/billing/customer-portal`
+    // has existed the whole time and returns a 503 explaining that Stripe is not wired yet — which
+    // is a real answer, and the button swallowed it along with every other outcome.
+    const src = code(BILL);
+    expect(src).toContain('/api/admin/billing/customer-portal');
+    expect(src, 'the button must be wired to the handler').toMatch(/onClick=\{openCustomerPortal\}/);
+    // The RENDER, not the mere presence of the name. Replacing `{portalNote && (` with `{false && (`
+    // left `portalNote` in the state declaration and the setter, so a name-presence check passed on
+    // a component that had gone back to swallowing the endpoint's reply — the original defect.
+    expect(src, "the endpoint's explanation must actually be rendered")
+      .toMatch(/\{portalNote && \(/);
+    expect(src, 'and announced as a status, not as an alert').toMatch(/role="status"/);
+  });
+
+  it('status is a tone, not a hex code', () => {
+    const src = code(BILL);
+    expect(src, 'STATUS_COLORS applied meaning as a raw colour').not.toContain('STATUS_COLORS');
+    expect(src).toContain('STATUS_TONES');
+    // TIER_COLORS coloured the tier heading and the usage meter per plan — decoration standing
+    // where a reader expects meaning. It is gone, not merely unused.
+    expect(src).not.toContain('TIER_COLORS');
+  });
+
+  it('every table names itself and scopes its headers', () => {
+    const src = code(BILL);
+    const captions = (src.match(/research-billing__caption/g) ?? []).length;
+    expect(captions, 'each table needs a caption — there are four on this tab').toBeGreaterThanOrEqual(3);
+    expect(src).toContain('scope="col"');
+    expect(src).toContain('scope="row"');
   });
 });
