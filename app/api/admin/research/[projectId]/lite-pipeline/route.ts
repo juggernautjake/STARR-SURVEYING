@@ -165,12 +165,18 @@ async function runLitePipeline(
 
   // Save the parcel_id to the project upfront so all downstream services can use it
   if (parcelId) {
-    try {
-      await supabaseAdmin
-        .from('research_projects')
-        .update({ parcel_id: parcelId, updated_at: new Date().toISOString() })
-        .eq('id', projectId);
-    } catch { /* non-fatal */ }
+    // The `try/catch` here could never have fired — the Supabase client returns `{ error }` rather
+    // than throwing — so a failure to save the parcel id was invisible, and every downstream
+    // service that reads it would then be working without one.
+    const { error: parcelErr } = await supabaseAdmin
+      .from('research_projects')
+      .update({ parcel_id: parcelId, updated_at: new Date().toISOString() })
+      .eq('id', projectId);
+    if (parcelErr) {
+      console.error(
+        `[lite-pipeline] could not save parcel_id for project ${projectId}: ${parcelErr.message}`,
+      );
+    }
   }
 
   const summary: LitePipelineSummary = {
