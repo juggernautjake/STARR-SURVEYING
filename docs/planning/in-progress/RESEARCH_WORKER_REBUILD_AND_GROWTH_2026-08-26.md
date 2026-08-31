@@ -470,7 +470,54 @@ re-read rather than left quietly passing. Mutation-tested: reverting one site fa
 
 Worker tsc 0 · worker suite **1,687 pass**.
 
-#### E5b / E5c / E5d — the concurrency the owner asked for ☐
+#### E5b / E5c / E5d — the concurrency the owner asked for
+
+**E5b and E5c were already shipped** — checked against the live code on 2026-08-31 rather than
+assumed. `bell-clerk.ts` leases a pooled browser (`leaseBrowser`) instead of launching per
+instrument, and `fetchDocumentImages` takes a `knownViewerUrl` and navigates straight to
+`/doc/<id>` when the search result supplied one. Both landed with the 2026-08-30 politeness work and
+the doc simply was not updated. **Fifth parked premise in this repository to be stale when checked.**
+
+#### E5d-prep — ~~A Chromium leaked every time two leases started together~~ SHIPPED 2026-08-31
+
+Scoping E5d meant asking whether the browser pool is safe to use concurrently. It was not.
+
+```
+A: pool is null → await acquireBrowser…        (suspends)
+B: pool is null → await acquireBrowser…        (suspends)
+A: pool = {A}; current = A pool; refs = 1
+B: pool = {B}  ← overwrites A
+A: release() → refs 0, but pool !== current, so it returns early:
+   no idle timer is set and NOTHING ever closes A.
+```
+
+**A whole Chromium process, leaked, silently.** And not a future problem — `capacity.ts` allows six
+concurrent pipelines today, so two runs starting together already hit it. Measured on the pre-fix
+code: **five concurrent leases launched five browsers**, four unreachable, and the refcount read 1
+where it should have read 3. A wrong refcount is the second half of the damage: a browser closed
+under a live holder surfaces as "Target closed" a long way from its cause.
+
+**The existing lease tests could not have caught it.** `browser-lease.test.ts` awaits each lease
+before starting the next, so the interleaving never occurs; every assertion in it is correct and
+none could fail on this. The new file starts the leases with `Promise.all`, because the defect lives
+in the overlap and a test has to create one.
+
+Fixed with a single shared in-flight promise rather than a mutex — the second caller wants the
+RESULT of the launch, not a turn to repeat it. The slot is cleared on rejection too: leaving a
+rejected promise there would make one transient launch failure permanent, and the worker would never
+open a browser again until it restarted. That would be worse than the leak it replaced, so it has
+its own test.
+
+**Wiring E5d before this would have made a live leak routine**, which is the reason it was worth
+stopping for.
+
+#### E5d — capture documents concurrently, BOUNDED (open)
+
+Now unblocked. The constraint is politeness, not CPU: `capacity.ts` caps concurrent runs because
+*"these are small government servers, and the fastest way to lose access to a county portal is to
+look like a load test"* — 3-4 per host, never unbounded. **A run that gets the firm banned from Bell
+County is not a faster run.** The three sequential `await fetchDocumentImages` loops in
+`counties/bell/scrapers/clerk-scraper.ts` are the targets.
 
 In order; each independently shippable.
 
