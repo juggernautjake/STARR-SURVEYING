@@ -545,6 +545,27 @@ real bugs, not debt.
 
 ---
 
+## Status 2026-08-31 — why this doc stays in `in-progress/`
+
+Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
+found while checking premises (A4, D0) and two premises withdrawn as false (B1, E1).
+
+What is left is **not deferred and must not be marked so**. Every remaining item is real work with
+real value; none is blocked; none costs more than it is worth. They are simply not done.
+
+| Item | Why it is still open |
+|---|---|
+| **B1a / B2-B5** | Splitting `[projectId]/page.tsx` (3,680 lines) by section. Pure refactor of working code — no user-visible change — but the 600-line target is a genuine maintainability goal, not a nicety. Needs one extraction per slice, each with a wiring test asserting the page MOUNTS it. |
+| **D1 / D2** | `ResearchRunPanel` (1,771) + `PipelineProgressPanel` (1,521). **Re-scoped by D0**: the run visibility these were meant to add already existed and was broken by one word. What remains is a size problem, so it ranks below B1a rather than above it. |
+| **D3** | Run console + diff into the tab shell rather than floating. Small; blocked only by B1a landing first, since it moves into the shell B1a creates. |
+| **E1b** | Sixteen admin portals still hand-roll the tablist keyboard; three have none at all. The shared `tabKeyDown` exists and adoption is one prop each. Outside this doc (admin shell, not the research portal) and wants its own QA pass across sixteen pages. |
+| **E2b** | Re-theme `BillingTab` + `LibraryTab`. A page rewrite, not a state consolidation — see the entry for why half-fixing them is worse than leaving them. |
+| **E3** | Responsive pass. Needs measurement in a browser at 1440 and 390 against a **production** build; dev-server layout differs. That is QA work, not a code slice. |
+| **F2** | Contrast. 232 problems are recorded repo-wide; the research subset needs measuring before anything is changed, and the ratchet must not be re-baselined without investigating — both prior breaches were real bugs. |
+
+**Do not empty this folder by deferring these.** The rubric allows a deferral when implementation
+cost clearly exceeds value. That is true of none of them.
+
 ## Deliberately NOT in scope
 
 - **`DrawingCanvas.tsx` (2,677 lines).** A canvas editor is its own project with its own interaction
