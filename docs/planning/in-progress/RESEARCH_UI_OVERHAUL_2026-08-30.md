@@ -260,7 +260,43 @@ and the G9 guard, from two directions.
 
 **Remaining under B1a:** `RunControls`, `DocumentsSummary`, `AnalysisSection` — the three big
 ones. Same shape each time: move, compare against `HEAD`, assert the page still mounts it.
-### B5 — Extract Report ☐
+### B1a — fourth extraction: `_sections/ResearchStagePanel.tsx` — SHIPPED 2026-08-31
+
+Stage 2, the screen an operator watches while a run is going. 52 lines out; **3,586 → 3,569**.
+Four sections extracted now.
+
+**The four search fields were a decision hiding in markup.** Each was a three-way fallback inline
+in the JSX — `pendingSearchParams?.county ?? project.county ?? ''` — repeated four times with a
+different field. **That is exactly the line G10 got wrong**: the owner fell back to a project
+column that does not exist, and the repetition is what made one wrong entry among four invisible.
+They are resolved on the page now and passed in as four plain strings.
+
+30 normalised lines compared byte-for-byte against `HEAD`, with the substitutions enumerated
+explicitly rather than waved at: four resolved strings, one rename, four callbacks moved to the
+caller.
+
+### Three existing guards went red, and that is four times today
+
+`report-card`, `run-console` and `run-diff` each assert their panel is *actually mounted* — the
+check that exists because `PipelineDiffEngine` was once invisible. All three named
+`[projectId]/page.tsx`, and the panels moved.
+
+Pointing them at the section alone would be **weaker than what they replaced**: a section nothing
+mounts satisfies that just as well. Each now asserts BOTH halves — the section renders the panel,
+AND the page mounts the section — which is the shape the county-check guard took when C3 extracted
+`CountyNote`. Verified from both directions: unmounting the section fails all three; removing one
+panel from the section fails only its own.
+
+**A guard that names a file has to follow the code out of it.** The alternative is one that
+silently stops covering anything, which is what the reachability check did when `.tsx` fell
+outside its filter this morning.
+
+### And the mount guard needed a narrower rule here
+
+B2's "the mount line has no `&&`" does not work for this one — it legitimately lives inside
+`{currentStage === 'research' && (`. A mutation adding `{false && ` to the same line passed every
+other assertion. The check is now that the element's own line carries the element and nothing
+else.
 
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
