@@ -106,7 +106,6 @@ function validateEnvironment(): void {
     // single-line warning per missing key on every boot so misconfiguration
     // is loud rather than silent.
     { key: 'REDIS_URL',                  critical: false }, // research-events publisher
-    { key: 'WS_TICKET_SECRET',           critical: false }, // ticket signing (matches server/ws.ts)
     { key: 'CAPSOLVER_API_KEY',          critical: false }, // captcha-solver real provider
     { key: 'BROWSERBASE_API_KEY',        critical: false }, // browser-factory cloud backend
     { key: 'BROWSERBASE_PROJECT_ID',     critical: false },
@@ -136,11 +135,10 @@ function validateEnvironment(): void {
     ?? (process.env.CAPSOLVER_API_KEY ? 'capsolver (auto)' : 'stub (default)');
   const browserBackend  = process.env.BROWSER_BACKEND ?? 'local (default)';
   const storageBackend  = process.env.STORAGE_BACKEND ?? 'local (default)';
-  const wsConfigured    = process.env.WS_TICKET_SECRET ? 'configured' : 'MISSING (POST /api/ws/ticket will return 503)';
   const redisConfigured = process.env.REDIS_URL        ? 'configured' : 'MISSING (defaulting to redis://localhost:6379)';
   console.log(
     `[startup] Phase A: captcha=${captchaProvider} browser=${browserBackend} storage=${storageBackend} ` +
-    `ws-ticket=${wsConfigured} redis=${redisConfigured}`,
+    `redis=${redisConfigured}`,
   );
 
   if (hasErrors) {
@@ -889,9 +887,27 @@ app.get('/health', async (_req: Request, res: Response) => {
     ? { status: 'ok', detail: 'REDIS_URL configured' }
     : { status: 'warning', detail: 'REDIS_URL missing — falling back to redis://localhost:6379' };
 
-  checks.websocket_auth = process.env.WS_TICKET_SECRET
-    ? { status: 'ok', detail: 'WS_TICKET_SECRET configured' }
-    : { status: 'unconfigured', detail: 'WS_TICKET_SECRET missing — /api/ws/ticket will return 503' };
+  // ── `websocket_auth` REMOVED 2026-08-30 — it was a claim about a different process ───────────
+  //
+  // It read: ok when `WS_TICKET_SECRET` is set, otherwise "missing — /api/ws/ticket will return
+  // 503". Both halves were about somebody else. `/api/ws/ticket` is a Next.js route running on
+  // Vercel and reads ITS OWN environment; nothing this worker has or lacks can change what it
+  // returns. And this process serves no WebSocket at all — there is no `WebSocketServer` and no
+  // `upgrade` handler anywhere in it. `server/ws.ts` is an app process started by `npm run ws`,
+  // absent from docker-compose.yml. The only worker file that reads the key,
+  // `websocket/progress-server.ts`, is an orphan nothing constructs.
+  //
+  // So a green `websocket_auth` meant "a string is present in this container's environment" while
+  // reading as "WebSocket authentication is working". That is the TAVILY_API_KEY bug exactly —
+  // recorded in this repo, in `warnings-are-about-this-process.test.ts`, three weeks before this
+  // one was found — and it repeated because that guard scans `infra/health.ts` and this claim lives
+  // in the handler here. The guard now covers this handler too, using reachability from index.ts,
+  // so a key read only by an orphan no longer counts as used.
+  //
+  // Nothing replaces it. A health check that cannot observe the thing it reports on has no honest
+  // version; the operator is better served by its absence than by a green light for a feature that
+  // is switched off. Live progress is polled by the UI on a 3-second interval and is known to be
+  // off in production.
 
   const allOk = Object.values(checks).every((c) => c.status === 'ok' || c.status === 'unconfigured');
 

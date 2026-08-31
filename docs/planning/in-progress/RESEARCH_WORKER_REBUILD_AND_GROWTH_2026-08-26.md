@@ -59,24 +59,29 @@ alternative is rediscovering it in three weeks.
 
 ## START HERE — the worker is LIVE and fully credentialled; one test and four decisions remain
 
-This doc is 1,000 lines because a lot was measured. Everything below is real, and none of it is
-urgent except in the order given — with one exception, item 7, which is the only one that degrades
-while you decide. Items 1 and 2 were cleared on 2026-08-28; the worker build (§3 of the runbook) is
-now the critical path. If you read nothing else, read this table.
+**This table now lists only what is OPEN.** Seven rows were cleared between 2026-08-28 and
+2026-08-30 and have been removed rather than left ticked, because a table where most rows say ✅
+buries the four that still need you. What they were, for the record — the reasoning behind each is
+still in its numbered section below:
+
+> **Cleared:** `TAVILY_API_KEY` set (1) · netcup invoice paid and the box provisioned (2) ·
+> `worker.starr-surveying.com` moved to `152.53.48.240` with TLS, verified from outside (2b) ·
+> reboot survival measured, not assumed (3) · TexasFile credentials set and funded (3b) ·
+> `design_mockups` backfilled and `verify:org-scope` green (7). And item **3c was WITHDRAWN** —
+> `WS_TICKET_SECRET` on the worker was a key on a machine that does not read it, the same mistake
+> as TAVILY; the code making that false claim was removed 2026-08-30.
+
+Nothing below is urgent except in the order given. The engineering half is finished; every item
+here needs a decision, an account, or a physical act only the owner can perform.
 
 | # | Do this | Where | Why it is first |
 |---|---|---|---|
-| 1 | ~~Set `TAVILY_API_KEY`~~ ✅ **DONE 2026-08-28** — owner set it in Doppler `prd`; deployed. Verify from the UI: a lead's **Background** card should say "Searched the public web" rather than "no search key is configured". | §I2 | Cleared. It gates four features: open-web research, lead enrichment (§I3.1), the portal watch (§I3.3) and the regulatory watch (§I3.5). |
-| 2 | ~~Pay netcup invoice `nc-5513706`~~ ✅ **PAID 2026-08-28** — server provisioned at `152.53.48.240` (Ubuntu 24.04.4 LTS after a 2026-08-29 reinstall, **Vienna — NOT Manassas**, see the runbook §1 warning). SSH is key-only now; password auth is off.. Root password was pasted into a transcript and **must be changed**. | §F3a | Cleared. The build is now unblocked; see `docs/platform/RESEARCH_WORKER_DEPLOYMENT.md` §3. |
-| 2b | ~~Point `worker.starr-surveying.com` at the new IP~~ ✅ **DONE 2026-08-29** — A record moved to `152.53.48.240` at Squarespace/Google DNS, Caddy installed, Let's Encrypt certificate obtained. **Verified from OUTSIDE the box**, which is the only test that counts: `/health` returns 200 `"status":"healthy"`, TLS validates, port 80 returns a 308 to HTTPS, and the auth guard distinguishes a missing header (401) from a wrong key (403) — two different answers, which is what proves a key is loaded and compared rather than absent. `document_storage: backend=r2 bucket=starr-recon-artifacts` closes W1 end to end. | §W2 · §W4 | Cleared. |
-| 3 | ~~Reboot the new box and curl `/health` from your own machine~~ ✅ **PASSED 2026-08-29** — `uptime` came back reading **69.7s** where it had read 1102s an hour earlier, over HTTPS, from the owner's laptop. The whole chain restarted unattended: Docker on boot, both containers, Caddy serving TLS, Playwright launching Chromium, R2 and Supabase reconnected, and the Tavily key persisted. | §W5 | Cleared — and it is the check that matters most, because the previous worker died by silently never coming back. |
-| 3b | ~~TexasFile credentials~~ ✅ **DONE 2026-08-29** — set on the worker, card on file, balance funded. `/healthz` reports **zero warnings for the first time**. | §S2b | Cleared. It is the UNIVERSAL clerk fallback: every county with no specific proven vendor routes to it, so this was the difference between routing reaching 254 counties and retrieval reaching almost none. |
-| 3c | ~~`WS_TICKET_SECRET` on the worker~~ **WITHDRAWN 2026-08-30 — the premise was wrong.** The worker does not verify tickets and never did: `verifyWsTicket` is called only by `server/ws.ts`, an APP process started by `npm run ws`, which is not in `docker-compose.yml` and cannot run on Vercel. Setting this key on the netcup box put a secret on a machine that will never read it — [[the TAVILY mistake]] repeated three weeks later, in the same doc, by the same reasoning. | §W | **No equality test is possible, so stop planning one.** "Open a live run to prove it" cannot pass: a WS upgrade to `wss://worker.starr-surveying.com` returns **404**, identical to a plain GET, because nothing there speaks WebSocket. Live progress is not running in production at all — and that is *known and accepted*: `research-modules-are-reachable.test.ts:84` records the publisher and `useResearchProgress` as connected at neither end, needing a long-lived process Vercel cannot host, and notes the UI polls instead. Confirmed: `ResearchAnalysisPanel` polls on a 3-second `setInterval`. Nothing is broken; the config just implies a feature that is switched off. |
 | 3d | **Run ONE research run against a real property, deliberately** | §3.5 of the runbook | The only complete test of the purchase path, and now the last unproven link. Presence is not function: the worker warns when `TEXASFILE_USERNAME` is absent and *cannot* warn when the login is wrong or the balance is spent — both of which produce a run that works perfectly until it reaches a paywall. Bounded at **\$2.00** per run by `run-budget.ts`, so the downside is a few dollars and the upside is knowing. |
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
-| 7 | ~~Backfill `design_mockups` before enrolling it~~ ✅ **DONE 2026-08-29** — snapshotted the 1,371 unowned ids, applied `seeds/517_org_default.sql` (1,371 → 0 unowned, DEFAULT on 168/168 tables), then enrolled all ten tables in `ORG_SCOPED_TABLES` (158 → 168). `npm run verify:org-scope` is green for the first time, and was mutation-tested in both directions before that green was believed. | BLOCKERS.md | Cleared. It was the only item here that got worse on its own — though the count had in fact stopped growing: 1,371 on 08-27 and 1,371 on 08-29. Do not extrapolate a trend; re-run the check. |
+| 8 | **Enable Places API (legacy) + Geocoding API** in Google Cloud Console | §M5 | Measured 2026-08-30 with a control: the key returns `REQUEST_DENIED` — *"You are calling a legacy API, which is not enabled"* for Places and *"not activated"* for Geocoding. **Not a referrer problem.** Maps JavaScript IS enabled, which is why the map draws and only autocomplete dies. The client calls `AutocompleteService`, so enabling *Places API (New)* alone will NOT fix it. Check the key API-restriction list too. If Google refuses legacy (blocked on projects created after ~March 2025), this becomes a code migration to `AutocompleteSuggestion` — engineering work, not yet commissioned. |
+| 9 | **Redeploy the worker** — `cd /opt/starr && git pull && cd worker && BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build` | §3.6 | The deployed build is behind `main`, and the staleness is FAKING A GREEN LIGHT: it still carries the `TAVILY_API_KEY missing` warning that `main` deleted, so `warnings: []` currently proves only that the key is set on a box where no worker file reads it. Costs nothing. It is also what ships the per-run spend limit and the removal of the false `websocket_auth` check. |
 
 > ### 🔎 FULL AUDIT 2026-08-30 — the server half holds up; one thing above was false
 >
@@ -248,6 +253,43 @@ now the critical path. If you read nothing else, read this table.
 > **Item 3d is still open, and a Bell County run will not close it.** Bell routes to Kofile, so a
 > free-county run proves the pipeline and never reaches a paywall. `research_document_purchases` is
 > still 0 rows. Proving the purchase path needs a TexasFile county.
+> ### ✅ SLICE 2026-08-30 (c) — the false health claim is gone, and the guard now reaches it
+>
+> Item 3c was withdrawn as a *plan*; the code that made the false claim was still shipping. Removed:
+>
+>     checks.websocket_auth = process.env.WS_TICKET_SECRET
+>       ? { status: 'ok',           detail: 'WS_TICKET_SECRET configured' }
+>       : { status: 'unconfigured', detail: 'WS_TICKET_SECRET missing — /api/ws/ticket will return 503' }
+>
+> Both halves were about a different process. `/api/ws/ticket` is a Next.js route on Vercel reading
+> its own environment. And this worker serves no WebSocket at all — controlled for: `WebSocketServer`
+> and `upgrade` appear **nowhere** in `index.ts`. So a green `websocket_auth` meant "a string is
+> present in this container" while reading as "WebSocket auth is working". Also removed from the
+> boot warning list and the Phase A startup line, which claimed a missing key would make
+> `/api/ws/ticket` return 503.
+>
+> Nothing replaces it. A check that cannot observe what it reports on has no honest version.
+>
+> **Why it repeated, and what now stops it.** This doc already carried the TAVILY lesson — *a key on
+> a machine that ignores it* — and `warnings-are-about-this-process.test.ts` was written to enforce
+> it. That guard scans `infra/health.ts`; this claim lived in the deep `/health` handler in
+> `index.ts`. The guard was pointed at one file and the next mistake was made in another.
+>
+> It now covers that handler too, **by reachability rather than by substring**, and that distinction
+> is the whole point: `websocket/progress-server.ts` genuinely reads `WS_TICKET_SECRET`, and it is an
+> orphan nothing constructs — so a "some worker file reads this key" rule would have waved the bug
+> straight through. The guard walks relative imports from `src/index.ts` and asks whether a module
+> that actually RUNS reads the key. It asserts the orphan is *not* reachable, so the hole cannot
+> quietly reopen.
+>
+> **Two of my own probes were wrong before they were right**, both caught by controls rather than by
+> luck: the first scanner took every `process.env` line in `index.ts` and "found" ANALYTICS_DIR,
+> BATCH_DIR, GIT_SHA and GOVOS_CREDIT_CARD_TOKEN, none of which health reports on; and it was aimed
+> at `/healthz` when the claim lives in the deep `/health` handler — which this doc had said all
+> along. An over-reporting scanner trains you to ignore it just as surely as a silent one.
+>
+> Mutation-tested: reintroducing the `websocket_auth` line fails the guard; restoring it goes green.
+> Worker suite green.
 
 **Two things you should know before you act on the cost sections:**
 
