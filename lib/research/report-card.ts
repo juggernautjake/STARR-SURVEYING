@@ -27,7 +27,7 @@ export interface RunFacts {
   costUsd: number;
   paidPages: number;
   limits: { maxMinutes?: number; maxUsd?: number } | null;
-  skippedWork: Array<{ what?: string; reason?: string }>;
+  skippedWork: Array<{ step?: string; what?: string; reason?: string }>;
   budgetSummary: string | null;
 }
 
@@ -80,7 +80,7 @@ export function buildReportCard(run: RunFacts, content: RunContent): ReportCard 
     : null;
 
   const skipped = (run.skippedWork ?? []).map((s) => ({
-    what: s.what ?? 'unnamed work',
+    what: s.step ?? s.what ?? 'unnamed work',
     reason: s.reason ?? 'no reason recorded',
   }));
 

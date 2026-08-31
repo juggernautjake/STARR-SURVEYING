@@ -18,6 +18,8 @@ import Tooltip from '../components/Tooltip';
 import WorkerStatusBanner from '../components/WorkerStatusBanner';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import { checkCounty } from '@/lib/research/county-input';
+import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
+import { Accordion } from '../components/ui';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
   upload: 'Upload',
@@ -437,29 +439,6 @@ export default function ProjectsTab() {
                 />
               </div>
 
-              {/* ── City + ZIP ── */}
-              <div className="research-modal__row">
-                <div className="research-modal__field">
-                  <label className="research-modal__label">City</label>
-                  <input
-                    className="research-modal__input"
-                    type="text"
-                    placeholder="City"
-                    value={newProject.city}
-                    onChange={e => setNewProject(p => ({ ...p, city: e.target.value }))}
-                  />
-                </div>
-                <div className="research-modal__field">
-                  <label className="research-modal__label">ZIP</label>
-                  <input
-                    className="research-modal__input"
-                    type="text"
-                    placeholder="ZIP"
-                    value={newProject.zip}
-                    onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
-                  />
-                </div>
-              </div>
 
               {/* ── County + State ── */}
               <div className="research-modal__row">
@@ -478,46 +457,17 @@ export default function ProjectsTab() {
                     placeholder="County"
                     value={newProject.county}
                     onChange={e => setNewProject(p => ({ ...p, county: e.target.value }))}
-                    aria-invalid={countyCheck.kind === 'unknown' || countyCheck.kind === 'is-state'}
-                    aria-describedby={countyCheck.kind === 'ok' || countyCheck.kind === 'empty' ? undefined : 'county-check'}
+                    aria-invalid={isCountyInvalid(countyCheck)}
+                    aria-describedby={countyDescribedBy(countyCheck, 'county-check')}
                   />
-                  {/* County is the routing key, not a label — it picks the clerk portal, and a
-                      value that matches nothing routes nowhere. Warn, never block: this fires on
-                      a string somebody is halfway through typing, and a form that refuses at
-                      "Bel" teaches people to fight it. */}
-                  {countyCheck.kind === 'is-state' && (
-                    <div className="research-modal__county-note research-modal__county-note--warn" id="county-check" role="alert">
-                      {countyCheck.message}
-                    </div>
-                  )}
-                  {countyCheck.kind === 'unknown' && (
-                    <div className="research-modal__county-note research-modal__county-note--warn" id="county-check" role="alert">
-                      {countyCheck.message}
-                      {countyCheck.suggestions.length > 0 && (
-                        <>
-                          {' '}Did you mean{' '}
-                          {countyCheck.suggestions.map((s, i) => (
-                            <span key={s}>
-                              {i > 0 && (i === countyCheck.suggestions.length - 1 ? ' or ' : ', ')}
-                              <button
-                                type="button"
-                                className="research-modal__county-suggest"
-                                onClick={() => setNewProject(p => ({ ...p, county: s }))}
-                              >
-                                {s}
-                              </button>
-                            </span>
-                          ))}
-                          ?
-                        </>
-                      )}
-                    </div>
-                  )}
-                  {countyCheck.kind === 'ok' && countyCheck.canonical !== newProject.county.trim() && (
-                    <div className="research-modal__county-note" id="county-check">
-                      Will be saved as <strong>{countyCheck.canonical}</strong>.
-                    </div>
-                  )}
+                  {/* One component, two forms. The batch form asks the same question N times, so
+                      copying this block would have put the check in two places and then twelve. */}
+                  <CountyNote
+                    check={countyCheck}
+                    id="county-check"
+                    typed={newProject.county}
+                    onPick={s => setNewProject(p => ({ ...p, county: s }))}
+                  />
                 </div>
 
                 {/* ── PAID DOCUMENTS ───────────────────────────────────────────────────────────
@@ -559,6 +509,49 @@ export default function ProjectsTab() {
                 </div>
               </div>
 
+              {/* ── OPTIONAL DETAILS ─────────────────────────────────────────────────────
+                  The modal asked for twelve fields when the required path is three. City, ZIP,
+                  owner and notes are all genuinely useful and none of them BLOCKS a run, so
+                  they sit behind a disclosure rather than in front of it.
+
+                  The summary keeps a closed section informative: it counts what is filled, so
+                  folding this away never hides the fact that something is in there. And the
+                  Accordion HIDES rather than unmounts, so a half-typed note survives a
+                  collapse — losing typed text to a fold is the same defect as losing it to a
+                  stray click on the overlay. */}
+              <Accordion
+                title="Optional details"
+                summary={[
+                  newProject.city && "city",
+                  newProject.zip && "ZIP",
+                  newProject.owner_name && "owner",
+                  newProject.name && "name",
+                  newProject.description && "notes",
+                ].filter(Boolean).join(", ") || "none set"}
+              >
+              {/* ── City + ZIP ── */}
+              <div className="research-modal__row">
+                <div className="research-modal__field">
+                  <label className="research-modal__label">City</label>
+                  <input
+                    className="research-modal__input"
+                    type="text"
+                    placeholder="City"
+                    value={newProject.city}
+                    onChange={e => setNewProject(p => ({ ...p, city: e.target.value }))}
+                  />
+                </div>
+                <div className="research-modal__field">
+                  <label className="research-modal__label">ZIP</label>
+                  <input
+                    className="research-modal__input"
+                    type="text"
+                    placeholder="ZIP"
+                    value={newProject.zip}
+                    onChange={e => setNewProject(p => ({ ...p, zip: e.target.value }))}
+                  />
+                </div>
+              </div>
               {/* ── Owner Name ── */}
               <div className="research-modal__field">
                 <label className="research-modal__label">
@@ -615,6 +608,7 @@ export default function ProjectsTab() {
                   rows={3}
                 />
               </div>
+              </Accordion>
 
               {/* A disabled button with no explanation is its own bug — it reads as broken
                   rather than as unmet. Say what is missing, and only while it is missing. */}

@@ -1,0 +1,47 @@
+/* app/admin/research/components/CountyNote.css — Phase C3.
+ *
+ * Imported by CountyNote.tsx, not appended to AdminResearch.css. That sheet is route-scoped to
+ * /admin/research/**, and the last shared component in this repo to rely on a route-scoped sheet
+ * rendered completely unstyled on a route that did not import it, with nothing erroring. Third
+ * instance. A caller of this component cannot forget to bring the styles.
+ *
+ * The two ambers are the C2 tokens: --color-warning-border did not exist until that slice, and was
+ * being read with a fallback that quietly opted the whole notice out of theming. */
+
+.research-county-note {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin-top: 0.35rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.research-county-note--warn {
+  color: var(--color-warning-text, #92400E);
+  background: var(--color-warning-bg, #FFFBEB);
+  border: 1px solid var(--color-warning-border, #FDE68A);
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+}
+
+/* A suggestion is a real button — it fills the field. Underlined rather than merely coloured,
+ * because colour alone is not a signal for every reader. */
+.research-county-note__suggest {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.research-county-note__suggest:hover {
+  text-decoration: none;
+}
+
+.research-county-note__suggest:focus-visible {
+  outline: 2px solid var(--color-brand-navy, #1D3095);
+  outline-offset: 2px;
+  border-radius: 3px;
+}

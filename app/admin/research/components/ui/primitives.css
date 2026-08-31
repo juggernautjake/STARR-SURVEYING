@@ -1,0 +1,279 @@
+/* app/admin/research/components/ui/primitives.css
+ *
+ * ── WHY THIS SHEET SITS HERE AND NOT IN AdminResearch.css ───────────────────
+ *
+ * `.address-autocomplete__*` was defined in `AdminJobs.css`, which only
+ * `/admin/jobs` imports. The component has two callers; on `/admin/research`
+ * it rendered completely unstyled — a bare bulleted list shoving the form down
+ * the page — and nothing errored, so nothing reported it. That is the THIRD
+ * instance of a shared class living in a route-scoped stylesheet in this repo.
+ *
+ * These primitives are meant to be used from anywhere, including routes that
+ * do not exist yet. So the styles travel with the components: each one imports
+ * this file, and Next dedupes. A caller cannot forget to bring them.
+ *
+ * ── TOKENS, WITH FALLBACKS ─────────────────────────────────────────────────
+ *
+ * Every colour reads a theme token and carries a literal fallback. 16 theme
+ * tokens were once read by 159 rules and defined nowhere, which renders as
+ * invisible text rather than as an error. A fallback means a missing token
+ * degrades to a legible default instead of to nothing.
+ */
+
+/* ── Accordion ─────────────────────────────────────────────────────────── */
+
+.rui-accordion {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--theme-bg-elevated, #FFFFFF);
+  overflow: hidden;
+}
+
+.rui-accordion + .rui-accordion {
+  margin-top: 0.5rem;
+}
+
+.rui-accordion__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.7rem 0.85rem;
+  border: none;
+  background: transparent;
+  color: var(--theme-fg-primary, #1F2937);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rui-accordion__trigger:hover {
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.03));
+}
+
+.rui-accordion__trigger:focus-visible {
+  outline: 2px solid var(--color-brand-blue, #2563EB);
+  outline-offset: -2px;
+}
+
+.rui-accordion__summary {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.rui-accordion__chevron {
+  flex-shrink: 0;
+  transition: transform 0.15s ease;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.rui-accordion__chevron--open {
+  transform: rotate(90deg);
+}
+
+.rui-accordion__panel {
+  padding: 0 0.85rem 0.85rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+  padding-top: 0.75rem;
+}
+
+/* ── Toggle ────────────────────────────────────────────────────────────── */
+
+.rui-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.rui-toggle--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.rui-toggle__input {
+  margin-top: 0.2rem;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: inherit;
+}
+
+/* Phase F1. The native checkbox carries the UA focus ring, which differs per browser and
+ * disappears entirely under some forced-colour settings. The other two focusable primitives
+ * (accordion trigger, tab) draw their own; a keyboard user moving between them should not have
+ * the ring change shape halfway down a form. `accent-color` keeps the checked fill on brand
+ * without replacing the control with a div, which is what every hand-rolled version did. */
+.rui-toggle__input {
+  accent-color: var(--color-brand-navy, #1D3095);
+}
+
+.rui-toggle__input:focus-visible {
+  outline: 2px solid var(--color-brand-navy, #1D3095);
+  outline-offset: 2px;
+}
+
+.rui-toggle:has(.rui-toggle__input:focus-visible) .rui-toggle__label {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.rui-toggle__label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--theme-fg-primary, #1F2937);
+}
+
+.rui-toggle__help {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* ── SegmentedTabs ─────────────────────────────────────────────────────── */
+
+.rui-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 8px;
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.04));
+  overflow-x: auto;
+}
+
+.rui-tabs__tab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--theme-fg-muted, #6B7280);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rui-tabs__tab:hover {
+  color: var(--theme-fg-primary, #1F2937);
+}
+
+.rui-tabs__tab--active {
+  background: var(--theme-bg-elevated, #FFFFFF);
+  color: var(--theme-fg-primary, #1F2937);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.rui-tabs__tab:focus-visible {
+  outline: 2px solid var(--color-brand-blue, #2563EB);
+  outline-offset: 2px;
+}
+
+.rui-tabs__count {
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.08));
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── SectionHeader ─────────────────────────────────────────────────────── */
+
+.rui-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.rui-section-header__titles {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.rui-section-header__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #1F2937);
+}
+
+.rui-section-header__count {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.rui-section-header__action {
+  flex-shrink: 0;
+}
+
+/* ── StatPill ──────────────────────────────────────────────────────────── */
+
+.rui-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+/* Tones carry meaning, so each is a distinct hue AND a distinct weight of
+ * background — colour alone is not a signal for everyone reading it. */
+.rui-stat-pill--neutral { background: var(--theme-bg-subtle, #F3F4F6); color: var(--theme-fg-muted, #4B5563); }
+.rui-stat-pill--good    { background: #DCFCE7; color: #166534; }
+.rui-stat-pill--warn    { background: #FEF3C7; color: #92400E; }
+.rui-stat-pill--bad     { background: #FEE2E2; color: #991B1B; }
+.rui-stat-pill--info    { background: #DBEAFE; color: #1E40AF; }
+
+/* ── EmptyState ────────────────────────────────────────────────────────── */
+
+.rui-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.rui-empty__icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  opacity: 0.7;
+}
+
+.rui-empty__title {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--theme-fg-primary, #1F2937);
+}
+
+.rui-empty__body {
+  max-width: 46ch;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.rui-empty__action {
+  margin-top: 0.5rem;
+}

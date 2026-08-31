@@ -205,12 +205,33 @@ describe('config warnings', () => {
   // credentials were fine and the config forbade the code from using them. The only symptom of that
   // class of fault is an invoice, so it has to be asserted.
 
-  it('flags browserbase paid for but switched off at the backend', () => {
+  it('flags browserbase paid for and reachable by nothing', () => {
+    // Credentials billing, backend local, NO adapters promoted — the original 2026-08-27 finding:
+    // four months of paying for infrastructure the config forbids the code from touching.
     const warnings = configWarnings({
       BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p', BROWSER_BACKEND: 'local',
     } as NodeJS.ProcessEnv).join(' ');
     expect(warnings).toContain('billing');
-    expect(warnings).toContain('no session can ever start');
+    expect(warnings).toContain('no session can start');
+  });
+
+  it('does NOT warn about the recommended shape: backend local, one adapter promoted', () => {
+    // ── A STALE WARNING IS WORSE THAN NO WARNING ────────────────────────────────────────────────
+    //
+    // Until 2026-08-30 the adapter list could only RESTRICT, so `backend !== 'browserbase'` really
+    // did mean no session could start. After the promotion change in browser-factory.ts, an adapter
+    // NAMED in the list is routed to Browserbase while the default stays local — the recommended
+    // way to enable one portal without billing the rest.
+    //
+    // The warning outlived its rule and told an operator who had just configured it CORRECTLY that
+    // nothing could possibly work. That was found by reading the live /healthz within hours of
+    // shipping the change, not by assuming the warning had kept up.
+    const warnings = configWarnings({
+      BROWSERBASE_API_KEY: 'k', BROWSERBASE_PROJECT_ID: 'p',
+      BROWSER_BACKEND: 'local', BROWSERBASE_ENABLED_ADAPTERS: 'cad',
+    } as NodeJS.ProcessEnv).join(' ');
+    expect(warnings, 'warning about a correct configuration trains people to ignore the list')
+      .not.toContain('Browserbase');
   });
 
   it('flags the second switch too — backend on, but no adapter routed', () => {

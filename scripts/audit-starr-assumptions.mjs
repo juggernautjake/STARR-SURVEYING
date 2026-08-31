@@ -188,6 +188,39 @@ export function classifyPath(rel) {
   return { bucket: 'tenant', why: 'a customer firm would expect this to say THEIR name' };
 }
 
+// ── COMMENTS ARE NOT A TENANT SURFACE ──────────────────────────────────────────────────────────
+//
+// The scan read raw source, so a comment explaining WHY a county behaves the way it does counted as
+// hard-coded tenant identity. `lib/research/arcgis-fields.ts` scored a hit for the sentence
+// *"context came back empty on every Bell County run"* — a note about a real appraisal district's
+// schema, in a file that names no county in its code at all.
+//
+// No customer firm has ever expected a comment to say their name, which is the question every
+// pattern here claims to be asking. Counting prose inflates the backlog with work that does not
+// exist and — worse — hides the real number behind it.
+//
+// This is the third time in this repository a guard has matched its own explanatory text. The
+// previous two were `scripts/derive-portal-tabs.mjs` and the A3 CSS check, both this month. Writing
+// long comments is a house style here, so any scanner over this source must strip them or it is
+// measuring the documentation.
+
+/** Source with comments removed. Deliberately conservative — see the `://` guard. */
+export function stripComments(src) {
+  // Block comments first, so a `//` inside one cannot be mistaken for a line comment.
+  let out = src.replace(/\/\*[\s\S]*?\*\//g, '');
+  // Line comments, but NOT the `//` in a URL. `https://bellcad.org` is a real string in adapter
+  // code, and eating the rest of that line would silently drop whatever followed it — including,
+  // in a county adapter, the very hostname this audit is looking for. That is the one direction a
+  // ratchet must never be wrong in: over-counting shows up as a red test, under-counting looks
+  // like progress.
+  //
+  // Two guards, not one. `[^:]` covers `https://`; the quote characters cover a protocol-relative
+  // `"//cdn.example.com"`, which the `:` rule alone missed — caught by its own test rather than in
+  // production, which is the only reason it is here.
+  out = out.replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1');
+  return out;
+}
+
 export function scan(root = process.cwd()) {
   const files = ROOTS.filter((r) => fs.existsSync(path.join(root, r)))
     .flatMap((r) => walk(path.join(root, r)))
@@ -195,7 +228,7 @@ export function scan(root = process.cwd()) {
 
   const hits = [];
   for (const rel of files) {
-    const src = fs.readFileSync(path.join(root, rel), 'utf8');
+    const src = stripComments(fs.readFileSync(path.join(root, rel), 'utf8'));
     for (const p of PATTERNS) {
       const n = (src.match(p.re) ?? []).length;
       if (n) hits.push({ file: rel, pattern: p.id, what: p.what, count: n, ...classifyPath(rel) });

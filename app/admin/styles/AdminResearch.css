@@ -382,10 +382,17 @@
   color: var(--theme-fg-muted, #6B7280);
 }
 
+/* Reads the SAME tokens as the Places notice in AddressAutocomplete.css, which is the point of
+ * C2: a wrong county and a dead Places key are the same KIND of message — inline validation on the
+ * address block — and were arriving in different ambers (#FEF3C7 here against the token's #FFFBEB
+ * there). Two shades of warning on one form reads as two severities, and there is only one.
+ *
+ * Tokens rather than hex so a theme change moves both together; `--color-warning-border` did not
+ * exist until this slice and is now defined in tokens.css. */
 .research-modal__county-note--warn {
-  color: #92400E;
-  background: #FEF3C7;
-  border: 1px solid #FDE68A;
+  color: var(--color-warning-text, #92400E);
+  background: var(--color-warning-bg, #FFFBEB);
+  border: 1px solid var(--color-warning-border, #FDE68A);
   border-radius: 6px;
   padding: 0.4rem 0.55rem;
 }
@@ -11120,7 +11127,30 @@
   display: grid;
   grid-template-columns: 1fr 200px 80px 36px;
   gap: 0.5rem;
-  align-items: center;
+  /* `center` until C3. The county cell can now grow — it carries a validation note underneath —
+   * and centring made every other cell in the row drift downwards when one appeared, so a warning
+   * about county visibly nudged the address field. Top alignment keeps the row still. */
+  align-items: start;
+}
+
+/* The county cell is now input + note rather than a bare input, so it needs to BE the grid cell. */
+.research-pipeline__cell {
+  min-width: 0;
+}
+
+/* ── What this batch can cost (C3) ─────────────────────────────────────────
+ * The slider sets a PER-PROPERTY limit and always said so, but the form takes up to 50
+ * properties — so a $10 slider on a 50-row batch was a $500 decision presented as a $10 one.
+ * Multiplying it out is the whole feature. */
+.research-pipeline__spend-estimate {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  background: var(--color-info-bg, #EFF6FF);
+  border: 1px solid var(--color-info-border, #BFDBFE);
+  color: var(--color-info-text, #175CD3);
+  font-size: 0.8rem;
+  line-height: 1.45;
 }
 
 .research-pipeline__batch-header {
@@ -12080,4 +12110,46 @@
   font-size: 0.76rem;
   line-height: 1.45;
   color: var(--theme-fg-muted, #6B7280);
+}
+
+/* ── Which pipeline a screen starts ───────────────────────────────────────────
+ *
+ * Informational, not a warning. The commonest reader is somebody about to click
+ * a button that behaves correctly — they just need to know WHICH engine it is.
+ * Styling this as a caution would put a yellow box on a healthy screen, and a
+ * page that warns about normal operation trains people to ignore its warnings.
+ *
+ * Blue-tinted and quiet, sitting between the description and the controls it
+ * describes: the qualification arrives before the action, not after it. */
+.research-pipeline-note {
+  margin: 0.6rem 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--theme-border, #DBEAFE);
+  border-left: 3px solid var(--color-brand-blue, #2563EB);
+  border-radius: 0 6px 6px 0;
+  background: var(--theme-bg-subtle, #EFF6FF);
+  color: var(--theme-fg-primary, #1E3A5F);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* A button, not an anchor: it calls router.push rather than navigating on its
+ * own, so announcing it as a link would promise behaviour it does not have.
+ * Styled to read as a link because that is what it does for the reader. */
+.research-pipeline-note__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-brand-blue, #2563EB);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.research-pipeline-note__link:hover { text-decoration: none; }
+
+.research-pipeline-note__link:focus-visible {
+  outline: 2px solid var(--color-brand-blue, #2563EB);
+  outline-offset: 2px;
 }

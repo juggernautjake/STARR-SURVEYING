@@ -1779,6 +1779,32 @@ export default function ResearchProjectPage() {
               </p>
             </div>
           </div>
+
+          {/* ── WHICH ENGINE THIS BUTTON STARTS ─────────────────────────────────────────────
+              There are two research pipelines and, until now, nothing on screen said which one
+              this is. Measured: zero references to WORKER_URL in the analyze route or
+              analysis.service.ts — this path runs IN THE APP and never contacts the research
+              worker. So it does not use run-budget.ts and cannot buy a document, which is why
+              `research_document_purchases` has 0 rows after every run started from here.
+
+              The owner started a run from this screen expecting the $10 spend limit to apply and
+              a TexasFile purchase to happen, and got neither, because this engine has neither.
+              That is a CONTENT problem, not a styling one: no amount of layout work fixes a
+              screen that is quietly the wrong engine. Saying so costs four lines. */}
+          <div className="research-pipeline-note" role="note">
+            <strong>This runs the in-app analysis.</strong> It reads the documents you upload and
+            searches free public sources. It does <strong>not</strong> purchase paid documents and
+            the per-run spend limit does not apply — so nothing here can cost money.
+            {' '}
+            <button
+              type="button"
+              className="research-pipeline-note__link"
+              onClick={() => router.push('/admin/research/pipeline')}
+            >
+              Use a batch job
+            </button>
+            {' '}for a worker run that can buy documents, with a spend limit.
+          </div>
           <DocumentUploadPanel
             projectId={projectId}
             documents={documents}

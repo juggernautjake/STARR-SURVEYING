@@ -57,6 +57,9 @@ export interface HealthzPayload {
   uptimeSeconds: number;
   browser: {
     backend: string;
+    /** Adapters promoted to Browserbase. `backend` alone stopped answering "is Browserbase on?"
+     *  once an adapter could be promoted while the default stayed `local`. */
+    browserbaseAdapters: string[];
     ok: boolean;
     pending: boolean;
     checkedAt: string | null;
@@ -163,6 +166,13 @@ export function buildHealthz(input: HealthzInputs): { status: number; body: Heal
     uptimeSeconds: Math.round(input.uptimeSeconds),
     browser: {
       backend: input.browserBackend,
+      // Which adapters are PROMOTED to Browserbase. Reported because `backend` alone stopped
+      // telling the whole story once an adapter could be promoted while the default stayed local:
+      // an operator who had configured exactly the recommended shape saw `backend: "local"` and
+      // could not tell, from outside the box, whether their change had taken. Empty array means
+      // nothing is promoted, which is a meaningful answer rather than a missing one.
+      browserbaseAdapters: (process.env.BROWSERBASE_ENABLED_ADAPTERS ?? '')
+        .split(',').map((s) => s.trim()).filter(Boolean),
       ok: input.browser.ok,
       pending: input.browser.pending,
       checkedAt: input.browser.checkedAt,
@@ -253,14 +263,30 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
   // Measured 2026-08-27 against Browserbase's own API: valid credentials, project created
   // 2026-04-23, **zero sessions ever run**. Four months of paying for infrastructure the config
   // forbids the code from touching. It takes TWO switches to enable, and both were off.
+  // ⚠ CORRECTED 2026-08-30 — THIS WARNING OUTLIVED THE RULE IT DESCRIBED.
+  //
+  // It fired on `backend !== 'browserbase'` and said "no session can ever start". That was true
+  // when the adapter list could only RESTRICT. Since the promotion change in browser-factory.ts, an
+  // adapter NAMED in BROWSERBASE_ENABLED_ADAPTERS is routed to Browserbase while BROWSER_BACKEND
+  // stays `local` — which is now the recommended way to enable one portal without billing the rest.
+  //
+  // So the warning was telling an operator who had just configured it correctly that nothing could
+  // possibly work. A stale warning is worse than no warning: it is confidently wrong, and it costs
+  // exactly the time somebody spends re-doing a step that was already right. Found within hours of
+  // shipping the change that invalidated it, by reading the live /healthz rather than assuming.
   if (env.BROWSERBASE_API_KEY && env.BROWSERBASE_PROJECT_ID) {
     const backend = (env.BROWSER_BACKEND ?? 'local').toLowerCase();
     const adapters = (env.BROWSERBASE_ENABLED_ADAPTERS ?? '').trim();
-    if (backend !== 'browserbase') {
-      warn.push(`Browserbase credentials are set and billing, but BROWSER_BACKEND=${backend} — no session can ever start`);
-    } else if (!adapters) {
-      warn.push('BROWSER_BACKEND=browserbase but BROWSERBASE_ENABLED_ADAPTERS is empty — per-adapter gating routes nothing');
+
+    if (backend === 'browserbase' && !adapters) {
+      // Globally on, gate empty: every UNGATED call bills, every gated one falls back to local.
+      warn.push('BROWSER_BACKEND=browserbase but BROWSERBASE_ENABLED_ADAPTERS is empty — gated adapters route nowhere while ungated calls bill');
+    } else if (backend !== 'browserbase' && !adapters) {
+      // The original finding: credentials billing, nothing able to reach them.
+      warn.push(`Browserbase credentials are set and billing, but BROWSER_BACKEND=${backend} and BROWSERBASE_ENABLED_ADAPTERS is empty — no session can start`);
     }
+    // backend=local WITH a non-empty adapter list is the intended shape. No warning: it is the
+    // configuration we recommend, and warning about it would train people to ignore this list.
   }
 
   // ── TAVILY IS NOT THIS PROCESS'S BUSINESS — check removed 2026-08-29 ──────────────────────────
