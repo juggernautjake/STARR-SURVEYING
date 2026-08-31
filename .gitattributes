@@ -1,3 +1,11 @@
 
 # Built SPA bundle for the hidden /dnd/Lazzuh_Gun route — never normalize line endings
 public/dnd-sheet/** -text
+
+# Shell scripts and systemd units run on Linux and MUST have LF endings. A CRLF `.sh` fails on the
+# box with `bad interpreter: /usr/bin/env bash^M`, and a CRLF unit file is rejected by systemd —
+# both silently, and both only on the machine nobody is looking at. Git already stores LF here;
+# this makes it explicit so a future core.autocrlf setting cannot change it.
+*.sh text eol=lf
+*.service text eol=lf
+*.timer text eol=lf

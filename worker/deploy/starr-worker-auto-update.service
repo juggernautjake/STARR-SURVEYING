@@ -1,0 +1,27 @@
+[Unit]
+Description=STARR research worker — pull main and rebuild when it is safe
+Documentation=file:///opt/starr/docs/platform/RESEARCH_WORKER_DEPLOYMENT.md
+# Docker must be up before this can build or restart anything. Without this the first run after a
+# host reboot races the daemon and fails for a reason that has nothing to do with the deploy.
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/starr/worker/deploy/auto-update.sh
+
+# A cold build pulls Playwright's browser layers. Anything past this is stuck, not slow, and
+# killing it releases the lock so the next tick can try again rather than wedging forever.
+TimeoutStartSec=1200
+
+# Deliberately NOT Restart=on-failure. A failed cycle has already rolled itself back; retrying
+# immediately would rebuild the same broken commit in a loop and bury the one journal entry that
+# says what went wrong. The next timer tick is the retry, and it is two minutes away.
+
+# Output goes to the journal:  journalctl -u starr-worker-auto-update -n 50
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
