@@ -54,6 +54,9 @@ import {
   undo as undoAnnotations,
   type AnnotationHistoryState,
 } from './_sections/annotation-history';
+import {
+  advance, azimuthToBearing, closingLeg, needsClosing,
+} from './_sections/traverse-geometry';
 import ProjectHeader from './_sections/ProjectHeader';
 import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
@@ -903,9 +906,10 @@ export default function ResearchProjectPage() {
   // Add a traverse leg from bearing/distance entry
   function handleAddLeg(leg: { azimuth: number; distance: number; bearing: string }) {
     const last = coordVertices.length > 0 ? coordVertices[coordVertices.length - 1] : { x: 0, y: 0 };
-    const rad = (leg.azimuth * Math.PI) / 180;
-    const newX = last.x + leg.distance * Math.sin(rad);
-    const newY = last.y + leg.distance * Math.cos(rad);
+    // Azimuth is from NORTH, so easting takes sin and northing takes cos — see
+    // `_sections/traverse-geometry.ts`, where that convention is stated and tested. It was inline
+    // here and untested for as long as it existed.
+    const { x: newX, y: newY } = advance(last, leg);
     const vertex: TraverseVertex = {
       id: `tv-${Date.now()}-${coordVertices.length}`,
       x: newX,
@@ -933,15 +937,12 @@ export default function ResearchProjectPage() {
 
   // Close traverse: add a closing leg back to the first vertex
   function handleCloseTraverse() {
-    if (coordVertices.length < 3) return;
-    const first = coordVertices[0];
-    const last = coordVertices[coordVertices.length - 1];
-    const dx = first.x - last.x;
-    const dy = first.y - last.y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 0.01) return; // Already closed
-    const azimuth = ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
-    handleAddLeg({ azimuth, distance: dist, bearing: azimuthToBearingSimple(azimuth) });
+    // `needsClosing` holds both guards: at least three vertices — two points are a line, and
+    // closing them just retraces the same leg — and no zero-length leg onto an already-closed
+    // figure, which would show in the report as a leg of 0.00 feet.
+    if (!needsClosing(coordVertices)) return;
+    const leg = closingLeg(coordVertices[0], coordVertices[coordVertices.length - 1]);
+    handleAddLeg({ ...leg, bearing: azimuthToBearing(leg.azimuth) });
   }
 
   // Delete a coord vertex by index
@@ -1059,20 +1060,6 @@ export default function ResearchProjectPage() {
     setZoomToFitSignal(prev => prev + 1);
   }
 
-  // Simple azimuth to bearing string conversion
-  function azimuthToBearingSimple(az: number): string {
-    const a = ((az % 360) + 360) % 360;
-    let ns: string, ew: string, angle: number;
-    if (a <= 90) { ns = 'N'; ew = 'E'; angle = a; }
-    else if (a <= 180) { ns = 'S'; ew = 'E'; angle = 180 - a; }
-    else if (a <= 270) { ns = 'S'; ew = 'W'; angle = a - 180; }
-    else { ns = 'N'; ew = 'W'; angle = 360 - a; }
-    const deg = Math.floor(angle);
-    const md = (angle - deg) * 60;
-    const min = Math.floor(md);
-    const sec = Math.round((md - min) * 60);
-    return `${ns} ${deg}\u00B0 ${min}' ${sec}" ${ew}`;
-  }
 
   // Save to database
   async function handleSaveToDb(name?: string) {

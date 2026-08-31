@@ -340,6 +340,35 @@ else.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
+### B1a — eighth slice: the traverse GEOMETRY — SHIPPED 2026-08-31
+
+`_sections/traverse-geometry.ts`. Second state-first slice, and the most consequential one: this
+is **surveying**, not UI plumbing, and it shipped with no test of any kind.
+
+It was three closures inside a 3,300-line component — unreachable, therefore uncalled by anything.
+Each rule is a convention that is easy to get backwards and impossible to notice from the code:
+
+| | Why it is a trap |
+|---|---|
+| `sin` on easting, `cos` on northing | Azimuth is from **north**, not from the x-axis. Swapping them mirrors the whole traverse about the 45° line — and the result still looks like a plausible parcel. |
+| `Math.atan2(dx, dy)` | `atan2` is conventionally `(y, x)`. The usual order rotates **every closing leg by 90°**. |
+| `S 30° E` is azimuth **150** | Two of the four quadrants measure *back* from south. A reversed subtraction gives a bearing that reads correctly and points somewhere else. |
+
+**A wrong closing leg does not throw.** It closes the parcel to the wrong corner by a few feet —
+the size of error a surveyor might blame on the record rather than on the software.
+
+Seventeen tests now pin it, including the property that matters: closing a leg and then walking it
+must land back on the first corner. Any sign or argument-order slip breaks that even when the
+individual numbers look reasonable.
+
+Mutation-tested seven ways — swapped sin/cos, `atan2` reversed, normalisation dropped, quadrant
+arithmetic reversed, a two-point traverse allowed to close, the already-closed check removed, and
+the page unwired from the module. All seven fail.
+
+The page **shrank 13 lines** this time, and its own `azimuthToBearingSimple` is gone. Two
+implementations of a coordinate convention is how they drift, and the page's copy is the one that
+would have run.
+
 ### B1a — seventh slice: the undo/redo RULES — SHIPPED 2026-08-31
 
 `_sections/annotation-history.ts`. Not a component: the mechanical extractions have run out.
