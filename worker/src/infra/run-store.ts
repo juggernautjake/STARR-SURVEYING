@@ -29,7 +29,7 @@
 // assumes the feature works.
 
 import { getSupabase } from '../services/pipeline.js';
-import type { SkippedWork } from './run-budget.js';
+import type { BudgetLimits, SkippedWork } from './run-budget.js';
 
 export type RunStatus = 'running' | 'complete' | 'failed' | 'interrupted' | 'cancelled';
 
@@ -37,7 +37,18 @@ export interface RunStartInput {
   projectId: string;
   county?: string;
   address?: string;
-  limits?: Record<string, unknown>;
+  /** The run budget, as BudgetLimits — not `Record<string, unknown>`.
+   *
+   *  It WAS that, and index.ts wrote it through `budgetLimits as unknown as Record<string, unknown>`
+   *  — a double cast that erases the type on purpose. So nothing noticed that the worker persists
+   *  `{ maxWallClockMs, maxCostUsd, maxPaidPages }` while the app reads `maxMinutes` and `maxUsd`,
+   *  keys nothing has ever written.
+   *
+   *  The visible consequence was a run console that said **"no time limit is configured for this
+   *  run"** on every run ever displayed, while the limit was configured AND being enforced — the
+   *  worker winds a run down when it reaches it. Second instance of this exact defect in this file:
+   *  `skippedWork` was `unknown[]` and rendered every skipped step as "unnamed work". */
+  limits?: BudgetLimits;
   workerBuild?: string;
 }
 

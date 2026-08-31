@@ -698,6 +698,37 @@ to be called as called, and it reports a route known NOT to exist as uncalled. T
 caught the loose parent rule. Mutation-tested three ways, including collapsing the caller
 directories — which the coverage controls fail on, rather than passing in silence.
 
+## G3 — "no time limit is configured for this run" (2026-08-31)
+
+The run console showed that sentence for **every run it has ever displayed**, while the limit was
+configured and being enforced — the worker winds a run down when it reaches the ceiling and says so
+in the budget summary two lines below on the same panel.
+
+```
+the worker persists  { maxWallClockMs, maxCostUsd, maxPaidPages }
+the app read         run.limits?.maxMinutes  /  maxUsd
+```
+
+Nothing has ever written `maxMinutes` or `maxUsd`. So `budgetMs` was permanently null, which made
+`fractionUsed` permanently null — any indicator showing budget used showed nothing — and sent the
+headline down its "no limit" branch every time.
+
+**This is D0 again, four fields further down the same file.** `run-store.ts` typed `skippedWork` as
+`unknown[]` and every skipped step rendered as "unnamed work"; `limits` was
+`Record<string, unknown>`, and `index.ts` wrote it through
+`budgetLimits as unknown as Record<string, unknown>` — a **double cast that erases the type on
+purpose**. `unknown` accepts any shape by definition, so the compiler had nothing to say either
+time. Both are typed now and the cast is gone; producer and consumer are bound by the compiler.
+
+**Found by asking what caused D0 rather than what D0 looked like.** A sweep for the SYMPTOM —
+placeholder fallbacks like `?? 'unnamed'` across the research code — came back clean: all of them
+are honest null-handling. Sweeping for the CAUSE instead — `unknown` / `any` on payload types that
+cross the worker/app boundary — found this in the fifth line of output.
+
+Mutation-tested five ways. One is an equivalent mutant and stayed green correctly: `> 0` to `>= 0`
+changes nothing because the `&&` already short-circuits on zero. Untyping the payload again is
+caught by `tsc` rather than by a test, which is the right mechanism for it.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two

@@ -26,7 +26,25 @@ export interface RunFacts {
   finishedAt: string | null;
   costUsd: number;
   paidPages: number;
-  limits: { maxMinutes?: number; maxUsd?: number } | null;
+  /**
+   * The run budget, as the WORKER writes it.
+   *
+   * `maxWallClockMs` / `maxCostUsd` / `maxPaidPages` are the field names in
+   * `worker/src/infra/run-budget.ts`. This used to read `maxMinutes` and `maxUsd` — keys nothing
+   * has ever written — so `budgetMinutes` was permanently `undefined` and every run console said
+   * "no time limit is configured for this run" while the limit was configured AND enforced.
+   *
+   * The old names are kept as tolerated aliases rather than deleted: no row is known to carry
+   * them, but removing them is a guess about data this session cannot see, and one `??` is cheap.
+   */
+  limits: {
+    maxWallClockMs?: number;
+    maxCostUsd?: number;
+    maxPaidPages?: number;
+    /** Legacy aliases; nothing is known to write these. See above. */
+    maxMinutes?: number;
+    maxUsd?: number;
+  } | null;
   skippedWork: Array<{ step?: string; what?: string; reason?: string }>;
   budgetSummary: string | null;
 }
