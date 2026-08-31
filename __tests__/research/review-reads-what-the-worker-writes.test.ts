@@ -31,6 +31,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SURVEY_RESULT_KEYS, surveyReviewData } from
   '../../app/admin/research/[projectId]/_sections/survey-review-data';
+import { SUMMARY_RESULT_KEYS, summaryReviewData, formatDuration } from
+  '../../app/admin/research/[projectId]/_sections/summary-review-data';
 
 const ROOT = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
@@ -110,9 +112,10 @@ describe('every key the Survey panel reads is one the worker writes', () => {
   it('has a key list to check', () => {
     // Control: an empty list agrees with everything.
     expect(SURVEY_RESULT_KEYS.length).toBeGreaterThanOrEqual(29);
+    expect(SUMMARY_RESULT_KEYS.length).toBeGreaterThanOrEqual(26);
   });
 
-  it.each([...SURVEY_RESULT_KEYS])('%s is produced', (key) => {
+  it.each([...SURVEY_RESULT_KEYS, ...SUMMARY_RESULT_KEYS])('%s is produced', (key) => {
     expect(
       isWritten(key),
       `The Survey panel reads \`${key}\`, and nothing in the worker or the API writes it. `
@@ -177,5 +180,100 @@ describe('the page uses it', () => {
   it('no longer carries the inline cast', () => {
     expect(PAGE, 'the 25-line inline cast is back')
       .not.toContain('const platAnalyses = (result?.platAnalyses ?? []) as Array<{');
+  });
+});
+
+describe('the Summary panel\'s shaping', () => {
+  const stats = { document_count: 0, data_point_count: 0, discrepancy_count: 0 };
+  const proj = (result: Record<string, unknown> | null = null) => ({ analysis_metadata: { result } });
+
+  it('renders 0 documents rather than hiding the row', () => {
+    // `docCount > 0` hid the stat entirely, so a run that retrieved NOTHING looked identical to one
+    // where the count was never reported. This is the screen somebody signs off from — a missing
+    // row there reads as "not applicable", which is the opposite of what it means.
+    const d = summaryReviewData(proj({ documentCount: 0 }), stats);
+    expect(d.docCount).toBe(0);
+    expect(d.hasDocCount, '0 documents is a finding, not an absence').toBe(true);
+  });
+
+  it('still reports a real count', () => {
+    expect(summaryReviewData(proj({ documentCount: 7 }), stats).docCount).toBe(7);
+    expect(summaryReviewData(proj(), { ...stats, document_count: 4 }).docCount).toBe(4);
+  });
+
+  it('prefers the stats row, falling through a zero to the run result', () => {
+    // `||` rather than `??` is deliberate here: the stats row is not populated until the run's rows
+    // land, so a 0 there really does mean "not counted yet" rather than "none found".
+    const d = summaryReviewData(proj({ documentCount: 9 }), { ...stats, document_count: 0 });
+    expect(d.docCount).toBe(9);
+  });
+
+  it('coerces every count, so a malformed result cannot render NaN', () => {
+    const d = summaryReviewData(proj({
+      duration_ms: 'not a number', confidenceScore: null, screenshotCount: undefined,
+    }), stats);
+    expect(d.durationMs).toBe(0);
+    expect(d.confidenceScore).toBe(0);
+    expect(d.screenshotCount).toBe(0);
+  });
+
+  it('counts fatal errors separately from recovered ones', () => {
+    const d = summaryReviewData(proj({
+      errors: [{ recovered: true }, { recovered: false }, { recovered: false }],
+    }), stats);
+    expect(d.errorCount).toBe(3);
+    expect(d.fatalErrors).toBe(2);
+  });
+
+  it('treats a missing `recovered` flag as fatal', () => {
+    // Not knowing whether an error was recovered is not the same as knowing it was. The safe
+    // reading is the one that surfaces it.
+    expect(summaryReviewData(proj({ errors: [{}] }), stats).fatalErrors).toBe(1);
+  });
+
+  it('falls back from the boundary call count to the number of calls present', () => {
+    expect(summaryReviewData(proj({ boundary: { callCount: 12 } }), stats).callCount).toBe(12);
+    expect(summaryReviewData(proj({ boundary: { bearingsAndDistances: ['a', 'b'] } }), stats).callCount).toBe(2);
+    expect(summaryReviewData(proj({ boundary: {} }), stats).callCount).toBe(0);
+  });
+
+  it('survives junk metadata', () => {
+    for (const junk of [null, 'a string', { result: 'not an object' }, { result: { errors: 'nope' } }]) {
+      expect(() => summaryReviewData({ analysis_metadata: junk }, stats), String(junk)).not.toThrow();
+    }
+    expect(summaryReviewData({ analysis_metadata: { result: { errors: 'nope' } } }, stats).errorCount).toBe(0);
+  });
+});
+
+describe('duration formatting', () => {
+  it('uses seconds below a minute and minutes above', () => {
+    expect(formatDuration(1_500)).toBe('1.5s');
+    expect(formatDuration(59_900)).toBe('59.9s');
+    expect(formatDuration(60_000)).toBe('1m 0s');
+    expect(formatDuration(125_000)).toBe('2m 5s');
+  });
+
+  it('does not render a bare 0 as a minute', () => {
+    expect(formatDuration(0)).toBe('0.0s');
+  });
+});
+
+describe('the Summary panel is wired', () => {
+  const PAGE = read('app/admin/research/[projectId]/page.tsx');
+
+  it('calls the shaping function', () => {
+    expect(PAGE).toContain('summaryReviewData(project, stats)');
+  });
+
+  it('renders the zero-document state rather than hiding it', () => {
+    expect(PAGE, 'the > 0 guard is back').not.toContain('{docCount > 0 &&');
+    expect(PAGE).toContain('hasDocCount &&');
+  });
+
+  it('no longer paints the flood zone in unreadable colours', () => {
+    // #f87171 is 2.77:1 and #4ade80 is 1.74:1 on white. A flood zone is a material fact for a
+    // survey; it was being signalled in two colours at ratios neither of which could be read.
+    expect(PAGE).not.toContain("'#f87171'");
+    expect(PAGE).not.toContain("'#4ade80'");
   });
 });

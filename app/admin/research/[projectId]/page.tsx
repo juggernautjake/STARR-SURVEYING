@@ -39,6 +39,7 @@ import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } 
 import ResearchRunPanel from '../components/ResearchRunPanel';
 import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
 import { surveyReviewData } from './_sections/survey-review-data';
+import { summaryReviewData } from './_sections/summary-review-data';
 // What the run has spent and how much of its budget is left (research plan R22).
 import RunConsoleBar from '../components/RunConsoleBar';
 // What changed since the last run — research is not a one-shot (research plan R27).
@@ -1912,28 +1913,14 @@ export default function ResearchProjectPage() {
 
               {/* ── Tab: Summary ── */}
               {reviewTab === 'summary' && (() => {
-                const meta = project.analysis_metadata as Record<string, unknown> | null;
-                const result = meta?.result as Record<string, unknown> | null;
-                const finalSummary = (result?.finalSummary ?? meta?.finalSummary ?? '') as string;
-                const ownerName = (result?.ownerName ?? (meta as Record<string, unknown> | null)?.ownerName ?? '') as string;
-                const propertyId = (result?.propertyId ?? project.parcel_id ?? '') as string;
-                const situsAddress = (result?.situsAddress ?? '') as string;
-                const acreage = (result?.acreage ?? '') as string | number;
-                const legalDesc = (result?.legalDescription ?? project.legal_description_summary ?? '') as string;
-                const docCount = stats.document_count || (result?.documentCount as number ?? 0);
-                const dpCount = stats.data_point_count;
-                const discCount = stats.discrepancy_count || (result?.discrepancyCount as number ?? 0);
-                const durationMs = (result?.duration_ms ?? 0) as number;
-                const boundary = result?.boundary as { type?: string; callCount?: number; confidence?: number; verified?: boolean; bearingsAndDistances?: string[]; monuments?: string[] } | null;
-                const callCount = boundary?.callCount ?? boundary?.bearingsAndDistances?.length ?? 0;
-                const monumentCount = boundary?.monuments?.length ?? 0;
-                const confidenceTier = (result?.confidenceTier ?? '') as string;
-                const confidenceScore = (result?.confidenceScore ?? 0) as number;
-                const fema = result?.fema as { floodZone?: string; inSFHA?: boolean } | null;
-                const txdot = result?.txdot as { highwayName?: string; rowWidth?: number | null } | null;
-                const screenshotCount = (result?.screenshotCount ?? 0) as number;
-                const errorCount = ((result?.errors ?? []) as Array<{recovered: boolean}>).length;
-                const fatalErrors = ((result?.errors ?? []) as Array<{recovered: boolean}>).filter(e => !e.recovered).length;
+                // B1a — 26 keys of cast moved to `_sections/summary-review-data.ts`, where
+                // `review-reads-what-the-worker-writes` holds them against the producer.
+                const {
+                  finalSummary, ownerName, propertyId, situsAddress, acreage, legalDesc,
+                  docCount, dpCount, discCount, durationMs, callCount, monumentCount,
+                  confidenceTier, confidenceScore, fema, txdot, screenshotCount,
+                  errorCount, fatalErrors, hasDocCount,
+                } = summaryReviewData(project, stats);
                 return (
                   <div className="review-tab-content">
                     {/* Stats row */}
@@ -1945,10 +1932,17 @@ export default function ResearchProjectPage() {
                       {callCount > 0 && <div className="review-stat"><span className="review-stat__label">Boundary Calls</span><span className="review-stat__value">{callCount}</span></div>}
                       {monumentCount > 0 && <div className="review-stat"><span className="review-stat__label">Monuments</span><span className="review-stat__value">{monumentCount}</span></div>}
                       {confidenceTier && <div className="review-stat"><span className="review-stat__label">Confidence</span><span className="review-stat__value">{confidenceTier} ({confidenceScore}/100)</span></div>}
-                      {docCount > 0 && <div className="review-stat"><span className="review-stat__label">Documents</span><span className="review-stat__value">{docCount}</span></div>}
+                      {/* `docCount > 0` hid the row entirely, so a run that retrieved NOTHING
+                          showed no Documents stat — identical to one where it was never
+                          reported. This is the screen somebody signs off from. */}
+                      {hasDocCount && <div className={`review-stat${docCount === 0 ? ' review-stat--warn' : ''}`}><span className="review-stat__label">Documents</span><span className="review-stat__value">{docCount === 0 ? 'none retrieved' : docCount}</span></div>}
                       {dpCount > 0 && <div className="review-stat"><span className="review-stat__label">Data Points</span><span className="review-stat__value">{dpCount}</span></div>}
                       {discCount > 0 && <div className="review-stat review-stat--warn"><span className="review-stat__label">Discrepancies</span><span className="review-stat__value">{discCount}</span></div>}
-                      {fema && <div className="review-stat"><span className="review-stat__label">Flood Zone</span><span className="review-stat__value" style={{ color: fema.inSFHA ? '#f87171' : '#4ade80' }}>{fema.floodZone}{fema.inSFHA ? ' (SFHA)' : ''}</span></div>}
+                      {/* Was `#f87171` / `#4ade80` inline — 2.77:1 and 1.74:1 on white. A flood
+                          zone is a material fact for a survey and it was being signalled in two
+                          colours a reader may not be able to tell apart, at ratios neither of
+                          them could read. The words carry it; the colour reinforces it. */}
+                      {fema && <div className={`review-stat${fema.inSFHA ? ' review-stat--warn' : ''}`}><span className="review-stat__label">Flood Zone</span><span className="review-stat__value" style={{ color: fema.inSFHA ? '#B91C1C' : '#047857' }}>{fema.floodZone}{fema.inSFHA ? ' (SFHA)' : ''}</span></div>}
                       {txdot && <div className="review-stat"><span className="review-stat__label">TxDOT ROW</span><span className="review-stat__value">{txdot.highwayName ?? 'Highway'}{txdot.rowWidth ? ` (${txdot.rowWidth}ft)` : ''}</span></div>}
                       {screenshotCount > 0 && <div className="review-stat"><span className="review-stat__label">Screenshots</span><span className="review-stat__value">{screenshotCount}</span></div>}
                       {durationMs > 0 && <div className="review-stat"><span className="review-stat__label">Duration</span><span className="review-stat__value">{durationMs >= 60000 ? `${Math.floor(durationMs / 60000)}m ${Math.floor((durationMs % 60000) / 1000)}s` : `${(durationMs / 1000).toFixed(1)}s`}</span></div>}
@@ -1975,6 +1969,10 @@ export default function ResearchProjectPage() {
 
                     {/* ── Coherence Review (Multi-Pass) ── */}
                     {(() => {
+                      // Read here rather than from the enclosing block: the coherence review is a
+                      // separate ~15-key cast of its own and belongs in its own extraction, not
+                      // bolted onto the summary's shape. Left explicit so that is visible.
+                      const meta = project.analysis_metadata as Record<string, unknown> | null;
                       const cr = meta?.coherence_review as Record<string, unknown> | null;
                       if (!cr) return null;
 
@@ -2469,9 +2467,9 @@ export default function ResearchProjectPage() {
                       <div style={{ fontWeight: 600, color: '#e2e8f0', marginBottom: '0.5rem' }}>FEMA Flood Zone</div>
                       {fema ? (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.5rem' }}>
-                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Zone</span><br/><span style={{ color: fema.inSFHA ? '#f87171' : '#4ade80', fontWeight: 600 }}>{fema.floodZone}</span></div>
+                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Zone</span><br/><span style={{ color: fema.inSFHA ? '#B91C1C' : '#047857', fontWeight: 600 }}>{fema.floodZone}</span></div>
                           {fema.zoneSubtype && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Subtype</span><br/><span style={{ color: '#e2e8f0' }}>{fema.zoneSubtype}</span></div>}
-                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>In SFHA?</span><br/><span style={{ color: fema.inSFHA ? '#f87171' : '#4ade80', fontWeight: 600 }}>{fema.inSFHA ? 'YES — flood insurance required' : 'No'}</span></div>
+                          <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>In SFHA?</span><br/><span style={{ color: fema.inSFHA ? '#B91C1C' : '#047857', fontWeight: 600 }}>{fema.inSFHA ? 'YES — flood insurance required' : 'No'}</span></div>
                           {fema.firmPanel && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>FIRM Panel</span><br/><span style={{ color: '#e2e8f0' }}>{fema.firmPanel}</span></div>}
                           {fema.effectiveDate && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Effective Date</span><br/><span style={{ color: '#e2e8f0' }}>{fema.effectiveDate}</span></div>}
                           {fema.sourceUrl && <div><span style={{ color: '#64748b', fontSize: '0.8rem' }}>Source</span><br/><a href={fema.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', fontSize: '0.85rem' }}>FEMA MSC</a></div>}

@@ -217,10 +217,49 @@ Two shortcuts went with it: whitespace-only values reached the grid as labelled 
 `result.acreage ? …` dropped a genuine `0` — the same shortcut that hid a zero document count two
 components away, where it mattered a great deal.
 
+**Review → Summary SHIPPED 2026-08-31.** 3,254 → 3,232 lines. The widest cast on the page — 26 keys
+off `analysis_metadata.result` plus three counts from the stats row — moved to
+`_sections/summary-review-data.ts` and joined the same contract test. This is the first screen a
+surveyor sees when a run finishes and the screen they sign off from, which is what makes the two
+defects it carried worth the slice.
+
+**"0 documents" was invisible.** The stat rendered behind `docCount > 0`, so a run that retrieved
+**nothing** showed no Documents row at all — indistinguishable from a run where the count was never
+reported. `hasDocCount` now separates *absent* from *zero*, and zero renders as **"none retrieved"**
+with the warn treatment. Third instance of this exact shortcut in two days.
+
+**And the flood zone was signalled in two colours nobody could read.** `#f87171` / `#4ade80` inline —
+**2.77:1 and 1.74:1** on white, and red-green, so the one distinction on the row was carried by the
+channel a colour-blind reader does not have. The words carry it now; the colour only reinforces it.
+
+#### The extraction quietly narrowed a fatal-error count, and the test caught it
+
+Worth recording because it is the exact failure B1a's "compare against `HEAD`" rule exists to catch,
+and it was introduced by the extraction itself, not found in the original:
+
+```
+HEAD:      errors.filter(e => !e.recovered)        ← missing flag counts as FATAL
+extracted: errors.filter(e => e.recovered === false) ← missing flag counts as RECOVERED
+```
+
+An error that never said whether it was recovered is not the same as one that said it was, and the
+safe reading is the one that surfaces it. `tsc` was clean on both — `recovered?: boolean` admits
+either — the page rendered identically on every run that sets the flag, and the difference only
+appears on the malformed payload nobody has yet produced. **A behaviour change with no failing
+symptom is precisely what a byte-for-byte comparison is for.** Reverted to `HEAD`'s reading.
+
+84 tests on the contract file; full suite **27,148 pass**; `tsc` 0; production build green.
+
 Same goal — no file over ~600 lines — reached without inventing a second nav. Extract in place, one
 section per slice, each with a wiring test asserting the page mounts it:
 
-`_sections/ProjectHeader.tsx` · `RunControls.tsx` · `DocumentsSummary.tsx` · `AnalysisSection.tsx`
+~~`_sections/ProjectHeader.tsx` · `RunControls.tsx` · `DocumentsSummary.tsx` · `AnalysisSection.tsx`~~
+
+⚠ **That list was a sketch, and three of its four names were never real.** `ProjectHeader` shipped;
+`RunControls`, `DocumentsSummary` and `AnalysisSection` match **nothing** in `page.tsx` — they were
+invented at planning time and then quoted back as remaining work in the status table for a day. The
+extractions that actually shipped are the eleven files in `_sections/`, named after the sections that
+exist. Do not plan the next one from a name that has not been grepped.
 
 **Done:** behaviour identical; the route renders the same markup; each extraction is separately
 revertable.
@@ -1753,15 +1792,22 @@ check compared.
 Not deferred, and must not be marked so. Every remaining item is real work with real value; none is
 blocked; none costs more than it is worth. They are simply not done.
 
-| Item | Why it is still open |
+> ⚠ **This table was itself stale, and was re-measured against the repository on 2026-08-31.**
+> Four of its seven rows had already shipped, and the B1a row named three sections that **do not
+> exist in `page.tsx` under any name** — `RunControls`, `DocumentsSummary` and `AnalysisSection`
+> return zero matches. That is the sixth parked premise in this repository to be false when
+> checked, and the first one where the false premise was written by this doc about its own work.
+> The rows below are what `grep`, `wc -l` and the test run actually say.
+
+| Item | State, measured 2026-08-31 |
 |---|---|
-| **B1a remainder** | Three sections extracted (`ProjectStats`, `ProjectHeader`, `EditProjectModal`); `page.tsx` is **3,680 → 3,549**. `RunControls`, `DocumentsSummary` and `AnalysisSection` remain — the big ones. Same shape each time: move, compare byte-for-byte against `HEAD`, assert the page still mounts it. |
-| **D1 / D2** | `ResearchRunPanel` (1,771) + `PipelineProgressPanel` (1,521). Re-scoped by D0: the run visibility these were meant to add already existed and was broken by one word. A size problem now, so it ranks below B1a. |
-| **D3** | Run console + diff into the tab shell. Small; wants B1a first, since it moves into the shell B1a creates. |
-| **E1b** | Sixteen admin portals still hand-roll the tablist keyboard; three have none. `tabKeyDown` exists and adoption is one prop each. Outside this doc — admin shell, not the research portal — and wants its own QA pass. |
-| **E2b** | Re-theme `BillingTab` + `LibraryTab`. A page rewrite, not a state consolidation. |
-| **E3** | Responsive pass. Needs a browser at 1440 and 390 against a **production** build. QA work, not a code slice. |
-| **F2** | Contrast. 232 problems repo-wide; the research subset needs measuring first, and the ratchet must not be re-baselined without investigating — both prior breaches were real bugs. |
+| **B1a remainder** | ☐ **Real, and smaller than written.** Eleven extractions now live in `_sections/`, and every one is verified imported by `page.tsx` — not one is an orphan. `page.tsx` is **3,680 → 3,232**. The three named targets above never existed. What actually remains is the Review tab's inline JSX branches (`summary`, `property`, `survey`, `easements`, lines 1915–2561); the *casts* behind three of the four are already extracted and contract-tested, so what is left is markup, not logic. |
+| **D1 / D2** | ✅ **SHIPPED 2026-08-31**, and each found a live defect — the Stage 3.5 label and the two disagreeing definitions of "done". Both panels remain large (`ResearchRunPanel` 1,753, `PipelineProgressPanel` 1,481); that is a size question, not an open slice. |
+| **D3** | ✅ **CLOSED 2026-08-31** — already shipped. |
+| **E1b** | ☐ Open, and correctly outside this doc — admin shell, not the research portal. |
+| **E2b** | ✅ **BOTH SHIPPED 2026-08-31** — `BillingTab` and `LibraryTab` re-themed; the Billing pass found a button with no `onClick` at all. |
+| **E3** | ☐ **Genuinely open.** Responsive pass at 1440 and 390 against a **production** build. QA work, not a code slice — and the one remaining item on this doc that a browser, not a test, has to settle. |
+| **F2** | ◐ **Static half SHIPPED** (28 real failures fixed; `verify:contrast` reports *no contrast failures* across 799 pairs, and the inline-style scanner now measures the 131 inline styles it used to skip). The browser half stays a programme, and pairs with E3. |
 
 ### And the thing no amount of this can settle
 
