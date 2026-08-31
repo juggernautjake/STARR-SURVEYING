@@ -347,7 +347,50 @@ does not say what is missing is indistinguishable from a complete one).
 
 ## Phase E — portal-wide consistency
 
-### E1 — Tab bar across all 8 tabs ☐
+### E1 — ~~Tab bar across all 8 tabs~~ ⛔ **PREMISE FALSE / RE-SCOPED AND SHIPPED 2026-08-31**
+
+**The bar already exists**, and it is already good: `app/admin/research/page.tsx` has a
+`role="tablist"` nav with roving `tabIndex`, arrow keys that wrap, focus following selection, and
+`aria-controls` pointing at a real `role="tabpanel"`. Nothing to add. **Sixth parked premise in this
+repo to be false when checked** — and checking cost one `sed`.
+
+What checking DID turn up is worth more than the slice was. Counted across `app/admin/**/page.tsx`:
+
+> **Seventeen admin portals declare `role="tablist"`. THREE implement no keyboard behaviour at
+> all** — `marketing`, `notes`, `employees/manage/[email]/history`. The other fourteen each
+> hand-roll the same eight lines, and **not one of them handles Home or End.**
+
+Those three are `SegmentedTabs`' F1 defect, in production, on real navigation: a reader announces
+"tab 2 of 7", the user presses an arrow because that is what the role MEANS, and nothing happens —
+while every tab is its own Tab stop, so reaching the panel takes eight presses. The markup states
+something untrue.
+
+**Shipped instead:** the keyboard half now lives in `lib/admin/portal/tab-keyboard.ts` and is
+exposed as `tabKeyDown` from `usePortalTabs` — **the hook all seventeen already call**. Research is
+wired to it (this doc's remit), losing its inline copy and gaining Home/End. F1's `nextTabIndex`
+moved there too and the research primitive re-exports it: two copies of a keyboard contract is
+exactly how one of them ends up without Home/End, which is what had happened seventeen times over.
+
+**Focus is found in the DOM, not by an id convention.** The obvious version focuses
+`#${prefix}-${id}` — but the seventeen portals share no id scheme and several put no id on their
+tabs at all, and an id lookup that drifts focuses **nothing**, which looks exactly like arrow keys
+never having been wired.
+
+**No DOM test environment exists here** — no jsdom, happy-dom or linkedom; this repo renders with
+`react-dom/server` under `environment: node` by design. Checked, not assumed. Rather than add one to
+cover eight lines, everything that can be wrong in an interesting way moved into a pure
+`tabMoveTarget(key, ids, currentId)`: both wraps, Home/End, the one-tab bar, the empty bar
+(`% 0` is NaN → `?tab=undefined`), an unknown current id, and role-filtered bars — the visible list
+is per-viewer, so indexing the full spec would skip onto tabs that are not on screen. The remaining
+query-and-`.focus()` is pinned by source assertions labelled as the weaker thing they are.
+
+Mutation-tested six ways. All six fail.
+
+**FOLLOW-UP, NOT DEFERRED SILENTLY:** sixteen portals still carry their own handler and three carry
+none. The shared piece exists and adoption is now one prop each. That is outside this doc's remit —
+it is the admin shell, not the research portal — and belongs in its own slice with its own QA.
+
+### E1b — Adopt `tabKeyDown` in the other 16 portals ☐ *(outside this doc — admin shell)*
 ### E2 — One empty state, one error state, one loading state ☐
 ### E3 — Responsive pass ☐
 

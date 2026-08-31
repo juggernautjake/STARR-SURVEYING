@@ -25,6 +25,8 @@
 import React, { useCallback, useId, useRef, useState } from 'react';
 import './primitives.css';
 
+import { nextTabIndex } from '@/lib/admin/portal/tab-keyboard';
+
 // ── Accordion ───────────────────────────────────────────────────────────────────────────────────
 
 export interface AccordionProps {
@@ -134,22 +136,18 @@ export interface SegmentedTabsProps {
 /**
  * Which tab an arrow key should move to — `null` for a key this bar does not handle.
  *
- * Exported and pure because it is the only part of the tablist keyboard contract that can be
- * WRONG in an interesting way: the wrap at both ends, and Home/End on a one-tab bar. There is no
- * React testing library in this repo, so a rendered keydown cannot be asserted; this keeps the
- * arithmetic under a real test instead of under a regex that checks the source merely mentions
- * `ArrowRight`.
+ * Pure because it is the only part of the tablist keyboard contract that can be WRONG in an
+ * interesting way: the wrap at both ends, and Home/End on a one-tab bar. There is no React testing
+ * library in this repo, so a rendered keydown cannot be asserted; this keeps the arithmetic under a
+ * real test instead of under a regex that checks the source merely mentions `ArrowRight`.
+ *
+ * **Moved to `lib/admin/portal/tab-keyboard.ts`** when a second consumer appeared: seventeen admin
+ * portals declare `role="tablist"`, three implement no keyboard at all, and the shell has no
+ * business importing a research component. Re-exported here so this file's tests and the primitive
+ * keep pointing at ONE implementation — two copies of a keyboard contract is how one of them ends
+ * up missing Home/End, which is exactly what had happened across those seventeen bars.
  */
-export function nextTabIndex(key: string, index: number, count: number): number | null {
-  if (count <= 0) return null;
-  switch (key) {
-    case 'ArrowRight': case 'ArrowDown': return (index + 1 + count) % count;
-    case 'ArrowLeft':  case 'ArrowUp':   return (index - 1 + count) % count;
-    case 'Home':                         return 0;
-    case 'End':                          return count - 1;
-    default:                              return null;
-  }
-}
+export { nextTabIndex } from '@/lib/admin/portal/tab-keyboard';
 
 /**
  * An in-page tab bar. Phase B splits the 3,654-line project page with this.

@@ -76,7 +76,7 @@ export default function ResearchPortal() {
   const { data: session } = useSession();
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
   const activeTab = tabs.find((t) => t.id === active);
 
   return (
@@ -94,16 +94,14 @@ export default function ResearchPortal() {
               aria-selected={isActive}
               aria-controls={`rsh-panel-${t.id}`}
               tabIndex={isActive ? 0 : -1}
+              data-tab-id={t.id}
               className={`rsh-portal__tab${isActive ? ' rsh-portal__tab--active' : ''}`}
               onClick={() => select(t.id)}
-              onKeyDown={(e) => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                e.preventDefault();
-                const i = tabs.findIndex((x) => x.id === t.id);
-                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-                select(next.id);
-                document.getElementById(`rsh-tab-${next.id}`)?.focus();
-              }}
+              /* Was eight lines of inline keydown handling ArrowLeft/Right and nothing else.
+                 Seventeen admin portals declare role="tablist"; fourteen had their own copy of
+                 those eight lines, not one of them handled Home or End, and THREE had no keyboard
+                 behaviour at all. One implementation now, in the hook they all already call. */
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>
