@@ -12081,3 +12081,45 @@
   line-height: 1.45;
   color: var(--theme-fg-muted, #6B7280);
 }
+
+/* ── Which pipeline a screen starts ───────────────────────────────────────────
+ *
+ * Informational, not a warning. The commonest reader is somebody about to click
+ * a button that behaves correctly — they just need to know WHICH engine it is.
+ * Styling this as a caution would put a yellow box on a healthy screen, and a
+ * page that warns about normal operation trains people to ignore its warnings.
+ *
+ * Blue-tinted and quiet, sitting between the description and the controls it
+ * describes: the qualification arrives before the action, not after it. */
+.research-pipeline-note {
+  margin: 0.6rem 0 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--theme-border, #DBEAFE);
+  border-left: 3px solid var(--color-brand-blue, #2563EB);
+  border-radius: 0 6px 6px 0;
+  background: var(--theme-bg-subtle, #EFF6FF);
+  color: var(--theme-fg-primary, #1E3A5F);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+/* A button, not an anchor: it calls router.push rather than navigating on its
+ * own, so announcing it as a link would promise behaviour it does not have.
+ * Styled to read as a link because that is what it does for the reader. */
+.research-pipeline-note__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-brand-blue, #2563EB);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.research-pipeline-note__link:hover { text-decoration: none; }
+
+.research-pipeline-note__link:focus-visible {
+  outline: 2px solid var(--color-brand-blue, #2563EB);
+  outline-offset: 2px;
+}

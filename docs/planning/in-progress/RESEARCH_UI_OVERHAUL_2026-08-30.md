@@ -185,7 +185,7 @@ revertable.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
-### B6 — Say which pipeline this page runs ☐
+### B6 — ~~Say which pipeline this page runs~~ ✅ **SHIPPED 2026-08-30**
 
 Per the READ FIRST section. The "Start Analysis" control states plainly that it runs the in-app
 analysis, does not purchase documents, and links to the batch form for a worker run.
