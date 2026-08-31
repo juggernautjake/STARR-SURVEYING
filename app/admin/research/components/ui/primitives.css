@@ -103,6 +103,25 @@
   cursor: inherit;
 }
 
+/* Phase F1. The native checkbox carries the UA focus ring, which differs per browser and
+ * disappears entirely under some forced-colour settings. The other two focusable primitives
+ * (accordion trigger, tab) draw their own; a keyboard user moving between them should not have
+ * the ring change shape halfway down a form. `accent-color` keeps the checked fill on brand
+ * without replacing the control with a div, which is what every hand-rolled version did. */
+.rui-toggle__input {
+  accent-color: var(--color-brand-navy, #1D3095);
+}
+
+.rui-toggle__input:focus-visible {
+  outline: 2px solid var(--color-brand-navy, #1D3095);
+  outline-offset: 2px;
+}
+
+.rui-toggle:has(.rui-toggle__input:focus-visible) .rui-toggle__label {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .rui-toggle__label {
   display: block;
   font-weight: 600;

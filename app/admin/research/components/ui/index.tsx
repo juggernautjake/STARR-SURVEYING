@@ -22,7 +22,7 @@
 // sheet rendered unstyled on a route that did not import it — with nothing erroring. Third
 // instance in this repo. A caller of these primitives cannot forget to bring the styles.
 
-import React, { useId, useState } from 'react';
+import React, { useCallback, useId, useRef, useState } from 'react';
 import './primitives.css';
 
 // ── Accordion ───────────────────────────────────────────────────────────────────────────────────
@@ -120,6 +120,8 @@ export interface SegmentedTab {
   label: React.ReactNode;
   /** Optional count badge. `0` renders — "0 documents" is information, not absence. */
   count?: number;
+  /** id of the element this tab controls, so `aria-controls` can point at something real. */
+  panelId?: string;
 }
 
 export interface SegmentedTabsProps {
@@ -130,23 +132,85 @@ export interface SegmentedTabsProps {
 }
 
 /**
+ * Which tab an arrow key should move to — `null` for a key this bar does not handle.
+ *
+ * Exported and pure because it is the only part of the tablist keyboard contract that can be
+ * WRONG in an interesting way: the wrap at both ends, and Home/End on a one-tab bar. There is no
+ * React testing library in this repo, so a rendered keydown cannot be asserted; this keeps the
+ * arithmetic under a real test instead of under a regex that checks the source merely mentions
+ * `ArrowRight`.
+ */
+export function nextTabIndex(key: string, index: number, count: number): number | null {
+  if (count <= 0) return null;
+  switch (key) {
+    case 'ArrowRight': case 'ArrowDown': return (index + 1 + count) % count;
+    case 'ArrowLeft':  case 'ArrowUp':   return (index - 1 + count) % count;
+    case 'Home':                         return 0;
+    case 'End':                          return count - 1;
+    default:                              return null;
+  }
+}
+
+/**
  * An in-page tab bar. Phase B splits the 3,654-line project page with this.
  *
  * `role="tablist"` with `aria-selected` rather than styled links: these switch a panel in place,
  * they do not navigate, and announcing them as links would promise a page change that never comes.
+ *
+ * ── ROVING TABINDEX (Phase F1) ────────────────────────────────────────────────────────────────
+ *
+ * Claiming `role="tablist"` is a PROMISE about the keyboard, and the first version of this made
+ * the promise without keeping it. A screen reader announces "tab 2 of 5" and the user reaches for
+ * an arrow key, because that is what the role means; the arrow key did nothing, and Tab walked
+ * through every tab one at a time on the way to the panel.
+ *
+ * So: exactly one tab is in the tab order (`tabIndex={0}`, the selected one) and the rest are
+ * `-1`. Arrow keys move selection and focus together, Home and End jump to the ends, and the
+ * whole bar is a single Tab stop. This is the WAI-ARIA "tabs with automatic activation" pattern —
+ * chosen over manual activation because these panels are already mounted, so moving selection
+ * costs nothing and a second keypress to confirm would just be ceremony.
+ *
+ * The alternative was to drop the role and let them be plain buttons. That was rejected: the
+ * grouping and the "2 of 5" position are genuinely useful, and the fix is fifteen lines.
  */
 export function SegmentedTabs({ tabs, activeId, onChange, ...rest }: SegmentedTabsProps) {
+  const refs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const focusTab = useCallback(
+    (index: number) => {
+      const wrapped = ((index % tabs.length) + tabs.length) % tabs.length;
+      const tab = tabs[wrapped];
+      if (!tab) return;
+      onChange(tab.id);
+      // Focus follows selection. Without this the ring stays on the tab you left, and the reader
+      // announces a tab you are no longer on — worse than no arrow support at all.
+      refs.current[wrapped]?.focus();
+    },
+    [tabs, onChange],
+  );
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const target = nextTabIndex(e.key, index, tabs.length);
+    if (target === null) return;
+    e.preventDefault();
+    focusTab(target);
+  };
+
   return (
     <div className="rui-tabs" role="tablist" aria-label={rest['aria-label']}>
-      {tabs.map((t) => {
+      {tabs.map((t, i) => {
         const active = t.id === activeId;
         return (
           <button
             key={t.id}
             type="button"
             role="tab"
+            ref={(el) => { refs.current[i] = el; }}
             aria-selected={active}
+            aria-controls={t.panelId}
+            tabIndex={active ? 0 : -1}
             className={`rui-tabs__tab${active ? ' rui-tabs__tab--active' : ''}`}
+            onKeyDown={(e) => onKeyDown(e, i)}
             onClick={() => onChange(t.id)}
           >
             {t.label}

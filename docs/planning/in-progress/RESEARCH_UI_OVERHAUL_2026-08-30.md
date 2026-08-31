@@ -283,9 +283,39 @@ Tailwind's `svg{display:block}` breaking icon headings. See [[project_ui_fit_swe
 
 ## Phase F — accessibility
 
-### F1 — Keyboard and focus ☐
+### F1 — ~~Keyboard and focus~~ ✅ **SHIPPED 2026-08-30**
 
-Every primitive from A2 operable without a mouse; visible focus; correct roles.
+`SegmentedTabs` shipped in A2 with `role="tablist"` and **none of the keyboard behaviour that role
+promises**, which is worse than plain buttons would have been. A screen reader announces "tab 2 of
+5", so the user reaches for an arrow key — that is what the role MEANS — and nothing happened.
+Meanwhile every tab was its own Tab stop, so reaching the panel behind a five-tab bar took six
+presses. Nothing rendered wrong, nothing errored, and no existing test could have caught it: the
+defect was entirely in what the markup CLAIMED versus what it did.
+
+Now the WAI-ARIA roving-tabindex pattern — one Tab stop, arrows move selection AND focus together,
+Home/End, `aria-controls` pointing at a real panel. Automatic activation rather than manual,
+because these panels are already mounted, so a second keypress to confirm would be pure ceremony.
+
+**Caught before E1 consumed it.** The primitives still have almost no callers, so fixing the
+contract now cost one file; after E1 wires eight tabs it would have been a behaviour change across
+the portal.
+
+**The toggle was the focus gap.** A native checkbox inherits the UA ring, which differs per browser
+and vanishes under some forced-colour settings — so a keyboard user moving down a form watched the
+ring change shape halfway. All three focusable primitives now draw the same one, and a guard fails
+on any bare `outline: none`, which is how rings disappear in a "tidy-up" commit.
+
+**There is no @testing-library/react in this repo** (checked, not assumed), so a keydown on a
+rendered tablist cannot be asserted. Rather than settle for a regex proving the source *mentions*
+`ArrowRight`, the part with real logic was extracted into an exported pure `nextTabIndex` and
+tested directly: both wraps, Home/End, the one-tab bar, the empty bar, and every key it must NOT
+swallow — returning `0` instead of `null` for Tab would trap focus inside the bar, the
+accessibility fix becoming the worse bug. The three unextractable wiring facts are pinned by source
+assertions and are labelled in the file as the weaker thing they are.
+
+Mutation-tested four ways — dropped negative wrap (`(0-1)%5 === -1`, focuses nothing, throws
+nothing), handling every key, all tabs in the tab order, focus no longer following selection. All
+four fail the suite.
 
 ### F2 — Contrast ☐
 
