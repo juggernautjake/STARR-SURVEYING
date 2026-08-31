@@ -2633,6 +2633,24 @@ export async function fetchDocumentImages(
    *  county passed that verification — should pass it rather than have it looked up here, or a
    *  county whose routing was fixed gets its images fetched from a host that no longer resolves. */
   baseUrlOverride?: string,
+  /** The viewer URL, when the caller already has it — e.g. `https://…/doc/98732828`.
+   *
+   *  ── WHY THIS PARAMETER EXISTS ────────────────────────────────────────────────────────────────
+   *
+   *  The search+click below is correct and was necessary: `/doc/{id}` takes Tyler's INTERNAL
+   *  document id (98732828), not the instrument number (2004032468), so a URL cannot be built from
+   *  what most callers hold.
+   *
+   *  But some callers are not guessing — they have the real URL from the search results they just
+   *  read, and the 2026-08-30 run log shows them throwing it away and searching for it again:
+   *
+   *      [ownerSearch] Doc 2004032468: real URL from search = https://…/doc/98732828
+   *      Search+click: searching for instrument 2004032468        ← 10s to re-derive it
+   *      Search: internal docId=98732828                           ← the same id
+   *
+   *  Ten seconds per document, eleven documents. When the URL is passed, navigation goes straight
+   *  to the viewer; when it is absent the search path runs exactly as before. */
+  knownViewerUrl?: string,
 ): Promise<DocumentPage[]> {
   // Check image cache — return cached pages if we already captured this instrument
   // Keyed on the PORTAL as well as the county name, now that the base URL can be supplied by the
@@ -2706,16 +2724,35 @@ export async function fetchDocumentImages(
     // Constructing /doc/{instrumentNumber} navigates to the wrong page or 404.
     // Instead, search by instrument number, find the correct result, click it to open
     // the viewer, and capture the signed image URLs that the viewer fires.
+    // ── DIRECT NAVIGATION, when the caller already knows the viewer URL ──────────────────────
+    // Only a URL the caller READ from search results is trusted here — never one constructed from
+    // the instrument number, which is the mistake the comment above warns about. Anything that is
+    // not this portal's own /doc/ URL falls through to the search path rather than being followed:
+    // a caller passing a wrong host would otherwise send the browser somewhere unrelated.
+    const trustedViewerUrl =
+      knownViewerUrl && knownViewerUrl.startsWith(baseUrl) && knownViewerUrl.includes('/doc/')
+        ? knownViewerUrl
+        : null;
+
     const searchUrl = `${baseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-    logger.info('2D-IMG', `Search+click: searching for instrument ${instrumentNumber}`);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    if (trustedViewerUrl) {
+      logger.info('2D-IMG', `Direct viewer navigation (URL known from search): ${trustedViewerUrl}`);
+    } else {
+      logger.info('2D-IMG', `Search+click: searching for instrument ${instrumentNumber}`);
+    }
+    await page.goto(trustedViewerUrl ?? searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
 
     // Check if any results appeared
-    const rowCount = await page.$$eval('tbody tr[aria-selected]', (rows: Element[]) => rows.length).catch(
-      () => page.$$eval('tbody tr', (rows: Element[]) => rows.length).catch(() => 0)
-    );
+    // On the direct path we are already ON the viewer, so there are no result rows to count and
+    // nothing to click. Reported as 1 so the "document may not exist" branch below — which is about
+    // a failed SEARCH — cannot fire for a document we navigated to successfully.
+    const rowCount = trustedViewerUrl
+      ? 1
+      : await page.$$eval('tbody tr[aria-selected]', (rows: Element[]) => rows.length).catch(
+        () => page.$$eval('tbody tr', (rows: Element[]) => rows.length).catch(() => 0)
+      );
 
     if (rowCount === 0) {
       logger.warn('2D-IMG', `Search: no result rows found for instrument ${instrumentNumber} — document may not exist`);
@@ -2742,15 +2779,18 @@ export async function fetchDocumentImages(
       }
 
       try {
-        // Click the result row to navigate to the document viewer
-        const firstRow = page.locator('tbody tr[aria-selected]').first();
-        const fallbackRow = page.locator('tbody tr').first();
-        await (await firstRow.count() > 0 ? firstRow : fallbackRow).click();
-        logger.info('2D-IMG', `Clicked result row — waiting for viewer to load...`);
+        if (!trustedViewerUrl) {
+          // Click the result row to navigate to the document viewer
+          const firstRow = page.locator('tbody tr[aria-selected]').first();
+          const fallbackRow = page.locator('tbody tr').first();
+          await (await firstRow.count() > 0 ? firstRow : fallbackRow).click();
+          logger.info('2D-IMG', `Clicked result row — waiting for viewer to load...`);
+        }
 
-        // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL.
+        // Kofile viewer needs TYLER_VIEWER_LOAD_TIMEOUT_MS to fire the signed image URL. Waited on
+        // BOTH paths: a direct navigation fires the same signed URLs, just without the click.
         await page.waitForTimeout(TYLER_VIEWER_LOAD_TIMEOUT_MS);
-        logger.info('2D-IMG', `After click+wait: ${imageUrls.length} URL(s) intercepted`);
+        logger.info('2D-IMG', `After ${trustedViewerUrl ? 'direct nav' : 'click'}+wait: ${imageUrls.length} URL(s) intercepted`);
 
         // Capture the actual document URL for reference
         const finalUrl = page.url();

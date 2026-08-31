@@ -398,7 +398,12 @@ async function fetchInstrumentDocument(
       try {
         progress(`    [fetchInstrument] Capturing page images for ${instrumentNumber}...`);
         console.log(`[ClerkScraper] fetchDocumentImages: instrument=${instrumentNumber}, maxPages=20`);
-        const pages = await fetchDocumentImages(instrumentNumber, 20, logger);
+        // `docRef.url`, NOT `realDocUrl`. They differ in exactly the way that matters here:
+        // realDocUrl falls back to BELL_ENDPOINTS.clerk.document(instrumentNumber), which BUILDS
+        // /doc/{instrumentNumber} — and Tyler's /doc/ takes an internal document id, so that
+        // constructed URL 404s or opens the wrong record. Only the URL read from the search
+        // results is safe to navigate to directly; when it is absent, the search path runs.
+        const pages = await fetchDocumentImages(instrumentNumber, 20, logger, 'bell', undefined, docRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         if (pageImages.length > 0) {
           progress(`    [fetchInstrument] ✓ Captured ${pageImages.length} page(s) for ${instrumentNumber}`);
