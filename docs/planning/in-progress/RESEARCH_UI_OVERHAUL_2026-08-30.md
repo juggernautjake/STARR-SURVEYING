@@ -392,6 +392,53 @@ Mutation-tested four ways — dropped negative wrap (`(0-1)%5 === -1`, focuses n
 nothing), handling every key, all tabs in the tab order, focus no longer following selection. All
 four fail the suite.
 
+### A4 — ~~Three red ratchets, none of them debt~~ ✅ **SHIPPED 2026-08-30** *(found by the full-suite run)*
+
+The whole suite was run before merging, per [[feedback_full_suite_catches_cross_cutting]]. Three
+failures the per-directory runs could not see. **All three were real, and two were mine.**
+
+**1. `--theme-bg-subtle` was never a token.** Fifteen rules across three research stylesheets read
+it; nothing has ever defined it, so every one painted its literal fallback on all twelve palettes.
+It slipped past three separate reviews because **`--theme-bg-subtle-hover` DOES exist** — the name
+reads as obviously real, and a `-hover` modifier with no base is itself the tell that the base was
+meant to exist. Defined in all twelve blocks rather than rewritten at fifteen call sites, following
+the precedent themes.css already sets in its own comment: *"Defined rather than deleted, because
+every call site was asking for the right thing."*
+
+`--theme-bg-input` got the opposite treatment: one call site, and 297 rules across the admin sheets
+already use `--theme-bg-surface` for an input background. One call site with an established
+alternative gets fixed; it does not get a new token.
+
+**2. A3 duplicated fourteen classes that already existed — and lost.** The whole `.ra-live-log`
+family was re-authored in `ResearchAnalysisPanel.css` when `AdminResearch.css` already had it. The
+pre-existing versions are *more complete* (background, border-bottom, cursor, user-select), and
+AdminResearch.css loads **last** on these routes, so the new ones never applied at all
+([[feedback_route_scoped_css_swallows_fixes]] again). **A3's premise was partly false**: "78 classes
+with no stylesheet anywhere" did not check AdminResearch.css for these fourteen. Duplicates removed;
+the genuinely-new variants beside them stay.
+
+**3. The Starr-assumptions ratchet was counting comments.** Red at 165 against a 160 ceiling — and
+`scan()` read raw source, so PROSE counted. `arcgis-fields.ts` scored a hit for the sentence
+*"context came back empty on every Bell County run"*, in a file whose code names no county at all.
+
+**46 of the 165 were comments.** The real backlog is **119 across 67 files**, so the ceiling came
+DOWN — the only direction it is allowed to move. Nothing was paid down: the instrument had been
+over-reporting by 38%.
+
+This is the **third** guard here to match its own explanatory text this month
+(`derive-portal-tabs.mjs` and the A3 CSS check were the others). Long comments are the house style,
+so any scanner over this source must strip them or it is measuring the documentation.
+
+The stripper is load-bearing now — it decides a ratchet's number — so it has its own tests. The
+dangerous failure is not missing a comment, which only inflates a count; it is **eating code**: a
+naive `//` rule swallows any line holding a URL, and adapter files are full of
+`https://esearch.bellcad.org`. Under-counting looks like progress. Its own test then caught a second
+case the `:` guard missed — a protocol-relative `"//cdn.example.com"` — before it ever ran in anger.
+
+Mutation-tested three ways (URL guard dropped, strip order reversed, helper unwired from `scan`).
+
+---
+
 ### F2 — Contrast ☐
 
 232 contrast problems are already recorded repo-wide (see [[project_page_versions_dossiers]]). Fix

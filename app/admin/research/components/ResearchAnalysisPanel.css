@@ -79,7 +79,11 @@
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--theme-border, #D1D5DB);
   border-radius: 6px;
-  background: var(--theme-bg-input, #FFFFFF);
+  /* --theme-bg-input was invented here and defined nowhere. Unlike --theme-bg-subtle, which had
+   * fifteen call sites all wanting the same real thing, this had exactly one — and 297 rules across
+   * the admin sheets already use --theme-bg-surface for an input background. One call site with an
+   * established alternative gets fixed; it does not get a new token. */
+  background: var(--theme-bg-surface, #FFFFFF);
   color: var(--theme-fg-primary, #1F2937);
   font: inherit;
   font-size: 0.88rem;
@@ -173,30 +177,6 @@
 
 /* ── Live log ────────────────────────────────────────────────────────────── */
 
-.ra-live-log {
-  margin-top: 0.85rem;
-  border: 1px solid var(--theme-border, #E5E7EB);
-  border-radius: 8px;
-  overflow: hidden;
-}
-
-.ra-live-log__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.45rem 0.6rem;
-  background: var(--theme-bg-subtle, rgba(0, 0, 0, 0.03));
-}
-
-.ra-live-log__header-left { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
-
-.ra-live-log__title {
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: var(--theme-fg-primary, #1F2937);
-}
-
 .ra-live-log__status, .ra-live-log__count {
   font-size: 0.72rem;
   color: var(--theme-fg-muted, #6B7280);
@@ -221,51 +201,11 @@
 /* Capped and scrollable: an unbounded log pushes everything below it off the
  * page, and a run emits hundreds of lines. Newest is at the bottom, so the
  * component scrolls this element rather than the window. */
-.ra-live-log__stream {
-  max-height: 260px;
-  overflow-y: auto;
-  padding: 0.4rem 0.6rem;
-  background: var(--theme-bg-elevated, #FFFFFF);
-  font-size: 0.76rem;
-  line-height: 1.5;
-}
-
-.ra-live-log__entry {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  gap: 0.45rem;
-  padding: 0.12rem 0;
-  color: var(--theme-fg-primary, #374151);
-}
-
 /* Level carries meaning, so each has a distinct colour AND the icon column
  * beside it — colour alone is not a signal for every reader. */
 .ra-live-log__entry--info     { color: var(--theme-fg-primary, #374151); }
 .ra-live-log__entry--progress { color: var(--theme-fg-muted, #6B7280); }
 .ra-live-log__entry--success  { color: #166534; }
-.ra-live-log__entry--warn     { color: #92400E; }
-
-.ra-live-log__entry--typing { opacity: 0.7; }
-
-.ra-live-log__time {
-  font-variant-numeric: tabular-nums;
-  color: var(--theme-fg-muted, #9CA3AF);
-  white-space: nowrap;
-}
-
-.ra-live-log__icon { width: 1em; text-align: center; }
-.ra-live-log__msg { min-width: 0; overflow-wrap: anywhere; }
-
-.ra-live-log__dots { display: inline-flex; gap: 3px; }
-
-.ra-live-log__dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: currentColor;
-  animation: ra-dot 1.2s ease-in-out infinite;
-}
-
 .ra-live-log__dot:nth-child(2) { animation-delay: 0.15s; }
 .ra-live-log__dot:nth-child(3) { animation-delay: 0.3s; }
 
@@ -323,17 +263,6 @@
 /* Styled as a CAUTION, not an error: the commonest reason this appears is the
  * operator's own deliberate choice to skip paid documents, and rendering a
  * correct setting in error-red teaches people to ignore red. */
-.ra-results__paid-notice {
-  margin: 0.6rem 0;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid #FDE68A;
-  border-radius: 6px;
-  background: #FEF3C7;
-  color: #92400E;
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
 .ra-results__resources { display: grid; gap: 0.5rem; }
 
 /* ── Upload ──────────────────────────────────────────────────────────────── */

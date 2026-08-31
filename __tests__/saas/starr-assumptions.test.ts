@@ -43,8 +43,30 @@ const ROOT = process.cwd();
  *
  *  Both were added to `CORRECT_FOREVER`, returning the count to 160. **The ceiling was NOT raised
  *  and no debt was paid down** — a misclassification was corrected. If a future reader is checking
- *  whether somebody moved the goalposts: the number that changed is the measurement, not the line. */
-const TENANT_REFERENCE_CEILING = 160;
+ *  whether somebody moved the goalposts: the number that changed is the measurement, not the line.
+ *
+ *  ── 2026-08-30: 165 → 119, AND THE SCANNER WAS READING COMMENTS ──────────────────────────────
+ *
+ *  Red again, at 165. Same shape as the 2026-08-12 breach and, again, not debt.
+ *
+ *  `scan()` read raw source, so PROSE counted. `lib/research/arcgis-fields.ts` scored a hit for the
+ *  sentence *"context came back empty on every Bell County run"* — a note about a real appraisal
+ *  district's schema, in a file whose code names no county at all. `lib/research/county-input.ts`
+ *  scored two for a comment describing the very mistake it was written to catch.
+ *
+ *  No customer firm has ever expected a COMMENT to say their name, which is the question every
+ *  pattern in the audit claims to be asking. Counting prose inflated the backlog with work that does
+ *  not exist and hid the real number behind it: **46 of the 165 were comments.**
+ *
+ *  `stripComments()` now runs before the patterns, and the measured backlog is 119 across 67 files.
+ *  So the ceiling comes DOWN, which is the only direction it is allowed to move. Nothing was paid
+ *  down here either — the instrument was corrected, and it had been over-reporting by 38%.
+ *
+ *  This is the third guard in this repository to match its own explanatory text, all this month
+ *  (`scripts/derive-portal-tabs.mjs` and the A3 CSS check were the others). Long comments are the
+ *  house style here, so any scanner over this source must strip them or it is measuring the
+ *  documentation. */
+const TENANT_REFERENCE_CEILING = 119;
 
 describe('hard-coded firm identity', () => {
   const tenantHits = scan(ROOT).filter((h: { bucket: string }) => h.bucket === 'tenant');
