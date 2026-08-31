@@ -18,6 +18,7 @@ import { geocodeAddress, type GeoPoint } from './map-image.service';
 import { PipelineLogger } from './pipeline-logger';
 import { fetchParcelCentroidWgs84 as fetchSharedCentroid } from './bell-cad-arcgis.service';
 import { classifyStaticMapFailure } from '@/lib/maps/static-map-status';
+import { resolveServerMapsKey, NO_SERVER_MAPS_KEY_MESSAGE } from '@/lib/maps/server-key';
 
 // ── Parcel Centroid Lookup ───────────────────────────────────────────────────
 
@@ -208,7 +209,11 @@ function buildGoogleStaticUrl(
   lat: number, lon: number, zoom: number,
   maptype: 'roadmap' | 'hybrid',
 ): string | null {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Server-side call: the PUBLIC key is deliberately not a fallback. It is referrer-restricted,
+  // so Google refuses a server request that uses it whatever APIs are enabled — turning a fixable
+  // "not configured" into an opaque permission error. See lib/maps/server-key.ts.
+  const { key: apiKey } = resolveServerMapsKey();
+  if (!apiKey) console.warn(`[maps] ${NO_SERVER_MAPS_KEY_MESSAGE}`);
   if (!apiKey) return null;
   const params = new URLSearchParams({
     center: `${lat},${lon}`,
@@ -517,7 +522,10 @@ export async function captureProgressiveZoom(
       has_google_hybrid: !!googleHybridUrl,
       has_google_road: !!googleRoadUrl,
       esri_url: esriUrl.substring(0, 100),
-      has_google_api_key: !!(process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY),
+      // Was `GOOGLE_MAPS_API_KEY || NEXT_PUBLIC_...`, which reported TRUE when only the browser
+      // key existed — a diagnostic saying "the key is there" about a key this code cannot use. A
+      // false green light is worse than no light: it sends the reader looking for a different bug.
+      has_google_api_key: resolveServerMapsKey().key !== null,
     });
 
     // Fetch images + parcel data in parallel (using current center)

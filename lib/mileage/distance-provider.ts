@@ -68,7 +68,20 @@ const METERS_PER_MILE = 1609.344;
  * Vercel production found a server-side maps key had existed for 115 days under a different name —
  * **`GOOGLE_MAPS_API_KEY`** — already used server-side by `lib/research/boundary-fetch.service.ts`,
  * `parcel-map-capture.service.ts`, `progressive-zoom.service.ts` and the Bell county lot correlator.
- * Those call Static Maps and geocoding from the server and work, so that key is not referrer-locked.
+ * ~~Those call Static Maps and geocoding from the server and work, so that key is not
+ * referrer-locked.~~
+ *
+ * ⚠ **THAT LAST CLAUSE WAS AN INFERENCE, AND IT IS FALSE — corrected 2026-08-30.** Nobody checked
+ * that those services work; they do not. Measured against production: Maps Static returns 403, and
+ * **22 stored aerial/topo images are broken**, every one of them written by those very services.
+ * The failure was invisible because a failed map image was a silent `return null` — see
+ * `lib/maps/static-map-status.ts`, which now makes it say which of five things went wrong.
+ *
+ * The reasoning error is worth more than the fact: *"they work, therefore the config must be fine"*
+ * ran backwards from an assumption to a conclusion without measuring the middle. It is the same
+ * shape as the `TAVILY_API_KEY` warning that survived three weeks because a green light was read as
+ * evidence. Those three services also carried the `|| NEXT_PUBLIC_...` fallback this file warns
+ * about, so they may well have been running on the browser key the whole time.
  *
  * So the owner was being asked to create a second server key next to one they already had, because
  * two parts of this codebase named the same idea differently. The research services already read

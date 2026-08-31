@@ -18,6 +18,7 @@ import { geocodeAddress, type GeoPoint } from './map-image.service';
 import { BELL_CAD_FEATURE_SERVER } from './bell-cad-arcgis.service';
 import type { PipelineLogger } from './pipeline-logger';
 import { classifyStaticMapFailure } from '@/lib/maps/static-map-status';
+import { resolveServerMapsKey, NO_SERVER_MAPS_KEY_MESSAGE } from '@/lib/maps/server-key';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -78,7 +79,11 @@ function buildGoogleStaticMapUrl(
   maptype: 'roadmap' | 'satellite' | 'hybrid' = 'roadmap',
   size = { w: MAP_WIDTH, h: MAP_HEIGHT },
 ): string | null {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // Server-side call: the PUBLIC key is deliberately not a fallback. It is referrer-restricted,
+  // so Google refuses a server request that uses it whatever APIs are enabled — turning a fixable
+  // "not configured" into an opaque permission error. See lib/maps/server-key.ts.
+  const { key: apiKey } = resolveServerMapsKey();
+  if (!apiKey) console.warn(`[maps] ${NO_SERVER_MAPS_KEY_MESSAGE}`);
   if (!apiKey) return null;
 
   const params = new URLSearchParams({

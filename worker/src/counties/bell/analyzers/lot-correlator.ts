@@ -715,9 +715,22 @@ async function fetchGoogleMapsLocationImage(
    *  parcel and showing a ninth of it. */
   acreage?: number | null,
 ): Promise<{ satellite: string | null; street: string | null }> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  // The PUBLIC key is deliberately not a fallback here. It is referrer-restricted, and this is a
+  // server-side call from the worker — Google refuses it with "API keys with referer restrictions
+  // cannot be used with this API" however many APIs are enabled, so falling back turns a fixable
+  // "not configured" into an opaque permission error.
+  //
+  // Duplicated from `lib/maps/server-key.ts` rather than imported: the worker is a separate
+  // TypeScript project with its own rootDir and cannot reach into the app's `lib/`. Knowingly, the
+  // way `warnings-are-about-this-process.test.ts` duplicates `stripComments` for the same reason.
+  const apiKey = (process.env.GOOGLE_MAPS_SERVER_KEY || process.env.GOOGLE_MAPS_API_KEY)
+    ?.trim().replace(/^["']|["']$/g, '');
   if (!apiKey) {
-    onProgress('⚠ Google Maps API key not configured — skipping location image capture');
+    onProgress(
+      '⚠ No server-side Google Maps key — skipping location image capture. Set '
+      + 'GOOGLE_MAPS_SERVER_KEY (or GOOGLE_MAPS_API_KEY) to a key with no referrer restriction; '
+      + 'the NEXT_PUBLIC browser key cannot authenticate a server request.',
+    );
     return { satellite: null, street: null };
   }
 
