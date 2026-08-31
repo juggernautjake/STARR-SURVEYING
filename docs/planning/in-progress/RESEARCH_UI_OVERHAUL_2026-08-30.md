@@ -340,6 +340,44 @@ else.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
+### B1a — ninth slice: **correcting the eighth** — SHIPPED 2026-08-31
+
+The eighth slice extracted the traverse maths and tested it. The maths was right and the tests
+were good. **The module was still a mistake**: `lib/cad/geometry/bearing.ts` already had
+`forwardPoint`, `inverseBearingDistance`, `azimuthToQuadrant` and `formatBearing` — with its own
+tests, used by five CAD components.
+
+So that slice fixed *untested* by introducing *duplicated*, which is the worse of the two. **Its
+own commit message warned about exactly this**, about `azimuthToBearingSimple`, in the same
+breath.
+
+### How it was found, and when it should have been
+
+By grepping `Math.sin(rad)` across the repo while chasing a **third** copy of the same maths
+inside `handleUpdateVertex` — editing a vertex by bearing and distance had its own implementation
+all along. That grep is the one that should have run *before* writing any of it. "Check whether
+this already exists" is a rule this doc records four times about parked plan items; it applies to
+library code too.
+
+### What the correction did
+
+- **Three call sites onto one implementation** — add-leg, close-traverse and edit-vertex all go
+  through `forwardPoint` / `inverseBearingDistance` now.
+- **`traverse-geometry.ts` kept only what is genuinely this page's**: `needsClosing`, which is a
+  decision (at least three vertices, and not already closed) rather than geometry. 47 lines.
+- **One bearing format.** The page rendered `N 30° 0' 0" E`; every CAD surface renders the
+  survey-standard zero-padded `N 30°00'00" E`. **One product showing a bearing two ways is a
+  defect of its own**, and this is a visible change — the traverse panel's bearings now match the
+  drawing's.
+
+Mutation-tested five ways, including both attempts to regrow a local copy — in the module and in
+the page. All five fail.
+
+The test file shrank from 17 assertions to 10, deliberately: the maths is covered by
+`__tests__/cad/geometry/bearing.test.ts` where it belongs, and duplicating those assertions here
+would be the same mistake in the test layer. What stayed is `needsClosing`, the round-trip
+property, and guards that the page has not grown a fourth copy.
+
 ### B1a — eighth slice: the traverse GEOMETRY — SHIPPED 2026-08-31
 
 `_sections/traverse-geometry.ts`. Second state-first slice, and the most consequential one: this
