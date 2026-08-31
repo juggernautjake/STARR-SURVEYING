@@ -179,6 +179,18 @@ describe('the surface', () => {
   it('is actually mounted on the project page', () => {
     // "Authored but not wired" is this repo's most common defect.
     const page = read('app/admin/research/[projectId]/page.tsx');
-    expect(page).toContain('<RunConsoleBar projectId={projectId} />');
+    // ── THE GUARD FOLLOWED THE CODE ──────────────────────────────────────────────────────────
+    //
+    // This asserted on `[projectId]/page.tsx`, and the stage-2 block moved into
+    // `_sections/ResearchStagePanel.tsx` (B1a). The check went red, correctly.
+    //
+    // A guard that names a FILE has to be pointed at the file after a move — but pointing it at
+    // the section alone would be weaker than what it replaced, because a section nothing mounts
+    // satisfies it just as well. So it asserts BOTH: the section renders it, AND the page mounts
+    // the section. That is the same two-part shape the county-check guard took when C3 extracted
+    // `CountyNote`.
+    expect(read('app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx'))
+      .toContain('<RunConsoleBar projectId={projectId} />');
+    expect(page).toMatch(/<ResearchStagePanel\s/);
   });
 });

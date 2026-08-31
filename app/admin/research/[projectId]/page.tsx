@@ -44,6 +44,7 @@ import RunDiffPanel from '../components/RunDiffPanel';
 // What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
 import ReportCardPanel from '../components/ReportCardPanel';
 import EditProjectModal from './_sections/EditProjectModal';
+import ResearchStagePanel from './_sections/ResearchStagePanel';
 import ProjectHeader from './_sections/ProjectHeader';
 import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
@@ -1788,56 +1789,38 @@ export default function ResearchProjectPage() {
           "Continue to Review" button appears on completion.
           ════════════════════════════════════════════════════════════ */}
       {currentStage === 'research' && (
-        <div className="research-stage2">
-          <div className="research-stage2__launch">
-            <div className="research-step-header" style={{ marginBottom: '1rem' }}>
-              <span className="research-step-header__icon"><Microscope size={18} strokeWidth={1.75} /></span>
-              <div className="research-step-header__body">
-                <h2 className="research-step-header__title">Research &amp; Analysis</h2>
-              </div>
-            </div>
-            {/* Cost and elapsed-vs-budget, above the progress list (plan R22). The run panel showed
-                neither, so an operator watching a 25-minute run could not tell what it had spent or
-                whether it would finish. */}
-            <RunConsoleBar projectId={projectId} />
-            {/* A job that sat for three months and gained two new deeds needs to say so, and the
-                approved packet needs to be told it is out of date (plan R27). */}
-            <RunDiffPanel projectId={projectId} />
-            <ReportCardPanel projectId={projectId} />
-            <ResearchRunPanel
-              projectId={projectId}
-              address={pendingSearchParams?.address ?? project.property_address ?? ''}
-              county={pendingSearchParams?.county ?? project.county ?? ''}
-              parcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
-              ownerName={pendingSearchParams?.ownerName ?? projectOwnerName(project) ?? ''}
-              autoStart={shouldAutoStartPipeline}
-              onPipelineStart={() => {
-                setPipelineHasStarted(true);
-                setHoldOnResearchStage(true);
-              }}
-              onPipelineComplete={(status) => {
-                setShouldAutoStartPipeline(false);
-                loadDocuments();
-                loadProject();
-              }}
-              onBack={() => {
-                setPipelineHasStarted(false);
-                handleRevertToStep('upload');
-              }}
-              onContinueToReview={() => {
-                setHoldOnResearchStage(false);
-                loadDocuments();
-                loadProject();
-                handleStatusUpdate('review');
-                // The worker persists artifacts asynchronously after reporting
-                // completion, so documents may still be writing to the DB.
-                // Retry loading after short delays to catch late arrivals.
-                setTimeout(() => loadDocuments(), 3000);
-                setTimeout(() => loadDocuments(), 8000);
-              }}
-            />
-          </div>
-        </div>
+        <ResearchStagePanel
+          projectId={projectId}
+          address={pendingSearchParams?.address ?? project.property_address ?? ''}
+          county={pendingSearchParams?.county ?? project.county ?? ''}
+          parcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
+          ownerName={pendingSearchParams?.ownerName ?? projectOwnerName(project) ?? ''}
+          autoStart={shouldAutoStartPipeline}
+          onPipelineStart={() => {
+            setPipelineHasStarted(true);
+            setHoldOnResearchStage(true);
+          }}
+          onPipelineComplete={() => {
+            setShouldAutoStartPipeline(false);
+            loadDocuments();
+            loadProject();
+          }}
+          onBack={() => {
+            setPipelineHasStarted(false);
+            handleRevertToStep('upload');
+          }}
+          onContinueToReview={() => {
+            setHoldOnResearchStage(false);
+            loadDocuments();
+            loadProject();
+            handleStatusUpdate('review');
+            // The worker persists artifacts asynchronously after reporting completion, so
+            // documents may still be writing to the DB. Retry after short delays to catch
+            // late arrivals.
+            setTimeout(() => loadDocuments(), 3000);
+            setTimeout(() => loadDocuments(), 8000);
+          }}
+        />
       )}
 
       {/* ════════════════════════════════════════════════════════════════
