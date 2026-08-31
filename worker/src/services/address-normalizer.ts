@@ -13,6 +13,7 @@ import { lookupCountyFIPS } from '../lib/county-fips.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call normalises an address string.
 import { modelFor } from '../infra/model-router.js';
 import { recordAmbientAiCall } from '../infra/usage.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // Re-export for consumers that import all address utilities from a single module
 export { lookupCountyFIPS } from '../lib/county-fips.js';
@@ -559,10 +560,13 @@ export async function generateAiAddressVariants(
     const Anthropic = (await import('@anthropic-ai/sdk')).default;
     const client = new Anthropic({ apiKey: anthropicApiKey });
 
+    // Sonnet 5 and the Opus 5 family REJECT `temperature` with a 400 — this exact call failed
+    // that way in the 2026-08-30 run. samplingFor() sends it only to models that accept it.
+    const aiModel = modelFor('read_text').model;
     const response = await client.messages.create({
-      model: modelFor('read_text').model,
+      model: aiModel,
       max_tokens: 1024,
-      temperature: 0,
+      ...samplingFor(aiModel),
       messages: [{
         role: 'user',
         content: `I'm searching a Texas county CAD (Central Appraisal District) database for a property at this address:

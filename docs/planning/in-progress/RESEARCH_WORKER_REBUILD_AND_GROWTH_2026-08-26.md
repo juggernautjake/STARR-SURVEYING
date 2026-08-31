@@ -382,6 +382,61 @@ reason that points nowhere near the cause. Deferred twice already as "not in a s
 
 **Done:** declared in `worker/package.json` at the resolved version, lockfile updated, worker suite green.
 
+### E5 — RUN SPEED — from the owner's 2026-08-30 log ⚠ **the run took ~1 hour; most of it was waiting**
+
+A real Bell County run was captured end to end. **It worked** — 11 documents found, 28 page images
+captured, owner / subdivision / lot resolved. It also took an hour, and the log says exactly where
+that hour went.
+
+| Finding | Cost | Status |
+|---|---|---|
+| **60s of dead time at the end of EVERY document.** `btn.click()` used Playwright's default 30s actionability timeout; on the last page the next-button is present but disabled, so two matching selectors waited 30s each | **~11 min of the hour** | ✅ **FIXED 2026-08-30** |
+| **`temperature` 400 on Sonnet 5.** `[Stage1D] ai-variant-generation` died on *"temperature is deprecated for this model"* | one lost stage | ✅ **FIXED** — helper + the failing call site |
+| 13 more call sites still send a literal `temperature` | latent 400s | ☐ **E5a** |
+| Every document relaunches Chromium (`Browser launched` per instrument) | ~11 cold starts | ☐ **E5b** |
+| Each document is re-found by search+click, though the log already printed `real URL from search = …/doc/98732828` | ~10s × 11 ≈ 2 min | ☐ **E5c** |
+| Documents are captured strictly **serially** | the big one | ☐ **E5d** |
+| **Bell CAD unreachable** — `fetch failed`, `Session acquisition failed`, `page.goto: Timeout 30000ms`, then 3 × 26s keyword retries | **213s to admit it** | ☐ **E5e** |
+
+#### E5a — thread `samplingFor()` through the remaining 13 call sites ☐
+
+`worker/src/infra/model-sampling.ts` exists and is proven. The other 13 literal `temperature: 0`
+sites will 400 the moment `modelFor()` hands them a Sonnet 5 / Opus 5 model. **Not a codemod** — the
+model is chosen at runtime, so each site needs the value in scope before spreading.
+
+#### E5b / E5c / E5d — the concurrency the owner asked for ☐
+
+In order; each independently shippable.
+
+- **E5b — reuse one browser** across a document set instead of launching per instrument.
+- **E5c — navigate straight to the known `/doc/<id>` URL.** The capture already receives it from the
+  search results and then throws it away to search again by instrument number.
+- **E5d — capture documents concurrently, BOUNDED.** `capacity.ts` already caps concurrent runs for
+  a reason that is not hardware: *"these are small government servers, and the fastest way to lose
+  access to a county portal is to look like a load test."* That judgement applies inside a run too —
+  3–4 concurrent captures, per-host, never unbounded. Politeness (plan R12) is the constraint here,
+  not the CPU. A run that gets the firm banned from Bell County is not a faster run.
+
+Together these should take an hour-long run to roughly **12–18 minutes**.
+
+#### E5e — Bell CAD is unreachable, and takes 213 seconds to say so ☐
+
+`bell.tx.publicsearch.us` (the **clerk**) works fine from the box — every clerk search in the log
+succeeded. `esearch.bellcad.org` (the **CAD**) does not: connection-level `fetch failed`, then a
+Playwright `page.goto` timeout. **This is the per-portal geo-block the deployment doc predicted**,
+and that doc is explicit that one portal answering 200 promises nothing about the next.
+
+Two fixes, in order:
+
+1. **Fail faster.** Three 26s keyword retries plus a 30s Playwright timeout *after* the first
+   connection-level failure is 213 seconds spent re-proving an unreachable host. Circuit-break the
+   host for the remainder of the run on the first `fetch failed`.
+2. **This is the Browserbase case** — one adapter, not a global default. Exactly what the
+   per-adapter gate exists for.
+
+Worth noting: the run still succeeded without CAD. Bell GIS supplied owner, subdivision, lot and
+acreage. So this is 3.5 minutes of latency and a confidence penalty, not a broken run.
+
 ### E4 — Install the auto-updater ☐ *(owner action, one command)*
 
 Built and exercised 2026-08-30 on branch `claude/worker-auto-update-2026-08-30`: pulls `main` when

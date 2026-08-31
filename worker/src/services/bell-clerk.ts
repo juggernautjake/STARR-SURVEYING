@@ -1909,6 +1909,15 @@ export const TYLER_SPA_RENDER_TIMEOUT_MS  = 8_000;
 export const TYLER_VIEWER_LOAD_TIMEOUT_MS = 8_000;
 export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
 
+/** How long a next-page button may take to become clickable before we treat it as absent.
+ *
+ *  Playwright.click() defaults to 30_000ms. On the last page of a document the next button is
+ *  still in the DOM but disabled, so the default made every document end with two 30s waits —
+ *  a measured 60s of dead time per document, ~11 minutes across one run.
+ *
+ *  This is an actionability check on an element that already exists, not a page load. */
+export const NEXT_PAGE_CLICK_TIMEOUT_MS = 2_000;
+
 /**
  * Search Bell County clerk records by owner name.
  * Uses direct URL parameters rather than form interaction.
@@ -2922,7 +2931,34 @@ export async function fetchDocumentImages(
         try {
           const btns = await page.$$(sel);
           const btn = btns.length > 1 ? btns[btns.length - 1] : btns[0];
-          if (btn) { await btn.click(); clicked = true; break; }
+          if (!btn) continue;
+
+          // ── WHY THIS TIMEOUT EXISTS — measured 2026-08-30 ────────────────────────────────
+          //
+          // `btn.click()` with no options uses Playwright's DEFAULT 30-SECOND actionability
+          // timeout. On the LAST page of a document the next-page button still exists in the
+          // DOM — it is disabled or hidden — so the selector matches, the click waits the full
+          // 30s for it to become actionable, throws, and the loop moves to the next selector,
+          // which matches too and waits another 30s.
+          //
+          // In the owner's run that was a flat SIXTY SECONDS at the end of EVERY document:
+          //
+          //     09:30:34  Page 3: downloaded
+          //     09:31:34  Page 4: no next-page button found — 3 page(s) total
+          //
+          // Eleven documents, ~11 minutes of an hour-long run spent waiting for a button that
+          // was never going to be clickable. Nothing failed, so nothing reported it — the log
+          // reads as if the last page simply took a while.
+          //
+          // Two seconds is generous for a button already present in the DOM: actionability
+          // here is "visible and enabled", not "still loading". A real next-page button passes
+          // immediately; a disabled one fails immediately, which is the whole point.
+          if (!(await btn.isVisible().catch(() => false))) continue;
+          if (!(await btn.isEnabled().catch(() => false))) continue;
+
+          await btn.click({ timeout: NEXT_PAGE_CLICK_TIMEOUT_MS });
+          clicked = true;
+          break;
         } catch { /* try next */ }
       }
 
