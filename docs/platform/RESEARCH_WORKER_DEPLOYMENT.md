@@ -491,6 +491,61 @@ cd worker && BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --buil
 
 `buildSha` on `/healthz` confirms which commit is actually serving — the point of stamping it.
 
+### 3.7 Automatic updates — pull `main` when it moves ☐ *(install once)*
+
+`worker/deploy/auto-update.sh`, driven by a systemd timer every two minutes. Install:
+
+```bash
+cd /opt/starr && git pull
+chmod +x worker/deploy/auto-update.sh
+sudo cp worker/deploy/starr-worker-auto-update.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now starr-worker-auto-update.timer
+
+systemctl list-timers starr-worker-auto-update      # next fire time
+journalctl -u starr-worker-auto-update -n 30        # what it has done
+```
+
+**It is silent when nothing has changed**, which is nearly always — so a quiet journal means "up to
+date", not "broken". Every line it does print is worth reading.
+
+#### Why this is more than `git pull && docker compose up --build` in a cron
+
+That one-liner is right for a human watching the output. Unattended it has three ways to hurt, and
+the script addresses each:
+
+| Risk | What the script does |
+|---|---|
+| **Deploying over a live run.** A research run takes 20–30 minutes and may have spent money; a rebuild kills the container. | Asks `/research/active` first and defers the cycle if anything is in flight. Also defers if it *cannot* ask — the next tick is two minutes away, and killing a paid run costs more than waiting. |
+| **Leaving the box down.** A merge that does not build, or boots unhealthy, ends with the worker dead and nobody told. **The previous worker died by silently never coming back** — an updater that can repeat that is a regression, not a feature. | Verifies health after the rebuild and **rolls back to the previous commit** if the new one does not come up. Exits non-zero so `systemctl --failed` shows it. |
+| **Overlapping itself.** A build takes minutes; the timer fires every two. | `flock`, held for the whole cycle. A missing `flock` is a hard failure, not a silent downgrade to no locking. |
+
+**The health check requires the new `buildSha`, not merely `"healthy"`.** A container that failed to
+restart keeps answering on the *old* build, and a check that only asks "are you healthy?" reads that
+as a successful deploy. That exact confusion — a stale build faking a green light — cost a day on
+2026-08-30.
+
+It deploys `main` and nothing else: no tags, no branches, no arbitrary refs. The machine that spends
+money should be reachable by exactly one reviewed path.
+
+#### Exercised before shipping
+
+The script was run end to end against a scratch repo with stubbed `docker` and `/healthz`, because
+a deploy script that has never executed is the "authored but not wired" defect with root on the box:
+
+- no change → silent, exit 0
+- `main` moved **but a run in flight** → deferred, and the pull did **not** happen
+- `main` moved, nothing in flight → pulled, rebuilt, reported the new sha
+- new build never reports its own sha → **rolled back**, tree returned to the previous commit, exit **1**
+
+#### Turning it off
+
+```bash
+sudo systemctl disable --now starr-worker-auto-update.timer
+```
+
+Updates go back to being manual (§3.6). Nothing else depends on it.
+
 ---
 
 ## 4. Running cost, all in
