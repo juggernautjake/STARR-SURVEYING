@@ -98,27 +98,6 @@ nobody mounts — a different bug with a different fix.
 **A3 must be built on the stem, not the composed name**, or it will produce exactly these false
 positives. The audit is its baseline.
 
-### A2 — The primitives ☐
-
-`app/admin/research/components/ui/` — one file each, styles in a sheet **imported by the component**,
-never in a route-scoped stylesheet:
-
-- `Accordion.tsx` — collapsible section, keyboard operable, `aria-expanded`
-- `Toggle.tsx` — the labelled checkbox pattern already hand-rolled in ProjectsTab and PipelineTab
-- `SegmentedTabs.tsx` — in-page tab bar (used heavily by Phase B)
-- `SectionHeader.tsx` — title + optional action + optional count
-- `StatPill.tsx` — the status/count chip that six panels reinvent
-- `EmptyState.tsx` — icon + sentence + optional action
-
-`SpendLimitSlider.tsx` already shipped (2026-08-30) and moves into this folder as the seventh.
-
-> **The trap this must avoid.** `.address-autocomplete__*` was defined in `AdminJobs.css`, which only
-> `/admin/jobs` imports — so the component rendered unstyled on `/admin/research` and nobody noticed,
-> because nothing errored. **This is the third such instance in this repo.** Every primitive ships
-> with its styles beside it. See [[feedback_route_scoped_css_swallows_fixes]].
-
-**Done:** six components, each with a story-free render test and styles that load with the component.
-
 ### A2 — ~~The primitives~~ ✅ **SHIPPED 2026-08-30**
 
 `app/admin/research/components/ui/` — Accordion, Toggle, SegmentedTabs, SectionHeader, StatPill,
@@ -164,15 +143,41 @@ Mutation-tested: renaming one rule a primitive depends on fails it.
 
 The screen the firm lives in. Split into tabs, one tab per slice, **behaviour identical throughout**.
 
-### B1 — Tab shell, no content moved ☐
+### B1 — ~~Tab shell~~ ⛔ **WITHDRAWN 2026-08-30 — the premise was false**
 
-Introduce `SegmentedTabs` on `[projectId]/page.tsx` with **Overview · Documents · Boundary · Report**.
-Wrap the existing content in Overview; the other three render a placeholder that says what is coming.
-Tab state in the URL (`?tab=`) so a reload and a shared link land in the same place.
+B1 said to add `SegmentedTabs` with Overview · Documents · Boundary · Report. **That navigation
+already exists**, and building it again would have produced two competing navs on one screen.
 
-**Done:** page renders identically at `?tab=overview`; no component moved yet.
+Measured before writing any code:
 
-### B2 — Extract Overview ☐
+- `app/admin/research/[projectId]/layout.tsx` hoists `<ResearchProjectNav />` so **every** sub-route
+  inherits it — its own comment records why: *"previously only the hub page rendered it, so the
+  surveyor lost the nav after the first click."*
+- `Documents`, `Boundary` and `Report` are **real routes** with their own `page.tsx`, not panels.
+
+So the 3,654-line file is not a page that needs tabs. It is the **Overview route's content**, and
+its size is a maintainability problem rather than a navigation one.
+
+**And `SegmentedTabs` would have been the wrong control anyway** — by the reasoning written into
+the primitive itself: *"these switch a panel in place, they do not navigate; announcing them as
+links would promise a page change that never comes."* The inverse holds here. These entries DO
+navigate, so they must stay `<Link>`s. Buttons would break middle-click, open-in-new-tab, and the
+browser's own history.
+
+This is the fifth parked premise in this repo to turn out false when checked. Checking cost one
+`cat` of a 24-line file.
+
+### B1a — Split the Overview route by SECTION, not by tab ☐ *(replaces B1)*
+
+Same goal — no file over ~600 lines — reached without inventing a second nav. Extract in place, one
+section per slice, each with a wiring test asserting the page mounts it:
+
+`_sections/ProjectHeader.tsx` · `RunControls.tsx` · `DocumentsSummary.tsx` · `AnalysisSection.tsx`
+
+**Done:** behaviour identical; the route renders the same markup; each extraction is separately
+revertable.
+
+### B2 — Extract Overview ☐ *(now the first extraction under B1a)*
 ### B3 — Extract Documents ☐
 ### B4 — Extract Boundary ☐
 ### B5 — Extract Report ☐
