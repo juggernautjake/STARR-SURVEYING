@@ -936,6 +936,41 @@ Mutation-tested four ways: renaming a real worker route (its caller surfaces), d
 parameter normalisation (`:projectId` vs `${projectId}` — every parameterised route would read as a
 mismatch), keeping the query string, and narrowing the scan to one line. All four fail.
 
+## G9 — The owner's own request was half applied (2026-08-31)
+
+> *"make it so that clicking off of the modal or window that takes all of the info does not close
+> it. We should be required to actually click the exit button."* — 2026-08-30
+
+Applied to the **New Research Project** modal. Not to the **Edit Project** modal on
+`[projectId]/page.tsx`, which kept `onClick={() => setShowEditProject(false)}` on its overlay — so
+a stray click beside it still threw away every edit, with no confirmation and no undo.
+
+**The half that survived is the worse half**: the data being lost there is edits to a record that
+already exists. Found a day later by reading the second modal rather than assuming a request had
+been applied everywhere it applied.
+
+And a **third** one: `TemplateManager`. Nothing mounts it (recorded as an owner call in the module
+guard) so nobody has lost a template to it, but fixing it costs a line and means it does not arrive
+with the bug already in it if the owner decides where it belongs.
+
+The `stopPropagation` on each inner modal went too. It existed only to stop a click INSIDE the form
+reaching the overlay's close handler; with no handler there it guards nothing, and a stray
+`stopPropagation` makes the next reader wonder what it was protecting.
+
+### The guard is about FORM modals, not every dialog
+
+`ResearchRunPanel`'s *"Stop Research Pipeline?"* overlay also closes on an outside click, and that
+is **right**: clicking away from a confirmation means "no", and nothing is lost by reading it that
+way. The safe interpretation of a stray click is the opposite for the two cases.
+
+So the check flags an overlay that closes on click **and contains a form**. A guard that failed on
+both would be wrong about half of what it flagged, and a guard that is wrong is one people learn to
+override. Both directions are pinned by probes, and removing the form check makes the confirm
+dialog fail — which is how that distinction stays real rather than decorative.
+
+Mutation-tested four ways, including removing the Escape handler: closing a door must not trap
+anyone behind it.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two

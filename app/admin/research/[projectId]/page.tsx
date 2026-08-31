@@ -3503,17 +3503,32 @@ export default function ResearchProjectPage() {
         />
       )}
 
-      {/* Edit Project Modal */}
+      {/* ── Edit Project Modal ─────────────────────────────────────────────────────────────────
+          The overlay had `onClick={() => setShowEditProject(false)}`: a click anywhere beside the
+          modal threw away whatever had been typed, with no confirmation and no undo.
+
+          The owner asked for this to stop on 2026-08-30 — *"clicking off of the modal should not
+          close it, we should be required to actually click the exit button"* — and it was fixed on
+          the NEW PROJECT modal only. This one kept the behaviour, so the request was half applied
+          and the half that survived is the one where the data being lost is edits to a record that
+          already exists.
+
+          Escape still closes, and the header's exit button still closes. What is gone is the
+          accidental dismissal.
+
+          The `stopPropagation` on the inner modal went with it: it existed solely to stop a click
+          INSIDE the form reaching the overlay's close handler. With no handler there, it guards
+          nothing — and a stray `stopPropagation` is the kind of line that makes the next person
+          wonder what it was protecting. */}
       {showEditProject && (
         <div
           className="research-modal-overlay"
-          onClick={() => setShowEditProject(false)}
           onKeyDown={e => { if (e.key === 'Escape') setShowEditProject(false); }}
           role="dialog"
           aria-modal="true"
           aria-label="Edit Project Details"
         >
-          <div className="research-modal" onClick={e => e.stopPropagation()}>
+          <div className="research-modal">
             <h2 className="research-modal__title">Edit Project Details</h2>
             <form onSubmit={handleSaveProject}>
               <div className="research-modal__field">
