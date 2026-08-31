@@ -72,14 +72,31 @@ reason. Then it moves to `completed/`.
 Today each of the 90 components styles itself. That is why the portal looks like 90 separately
 authored screens, and why "restyle everything" is otherwise an unbounded job.
 
-### A1 — Catalogue what already exists ☐
+### A1 — ~~Catalogue what already exists~~ ✅ **SHIPPED 2026-08-30**
 
-Read `AdminResearch.css` (12,083 lines) and produce `docs/planning/qa-evidence/research-css-audit.md`:
-which class families exist, which are dead, which duplicate each other, and which tokens are already
-in use. **No CSS is changed in this slice.** Deleting or renaming before knowing what renders is how
-a working screen disappears.
+`docs/planning/qa-evidence/research-css-audit.md`. **No CSS changed**, as specified.
 
-**Done:** the audit file exists and names every `research-*` class family with a live/dead verdict.
+1,353 classes across 84 families in 12,083 lines, route-scoped to `/admin/research/**`.
+
+**The finding that changes A3: you cannot grep your way to a dead class here.** A naive scan says
+204 classes (15%) are never referenced. That number is not a deletion list. **62 files build class
+names at runtime** — `` className={`adjoiner adjoiner--${row.depth}`} `` composes three classes the
+scan calls dead and which all render.
+
+Partitioned by trustworthiness:
+
+| Bucket | Count | Verdict |
+|---|---|---|
+| Modifier variants (`--suffix`) | 74 | **Do not trust** — this is the composed shape |
+| Plain, but family stem IS referenced | 107 | Suspicious, needs per-case reading |
+| Plain, whole family unreferenced | **23** | The only defensible dead list |
+
+And even those 23 are cleared for *investigation*, not deletion: a family can be unreferenced
+because its screen was consolidated away, or because the component rendering it is itself an orphan
+nobody mounts — a different bug with a different fix.
+
+**A3 must be built on the stem, not the composed name**, or it will produce exactly these false
+positives. The audit is its baseline.
 
 ### A2 — The primitives ☐
 
