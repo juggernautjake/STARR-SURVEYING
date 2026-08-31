@@ -120,7 +120,8 @@ now the critical path. If you read nothing else, read this table.
 >
 > **Two smaller things.** `worker/src/websocket/progress-server.ts` is an orphan whose
 > `validateToken` returns true for *any non-empty token* (line 263) — inert because nothing starts
-> it, but a live landmine for whoever wires it up. And `idocket_pay` is **\$0/page across 18
+> it, but a live landmine for whoever wires it up. ✅ **CLOSED 2026-08-30 — see the slice note
+> below.** And `idocket_pay` is **\$0/page across 18
 > counties** and unconfigured, so those counties route to TexasFile at \$1/page instead;
 > `tyler_pay` (\$0.50, 7) and `fidlar_pay` (\$0.75, 13) are the same trade. Free money, not a defect.
 >
@@ -144,6 +145,51 @@ now the critical path. If you read nothing else, read this table.
 > [[feedback_wiring_tests_must_check_the_caller]]. **Mutation-tested three ways** before the green was
 > believed: deleting the render fails it, renaming the CSS rule fails it, and changing `?? null` to
 > `?? ''` fails it. 13 pass; research suite 1,107 pass; `type-check` and `lint` exit 0.
+
+> ### ✅ SLICE 2026-08-30 — the WebSocket auth landmine is defused
+>
+> The audit above found `ProgressServer.validateToken` ending in `return token.length > 0` under the
+> comment *"For now, accept any non-empty token"*. That is fail-**open**: every check above it could
+> miss and the connection was still admitted. Nothing constructs the class, so nothing was breached
+> — the defect was that the first person to wire it up would inherit an auth check that always says
+> yes, which is the worst moment to discover one.
+>
+> **The ticket it needed already existed in this repository.** `worker/src/shared/ws-ticket.ts` signs
+> `{ userId, jobIds, iat, exp }`, and `app/api/ws/ticket/route.ts` fills `jobIds` with
+> `research_projects.id` values it has confirmed the caller owns (`created_by = session email`).
+> Those ids are **the same namespace** as this server's `projectId` — checked, not assumed, before
+> building on it. So the ticket carries per-project authorisation, and `server/ws.ts` was already
+> verifying it correctly forty lines away. The orphan was not missing a mechanism; it never called
+> the one beside it.
+>
+> `authorize()` now fails closed in every direction — no token, no configured secret, bad signature,
+> expired ticket, or **a project the ticket does not name**. That last one is its own check: stopping
+> at "the signature is valid" would let any authenticated user stream any other user's run, which is
+> the same shape as every other bug in this doc — a system that cannot tell two opposite things
+> apart. The rejections carry **distinct close codes** (4001 unauthenticated · 4005 authenticated
+> but not for this project · 4002/4004 malformed) so a future failure says which. The
+> `WORKER_API_KEY` service path is kept, now compared in constant time and only when the key is
+> actually set — an unset key must never make an empty token match.
+>
+> Also added `close()`: the 30-second heartbeat was cleared only by the `wss` 'close' event, which no
+> caller could reach.
+>
+> **18 tests drive the real handshake over a real socket**, not the private method — a test calling
+> `authorize()` directly would pass just as happily if the handshake stopped calling it
+> ([[feedback_wiring_tests_must_check_the_caller]]). **Mutation-tested with a control** before the
+> green was believed: restoring the old fail-open line fails 11, dropping the per-project check fails
+> 3, defaulting the secret instead of failing closed fails 1, and a cosmetic log-text change stays
+> green — so the suite discriminates rather than merely passes.
+>
+> Worker `tsc --noEmit` exit 0 and the full worker suite **1,639 pass** (was 1,621; +18), both read
+> without a pipe per this branch's own `$?`-after-`tail` lesson. Root `tsc` and `lint` exit 0; orphan
+> guard "No new orphans".
+>
+> **Two things deliberately NOT done here.** The file stays an orphan — deleting working-looking code
+> on the strength of a grep is how a real feature disappears (§F5), and that call is the owner's.
+> And `ws` is used by this file but **declared only in the root `package.json`**, not the worker's
+> (8.19.0 resolves transitively today). Whoever wires this server up should declare it; adding a
+> dependency and a lockfile change did not belong in a security fix.
 
 **Two things you should know before you act on the cost sections:**
 
