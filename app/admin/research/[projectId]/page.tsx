@@ -43,6 +43,7 @@ import RunConsoleBar from '../components/RunConsoleBar';
 import RunDiffPanel from '../components/RunDiffPanel';
 // What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
 import ReportCardPanel from '../components/ReportCardPanel';
+import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
 import PacketBuilderPanel from '../components/PacketBuilderPanel';
 // The neighbours, and the opt-in path to researching one properly (research plan R31-R33).
@@ -1713,55 +1714,11 @@ export default function ResearchProjectPage() {
           activate, and screen readers announce the destination.
           The Documents tile pushes the sub-route; the rest jump
           to the review summary panel + open the matching tab. */}
-      <div className="research-hub__stats">
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => router.push(`/admin/research/${projectId}/documents`)}
-          aria-label={`${stats.document_count} documents — open documents library`}
-        >
-          <div className="research-hub__stat-value">{stats.document_count}</div>
-          <div className="research-hub__stat-label">Documents</div>
-        </button>
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => scrollToReview('artifacts')}
-          disabled={stats.data_point_count === 0}
-          aria-label={`${stats.data_point_count} data points — open artifacts tab`}
-        >
-          <div className="research-hub__stat-value">{stats.data_point_count}</div>
-          <div className="research-hub__stat-label">Data Points</div>
-        </button>
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => scrollToReview('discrepancies')}
-          disabled={stats.discrepancy_count === 0}
-          aria-label={`${stats.discrepancy_count} discrepancies — open discrepancies tab`}
-        >
-          <div className="research-hub__stat-value">{stats.discrepancy_count}</div>
-          <div className="research-hub__stat-label">Discrepancies</div>
-        </button>
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => scrollToReview('discrepancies')}
-          disabled={stats.discrepancy_count === 0}
-          aria-label={
-            stats.discrepancy_count > 0
-              ? `${stats.resolved_count} of ${stats.discrepancy_count} discrepancies resolved — open discrepancies tab`
-              : 'No discrepancies to resolve yet'
-          }
-        >
-          <div className="research-hub__stat-value">
-            {stats.discrepancy_count > 0
-              ? `${stats.resolved_count}/${stats.discrepancy_count}`
-              : '-'}
-          </div>
-          <div className="research-hub__stat-label">Resolved</div>
-        </button>
-      </div>
+      <ProjectStats
+        stats={stats}
+        onOpenDocuments={() => router.push(`/admin/research/${projectId}/documents`)}
+        onScrollToReview={scrollToReview}
+      />
 
       {/* ════════════════════════════════════════════════════════════════
           STAGE 1: UPLOAD & PROVISION
