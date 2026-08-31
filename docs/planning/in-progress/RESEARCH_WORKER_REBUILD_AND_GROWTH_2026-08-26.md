@@ -191,6 +191,64 @@ now the critical path. If you read nothing else, read this table.
 > (8.19.0 resolves transitively today). Whoever wires this server up should declare it; adding a
 > dependency and a lockfile change did not belong in a security fix.
 
+> ### ✅ SLICE 2026-08-30 (b) — item 3d met the form, and the form was the problem
+>
+> The owner opened the New Research Project modal to start the first real run (item 3d) and hit four
+> things in one screen. All four are fixed and merged to `main` (`a85b2f1c5`), plus a fifth found by
+> watching what was typed.
+>
+> **The per-run spend limit never existed, and the code implied it did.** `limitsFor()` has accepted
+> `maxCostUsd` since it was written; its one caller passed only the clock and dropped the cost, so
+> every run got \$2.00 whatever it asked for. Now threaded research-input → router → `limitsFor`, and
+> clamped to **`MAX_COST_CEILING_USD` = \$10** — the owner's number. A ceiling and a default are
+> different things: without the ceiling a typo of `1000` for `10.00` is a thousand-dollar run. The
+> clamp is silent (satisfied AT the maximum, not refused — failing a run over a too-large budget
+> helps nobody), and a requested `0` survives as "free sources only", which `||` would have read as
+> unset. `RUN_MAX_COST_USD` is clamped too; a deployment is the same mistake with a different author.
+> **NOT wired into `/research/run`** deliberately: that route's `budget` goes to `MasterOrchestrator`
+> and never reaches `limitsFor`, so accepting the parameter there would have been a knob connected to
+> nothing.
+>
+> **Property ID was required by the form and optional everywhere else** — the server has always
+> stored `parcel_id?.trim() || null`, so the red asterisk only sent you to the appraisal district
+> before you could start a run you had the address for. Now: address *or* ID, with the missing one
+> named rather than a greyed-out button.
+>
+> **The modal discarded a hand-typed form on a stray overlay click.** Closing now takes the new × or
+> Cancel. Escape stays — a deliberate keypress is not a slip, and a dialog you cannot dismiss from
+> the keyboard is a trap.
+>
+> **Google Places and Geocoding are OWNER-GATED, and the cause is now measured rather than guessed.**
+> Tested against the live key with Geocoding as a control: Places returns `REQUEST_DENIED` with
+> *"You're calling a legacy API, which is not enabled for your project"*, Geocoding with *"This API is
+> not activated"*. **Not a referrer problem.** Maps JavaScript API is enabled, which is why the map
+> draws and only autocomplete dies. The owner must enable **Places API (legacy)** — the client uses
+> `google.maps.places.AutocompleteService`, so enabling only *Places API (New)* will not fix it — and
+> **Geocoding API**, then check the key's API restrictions list. If Google refuses to enable legacy
+> (it blocks it on projects created after ~March 2025) this becomes a code migration to
+> `AutocompleteSuggestion`, which is engineering work and not yet commissioned.
+>
+> **And the fifth: "Texas" was typed in the County box.** Entirely reasonable — the label says
+> County, the property is in Texas — and nothing on screen disagreed. County is the ROUTING KEY:
+> Bell goes to Kofile for free, an unmatched county routes nowhere, and the run either fails
+> validation twenty minutes in or reports on no property at all. `lib/research/county-input.ts` now
+> checks the field against the 254-county table the repo already ships, suggests the nearest real
+> names (prefix matches first — "Will" wants Williamson, and no distance metric should outrank
+> that), stores the canonical spelling so `bell county` and `Bell` do not become two rows, and gives
+> **"Texas" its own answer**: it is a category error, not a misspelling, and "did you mean Bexar?"
+> would be a terrible reply. Warns, never blocks — it fires on a string somebody is halfway through
+> typing.
+>
+> Mutation-tested, and one mutation **escaped**: renaming the warning's CSS class left the wiring
+> test green, because a looser `toContain` matched the plain note class still present elsewhere. The
+> probe was the bug, again; the assertion now names the `--warn` variant and requires both branches.
+> 25 new tests. Root `tsc` 0 · `lint` 0 errors · research suite **1,132 pass** · `npm run build`
+> exit 0 — the build specifically, because tsc and 21k tests were once green over a broken one.
+>
+> **Item 3d is still open, and a Bell County run will not close it.** Bell routes to Kofile, so a
+> free-county run proves the pipeline and never reaches a paywall. `research_document_purchases` is
+> still 0 rows. Proving the purchase path needs a TexasFile county.
+
 **Two things you should know before you act on the cost sections:**
 
 - **17 of 18 vendor credentials are empty** (§S2b). Most of the "check this invoice" advice earlier in

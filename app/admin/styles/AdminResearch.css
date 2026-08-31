@@ -373,6 +373,38 @@
   outline-offset: 2px;
 }
 
+/* County is the routing key. A mismatch is advice, not an error — styled as a caution so a
+   correct-but-unusual entry does not read as a failure. */
+.research-modal__county-note {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  margin-top: 0.35rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.research-modal__county-note--warn {
+  color: #92400E;
+  background: #FEF3C7;
+  border: 1px solid #FDE68A;
+  border-radius: 6px;
+  padding: 0.4rem 0.55rem;
+}
+
+.research-modal__county-suggest {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.research-modal__county-suggest:hover {
+  text-decoration: none;
+}
+
 .research-modal__hint {
   font-size: 0.8rem;
   color: var(--theme-fg-muted, #6B7280);

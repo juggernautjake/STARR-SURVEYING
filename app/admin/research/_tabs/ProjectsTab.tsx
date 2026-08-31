@@ -17,6 +17,7 @@ import { WORKFLOW_STEPS } from '@/types/research';
 import Tooltip from '../components/Tooltip';
 import WorkerStatusBanner from '../components/WorkerStatusBanner';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
+import { checkCounty } from '@/lib/research/county-input';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
   upload: 'Upload',
@@ -63,6 +64,11 @@ export default function ProjectsTab() {
   const hasIdentifier = Boolean(
     newProject.parcel_id.trim() || newProject.property_address.trim(),
   );
+
+  /** County is the ROUTING KEY — it chooses the clerk portal, and Bell (Kofile, free) and a
+   *  TexasFile county are different amounts of money. Checked against the 254-county list we
+   *  already ship, as advice rather than a gate; see lib/research/county-input.ts. */
+  const countyCheck = checkCounty(newProject.county);
 
   const userRoles = session?.user?.roles || ['employee'];
   const canAccessResearch = userRoles.includes('admin') || userRoles.includes('developer') || userRoles.includes('researcher') || userRoles.includes('drawer') || userRoles.includes('field_crew') || userRoles.includes('tech_support');
@@ -129,10 +135,16 @@ export default function ProjectsTab() {
       || (newProject.property_address.trim() || `Property ${newProject.parcel_id.trim()}`);
     setCreating(true);
     try {
+      // Store the canonical spelling when we recognise the county. Routing matches on the name,
+      // so "bell county" and "Bell" must not become two different things in the table — and the
+      // operator should not have to guess which spelling we chose. An unrecognised value is sent
+      // through untouched: the warning has already been shown, and silently rewriting something we
+      // do not understand is worse than passing it on.
+      const county = countyCheck.kind === 'ok' ? countyCheck.canonical : newProject.county;
       const res = await fetch('/api/admin/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...newProject, name: projectName }),
+        body: JSON.stringify({ ...newProject, county, name: projectName }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -466,7 +478,46 @@ export default function ProjectsTab() {
                     placeholder="County"
                     value={newProject.county}
                     onChange={e => setNewProject(p => ({ ...p, county: e.target.value }))}
+                    aria-invalid={countyCheck.kind === 'unknown' || countyCheck.kind === 'is-state'}
+                    aria-describedby={countyCheck.kind === 'ok' || countyCheck.kind === 'empty' ? undefined : 'county-check'}
                   />
+                  {/* County is the routing key, not a label — it picks the clerk portal, and a
+                      value that matches nothing routes nowhere. Warn, never block: this fires on
+                      a string somebody is halfway through typing, and a form that refuses at
+                      "Bel" teaches people to fight it. */}
+                  {countyCheck.kind === 'is-state' && (
+                    <div className="research-modal__county-note research-modal__county-note--warn" id="county-check" role="alert">
+                      {countyCheck.message}
+                    </div>
+                  )}
+                  {countyCheck.kind === 'unknown' && (
+                    <div className="research-modal__county-note research-modal__county-note--warn" id="county-check" role="alert">
+                      {countyCheck.message}
+                      {countyCheck.suggestions.length > 0 && (
+                        <>
+                          {' '}Did you mean{' '}
+                          {countyCheck.suggestions.map((s, i) => (
+                            <span key={s}>
+                              {i > 0 && (i === countyCheck.suggestions.length - 1 ? ' or ' : ', ')}
+                              <button
+                                type="button"
+                                className="research-modal__county-suggest"
+                                onClick={() => setNewProject(p => ({ ...p, county: s }))}
+                              >
+                                {s}
+                              </button>
+                            </span>
+                          ))}
+                          ?
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {countyCheck.kind === 'ok' && countyCheck.canonical !== newProject.county.trim() && (
+                    <div className="research-modal__county-note" id="county-check">
+                      Will be saved as <strong>{countyCheck.canonical}</strong>.
+                    </div>
+                  )}
                 </div>
 
                 {/* ── PAID DOCUMENTS ───────────────────────────────────────────────────────────
