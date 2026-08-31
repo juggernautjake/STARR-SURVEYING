@@ -49,10 +49,12 @@ interface Hit { file: string; line: number }
  * the ~120 lines after it, which is inside every modal in this portal and short enough not to run
  * into the next one.
  */
-function dismissibleFormModals(files: string[]): Hit[] {
+function dismissibleFormModals(files: string[], sources?: Map<string, string>): Hit[] {
   const hits: Hit[] = [];
   for (const file of files) {
-    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // Self-checks supply their probe in memory. Writing it into a scanned source tree raced
+    // another suite walking the same directory in a parallel worker thread.
+    const src = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
     const lines = src.split(/\r?\n/);
 
     for (let i = 0; i < lines.length; i++) {
@@ -95,13 +97,9 @@ describe('the check can fail', () => {
       '  ) : null;',
       '}',
     ].join('\n');
-    const tmp = path.join(ROOT, 'app/admin/research/__modal_probe__.tsx');
-    fs.writeFileSync(tmp, probe);
-    try {
-      expect(dismissibleFormModals(['app/admin/research/__modal_probe__.tsx'])).toHaveLength(1);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'app/admin/research/__modal_probe__.tsx';
+    const SRC = new Map([[REL, probe]]);
+    expect(dismissibleFormModals([REL], SRC)).toHaveLength(1);
   });
 
   it('does NOT flag a confirm dialog — clicking away from "are you sure?" means no', () => {
@@ -118,13 +116,9 @@ describe('the check can fail', () => {
       '  ) : null;',
       '}',
     ].join('\n');
-    const tmp = path.join(ROOT, 'app/admin/research/__modal_probe_confirm__.tsx');
-    fs.writeFileSync(tmp, probe);
-    try {
-      expect(dismissibleFormModals(['app/admin/research/__modal_probe_confirm__.tsx'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'app/admin/research/__modal_probe_confirm__.tsx';
+    const SRC = new Map([[REL, probe]]);
+    expect(dismissibleFormModals([REL], SRC)).toEqual([]);
   });
 });
 

@@ -68,10 +68,12 @@ function walk(dir: string, out: string[] = []): string[] {
 interface Hit { file: string; line: number }
 
 /** `try { …only supabase… } catch { …nothing… }` */
-function inertCatches(files: string[]): Hit[] {
+function inertCatches(files: string[], sources?: Map<string, string>): Hit[] {
   const hits: Hit[] = [];
   for (const file of files) {
-    const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // Self-checks supply their probe in memory. Writing it into a scanned source tree raced
+    // another suite walking the same directory in a parallel worker thread.
+    const src = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
     for (const m of src.matchAll(/\btry\s*\{([\s\S]*?)\}\s*catch\s*(?:\([^)]*\))?\s*\{([\s\S]*?)\}/g)) {
       const body = m[1];
       const handler = m[2]
@@ -115,13 +117,9 @@ describe('the check can fail', () => {
       '  }',
       '}',
     ].join('\n');
-    const tmp = path.join(ROOT, 'lib/research/__inert_catch_probe__.ts');
-    fs.writeFileSync(tmp, probe);
-    try {
-      expect(inertCatches(['lib/research/__inert_catch_probe__.ts'])).toHaveLength(1);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__inert_catch_probe__.ts';
+    const SRC = new Map([[REL, probe]]);
+    expect(inertCatches([REL], SRC)).toHaveLength(1);
   });
 
   it('does NOT flag a catch guarding something that really throws', () => {
@@ -137,13 +135,9 @@ describe('the check can fail', () => {
       '  }',
       '}',
     ].join('\n');
-    const tmp = path.join(ROOT, 'lib/research/__inert_catch_ok__.ts');
-    fs.writeFileSync(tmp, probe);
-    try {
-      expect(inertCatches(['lib/research/__inert_catch_ok__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__inert_catch_ok__.ts';
+    const SRC = new Map([[REL, probe]]);
+    expect(inertCatches([REL], SRC)).toEqual([]);
   });
 
   it('does NOT flag a catch that actually handles something', () => {
@@ -156,13 +150,9 @@ describe('the check can fail', () => {
       '  }',
       '}',
     ].join('\n');
-    const tmp = path.join(ROOT, 'lib/research/__inert_catch_handled__.ts');
-    fs.writeFileSync(tmp, probe);
-    try {
-      expect(inertCatches(['lib/research/__inert_catch_handled__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__inert_catch_handled__.ts';
+    const SRC = new Map([[REL, probe]]);
+    expect(inertCatches([REL], SRC)).toEqual([]);
   });
 });
 

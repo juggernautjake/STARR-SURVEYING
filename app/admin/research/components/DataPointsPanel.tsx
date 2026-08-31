@@ -13,7 +13,9 @@ interface DataPointsPanelProps {
   onViewSource?: (documentId: string, excerpt?: string) => void;
 }
 
-const CATEGORY_LABELS: Partial<Record<DataCategory, { label: string; icon: string }>> = {
+// `Record`, not `Partial<Record>`: a new member of `DataCategory` should be a TYPE ERROR here, not
+// a paperclip in production. The four that were missing got in because `Partial` said that was fine.
+const CATEGORY_LABELS: Record<DataCategory, { label: string; icon: string }> = {
   call:                 { label: 'Boundary Calls', icon: '📏' },
   bearing:              { label: 'Bearings', icon: '🧭' },
   distance:             { label: 'Distances', icon: '📐' },
@@ -35,16 +37,31 @@ const CATEGORY_LABELS: Partial<Record<DataCategory, { label: string; icon: strin
   coordinate:           { label: 'Coordinates', icon: '📌' },
   elevation:            { label: 'Elevations', icon: '🏔️' },
   flood_zone:           { label: 'Flood Zone', icon: '🌊' },
+  zoning:               { label: 'Zoning', icon: '🏙️' },
+  utility_info:         { label: 'Utilities', icon: '🔌' },
+  annotation:           { label: 'Plat Annotations', icon: '✏️' },
+  symbol:               { label: 'Plat Symbols', icon: '🔣' },
   other:                { label: 'Other', icon: '📎' },
 };
 
-// Priority ordering for categories
+// Priority ordering for categories.
+//
+// Both this and CATEGORY_LABELS must name EVERY member of `DataCategory` — the extraction prompt,
+// the table's CHECK constraint, the type union and these two lists are four hand-maintained copies
+// of the same set, in four languages, and nothing kept them in step.
+//
+// `zoning`, `utility_info`, `annotation` and `symbol` were missing from both until 2026-08-31. The
+// prompt asks the model for all four and the CHECK constraint accepts all four, so they can arrive
+// at any time — and did nothing worse than render with a lowercased auto-label and the generic
+// paperclip, sorted last, because of the `info?.label || cat.replace(...)` fallback below. Without
+// that fallback this would have been a crash on a category the pipeline is told to produce.
 const CATEGORY_ORDER: DataCategory[] = [
   'point_of_beginning', 'call', 'bearing', 'distance', 'curve_data',
   'monument', 'area', 'boundary_description', 'easement', 'setback',
   'right_of_way', 'adjoiner', 'legal_description', 'lot_block',
   'subdivision_name', 'recording_reference', 'date_reference',
-  'surveyor_info', 'coordinate', 'elevation', 'flood_zone', 'other',
+  'surveyor_info', 'coordinate', 'elevation', 'flood_zone', 'zoning',
+  'utility_info', 'annotation', 'symbol', 'other',
 ];
 
 function confidenceColor(score: number | null | undefined): string {

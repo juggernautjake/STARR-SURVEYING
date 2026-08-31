@@ -340,6 +340,73 @@ else.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
+## G12 — four hand-written copies of one list, and a test that broke another test (2026-08-31)
+
+### The sweep
+
+Chasing the D0 defect pattern — *a display that renders a key its producer does not write*. Every
+`data_category` value the research pipeline can emit, checked across all four places the set is
+written down: the TypeScript union, the extraction prompt, the table's `CHECK` constraint, and the
+UI. **The prompt and the constraint agree on all 26** — clean, and the third clean sweep on this
+axis.
+
+The probe was wrong twice before it was right, in both directions. A bare-word match made every
+category look produced (`area`, `other`, `symbol` and `coordinate` are ordinary English and appear
+in prose). Tightening to quoted-only then reported `boundary_description` and `date_reference` as
+never produced — they are listed **unquoted** inside the prompt's bracketed list. Neither reading
+was a finding.
+
+### What it did find
+
+`zoning`, `utility_info`, `annotation` and `symbol` were in the prompt and in the constraint but in
+neither of the UI's two lists. The prompt asks the model for all four; the constraint accepts all
+four. They rendered with a lowercased auto-label and the generic paperclip, sorted last — degraded
+rather than broken, only because a `info?.label || cat.replace(...)` fallback happened to be there.
+
+The map was typed `Partial<Record<DataCategory, …>>`, which is what allowed it. It is now a plain
+`Record`, so **adding a member to `DataCategory` is a typecheck failure at the point that needs to
+know**. `__tests__/research/data-categories-agree.test.ts` covers the other three lists, which tsc
+cannot see into: SQL, a prompt string, and an ordering array.
+
+The pair whose drift would be invisible is the prompt against the constraint. PostgREST returns
+`{ error }` rather than throwing, so a category the prompt asks for that the table rejects does not
+fail the run — the insert is refused and the data point is simply absent from the report.
+
+### And a bug this work introduced, found by the full-suite run
+
+The suite failed in `__tests__/saas/starr-assumptions.test.ts` with
+`ENOENT: … lib/research/__filter_probe_jsonb__.ts` — a file belonging to a completely different
+suite.
+
+Nine self-checks in `writes-hit-real-columns.test.ts` wrote a temporary `.ts` **into**
+`lib/research/`, scanned it, and deleted it in a `finally`. Vitest runs test files in parallel
+worker threads, and the assumptions audit walks `lib/` — it caught a probe between the `readdirSync`
+that listed it and the `readFileSync` that opened it.
+
+> Each probe passed alone. Each passed when its own file ran alone. The failure surfaced in an
+> unrelated suite, only in the whole-suite run, and did not reproduce on a rerun.
+
+Fifteen probes across four files now pass their source **in memory**; the scanners take an optional
+`sources` map. Two of the four files were found by the guard, not by me:
+`worker-endpoint-contract.test.ts`, `modals-do-not-close-on-outside-click.test.ts` and
+`supabase-errors-are-read.test.ts` all had the same pattern.
+
+`__tests__/research/tests-do-not-write-into-source.test.ts` is the general form — no test may create
+a file inside a tree the repo's own scanners walk. Its first version paired "this file contains a
+write" with "this file mentions a path in a scanned tree" and reported
+`worker-endpoint-contract.test.ts → worker/src/index.ts`, a path that file only **reads**. The
+finding was real; the evidence named the wrong line, which is the sort of report that sends someone
+to change working code. It now resolves the variable from `path.join(ROOT, …)` to the write call,
+and two tests pin both directions.
+
+### Mutation-tested
+
+Six mutations against the category guard — a category the prompt asks for that the constraint
+rejects, one the constraint accepts unasked, one dropped from each UI list, `Partial<Record>`
+restored, and a parser regex broken so it returns an empty set. **All six caught**, the last by the
+control: an empty set agrees with everything, which is how a check like this passes while enforcing
+nothing. Two more against the moved probes confirmed they still fail when their scanner is broken.
+
 ## G11 — `N 30° 15' E` did not parse (2026-08-31)
 
 Found by sweeping for duplicated geometry *after* the previous slice duplicated some itself. The
@@ -682,7 +749,14 @@ Split each into a container plus presentational sections; surface phase, elapsed
 the **skipped list** (`run-budget.ts` records what a run did not do and why — a partial result that
 does not say what is missing is indistinguishable from a complete one).
 
-### D3 — Run console + diff ☐
+### D3 — Run console + diff ✅ **ALREADY SHIPPED — closed 2026-08-31**
+
+Checked rather than built. `_sections/ResearchStagePanel.tsx` mounts `RunConsoleBar` and
+`RunDiffPanel` in flow, above the run panel — which is exactly what this item asked for. The B1a
+extraction did it in passing and nobody wrote it down.
+
+**Seventh parked premise in this repo to be stale when checked, and the second to be stale
+because the work was already done.** Checking cost one `sed`.
 
 `RunConsoleBar` and `RunDiffPanel` into the tab shell rather than floating.
 

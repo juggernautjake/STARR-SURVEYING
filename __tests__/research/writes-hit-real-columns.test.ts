@@ -128,10 +128,13 @@ const RESERVED = new Set(['null', 'true', 'false', 'undefined', 'default', 'case
 
 interface Finding { file: string; table: string; key: string; line: number }
 
-function badWrites(cols: Map<string, Set<string>>, files: string[]): Finding[] {
+function badWrites(cols: Map<string, Set<string>>, files: string[], sources?: Map<string, string>): Finding[] {
   const found: Finding[] = [];
   for (const file of files) {
-    const raw = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // A self-check may supply the source in memory. These probes used to WRITE a .ts file into
+    // lib/research/ — a directory other suites walk in parallel worker threads — so the
+    // whole-suite run failed intermittently with ENOENT inside an unrelated test.
+    const raw = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
     const src = blankStrings(blankComments(raw));
 
     for (const m of src.matchAll(/\.from\(\s*['"`]\s*/g)) {
@@ -214,26 +217,18 @@ describe('the check can fail', () => {
       '// a line comment mentioning https://example.test/research_runs for good measure',
       "await db.from('research_runs').update({ status: x, totally_fake_column: 1 }).eq('id', y);",
     ].join('\n');
-    const tmp = path.join(ROOT, 'lib/research/__column_probe_check__.ts');
-    fs.writeFileSync(tmp, fake);
-    try {
-      const hits = badWrites(COLUMNS, ['lib/research/__column_probe_check__.ts']);
-      expect(hits.map((h) => h.key)).toContain('totally_fake_column');
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__column_probe_check__.ts';
+    const SRC = new Map([[REL, fake]]);
+    const hits = badWrites(COLUMNS, [REL], SRC);
+    expect(hits.map((h) => h.key)).toContain('totally_fake_column');
   });
 
   it('does NOT flag a ternary as a column', () => {
     // `storage_path: ok ? storagePath : null` was reported as a write to `storagepath`.
     const code = `await db.from('research_documents').insert({ storage_path: ok ? storagePath : null });`;
-    const tmp = path.join(ROOT, 'lib/research/__column_probe_ternary__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badWrites(COLUMNS, ['lib/research/__column_probe_ternary__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__column_probe_ternary__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badWrites(COLUMNS, [REL], SRC)).toEqual([]);
   });
 });
 
@@ -253,10 +248,13 @@ describe('the check can fail', () => {
 //     destructured the error away — so it silently showed every proposal without its vendor.
 
 /** `.select('a, b, alias:col')` immediately after `.from('research_…')`. */
-function badSelects(cols: Map<string, Set<string>>, files: string[]): Finding[] {
+function badSelects(cols: Map<string, Set<string>>, files: string[], sources?: Map<string, string>): Finding[] {
   const found: Finding[] = [];
   for (const file of files) {
-    const raw = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // A self-check may supply the source in memory. These probes used to WRITE a .ts file into
+    // lib/research/ — a directory other suites walk in parallel worker threads — so the
+    // whole-suite run failed intermittently with ENOENT inside an unrelated test.
+    const raw = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
     for (const m of raw.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)\s*(?:\r?\n\s*)?\.select\(\s*(['"`])([^'"`]*)\2/g)) {
       const known = cols.get(m[1]);
       if (!known) continue;
@@ -285,27 +283,18 @@ describe('every research select names a real column', () => {
   it('SEES a select for a column that does not exist', () => {
     // Same control as the write side, for the same reason.
     const code = `await db.from('research_runs').select('id, totally_fake_col, status');`;
-    const tmp = path.join(ROOT, 'lib/research/__select_probe_check__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badSelects(COLUMNS, ['lib/research/__select_probe_check__.ts']).map((h) => h.key))
-        .toContain('totally_fake_col');
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__select_probe_check__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badSelects(COLUMNS, [REL], SRC).map((h) => h.key)).toContain('totally_fake_col');
   });
 
   it('does not flag an alias — the COLUMN is what must exist', () => {
     // `legal_description:legal_description_summary` renames on the way out. Flagging the alias
     // would have made the fix for the share-link break look like a new defect.
     const code = `await db.from('research_projects').select('id, legal_description:legal_description_summary');`;
-    const tmp = path.join(ROOT, 'lib/research/__select_probe_alias__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badSelects(COLUMNS, ['lib/research/__select_probe_alias__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__select_probe_alias__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badSelects(COLUMNS, [REL], SRC)).toEqual([]);
   });
 
   it('does not flag an embedded resource — `documents(id, name)` is a join, not a column', () => {
@@ -314,13 +303,9 @@ describe('every research select names a real column', () => {
     // would otherwise be reported as two missing columns, and the report would be wrong in the
     // direction that sends somebody to rename working code.
     const code = `await db.from('research_projects').select('id, research_documents(id, file_type)');`;
-    const tmp = path.join(ROOT, 'lib/research/__select_probe_embed__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badSelects(COLUMNS, ['lib/research/__select_probe_embed__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__select_probe_embed__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badSelects(COLUMNS, [REL], SRC)).toEqual([]);
   });
 
   it('has no select naming a column the seeds do not define', () => {
@@ -354,10 +339,13 @@ describe('every research select names a real column', () => {
 // which is how that was noticed.
 const FILTER_OPS = /\.(eq|neq|gt|gte|lt|lte|like|ilike|is|in|contains|order)\(\s*['"`]([A-Za-z_][A-Za-z0-9_.]*)['"`]/g;
 
-function badFilters(cols: Map<string, Set<string>>, files: string[]): Finding[] {
+function badFilters(cols: Map<string, Set<string>>, files: string[], sources?: Map<string, string>): Finding[] {
   const found: Finding[] = [];
   for (const file of files) {
-    const raw = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // A self-check may supply the source in memory. These probes used to WRITE a .ts file into
+    // lib/research/ — a directory other suites walk in parallel worker threads — so the
+    // whole-suite run failed intermittently with ENOENT inside an unrelated test.
+    const raw = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
     for (const m of raw.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)/g)) {
       const known = cols.get(m[1]);
       if (!known) continue;
@@ -382,35 +370,23 @@ function badFilters(cols: Map<string, Set<string>>, files: string[]): Finding[] 
 describe('every research filter names a real column', () => {
   it('SEES an .eq() on a column that does not exist', () => {
     const code = `await db.from('research_runs').select('*').eq('fake_filter_col', 1);`;
-    const tmp = path.join(ROOT, 'lib/research/__filter_probe_eq__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_eq__.ts']).length).toBe(1);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__filter_probe_eq__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badFilters(COLUMNS, [REL], SRC).length).toBe(1);
   });
 
   it('SEES an .order() on one too — sorting is a column reference as much as filtering is', () => {
     const code = `await db.from('research_runs').select('*').order('nonexistent_sort');`;
-    const tmp = path.join(ROOT, 'lib/research/__filter_probe_order__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_order__.ts']).length).toBe(1);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__filter_probe_order__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badFilters(COLUMNS, [REL], SRC).length).toBe(1);
   });
 
   it('does not flag a JSONB path — `limits.maxCostUsd` addresses a key inside a real column', () => {
     const code = `await db.from('research_runs').select('*').eq('limits.maxCostUsd', 2);`;
-    const tmp = path.join(ROOT, 'lib/research/__filter_probe_jsonb__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_jsonb__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__filter_probe_jsonb__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badFilters(COLUMNS, [REL], SRC)).toEqual([]);
   });
 
   it('does not attribute a filter to the wrong table', () => {
@@ -421,13 +397,9 @@ describe('every research filter names a real column', () => {
       `await db.from('research_runs').select('*').eq('phase', p);`,
       `await db.from('research_projects').select('*').eq('county', c);`,
     ].join('\n');
-    const tmp = path.join(ROOT, 'lib/research/__filter_probe_two__.ts');
-    fs.writeFileSync(tmp, code);
-    try {
-      expect(badFilters(COLUMNS, ['lib/research/__filter_probe_two__.ts'])).toEqual([]);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__filter_probe_two__.ts';
+    const SRC = new Map([[REL, code]]);
+    expect(badFilters(COLUMNS, [REL], SRC)).toEqual([]);
   });
 
   it('has no filter naming a column the seeds do not define', () => {

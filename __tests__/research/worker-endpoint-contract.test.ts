@@ -59,10 +59,12 @@ function walk(dir: string, out: string[] = []): string[] {
 interface Call { path: string; file: string; line: number }
 
 /** Every `${WORKER_URL}/…` the app builds, normalised the same way. */
-function calledPaths(files: string[]): Call[] {
+function calledPaths(files: string[], sources?: Map<string, string>): Call[] {
   const calls: Call[] = [];
   for (const file of files) {
-    const raw = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    // The self-check below supplies its probe in memory. Writing it into lib/research/ raced
+    // another suite's scanner walking the same tree in a parallel worker thread.
+    const raw = sources?.get(file) ?? fs.readFileSync(path.join(ROOT, file), 'utf8');
     for (const m of raw.matchAll(/\$\{WORKER_URL\}([^`"']*)/g)) {
       const p = m[1]
         .replace(/\$\{[^}]*\}/g, ':p')   // a template hole is a path parameter
@@ -98,15 +100,10 @@ describe('the check can fail', () => {
       '  return fetch(`${WORKER_URL}/research/does-not-exist/${id}`);',
       '}',
     ].join('\n');
-    const tmp = path.join(ROOT, 'lib/research/__worker_contract_probe__.ts');
-    fs.writeFileSync(tmp, probe);
-    try {
-      const found = calledPaths(['lib/research/__worker_contract_probe__.ts'])
-        .filter((c) => !SERVED.has(c.path));
-      expect(found.map((c) => c.path)).toEqual(['/research/does-not-exist/:p']);
-    } finally {
-      fs.unlinkSync(tmp);
-    }
+    const REL = 'lib/research/__worker_contract_probe__.ts';
+    const found = calledPaths([REL], new Map([[REL, probe]]))
+      .filter((c) => !SERVED.has(c.path));
+    expect(found.map((c) => c.path)).toEqual(['/research/does-not-exist/:p']);
   });
 
   it('normalises parameters on both sides, so `:projectId` matches `${projectId}`', () => {
