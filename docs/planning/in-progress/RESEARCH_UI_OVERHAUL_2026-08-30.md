@@ -596,6 +596,68 @@ real bugs, not debt.
 
 ---
 
+## G1 — Two working API routes nothing could reach (2026-08-31)
+
+Not a planned slice. Found by sweeping the research path for the defect this repository keeps
+producing, rather than by refactoring more of it.
+
+**`BoundaryCallsPanel.tsx`** — 596 lines, styled, its classes defined and its stylesheet loaded on
+the route — was mounted by nothing. It was the **only caller** of two live API routes:
+
+- `/api/admin/research/[projectId]/boundary-calls` — *"Fetch boundary calls from county CAD"*
+- `/api/admin/research/[projectId]/browser-fetch`
+
+Both routed. Both working. Neither reachable from the product. **That is not dead UI, it is dead
+capability** — reading a boundary out of the county record is close to the centre of what this
+software is for.
+
+Now mounted on the boundary page, behind a disclosure in the Field Work group: that page is already
+showing the calls, and *"where do these come from, and can I get the rest?"* is asked looking at
+them, not from a menu two routes away. `onImported` re-runs the loader the page already has, so an
+import appears in the viewer without a reload.
+
+### Why nothing caught it — and the guard that was supposed to
+
+`research-modules-are-reachable.test.ts` exists precisely for this, and lists ten prior instances.
+It missed this one twice over:
+
+1. It did not scan `app/admin/research/components`. Its own header warns *"a guard is only as good
+   as its coverage, and the directories it skips are exactly where the next orphan will be."*
+2. **It filtered `f.endsWith('.ts')`, so `.tsx` was excluded — it has never been able to see a
+   React component, anywhere.** Adding the directory appeared to surface nothing, which was the
+   giveaway: 43 components there, not one `.ts` file among them.
+
+And `path.basename(p, '.ts')` leaves `.tsx` intact, so the caller search hunted for
+`'…CountyNote.tsx'` — a string no import contains. Every component read as an orphan, including
+ones with three importers. Caught because the result was absurd, not because the code looked wrong.
+
+### The guard now proves its own coverage
+
+Reverting the `.tsx` filter made the whole file **pass again, silently**: the orphan check found
+nothing because components were no longer scanned, and the stale-entry check found nothing because
+it only flags listed modules that *have* a caller. Coverage vanished and every assertion stayed
+green — the same failure as a search that cannot return a positive.
+
+So it now asserts it can see `.ts`, `.tsx`, and that directory, before reporting on any of them.
+
+### Two owner calls, recorded rather than resolved
+
+- **`InteractiveBoundaryViewer.tsx` (689 lines)** — superseded. `boundary/page.tsx` is a 472-line
+  re-implementation rendering its own SVG inline. The live route works. Delete it, or replace the
+  page with it — keeping both means the next person edits whichever they find first.
+- **`TemplateManager.tsx` (335 lines)** — the same shape as the boundary panel: the **only** caller
+  of `/api/admin/research/templates` (GET, POST, DELETE), which is routed and works, so analysis
+  and drawing templates cannot be managed from anywhere in the product. **Not** wired, because
+  unlike the boundary panel it has no obvious home, and picking one is a design decision rather
+  than a fix.
+
+### Mutations
+
+Both survived the first pass and both mattered. `{false && <BoundaryCallsPanel …}` passed the
+reachability chain — the exact state the slice was undoing, and a lesson B2 had already learned and
+this file had not carried over. And reverting the `.tsx` filter passed everything, which is what
+produced the coverage control above.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
