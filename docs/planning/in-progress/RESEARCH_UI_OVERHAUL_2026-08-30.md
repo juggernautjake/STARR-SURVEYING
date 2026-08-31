@@ -1051,11 +1051,61 @@ Mutation-tested three ways (URL guard dropped, strip order reversed, helper unwi
 
 ---
 
-### F2 — Contrast ☐
+### F2 — Contrast ✅ **SHIPPED 2026-08-31** (the static half; the browser half stays a programme)
 
-232 contrast problems are already recorded repo-wide (see [[project_page_versions_dossiers]]). Fix
-the research subset; do not re-baseline the ratchet without investigating — both prior breaches were
-real bugs, not debt.
+**28 real failures found and fixed** across the research stylesheets, plus a new checker that runs
+with no server: `npm run verify:contrast`.
+
+`check-portal-themes.mjs` is still the real instrument — eleven palettes across twenty-five routes,
+rendered — and its 232 problems remain a programme rather than a slice. What ships here is the
+cheap half: every rule in the three research stylesheets that sets a literal `color`, paired with
+the background it will actually sit on, on the **default theme only**. It cannot see cascade,
+inheritance across components, or what a themed token resolves to in the other ten palettes.
+
+> A clean run of this does **not** mean the browser check is clean. It is a floor.
+
+### The auditor was wrong four times before it was right
+
+Each wrong version produced a confident list of findings, and each one was worth writing down:
+
+1. **Siblings read as ancestors.** "The longest selector in the same BEM block that declares a
+   background" is almost always a *sibling* — it measured `.research-page__title` against a blue
+   chip elsewhere on the page and called a heading a 2.84:1 failure. **Twenty of the first
+   twenty-two findings were that artefact.**
+2. **An unresolvable background read as white.** `background: var(--recon-brand)` has no hex
+   fallback, so fifteen perfectly legible buttons reported white-on-white at 1:1.
+3. **A defined token read as its fallback.** `color: var(--theme-fg-muted, #9CA3AF)` appears 45
+   times; the token is declared on bare `:root`, so the fallback never renders. Measuring it
+   produced **58 false failures — a fifth of the whole run**.
+4. **"First definition wins" across a themed sheet.** `themes.css` declares every token once per
+   palette, so the first match came out of a DARK block and the checker reported white-on-white
+   headings across the entire portal.
+
+**158 findings became 28 once the instrument was correct.** Reading the fallback is right for a
+token defined nowhere and wrong for one that is defined; both cases exist here, which is why the
+definitions are gathered first and the fallback consulted only on a miss.
+
+### What the 28 actually were
+
+Nothing exotic — Tailwind ramp values typed into a rule because they looked right on a white card:
+`#059669` at 3.77:1, `#DC2626` at 3.95:1 on its own pale-red badge, `#93C5FD` at 1.8:1, and a
+canvas tooltip **value** at 1.13:1, which is the one that was genuinely unreadable.
+
+Fixes are per-context, never global. `#DC2626` clears 4.83:1 on white and fails only on the pale
+red and slate surfaces — a blanket substitution would have darkened rules that were already
+correct, and no measurement justifies that. Two came out better as **token** changes:
+`--recon-success` is one value behind four failing text uses and two decorative connectors, so
+darkening it once fixed all four; and two count pills were using `--theme-fg-muted`, which is
+calibrated against the page rather than against the grey chip they sit on (4.12:1) — they use
+`--theme-fg-secondary` now, and stay themed rather than pinning a literal.
+
+One safety rail earned its place mid-slice: a scripted edit asserted its pattern would match
+**exactly two** rules, found five, and aborted before writing. Three of those five sit on the page
+and were already fine.
+
+Six mutations, all caught — including a broken luminance curve, and the parser silently matching
+nothing, which would otherwise report zero failures and pass.
+
 
 ---
 

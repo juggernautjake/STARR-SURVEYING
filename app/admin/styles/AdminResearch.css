@@ -9,7 +9,7 @@
   --recon-brand-dark: #152050;
   --recon-red: var(--color-brand-red);
   --recon-dark: #0F1419;
-  --recon-success: #059669;
+  --recon-success: #047857;   /* 5.48:1 on white — was #059669 at 3.77 */
   --recon-warning: #D97706;
   --recon-border: var(--theme-border, #E5E7EB);
   --recon-bg: #F8FAFC;
@@ -824,7 +824,7 @@
   align-items: center;
   gap: 0.4rem;
 }
-.research-action-bar__ok { color: #059669; flex: 0 0 auto; }
+.research-action-bar__ok { color: #047857; flex: 0 0 auto; }
 .research-action-bar__btn {
   flex: 0 0 auto;
   display: inline-flex;
@@ -843,7 +843,7 @@
 .research-action-bar__btn:hover:not(:disabled) { filter: brightness(1.1); }
 .research-action-bar__btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .research-action-bar__spin {
-  color: #F59E0B;
+  color: #B45309;
   flex: 0 0 auto;
   animation: research-action-spin 1s linear infinite;
 }
@@ -1116,7 +1116,7 @@
 .research-upload__doc-meta span::after {
   content: '\00b7';
   margin-left: 0.6rem;
-  color: #D1D5DB;
+  color: #6B7280;
 }
 
 .research-upload__doc-meta span:last-child::after {
@@ -1125,7 +1125,7 @@
 
 .research-upload__doc-error {
   font-size: 0.75rem;
-  color: #EF4444;
+  color: #DC2626;
   margin-top: 0.2rem;
 }
 
@@ -1142,7 +1142,7 @@
 }
 
 .research-upload__doc-delete:hover {
-  color: #EF4444;
+  color: #DC2626;
 }
 
 .research-upload__doc-view {
@@ -1159,7 +1159,7 @@
 }
 
 .research-upload__doc-view:hover {
-  color: #3B82F6;
+  color: #2563EB;
 }
 
 /* ── Document Viewer Modal ────────────────────────────────────────────────── */
@@ -1466,7 +1466,7 @@
   flex-wrap: wrap;
 }
 .research-analyzing__resume-btn {
-  background: #D97706;
+  background: #B45309;
   border: none;
   border-radius: 6px;
   padding: 0.4rem 1rem;
@@ -1541,7 +1541,7 @@
   color: var(--theme-fg-muted, #6B7280);
 }
 .research-analyzing__pts {
-  color: #059669;
+  color: #047857;
   font-weight: 600;
 }
 
@@ -1802,9 +1802,9 @@
   width: 1em;
   text-align: center;
 }
-.research-analyzing__log-icon--error   { color: #EF4444; }
-.research-analyzing__log-icon--warn    { color: #F59E0B; }
-.research-analyzing__log-icon--success { color: #059669; }
+.research-analyzing__log-icon--error   { color: #DC2626; }
+.research-analyzing__log-icon--warn    { color: #B45309; }
+.research-analyzing__log-icon--success { color: #047857; }
 .research-analyzing__log-icon--info    { color: var(--theme-fg-muted, #6B7280); }
 .research-analyzing__log-msg {
   color: var(--theme-fg-primary, #1F2937);
@@ -1924,7 +1924,7 @@
   min-width: 20px;
   height: 20px;
   padding: 0 0.35rem;
-  background: #EF4444;
+  background: #DC2626;
   color: #fff;
   border-radius: 10px;
   font-size: 0.68rem;
@@ -2180,11 +2180,11 @@
 }
 
 .research-disc-panel__summary-sep {
-  color: #D1D5DB;
+  color: #6B7280;
 }
 
 .research-disc-panel__summary-resolved {
-  color: #059669;
+  color: #047857;
 }
 
 .research-disc-panel__filters {
@@ -2794,7 +2794,7 @@
 }
 
 .research-viewer__header-meta a {
-  color: #3B82F6;
+  color: #2563EB;
   text-decoration: none;
   font-size: 0.75rem;
   white-space: nowrap;
@@ -2810,7 +2810,7 @@
 .research-viewer__header-meta span::after {
   content: '\00b7';
   margin-left: 0.5rem;
-  color: #D1D5DB;
+  color: #6B7280;
 }
 
 .research-viewer__header-meta span:last-child::after {
@@ -3080,7 +3080,7 @@
 
 /* Active draw mode button */
 .research-viewer__img-toolbar button[data-active="true"] {
-  background: #EF4444;
+  background: #DC2626;
   color: #fff;
   border-color: #DC2626;
 }
@@ -3301,7 +3301,7 @@
 .coherence-review__pass-badge {
   font-size: 0.62rem;
   font-weight: 700;
-  color: #6366F1;
+  color: #4F46E5;
   background: #EEF2FF;
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
@@ -3466,7 +3466,7 @@
 
 .coherence-review__issue-rec {
   font-size: 0.75rem;
-  color: #059669;
+  color: #047857;
   margin-top: 0.25rem;
   font-style: italic;
 }
@@ -3485,7 +3485,7 @@
 }
 
 .coherence-review__list--missing li {
-  color: #D97706;
+  color: #B45309;
 }
 
 /* Executive summary */
@@ -3521,7 +3521,7 @@
 .coherence-review__issue-pass {
   font-size: 0.6rem;
   font-weight: 700;
-  color: #6366F1;
+  color: #4F46E5;
   background: #EEF2FF;
   padding: 0.05rem 0.3rem;
   border-radius: 3px;
@@ -3792,7 +3792,7 @@
 
 .research-search__error {
   background: #FEF2F2;
-  color: #DC2626;
+  color: #B91C1C;
   font-size: 0.82rem;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
@@ -3839,7 +3839,7 @@
 
 .research-search__loading-subtitle {
   font-size: 0.8rem;
-  color: #3B82F6;
+  color: #2563EB;
   margin-bottom: 1rem;
   min-height: 1.1em;
 }
@@ -3858,7 +3858,7 @@
   align-items: center;
   gap: 0.6rem;
   font-size: 0.83rem;
-  color: #93C5FD;
+  color: #2563EB;
 }
 
 .research-search__loading-step--active {
@@ -3867,7 +3867,7 @@
 }
 
 .research-search__loading-step--done {
-  color: #059669;
+  color: #047857;
 }
 
 .research-search__loading-step__dot {
@@ -3914,12 +3914,12 @@
 
 .research-search__source-chip--success {
   background: #ECFDF5;
-  color: #059669;
+  color: #047857;
 }
 
 .research-search__source-chip--error {
   background: #FEF2F2;
-  color: #DC2626;
+  color: #B91C1C;
 }
 
 .research-search__source-chip--no_results {
@@ -4044,7 +4044,8 @@
 .research-search__group-count {
   font-size: 0.75rem;
   font-weight: 500;
-  color: var(--theme-fg-muted, #9CA3AF);
+  /* --fg-muted is calibrated against the PAGE, not against this grey chip: 4.12:1 on #E5E7EB. --fg-secondary is the raised-surface token. */
+  color: var(--theme-fg-secondary, #475569);
   background: #E5E7EB;
   padding: 0.1rem 0.45rem;
   border-radius: 10px;
@@ -4206,7 +4207,7 @@
 .research-search__import-success {
   padding: 0.75rem 1.5rem;
   background: #ECFDF5;
-  color: #059669;
+  color: #047857;
   font-size: 0.85rem;
   font-weight: 500;
   border-top: 1px solid #A7F3D0;
@@ -4416,7 +4417,7 @@
 }
 .research-search__pipeline-log-step::before {
   content: '> ';
-  color: #D1D5DB;
+  color: #6B7280;
 }
 
 /* Address normalization alert */
@@ -4508,7 +4509,7 @@
 /* Property-specific badge */
 .research-search__result-specific {
   background: #ECFDF5;
-  color: #059669;
+  color: #047857;
   border: 1px solid #A7F3D0;
   border-radius: 4px;
   font-size: 0.7rem;
@@ -4518,7 +4519,7 @@
 
 /* "N property-specific" count in header */
 .research-search__specific-count {
-  color: #059669;
+  color: #047857;
   font-weight: 600;
 }
 
@@ -4631,7 +4632,7 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 .research-drawing__action-btn--archive {
-  color: #D97706;
+  color: #B45309;
   border-color: #FDE68A;
 }
 .research-drawing__action-btn--archive:hover {
@@ -4640,7 +4641,7 @@
   color: #92400E;
 }
 .research-drawing__action-btn--delete {
-  color: #EF4444;
+  color: #DC2626;
   border-color: #FECACA;
 }
 .research-drawing__action-btn--delete:hover {
@@ -4803,7 +4804,7 @@
 
 .research-canvas__hint {
   font-size: 0.7rem;
-  color: #D1D5DB;
+  color: #4B5563;
 }
 
 .research-canvas__viewport {
@@ -4884,7 +4885,7 @@
 }
 
 .research-canvas__tooltip-value {
-  color: #E5E7EB;
+  color: #334155;
   padding: 0.18rem 0.5rem 0.18rem 0;
   word-break: break-word;
   max-width: 180px;
@@ -4926,7 +4927,7 @@
 }
 
 .research-element-panel__modified {
-  color: #F59E0B;
+  color: #B45309;
   font-weight: 600;
 }
 
@@ -4936,7 +4937,7 @@
   margin-left: 0.4rem;
   padding: 0.1rem 0.4rem;
   background: #FEF3C7;
-  color: #D97706;
+  color: #B45309;
   font-size: 0.65rem;
   font-weight: 700;
   border-radius: 3px;
@@ -4967,7 +4968,7 @@
 .research-element-panel__edited-icon {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #D97706;
+  color: #B45309;
   flex-shrink: 0;
   line-height: 1;
 }
@@ -4977,7 +4978,7 @@
   padding: 0.3rem 0.65rem;
   background: var(--theme-bg-surface, #FFFFFF);
   border: 1px solid #D97706;
-  color: #D97706;
+  color: #B45309;
   font-size: 0.72rem;
   font-weight: 600;
   border-radius: 5px;
@@ -4986,7 +4987,7 @@
 }
 
 .research-element-panel__revert-btn:hover {
-  background: #D97706;
+  background: #B45309;
   color: #FFFFFF;
 }
 
@@ -5040,7 +5041,7 @@
   margin-left: 0.3rem;
   padding: 0.05rem 0.3rem;
   background: #FEF3C7;
-  color: #D97706;
+  color: #B45309;
   font-size: 0.6rem;
   font-weight: 700;
   border-radius: 3px;
@@ -5144,7 +5145,7 @@
 
 .research-element-panel__factor-weight {
   font-size: 0.68rem;
-  color: #D1D5DB;
+  color: #6B7280;
 }
 
 .research-element-panel__factor-bar-wrap {
@@ -5619,7 +5620,7 @@
 
 .research-prefs__reset-btn:hover {
   border-color: #EF4444;
-  color: #EF4444;
+  color: #DC2626;
 }
 
 .research-prefs__close-btn {
@@ -6172,7 +6173,7 @@
 }
 
 .research-context-menu__item--danger {
-  color: #EF4444;
+  color: #DC2626;
 }
 
 .research-context-menu__item--danger:hover {
@@ -6305,7 +6306,7 @@
 }
 
 .research-toolbar__dropdown-item--danger {
-  color: #EF4444;
+  color: #DC2626;
 }
 
 .research-toolbar__dropdown-item--danger:hover {
@@ -6355,7 +6356,7 @@
 
 /* Unsaved indicator */
 .research-toolbar__stat--unsaved {
-  color: #D97706;
+  color: #B45309;
   font-weight: 600;
   background: #FFFBEB;
   padding: 0.15rem 0.4rem;
@@ -6499,7 +6500,7 @@
 /* ── Drawing info footer enhancements ────────────────────────────────────── */
 
 .research-drawing__info-unsaved {
-  color: #D97706;
+  color: #B45309;
   font-weight: 600;
   font-size: 0.78rem;
   margin-left: 0.5rem;
@@ -6510,7 +6511,7 @@
 }
 
 .research-drawing__info-saved {
-  color: #059669;
+  color: #047857;
   font-size: 0.75rem;
   margin-left: 0.5rem;
   padding: 0.15rem 0.5rem;
@@ -7047,7 +7048,7 @@
   font-weight: 600;
 }
 .research-export__summary-value--warn {
-  color: #F59E0B;
+  color: #B45309;
 }
 
 /* Section */
@@ -7183,7 +7184,7 @@
 }
 .research-export__complete-btn {
   padding: 0.6rem 2rem;
-  background: #059669;
+  background: #047857;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -7306,7 +7307,7 @@
 }
 .research-templates__error {
   font-size: 0.75rem;
-  color: #EF4444;
+  color: #DC2626;
 }
 .research-templates__create-actions {
   display: flex;
@@ -7442,7 +7443,7 @@
 }
 .research-templates__card-delete:hover {
   background: #FEE2E2;
-  color: #EF4444;
+  color: #991B1B;
 }
 .research-templates__empty {
   grid-column: 1 / -1;
@@ -7663,18 +7664,18 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #D1D5DB;
+  color: #6B7280;
   font-size: 0.9rem;
   padding: 0;
   line-height: 1;
   flex-shrink: 0;
 }
-.coord-entry__vertex-delete:hover { color: #EF4444; }
+.coord-entry__vertex-delete:hover { color: #DC2626; }
 
 .coord-entry__close-traverse {
   margin-top: 0.5rem;
   padding: 0.4rem 0.75rem;
-  background: #059669;
+  background: #047857;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -7842,7 +7843,7 @@
   background: #FEF2F2;
   border: 1px solid #FECACA;
   border-radius: 6px;
-  color: #DC2626;
+  color: #B91C1C;
   font-size: 0.78rem;
   margin: 0 0.75rem;
 }
@@ -8554,7 +8555,7 @@
 
 .research-briefing__tab-badge--critical {
   background: #FEE2E2;
-  color: #DC2626;
+  color: #991B1B;
 }
 
 .research-briefing__body {
@@ -8666,7 +8667,7 @@
 }
 
 .research-briefing__call-flag {
-  color: #F59E0B;
+  color: #B45309;
   font-size: 0.9rem;
 }
 
@@ -8881,7 +8882,7 @@
 .research-briefing__disc-item--contradiction .research-briefing__disc-severity,
 .research-briefing__disc-item--error .research-briefing__disc-severity {
   background: #FEE2E2;
-  color: #DC2626;
+  color: #991B1B;
 }
 
 .research-briefing__disc-item--discrepancy .research-briefing__disc-severity {
@@ -9003,7 +9004,8 @@
 
 .layer-panel__count {
   background: #E5E7EB;
-  color: var(--theme-fg-muted, #6B7280);
+  /* --fg-muted is calibrated against the PAGE, not against this grey chip: 4.12:1 on #E5E7EB. --fg-secondary is the raised-surface token. */
+  color: var(--theme-fg-secondary, #475569);
   border-radius: 10px;
   padding: 0 0.35rem;
   font-size: 0.65rem;
@@ -9039,12 +9041,12 @@
 }
 
 .layer-panel__btn--locked {
-  color: #EF4444;
+  color: #B91C1C;
   opacity: 1;
 }
 
 .layer-panel__btn--delete {
-  color: #EF4444;
+  color: #B91C1C;
   font-weight: bold;
   font-size: 0.85rem;
 }
@@ -9273,7 +9275,7 @@
 .research-tools__no-fill-btn--active {
   background: #FEF2F2;
   border-color: #FCA5A5;
-  color: #DC2626;
+  color: #B91C1C;
 }
 
 /* ── Symbol select full-width row ────────────────────────────────────────── */
@@ -9329,7 +9331,7 @@
 }
 
 .research-context-menu__item--danger .research-context-menu__shortcut {
-  color: #FCA5A5;
+  color: #B91C1C;
   background: #FFF5F5;
   border-color: #FCA5A5;
 }
@@ -9499,7 +9501,7 @@
 }
 
 .research-boundary__id-copy {
-  background: #059669;
+  background: #047857;
   color: #fff;
   border: none;
   border-radius: 5px;
@@ -10276,7 +10278,7 @@
 .review-stat--warn { background: #fffbeb; border-color: #fde68a; }
 .review-stat__label {
   font-size: 0.7rem;
-  color: #64748b;
+  color: #475569;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -10490,8 +10492,8 @@
   flex-shrink: 0;
   font-weight: 600;
 }
-.review-doc-card__badge--ok { color: #059669; background: #d1fae5; }
-.review-doc-card__badge--err { color: #dc2626; background: #fee2e2; }
+.review-doc-card__badge--ok { color: #047857; background: #d1fae5; }
+.review-doc-card__badge--err { color: #991B1B; background: #fee2e2; }
 /* "Thin text" is not an error — the document is usable, but facts drawn from it are incomplete
    rather than absent, so it gets its own tone rather than borrowing the error one (plan R18). */
 .review-doc-card__badge--warn { color: #b45309; background: #fef3c7; }
@@ -10892,7 +10894,7 @@
   background: rgba(239,68,68,0.5) !important;
 }
 .artifact-lightbox__zoom {
-  color: #D1D5DB;
+  color: #6B7280;
   font-size: 0.78rem;
   min-width: 3rem;
   text-align: center;
@@ -11189,7 +11191,7 @@
   border: 1px solid var(--recon-border, #D1D5DB);
   border-radius: 6px;
   background: var(--theme-bg-surface, #FFFFFF);
-  color: #EF4444;
+  color: #DC2626;
   font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
@@ -12625,7 +12627,7 @@
   color: #6B7280;
 }
 
-.research-billing__muted { color: #9CA3AF; }
+.research-billing__muted { color: #6B7280; }
 
 .research-billing__link {
   display: inline-flex;
@@ -12685,5 +12687,5 @@
   white-space: nowrap;
   text-align: center;
   font-size: 0.7rem;
-  color: #9CA3AF;
+  color: #6B7280;
 }
