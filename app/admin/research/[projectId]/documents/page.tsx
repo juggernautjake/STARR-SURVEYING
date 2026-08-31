@@ -1,97 +1,69 @@
-// app/admin/research/[projectId]/documents/page.tsx — Phase 13 Project Document Library
-// Shows all research documents retrieved and purchased for a specific project.
-// Supports preview, download, and source document linking.
+// app/admin/research/[projectId]/documents/page.tsx — the project's Document Library.
+//
+// ── THIS PAGE RENDERED SEVENTEEN EMPTY BOXES ────────────────────────────────────────────────────
+//
+// Found 2026-08-31 by photographing it. The count said "17 documents", the filters were right, and
+// every single row was blank — because the page cast the API's response to a shape nothing
+// produces. `documentId`, `type`, `instrumentNumber`, `grantor`, `pageCount`, `fileFormat`,
+// `sizeBytes`, `purchased`… not one is a column on `research_documents`. Every value was
+// `undefined`, and `key={doc.documentId}` was `undefined` for all seventeen rows at once.
+//
+// The shaping is in `./document-rows.ts` now, with its column list held against the seeds by
+// `document-library-reads-real-columns.test.ts`. See that file for the full account.
+//
+// ── AND IT COULD NOT SHOW AN IMAGE ──────────────────────────────────────────────────────────────
+//
+// Owner: *"be able to view all images"*. The old preview pane pointed at
+// `/documents/{id}/preview`, a route that does not exist, using an id that was undefined. A plat
+// you cannot see at full size is a plat you have not checked, so the viewer opens the real file:
+// images inline and zoomable, PDFs in an object frame, and anything else as an honest download.
+
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
+import {
+  toCards, formatBytes, type DocumentCard, type DocumentKind,
+} from './document-rows';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved';
+type SortBy = 'date' | 'type' | 'name' | 'size';
 
-interface ResearchDocument {
-  documentId: string;
-  type: 'plat' | 'deed' | 'easement' | 'survey' | 'other';
-  instrumentNumber?: string;
-  description?: string;
-  grantor?: string;
-  grantee?: string;
-  recordedDate?: string;
-  pageCount?: number;
-  fileFormat?: 'pdf' | 'jpg' | 'png' | 'tif' | 'unknown';
-  sizeBytes?: number;
-  relevanceScore?: number;
-  purchased: boolean;
-  purchasedAt?: string;
-  purchaseCost?: number;
-  localPath?: string;
-  thumbnailUrl?: string;
-  usedInAnalysis?: boolean;
-  source?: string;
-}
-
-type DocFilter = 'all' | 'plat' | 'deed' | 'easement' | 'survey' | 'purchased' | 'used';
-type SortBy = 'type' | 'date' | 'relevance' | 'name';
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const DOC_TYPE_ICONS: Record<ResearchDocument['type'], string> = {
-  plat: '🗺',
-  deed: '📜',
-  easement: '📋',
-  survey: '📐',
-  other: '📄',
+const KIND_ICON: Record<DocumentKind, string> = {
+  plat: '🗺', deed: '📜', easement: '📋', survey: '📐', other: '📄',
 };
 
-const DOC_TYPE_LABELS: Record<ResearchDocument['type'], string> = {
-  plat: 'Plat',
-  deed: 'Deed',
-  easement: 'Easement',
-  survey: 'Survey',
-  other: 'Other',
+const KIND_LABEL: Record<DocumentKind, string> = {
+  plat: 'Plat', deed: 'Deed', easement: 'Easement', survey: 'Survey', other: 'Other',
 };
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+/** `analyzed` / `pending` / `failed` — what the pipeline did with the file, in one word. */
+function statusTone(status: string): string {
+  if (status === 'analyzed' || status === 'extracted') return 'bg-green-900 text-green-200';
+  if (status === 'failed' || status === 'error') return 'bg-red-900 text-red-200';
+  return 'bg-gray-700 text-gray-200';
 }
-
-function relevanceBadge(score: number | undefined): string {
-  if (score === undefined) return '';
-  if (score >= 0.8) return '⭐⭐⭐';
-  if (score >= 0.6) return '⭐⭐';
-  if (score >= 0.4) return '⭐';
-  return '';
-}
-
-// ── Page ───────────────────────────────────────────────────────────────────────
 
 export default function ProjectDocumentsPage() {
-  const { data: session, status: sessionStatus } = useSession();
+  const { status: sessionStatus } = useSession();
   const router = useRouter();
   const params = useParams<{ projectId: string }>();
   const projectId = params?.projectId ?? '';
 
-  const [documents, setDocuments] = useState<ResearchDocument[]>([]);
+  const [documents, setDocuments] = useState<DocumentCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const [filter, setFilter] = useState<DocFilter>('all');
-  const [sortBy, setSortBy] = useState<SortBy>('relevance');
+  const [sortBy, setSortBy] = useState<SortBy>('date');
   const [search, setSearch] = useState('');
-  const [selectedDoc, setSelectedDoc] = useState<ResearchDocument | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-
-  // ── Auth guard ───────────────────────────────────────────────────────────
+  const [selected, setSelected] = useState<DocumentCard | null>(null);
 
   useEffect(() => {
     if (sessionStatus === 'unauthenticated') router.push('/admin/login');
   }, [sessionStatus, router]);
-
-  // ── Load documents ───────────────────────────────────────────────────────
 
   const loadDocuments = useCallback(async () => {
     if (!projectId) return;
@@ -100,8 +72,9 @@ export default function ProjectDocumentsPage() {
     try {
       const res = await fetch(`/api/admin/research/${projectId}/documents`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { documents: ResearchDocument[] };
-      setDocuments(data.documents ?? []);
+      // `toCards` is tolerant of the wrapper AND of a bare array, and drops rows with no id rather
+      // than rendering them with an undefined React key.
+      setDocuments(toCards(await res.json()));
     } catch (err) {
       setLoadError(String(err));
     } finally {
@@ -111,73 +84,31 @@ export default function ProjectDocumentsPage() {
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
 
-  // ── Filter + Sort + Search ───────────────────────────────────────────────
-
-  const filteredDocs = documents
-    .filter(doc => {
-      if (filter === 'purchased') return doc.purchased;
-      if (filter === 'used') return doc.usedInAnalysis;
-      if (filter !== 'all') return doc.type === filter;
-      return true;
+  const filtered = useMemo(() => documents
+    .filter((d) => {
+      if (filter === 'all') return true;
+      if (filter === 'uploaded') return d.isUpload;
+      if (filter === 'retrieved') return !d.isUpload;
+      return d.kind === filter;
     })
-    .filter(doc => {
+    .filter((d) => {
       if (!search) return true;
       const q = search.toLowerCase();
-      return (
-        doc.documentId.toLowerCase().includes(q) ||
-        (doc.instrumentNumber ?? '').toLowerCase().includes(q) ||
-        (doc.description ?? '').toLowerCase().includes(q) ||
-        (doc.grantor ?? '').toLowerCase().includes(q) ||
-        (doc.grantee ?? '').toLowerCase().includes(q)
-      );
+      return d.title.toLowerCase().includes(q)
+        || (d.instrument ?? '').toLowerCase().includes(q)
+        || d.sourceLabel.toLowerCase().includes(q);
     })
     .sort((a, b) => {
       switch (sortBy) {
-        case 'relevance':
-          return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
-        case 'date':
-          return (b.recordedDate ?? '').localeCompare(a.recordedDate ?? '');
-        case 'type':
-          return a.type.localeCompare(b.type);
-        case 'name':
-          return (a.instrumentNumber ?? '').localeCompare(b.instrumentNumber ?? '');
-        default:
-          return 0;
+        case 'type': return a.kind.localeCompare(b.kind) || a.title.localeCompare(b.title);
+        case 'name': return a.title.localeCompare(b.title);
+        case 'size': return (b.sizeBytes ?? 0) - (a.sizeBytes ?? 0);
+        default: return (b.recordedDate ?? '').localeCompare(a.recordedDate ?? '');
       }
-    });
+    }), [documents, filter, search, sortBy]);
 
-  // ── Download handler ─────────────────────────────────────────────────────
-
-  const handleDownload = useCallback(async (doc: ResearchDocument) => {
-    try {
-      const res = await fetch(
-        `/api/admin/research/${projectId}/documents/${doc.documentId}/download`,
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${doc.instrumentNumber ?? doc.documentId}.${doc.fileFormat ?? 'pdf'}`;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      alert(`Download failed: ${String(err)}`);
-    }
-  }, [projectId]);
-
-  // ── Preview ───────────────────────────────────────────────────────────────
-
-  const handlePreview = useCallback((doc: ResearchDocument) => {
-    setSelectedDoc(doc);
-    if (doc.thumbnailUrl) {
-      setPreviewUrl(doc.thumbnailUrl);
-    } else {
-      setPreviewUrl(`/api/admin/research/${projectId}/documents/${doc.documentId}/preview`);
-    }
-  }, [projectId]);
-
-  // ── Loading / Error ───────────────────────────────────────────────────────
+  const uploaded = documents.filter((d) => d.isUpload).length;
+  const images = documents.filter((d) => d.isImage).length;
 
   if (sessionStatus === 'loading' || loading) {
     return (
@@ -204,222 +135,218 @@ export default function ProjectDocumentsPage() {
     );
   }
 
-  const purchasedCount = documents.filter(d => d.purchased).length;
-  const usedCount = documents.filter(d => d.usedInAnalysis).length;
-
   return (
     <div className="research-dark-app min-h-screen bg-gray-950 text-gray-100">
-      {/* ── Header ── */}
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-4">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Link href={`/admin/research/${projectId}`} className="text-gray-400 hover:text-white text-sm">
               ← Back to Project
             </Link>
             <h1 className="text-xl font-bold text-gray-100">📁 Document Library</h1>
           </div>
-          <div className="flex gap-4 text-sm text-gray-400">
+          {/* Counts that are actually derivable. The old header promised "purchased" and "used in
+              analysis" from two fields that do not exist, so both read 0 on every project. */}
+          <div className="flex gap-4 text-sm text-gray-300">
             <span><strong className="text-white">{documents.length}</strong> documents</span>
-            <span><strong className="text-green-400">{purchasedCount}</strong> purchased</span>
-            <span><strong className="text-blue-400">{usedCount}</strong> used in analysis</span>
+            <span><strong className="text-white">{uploaded}</strong> uploaded by us</span>
+            <span><strong className="text-white">{images}</strong> viewable images</span>
           </div>
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-73px)] overflow-hidden">
-        {/* ── Main list ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Toolbar */}
+      <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-73px)] lg:overflow-hidden">
+        <div className="flex-1 flex flex-col lg:overflow-hidden">
           <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3">
-            {/* Filter tabs */}
-            <div className="flex gap-1">
-              {(['all', 'plat', 'deed', 'easement', 'survey', 'purchased', 'used'] as DocFilter[]).map(f => (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
-                    filter === f
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                >
-                  {f === 'all' ? `All (${documents.length})` : f.charAt(0).toUpperCase() + f.slice(1)}
-                </button>
-              ))}
+            <div className="flex gap-1 flex-wrap">
+              {(['all', 'plat', 'deed', 'easement', 'survey', 'uploaded', 'retrieved'] as DocFilter[]).map((f) => {
+                const n = f === 'all' ? documents.length
+                  : f === 'uploaded' ? uploaded
+                  : f === 'retrieved' ? documents.length - uploaded
+                  : documents.filter((d) => d.kind === f).length;
+                return (
+                  <button
+                    key={f}
+                    onClick={() => setFilter(f)}
+                    aria-pressed={filter === f}
+                    className={`px-3 py-1 rounded text-xs font-medium transition-colors ${
+                      filter === f ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    }`}
+                  >
+                    {/* The count is on EVERY chip, not just "All". A filter that turns out to be
+                        empty after you click it is a filter you learn not to trust. */}
+                    {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} ({n})
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Search */}
             <input
               type="text"
-              placeholder="Search instrument #, grantor, description…"
+              placeholder="Search title, instrument # or source…"
               value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="flex-1 min-w-40 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-blue-500"
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search documents"
+              className="flex-1 min-w-40 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-gray-100 placeholder-gray-400 focus:outline-none focus:border-blue-500"
             />
 
-            {/* Sort */}
-            <select
-              value={sortBy}
-              onChange={e => setSortBy(e.target.value as SortBy)}
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none"
-            >
-              <option value="relevance">Sort: Relevance</option>
-              <option value="date">Sort: Date</option>
-              <option value="type">Sort: Type</option>
-              <option value="name">Sort: Instrument #</option>
-            </select>
+            <label className="text-xs text-gray-300 flex items-center gap-2">
+              Sort
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortBy)}
+                className="bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-100"
+              >
+                <option value="date">Recorded date</option>
+                <option value="type">Type</option>
+                <option value="name">Name</option>
+                <option value="size">Size</option>
+              </select>
+            </label>
           </div>
 
-          {/* Document list */}
-          <div className="flex-1 overflow-y-auto p-4">
-            {filteredDocs.length === 0 ? (
-              <div className="text-center text-gray-500 mt-16">
-                <div className="text-4xl mb-3">📭</div>
-                <p>{search ? 'No documents match your search.' : 'No documents found for this project.'}</p>
+          <div className="flex-1 lg:overflow-y-auto p-4">
+            {filtered.length === 0 ? (
+              <div className="text-center text-gray-300 py-16">
+                <div className="text-4xl mb-3">📁</div>
+                <p className="font-medium">
+                  {documents.length === 0 ? 'No documents on this project yet.' : 'No documents match that filter.'}
+                </p>
+                <p className="text-sm text-gray-400 mt-1">
+                  {documents.length === 0
+                    ? 'Run the research pipeline, or upload deeds and plats from the project page.'
+                    : 'Clear the search or pick another filter.'}
+                </p>
               </div>
             ) : (
               <div className="grid gap-2">
-                {filteredDocs.map(doc => (
-                  <div
-                    key={doc.documentId}
-                    onClick={() => handlePreview(doc)}
-                    className={`bg-gray-900 border rounded-lg p-4 cursor-pointer transition-colors hover:border-blue-600 ${
-                      selectedDoc?.documentId === doc.documentId
-                        ? 'border-blue-500 bg-blue-900/10'
-                        : 'border-gray-800'
+                {filtered.map((doc) => (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    onClick={() => setSelected(doc)}
+                    aria-pressed={selected?.id === doc.id}
+                    className={`text-left w-full bg-gray-900 border rounded-lg p-4 transition-colors hover:border-blue-600 ${
+                      selected?.id === doc.id ? 'border-blue-500' : 'border-gray-800'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <span className="text-2xl flex-shrink-0">{DOC_TYPE_ICONS[doc.type]}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-300">
-                              {DOC_TYPE_LABELS[doc.type]}
-                            </span>
-                            {doc.instrumentNumber && (
-                              <span className="font-mono text-sm text-blue-300">{doc.instrumentNumber}</span>
-                            )}
-                            {relevanceBadge(doc.relevanceScore) && (
-                              <span className="text-xs" title={`Relevance: ${((doc.relevanceScore ?? 0) * 100).toFixed(0)}%`}>
-                                {relevanceBadge(doc.relevanceScore)}
-                              </span>
-                            )}
-                            {doc.purchased && (
-                              <span className="text-xs px-2 py-0.5 bg-green-800 text-green-300 rounded">✓ Purchased</span>
-                            )}
-                            {doc.usedInAnalysis && (
-                              <span className="text-xs px-2 py-0.5 bg-blue-800 text-blue-300 rounded">✓ Used</span>
-                            )}
-                          </div>
-                          {doc.description && (
-                            <p className="text-sm text-gray-300 mt-1 truncate">{doc.description}</p>
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0" aria-hidden="true">{KIND_ICON[doc.kind]}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <span className="text-xs px-2 py-0.5 bg-gray-700 rounded text-gray-200">
+                            {KIND_LABEL[doc.kind]}
+                          </span>
+                          {doc.instrument && (
+                            <span className="font-mono text-sm text-blue-300">{doc.instrument}</span>
                           )}
-                          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-                            {doc.grantor && <span>From: {doc.grantor}</span>}
-                            {doc.grantee && <span>To: {doc.grantee}</span>}
-                            {doc.recordedDate && <span>{doc.recordedDate}</span>}
-                            {doc.pageCount && <span>{doc.pageCount}p</span>}
-                            {doc.sizeBytes && <span>{formatBytes(doc.sizeBytes)}</span>}
-                            {doc.source && <span>{doc.source}</span>}
-                          </div>
+                          {doc.isUpload && (
+                            <span className="text-xs px-2 py-0.5 bg-blue-900 text-blue-200 rounded">Uploaded</span>
+                          )}
+                          {doc.isImage && (
+                            <span className="text-xs px-2 py-0.5 bg-gray-700 text-gray-200 rounded">Image</span>
+                          )}
+                          <span className={`text-xs px-2 py-0.5 rounded ${statusTone(doc.status)}`}>
+                            {doc.status}
+                          </span>
                         </div>
-                      </div>
-
-                      <div className="flex gap-1 flex-shrink-0">
-                        {doc.purchased && (
-                          <button
-                            onClick={e => { e.stopPropagation(); handleDownload(doc); }}
-                            className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                            title="Download"
-                          >
-                            ↓
-                          </button>
+                        {/* The title. It is never blank — `titleOf` falls back through the filename
+                            to the id, because a blank row is indistinguishable from a broken one. */}
+                        <p className="text-sm text-gray-100 font-medium break-words">{doc.title}</p>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
+                          <span>{doc.sourceLabel}</span>
+                          {doc.recordedDate && <span>{doc.recordedDate}</span>}
+                          {doc.pageCount != null && <span>{doc.pageCount}p</span>}
+                          {doc.sizeBytes != null && <span>{formatBytes(doc.sizeBytes)}</span>}
+                        </div>
+                        {doc.statusError && (
+                          <p className="text-xs text-red-400 mt-1 break-words">{doc.statusError}</p>
                         )}
                       </div>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
           </div>
         </div>
 
-        {/* ── Preview panel ── */}
-        {selectedDoc && (
-          <aside className="w-80 bg-gray-900 border-l border-gray-800 flex flex-col flex-shrink-0 overflow-y-auto">
-            <div className="flex items-center justify-between p-3 border-b border-gray-800">
-              <h2 className="font-semibold text-sm text-gray-100">{DOC_TYPE_ICONS[selectedDoc.type]} Preview</h2>
-              <button onClick={() => { setSelectedDoc(null); setPreviewUrl(null); }}
-                className="text-gray-400 hover:text-white">✕</button>
+        {/* ── The viewer ─────────────────────────────────────────────────────────────────────────
+            Images inline, PDFs in a frame, anything else an honest link. The old pane pointed at a
+            `/preview` route that does not exist, with an id that was undefined. */}
+        {selected && (
+          <aside className="w-full lg:w-[26rem] bg-gray-900 border-t lg:border-t-0 lg:border-l border-gray-800 flex flex-col lg:overflow-y-auto">
+            <div className="flex items-start justify-between gap-2 p-4 border-b border-gray-800">
+              <h2 className="font-semibold text-gray-100 text-sm break-words">{selected.title}</h2>
+              <button
+                onClick={() => setSelected(null)}
+                aria-label="Close preview"
+                className="text-gray-400 hover:text-white flex-shrink-0"
+              >
+                ✕
+              </button>
             </div>
 
-            {/* Document preview image */}
-            <div className="flex-1 overflow-hidden bg-gray-800 flex items-center justify-center min-h-48">
-              {previewUrl ? (
-                <Image
-                  src={previewUrl}
-                  alt="Document preview"
-                  width={400}
-                  height={300}
-                  unoptimized
-                  className="max-w-full max-h-full object-contain"
-                  onError={() => setPreviewUrl(null)}
-                />
+            <div className="p-4 space-y-3">
+              {selected.fileUrl ? (
+                selected.isImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- a Supabase storage URL
+                  // is not a configured next/image domain, and a plat has to open at full size.
+                  <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" title="Open full size">
+                    <img
+                      src={selected.fileUrl}
+                      alt={selected.title}
+                      className="w-full rounded border border-gray-800 bg-gray-950"
+                    />
+                  </a>
+                ) : (
+                  <object
+                    data={selected.fileUrl}
+                    type="application/pdf"
+                    className="w-full h-96 rounded border border-gray-800 bg-gray-950"
+                    aria-label={`Preview of ${selected.title}`}
+                  >
+                    <p className="text-sm text-gray-300 p-3">
+                      This document cannot be shown inline.{' '}
+                      <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">
+                        Open it in a new tab
+                      </a>.
+                    </p>
+                  </object>
+                )
               ) : (
-                <div className="text-gray-500 text-center p-6">
-                  <div className="text-4xl mb-2">{DOC_TYPE_ICONS[selectedDoc.type]}</div>
-                  <p className="text-sm">No preview available</p>
-                </div>
+                <p className="text-sm text-gray-300">
+                  No file was stored for this record — only its metadata was captured.
+                </p>
               )}
-            </div>
 
-            {/* Document metadata */}
-            <div className="p-3 space-y-2 text-sm border-t border-gray-800">
-              {selectedDoc.instrumentNumber && (
-                <div>
-                  <span className="text-gray-500 text-xs">Instrument #: </span>
-                  <span className="font-mono">{selectedDoc.instrumentNumber}</span>
-                </div>
-              )}
-              {selectedDoc.recordedDate && (
-                <div>
-                  <span className="text-gray-500 text-xs">Recorded: </span>
-                  <span>{selectedDoc.recordedDate}</span>
-                </div>
-              )}
-              {selectedDoc.grantor && (
-                <div>
-                  <span className="text-gray-500 text-xs">Grantor: </span>
-                  <span>{selectedDoc.grantor}</span>
-                </div>
-              )}
-              {selectedDoc.grantee && (
-                <div>
-                  <span className="text-gray-500 text-xs">Grantee: </span>
-                  <span>{selectedDoc.grantee}</span>
-                </div>
-              )}
-              {selectedDoc.purchaseCost !== undefined && (
-                <div>
-                  <span className="text-gray-500 text-xs">Purchase cost: </span>
-                  <span className="text-green-400">${selectedDoc.purchaseCost.toFixed(2)}</span>
-                </div>
-              )}
-            </div>
+              <dl className="text-xs text-gray-300 space-y-1">
+                <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Type</dt><dd>{KIND_LABEL[selected.kind]}</dd></div>
+                {selected.instrument && (
+                  <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Instrument</dt><dd className="font-mono break-all">{selected.instrument}</dd></div>
+                )}
+                {selected.recordedDate && (
+                  <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Recorded</dt><dd>{selected.recordedDate}</dd></div>
+                )}
+                <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Source</dt><dd>{selected.sourceLabel}</dd></div>
+                <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Status</dt><dd>{selected.status}</dd></div>
+                {selected.pageCount != null && (
+                  <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Pages</dt><dd>{selected.pageCount}</dd></div>
+                )}
+                {selected.sizeBytes != null && (
+                  <div className="flex gap-2"><dt className="text-gray-400 w-24 flex-shrink-0">Size</dt><dd>{formatBytes(selected.sizeBytes)}</dd></div>
+                )}
+              </dl>
 
-            <div className="p-3 border-t border-gray-800">
-              {selectedDoc.purchased ? (
-                <button
-                  onClick={() => handleDownload(selectedDoc)}
-                  className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm font-medium"
+              {selected.fileUrl && (
+                <a
+                  href={selected.fileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
                 >
-                  ↓ Download
-                </button>
-              ) : (
-                <div className="text-gray-500 text-xs text-center">
-                  Document not yet purchased. Go to the project page to purchase.
-                </div>
+                  Open full size
+                </a>
               )}
             </div>
           </aside>

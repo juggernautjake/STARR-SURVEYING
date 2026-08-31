@@ -175,20 +175,113 @@ the results*, not while watching the run.
 
 ## Phase U — the UI audit
 
-### U1 — Screenshot every research page, at both widths, on every palette ☐
+### U1 — Screenshot every research page ✅ **SHIPPED 2026-08-31** — `scripts/capture-research-ui.mjs`
 
-E3 already drives the routes and the Review tabs and measures overflow, occlusion and contrast. It
-does not **look** at them. This adds capture: every route × 2 widths, plus the eight Review tabs,
-written to `docs/planning/qa-evidence/` with a manifest.
+Twelve routed pages × two widths = **24 shots**, with a manifest, into
+`docs/planning/qa-evidence/ui-audit/`. Deliberately not a gate: it fails nothing and produces
+evidence.
 
-The point is not the pictures. It is that a person can look at forty images in two minutes and see
-what forty assertions cannot: alignment, rhythm, density, whether a screen reads as one thing or as
-ninety separately authored ones.
+Two things it does that a naive `fullPage: true` gets wrong. The floating dock is hidden for the
+capture — a `position: fixed` element is painted **once**, at its scroll-0 position, into a stitched
+full-page image, so it appears lying across content it never actually covers; that question is
+answered by `elementFromPoint` in the E3 spec, and a picture will confidently suggest a wrong
+answer. And the route list is swept from the filesystem rather than typed, because a route added
+after the list is a route nobody looks at.
 
-### U2 — Read the shots and write down what is wrong ☐
+### U2 — Read the shots ✅ **FIRST PASS 2026-08-31**
 
-Findings go in this doc as a table with a file name against each, so the next slice fixes a list
-rather than an impression.
+The first frame answered the question the assertions could not. Every gate was green — overflow,
+occlusion, contrast on eleven palettes, 27,000 unit tests — and this was on the screen:
+
+---
+
+## G17 — the Document Library had never worked (2026-08-31)
+
+`documents--desktop.png`. Header: **"17 documents"**. Filter chips: right. Seventeen rows: **blank**.
+Each one an empty dark box with a dash in it.
+
+```tsx
+const data = (await res.json()) as { documents: ResearchDocument[] };
+```
+
+`ResearchDocument` declared `documentId`, `type`, `instrumentNumber`, `description`, `grantor`,
+`grantee`, `recordedDate`, `pageCount`, `fileFormat`, `sizeBytes`, `purchased`, `usedInAnalysis`,
+`relevanceScore`, `thumbnailUrl`.
+
+The route does `select('*')` on `research_documents`, whose columns are `id`, `document_type`,
+`document_label`, `original_filename`, `page_count`, `file_size_bytes`, `recorded_date`,
+`source_type`, `storage_url`, `processing_status`.
+
+**Not one field matched.** Every value was `undefined`. `DOC_TYPE_ICONS[doc.type]` was `undefined`,
+`key={doc.documentId}` was `undefined` for all seventeen rows at once, the search filtered on four
+fields that do not exist, the sort compared `undefined` to `undefined`, and the preview pane pointed
+at a `/preview` route that does not exist using an id that was undefined.
+
+Nothing errored. `tsc` was happy. The page loaded, the count was right, and the symptom was silence.
+
+**Fourth instance of this exact shape** — after `activity_log`'s `action`/`details`,
+`research_documents.analysis_metadata`, and G10's owner name. And it is the page the owner named
+directly: *"check all retrieved files and stuff"*.
+
+### Why every existing check missed it
+
+Worth stating, because the answer is not "we should have had more tests":
+
+| Check | Why it was silent |
+|---|---|
+| `tsc` | A cast is an assertion, not a check. `as { documents: ResearchDocument[] }` makes the compiler agree by construction. |
+| `writes-hit-real-columns` | Checks **writes**. This is a read. |
+| `review-reads-what-the-worker-writes` | Covers the Review tab's casts. Nobody had written the equivalent for this page. |
+| E3 responsive | Asked whether the page overflows. It does not. |
+| `check-portal-themes` | Asked whether text is readable. There was no text. |
+| `rendered-classes-are-styled` | The classes are Tailwind and are fine. |
+
+Every one of them was answering its own question correctly. **A screenshot asked a different
+question**, which is the entire argument for U1.
+
+### The fix
+
+`documents/document-rows.ts` — the shaping, with `DOCUMENT_ROW_COLUMNS` held against the
+`create table` and `alter table … add column` statements in `seeds/` by
+`document-library-reads-real-columns.test.ts`. The twelve fictional names are asserted in the other
+direction too, so the cast cannot quietly come back.
+
+`titleOf` never returns an empty string — it falls through `document_label` → `original_filename` →
+the id. That is the finding turned into a property: a blank row is indistinguishable from a
+rendering bug, because for seventeen rows it *was* one.
+
+The page was rebuilt on it, and gained what it was missing:
+
+- **An image viewer.** *"be able to view all images"* — images render inline and open full size,
+  PDFs go in an `<object>` frame with a real fallback link, and a record with no stored file says so
+  rather than showing a broken frame.
+- **Uploaded vs retrieved.** `source_type === 'user_upload'` is a filter and a chip. The owner asked
+  to upload their own files *and* to check what the run retrieved; if the two look identical in the
+  list, neither question can be answered from it.
+- **Counts on every filter chip**, not just "All". A filter that turns out to be empty after you
+  click it is a filter you learn not to trust.
+- **Honest header counts.** It used to promise "purchased" and "used in analysis" from two fields
+  that do not exist, so both read 0 on every project forever.
+
+**360 chars of rendered text → 2,448.** All four checks re-run green, on four palettes.
+
+---
+
+## What the shots showed that is not yet fixed
+
+Recorded here rather than fixed in the same pass, one cluster per slice:
+
+| # | Where | Finding |
+|---|---|---|
+| A | `portal--desktop.png` | **Three primary buttons in a row, three colours** — green "Coverage", purple "Testing Lab", blue "+ New Research Project". Two of the three duplicate tabs sitting directly above them. No hierarchy: everything is emphasised, so nothing is. |
+| B | `6588…--desktop.png` | **Two buttons that start a run, on one screen** — "Start AI analysis" in the action bar and "Initiate Research & Analysis" at the foot of the form. The doc's READ FIRST already names pipeline confusion as the biggest problem here; this is two doors to the same room, labelled differently. |
+| C | `6588…--desktop.png` | **The property form is below seventeen documents.** The information you must enter *first* is the last thing on the page, ~2,400px down. |
+| D | portal vs project page | **"Step 1 of 7" and "Stage 1 of 4"** describe the same project on two screens. Two numbering systems for one thing. |
+| E | `6588…--desktop.png` | The stats row reads **17 / 0 / 0 / –**. Three zeroes and an em-dash for "Resolved", which means the same thing and looks like a different kind of nothing. |
+| F | project page vs library | The same seventeen documents are **"Pending" on one screen and "unreadable" on the other**. Both read a real column; they read *different* real columns. |
+| G | `6588…--desktop.png` | The document rows carry a circle that looks like a **radio button** beside "Select all" / "Deselect all", which implies checkboxes. |
+| H | `library--desktop.png`, `billing--desktop.png` | 429 and 519 characters on a 1440px page. Near-empty screens with no empty state explaining what would fill them. |
+
 
 ### U3 — Fix what U2 found ☐
 

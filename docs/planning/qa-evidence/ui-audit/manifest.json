@@ -1,0 +1,151 @@
+{
+  "base": "http://localhost:3050",
+  "theme": "starr-default",
+  "capturedAt": "2026-08-31T16:14:31.185Z",
+  "shots": [
+    {
+      "route": "/admin/research",
+      "width": "desktop",
+      "file": "portal--desktop.png",
+      "chars": 792
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54",
+      "width": "desktop",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54--desktop.png",
+      "chars": 3237
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/boundary",
+      "width": "desktop",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54-boundary--desktop.png",
+      "chars": 542
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/documents",
+      "width": "desktop",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54-documents--desktop.png",
+      "chars": 2448
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/report",
+      "width": "desktop",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54-report--desktop.png",
+      "chars": 386
+    },
+    {
+      "route": "/admin/research/billing",
+      "width": "desktop",
+      "file": "billing--desktop.png",
+      "chars": 519
+    },
+    {
+      "route": "/admin/research/coverage",
+      "width": "desktop",
+      "file": "coverage--desktop.png",
+      "chars": 9847
+    },
+    {
+      "route": "/admin/research/library",
+      "width": "desktop",
+      "file": "library--desktop.png",
+      "chars": 429
+    },
+    {
+      "route": "/admin/research/pipeline",
+      "width": "desktop",
+      "file": "pipeline--desktop.png",
+      "chars": 1075
+    },
+    {
+      "route": "/admin/research/self-heal",
+      "width": "desktop",
+      "file": "self-heal--desktop.png",
+      "chars": 1832
+    },
+    {
+      "route": "/admin/research/sites",
+      "width": "desktop",
+      "file": "sites--desktop.png",
+      "chars": 3288
+    },
+    {
+      "route": "/admin/research/testing",
+      "width": "desktop",
+      "file": "testing--desktop.png",
+      "chars": 1804
+    },
+    {
+      "route": "/admin/research",
+      "width": "phone",
+      "file": "portal--phone.png",
+      "chars": 1011
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54",
+      "width": "phone",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54--phone.png",
+      "chars": 3400
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/boundary",
+      "width": "phone",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54-boundary--phone.png",
+      "chars": 758
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/documents",
+      "width": "phone",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54-documents--phone.png",
+      "chars": 2664
+    },
+    {
+      "route": "/admin/research/6588a845-faf4-4f47-9e60-5011ea000a54/report",
+      "width": "phone",
+      "file": "6588a845-faf4-4f47-9e60-5011ea000a54-report--phone.png",
+      "chars": 602
+    },
+    {
+      "route": "/admin/research/billing",
+      "width": "phone",
+      "file": "billing--phone.png",
+      "chars": 738
+    },
+    {
+      "route": "/admin/research/coverage",
+      "width": "phone",
+      "file": "coverage--phone.png",
+      "chars": 10066
+    },
+    {
+      "route": "/admin/research/library",
+      "width": "phone",
+      "file": "library--phone.png",
+      "chars": 648
+    },
+    {
+      "route": "/admin/research/pipeline",
+      "width": "phone",
+      "file": "pipeline--phone.png",
+      "chars": 1294
+    },
+    {
+      "route": "/admin/research/self-heal",
+      "width": "phone",
+      "file": "self-heal--phone.png",
+      "chars": 2051
+    },
+    {
+      "route": "/admin/research/sites",
+      "width": "phone",
+      "file": "sites--phone.png",
+      "chars": 3507
+    },
+    {
+      "route": "/admin/research/testing",
+      "width": "phone",
+      "file": "testing--phone.png",
+      "chars": 2020
+    }
+  ]
+}
