@@ -8,6 +8,7 @@ import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '
 import { PipelineLogger } from '../lib/logger.js';
 import type { Response as PlaywrightResponse } from 'playwright';
 import { acquireBrowser } from '../lib/browser-factory.js';
+import { withPoliteness } from '../infra/politeness.js';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
 
@@ -740,7 +741,7 @@ async function fetchDocumentDetail(
     // Set a larger viewport for high-res capture
     await page.setViewportSize({ width: 1920, height: 1200 });
 
-    const response = await page.goto(doc.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    const response = await politeGoto(page, doc.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
     // Check HTTP response status
     if (response && (response.status() >= 400 || response.status() === 0)) {
@@ -1242,7 +1243,7 @@ export async function searchClerkRecords(
         const searchUrl = buildTylerUrl(baseUrl, searchName, 0);
         logger.info('Stage2A', `Trying: ${searchUrl}`);
 
-        await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+        await politeGoto(page, searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
         // Race: AJAX capture vs DOM rendering vs timeout
         // The SPA loads results asynchronously — wait for AJAX or rendered DOM
@@ -1668,7 +1669,7 @@ export async function searchClerkRecords(
                 apiCapture = [];
                 const pageUrl = buildTylerUrl(baseUrl, searchName, (pg - 1) * 50);
                 logger.info('Stage2A', `Loading page ${pg}/${totalPages}: offset=${(pg - 1) * 50}`);
-                await page.goto(pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+                await politeGoto(page, pageUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
                 try {
                   await page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 30_000 });
                 } catch {
@@ -1919,6 +1920,40 @@ export const TYLER_NEXT_PAGE_TIMEOUT_MS   = 5_000;
 export const NEXT_PAGE_CLICK_TIMEOUT_MS = 2_000;
 
 /**
+ * `page.goto`, paced per host.
+ *
+ * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────────────────
+ *
+ * `infra/politeness.ts` was written for exactly this file. Its header says so:
+ *
+ *   "These are small government servers. The fastest way to lose a county is to look like a load
+ *    test on a Tuesday morning."
+ *
+ * Measured 2026-08-30, with a control: `withPoliteness` had **zero** callers in this file, and its
+ * only consumer anywhere was `infra/site-health-monitor.ts`. So the mechanism written to stop the
+ * SCRAPER hammering a county portal was applied to the health checker and to nothing that scrapes.
+ * One owner run made ~40 unthrottled navigations and image fetches against
+ * `bell.tx.publicsearch.us` back to back.
+ *
+ * This is also the precondition for making runs faster. Capturing documents concurrently against a
+ * portal with no pacing does not speed a run up so much as it raises the odds of losing access to
+ * the county — and a banned county is not a slow run, it is no run.
+ *
+ * ── DO NOT WRAP A WHOLE CAPTURE IN `withPoliteness` ─────────────────────────────────────────────
+ *
+ * Politeness serialises per host: one in-flight operation at a time. A caller that wraps an entire
+ * document capture AND lets it call this helper would wait, inside the lock, for the lock — a
+ * deadlock, not a slowdown. Pace at the leaf navigation, which is where the request actually is.
+ */
+async function politeGoto(
+  page: import('playwright').Page,
+  url: string,
+  options: Parameters<import('playwright').Page['goto']>[1],
+): ReturnType<import('playwright').Page['goto']> {
+  return withPoliteness(url, () => page.goto(url, options));
+}
+
+/**
  * Search Bell County clerk records by owner name.
  * Uses direct URL parameters rather than form interaction.
  */
@@ -1993,7 +2028,7 @@ export async function searchSuperSearch(
     // Navigate to SUPERSEARCH page
     const ssUrl = `${baseUrl}/results?department=RP&limit=50&offset=0&searchOcrText=true&searchType=quickSearch&searchValue=${encodeURIComponent(query)}`;
     logger.info('Stage2-SS', `SUPERSEARCH: ${ssUrl}`);
-    await page.goto(ssUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await politeGoto(page, ssUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
     // Wait for results to load
     try {
@@ -2206,7 +2241,7 @@ export async function searchClerkByAddress(
       logger.info('Stage2-Addr', `Trying: "${searchTerm}" (${q.format})`);
 
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await politeGoto(page, url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         // Wait for results or "no results" indicator
         await Promise.race([
           page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 12_000 }),
@@ -2448,7 +2483,7 @@ export async function searchClerkForPlats(
       logger.info('Stage2-Plat', `Trying: "${query}"`);
 
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await politeGoto(page, url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         await Promise.race([
           page.waitForSelector('.result-card, table tbody tr[aria-selected]', { timeout: 12_000 }),
           page.waitForSelector('text=No results', { timeout: 12_000 }),
@@ -2740,7 +2775,7 @@ export async function fetchDocumentImages(
     } else {
       logger.info('2D-IMG', `Search+click: searching for instrument ${instrumentNumber}`);
     }
-    await page.goto(trustedViewerUrl ?? searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await politeGoto(page, trustedViewerUrl ?? searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
 
@@ -2896,9 +2931,9 @@ export async function fetchDocumentImages(
       const viewerUrl = `${baseUrl}/doc/${encodeURIComponent(instrumentNumber)}/details`;
       logger.info('2D-IMG', `Search yielded no images — trying direct viewer: ${viewerUrl}`);
       try {
-        await page.goto(viewerUrl, { waitUntil: 'networkidle', timeout: 30_000 });
+        await politeGoto(page, viewerUrl, { waitUntil: 'networkidle', timeout: 30_000 });
       } catch {
-        await page.goto(viewerUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await politeGoto(page, viewerUrl, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         await page.waitForTimeout(5_000);
       }
       const imageWaitDeadline = Date.now() + 10_000;
@@ -3144,7 +3179,7 @@ export async function searchByInstrument(
     });
 
     const searchUrl = `${bellBaseUrl}/results?department=RP&searchType=quickSearch&searchValue=${encodeURIComponent(instrumentNumber)}`;
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+    await politeGoto(page, searchUrl, { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
 
     // If AJAX intercept captured nothing, try DOM extraction for internal doc IDs.
@@ -3371,7 +3406,7 @@ export async function searchBellClerkOwnerForPlatDeed(
       `&searchValue=${encodeURIComponent(ownerOrSubdivisionName)}`;
 
     attempt.step(`Searching: ${searchUrl}`);
-    await page.goto(searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    await politeGoto(page, searchUrl, { waitUntil: 'domcontentloaded', timeout: 45_000 });
     // Tyler PublicSearch SPA needs TYLER_SPA_RENDER_TIMEOUT_MS to render result rows.
     await page.waitForTimeout(TYLER_SPA_RENDER_TIMEOUT_MS);
 

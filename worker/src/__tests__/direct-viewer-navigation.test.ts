@@ -50,7 +50,10 @@ describe('the direct-navigation path is guarded', () => {
   it('falls back to search when no URL was supplied', () => {
     // The search path must survive intact — most callers still have only an instrument number.
     expect(src).toContain('Search+click: searching for instrument');
-    expect(src).toMatch(/page\.goto\(trustedViewerUrl \?\? searchUrl/);
+    // `politeGoto`, not `page.goto` — every navigation in this file now goes through the per-host
+    // pacing in infra/politeness.ts. This assertion caught that change when it happened, which is
+    // the guard working: the navigation it pins moved, and it said so rather than passing.
+    expect(src).toMatch(/politeGoto\(page, trustedViewerUrl \?\? searchUrl/);
   });
 
   it('does not run the row-click when it navigated directly', () => {

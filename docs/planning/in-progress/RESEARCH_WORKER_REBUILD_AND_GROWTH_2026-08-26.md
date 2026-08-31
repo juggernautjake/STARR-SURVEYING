@@ -404,6 +404,34 @@ that hour went.
 sites will 400 the moment `modelFor()` hands them a Sonnet 5 / Opus 5 model. **Not a codemod** — the
 model is chosen at runtime, so each site needs the value in scope before spreading.
 
+#### E5f — ⚠ THE SCRAPER WAS NEVER POLITE ✅ **FIXED 2026-08-30 — and it reorders E5d**
+
+Found while starting the concurrency work, with a control:
+
+| | |
+|---|---|
+| `withPoliteness` callers in `services/bell-clerk.ts` — the file that drives a browser at county portals | **0** |
+| Its only consumer anywhere | `infra/site-health-monitor.ts` |
+
+`infra/politeness.ts` was written **for this file**. Its own header: *"These are small government
+servers. The fastest way to lose a county is to look like a load test on a Tuesday morning."* It was
+wired to the health checker and to nothing that scrapes. One owner run made **~40 back-to-back
+navigations** against `bell.tx.publicsearch.us` with no pacing at all.
+
+Nothing failed, which is exactly why nobody noticed: **the cost of this defect is not an error, it
+is a ban**, and it arrives long after the code that earned it.
+
+All 11 navigations now go through a `politeGoto` helper that paces per host. The helper carries the
+deadlock warning: politeness serialises per host, so a caller that wraps a whole capture *and* lets
+it navigate would wait, inside the lock, for the lock.
+
+**Why this reorders E5d.** Parallel capture against an unthrottled portal does not make a run faster
+so much as it raises the odds of losing the county — and a banned county is not a slow run, it is no
+run. Politeness had to land first. It also *changes what E5d can deliver*: pacing is **per host**,
+so concurrency now buys a great deal across **different** counties (a batch) and very little within
+one, because same-host requests still queue by design. E5d should be re-scoped to batch-level
+parallelism, not same-host document fan-out.
+
 #### E5b / E5c / E5d — the concurrency the owner asked for ☐
 
 In order; each independently shippable.
