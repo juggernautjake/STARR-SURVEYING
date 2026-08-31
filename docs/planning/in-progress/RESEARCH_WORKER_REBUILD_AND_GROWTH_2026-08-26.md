@@ -373,14 +373,25 @@ does not run. That is worth stating plainly in `/healthz` at minimum, and is the
 **Done:** either the solver is wired into the adapters that meet challenges, or its absence is
 stated where an operator would otherwise assume it works. **Not both, and not neither.**
 
-### E3 — `ws` is used by the worker and declared only by the app ☐
+### E3 — ~~`ws` is used by the worker and declared only by the app~~ ✅ **SHIPPED 2026-08-30**
 
-`worker/src/websocket/progress-server.ts` and its test import `ws`; `worker/package.json` does not
-declare it (8.19.0 resolves transitively today). A clean install can break the worker suite for a
-reason that points nowhere near the cause. Deferred twice already as "not in a security fix" and
-"not in a data-repair commit" — both correct at the time, and it is still true.
+Declared `ws@^8.19.0` and `@types/ws` in `worker/package.json`, lockfile updated so a clean
+`npm ci` resolves them as direct dependencies rather than borrowing them.
 
-**Done:** declared in `worker/package.json` at the resolved version, lockfile updated, worker suite green.
+**Deferred three times before this, each with a good reason** — not in a security fix, not in a
+data-repair commit, not in a performance pass. Deferring was right each time; deferring *without a
+guard* is how the fourth person rediscovers it. So the slice is not the one-line declaration, it is
+`dependencies-are-declared.test.ts`: every bare specifier imported anywhere under `worker/src` must
+be declared. **A package that resolves today because something ELSE depends on it is not a
+dependency you have — it is one you are borrowing, from a lender who has not agreed to keep
+lending.**
+
+The guard found its own bug first. Matching `from '…'` anywhere in a file reported two undeclared
+packages named *"we have not found it"* and *"we would not"* — English sentences inside comments.
+Stripping comments harder was the wrong fix; an import is a statement and occupies column zero, so
+the patterns are anchored there. Mutation-tested: undeclaring `ws` fails it.
+
+Worker tsc 0 · worker suite **1,707 pass**.
 
 ### E5 — RUN SPEED — from the owner's 2026-08-30 log ⚠ **the run took ~1 hour; most of it was waiting**
 
