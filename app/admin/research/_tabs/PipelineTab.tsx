@@ -13,6 +13,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import SpendLimitSlider from '../components/SpendLimitSlider';
 import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
+import { EmptyState, ErrorState, LoadingState } from '../components/ui';
 import { checkCounty } from '@/lib/research/county-input';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -194,7 +195,7 @@ export default function PipelineTab() {
   }
 
   if (sessionStatus === 'loading') {
-    return <div className="research-pipeline__loading">Loading…</div>;
+    return <LoadingState label="Loading the pipeline…" />;
   }
 
   return (
@@ -355,13 +356,23 @@ export default function PipelineTab() {
         </div>
 
         {loadError && (
-          <div className="research-pipeline__error-banner">{loadError}</div>
+          <ErrorState
+            title="Batch jobs could not be loaded"
+            message={loadError}
+            onRetry={() => void loadBatchJobs()}
+          />
         )}
 
-        {!loading && batchJobs.length === 0 && (
-          <div className="research-pipeline__empty">
-            No batch jobs yet. Create one above to research multiple properties at once.
-          </div>
+        {!loading && !loadError && batchJobs.length === 0 && (
+          <EmptyState
+            title="No batch jobs yet"
+            body="A batch researches several properties in one run. Create one above."
+            action={
+              <button type="button" className="research-pipeline__create-btn" onClick={() => setShowCreateBatch(true)}>
+                + New Batch Job
+              </button>
+            }
+          />
         )}
 
         {batchJobs.length > 0 && (

@@ -158,7 +158,7 @@ export default function PortalWatchPanel(): React.ReactElement {
         .pw__excerpt { font-size: 0.83rem; color: var(--color-text-primary, #374151); margin: 5px 0 3px;
           font-style: italic; }
         .pw__reasons { font-size: 0.75rem; color: var(--color-text-tertiary, #6b7280); margin: 0; }
-        .pw__error { color: var(--color-danger-text, #991b1b); font-size: 0.85rem; margin: 10px 0 0; }
+        .pw__error { color: var(--color-error-text, #991b1b); font-size: 0.85rem; margin: 10px 0 0; }
       `}</style>
     </div>
   );

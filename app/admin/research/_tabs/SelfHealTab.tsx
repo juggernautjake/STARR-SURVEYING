@@ -17,6 +17,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import PortalWatchPanel from './PortalWatchPanel';
+import { ErrorState, LoadingState } from '../components/ui';
 
 interface Settings {
   autoapply_enabled: boolean;
@@ -196,7 +197,7 @@ export default function SelfHealTab(): React.ReactElement {
     }
   }, [loadSettings]);
 
-  if (sessionStatus === 'loading') return <main style={styles.page}><p>Loading…</p></main>;
+  if (sessionStatus === 'loading') return <main style={styles.page}><LoadingState label="Checking your session…" /></main>;
   if (!session?.user?.email) {
     return (
       <main style={styles.page}>
@@ -240,7 +241,7 @@ export default function SelfHealTab(): React.ReactElement {
           check below works regardless of these toggles.
         </p>
 
-        {settingsError && <p style={styles.error}>{settingsError}</p>}
+        {settingsError && <ErrorState title="Settings could not be loaded" message={settingsError} />}
 
         {settings && (
           <div style={styles.settingsList}>
@@ -302,7 +303,7 @@ export default function SelfHealTab(): React.ReactElement {
           )}
         </div>
 
-        {sweepError && <p style={styles.error}>{sweepError}</p>}
+        {sweepError && <ErrorState title="The sweep did not run" message={sweepError} />}
 
         {sweep && (
           <div style={styles.results}>
@@ -379,10 +380,10 @@ export default function SelfHealTab(): React.ReactElement {
           and reject means &ldquo;false alarm.&rdquo;
         </p>
 
-        {proposalsError && <p style={styles.error}>{proposalsError}</p>}
+        {proposalsError && <ErrorState title="Proposals could not be loaded" message={proposalsError} />}
 
         {proposalsLoading ? (
-          <p style={styles.muted}>Loading…</p>
+          <LoadingState label="Loading proposals…" />
         ) : proposals.length === 0 ? (
           <p style={styles.muted}>
             No pending proposals — every portal is either healthy or
@@ -559,7 +560,6 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionTitle: { margin: 0, fontSize: '1.15rem', fontWeight: 700 },
   sectionSubtitle: { margin: '0.4rem 0 1rem', color: 'var(--theme-fg-secondary, #4B5563)', fontSize: '0.9rem', lineHeight: 1.5 },
-  error: { background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: '0.55rem 0.75rem', borderRadius: 8, fontSize: '0.88rem' },
   settingsList: { display: 'flex', flexDirection: 'column', gap: '1rem' },
   settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', padding: '0.85rem 0', borderBottom: '1px solid #F3F4F6' },
   settingText: { flex: 1, minWidth: 0 },

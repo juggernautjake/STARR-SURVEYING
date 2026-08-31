@@ -19,7 +19,7 @@ import WorkerStatusBanner from '../components/WorkerStatusBanner';
 import AddressAutocomplete from '../../components/AddressAutocomplete';
 import { checkCounty } from '@/lib/research/county-input';
 import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
-import { Accordion } from '../components/ui';
+import { Accordion, ErrorState } from '../components/ui';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
   upload: 'Upload',
@@ -265,14 +265,18 @@ export default function ProjectsTab() {
           </div>
         )}
 
-        {/* Error state */}
+        {/* ── Error state ──────────────────────────────────────────────────────────────────────
+            Was the EMPTY-state markup with an inline `#DC2626` on the title, so a failed request
+            rendered as an empty list wearing red. Those are different answers to "where are my
+            projects": empty means the query WORKED and there is nothing to show; failed means we
+            do not know. Telling somebody they have no projects when the request never returned is
+            worse than telling them nothing. (Phase E2.) */}
         {!loading && loadError && (
-          <div className="research-page__empty">
-            <div className="research-page__empty-title" style={{ color: '#DC2626' }}>{loadError}</div>
-            <button className="research-page__new-btn" onClick={loadProjects} style={{ marginTop: '1rem' }}>
-              Retry
-            </button>
-          </div>
+          <ErrorState
+            title="Your projects could not be loaded"
+            message={loadError}
+            onRetry={loadProjects}
+          />
         )}
 
         {/* Empty state — contextual messaging */}

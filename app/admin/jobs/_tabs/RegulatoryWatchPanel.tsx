@@ -149,7 +149,7 @@ export default function RegulatoryWatchPanel(): React.ReactElement {
         })}
       </div>
 
-      {error && <p role="alert" style={{ marginTop: 8, fontSize: 13, color: 'var(--color-danger-text, #991b1b)' }}>{error}</p>}
+      {error && <p role="alert" style={{ marginTop: 8, fontSize: 13, color: 'var(--color-error-text, #991b1b)' }}>{error}</p>}
     </section>
   );
 }
