@@ -87,12 +87,16 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     countyName.set(c.id, c.name);
   }
   const vendorIds = Array.from(new Set(adapterRows.map((a) => a.vendor_id).filter((x): x is string => !!x)));
+  // The column is `display_name` — `research_data_vendors` has no `name`. PostgREST failed the whole
+  // query, and the error is destructured away here, so `vendors` was always null and every proposal
+  // in this list has been shown WITHOUT its vendor. Softer than the share-link break (that one 404s
+  // the page) and the same root cause: a select naming a column that does not exist.
   const { data: vendors } = vendorIds.length > 0
-    ? await supabaseAdmin.from('research_data_vendors').select('id, name').in('id', vendorIds)
-    : { data: [] as Array<{ id: string; name: string }> };
+    ? await supabaseAdmin.from('research_data_vendors').select('id, display_name').in('id', vendorIds)
+    : { data: [] as Array<{ id: string; display_name: string }> };
   const vendorName = new Map<string, string>();
-  for (const v of (vendors ?? []) as Array<{ id: string; name: string }>) {
-    vendorName.set(v.id, v.name);
+  for (const v of (vendors ?? []) as Array<{ id: string; display_name: string }>) {
+    vendorName.set(v.id, v.display_name);
   }
 
   const decorated = proposals.map((p) => {

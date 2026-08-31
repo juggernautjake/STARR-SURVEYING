@@ -68,12 +68,25 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  // Fetch the project
+  // ── Fetch the project ─────────────────────────────────────────────────────────────────────────
+  //
+  // This asked for three columns `research_projects` does not have, so PostgREST failed the whole
+  // query and **every share link has returned 404 for its entire life.** A share link is the one
+  // surface a CUSTOMER sees, which is the worst place for a silent break.
+  //
+  //   legal_description  → the column is `legal_description_summary`. Aliased, so the response
+  //                        shape the share page consumes is unchanged.
+  //   confidence_score   → belongs to `drawing_elements`, not to a project.
+  //   boundary_summary   → defined NOWHERE. Invented; read only here and by the share page.
+  //
+  // The last two are dropped rather than guessed at. Both are optional on the page
+  // (`confidence_score?`, `boundary_summary?`) and both are already guarded before rendering, so
+  // their absence is handled — where inventing a source for them would not be.
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
     .select(
-      'id, property_address, legal_description, county, state, status, ' +
-      'confidence_score, boundary_summary, created_at',
+      'id, property_address, legal_description:legal_description_summary, ' +
+      'county, state, status, created_at',
     )
     .eq('id', share.project_id)
     .single();
@@ -98,6 +111,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const permission: string = share.permission;
   let reportData: Record<string, unknown> = {};
 
+  // `confidence_score` and `boundary_summary` were forwarded here from a project that never had
+  // them. Now that the select no longer asks for columns that do not exist, forwarding them would
+  // be assigning `undefined` while LOOKING like it carries a value — which is how the next reader
+  // concludes the data exists and goes hunting for why it is blank. They are gone from the
+  // response, and both are optional and guarded on the share page.
   if (permission === 'full_report') {
     reportData = { ...project };
   } else if (permission === 'summary_only') {
@@ -105,13 +123,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       property_address: project.property_address,
       county: project.county,
       state: project.state,
-      confidence_score: project.confidence_score,
       status: project.status,
     };
   } else if (permission === 'boundary_only') {
     reportData = {
       property_address: project.property_address,
-      boundary_summary: project.boundary_summary,
       legal_description: project.legal_description,
     };
   } else if (permission === 'documents_excluded') {
@@ -120,8 +136,6 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       legal_description: project.legal_description,
       county: project.county,
       state: project.state,
-      confidence_score: project.confidence_score,
-      boundary_summary: project.boundary_summary,
       status: project.status,
     };
   }
