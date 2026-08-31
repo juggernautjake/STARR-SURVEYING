@@ -47,6 +47,13 @@ import EditProjectModal from './_sections/EditProjectModal';
 import ResearchStagePanel from './_sections/ResearchStagePanel';
 import UploadStagePanel from './_sections/UploadStagePanel';
 import FinalDocumentTab from './_sections/FinalDocumentTab';
+import {
+  commit as commitAnnotations,
+  redo as redoAnnotations,
+  silentChange as silentAnnotationChange,
+  undo as undoAnnotations,
+  type AnnotationHistoryState,
+} from './_sections/annotation-history';
 import ProjectHeader from './_sections/ProjectHeader';
 import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
@@ -801,37 +808,47 @@ export default function ResearchProjectPage() {
     URL.revokeObjectURL(url);
   }
 
-  // Annotation undo/redo (capped at 50 history entries to prevent memory growth)
-  const MAX_UNDO_HISTORY = 50;
+  // ── Annotation undo/redo ────────────────────────────────────────────────────────────────────
+  //
+  // The RULES live in `_sections/annotation-history.ts` and are tested there. They shipped untested
+  // for as long as they were four closures in this file — and they are the kind that look obvious
+  // and are not: a new edit must discard the redo stack, the cap must trim the OLDEST entries, and
+  // a drag must not commit.
+  //
+  // The state stays here. Moving it into a hook meant rewriting 83 references in this file with no
+  // way to run the result, and the hook would have been dead code until every one of them moved.
+  function applyHistory(next: AnnotationHistoryState) {
+    setAnnotations(next.annotations);
+    setAnnotationHistory(next.past);
+    setAnnotationFuture(next.future);
+    setHasUnsavedChanges(next.hasUnsavedChanges);
+  }
+
+  const historyState = (): AnnotationHistoryState => ({
+    annotations, past: annotationHistory, future: annotationFuture, hasUnsavedChanges,
+  });
+
   function handleAnnotationsChange(newAnnotations: UserAnnotation[]) {
-    setAnnotationHistory(prev => {
-      const next = [...prev, annotations];
-      return next.length > MAX_UNDO_HISTORY ? next.slice(-MAX_UNDO_HISTORY) : next;
-    });
-    setAnnotationFuture([]);
-    setAnnotations(newAnnotations);
+    applyHistory(commitAnnotations(historyState(), newAnnotations));
   }
 
   const handleUndo = useCallback(() => {
-    if (annotationHistory.length === 0) return;
-    const prev = annotationHistory[annotationHistory.length - 1];
-    setAnnotationFuture(f => [...f, annotations]);
-    setAnnotations(prev);
-    setAnnotationHistory(h => h.slice(0, -1));
-  }, [annotationHistory, annotations]);
+    applyHistory(undoAnnotations({
+      annotations, past: annotationHistory, future: annotationFuture, hasUnsavedChanges,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotationHistory, annotationFuture, annotations, hasUnsavedChanges]);
 
   const handleRedo = useCallback(() => {
-    if (annotationFuture.length === 0) return;
-    const next = annotationFuture[annotationFuture.length - 1];
-    setAnnotationHistory(h => [...h, annotations]);
-    setAnnotations(next);
-    setAnnotationFuture(f => f.slice(0, -1));
-  }, [annotationFuture, annotations]);
+    applyHistory(redoAnnotations({
+      annotations, past: annotationHistory, future: annotationFuture, hasUnsavedChanges,
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annotationHistory, annotationFuture, annotations, hasUnsavedChanges]);
 
   /** Silent update: sets annotations without pushing undo history (used during drag/resize) */
   function handleAnnotationsSilentChange(newAnnotations: UserAnnotation[]) {
-    setAnnotations(newAnnotations);
-    setHasUnsavedChanges(true);
+    applyHistory(silentAnnotationChange(historyState(), newAnnotations));
   }
 
   // Track unsaved changes whenever annotations or elements change

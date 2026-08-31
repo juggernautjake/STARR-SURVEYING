@@ -340,6 +340,44 @@ else.
 Each: move the relevant JSX into `[projectId]/_tabs/<Name>Tab.tsx`, no logic changes, and a wiring
 test asserting the page imports and mounts it. Target: no file over ~600 lines when B is done.
 
+### B1a — seventh slice: the undo/redo RULES — SHIPPED 2026-08-31
+
+`_sections/annotation-history.ts`. Not a component: the mechanical extractions have run out.
+
+Measured — the two stage blocks still inline reference **90 identifiers** (`review`) and **75**
+(`jobprep`) from the page. A 90-prop component moves complexity without reducing it. **What blocks
+those extractions is not markup, it is state.**
+
+### It shipped untested, because it could not be reached
+
+Undo/redo was four `useState`s and four closures inside a 3,600-line component. There was no way
+to call it, so there were no tests — and it is exactly the kind of logic that looks obvious and is
+not:
+
+- **a new edit must DISCARD the redo stack.** Without that, undo → edit → redo restores a state
+  that never followed the edit, and the drawing silently regains annotations the surveyor deleted.
+- **the 50-entry cap must trim the OLDEST.** `slice(0, 50)` keeps the fifty oldest and throws away
+  everything recent — one character from the opposite of an undo stack.
+- **a drag must not commit.** Every mouse-move calls the silent path; committing would make one
+  drag a hundred undo steps.
+
+All three are now pinned, and all three fail under mutation.
+
+### A `useAnnotationHistory` hook was written first and DELETED unshipped
+
+Swapping the page onto it meant rewriting **83 references** in a 3,278-line file with no way to run
+the result — and until every one of them moved, the hook would have been **dead code**.
+
+**That is the exact defect this session spent the day fixing**, and a rules module is an especially
+easy place to commit it: it compiles, its own tests pass, and the page carries on with the logic it
+always had. So the rules came out and the state stayed. The page's four handlers call them, the
+inline `MAX_UNDO_HISTORY` is gone, and a guard asserts all of that — including that `applyHistory`
+writes all four pieces, since setting only `annotations` would make undo appear to work once and
+then repeat the same state for ever.
+
+The page grew 17 lines. That is the honest cost of the seam, and it buys logic that can be tested
+at all.
+
 ### B1a — sixth extraction: `_sections/FinalDocumentTab.tsx` — SHIPPED 2026-08-31
 
 The Final Job Package tab — the deliverable a surveyor hands over. 271 lines out;
