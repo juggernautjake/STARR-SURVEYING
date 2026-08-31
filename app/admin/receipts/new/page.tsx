@@ -1531,7 +1531,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'var(--color-bg-subtle, #f3f4f6)',
   },
   batchRowDone:      { background: 'var(--color-success-bg, #e7f6ec)' },
-  batchRowFailed:    { background: 'var(--color-danger-bg, #fdecec)' },
+  batchRowFailed:    { background: 'var(--color-error-bg, #fdecec)' },
   batchRowUploading: { background: 'var(--color-info-bg, #eaf0fb)' },
   batchName: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   batchStatus: { flexShrink: 0, fontWeight: 600 },

@@ -1,0 +1,19 @@
+[Unit]
+Description=Check for new commits on main every two minutes
+Documentation=file:///opt/starr/docs/platform/RESEARCH_WORKER_DEPLOYMENT.md
+
+[Timer]
+# Two minutes after boot, then every two minutes. A `git fetch` against one remote is cheap; the
+# script exits immediately when nothing has changed, which is nearly always.
+OnBootSec=2min
+OnUnitActiveSec=2min
+
+# Spread the tick so it does not land on the same second as every other timer on the box.
+RandomizedDelaySec=20
+
+# Deliberately NOT Persistent=true. A missed tick is not worth catching up on: if the box was off,
+# the very next tick sees the same origin/main and deploys it. Persistent would fire a build during
+# boot, competing with the containers coming up.
+
+[Install]
+WantedBy=timers.target

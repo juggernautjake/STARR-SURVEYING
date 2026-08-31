@@ -391,7 +391,62 @@ none. The shared piece exists and adoption is now one prop each. That is outside
 it is the admin shell, not the research portal — and belongs in its own slice with its own QA.
 
 ### E1b — Adopt `tabKeyDown` in the other 16 portals ☐ *(outside this doc — admin shell)*
-### E2 — One empty state, one error state, one loading state ☐
+### E2 — ~~One empty state, one error state, one loading state~~ SHIPPED 2026-08-31
+
+Measured first: **five loading treatments and six error ones** across the seven tabs.
+`research-pipeline__loading` / an inline `styles.muted` / a bare `<p>Loading...</p>` / an hourglass
+emoji / "Searching...". And for errors, the one that was an actual bug:
+
+> `ProjectsTab` rendered a load **failure** inside `research-page__empty-title` with an inline
+> `#DC2626` — so a failed request looked like an empty list wearing red.
+
+Empty, failed and pending are three different answers to "where is my data", and the portal was
+blurring the first two. **Empty means the query worked**, so the useful response says what would
+put something there. **Failed means we do not know** — it must offer a retry and must never imply
+the list is genuinely empty. `PipelineTab` had the same confusion in miniature: "No batch jobs yet"
+showed whenever the list was empty, *including* right after a failed fetch, so it displayed two
+contradictory messages at once.
+
+`LoadingState` and `ErrorState` join `EmptyState` in the A2 primitives, and `ProjectsTab`,
+`PipelineTab` and `SelfHealTab` are wired to them. `role="alert"` on the error and deliberately
+nothing on the empty: an empty list is not an interruption, and announcing it as one trains people
+to ignore the ones that are. The spinner stops under `prefers-reduced-motion`, and a server message
+wraps rather than scrolling the page sideways — those are one unbroken token often enough (a URL, a
+stack frame) to matter.
+
+**Two more invented tokens, found on the way.** `--color-danger-text` and `--color-danger-bg` were
+read by six rules across jobs, learn, marketing, receipts and research, and defined **nowhere** —
+the real family is `--color-error-*`. Bare `--color-danger` IS defined twelve times, which is
+exactly what made the invented suffixes look plausible. All six now point at the real family.
+
+So C2 deferred token guard exists after all, in the **narrow** form C2 own reasoning allows:
+`__tests__/admin-styling/status-tokens-exist.test.ts` enforces only the closed status grid — four
+meanings x four slots. Nothing sets those from JavaScript and none is a prefix of another, so a name
+in that shape which nothing defines is unambiguously a typo. The broad scan stays unenforced for the
+reasons C2 recorded. It carries its own control, because a guard whose definition-scan silently
+breaks passes for ever while measuring nothing.
+
+**A3 guard caught my own new debt within the hour** — `rui-loading__label` rendered with no rule —
+which is the entire point of it. And the inline-hex ratchet went red in the GOOD direction: E2
+removed four literals, so the baseline tightened (4 to 3, 27 to 24) rather than being re-based.
+
+Mutation-tested seven ways, and **one survived the first pass**: wrapping the error back inside
+`<div className="research-page__empty">` and renaming the component to `<ErrorStateX` passed,
+because that string still *contains* `<ErrorState`. The assertion now covers the whole branch — an
+error rendered inside the empty-state container looks like an empty list again, whatever the
+component is called.
+
+### E2b — Re-theme `BillingTab` and `LibraryTab` (open)
+
+**Why they were left out rather than half-fixed.** Both are entirely dark-themed pages —
+`min-h-screen bg-gray-950`, their own `<header>` — left from before the portal consolidation, while
+the other five tabs use **zero** dark Tailwind (counted, not assumed). Swapping only their *error*
+state to the light primitive would make them inconsistent with their own surroundings: worse than
+the inconsistency being fixed. They need re-theming wholesale, which is a page rewrite, not a state
+consolidation.
+
+A test pins the deferral: if either stops being a dark full-page layout, `one-state-vocabulary`
+fails and names this entry. A deferral that no longer applies should not sit silently in a doc.
 ### E3 — Responsive pass ☐
 
 Measure at **1440 and 390** against a **production build** — dev-server layout differs. Watch for
@@ -489,6 +544,27 @@ the research subset; do not re-baseline the ratchet without investigating — bo
 real bugs, not debt.
 
 ---
+
+## Status 2026-08-31 — why this doc stays in `in-progress/`
+
+Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
+found while checking premises (A4, D0) and two premises withdrawn as false (B1, E1).
+
+What is left is **not deferred and must not be marked so**. Every remaining item is real work with
+real value; none is blocked; none costs more than it is worth. They are simply not done.
+
+| Item | Why it is still open |
+|---|---|
+| **B1a / B2-B5** | Splitting `[projectId]/page.tsx` (3,680 lines) by section. Pure refactor of working code — no user-visible change — but the 600-line target is a genuine maintainability goal, not a nicety. Needs one extraction per slice, each with a wiring test asserting the page MOUNTS it. |
+| **D1 / D2** | `ResearchRunPanel` (1,771) + `PipelineProgressPanel` (1,521). **Re-scoped by D0**: the run visibility these were meant to add already existed and was broken by one word. What remains is a size problem, so it ranks below B1a rather than above it. |
+| **D3** | Run console + diff into the tab shell rather than floating. Small; blocked only by B1a landing first, since it moves into the shell B1a creates. |
+| **E1b** | Sixteen admin portals still hand-roll the tablist keyboard; three have none at all. The shared `tabKeyDown` exists and adoption is one prop each. Outside this doc (admin shell, not the research portal) and wants its own QA pass across sixteen pages. |
+| **E2b** | Re-theme `BillingTab` + `LibraryTab`. A page rewrite, not a state consolidation — see the entry for why half-fixing them is worse than leaving them. |
+| **E3** | Responsive pass. Needs measurement in a browser at 1440 and 390 against a **production** build; dev-server layout differs. That is QA work, not a code slice. |
+| **F2** | Contrast. 232 problems are recorded repo-wide; the research subset needs measuring before anything is changed, and the ratchet must not be re-baselined without investigating — both prior breaches were real bugs. |
+
+**Do not empty this folder by deferring these.** The rubric allows a deferral when implementation
+cost clearly exceeds value. That is true of none of them.
 
 ## Deliberately NOT in scope
 

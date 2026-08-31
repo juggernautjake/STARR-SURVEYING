@@ -1066,7 +1066,7 @@ export default function JobDetailPage() {
                         <span style={{
                           fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em',
                           padding: '0.15rem 0.45rem', borderRadius: '10px',
-                          background: r.status === 'approved' ? 'var(--color-success-bg)' : r.status === 'rejected' ? 'var(--color-danger-bg, #FEE2E2)' : '#FEF3C7',
+                          background: r.status === 'approved' ? 'var(--color-success-bg)' : r.status === 'rejected' ? 'var(--color-error-bg, #FEE2E2)' : '#FEF3C7',
                           color: r.status === 'approved' ? '#065F46' : r.status === 'rejected' ? '#991B1B' : '#92400E',
                         }}>{r.status}</span>
                         {r.photo_signed_url

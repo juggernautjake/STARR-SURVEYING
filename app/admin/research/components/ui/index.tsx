@@ -286,3 +286,66 @@ export function EmptyState({ title, body, icon, action }: EmptyStateProps) {
     </div>
   );
 }
+
+// ── LoadingState / ErrorState ───────────────────────────────────────────────────────────────────
+//
+// ── WHAT WAS MEASURED (Phase E2, 2026-08-31) ───────────────────────────────────────────────────
+//
+// Across the seven research tabs: FIVE different loading treatments and SIX different error ones.
+// `research-pipeline__loading` · an inline `styles.muted` object · a bare `<p>Loading…</p>` · an
+// `⏳` emoji · "Searching…". For errors: Tailwind `text-gray-500 text-sm mb-6` ·
+// `research-pipeline__error-banner` · `pw__error` · `styles.error` · and — the one that is an actual
+// bug — `ProjectsTab` rendering a load failure inside `research-page__empty-title` with an inline
+// `#DC2626`, so a failed request looks like an empty list wearing red.
+//
+// ── THE DISTINCTION THESE TWO ENCODE ────────────────────────────────────────────────────────────
+//
+// Empty, failed and pending are three different answers to "where is my data", and the portal was
+// blurring the first two. They are not interchangeable: **empty means the query worked**, and the
+// only honest response is to say what would put something there. **Failed means we do not know** —
+// so it must offer a retry and must never imply the list is genuinely empty, which is what an
+// error dressed as an empty state tells somebody.
+//
+// `role="alert"` on the error, and nothing on the empty: an empty list is not an interruption, and
+// announcing it as one trains people to ignore the ones that are.
+
+export interface LoadingStateProps {
+  /** What is being fetched. "Loading…" alone tells a returning user nothing about what is slow. */
+  label?: React.ReactNode;
+}
+
+export function LoadingState({ label = 'Loading…' }: LoadingStateProps) {
+  return (
+    // `aria-live="polite"`, not `role="status"` with an alert: arriving data is not an
+    // interruption, and a portal that announces every fetch becomes noise a reader turns off.
+    <div className="rui-loading" aria-live="polite">
+      <span className="rui-loading__spinner" aria-hidden="true" />
+      <span className="rui-loading__label">{label}</span>
+    </div>
+  );
+}
+
+export interface ErrorStateProps {
+  /** The server's message. Shown verbatim — a generic apology hides the one useful fact. */
+  message: React.ReactNode;
+  /** What failed, in the reader's terms: "Billing data could not be loaded". */
+  title?: React.ReactNode;
+  /** Wire this and a retry button appears. Omit it when a retry genuinely cannot help. */
+  onRetry?: () => void;
+}
+
+export function ErrorState({ message, title = 'That did not load', onRetry }: ErrorStateProps) {
+  return (
+    <div className="rui-error" role="alert">
+      <div className="rui-error__title">{title}</div>
+      {/* The raw message, not a paraphrase. "Something went wrong" is what a person reads out to
+          somebody who could have fixed it in a minute if they had been told which host refused. */}
+      <div className="rui-error__message">{message}</div>
+      {onRetry !== undefined && (
+        <button type="button" className="rui-error__retry" onClick={onRetry}>
+          Try again
+        </button>
+      )}
+    </div>
+  );
+}

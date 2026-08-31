@@ -277,3 +277,90 @@
 .rui-empty__action {
   margin-top: 0.5rem;
 }
+
+/* ── LoadingState / ErrorState (Phase E2) ──────────────────────────────────
+ * Measured across the seven research tabs: five loading treatments, six error
+ * ones. Empty / failed / pending are three different answers to "where is my
+ * data", and the portal was blurring the first two — ProjectsTab rendered a
+ * load failure inside the EMPTY-state class with an inline #DC2626, so a
+ * failed request looked like an empty list wearing red. */
+
+.rui-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 1.5rem 0.75rem;
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 0.85rem;
+}
+
+.rui-loading__spinner {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border: 2px solid var(--theme-border, #E5E7EB);
+  border-top-color: var(--color-brand-navy, #1D3095);
+  border-radius: 50%;
+  animation: rui-spin 0.7s linear infinite;
+}
+
+.rui-loading__label {
+  /* Its own rule rather than inheriting from .rui-loading: the A3 guard counts
+   * every class the components RENDER, and a class no sheet defines renders as
+   * unstyled markup with nothing erroring. It caught this one the same hour it
+   * was written, which is the entire point of it. */
+  line-height: 1.4;
+}
+
+@keyframes rui-spin { to { transform: rotate(360deg); } }
+
+/* Some readers cannot use a spinner and some are made unwell by one. The label
+ * carries the whole message on its own, so the animation simply stops. */
+@media (prefers-reduced-motion: reduce) {
+  .rui-loading__spinner { animation: none; opacity: 0.5; }
+}
+
+.rui-error {
+  padding: 1rem 1.1rem;
+  border-radius: 8px;
+  /* The C2 status tokens. --color-error-border did not exist before that slice
+   * either — it was read with a fallback and defined nowhere. */
+  background: var(--color-error-bg, #FEF2F2);
+  border: 1px solid var(--color-error-border, #FECACA);
+  color: var(--color-error-text, #B42318);
+}
+
+.rui-error__title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+}
+
+.rui-error__message {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  /* A server message can be one long unbroken token — a URL, a stack frame —
+   * and without this it widens the panel and scrolls the whole page sideways. */
+  overflow-wrap: anywhere;
+}
+
+.rui-error__retry {
+  margin-top: 0.7rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 6px;
+  border: 1px solid var(--color-error-border, #FECACA);
+  background: var(--color-bg-card, #FFFFFF);
+  color: var(--color-error-text, #B42318);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rui-error__retry:hover {
+  background: var(--color-error-bg, #FEF2F2);
+}
+
+.rui-error__retry:focus-visible {
+  outline: 2px solid var(--color-error-text, #B42318);
+  outline-offset: 2px;
+}
