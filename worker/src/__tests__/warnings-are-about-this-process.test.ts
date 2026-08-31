@@ -98,3 +98,129 @@ describe('worker health warnings are about the worker', () => {
     }
   });
 });
+
+// ── The same rule, applied to the OTHER place that makes health claims ───────────────────────────
+//
+// The guard above scans `infra/health.ts`. On 2026-08-30 the identical bug was found in the deep
+// `/health` handler in `index.ts`, which the guard did not read:
+//
+//     checks.websocket_auth = process.env.WS_TICKET_SECRET
+//       ? { status: 'ok',           detail: 'WS_TICKET_SECRET configured' }
+//       : { status: 'unconfigured', detail: 'WS_TICKET_SECRET missing — /api/ws/ticket will return 503' }
+//
+// `/api/ws/ticket` is a Next.js route on Vercel reading its own environment. This process serves no
+// WebSocket at all. So writing the TAVILY lesson down did not prevent the repeat — the guard was
+// pointed at one file and the next mistake was made in another.
+//
+// ── WHY REACHABILITY, AND NOT "IS THE STRING ANYWHERE IN src/" ────────────────────────────────────
+//
+// The obvious rule — "some worker file reads this key" — is not enough, and this case proves it.
+// `websocket/progress-server.ts` DOES read `WS_TICKET_SECRET`. It is also an orphan that nothing
+// constructs, so the key is still not used by this process, and a substring rule would wave the bug
+// straight through. What makes a key this process's business is that a module which actually RUNS
+// reads it. So the entry point is walked.
+
+/** Every worker module reachable from `src/index.ts` by following relative imports. */
+function reachableFromEntry(): Set<string> {
+  const seen = new Set<string>();
+  const queue = [path.join(ROOT, 'src/index.ts')];
+
+  while (queue.length) {
+    const file = queue.pop()!;
+    if (seen.has(file) || !fs.existsSync(file)) continue;
+    seen.add(file);
+
+    const src = fs.readFileSync(file, 'utf8');
+    // Relative specifiers only. A bare specifier is a node_module and cannot be one of ours.
+    for (const m of src.matchAll(/from\s+['"](\.[^'"]+)['"]/g)) {
+      const spec = m[1]!;
+      // The worker is ESM and imports compile targets: './x.js' is './x.ts' on disk.
+      const base = path.resolve(path.dirname(file), spec).replace(/\.js$/, '');
+      for (const candidate of [`${base}.ts`, path.join(base, 'index.ts')]) {
+        if (fs.existsSync(candidate)) { queue.push(candidate); break; }
+      }
+    }
+  }
+  return seen;
+}
+
+const REACHABLE = reachableFromEntry();
+const ENTRY = path.join(ROOT, 'src/index.ts');
+
+/** Env names the deep `/health` handler in index.ts forms an opinion about. */
+function keysHealthClaims(): string[] {
+  const src = fs.readFileSync(ENTRY, 'utf8')
+    .split('\r\n').join('\n')
+    .replace(/^[ \t]*\/\/[^\n]*$/gm, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '');
+  // Scope to the handler, not the file. The first version of this filter took every line in
+  // index.ts containing `process.env.` and immediately "found" ANALYTICS_DIR, BATCH_DIR, GIT_SHA
+  // and GOVOS_CREDIT_CARD_TOKEN — none of which /healthz reports on. A scanner that over-reports
+  // is as useless as one that under-reports: it trains you to ignore the failure.
+  const start = src.indexOf("app.get('/health'");
+  if (start === -1) throw new Error('the deep /health handler moved — this guard is now scanning nothing');
+  // The handler ends at the next top-level `app.` registration.
+  const rest = src.slice(start + 1);
+  const endRel = rest.search(/\napp\.(get|post|put|use|delete)\(/);
+  const body = endRel === -1 ? rest : rest.slice(0, endRel);
+
+  return [...new Set(
+    body.match(/process\.env\.([A-Z][A-Z0-9_]{2,})/g)?.map((s) => s.slice(12)) ?? [],
+  )];
+}
+
+describe('the deep /health handler in index.ts is about the worker too', () => {
+  it('reaches a plausible slice of the worker — a broken walk would excuse everything', () => {
+    // If the import walk silently found nothing, every key below would look "unused" and the real
+    // assertion would fail loudly rather than pass quietly. This pins the other direction: the walk
+    // must actually be traversing the app.
+    expect(REACHABLE.size).toBeGreaterThan(50);
+    expect([...REACHABLE].some((f) => f.endsWith('run-budget.ts'))).toBe(true);
+  });
+
+  it('does NOT count a key that only an orphan reads', () => {
+    // The specific hole this guard was rebuilt to close. progress-server.ts reads
+    // WS_TICKET_SECRET and nothing constructs it, so it must not be reachable.
+    const orphan = path.join(ROOT, 'src/websocket/progress-server.ts');
+    expect(fs.existsSync(orphan)).toBe(true);
+    expect(REACHABLE.has(orphan)).toBe(false);
+  });
+
+  it('every key /health judges is read by a module that actually runs', () => {
+    const reachableSrc = [...REACHABLE]
+      .filter((f) => f !== ENTRY)
+      .map((f) => fs.readFileSync(f, 'utf8'));
+
+    const orphaned = keysHealthClaims()
+      .filter((k) => !RUNTIME_OWNED.has(k))
+      .filter((k) => !reachableSrc.some((s) => s.includes(k)))
+      .sort();
+
+    expect(orphaned, '/health reports on these, and no module reachable from index.ts reads them. '
+      + 'A health check is a claim about the process making it. Reporting on another process\'s '
+      + 'configuration is guessing with authority — the operator reads a green light, or "fixes" it '
+      + 'by setting a key on a machine that ignores it:\n  ' + orphaned.join('\n  ')).toEqual([]);
+  });
+
+  it('does not judge WS_TICKET_SECRET — the instance this half of the guard was built from', () => {
+    expect(keysHealthClaims()).not.toContain('WS_TICKET_SECRET');
+  });
+
+  it('still judges the keys that ARE the worker\'s business', () => {
+    // Control, again: the assertion above passes trivially if the scanner matches nothing.
+    const claimed = keysHealthClaims();
+    for (const k of ['ANTHROPIC_API_KEY', 'REDIS_URL', 'STORAGE_BACKEND']) {
+      expect(claimed).toContain(k);
+    }
+  });
+});
+
+describe('health.ts guard — control', () => {
+  it('still checks the keys that ARE this process\'s business', () => {
+    // Without this, the health.ts assertion above would pass just as well if `configWarnings` were
+    // gutted, or if the scanner silently matched nothing.
+    for (const k of ['ANTHROPIC_API_KEY', 'SUPABASE_URL', 'WORKER_API_KEY', 'TEXASFILE_USERNAME']) {
+      expect(CHECKED).toContain(k);
+    }
+  });
+});
