@@ -134,9 +134,28 @@ WANT_SHA="$(git rev-parse --short HEAD)"
 DEADLINE=$(( $(date +%s) + HEALTH_TIMEOUT_SECS ))
 HEALTHY=0
 
+# ── THE STATUS WORD DIFFERS BY ENDPOINT, AND THIS ASKED FOR THE WRONG ONE ──────────────────────
+#
+# This required `"status":"healthy"`. `HEALTH_URL` defaults to **/healthz**, which answers
+# `"status":"ok"`. Only the deeper **/health** ever says `"healthy"`.
+#
+# So the gate could never match, and the failure mode is the worst available: every deploy would
+# look unhealthy, every deploy would be rolled back, and the log would report *"rolled back;
+# investigate before merging further"* about a build that was fine. An updater that reverts good
+# releases and blames them is worse than no updater.
+#
+# Caught by reading a live `/healthz` — `{"status":"ok","version":"5.1.0","buildSha":"555f43104"}`
+# — against the script, rather than by reasoning about either alone. Nothing in the script looked
+# wrong on its own; the mismatch existed only between it and the process it polls. That is the same
+# shape as the `skipped_work` `{step}` vs `{what}` defect found the same week.
+#
+# Both words are accepted rather than picking one, so the gate holds whichever endpoint `HEALTH_URL`
+# names. `/healthz` is the default because it is what the container's own healthcheck uses; point
+# `HEALTH_URL` at `/health` for the deeper gate, which verifies Playwright, R2, Redis and Supabase
+# and treats an `unconfigured` vendor as fine rather than as a failure.
 while [ "$(date +%s)" -lt "$DEADLINE" ]; do
   BODY="$(curl -fsS "$HEALTH_URL" 2>/dev/null || echo '')"
-  if printf '%s' "$BODY" | grep -q '"status"[[:space:]]*:[[:space:]]*"healthy"' \
+  if printf '%s' "$BODY" | grep -qE '"status"[[:space:]]*:[[:space:]]*"(ok|healthy)"' \
      && printf '%s' "$BODY" | grep -q "\"buildSha\"[[:space:]]*:[[:space:]]*\"$WANT_SHA\""; then
     HEALTHY=1
     break
