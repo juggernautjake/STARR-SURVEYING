@@ -155,20 +155,38 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Run the analysis
   const result = await analyzeResource(input);
 
-  // Store the extraction report as a data point in the project
-  try {
-    await supabaseAdmin
-      .from('research_documents')
-      .update({
-        analysis_metadata: {
-          full_extraction_report: result.report,
-          extraction_atoms_count: result.atoms.length,
-          extraction_timestamp: new Date().toISOString(),
-        },
-      })
-      .eq('id', docId);
-  } catch {
-    // Non-fatal — report is returned in the response regardless
+  // ── Persist the extraction report against the document ────────────────────────────────────────
+  //
+  // This has been discarding its data since it was written. `analysis_metadata` is a column on
+  // research_PROJECTS; research_documents had no such column, so PostgREST rejected every update —
+  // and the `catch` below was bare, so nothing was logged, nothing failed, and the route went on
+  // returning 200 with the report in the response body. Only the persisted copy was lost.
+  //
+  // Seed 621 adds the column. Two things changed here as well, because the schema fix alone would
+  // leave the same trap set for the next mistake:
+  //
+  //   · the Supabase client does NOT throw on a rejected write — it returns `{ error }`. So the
+  //     try/catch was never going to see this even in principle; the error has to be read.
+  //   · a swallowed failure is now a logged one. "Non-fatal" is a fair description of the
+  //     consequence and a terrible reason to say nothing at all.
+  const { error: metaErr } = await supabaseAdmin
+    .from('research_documents')
+    .update({
+      analysis_metadata: {
+        full_extraction_report: result.report,
+        extraction_atoms_count: result.atoms.length,
+        extraction_timestamp: new Date().toISOString(),
+      },
+    })
+    .eq('id', docId);
+
+  if (metaErr) {
+    // Deliberately not a 500: the report IS in the response below, so the caller got what they
+    // asked for. What they did not get is a saved copy, and that should be visible somewhere.
+    console.error(
+      `[full-extract] could not persist analysis_metadata for document ${docId}: ${metaErr.message}. `
+      + 'If this says the column does not exist, seed 621 has not been applied to this database.',
+    );
   }
 
   return NextResponse.json({
