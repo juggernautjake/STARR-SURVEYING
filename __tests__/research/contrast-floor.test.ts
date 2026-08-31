@@ -32,6 +32,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   audit, contrast, parseHex, colourOf, readVars, backgroundFor, requiredRatio, inlinePair, paintsDark,
+  auditInline,
 } from '../../scripts/audit-research-contrast.mjs';
 
 describe('the contrast maths', () => {
@@ -144,6 +145,112 @@ describe('inline JSX styles — the blind spot the first pass left', () => {
   it('and does not read its own prose as paint', () => {
     // Control for the stripper: this repository has had eight guards match their own comments.
     expect(paintsDark('// this file used to use bg-gray-900 everywhere\nconst x = 1;')).toBe(false);
+  });
+});
+
+describe('a ternary is two colours, and only one of them used to be measured', () => {
+  // ── HOW THIS WAS FOUND ────────────────────────────────────────────────────────────────────────
+  //
+  // Not by this script. By the coherence extraction's own colour test, which noticed `#059669`
+  // still sitting in `page.tsx` after the panel had retired it — on the Run Verification button:
+  //
+  //     style={{ background: isVerifying ? '#6B7280' : '#059669', color: '#fff', … }}
+  //
+  // White on `#059669` is 3.77:1 at 0.82rem. It rendered that way for the button's whole life, and
+  // the pass that reported "no contrast failures" across 799 pairs never measured it — `background`
+  // was PRESENT, so `declaresBackground` was true and the pair was counted as *skipped*.
+  //
+  // The conservative rule was right and stays: an unresolvable background must never be assumed to
+  // be the page. It was simply too coarse. A ternary between two literals is not unresolvable — it
+  // is two known answers, and the honest reading is the worse of them. Widening it found three more
+  // real failures on the first run, including monument condition text at **2.15:1**.
+
+  it('reads BOTH branches of a ternary background', () => {
+    const got = inlinePair("background: busy ? '#6B7280' : '#047857', color: '#fff'");
+    expect(got.backgrounds).toEqual([parseHex('#6B7280'), parseHex('#047857')]);
+  });
+
+  it('reads both branches of a ternary colour too', () => {
+    const got = inlinePair("color: ok ? '#047857' : '#B45309'");
+    expect(got.colors).toEqual([parseHex('#047857'), parseHex('#B45309')]);
+  });
+
+  it('keeps the single-literal case exactly as it was', () => {
+    // The overwhelming majority of style objects. If this moves, the widening changed the meaning
+    // of every existing measurement rather than adding to it.
+    const got = inlinePair("background: '#FEF2F2', color: '#DC2626'");
+    expect(got.color).toEqual(parseHex('#DC2626'));
+    expect(got.background).toEqual(parseHex('#FEF2F2'));
+    expect(got.colors).toHaveLength(1);
+    expect(got.backgrounds).toHaveLength(1);
+  });
+
+  it('still refuses to resolve a background that is genuinely unknowable', () => {
+    // The 61 false findings came from guessing here. A ternary is known; `severity.color` is not,
+    // and widening must not have quietly turned one into the other.
+    const got = inlinePair("background: severity.color, color: '#fff'");
+    expect(got.backgrounds).toEqual([]);
+    expect(got.declaresBackground).toBe(true);
+  });
+
+  it('and a ternary between two NON-literals stays unresolvable', () => {
+    const got = inlinePair('background: busy ? theme.grey : theme.green, color: "#fff"');
+    expect(got.backgrounds).toEqual([]);
+    expect(got.declaresBackground).toBe(true);
+  });
+
+  it('does not run past the value it is reading', () => {
+    // `valueSourceOf` stops at the comma that ends the value. Without that, `color: '#111'` followed
+    // by `borderColor: '#fff'` would report two colours for one key and measure a border as text.
+    const got = inlinePair("color: '#111111', border: '1px solid #FFFFFF', fontSize: '1rem'");
+    expect(got.colors).toEqual([parseHex('#111111')]);
+  });
+
+  it('is not fooled by a comma inside a quoted value', () => {
+    const got = inlinePair("background: 'rgba(0, 0, 0, 0.4)', color: '#FFFFFF'");
+    expect(got.colors).toEqual([parseHex('#FFFFFF')]);
+  });
+
+  it('resolves an unquoted var() background, which has no string literal at all', () => {
+    const got = inlinePair('background: var(--nope, #FFFFFF), color: "#767676"');
+    expect(got.backgrounds).toEqual([parseHex('#FFFFFF')]);
+  });
+
+  it('reports the WORST branch, not the first', () => {
+    // The button above passes disabled (`#6B7280`, 4.83:1) and fails enabled. Taking the first
+    // branch would have reported it clean, which is the same bug in a new place.
+    const { findings } = auditInline([{
+      rel: 'x.tsx',
+      src: "<button style={{ background: busy ? '#6B7280' : '#059669', color: '#fff', fontSize: '0.82rem' }} />",
+    }]);
+    expect(findings).toHaveLength(1);
+    expect(findings[0].ratio).toBeCloseTo(3.77, 1);
+    expect(findings[0].bg).toBe('#059669');
+    expect(findings[0].bgFrom).toContain('worst of 2 branches');
+  });
+
+  it('reports ONE finding per style object, not one per branch', () => {
+    // A button that fails in both states is one thing to fix. Two findings on one line reads as two
+    // problems and gets one of them closed as a duplicate.
+    const { findings } = auditInline([{
+      rel: 'x.tsx',
+      src: "<b style={{ background: a ? '#FFFFFF' : '#F9FAFB', color: '#D97706', fontSize: '0.8rem' }} />",
+    }]);
+    expect(findings).toHaveLength(1);
+  });
+
+  it('and the widened path can still report a pass', () => {
+    // Control: a check that fails everything is as useless as one that passes everything.
+    const { findings, checked } = auditInline([{
+      rel: 'x.tsx',
+      src: "<b style={{ background: a ? '#FFFFFF' : '#F9FAFB', color: '#B45309', fontSize: '0.8rem' }} />",
+    }]);
+    expect(checked).toBe(1);
+    expect(findings).toEqual([]);
+  });
+
+  it('sees a dark branch when deciding whether a file paints dark', () => {
+    expect(paintsDark("<div style={{ background: dark ? '#0F172A' : '#FFFFFF' }} />")).toBe(true);
   });
 });
 

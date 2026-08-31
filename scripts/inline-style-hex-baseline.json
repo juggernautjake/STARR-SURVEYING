@@ -132,7 +132,7 @@
   "app/admin/research/[projectId]/_sections/FinalDocumentTab.tsx": 18,
   "app/admin/research/[projectId]/_sections/ProjectHeader.tsx": 3,
   "app/admin/research/[projectId]/boundary/page.tsx": 2,
-  "app/admin/research/[projectId]/page.tsx": 122,
+  "app/admin/research/[projectId]/page.tsx": 112,
   "app/admin/research/[projectId]/report/page.tsx": 34,
   "app/admin/research/components/AnalysisSummary.tsx": 8,
   "app/admin/research/components/BoundaryCallsPanel.tsx": 14,

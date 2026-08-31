@@ -40,6 +40,10 @@ import ResearchRunPanel from '../components/ResearchRunPanel';
 import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
 import { surveyReviewData } from './_sections/survey-review-data';
 import { summaryReviewData } from './_sections/summary-review-data';
+import {
+  coherenceReviewData, scoreFillColor, deltaColor, deedCompleteColor,
+  DEED_BREAKS_COLOR, MISSING_INSTRUMENTS_COLOR,
+} from './_sections/coherence-review-data';
 // What the run has spent and how much of its budget is left (research plan R22).
 import RunConsoleBar from '../components/RunConsoleBar';
 // What changed since the last run — research is not a one-shot (research plan R27).
@@ -1969,40 +1973,20 @@ export default function ResearchProjectPage() {
 
                     {/* ── Coherence Review (Multi-Pass) ── */}
                     {(() => {
-                      // Read here rather than from the enclosing block: the coherence review is a
-                      // separate ~15-key cast of its own and belongs in its own extraction, not
-                      // bolted onto the summary's shape. Left explicit so that is visible.
-                      const meta = project.analysis_metadata as Record<string, unknown> | null;
-                      const cr = meta?.coherence_review as Record<string, unknown> | null;
+                      // The seventeen-key cast that used to live here is `_sections/coherence-review-data.ts`.
+                      // This panel's producer is `lib/research/analysis.service.ts` — the APP-side
+                      // pipeline — not the worker, so it is held against the COHERENCE_SYNTHESIS
+                      // prompt's declared schema by `coherence-review-contract.test.ts` rather than by
+                      // the worker contract test every other panel here uses.
+                      const cr = coherenceReviewData(project);
                       if (!cr) return null;
 
-                      const verdict = (cr.overall_verdict ?? 'unknown') as string;
-                      const score = (cr.overall_score ?? 0) as number;
-                      const statement = (cr.confidence_statement ?? '') as string;
-                      const execSummary = (cr.executive_summary ?? '') as string;
-                      const techSummary = (cr.summary ?? '') as string;
-                      const passCount = (cr._pass_count ?? 1) as number;
-                      const dq = cr.data_quality as Record<string, { score: number; pass1_score?: number; adjustment?: string; assessment: string }> | null;
-                      const coherenceIssues = (cr.coherence_issues ?? []) as Array<{ severity: string; area: string; title: string; description: string; recommendation: string; found_in?: string }>;
-                      const pipelineIssues = (cr.pipeline_issues ?? []) as Array<{ severity: string; category: string; title: string; description: string; suggested_fix: string }>;
-                      const fieldNotes = (cr.field_survey_notes ?? []) as string[];
-                      const missing = (cr.missing_information ?? []) as string[];
-                      const boundaryDetail = cr.boundary_detail as { traverse_summary?: string; closure_status?: string; call_count?: number; issues_found?: number; critical_calls?: string[] } | null;
-                      const deedDetail = cr.deed_chain_detail as { chain_summary?: string; complete?: boolean; deeds_found?: number; breaks?: number; missing_instruments?: string[] } | null;
-                      const passComparison = cr.pass_comparison as { pass1_issues_confirmed?: number; pass2_new_issues?: number; pass1_false_alarms?: number; total_issues?: number } | null;
-
-                      const verdictColors: Record<string, string> = {
-                        ready_for_fieldwork: '#059669',
-                        needs_attention: '#D97706',
-                        significant_issues: '#DC2626',
-                        unreliable: '#991B1B',
-                      };
-                      const verdictLabels: Record<string, string> = {
-                        ready_for_fieldwork: 'Ready for Fieldwork',
-                        needs_attention: 'Needs Attention',
-                        significant_issues: 'Significant Issues',
-                        unreliable: 'Unreliable',
-                      };
+                      const {
+                        verdictLabel, verdictColor, score, statement, execSummary, techSummary,
+                        passCount, dataQuality: dq, coherenceIssues, pipelineIssues, fieldNotes,
+                        missing, boundaryDetail, deedDetail, passComparison,
+                        showBoundaryDetail, showDeedDetail,
+                      } = cr;
 
                       return (
                         <div className="coherence-review">
@@ -2013,9 +1997,9 @@ export default function ResearchProjectPage() {
                             </span>
                             <span
                               className="coherence-review__verdict"
-                              style={{ color: verdictColors[verdict] || '#6B7280' }}
+                              style={{ color: verdictColor }}
                             >
-                              {verdictLabels[verdict] || verdict} — {score}/100
+                              {verdictLabel} — {score}/100
                             </span>
                           </div>
 
@@ -2048,7 +2032,7 @@ export default function ResearchProjectPage() {
                                         className="coherence-review__score-fill"
                                         style={{
                                           width: `${Math.min(val.score, 100)}%`,
-                                          background: val.score >= 70 ? '#059669' : val.score >= 40 ? '#D97706' : '#DC2626',
+                                          background: scoreFillColor(val.score),
                                         }}
                                       />
                                     </div>
@@ -2058,7 +2042,7 @@ export default function ResearchProjectPage() {
                                     <span className="coherence-review__score-value">
                                       {val.score}
                                       {val.pass1_score != null && val.pass1_score !== val.score && (
-                                        <span className="coherence-review__score-delta" style={{ color: val.score < val.pass1_score ? '#DC2626' : '#059669' }}>
+                                        <span className="coherence-review__score-delta" style={{ color: deltaColor(val.score, val.pass1_score) }}>
                                           {val.score < val.pass1_score ? '\u2193' : '\u2191'}{Math.abs(val.score - val.pass1_score)}
                                         </span>
                                       )}
@@ -2070,7 +2054,7 @@ export default function ResearchProjectPage() {
                           )}
 
                           {/* Boundary detail */}
-                          {boundaryDetail && (boundaryDetail.traverse_summary || boundaryDetail.closure_status) && (
+                          {boundaryDetail && showBoundaryDetail && (
                             <div className="coherence-review__detail-box">
                               <div className="coherence-review__detail-box-title">Boundary Traverse</div>
                               {boundaryDetail.traverse_summary && (
@@ -2090,12 +2074,12 @@ export default function ResearchProjectPage() {
                           )}
 
                           {/* Deed chain detail */}
-                          {deedDetail && (deedDetail.chain_summary || deedDetail.deeds_found) && (
+                          {deedDetail && showDeedDetail && (
                             <div className="coherence-review__detail-box">
                               <div className="coherence-review__detail-box-title">
                                 Deed Chain
                                 {deedDetail.complete != null && (
-                                  <span style={{ marginLeft: 8, color: deedDetail.complete ? '#059669' : '#DC2626', fontWeight: 600, fontSize: '0.75rem' }}>
+                                  <span style={{ marginLeft: 8, color: deedCompleteColor(deedDetail.complete), fontWeight: 600, fontSize: '0.75rem' }}>
                                     {deedDetail.complete ? 'Complete' : 'Incomplete'}
                                   </span>
                                 )}
@@ -2105,11 +2089,11 @@ export default function ResearchProjectPage() {
                               )}
                               <div className="coherence-review__detail-stats">
                                 {deedDetail.deeds_found != null && <span>Deeds: {deedDetail.deeds_found}</span>}
-                                {deedDetail.breaks != null && deedDetail.breaks > 0 && <span style={{ color: '#DC2626' }}>Breaks: {deedDetail.breaks}</span>}
+                                {deedDetail.breaks != null && deedDetail.breaks > 0 && <span style={{ color: DEED_BREAKS_COLOR }}>Breaks: {deedDetail.breaks}</span>}
                               </div>
                               {deedDetail.missing_instruments && deedDetail.missing_instruments.length > 0 && (
                                 <div style={{ marginTop: '0.4rem' }}>
-                                  <div style={{ fontSize: '0.72rem', color: '#D97706', fontWeight: 600 }}>Missing instruments:</div>
+                                  <div style={{ fontSize: '0.72rem', color: MISSING_INSTRUMENTS_COLOR, fontWeight: 600 }}>Missing instruments:</div>
                                   <ul className="coherence-review__list coherence-review__list--missing">
                                     {deedDetail.missing_instruments.map((inst, i) => <li key={i}>{inst}</li>)}
                                   </ul>
@@ -3094,9 +3078,15 @@ export default function ResearchProjectPage() {
                     >
                       {isOpeningInCAD ? <><Loader2 size={14} className="animate-spin" style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Opening…</> : <><Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Open in CAD Editor</>}
                     </button>
-                    {/* Verify drawing */}
+                    {/* Verify drawing.
+
+                        `#059669` was 3.77:1 behind white at 0.82rem — not large text, so 4.5:1
+                        applies. `#047857` is 5.48:1, and is the hex `AdminResearch.css` had
+                        already retired it to. The audit could not see this one: the background is
+                        a TERNARY, not a literal, so `inlinePair` recorded "declares a background"
+                        and skipped the pair. Widened in the same commit. */}
                     <button
-                      style={{ background: isVerifying ? '#6B7280' : '#059669', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: isVerifying ? 'not-allowed' : 'pointer' }}
+                      style={{ background: isVerifying ? '#6B7280' : '#047857', color: '#fff', border: 'none', borderRadius: 6, padding: '0.4rem 1rem', fontSize: '0.82rem', fontWeight: 600, cursor: isVerifying ? 'not-allowed' : 'pointer' }}
                       onClick={handleRunVerification}
                       disabled={isVerifying}
                     >

@@ -359,8 +359,8 @@ export default function DocumentDeepAnalysisPanel({
                           <div key={i} style={{
                             display: 'flex', gap: '0.5rem', padding: '0.125rem 0',
                             color: entry.level === 'error' ? '#DC2626'
-                              : entry.level === 'warn' ? '#D97706'
-                              : entry.level === 'success' ? '#059669' : '#374151',
+                              : entry.level === 'warn' ? '#B45309'
+                              : entry.level === 'success' ? '#047857' : '#374151',
                           }}>
                             <span style={{ flexShrink: 0, width: '1rem', textAlign: 'center' }}>
                               {entry.level === 'error' ? '\u2715' : entry.level === 'warn' ? '\u26A0' : entry.level === 'success' ? '\u2713' : '\u00B7'}

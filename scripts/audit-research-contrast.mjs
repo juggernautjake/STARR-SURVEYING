@@ -67,12 +67,12 @@ export function contrast(fg, bg) {
  * collapses a block comment to one character shifts every line number after it, which is how the
  * first inline sweep reported findings against lines that had nothing on them.
  */
-function stripComments(css) {
+export function stripComments(css) {
   return css.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
 }
 
 /** The same, for TSX — where `//` IS a comment and `stripComments` alone leaves it standing. */
-function stripJs(src) {
+export function stripJs(src) {
   return stripComments(src).replace(/(^|[^:'"`])\/\/[^\n]*/g, (m, p1) => p1 + ' '.repeat(m.length - p1.length));
 }
 
@@ -257,14 +257,78 @@ const STYLE_OBJECT = /style=\{\{([^{}]*)\}\}/g;
  * color: '#fff' }}` is a coloured severity pill with white text, and treating its unresolvable
  * background as the page reported it at 1:1 in two components.
  */
+/**
+ * The raw source of one key's value — from `key:` up to the comma that ends it.
+ *
+ * Needed because the value is not always a literal. `background: isVerifying ? '#6B7280' : '#047857'`
+ * is two colours, and matching only `key: '…'` sees neither.
+ */
+export function valueSourceOf(body, keys) {
+  const m = new RegExp(`(?:^|[,{\\s])(?:${keys.join('|')})\\s*:\\s*`).exec(body);
+  if (!m) return null;
+  let quote = null;
+  let depth = 0;
+  let out = '';
+  for (let i = m.index + m[0].length; i < body.length; i++) {
+    const c = body[i];
+    if (quote) {
+      // A comma inside `'rgba(0,0,0,.4)'` does not end the value, and neither does one inside a
+      // font stack. Quote state first, before anything else looks at the character.
+      if (c === quote && body[i - 1] !== '\\') quote = null;
+    } else if (c === "'" || c === '"' || c === '`') quote = c;
+    else if (c === '(' || c === '[') depth++;
+    else if (c === ')' || c === ']') depth--;
+    else if (c === ',' && depth === 0) break;
+    out += c;
+  }
+  return out.trim();
+}
+
+/**
+ * Every colour a value expression can evaluate to.
+ *
+ * ── A TERNARY IS TWO COLOURS, AND ONLY ONE OF THEM WAS EVER MEASURED ───────────────────────────
+ *
+ * Found 2026-08-31, by the coherence extraction's own colour test rather than by this script.
+ * `style={{ background: isVerifying ? '#6B7280' : '#059669', color: '#fff' }}` on the research
+ * project page's Run Verification button: white on `#059669` is **3.77:1** at 0.82rem, and the
+ * button has rendered that way for its whole life.
+ *
+ * The reason it survived a pass that reported "no contrast failures" is exact and worth keeping:
+ * `background` was PRESENT, so `declaresBackground` was true and the pair was counted as *skipped*
+ * — deliberately, because an unresolvable background used to be assumed white and invented 61 false
+ * findings. The conservative rule was right; it was just too coarse. A ternary between two literals
+ * is not unresolvable. It is two known answers, and the honest reading is the worse of them.
+ */
+export function literalColoursIn(source, vars = new Map()) {
+  if (!source) return [];
+  const out = [];
+  for (const m of source.matchAll(/'([^']*)'|"([^"]*)"|`([^`]*)`/g)) {
+    const c = colourOf(m[1] ?? m[2] ?? m[3] ?? '', vars);
+    if (c) out.push(c);
+  }
+  // `background: var(--x, #fff)` is not quoted at all, and neither is a bare `background: white`.
+  if (!out.length) {
+    const c = colourOf(source, vars);
+    if (c) out.push(c);
+  }
+  return out;
+}
+
 export function inlinePair(body, vars = new Map()) {
-  const cm = body.match(/(?:^|[,{\s])color\s*:\s*('[^']*'|"[^"]*"|`[^`]*`)/);
-  const bLiteral = body.match(/(?:^|[,{\s])(?:background|backgroundColor)\s*:\s*('[^']*'|"[^"]*"|`[^`]*`)/);
+  const cSrc = valueSourceOf(body, ['color']);
+  const bSrc = valueSourceOf(body, ['background', 'backgroundColor']);
+  const colors = literalColoursIn(cSrc, vars);
+  const backgrounds = literalColoursIn(bSrc, vars);
   const bAny = /(?:^|[,{\s])(?:background|backgroundColor)\s*:/.test(body);
-  const strip = (v) => (v ? v.slice(1, -1) : null);
   return {
-    color: cm ? colourOf(strip(cm[1]), vars) : null,
-    background: bLiteral ? colourOf(strip(bLiteral[1]), vars) : null,
+    // `color` / `background` stay single-valued: every existing caller reads them, and for the
+    // overwhelmingly common single-literal case they are unchanged.
+    color: colors[0] ?? null,
+    background: backgrounds[0] ?? null,
+    /** Every branch of a ternary, so the audit can measure the worst one rather than the first. */
+    colors,
+    backgrounds,
     declaresBackground: bAny,
   };
 }
@@ -289,8 +353,11 @@ export function paintsDark(src) {
   if (/\bbg-(gray|slate|zinc|neutral|stone)-(7|8|9)\d{2}\b/.test(code)) return true;
   if (/\bbg-(black|gray-950)\b/.test(code)) return true;
   for (const m of code.matchAll(STYLE_OBJECT)) {
-    const { background } = inlinePair(m[1]);
-    if (background && luminance(background) < 0.25) return true;
+    // Every branch, not just the first: `background: dark ? '#111' : '#fff'` paints dark half the
+    // time, and half the time is enough to make an unpaired colour elsewhere unknowable.
+    for (const background of inlinePair(m[1]).backgrounds) {
+      if (luminance(background) < 0.25) return true;
+    }
   }
   return false;
 }
@@ -306,30 +373,50 @@ export function auditInline(files, vars = new Map()) {
     const dark = paintsDark(src);
 
     for (const m of blanked.matchAll(STYLE_OBJECT)) {
-      const { color, background: paired, declaresBackground } = inlinePair(m[1], vars);
-      if (!color) continue;
+      const { colors, backgrounds, declaresBackground } = inlinePair(m[1], vars);
+      if (!colors.length) continue;
 
       // A pair is measured directly. A background that is DECLARED but unresolvable — `background:
       // severity.color` — is not the page either. Without one, the page background is the honest
       // answer only when the file paints nothing dark; otherwise the text may be sitting on a dark
       // surface this cannot see, and assuming white would invent failures. An earlier sweep did
       // exactly that and produced 64 findings of which 61 were wrong.
-      const background = paired ?? (declaresBackground || dark ? null : PAGE_BACKGROUND);
-      if (!background) { skipped++; continue; }
+      //
+      // A ternary is neither case: both branches are known, so BOTH are measured and the worst one
+      // is what the button actually renders half the time.
+      const paired = backgrounds.length > 0;
+      const surfaces = paired
+        ? backgrounds
+        : (declaresBackground || dark ? [] : [PAGE_BACKGROUND]);
+      if (!surfaces.length) { skipped++; continue; }
 
       checked++;
-      const ratio = contrast(color, background);
       const need = requiredRatio(m[1].replace(/fontSize:\s*'([\d.]+)rem'/, 'font-size: $1rem')
         .replace(/fontWeight:\s*'?(\d+)'?/, 'font-weight: $1'));
-      if (ratio < need) {
+
+      // The worst combination any branch can produce. One finding per style object, not one per
+      // pair: a button that fails in its disabled state and passes enabled is one thing to fix.
+      let worst = null;
+      for (const color of colors) {
+        for (const background of surfaces) {
+          const ratio = contrast(color, background);
+          if (!worst || ratio < worst.ratio) worst = { color, background, ratio };
+        }
+      }
+
+      if (worst.ratio < need) {
+        const hex = (c) => `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+        const branches = colors.length * surfaces.length;
         findings.push({
           file: rel,
           line: blanked.slice(0, m.index).split('\n').length,
           selector: 'inline style',
-          fg: `#${color.map((c) => c.toString(16).padStart(2, '0')).join('')}`,
-          bg: `#${background.map((c) => c.toString(16).padStart(2, '0')).join('')}`,
-          bgFrom: paired ? 'the same style object' : 'the page (this file paints nothing dark)',
-          ratio: Number(ratio.toFixed(2)),
+          fg: hex(worst.color),
+          bg: hex(worst.background),
+          bgFrom: paired
+            ? `the same style object${branches > 1 ? ` (worst of ${branches} branches)` : ''}`
+            : 'the page (this file paints nothing dark)',
+          ratio: Number(worst.ratio.toFixed(2)),
           need,
         });
       }

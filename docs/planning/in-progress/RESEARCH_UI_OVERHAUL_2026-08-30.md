@@ -264,6 +264,113 @@ exist. Do not plan the next one from a name that has not been grepped.
 **Done:** behaviour identical; the route renders the same markup; each extraction is separately
 revertable.
 
+### B1a — twelfth extraction: `_sections/coherence-review-data.ts` — SHIPPED 2026-08-31
+
+The Review → Summary tab's **Quality & Coherence Review** panel: seventeen keys read off
+`analysis_metadata.coherence_review` through an unchecked cast, plus the four colour maps that turn
+a verdict into something a reader sees. `page.tsx` **3,232 → 3,222**.
+
+**Its producer is not the worker, and that is the whole story of this slice.** Every other
+extraction in `_sections/` is held against `worker/src` by `review-reads-what-the-worker-writes`.
+This one cannot be: `coherence_review` appears **nowhere** in `worker/src` — checked with a control,
+because a bare negative from a grep is how this repository has been wrong ten times now. It is
+written by `lib/research/analysis.service.ts`, the **app-side** pipeline, and its shape is declared
+by the `COHERENCE_SYNTHESIS` prompt's JSON block in `lib/research/prompts.ts`.
+
+That is READ FIRST's "there are TWO research pipelines" made concrete, and it is the worse of the
+two positions: **the contract for this panel lives in a prompt.** A prompt is edited far more
+casually than a type, and no compiler reads it. So `coherence-review-contract.test.ts` holds the
+seventeen keys against the prompt text — sliced to that one prompt, because `summary`, `severity`,
+`title` and `description` appear in a dozen others and a whole-file sweep reports every key as
+present no matter what this prompt says. 44 keys inside the slice, 297 in the file; the control key
+is `chord_bearing`, which the curve extractor declares and this one does not.
+
+`_pass_count` is deliberately outside the key list: `analysis.service.ts` attaches it *after* the
+model responds, so a test that looked for it in the prompt would fail for the wrong reason. It is
+asserted the other way — present in the service, absent from the prompt.
+
+#### Zero deeds found is the finding
+
+`deedDetail && (chain_summary || deeds_found)`. `deeds_found: 0` is falsy, so a chain where the
+pipeline found **no deeds** hid the entire box — and with it `complete: false`, the break count, and
+the list of missing instruments. The one state a surveyor most needs to see was the one state that
+rendered nothing.
+
+**Fifth instance of this exact shortcut in the research portal in two days** — the run panel's
+document count, the Summary tab's document count, `result.acreage ? …` on the property tab, and the
+boundary box in this same component, whose guard read only `traverse_summary || closure_status` and
+so hid a traverse reporting `call_count: 0`. `!= null` throughout: absent hides the box, zero shows
+it.
+
+#### The composite fixture that proved nothing
+
+Worth recording, because the test looked thorough and was not. The first version asserted on
+`{ deeds_found: 0, complete: false, breaks: 0 }` — all three at once — and putting `deeds_found !=
+null` back to a bare `deeds_found` **did not turn it red**: `complete != null` carried the case on
+its own. A composite fixture proves the OR, not the clause. Now one field per case, five cases, and
+each of the five mutations checked individually.
+
+#### And a `passComparison` that was never returned
+
+The interface declared it; the shaping function did not return it. `tsc` caught it the moment the
+page consumed the module — which is the point of extracting a cast into a typed function, and is
+exactly what nothing caught while the same seventeen keys were inline.
+
+---
+
+## G14 — a ternary is two colours, and only one of them was ever measured (2026-08-31)
+
+**Found by the slice above, not by the auditor.** The coherence test asserts `#059669` is gone from
+`page.tsx`; it went red against a line the panel does not own:
+
+```tsx
+style={{ background: isVerifying ? '#6B7280' : '#059669', color: '#fff', fontSize: '0.82rem' }}
+```
+
+The research project page's **Run Verification** button. White on `#059669` is **3.77:1** at 0.82rem
+— not large text, so 4.5:1 applies. It has rendered that way for the button's whole life.
+
+### Why F2 reported clean over it
+
+Not an oversight — a rule, working exactly as written. `inlinePair` matched `background: '<literal>'`.
+Here the value is a ternary, so no literal matched, but a background key was *present*, so
+`declaresBackground` was true and the pair was counted as **skipped**. And skipping was the right
+call: assuming white behind an unresolvable background is what produced 61 false findings on the
+first inline sweep.
+
+The conservative rule stays. It was simply too coarse. **A ternary between two literals is not
+unresolvable — it is two known answers, and the honest reading is the worse of them.**
+
+### What widening it found
+
+`valueSourceOf` now reads the whole value expression (quote- and bracket-aware, so a comma inside
+`'rgba(0, 0, 0, .4)'` does not end it) and `literalColoursIn` resolves every literal in it. Both
+branches of a ternary `color` too. The audit measures the worst combination and reports **one**
+finding per style object, because a button that fails in both states is one thing to fix.
+
+First run: **three more real failures**, all of them ternaries, none previously visible.
+
+| | |
+|---|---|
+| `AnalysisSummary.tsx:175` | Monument condition — `#F59E0B` at **2.15:1**, the worst in the portal. `found` / `not found` on a monument is a fact a surveyor acts on. |
+| `DocumentDeepAnalysisPanel.tsx:359` | Run log lines: `warn` at 3.19:1 and `success` at 3.77:1. |
+| `FinalDocumentTab.tsx:333` | Document status "Analyzed" at 3.77:1. |
+
+All four fixed to the hexes `AdminResearch.css:12` had already retired these to (`#047857`,
+`#B45309`). 799 pairs → **809 checked, no failures.**
+
+### The tenth time a check read its own prose
+
+The retired-hex assertion went red on its *second* run too — this time against the comment that
+explains the retirement, which names the hex. Blanked with `stripJs` before scanning, and the
+control asserts both directions: the raw file still contains the string (so the control is not
+vacuous) and the stripped file does not.
+
+**Mutations:** taking the first branch instead of the worst → red. Anchoring the literal matcher so
+ternaries stop resolving → red (3 tests). Restoring the falsy-zero deed guard → red. Putting
+`#059669` back on the button → red in both files.
+
+
 ### B2 — ~~First extraction~~ SHIPPED 2026-08-31 — `_sections/ProjectStats.tsx`
 
 The quick-stats grid: 49 lines out of `page.tsx`, **3,680 to 3,637**.
@@ -1764,8 +1871,8 @@ precedence over the project value there. Now covered.
 **Planned and shipped:** A1 A2 A3 A4 · B2 B3 B4/B5 B6 · C1 C2 C3 · D0 · E1 E2 · F1.
 **Withdrawn as false premises:** B1, E1 (both replaced by what checking them revealed).
 
-**Unplanned, and the reason this doc grew:** G1–G10. Ten findings, none of them on the plan, all
-in the property-research software. Seven were live defects:
+**Unplanned, and the reason this doc grew:** G1–G14. Fourteen findings, none of them on the plan,
+all in the property-research software. Eleven were live defects:
 
 | | What it was |
 |---|---|
@@ -1776,6 +1883,10 @@ in the property-research software. Seven were live defects:
 | G7 | A full extraction wiped the project's logs and API spend record |
 | G9 | The owner's own "do not close on outside click" applied to one modal of three |
 | G10 | **The owner name was collected, saved, displayed, and never used** — the worker's owner-based clerk search never ran |
+| G11 | `N 30° 15' E` did not parse, and the boundary silently lost that leg |
+| G12 | Four hand-written copies of one list |
+| G13 | The contrast pass said *"clean"* while 131 inline styles went unmeasured |
+| G14 | **A ternary background was never measured at all** — four buttons and labels down to 2.15:1 |
 
 Three came back clean (filters, the placeholder scan, the app/worker HTTP contract) and each now
 has a guard so it stays that way. Plus a live Chromium leak and bounded concurrent capture in the
@@ -1801,13 +1912,13 @@ blocked; none costs more than it is worth. They are simply not done.
 
 | Item | State, measured 2026-08-31 |
 |---|---|
-| **B1a remainder** | ☐ **Real, and smaller than written.** Eleven extractions now live in `_sections/`, and every one is verified imported by `page.tsx` — not one is an orphan. `page.tsx` is **3,680 → 3,232**. The three named targets above never existed. What actually remains is the Review tab's inline JSX branches (`summary`, `property`, `survey`, `easements`, lines 1915–2561); the *casts* behind three of the four are already extracted and contract-tested, so what is left is markup, not logic. |
+| **B1a remainder** | ☐ **Real, and smaller than written.** TWELVE extractions now live in `_sections/`, and every one is verified imported by `page.tsx` — not one is an orphan. `page.tsx` is **3,680 → 3,222**. The three named targets above never existed. Every CAST on the Review tab is now extracted and contract-tested — `summary`, `property`, `survey`, and the coherence review, whose contract is a PROMPT rather than the worker. What remains is the `easements` branch and the surrounding markup: JSX, not logic. |
 | **D1 / D2** | ✅ **SHIPPED 2026-08-31**, and each found a live defect — the Stage 3.5 label and the two disagreeing definitions of "done". Both panels remain large (`ResearchRunPanel` 1,753, `PipelineProgressPanel` 1,481); that is a size question, not an open slice. |
 | **D3** | ✅ **CLOSED 2026-08-31** — already shipped. |
 | **E1b** | ☐ Open, and correctly outside this doc — admin shell, not the research portal. |
 | **E2b** | ✅ **BOTH SHIPPED 2026-08-31** — `BillingTab` and `LibraryTab` re-themed; the Billing pass found a button with no `onClick` at all. |
 | **E3** | ☐ **Genuinely open.** Responsive pass at 1440 and 390 against a **production** build. QA work, not a code slice — and the one remaining item on this doc that a browser, not a test, has to settle. |
-| **F2** | ◐ **Static half SHIPPED** (28 real failures fixed; `verify:contrast` reports *no contrast failures* across 799 pairs, and the inline-style scanner now measures the 131 inline styles it used to skip). The browser half stays a programme, and pairs with E3. |
+| **F2** | ◐ **Static half SHIPPED** (32 real failures fixed; `verify:contrast` reports *no contrast failures* across **809** pairs — the inline scanner now reads both branches of a ternary, which is how the last four were found). The browser half stays a programme, and pairs with E3. |
 
 ### And the thing no amount of this can settle
 

@@ -172,7 +172,7 @@ export default function AnalysisSummary({ projectId, stats }: AnalysisSummaryPro
                 <span key={i}>
                   {i > 0 && ' | '}
                   {m.display}
-                  {m.condition && <span style={{ color: m.condition === 'found' ? '#059669' : '#F59E0B', fontSize: '0.8rem' }}> ({m.condition})</span>}
+                  {m.condition && <span style={{ color: m.condition === 'found' ? '#047857' : '#B45309', fontSize: '0.8rem' }}> ({m.condition})</span>}
                 </span>
               ))}
             </div>

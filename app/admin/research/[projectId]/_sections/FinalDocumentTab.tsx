@@ -330,7 +330,7 @@ export default function FinalDocumentTab({
                         <Link2 size={13} style={{ verticalAlign: "-2px", marginRight: "0.3rem" }} />Source
                       </a>
                     )}
-                    <span style={{ color: doc.processing_status === 'analyzed' ? '#059669' : '#6B7280', flexShrink: 0 }}>
+                    <span style={{ color: doc.processing_status === 'analyzed' ? '#047857' : '#6B7280', flexShrink: 0 }}>
                       {doc.processing_status === 'analyzed' ? <><Check size={12} style={{ verticalAlign: "-1px", marginRight: "0.2rem" }} />Analyzed</> : doc.processing_status}
                     </span>
                   </div>
