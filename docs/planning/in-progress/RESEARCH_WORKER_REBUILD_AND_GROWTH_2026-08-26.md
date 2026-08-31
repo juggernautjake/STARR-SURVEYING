@@ -80,7 +80,7 @@ here needs a decision, an account, or a physical act only the owner can perform.
 | 4 | **Cancel Browserbase, or decide to use it** | §I0, §I4 | Valid key, **zero sessions in four months**. It is the only service measured tonight that is definitely costing money for nothing. |
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
-| 8 | **Enable Places API (legacy) + Geocoding API** in Google Cloud Console | §M5 | Measured 2026-08-30 with a control: the key returns `REQUEST_DENIED` — *"You are calling a legacy API, which is not enabled"* for Places and *"not activated"* for Geocoding. **Not a referrer problem.** Maps JavaScript IS enabled, which is why the map draws and only autocomplete dies. The client calls `AutocompleteService`, so enabling *Places API (New)* alone will NOT fix it. Check the key API-restriction list too. If Google refuses legacy (blocked on projects created after ~March 2025), this becomes a code migration to `AutocompleteSuggestion` — engineering work, not yet commissioned. |
+| 8 | **Enable Places API (legacy) + Geocoding API + Maps Static API** in Google Cloud Console | §M5 | Measured 2026-08-30 with a control: the key returns `REQUEST_DENIED` — *"You are calling a legacy API, which is not enabled"* for Places and *"not activated"* for Geocoding. **Not a referrer problem.** Maps JavaScript IS enabled, which is why the map draws and only autocomplete dies. The client calls `AutocompleteService`, so enabling *Places API (New)* alone will NOT fix it. Check the key API-restriction list too. **Maps Static was added 2026-08-30 and is NOT optional:** four call sites already use it and it returns 403 not-activated, which is why 22 stored aerial/topo images are broken — see M5. If Google refuses legacy (blocked on projects created after ~March 2025), this becomes a code migration to `AutocompleteSuggestion` — engineering work, not yet commissioned. |
 | 9 | **Redeploy the worker** — `cd /opt/starr && git pull && cd worker && BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build` | §3.6 | The deployed build is behind `main`, and the staleness is FAKING A GREEN LIGHT: it still carries the `TAVILY_API_KEY missing` warning that `main` deleted, so `warnings: []` currently proves only that the key is set on a box where no worker file reads it. Costs nothing. It is also what ships the per-run spend limit and the removal of the false `websocket_auth` check. |
 
 > ### 🔎 FULL AUDIT 2026-08-30 — the server half holds up; one thing above was false
@@ -1267,7 +1267,36 @@ from the real `robots.txt` rules rather than hand-written.
   is defined beside it, and that no copy remains in `AdminJobs.css` to drift.
 
   17 tests, `tsc` and `next lint` clean.
-- **One `research_documents.storage_url` returns 400** — see W1; probably a casualty, not a bug.
+- **~~One `research_documents.storage_url` returns 400 — probably a casualty, not a bug.~~
+  ⚠ MEASURED 2026-08-30: it is 22, they share one cause, and it is a live bug.**
+
+  Probed every one of the 347 distinct `storage_url` values with a HEAD request: **325 → 200,
+  22 → 400.** A first pass reported 21 failures and 15 `429`s; the 429s are the probe being
+  rate-limited, not the objects being broken, so they were retried with backoff until every URL
+  gave a real answer. Reporting a throttle as a verdict would have invented one failure and hidden
+  another.
+
+  **All 22 are `map-images/` — `aerial_photo_*.png` and `topo_map_*.png`. Not one is an uploaded
+  document.** That is a pattern, not a casualty of the storage migration.
+
+  The cause is upstream and still active. `lib/research/map-image.service.ts` produces those
+  artifacts, and the codebase calls **Maps Static API** from four places
+  (`parcel-map-capture.service.ts`, `progressive-zoom.service.ts`, `lot-correlator.ts` ×2).
+  Measured against the live key, with Maps JavaScript as a control:
+
+  ```
+  Maps Static API   HTTP 403  "This API is not activated on your API project"
+  Maps JavaScript   HTTP 200  (control — proves the key itself is fine)
+  ```
+
+  So the research pipeline depends on an API that was never switched on, and every run that reaches
+  the imagery step produces broken aerial/topo artifacts. This is not a "nice to have" alongside
+  Places and Geocoding — **it is a dependency the code already has.** See the enablement list in
+  §M5b; enabling it is the same one-click action.
+
+  Also found while counting: **306 of 654 `research_documents` rows have `storage_url IS NULL`.**
+  Not investigated here — a null may legitimately mean "indexed but not retrieved" — but it is
+  recorded so the next person does not re-measure it, and it is 47% of the table.
 - **Saturday hours stay unpublished.** `/contact` says "by appointment", which schema.org cannot
   express; stating times would send someone to a closed office.
 
