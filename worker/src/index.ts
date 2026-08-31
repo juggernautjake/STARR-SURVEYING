@@ -857,9 +857,26 @@ app.get('/health', async (_req: Request, res: Response) => {
   // Each check is config-only (does NOT make an outbound call) so /health
   // stays cheap and never times out on a flaky third party. The Testing
   // Lab "Phase A Integrations" section surfaces these statuses.
-  checks.captcha_solver = process.env.CAPSOLVER_API_KEY
-    ? { status: 'ok',           detail: `provider=${process.env.CAPTCHA_PROVIDER ?? 'capsolver (auto)'}` }
-    : { status: 'unconfigured', detail: `provider=${process.env.CAPTCHA_PROVIDER ?? 'stub (no API key)'}` };
+  // ── CAPTCHA SOLVING IS BUILT AND UNWIRED — corrected 2026-08-30 ──────────────────────────────
+  //
+  // This used to report `status: 'ok'` whenever CAPSOLVER_API_KEY was present. Measured with a
+  // control: `getCaptchaSolver()` has ZERO callers outside its own module and tests, while
+  // `browser-factory` has 37 importers. Only `setSolveAttemptSink` — telemetry plumbing — is wired
+  // into this file. No adapter ever asks the solver to solve anything.
+  //
+  // So a green `captcha_solver` meant "a key is present" while reading as "challenges get solved",
+  // and an operator setting that key would be paying for a service nothing calls. That is the same
+  // shape as the `websocket_auth` check removed from this handler earlier today, and as the
+  // TAVILY_API_KEY warning before it.
+  //
+  // Reported as `unconfigured` rather than `warning` because nothing is broken — the capability was
+  // never connected, which is a known state, not a fault. The detail says what an operator would
+  // otherwise have to read the source to discover.
+  checks.captcha_solver = {
+    status: 'unconfigured',
+    detail: 'NOT WIRED — no adapter invokes the solver, so a portal that challenges will fail '
+      + `regardless of CAPSOLVER_API_KEY (provider=${process.env.CAPTCHA_PROVIDER ?? 'stub'})`,
+  };
 
   const browserBackend = process.env.BROWSER_BACKEND ?? 'local';
   if (browserBackend === 'browserbase') {

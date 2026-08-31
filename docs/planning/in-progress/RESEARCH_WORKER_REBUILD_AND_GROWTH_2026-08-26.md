@@ -360,7 +360,42 @@ pins the field list against the layer's advertised schema, and a Bell run return
 
 </details>
 
-### E2 — The captcha solver has zero callers ☐
+### E2 — ~~The captcha solver has zero callers~~ ✅ **RESOLVED 2026-08-30 — by stating it, not wiring it**
+
+The doc's own rule was *"either the solver is wired into the adapters that meet challenges, or its
+absence is stated where an operator would otherwise assume it works. Not both, and not neither."*
+**Stated.** Wiring was the wrong half to choose, for two reasons: the CapSolver key is rejected
+(`ERROR_KEY_DENIED_ACCESS`), so a wired solver could not have been tested; and *which* counties we
+are willing to solve captchas for is an owner policy decision the runbook explicitly reserves
+(§5, plan R4.3), not an engineering one.
+
+What was actually claimed before this:
+
+| Surface | Said | Truth |
+|---|---|---|
+| `/health` | `captcha_solver: status **ok**` whenever the key was set | a green light for a feature nothing invokes |
+| `configWarnings` | *"solving fails the first time a portal asks"* if the key is missing | true about config, misleading about consequence — setting it changes nothing |
+
+An operator reading either would have bought a CapSolver subscription to fix a portal challenge
+that fails identically with or without it. Same shape as the `websocket_auth` check removed from
+that same handler hours earlier, and the `TAVILY_API_KEY` warning before that: **configuration
+reported as capability.**
+
+`/health` now reports `unconfigured` with *"NOT WIRED — no adapter invokes the solver"*, and the
+warning says setting the key will not solve challenges either.
+
+The guard is **bidirectional on purpose**: it fails if the honest wording is removed, *and* it fails
+if somebody wires the solver up without updating the claim — because at that point the code and the
+docs disagree and a person should decide which is now true. Mutation-tested: restoring the green
+light fails it. A control asserts the caller-scan works by finding `setSolveAttemptSink`, which
+genuinely is called.
+
+Worker tsc 0 · worker suite **1,711 pass**.
+
+**Wiring it remains open as a real feature** ☐ — needing a working CapSolver key *and* the owner's
+per-county policy decision, in that order.
+
+<details><summary>Original entry</summary>
 
 The owner asked to test it. It cannot be tested, because nothing invokes it. Checked with a control:
 `browser-factory` has **37** importers; `getCaptchaSolver` has **zero** outside its own module and
@@ -372,6 +407,8 @@ does not run. That is worth stating plainly in `/healthz` at minimum, and is the
 
 **Done:** either the solver is wired into the adapters that meet challenges, or its absence is
 stated where an operator would otherwise assume it works. **Not both, and not neither.**
+
+</details>
 
 ### E3 — ~~`ws` is used by the worker and declared only by the app~~ ✅ **SHIPPED 2026-08-30**
 

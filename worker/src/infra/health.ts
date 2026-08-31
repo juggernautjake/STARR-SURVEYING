@@ -231,8 +231,17 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
   // third-party API cannot start during that API's outage, which is worse than the problem. Validity
   // belongs to the moment a provider is switched on — see R4a in
   // docs/planning/in-progress/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
+  // ⚠ AND THE LARGER PROBLEM, MEASURED 2026-08-30: THE SOLVER IS NOT CALLED BY ANYTHING.
+  //
+  // Controlled for — `getCaptchaSolver()` has zero callers outside its own module and tests, while
+  // `browser-factory` has 37 importers. Only `setSolveAttemptSink` (telemetry) is wired in. So the
+  // warning below was true about configuration and misleading about consequence: setting the key
+  // does not make solving work, because nothing asks the solver to solve.
+  //
+  // The wording now says what actually happens, so an operator does not go buying a CapSolver
+  // subscription to fix a portal challenge that would fail either way.
   if ((env.CAPTCHA_PROVIDER ?? 'stub').toLowerCase() === 'capsolver' && !env.CAPSOLVER_API_KEY) {
-    warn.push('CAPTCHA_PROVIDER=capsolver but CAPSOLVER_API_KEY missing — solving fails the first time a portal asks');
+    warn.push('CAPTCHA_PROVIDER=capsolver but CAPSOLVER_API_KEY missing — note that captcha solving is NOT wired into any adapter, so setting it will not solve challenges either');
   }
 
   // ── PAID BUT UNUSED (added 2026-08-27) ────────────────────────────────────────────────────────
