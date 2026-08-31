@@ -59,7 +59,9 @@ alternative is rediscovering it in three weeks.
 
 ## START HERE — the worker is LIVE and fully credentialled; one test and four decisions remain
 
-**This table now lists only what is OPEN.** Seven rows were cleared between 2026-08-28 and
+**Back in `in-progress/` on 2026-08-30** after being parked: preparing the owner test surfaced four ENGINEERING items (see the backlog section below) that are nobody-decisions. The table below is still the OWNER list.
+
+**This table lists only what is OPEN.** Seven rows were cleared between 2026-08-28 and
 2026-08-30 and have been removed rather than left ticked, because a table where most rows say ✅
 buries the four that still need you. What they were, for the record — the reasoning behind each is
 still in its numbered section below:
@@ -81,7 +83,7 @@ here needs a decision, an account, or a physical act only the owner can perform.
 | 5 | **Google Business Profile: photos, description, reviews** | §G | Owner-paused, correctly. Still the largest lever on actual lead volume, and reviews are the slowest-moving thing on the list. |
 | 6 | **Send me your profile URLs** (Business Profile, Facebook, LinkedIn, BBB) | §M3 | One edit fills the last empty field in the site's structured data. |
 | 8 | **Maps APIs — owner enabled them 2026-08-30; ONE step remains** | §M5 | Re-probed after the owner enabled: Places and Geocoding now answer *"API keys with referer restrictions cannot be used with this API"* instead of *"not enabled"* — the APIs are ON and the key is browser-scoped, which is correct for autocomplete. **A server-side curl can never confirm the browser path** (the REST endpoint refuses referer-restricted keys whatever referer you send; the JS SDK uses a different endpoint), so the only valid test is typing an address in the form. **Maps Static moved from "not activated" to "this API key is not authorized"** — enabled, but excluded by the key API-restriction list. Add it under Credentials → key → API restrictions. **Then it will still fail server-side**, because a referer-restricted key cannot authenticate a server call: the research pipeline needs a SEPARATE key in `GOOGLE_MAPS_API_KEY` with no referer restriction (IP-restricted, or unrestricted and kept server-side). |
-| 9 | **Redeploy the worker** — `cd /opt/starr && git pull && cd worker && BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --build` | §3.6 | The deployed build is behind `main`, and the staleness is FAKING A GREEN LIGHT: it still carries the `TAVILY_API_KEY missing` warning that `main` deleted, so `warnings: []` currently proves only that the key is set on a box where no worker file reads it. Costs nothing. It is also what ships the per-run spend limit and the removal of the false `websocket_auth` check. |
+| 9 | ~~Redeploy the worker~~ ✅ **DONE 2026-08-30** — verified rather than assumed: /healthz reports buildSha c1324316e, which matches main HEAD exactly, uptime 109s, and `doppler run -- npm run verify:worker` returns ✓ OK with WORKER_API_KEY accepted. | §3.6 | Cleared. |
 
 > ### 🔎 FULL AUDIT 2026-08-30 — the server half holds up; one thing above was false
 >
@@ -290,6 +292,64 @@ here needs a decision, an account, or a physical act only the owner can perform.
 >
 > Mutation-tested: reintroducing the `websocket_auth` line fails the guard; restoring it goes green.
 > Worker suite green.
+
+## ⚠ ENGINEERING BACKLOG — found 2026-08-30, and the reason this doc came back to `in-progress`
+
+This doc was parked as "everything left is owner-gated". That was true of the items it *listed*.
+Preparing the owner's three-county test then turned up four things that are nobody's decision — they
+are defects and unfinished wiring, and none of them were written down anywhere. Parking a doc does
+not stop the code under it from being wrong; it only stops anyone looking.
+
+### E1 — `SITUS_ADDR` does not exist, and three services ask for it ☐ **highest value**
+
+Measured against the live Bell CAD layer, with a control:
+
+```
+outFields=PROP_ID,FILE_AS_NAME,SITUS_ADDR,...   → HTTP 400  "'outFields' parameter is invalid"
+outFields=prop_id,file_as_name,situs_street,... → HTTP 200  (control)
+```
+
+The layer's fields are lowercase and there is **no `SITUS_ADDR`** — the real ones are `situs_num`,
+`situs_street`, `situs_street_sufix`. Three services send the broken list:
+`parcel-map-capture.service.ts:169`, `progressive-zoom.service.ts:250`,
+`gis-progressive-zoom.service.ts:301`. All three then do `if (!res.ok) return []`, so **nearby-parcel
+context silently comes back empty on every Bell County run** — the data lot correlation depends on.
+
+`boundary-fetch.service.ts:96` already does this correctly, with a *candidate list* of field names
+including the lowercase ones. The right pattern is in the repo, in a file nobody copied from. Again.
+
+**Done:** the three queries use real field names, the address is composed from the parts, a test
+pins the field list against the layer's advertised schema, and a Bell run returns non-empty parcels.
+
+### E2 — The captcha solver has zero callers ☐
+
+The owner asked to test it. It cannot be tested, because nothing invokes it. Checked with a control:
+`browser-factory` has **37** importers; `getCaptchaSolver` has **zero** outside its own module and
+tests. Only `setSolveAttemptSink` — telemetry plumbing — is wired into `index.ts`.
+
+So `CAPTCHA_PROVIDER`, the CapSolver key and the whole solver are configuration for a feature that
+does not run. That is worth stating plainly in `/healthz` at minimum, and is the same shape as the
+`websocket_auth` claim removed earlier today.
+
+**Done:** either the solver is wired into the adapters that meet challenges, or its absence is
+stated where an operator would otherwise assume it works. **Not both, and not neither.**
+
+### E3 — `ws` is used by the worker and declared only by the app ☐
+
+`worker/src/websocket/progress-server.ts` and its test import `ws`; `worker/package.json` does not
+declare it (8.19.0 resolves transitively today). A clean install can break the worker suite for a
+reason that points nowhere near the cause. Deferred twice already as "not in a security fix" and
+"not in a data-repair commit" — both correct at the time, and it is still true.
+
+**Done:** declared in `worker/package.json` at the resolved version, lockfile updated, worker suite green.
+
+### E4 — Install the auto-updater ☐ *(owner action, one command)*
+
+Built and exercised 2026-08-30 on branch `claude/worker-auto-update-2026-08-30`: pulls `main` when
+it moves, defers while a run is in flight, rolls back if the new build does not report its own
+`buildSha`. Install steps in §3.7 of the runbook. Not installed yet.
+
+---
 
 **Two things you should know before you act on the cost sections:**
 
