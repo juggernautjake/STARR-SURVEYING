@@ -26,6 +26,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { stripComments } from '../../scripts/audit-starr-assumptions.mjs';
 
 const ROOT = process.cwd();
 const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8')
@@ -34,14 +35,38 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8')
   .replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, '')
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');   // JSX comments too
 
-const PAGE = 'app/admin/research/[projectId]/page.tsx';
+// ── THE NOTE MOVED, AND THIS FOLLOWED IT ─────────────────────────────────────────────────────
+//
+// The upload stage was extracted into _sections/UploadStagePanel.tsx (B1a), so the note lives
+// there now and this check went red. Pointing it at the section ALONE would be weaker than what
+// it replaced: a section nothing mounts satisfies it just as well, and this note exists precisely
+// because a screen said nothing about which engine it starts.
+//
+// So `page` reads the SECTION for the content, and a separate assertion holds that the page still
+// mounts the section. Fifth guard today to follow an extraction; every one of those reds was the
+// guard working.
+const PAGE = 'app/admin/research/[projectId]/_sections/UploadStagePanel.tsx';
+const MOUNTER = 'app/admin/research/[projectId]/page.tsx';
 const CSS = 'app/admin/styles/AdminResearch.css';
 
 describe('the project page says which engine its button starts', () => {
-  const page = read(PAGE);
+  const page = read(PAGE);   // `read` already strips comments — see its definition above.
+
+  it('the page still mounts the section that holds it', () => {
+    expect(read(MOUNTER)).toMatch(/<UploadStagePanel\s/);
+  });
 
   it('renders the note', () => {
-    expect(page).toContain('research-pipeline-note');
+    // ── `toContain('research-pipeline-note')` WAS NOT ENOUGH ─────────────────────────────────────
+    //
+    // The button inside the note carries `research-pipeline-note__link`, which CONTAINS that
+    // string. So deleting the class from the note's own `<div>` left the assertion passing on the
+    // link's class instead — the note would render unstyled and this would stay green.
+    //
+    // Exactly the flaw the county-check guard had (C2), where `research-modal__county-note`
+    // matched while the `--warn` variant had been renamed away. Caught by mutation both times; the
+    // fix both times is to assert the attribute, not a substring of it.
+    expect(page).toContain('className="research-pipeline-note"');
     expect(page).toContain('role="note"');
   });
 
@@ -54,7 +79,13 @@ describe('the project page says which engine its button starts', () => {
 
   it('points at the path that CAN do those things', () => {
     // Saying "not here" without saying "there" leaves somebody stuck.
-    expect(page).toContain('/admin/research/pipeline');
+    //
+    // The extraction split this in two on purpose: the section renders the button, the page owns
+    // where it goes. So both halves are asserted — a button with no destination and a destination
+    // with no button each leave the operator exactly as stuck as before.
+    expect(page, 'the section should offer the way out').toContain('onClick={onUseBatchJob}');
+    expect(page).toContain('Use a batch job');
+    expect(read(MOUNTER), 'and the page should say where it goes').toContain('/admin/research/pipeline');
   });
 
   it('is styled — an unstyled note is a paragraph nobody reads', () => {

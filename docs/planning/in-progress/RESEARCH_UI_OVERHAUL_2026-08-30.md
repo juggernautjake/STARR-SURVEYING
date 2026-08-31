@@ -260,6 +260,45 @@ and the G9 guard, from two directions.
 
 **Remaining under B1a:** `RunControls`, `DocumentsSummary`, `AnalysisSection` — the three big
 ones. Same shape each time: move, compare against `HEAD`, assert the page still mounts it.
+### B1a — fifth extraction: `_sections/UploadStagePanel.tsx` — SHIPPED 2026-08-31
+
+Stage 1, where documents go in and the property is described. 61 lines out; **3,569 → 3,526**.
+Five sections extracted; the page is **154 lines lighter** than when B2 started.
+
+The two panels shared one reload — both inlined `() => { loadDocuments(); loadProject(); }` — so
+they now take one `onDocumentsChanged`. Two copies of one reload is how they drift into reloading
+different things.
+
+51 normalised lines compared byte-for-byte against `HEAD`.
+
+### The guard that moved with it was passing vacuously — and had been
+
+`pipeline-note-is-present` protects the sentence telling an operator this button starts the
+**in-app** analysis and cannot buy a document. It followed the note into the section, and a
+mutation deleting `className="research-pipeline-note"` from the note's own `<div>` **still
+passed**.
+
+Not a comment problem — that file already strips comments. The assertion was
+`toContain('research-pipeline-note')`, and the button inside the note carries
+`research-pipeline-note__link`, which CONTAINS that string. The note could render completely
+unstyled with the check green.
+
+**Exactly the flaw C2 found in the county-check guard**, where `research-modal__county-note`
+matched while the `--warn` variant had been renamed away. Caught by mutation both times, and the
+fix both times is to assert the attribute rather than a substring of it.
+
+I also added a comment-stripper to that guard before realising it already had one — removed, and
+the real cause recorded instead. A wrong diagnosis left in place as a "fix" is worse than the bug,
+because the next reader trusts it.
+
+### Two probe bugs in one test, both caught by absurd answers
+
+The ordering check asked where four things appear in the section. `DocumentUploadPanel` matched
+the IMPORT at the top, so the panels appeared to precede the header; then
+`research-pipeline-note` matched the section's own header COMMENT. Eighth guard today to trip over
+the house style of long comments — neither was noticed by reading, only by the numbers being
+impossible.
+
 ### B1a — fourth extraction: `_sections/ResearchStagePanel.tsx` — SHIPPED 2026-08-31
 
 Stage 2, the screen an operator watches while a run is going. 52 lines out; **3,586 → 3,569**.
