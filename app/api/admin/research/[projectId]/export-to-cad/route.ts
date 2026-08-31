@@ -31,15 +31,29 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const projectId = extractProjectId(req);
   if (!projectId) return NextResponse.json({ error: 'Project ID required' }, { status: 400 });
 
-  // 1. Verify project exists and retrieve display metadata
+  // ── 1. Verify project exists and retrieve display metadata ────────────────────────────────────
+  //
+  // This selected `address` and `owner_name`. `research_projects` has NEITHER — the address column
+  // is `property_address`, and there is no owner column on the table at all. PostgREST fails the
+  // whole query when a select names a column that does not exist, so `projError` was always set and
+  // **this route has returned 404 "Project not found" for every project ever exported.**
+  //
+  // The message is what made it survive: a 404 saying the project is missing reads as a bad id or a
+  // deleted record, not as a broken query. Somebody chasing it would go looking at the project.
+  //
+  // `owner_name` was never used either — only `address` and `parcel_id` reach the title block below
+  // — so it is dropped rather than mapped to something.
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, address, parcel_id, owner_name')
+    .select('id, property_address, parcel_id')
     .eq('id', projectId)
     .single();
 
   if (projError || !project) {
-    return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    return NextResponse.json(
+      { error: 'Project not found', detail: projError?.message ?? null },
+      { status: 404 },
+    );
   }
 
   // 2. Fetch the most recent rendered drawing
@@ -85,7 +99,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
 
   // 4. Build a human-friendly project name for the title block
   const projectLabel =
-    [project.address, project.parcel_id].filter(Boolean).join(' — ') ||
+    [project.property_address, project.parcel_id].filter(Boolean).join(' — ') ||
     `Research Project ${projectId.slice(0, 8)}`;
 
   // 5. Convert to CAD document

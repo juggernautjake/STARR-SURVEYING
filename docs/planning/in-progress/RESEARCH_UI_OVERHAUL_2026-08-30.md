@@ -777,6 +777,51 @@ unnoticed. That mutation survived the first pass.
 
 **A structural check that cannot fail is worse than no check — it is a green light.**
 
+## G5 — Every share link has returned 404 for its entire life (2026-08-31)
+
+G4 guarded the columns research code WRITES. The read side had the same exposure and worse
+consequences: PostgREST fails the **whole query** when a select names a column that does not
+exist, so the caller gets no row at all. Five instances, and the damage depended entirely on how
+each caller treated the error.
+
+| Route | Asked for | What the user saw |
+|---|---|---|
+| `/api/share/[token]` | `legal_description`, `confidence_score`, `boundary_summary` | **404 on every share link** |
+| `export-to-cad` | `address`, `owner_name` | **"Project not found" for every project** |
+| self-heal proposals, sweep, cron | `name` on a table whose column is `display_name` | every proposal listed **without its vendor** |
+
+**The share link is the one surface a CUSTOMER sees**, which is the worst place for a silent
+break. And `export-to-cad` survived because of its error message: a 404 saying *"Project not
+found"* reads as a bad id or a deleted record, so anyone chasing it goes looking at the project
+rather than at the query.
+
+### What the columns actually are
+
+- `address` → **`property_address`**. `owner_name` does not exist on the table at all, and was
+  never used — only the address and parcel id reach the CAD title block — so it is dropped rather
+  than mapped to a guess.
+- `legal_description` → **`legal_description_summary`**, aliased so the share page's response
+  shape is unchanged.
+- `confidence_score` belongs to **`drawing_elements`**, not to a project.
+- **`boundary_summary` is defined nowhere at all** — invented, and read only by the share route
+  and its page.
+
+The last two are dropped rather than sourced from somewhere plausible. Both are optional and
+already guarded on the share page, so their absence is handled — where inventing a source would
+not be. They are also removed from the response builders: forwarding `undefined` while *looking*
+like it carries a value is how the next reader concludes the data exists and hunts for why it is
+blank.
+
+**Three copies of the vendor bug.** The first sweep deduplicated by `table.column` and showed one;
+the guard, which does not, found it in the proposals route, the sweep route AND the cron route.
+
+The guard now covers reads as well as writes, with the same self-check — it must SEE a select for
+a column that does not exist — plus two false-positive probes: an alias
+(`legal_description:legal_description_summary`, which is the fix for this very bug and must not
+read as a new defect) and an embedded resource. The embedded-resource skip is documented as
+**redundant rather than load-bearing**, because a mutation proved the name-shape test already
+rejects those fragments.
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two

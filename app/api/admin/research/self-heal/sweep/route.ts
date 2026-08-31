@@ -119,7 +119,10 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
       ? supabaseAdmin.from('research_counties').select('id, name').in('id', countyIds)
       : { data: [], error: null } as const,
     vendorIds.length > 0
-      ? supabaseAdmin.from('research_data_vendors').select('id, name').in('id', vendorIds)
+      // `display_name`, not `name` — this table has no `name` column, so PostgREST failed the whole
+      // query and the vendor map below was always empty. Third copy of the same line, across the
+      // proposals route, the cron route and here.
+      ? supabaseAdmin.from('research_data_vendors').select('id, display_name').in('id', vendorIds)
       : { data: [], error: null } as const,
   ]);
   const countyName = new Map<string, string>();
@@ -127,8 +130,8 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
     countyName.set(c.id, c.name);
   }
   const vendorName = new Map<string, string>();
-  for (const v of (vendors.data ?? []) as Array<{ id: string; name: string }>) {
-    vendorName.set(v.id, v.name);
+  for (const v of (vendors.data ?? []) as Array<{ id: string; display_name: string }>) {
+    vendorName.set(v.id, v.display_name);
   }
 
   // 3. Pull the active canary per adapter so we can fingerprint-compare

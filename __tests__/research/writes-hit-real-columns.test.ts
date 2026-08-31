@@ -237,6 +237,106 @@ describe('the check can fail', () => {
   });
 });
 
+// ── The READ side ───────────────────────────────────────────────────────────────────────────────
+//
+// A `.select()` naming a column that does not exist is worse than a bad write: PostgREST fails the
+// WHOLE query, so the caller gets no row at all. Three were found on 2026-08-31, and the damage
+// depended entirely on how each caller treated the error:
+//
+//   · `/api/share/[token]` asked for `legal_description`, `confidence_score` and
+//     `boundary_summary`. None exists on research_projects. **Every share link has returned 404 for
+//     its entire life** — the one surface a CUSTOMER sees.
+//   · `export-to-cad` asked for `address` and `owner_name`. Neither exists. It returned
+//     **"Project not found"** for every project, which reads as a bad id rather than a broken query
+//     and is why it survived.
+//   · the self-heal proposals list asked for `name` on a table whose column is `display_name`, and
+//     destructured the error away — so it silently showed every proposal without its vendor.
+
+/** `.select('a, b, alias:col')` immediately after `.from('research_…')`. */
+function badSelects(cols: Map<string, Set<string>>, files: string[]): Finding[] {
+  const found: Finding[] = [];
+  for (const file of files) {
+    const raw = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    for (const m of raw.matchAll(/\.from\(\s*['"`](research_[a-z0-9_]+)['"`]\s*\)\s*(?:\r?\n\s*)?\.select\(\s*(['"`])([^'"`]*)\2/g)) {
+      const known = cols.get(m[1]);
+      if (!known) continue;
+      const list = m[3];
+      // `*` selects everything. The `(` skip is for an embedded resource — `other_table(a, b)` is a
+      // join, not a column — and is REDUNDANT rather than load-bearing: the name-shape test below
+      // already rejects `other_table(a` and `b)` because they are not identifiers. Removing it
+      // changes no result, which a mutation confirmed. Kept because the intent is not obvious from
+      // that regex, and the next person adding a join should find the reason here rather than
+      // rediscover it.
+      if (list.trim() === '*' || list.includes('(')) continue;
+      for (const part of list.split(',')) {
+        // `alias:column` — the COLUMN is what the database must have.
+        const name = part.trim().split(':').pop()!.trim();
+        if (!name || name === '*' || !/^[a-z_][a-z0-9_]*$/i.test(name)) continue;
+        if (!known.has(name.toLowerCase())) {
+          found.push({ file, table: m[1], key: name, line: raw.slice(0, m.index!).split('\n').length });
+        }
+      }
+    }
+  }
+  return found;
+}
+
+describe('every research select names a real column', () => {
+  it('SEES a select for a column that does not exist', () => {
+    // Same control as the write side, for the same reason.
+    const code = `await db.from('research_runs').select('id, totally_fake_col, status');`;
+    const tmp = path.join(ROOT, 'lib/research/__select_probe_check__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badSelects(COLUMNS, ['lib/research/__select_probe_check__.ts']).map((h) => h.key))
+        .toContain('totally_fake_col');
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('does not flag an alias — the COLUMN is what must exist', () => {
+    // `legal_description:legal_description_summary` renames on the way out. Flagging the alias
+    // would have made the fix for the share-link break look like a new defect.
+    const code = `await db.from('research_projects').select('id, legal_description:legal_description_summary');`;
+    const tmp = path.join(ROOT, 'lib/research/__select_probe_alias__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badSelects(COLUMNS, ['lib/research/__select_probe_alias__.ts'])).toEqual([]);
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('does not flag an embedded resource — `documents(id, name)` is a join, not a column', () => {
+    // No research select uses one TODAY, so removing this skip changes nothing and the mutation
+    // survives. It is still worth pinning: the first `.select('a, other_table(b)')` written here
+    // would otherwise be reported as two missing columns, and the report would be wrong in the
+    // direction that sends somebody to rename working code.
+    const code = `await db.from('research_projects').select('id, research_documents(id, file_type)');`;
+    const tmp = path.join(ROOT, 'lib/research/__select_probe_embed__.ts');
+    fs.writeFileSync(tmp, code);
+    try {
+      expect(badSelects(COLUMNS, ['lib/research/__select_probe_embed__.ts'])).toEqual([]);
+    } finally {
+      fs.unlinkSync(tmp);
+    }
+  });
+
+  it('has no select naming a column the seeds do not define', () => {
+    const bad = badSelects(COLUMNS, FILES);
+    const lines = [...new Set(bad.map((b) => `${b.table}.${b.key}  (${b.file}:${b.line})`))];
+    expect(
+      lines,
+      lines.length
+        ? 'PostgREST fails the WHOLE query when a select names a column that does not exist, so the '
+          + 'caller gets no row — which surfaces as "not found", or as an empty list, depending only '
+          + `on how the caller treats the error:\n  ${lines.join('\n  ')}`
+        : '',
+    ).toEqual([]);
+  });
+});
+
 describe('every research write hits a real column', () => {
   it('has no write to a column the seeds do not define', () => {
     const bad = badWrites(COLUMNS, FILES);
