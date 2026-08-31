@@ -37,6 +37,7 @@ const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
  *
  *  Was a local `2.7778` labelled "(exact)", which it is not — see `survey-units.ts`. */
 import { VARAS_TO_US_SURVEY_FEET as VARAS_TO_FEET } from './survey-units.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 /** Valid values for the call status field coming from AI synthesis or reconciliation. */
 const VALID_CALL_STATUSES = ['confirmed', 'conflict', 'text_only', 'unresolved'] as const;
@@ -448,7 +449,7 @@ export class AIPlatAnalyzer {
       const response = await client.messages.create({
         model:      AI_MODEL,
         max_tokens: 8192,
-        temperature: 0,
+        ...samplingFor(AI_MODEL),
         messages: [{ role: 'user', content: prompt }],
       });
 

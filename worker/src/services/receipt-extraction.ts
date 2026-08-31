@@ -38,6 +38,7 @@ import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 // R4b's last entry. This batch has no research run to belong to — see `recordOpsAiCall`, which gives
 // it its own accounting key rather than borrowing a project id it would misattribute.
 import { recordOpsAiCall, priceCall } from '../infra/usage.js';
+import { samplingFor } from '../infra/model-sampling.js';
 // ── THE PROMPT AND THE PARSER LIVE IN `-core` NOW (2026-08-11) ────────────────────────────────────
 //
 // Not a tidy-up. The web app has to be able to run this same extraction — on Vercel nothing runs the
@@ -249,7 +250,7 @@ async function processOne(
     const response = await client.messages.create({
       model: VISION_MODEL,
       max_tokens: MAX_TOKENS,
-      temperature: 0,
+      ...samplingFor(VISION_MODEL),
       system: EXTRACTION_PROMPT,
       messages: [
         {

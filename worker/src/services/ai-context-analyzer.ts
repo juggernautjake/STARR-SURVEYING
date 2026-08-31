@@ -31,6 +31,7 @@ import type { DeedAnalysisResult } from './ai-deed-analyzer.js';
 import type { HarvestResult } from '../types/document-harvest.js';
 import type { PipelineLogger } from '../lib/logger.js';
 import type { ReconciliationResult } from './geo-reconcile.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Constants ─────────────────────────────────────────────────────────────
 
@@ -298,7 +299,7 @@ export class AIContextAnalyzer {
     const response = await client.messages.create({
       model:      AI_MODEL,
       max_tokens: 4096,
-      temperature: 0,
+      ...samplingFor(AI_MODEL),
       messages: [{ role: 'user', content: prompt }],
     });
 

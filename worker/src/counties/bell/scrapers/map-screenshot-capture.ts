@@ -24,6 +24,7 @@ import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import { recordAmbientAiCall } from '../../../infra/usage.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { acquireBrowser } from '../../../lib/browser-factory.js';
+import { samplingFor } from '../../../infra/model-sampling.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -159,7 +160,7 @@ async function ocrVerifyPage(
     const response = await client.messages.create({
       model: OCR_VERIFY_MODEL,
       max_tokens: OCR_VERIFY_MAX_TOKENS,
-      temperature: 0,
+      ...samplingFor(OCR_VERIFY_MODEL),
       messages: [{
         role: 'user',
         content: [

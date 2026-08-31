@@ -35,6 +35,7 @@ const AI_MODEL = process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6';
  *  `survey-units.ts` for the full list and why a rounded vara is inconsistent with a platform that
  *  distinguishes the two feet in the seventh figure. */
 import { VARAS_TO_US_SURVEY_FEET as VARAS_TO_FEET } from './survey-units.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Metadata extraction prompt ────────────────────────────────────────────
 
@@ -405,7 +406,7 @@ export class AIDeedAnalyzer {
       const response = await client.messages.create({
         model:      AI_MODEL,
         max_tokens: 4096,
-        temperature: 0,
+        ...samplingFor(AI_MODEL),
         messages: [{
           role: 'user',
           content: `${DEED_METADATA_PROMPT}\n\n=== DEED TEXT ===\n${text.substring(0, 15000)}`,

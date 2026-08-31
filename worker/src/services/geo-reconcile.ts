@@ -27,6 +27,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { recordAmbientAiCall } from '../infra/usage.js';
 import type { ExtractedBoundaryData, BoundaryCall } from '../types/index.js';
 import type { PipelineLogger } from '../lib/logger.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -340,7 +341,7 @@ async function callClaudeVision(
       const response = await client.messages.create({
         model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
         max_tokens: maxTokens,
-        temperature: 0,
+        ...samplingFor(process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6'),
         messages: [{
           role: 'user',
           content: [
@@ -481,7 +482,7 @@ export async function analyzeVisualGeometry(
     const response = await client.messages.create({
       model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
       max_tokens: 8192,
-      temperature: 0,
+      ...samplingFor(process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6'),
       system: VISUAL_GEOMETRY_SYSTEM,
       messages: [{
         role: 'user',
@@ -858,7 +859,7 @@ Format as a structured report for surveyor review.`;
       const response = await client.messages.create({
         model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
         max_tokens: 16000,
-        temperature: 0,
+        ...samplingFor(process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6'),
         messages: [{ role: 'user', content: promptContent }],
       });
 

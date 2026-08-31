@@ -21,6 +21,7 @@ import type {
 } from '../types/index.js';
 import type { ReconciliationResult, GeometryConflict } from './geo-reconcile.js';
 import type { PipelineLogger } from '../lib/logger.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -199,7 +200,7 @@ async function callClaude(
       const response = await client.messages.create({
         model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
         max_tokens: maxTokens,
-        temperature: 0,
+        ...samplingFor(process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6'),
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       });

@@ -17,6 +17,7 @@
 import type { PipelineLogger } from '../lib/logger.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { recordAmbientAiCall } from '../infra/usage.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -391,7 +392,7 @@ async function extractSegment(
     const response = await client.messages.create({
       model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
       max_tokens: 8192,
-      temperature: 0,
+      ...samplingFor(process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6'),
       system: EXTRACTION_PROMPT,
       messages: [{ role: 'user', content: userContent }],
     });

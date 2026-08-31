@@ -398,39 +398,29 @@ that hour went.
 | Documents are captured strictly **serially** | the big one | ☐ **E5d** |
 | **Bell CAD unreachable** — `fetch failed`, `Session acquisition failed`, `page.goto: Timeout 30000ms`, then 3 × 26s keyword retries | **213s to admit it** | ☐ **E5e** |
 
-#### E5a — thread `samplingFor()` through the remaining 13 call sites ☐
+#### E5a — ~~thread samplingFor() through the remaining call sites~~ ✅ **SHIPPED 2026-08-30**
 
-`worker/src/infra/model-sampling.ts` exists and is proven. The other 13 literal `temperature: 0`
-sites will 400 the moment `modelFor()` hands them a Sonnet 5 / Opus 5 model. **Not a codemod** — the
-model is chosen at runtime, so each site needs the value in scope before spreading.
+18 sites, not the 13 first counted. All now spread `samplingFor(model)` instead of a literal.
 
-#### E5f — ⚠ THE SCRAPER WAS NEVER POLITE ✅ **FIXED 2026-08-30 — and it reorders E5d**
+**Most were latent rather than live, and the difference is worth recording.** Doppler has
+`RESEARCH_AI_MODEL = claude-sonnet-4-5-20250929`, which ACCEPTS temperature — so the fifteen sites
+reading that variable were fine today and would have broken the moment anyone pointed it at a newer
+model, which is the natural thing to do. The live ones are the `modelFor()` sites: the router hands
+out `mid: claude-sonnet-5` and `top: claude-opus-5`, and **both reject temperature**. That is what
+killed Stage1D.
 
-Found while starting the concurrency work, with a control:
+**A codemod mistake, caught by tsc.** The script also rewrote three entries in `ai/prompt-registry.ts`,
+which is not a call site at all — it is DATA, where `temperature` is a required `number` field on
+stored PromptVersion records. tsc rejected the `number | undefined`, the three were reverted, and it
+was then verified that nothing reads `.temperature` off those records, so none of them reaches the
+API. A guard that swept them anyway would have been enforcing a rule against a config file.
 
-| | |
-|---|---|
-| `withPoliteness` callers in `services/bell-clerk.ts` — the file that drives a browser at county portals | **0** |
-| Its only consumer anywhere | `infra/site-health-monitor.ts` |
+The sweep is now pinned by a test that walks every worker source, excludes that one config file by
+name with the reason attached, and carries a CONTROL asserting the router still hands out models
+that reject the parameter — if the tiers ever move to 4.6, the rule stops biting and should be
+re-read rather than left quietly passing. Mutation-tested: reverting one site fails it.
 
-`infra/politeness.ts` was written **for this file**. Its own header: *"These are small government
-servers. The fastest way to lose a county is to look like a load test on a Tuesday morning."* It was
-wired to the health checker and to nothing that scrapes. One owner run made **~40 back-to-back
-navigations** against `bell.tx.publicsearch.us` with no pacing at all.
-
-Nothing failed, which is exactly why nobody noticed: **the cost of this defect is not an error, it
-is a ban**, and it arrives long after the code that earned it.
-
-All 11 navigations now go through a `politeGoto` helper that paces per host. The helper carries the
-deadlock warning: politeness serialises per host, so a caller that wraps a whole capture *and* lets
-it navigate would wait, inside the lock, for the lock.
-
-**Why this reorders E5d.** Parallel capture against an unthrottled portal does not make a run faster
-so much as it raises the odds of losing the county — and a banned county is not a slow run, it is no
-run. Politeness had to land first. It also *changes what E5d can deliver*: pacing is **per host**,
-so concurrency now buys a great deal across **different** counties (a batch) and very little within
-one, because same-host requests still queue by design. E5d should be re-scoped to batch-level
-parallelism, not same-host document fan-out.
+Worker tsc 0 · worker suite **1,687 pass**.
 
 #### E5b / E5c / E5d — the concurrency the owner asked for ☐
 

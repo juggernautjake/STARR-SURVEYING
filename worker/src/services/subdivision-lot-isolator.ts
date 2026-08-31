@@ -16,6 +16,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { recordAmbientAiCall } from '../infra/usage.js';
 import type { PipelineLogger } from '../lib/logger.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ async function detectLotRegions(
     const response = await client.messages.create({
       model: AI_MODEL,
       max_tokens: 4096,
-      temperature: 0,
+      ...samplingFor(AI_MODEL),
       messages: [{
         role: 'user',
         content: [
@@ -238,7 +239,7 @@ async function extractIsolatedLot(
     const response = await client.messages.create({
       model: AI_MODEL,
       max_tokens: 4096,
-      temperature: 0,
+      ...samplingFor(AI_MODEL),
       system: LOT_EXTRACTION_PROMPT,
       messages: [{
         role: 'user',

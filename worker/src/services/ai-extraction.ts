@@ -9,6 +9,7 @@ import { recordAmbientAiCall } from '../infra/usage.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
 import { checkAndFlagCreditDepletion, isCreditDepleted, AnthropicCreditDepletedError as SharedCreditError } from '../lib/credit-guard.js';
 import { acquireBrowser } from '../lib/browser-factory.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -171,7 +172,7 @@ async function callClaudeWithRetry(
       const response = await client.messages.create({
         model: AI_MODEL,
         max_tokens: maxTokens,
-        temperature: 0,
+        ...samplingFor(AI_MODEL),
         system: systemPrompt,
         messages: messages as Parameters<typeof client.messages.create>[0]['messages'],
       });

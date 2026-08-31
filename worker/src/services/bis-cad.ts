@@ -13,6 +13,7 @@ import { getGlobalAiTracker } from '../lib/ai-usage-tracker.js';
 import { normalizeAddress } from './address-utils.js';
 import { acquireBrowser } from '../lib/browser-factory.js';
 import { hostCircuit, tripHost } from '../infra/host-circuit.js';
+import { samplingFor } from '../infra/model-sampling.js';
 
 // ── BIS Consultants eSearch Configuration ──────────────────────────────────
 
@@ -1556,7 +1557,7 @@ async function extractFromScreenshot(
     const response = await client.messages.create({
       model: process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6',
       max_tokens: 8192,
-      temperature: 0,
+      ...samplingFor(process.env.RESEARCH_AI_MODEL ?? 'claude-sonnet-4-6'),
       messages: [
         {
           role: 'user',
@@ -2028,7 +2029,7 @@ async function generateAiAddressVariants(
     const response = await client.messages.create({
       model: modelFor('extract').model,
       max_tokens: 1024,
-      temperature: 0,
+      ...samplingFor(modelFor('extract').model),
       messages: [{
         role: 'user',
         content: `I'm searching a Texas county CAD (Central Appraisal District) database for a property at this address:
