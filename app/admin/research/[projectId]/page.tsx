@@ -43,6 +43,8 @@ import RunConsoleBar from '../components/RunConsoleBar';
 import RunDiffPanel from '../components/RunDiffPanel';
 // What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
 import ReportCardPanel from '../components/ReportCardPanel';
+import ProjectHeader from './_sections/ProjectHeader';
+import ProjectStats from './_sections/ProjectStats';
 // Choosing what goes to the crew (research plan R25).
 import PacketBuilderPanel from '../components/PacketBuilderPanel';
 // The neighbours, and the opt-in path to researching one properly (research plan R31-R33).
@@ -1553,43 +1555,11 @@ export default function ResearchProjectPage() {
           duplicate markup. */}
 
       {/* Header */}
-      <div className="research-page__header">
-        <div>
-          <h1 className="research-page__title">{project.name}</h1>
-          {project.property_address && (
-            <div style={{ color: 'var(--theme-fg-secondary, #374151)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-              <MapPin size={15} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />{project.property_address}
-              {project.county && (
-                <span className="research-county-badge">
-                  {project.county} County{project.state ? `, ${project.state}` : ''}
-                </span>
-              )}
-              {!project.county && project.state && `, ${project.state}`}
-            </div>
-          )}
-          {project.description && (
-            <div style={{ color: 'var(--theme-fg-secondary, #4B5563)', fontSize: '0.85rem', marginTop: '0.25rem' }}>
-              {project.description}
-            </div>
-          )}
-        </div>
-        <div className="research-page__actions" style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={openEditProject}
-            style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #374151)' }}
-            aria-label="Edit project details"
-          >
-            <Pencil size={14} style={{ verticalAlign: "-2px", marginRight: "0.35rem" }} />Edit Details
-          </button>
-          <button
-            onClick={handleArchiveProject}
-            style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626' }}
-            aria-label="Archive project"
-          >
-            Archive
-          </button>
-        </div>
-      </div>
+      <ProjectHeader
+        project={project}
+        onEdit={openEditProject}
+        onArchive={handleArchiveProject}
+      />
 
       {/* 4-Stage Pipeline Stepper — clicking a completed stage reverts to it */}
       <PipelineStepper
@@ -1713,55 +1683,11 @@ export default function ResearchProjectPage() {
           activate, and screen readers announce the destination.
           The Documents tile pushes the sub-route; the rest jump
           to the review summary panel + open the matching tab. */}
-      <div className="research-hub__stats">
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => router.push(`/admin/research/${projectId}/documents`)}
-          aria-label={`${stats.document_count} documents — open documents library`}
-        >
-          <div className="research-hub__stat-value">{stats.document_count}</div>
-          <div className="research-hub__stat-label">Documents</div>
-        </button>
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => scrollToReview('artifacts')}
-          disabled={stats.data_point_count === 0}
-          aria-label={`${stats.data_point_count} data points — open artifacts tab`}
-        >
-          <div className="research-hub__stat-value">{stats.data_point_count}</div>
-          <div className="research-hub__stat-label">Data Points</div>
-        </button>
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => scrollToReview('discrepancies')}
-          disabled={stats.discrepancy_count === 0}
-          aria-label={`${stats.discrepancy_count} discrepancies — open discrepancies tab`}
-        >
-          <div className="research-hub__stat-value">{stats.discrepancy_count}</div>
-          <div className="research-hub__stat-label">Discrepancies</div>
-        </button>
-        <button
-          type="button"
-          className="research-hub__stat research-hub__stat--button"
-          onClick={() => scrollToReview('discrepancies')}
-          disabled={stats.discrepancy_count === 0}
-          aria-label={
-            stats.discrepancy_count > 0
-              ? `${stats.resolved_count} of ${stats.discrepancy_count} discrepancies resolved — open discrepancies tab`
-              : 'No discrepancies to resolve yet'
-          }
-        >
-          <div className="research-hub__stat-value">
-            {stats.discrepancy_count > 0
-              ? `${stats.resolved_count}/${stats.discrepancy_count}`
-              : '-'}
-          </div>
-          <div className="research-hub__stat-label">Resolved</div>
-        </button>
-      </div>
+      <ProjectStats
+        stats={stats}
+        onOpenDocuments={() => router.push(`/admin/research/${projectId}/documents`)}
+        onScrollToReview={scrollToReview}
+      />
 
       {/* ════════════════════════════════════════════════════════════════
           STAGE 1: UPLOAD & PROVISION

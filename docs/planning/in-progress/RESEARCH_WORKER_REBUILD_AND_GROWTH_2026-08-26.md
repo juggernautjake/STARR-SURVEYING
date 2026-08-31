@@ -470,7 +470,92 @@ re-read rather than left quietly passing. Mutation-tested: reverting one site fa
 
 Worker tsc 0 · worker suite **1,687 pass**.
 
-#### E5b / E5c / E5d — the concurrency the owner asked for ☐
+#### E5b / E5c / E5d — the concurrency the owner asked for
+
+**E5b and E5c were already shipped** — checked against the live code on 2026-08-31 rather than
+assumed. `bell-clerk.ts` leases a pooled browser (`leaseBrowser`) instead of launching per
+instrument, and `fetchDocumentImages` takes a `knownViewerUrl` and navigates straight to
+`/doc/<id>` when the search result supplied one. Both landed with the 2026-08-30 politeness work and
+the doc simply was not updated. **Fifth parked premise in this repository to be stale when checked.**
+
+#### E5d-prep — ~~A Chromium leaked every time two leases started together~~ SHIPPED 2026-08-31
+
+Scoping E5d meant asking whether the browser pool is safe to use concurrently. It was not.
+
+```
+A: pool is null → await acquireBrowser…        (suspends)
+B: pool is null → await acquireBrowser…        (suspends)
+A: pool = {A}; current = A pool; refs = 1
+B: pool = {B}  ← overwrites A
+A: release() → refs 0, but pool !== current, so it returns early:
+   no idle timer is set and NOTHING ever closes A.
+```
+
+**A whole Chromium process, leaked, silently.** And not a future problem — `capacity.ts` allows six
+concurrent pipelines today, so two runs starting together already hit it. Measured on the pre-fix
+code: **five concurrent leases launched five browsers**, four unreachable, and the refcount read 1
+where it should have read 3. A wrong refcount is the second half of the damage: a browser closed
+under a live holder surfaces as "Target closed" a long way from its cause.
+
+**The existing lease tests could not have caught it.** `browser-lease.test.ts` awaits each lease
+before starting the next, so the interleaving never occurs; every assertion in it is correct and
+none could fail on this. The new file starts the leases with `Promise.all`, because the defect lives
+in the overlap and a test has to create one.
+
+Fixed with a single shared in-flight promise rather than a mutex — the second caller wants the
+RESULT of the launch, not a turn to repeat it. The slot is cleared on rejection too: leaving a
+rejected promise there would make one transient launch failure permanent, and the worker would never
+open a browser again until it restarted. That would be worse than the leak it replaced, so it has
+its own test.
+
+**Wiring E5d before this would have made a live leak routine**, which is the reason it was worth
+stopping for.
+
+#### E5d — ~~capture documents concurrently, BOUNDED~~ SHIPPED 2026-08-31
+
+The three subdivision capture loops in `counties/bell/scrapers/clerk-scraper.ts` — plats, deeds and
+"other" — now capture through `infra/bounded-map.ts` instead of one `await` per instrument.
+
+**The limit is politeness, and it is enforced in code.** `MAX_CONCURRENCY = 4`, default 3, and
+`RESEARCH_CAPTURE_CONCURRENCY` is *clamped* rather than trusted: `=50` is a plausible typo whose
+consequence — losing access to a county portal — never shows up in a test run. A config mistake
+should cost latency, not access. Set it to `1` to restore strictly-sequential behaviour if a county
+starts rate-limiting.
+
+**Order and per-item errors were the two things that had to survive.** Results come back in INPUT
+order, because `documents` is read by a surveyor and completion order would reshuffle a report by
+whichever county page answered first. And one failure is not a batch failure: `Promise.all` rejects
+on the first error and abandons the rest, which would turn a one-document problem into a
+no-documents problem. The old per-item `try/catch` behaviour is preserved exactly, and the failure
+log keeps the same wording.
+
+**The owner-search loop was deliberately NOT converted.** It carries
+`if (documents.length >= maxDocs) break` — a cap that depends on how many documents have been
+pushed so far, so making it concurrent changes *which* documents get captured before the cap trips.
+That is a behaviour change dressed as a performance change. It needs the filter pass separated from
+the capture pass first, in its own slice. A test pins the reason, so if that cap ever goes the
+exclusion stops being justified and fails loudly.
+
+**A guard caught the new env var undocumented** within a minute of writing it —
+`env-example-documents-every-key` — which is exactly its job.
+
+**Mutation-tested six ways, and the most dangerous one survived the first pass.** Replacing the
+`mapBounded` call inside `captureInstruments` with `Promise.all(instruments.map(…))` wrapped in
+per-item try/catch keeps input order, keeps per-item errors, passes every other assertion — and
+fires every request at the county at once, which is the precise thing this slice exists to prevent.
+The original assertion was a regex that spelled `Instruments` with a capital I while the mutation
+used the lowercase parameter name. It now asserts the helper body POSITIVELY — one call, and it is
+the bounded one — rather than trying to enumerate the ways it could be wrong.
+
+**Expected effect.** E5b, E5c and E5d are now all in. The doc estimated an hour-long run dropping to
+roughly 12–18 minutes with all three. That number is a projection, not a measurement: the next real
+run is what confirms it, and nothing in this repository can.
+
+Now unblocked. The constraint is politeness, not CPU: `capacity.ts` caps concurrent runs because
+*"these are small government servers, and the fastest way to lose access to a county portal is to
+look like a load test"* — 3-4 per host, never unbounded. **A run that gets the firm banned from Bell
+County is not a faster run.** The three sequential `await fetchDocumentImages` loops in
+`counties/bell/scrapers/clerk-scraper.ts` are the targets.
 
 In order; each independently shippable.
 
@@ -2061,7 +2146,29 @@ Explored per the owner's ask. Ordered by value, and honest about which are specu
 **Not recommended:** using it to answer customer-facing questions directly. Search results are
 unverified by construction, and this firm's product is a licensed professional's assurance.
 
-### I4 — Turn Browserbase on, deliberately ☐ **the worker now exists — this is a pure decision as of 2026-08-29**
+### I4 — ~~Turn Browserbase on, deliberately~~ DONE 2026-08-31
+
+The owner set the credentials in Doppler and on the box. Verified live against
+`https://worker.starr-surveying.com/healthz` after the Docker rebuild:
+
+```json
+"browser": { "backend": "local", "browserbaseAdapters": ["cad"] },
+"warnings": []
+```
+
+**`backend=local` PLUS a non-empty adapter list is the intended shape** — the CAD adapter routes to
+Browserbase and everything else stays local and bills nothing. Four months of paying for zero
+sessions is over.
+
+The warning that had been read as "this cannot work" (*"BROWSER_BACKEND=local — no session can ever
+start"*) was **stale**: it outlived the promotion rule it described, was corrected in `5a9c02f97`,
+and the box was running an older image until the rebuild. A stale warning is worse than none —
+confidently wrong, and it costs exactly the time somebody spends redoing a step that was already
+right.
+
+**Still unproven, and it was always a hypothesis:** whether Browserbase actually makes
+`esearch.bellcad.org` reachable. The block may be fingerprint-based rather than geographic. One real
+run answers it; nothing in this repository can.
 
 You are paying for it, so the question is no longer whether to cancel but **which adapters should use
 it**. The per-adapter gate exists precisely so this is a decision rather than a global switch.

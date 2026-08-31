@@ -177,8 +177,59 @@ section per slice, each with a wiring test asserting the page mounts it:
 **Done:** behaviour identical; the route renders the same markup; each extraction is separately
 revertable.
 
-### B2 — Extract Overview ☐ *(now the first extraction under B1a)*
-### B3 — Extract Documents ☐
+### B2 — ~~First extraction~~ SHIPPED 2026-08-31 — `_sections/ProjectStats.tsx`
+
+The quick-stats grid: 49 lines out of `page.tsx`, **3,680 to 3,637**.
+
+**Chosen because it is the smallest honest one.** Four tiles, one object, two callbacks. A first
+extraction that has to reason about auto-save, CAD annotation state and the beforeunload handler is
+a first extraction that gets abandoned halfway.
+
+**Callbacks, not the router.** The original read `router.push` and `scrollToReview` directly.
+Passing `router` down would let the section navigate anywhere and would need a router to test; two
+named callbacks say exactly what it may do. It holds no state.
+
+**The markup was verified to have moved unchanged** — the 49 lines compared byte-for-byte against
+`HEAD`, with only the two inline handlers normalised into named callbacks. Not "looks the same":
+compared, mechanically, at extraction time.
+
+**Mutation-tested six ways, and TWO survived the first pass.** Both mattered:
+
+1. `{false && <ProjectStats ...}` passed the "is it rendered?" assertion — **the exact failure this
+   test file exists to catch.** A section that is imported, referenced, and never on screen is a
+   deletion with extra steps. The check now requires it to render unconditionally.
+2. `type="button"` to `type="submit"` passed a test that only counted `<button>` elements. It
+   changes nothing today, because these tiles sit outside a form — but the day one moves inside
+   one, a click meant to scroll submits the form, and the bug looks like the form misbehaving.
+
+**And the guard matched its own comment for the fifth time this month.** `ProjectStats.tsx`
+explains that the original read `router.push`, so an assertion forbidding `router.push` matched the
+sentence describing the rule. Fixed by reusing the hardened `stripComments` from
+`audit-starr-assumptions.mjs` — which has its own tests, including that it does not eat a URL —
+rather than writing a sixth ad-hoc stripper. It runs behind a control, since a stripper returning
+`''` would make every assertion after it vacuous.
+
+**Remaining under B1a:** `ProjectHeader`, `RunControls`, `DocumentsSummary`, `AnalysisSection`.
+Same shape each time: move, compare against `HEAD`, assert the page still mounts it.
+### B3 — ~~Second extraction~~ SHIPPED 2026-08-31 — `_sections/ProjectHeader.tsx`
+
+Title, address line, description and the two project-level actions. 37 lines out; **3,637 to 3,607**.
+
+**The inline hexes came across unchanged, on purpose.** `#D1D5DB`, `#FECACA` and `#DC2626` are
+inline here and tokens exist for all three. Tidying them in the same commit would turn the diff
+from *"these lines moved"* into *"these lines moved AND something changed"* — the shape a real
+regression hides in — and destroy the byte-for-byte comparison against `HEAD` that makes each
+extraction trustworthy. The inline-hex ratchet is per-file, so the count moves with the code and
+the total is unchanged; nothing is lost by tokenising in a separate pass.
+
+**B2's lesson carried forward.** The "renders it unconditionally" assertion was written into this
+slice from the start, because `{false && <ProjectHeader ...}` satisfies a naive is-it-rendered
+check while putting nothing on screen.
+
+The address line has two mutually exclusive branches — county-as-badge, or a bare state — and both
+are pinned, along with the case where neither is known. Collapsing them would print the state twice.
+
+Mutation-tested six ways; all six fail.
 ### B4 — Extract Boundary ☐
 ### B5 — Extract Report ☐
 

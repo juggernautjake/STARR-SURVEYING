@@ -40,6 +40,28 @@ import { BELL_ENDPOINTS, RATE_LIMITS, TIMEOUTS } from '../config/endpoints.js';
 import { DOCUMENT_TYPE_SCORES } from '../config/field-maps.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { withRetry } from '../utils/retry.js';
+import { mapBounded } from '../../../infra/bounded-map.js';
+
+/**
+ * Capture several instruments at once, politely (E5d).
+ *
+ * Returns images in INPUT order plus a parallel array of error messages, so the assembly loops
+ * below stay exactly as they were: index in, document out. Splitting images from errors rather
+ * than returning a discriminated union keeps those loops from having to branch on a shape.
+ *
+ * An empty list short-circuits, so captureImages === false costs nothing at all.
+ */
+async function captureInstruments(
+  instruments: readonly string[],
+  capture: (instrumentNumber: string) => Promise<string[]>,
+): Promise<{ images: Array<string[]>; errors: Array<string | null> }> {
+  if (instruments.length === 0) return { images: [], errors: [] };
+  const results = await mapBounded(instruments, (n) => capture(n));
+  return {
+    images: results.map((r) => (r.ok ? r.value : [])),
+    errors: results.map((r) => (r.ok ? null : (r.error instanceof Error ? r.error.message : String(r.error)))),
+  };
+}
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -664,23 +686,40 @@ async function searchClerkBySubdivision(
       return null;
     };
 
-    // Process plat instruments first (highest priority)
-    for (const instrNum of platInstruments) {
-      let pageImages: string[] = [];
-      if (captureImages) {
-        try {
-          progress(`  [subdivSearch] Capturing plat pages for ${instrNum}...`);
-          const pages = await fetchDocumentImages(instrNum, 15, logger);
-          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-          progress(`  [subdivSearch] ✓ Plat ${instrNum}: ${pageImages.length} pages captured`);
-          console.log(`[ClerkScraper] Subdivision plat ${instrNum}: ${pageImages.length} pages`);
-        } catch (imgErr) {
-          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
-          progress(`  [subdivSearch] ✗ Plat ${instrNum}: image capture failed: ${msg}`);
-          console.error(`[ClerkScraper] Subdivision plat ${instrNum}: image error: ${msg}`);
-        }
-      }
+    // ── E5d: capture first, BOUNDED; then assemble in order ────────────────────────
+    //
+    // Was one await fetchDocumentImages per instrument, strictly sequential — eleven documents
+    // meant eleven round trips end to end. captureInstruments runs a few at a time and returns
+    // the results in INPUT order, so the assembly loop below is unchanged and `documents` still
+    // reads plats, then deeds, then other.
+    //
+    // The limit is small BY POLICY, not by hardware. capacity.ts caps concurrent runs because
+    // "these are small government servers, and the fastest way to lose access to a county portal
+    // is to look like a load test" — that judgement applies inside a run too. A run that gets the
+    // firm banned from Bell County is not a faster run.
+    //
+    // Errors stay per-document: a failure is recorded against its instrument and the other
+    // captures continue, exactly as the per-item try/catch did before. Promise.all would have
+    // turned one unreachable document into zero documents.
+    const platCaptures = await captureInstruments(
+      captureImages ? platInstruments : [],
+      async (instrNum) => {
+        progress(`  [subdivSearch] Capturing plat pages for ${instrNum}...`);
+        const pages = await fetchDocumentImages(instrNum, 15, logger);
+        const imgs = pages.map(p => p.imageBase64).filter(Boolean);
+        progress(`  [subdivSearch] ✓ Plat ${instrNum}: ${imgs.length} pages captured`);
+        console.log(`[ClerkScraper] Subdivision plat ${instrNum}: ${imgs.length} pages`);
+        return imgs;
+      },
+    );
 
+    for (const [idx, instrNum] of platInstruments.entries()) {
+      const pageImages = captureImages ? (platCaptures.images[idx] ?? []) : [];
+      const capErr = platCaptures.errors[idx];
+      if (capErr) {
+        progress(`  [subdivSearch] ✗ Plat ${instrNum}: image capture failed: ${capErr}`);
+        console.error(`[ClerkScraper] Subdivision plat ${instrNum}: image error: ${capErr}`);
+      }
       // Get metadata from allDocuments if available
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
       documents.push({
@@ -698,23 +737,40 @@ async function searchClerkBySubdivision(
       });
     }
 
-    // Process deed instruments
-    for (const instrNum of deedInstruments) {
-      let pageImages: string[] = [];
-      if (captureImages) {
-        try {
-          progress(`  [subdivSearch] Capturing deed pages for ${instrNum}...`);
-          const pages = await fetchDocumentImages(instrNum, 10, logger);
-          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-          progress(`  [subdivSearch] ✓ Deed ${instrNum}: ${pageImages.length} pages captured`);
-          console.log(`[ClerkScraper] Subdivision deed ${instrNum}: ${pageImages.length} pages`);
-        } catch (imgErr) {
-          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
-          progress(`  [subdivSearch] ✗ Deed ${instrNum}: image capture failed: ${msg}`);
-          console.error(`[ClerkScraper] Subdivision deed ${instrNum}: image error: ${msg}`);
-        }
-      }
+    // ── E5d: capture first, BOUNDED; then assemble in order ────────────────────────
+    //
+    // Was one await fetchDocumentImages per instrument, strictly sequential — eleven documents
+    // meant eleven round trips end to end. captureInstruments runs a few at a time and returns
+    // the results in INPUT order, so the assembly loop below is unchanged and `documents` still
+    // reads plats, then deeds, then other.
+    //
+    // The limit is small BY POLICY, not by hardware. capacity.ts caps concurrent runs because
+    // "these are small government servers, and the fastest way to lose access to a county portal
+    // is to look like a load test" — that judgement applies inside a run too. A run that gets the
+    // firm banned from Bell County is not a faster run.
+    //
+    // Errors stay per-document: a failure is recorded against its instrument and the other
+    // captures continue, exactly as the per-item try/catch did before. Promise.all would have
+    // turned one unreachable document into zero documents.
+    const deedCaptures = await captureInstruments(
+      captureImages ? deedInstruments : [],
+      async (instrNum) => {
+        progress(`  [subdivSearch] Capturing deed pages for ${instrNum}...`);
+        const pages = await fetchDocumentImages(instrNum, 10, logger);
+        const imgs = pages.map(p => p.imageBase64).filter(Boolean);
+        progress(`  [subdivSearch] ✓ Deed ${instrNum}: ${imgs.length} pages captured`);
+        console.log(`[ClerkScraper] Subdivision deed ${instrNum}: ${imgs.length} pages`);
+        return imgs;
+      },
+    );
 
+    for (const [idx, instrNum] of deedInstruments.entries()) {
+      const pageImages = captureImages ? (deedCaptures.images[idx] ?? []) : [];
+      const capErr = deedCaptures.errors[idx];
+      if (capErr) {
+        progress(`  [subdivSearch] ✗ Deed ${instrNum}: image capture failed: ${capErr}`);
+        console.error(`[ClerkScraper] Subdivision deed ${instrNum}: image error: ${capErr}`);
+      }
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
       documents.push({
         instrumentNumber: instrNum,
@@ -731,25 +787,42 @@ async function searchClerkBySubdivision(
       });
     }
 
-    // Process other instruments (easements, dedications, ROW, agreements, etc.)
-    for (const instrNum of otherInstruments) {
-      let pageImages: string[] = [];
-      if (captureImages) {
-        try {
-          const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
-          const otherDocType = ref?.documentType ?? 'Other Document';
-          progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
-          const pages = await fetchDocumentImages(instrNum, 10, logger);
-          pageImages = pages.map(p => p.imageBase64).filter(Boolean);
-          progress(`  [subdivSearch] ✓ ${otherDocType} ${instrNum}: ${pageImages.length} pages captured`);
-          console.log(`[ClerkScraper] Subdivision ${otherDocType} ${instrNum}: ${pageImages.length} pages`);
-        } catch (imgErr) {
-          const msg = imgErr instanceof Error ? imgErr.message : String(imgErr);
-          progress(`  [subdivSearch] ✗ Other ${instrNum}: image capture failed: ${msg}`);
-          console.error(`[ClerkScraper] Subdivision other ${instrNum}: image error: ${msg}`);
-        }
-      }
+    // ── E5d: capture first, BOUNDED; then assemble in order ────────────────────────
+    //
+    // Was one await fetchDocumentImages per instrument, strictly sequential — eleven documents
+    // meant eleven round trips end to end. captureInstruments runs a few at a time and returns
+    // the results in INPUT order, so the assembly loop below is unchanged and `documents` still
+    // reads plats, then deeds, then other.
+    //
+    // The limit is small BY POLICY, not by hardware. capacity.ts caps concurrent runs because
+    // "these are small government servers, and the fastest way to lose access to a county portal
+    // is to look like a load test" — that judgement applies inside a run too. A run that gets the
+    // firm banned from Bell County is not a faster run.
+    //
+    // Errors stay per-document: a failure is recorded against its instrument and the other
+    // captures continue, exactly as the per-item try/catch did before. Promise.all would have
+    // turned one unreachable document into zero documents.
+    const otherCaptures = await captureInstruments(
+      captureImages ? otherInstruments : [],
+      async (instrNum) => {
+        const oref = allDocuments.find(d => d.instrumentNumber === instrNum);
+        const otherDocType = oref?.documentType ?? 'Other Document';
+        progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
+        const pages = await fetchDocumentImages(instrNum, 10, logger);
+        const imgs = pages.map(p => p.imageBase64).filter(Boolean);
+        progress(`  [subdivSearch] ✓ ${otherDocType} ${instrNum}: ${imgs.length} pages captured`);
+        console.log(`[ClerkScraper] Subdivision ${otherDocType} ${instrNum}: ${imgs.length} pages`);
+        return imgs;
+      },
+    );
 
+    for (const [idx, instrNum] of otherInstruments.entries()) {
+      const pageImages = captureImages ? (otherCaptures.images[idx] ?? []) : [];
+      const capErr = otherCaptures.errors[idx];
+      if (capErr) {
+        progress(`  [subdivSearch] ✗ Other ${instrNum}: image capture failed: ${capErr}`);
+        console.error(`[ClerkScraper] Subdivision other ${instrNum}: image error: ${capErr}`);
+      }
       const ref = allDocuments.find(d => d.instrumentNumber === instrNum);
       documents.push({
         instrumentNumber: instrNum,

@@ -1,5 +1,13 @@
 # Hours, payroll, and the money employees can see
 
+**Back in `pending/` — 2026-08-31.** Briefly moved to `in-progress/` and returned the same day
+on the owner's direction: *"I just want to build stuff that is related to the research software
+that researches properties."*
+
+Not abandoned, and not obsolete. `in-progress/` drives an automated slice loop, so a doc sitting
+there is a doc that gets worked; parking this one is what keeps that loop pointed at research.
+Move it back when the owner wants this subject built.
+
 > ## STATUS 2026-08-12: mostly shipped · **D2 is now ANSWERED** · back in progress
 >
 > Parked in `pending/` for part of a day awaiting D2, then reactivated when the owner delegated the

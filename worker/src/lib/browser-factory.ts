@@ -232,6 +232,34 @@ interface PooledBrowser {
 
 let pool: PooledBrowser | null = null;
 
+/**
+ * The launch currently in flight, if any.
+ *
+ * ── THE RACE THIS CLOSES ────────────────────────────────────────────────────────────────────────
+ *
+ * `leaseBrowser` did `if (!pool) pool = { browser: await acquireBrowser(), … }`. Two callers that
+ * arrive while the pool is empty BOTH see `null`, both launch, and the second assignment overwrites
+ * the first:
+ *
+ *     A: pool is null  → await acquireBrowser…            (suspends)
+ *     B: pool is null  → await acquireBrowser…            (suspends)
+ *     A: pool = {A}; current = A's pool; refs = 1
+ *     B: pool = {B}   ← overwrites A's
+ *     A: release() → refs 0, but `pool !== current`, so it returns early:
+ *        no idle timer is set and nothing ever closes A.
+ *
+ * **A whole Chromium process leaks, silently, every time that interleaving happens.** Not a
+ * theoretical future problem: `capacity.ts` allows six concurrent pipelines today, so two runs
+ * starting together already hit it. It only became visible while scoping E5d, because concurrency
+ * *inside* one run makes the interleaving common rather than occasional.
+ *
+ * A single shared promise fixes it: whoever finds no pool starts the launch and stores the promise;
+ * everyone else awaits that same promise and gets the same browser. Deliberately NOT a mutex — the
+ * work being serialised is one launch, and the second caller wants its RESULT, not a turn to repeat
+ * it.
+ */
+let launching: Promise<PooledBrowser> | null = null;
+
 /** Close the pooled browser once nothing has used it for this long. */
 export const BROWSER_IDLE_CLOSE_MS = 60_000;
 /** Recycle after this many leases regardless of idleness. */
@@ -275,10 +303,31 @@ export async function leaseBrowser(opts: BrowserFactoryOptions = {}): Promise<Br
   }
 
   if (!pool) {
-    pool = { browser: await acquireBrowser(opts), backend: resolveBackend(opts), refs: 0, uses: 0, idleTimer: null };
+    // One launch, shared. See the note on `launching` — the naive version leaked a Chromium every
+    // time two callers found the pool empty at the same moment.
+    if (!launching) {
+      launching = (async () => {
+        const browser = await acquireBrowser(opts);
+        return { browser, backend: resolveBackend(opts), refs: 0, uses: 0, idleTimer: null };
+      })();
+      // Clear the slot whether it resolves or rejects. Leaving a rejected promise here would make
+      // one failed launch permanent: every later lease would await it and re-throw the same error,
+      // and the worker would never open a browser again until it restarted.
+      launching.finally(() => { launching = null; }).catch(() => {});
+    }
+    const created = await launching;
+    // Someone may have finished first and installed a pool while this was waiting; if so, use
+    // theirs and close the spare rather than overwriting — which is the leak, inverted.
+    if (pool) {
+      if ((pool as PooledBrowser).browser !== created.browser) {
+        await created.browser.close().catch(() => {});
+      }
+    } else {
+      pool = created;
+    }
   }
 
-  const current = pool;
+  const current = pool!;
   current.refs += 1;
   current.uses += 1;
   if (current.idleTimer) { clearTimeout(current.idleTimer); current.idleTimer = null; }

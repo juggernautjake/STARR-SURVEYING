@@ -1,5 +1,13 @@
 # D&D platform — game systems still to build out (under construction)
 
+**Back in `pending/` — 2026-08-31.** Briefly moved to `in-progress/` and returned the same day
+on the owner's direction: *"I just want to build stuff that is related to the research software
+that researches properties."*
+
+Not abandoned, and not obsolete. `in-progress/` drives an automated slice loop, so a doc sitting
+there is a doc that gets worked; parking this one is what keeps that loop pointed at research.
+Move it back when the owner wants this subject built.
+
 **Status:** PENDING — parked by owner directive 2026-07-26 · moved out of `in-progress/`
 
 > ## 2026-07-26 — parked on the owner's instruction
