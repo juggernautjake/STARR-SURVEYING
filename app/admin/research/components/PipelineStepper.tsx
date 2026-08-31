@@ -33,18 +33,34 @@
 //   still running).
 'use client';
 
-import type { WorkflowStep } from '@/types/research';
+import type { WorkflowStep, PipelineStage } from '@/types/research';
 import { PIPELINE_STAGES, workflowStepToStage } from '@/types/research';
 
 interface PipelineStepperProps {
-  /** Current project status (DB value) */
+  /** Current project status (DB value) — how far the project has actually got. */
   currentStatus: WorkflowStep;
-  /** Called when the user clicks a completed stage to revert to it */
+  /**
+   * The stage being LOOKED at, when it is not the one the project is on (Phase N1).
+   *
+   * Separate from `currentStatus` on purpose. Before this the only way to see an earlier screen
+   * was to change the project's status through a destructive revert, and there was no way forward
+   * again at all.
+   */
+  viewStage?: PipelineStage;
+  /** Open a stage. Writes nothing — see `_sections/stage-view.ts`. */
+  onViewStage?: (stage: PipelineStage) => void;
+  /** Called when the user REVERTS to a stage. Destructive; kept separate from viewing. */
   onStageClick?: (primaryStep: WorkflowStep) => void;
 }
 
-export default function PipelineStepper({ currentStatus, onStageClick }: PipelineStepperProps) {
-  const currentStage = workflowStepToStage(currentStatus);
+export default function PipelineStepper({
+  currentStatus, viewStage, onViewStage, onStageClick,
+}: PipelineStepperProps) {
+  const reached = workflowStepToStage(currentStatus);
+  const reachedIndex = PIPELINE_STAGES.findIndex(s => s.key === reached);
+  // What is on the screen. Defaults to the stage the project is on, which is the state somebody is
+  // in almost all of the time.
+  const currentStage = viewStage ?? reached;
   const currentIndex = PIPELINE_STAGES.findIndex(s => s.key === currentStage);
 
   return (
@@ -57,10 +73,24 @@ export default function PipelineStepper({ currentStatus, onStageClick }: Pipelin
       </div>
       <div className="pipeline-stepper__stages">
         {PIPELINE_STAGES.map((stage, i) => {
-          const isDone = i < currentIndex;
+          // ── DONE, ACTIVE AND REACHED ARE THREE DIFFERENT THINGS NOW (N1) ────────────────────
+          //
+          // `isDone` used to mean both "the pipeline finished this" and "this is behind the screen
+          // you are on", because those could not differ. They can now: looking back at Stage 1 on
+          // a project that has reached Review must not redraw Stages 2 and 3 as unfinished.
+          //
+          //   isDone     — the PROJECT is past it. Ticked.
+          //   isActive   — it is the screen in front of you.
+          //   isReached  — the project has got at least this far, so it can be opened.
+          const isDone = i < reachedIndex;
           const isActive = i === currentIndex;
-          // 'research' stage is revertable only when no analysis is running
-          const isRevertable = isDone && !!onStageClick && currentStatus !== 'analyzing';
+          const isReached = i <= reachedIndex;
+
+          // Opening a stage writes nothing. Reverting is a separate, destructive act — see
+          // `_sections/stage-view.ts`. Both were the same click before this.
+          const canView = isReached && !isActive && !!onViewStage;
+          // 'research' is revertable only when no analysis is running.
+          const isRevertable = i < reachedIndex && !!onStageClick && currentStatus !== 'analyzing';
 
           return (
             <div key={stage.key} className="pipeline-stepper__item">
@@ -73,32 +103,33 @@ export default function PipelineStepper({ currentStatus, onStageClick }: Pipelin
 
               {/* Stage circle + label */}
               <div className="pipeline-stepper__stage-wrap">
-                <div
+                <button
+                  type="button"
                   className={[
                     'pipeline-stepper__circle',
                     isDone ? 'pipeline-stepper__circle--done' : '',
                     isActive ? 'pipeline-stepper__circle--active' : '',
-                    isRevertable ? 'pipeline-stepper__circle--revertable' : '',
+                    canView ? 'pipeline-stepper__circle--openable' : '',
                   ].filter(Boolean).join(' ')}
-                  onClick={() => isRevertable && onStageClick(stage.primaryStep)}
-                  title={isRevertable ? `Return to ${stage.label}` : undefined}
-                  style={{ cursor: isRevertable ? 'pointer' : 'default' }}
-                  role={isRevertable ? 'button' : undefined}
-                  tabIndex={isRevertable ? 0 : -1}
-                  aria-disabled={!isRevertable ? true : undefined}
-                  onKeyDown={e => {
-                    if (isRevertable && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      onStageClick(stage.primaryStep);
-                    }
-                  }}
+                  onClick={() => canView && onViewStage(stage.key)}
+                  disabled={!canView}
+                  title={
+                    canView ? `Open ${stage.label}`
+                      : isActive ? `${stage.label} — you are here`
+                      : `${stage.label} — not reached yet`
+                  }
+                  aria-current={isActive ? 'step' : undefined}
+                  aria-label={
+                    canView ? `Open stage ${stage.number}, ${stage.label}`
+                      : `Stage ${stage.number}, ${stage.label}${isActive ? ' — current' : ' — not reached yet'}`
+                  }
                 >
                   {isDone ? (
-                    <span className="pipeline-stepper__check">✓</span>
+                    <span className="pipeline-stepper__check" aria-hidden="true">✓</span>
                   ) : (
-                    <span className="pipeline-stepper__stage-icon">{stage.icon}</span>
+                    <span className="pipeline-stepper__stage-icon" aria-hidden="true">{stage.icon}</span>
                   )}
-                </div>
+                </button>
                 <div
                   className={[
                     'pipeline-stepper__stage-label',
@@ -110,6 +141,18 @@ export default function PipelineStepper({ currentStatus, onStageClick }: Pipelin
                 </div>
                 {isActive && (
                   <div className="pipeline-stepper__stage-desc">{stage.description}</div>
+                )}
+                {/* Reverting is destructive, so it is a named act rather than a click on the same
+                    circle that merely opens a screen. It says what it does. */}
+                {isRevertable && (
+                  <button
+                    type="button"
+                    className="pipeline-stepper__revert"
+                    onClick={() => onStageClick(stage.primaryStep)}
+                    title={`Move the project back to ${stage.label} — this can delete analysis data`}
+                  >
+                    Restart from here
+                  </button>
                 )}
               </div>
             </div>

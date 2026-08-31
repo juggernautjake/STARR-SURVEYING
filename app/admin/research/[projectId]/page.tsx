@@ -67,6 +67,7 @@ import {
   type AnnotationHistoryState,
 } from './_sections/annotation-history';
 import { needsClosing } from './_sections/traverse-geometry';
+import { resolveViewStage, stageLabel } from './_sections/stage-view';
 // The coordinate geometry is the CAD library's, not this page's — see the header of
 // _sections/traverse-geometry.ts for why a local copy was written and then removed.
 import { forwardPoint, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
@@ -81,6 +82,7 @@ import EncumbrancePanel from '../components/EncumbrancePanel';
 import ArtifactGallery from '../components/ArtifactGallery';
 import type { ResearchProject, ResearchDocument, DrawingElement, RenderedDrawing, ViewMode, WorkflowStep, ComparisonResult, ExportFormat } from '@/types/research';
 import { WORKFLOW_STEPS, workflowStepToStage } from '@/types/research';
+import type { PipelineStage } from '@/types/research';
 import { JOB_NOTES_PLACEHOLDER, RESEARCH_SOURCES, ReviewDocCard } from './ReviewDocCard';
 
 // ── Page-level constants ─────────────────────────────────────────────────────
@@ -156,6 +158,8 @@ export default function ResearchProjectPage() {
   // "Continue to Review" button before navigating. This flag holds the user
   // on the research stage until they explicitly click through.
   const [holdOnResearchStage, setHoldOnResearchStage] = useState(false);
+  // The stage the reader has opened, or null to follow the project (N1). Writes nothing.
+  const [viewStage, setViewStage] = useState<PipelineStage | null>(null);
 
   // Re-run research confirmation dialog
   const [showRerunConfirm, setShowRerunConfirm] = useState(false);
@@ -436,6 +440,9 @@ export default function ResearchProjectPage() {
   }
 
   async function handleStatusUpdate(newStatus: WorkflowStep) {
+    // Any deliberate move of the PROJECT drops the reader back to following it. Otherwise starting
+    // a run while looking at Stage 1 leaves you on Stage 1 watching nothing happen (N1).
+    setViewStage(null);
     try {
       const res = await fetch('/api/admin/research', {
         method: 'PATCH',
@@ -516,6 +523,10 @@ export default function ResearchProjectPage() {
       if (res.ok) {
         const data = await res.json();
         setProject(data.project);
+        // A revert moves the project, so the reader follows it. Leaving a stale `viewStage` here
+        // would show the banner saying "this project has reached X" about the stage you just
+        // reverted away from (N1).
+        setViewStage(null);
 
         // Reset local UI state that is no longer relevant for the target step
         if (clearAnalysisData) {
@@ -639,6 +650,7 @@ export default function ResearchProjectPage() {
     setShouldAutoStartPipeline(true);
     setHoldOnResearchStage(true);
     setPipelineHasStarted(false);
+    setViewStage(null);
     handleStatusUpdate('configure');
   }
 
@@ -1605,11 +1617,23 @@ export default function ResearchProjectPage() {
 
   if (!project) return null;
 
-  // Derive the current pipeline stage from the underlying DB status.
-  // When holdOnResearchStage is true, the user stays on Stage 2 even though
-  // the DB status may already be 'review' — until they click "Continue to Review".
+  // ── WHICH STAGE IS ON THE SCREEN (Phase N1) ─────────────────────────────────────────────────
+  //
+  // `status` is what the pipeline DID. `viewStage` is what you are reading. They were the same
+  // value, so the only way to look at an earlier screen was to change the project's status through
+  // a destructive revert — and there was no way forward again at all.
+  //
+  // `holdOnResearchStage` was the one hard-coded special case of exactly this: a boolean that
+  // exists to keep somebody on Stage 2 after the DB has moved to `review`. It stays, because it
+  // encodes a real transition (the run finished but you have not clicked Continue yet) rather than
+  // a navigation choice — and folding it into `viewStage` would make 'finished but not acknowledged'
+  // indistinguishable from 'went back for a look'.
   const dbStage = workflowStepToStage(project.status);
-  const currentStage = (holdOnResearchStage && dbStage === 'review') ? 'research' : dbStage;
+  const reached = (holdOnResearchStage && dbStage === 'review') ? 'research' : dbStage;
+  const currentStage = resolveViewStage(viewStage, project.status) === reached
+    ? reached
+    : resolveViewStage(viewStage, project.status);
+  const viewingBehind = currentStage !== reached;
   // Count only manually uploaded documents (excludes internet-sourced pipeline imports)
   const uploadedDocumentCount = documents.filter(d => d.source_type === 'user_upload').length;
 
@@ -1637,11 +1661,34 @@ export default function ResearchProjectPage() {
         onArchive={handleArchiveProject}
       />
 
-      {/* 4-Stage Pipeline Stepper — clicking a completed stage reverts to it */}
+      {/* 4-Stage Pipeline Stepper. Clicking a stage OPENS it — that writes nothing. Reverting is
+          the separate "Restart from here" link underneath, because it can delete data (N1). */}
       <PipelineStepper
         currentStatus={project.status}
+        viewStage={currentStage}
+        onViewStage={setViewStage}
         onStageClick={project.status !== 'analyzing' ? handleRevertToStep : undefined}
       />
+
+      {/* ── LOOKING BACK IS A STATE WORTH SAYING (N1) ────────────────────────────────────────────
+          Without this, a project that has finished analysing looks — to somebody who opened Stage 1
+          an hour ago — exactly like a project that never ran. The way back is one click and it is
+          on the screen, not in the stepper somebody has already scrolled past. */}
+      {viewingBehind && (
+        <div className="research-stage-banner" role="status">
+          <span>
+            You are looking at <strong>{stageLabel(currentStage)}</strong>. This project has reached{' '}
+            <strong>{stageLabel(reached)}</strong>.
+          </span>
+          <button
+            type="button"
+            className="research-stage-banner__btn"
+            onClick={() => setViewStage(null)}
+          >
+            Back to {stageLabel(reached)}
+          </button>
+        </div>
+      )}
 
       {/* R1 — Always-visible primary action: start or re-run the AI pipeline.
           Label + behavior derive from project.status so the run control is never

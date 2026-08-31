@@ -171,14 +171,63 @@ already known to be one we work.
 
 ## Phase N — navigation, notes, files, images
 
-### N1 — Move backwards and forwards through the stages ☐
+### N1 — Move backwards and forwards through the stages ✅ **SHIPPED 2026-08-31** — `_sections/stage-view.ts`
 
-Today `currentStage` is derived from `project.status` and the only way back is `holdOnResearchStage`,
-a boolean that exists to keep somebody on Stage 2 after the DB has moved to `review`. That is a
-workaround, not navigation.
+**There was no such thing as *looking* at a stage.** `currentStage` came straight off
+`project.status`, so seeing an earlier screen meant calling `handleRevertToStep` — a PATCH behind a
+red confirmation that correctly warns it may permanently delete extracted data points. Going back to
+re-read the property form meant **telling the database the run had not happened**.
 
-The stepper becomes real: any stage that has been *reached* is clickable, forward and back, without
-mutating `status`. Status is what the pipeline did; the stage you are looking at is a view.
+Forward was not possible at all: the stepper only accepted clicks on stages *before* the current
+one, so once you had reverted, the only way back was to run again.
+
+The tell that this was already a known problem is in the code: `holdOnResearchStage`, a boolean
+whose entire purpose is keeping somebody on Stage 2 after the DB has moved to `review`. One
+hard-coded special case of *"the stage I am looking at is not the stage the row says"*.
+
+#### Two values, and one of them writes nothing
+
+| | |
+|---|---|
+| `reachedStage` | How far the project has actually got, from `status`. Only the pipeline and an explicit revert move it, and moving it is a database write. |
+| `viewStage` | The screen in front of you. Moving it writes nothing, deletes nothing and asks nothing. Any stage up to and including `reachedStage`. |
+
+Not beyond: a Review screen for a project that has never run is four empty panels and a promise the
+page cannot keep, and this portal has shipped that shape before — a stat tile that scrolled to an
+empty section, fixed by disabling the tile.
+
+`holdOnResearchStage` **stays**. It encodes a real transition — the run finished and you have not
+clicked Continue — rather than a navigation choice, and folding it in would make *"finished but not
+acknowledged"* indistinguishable from *"went back for a look"*.
+
+#### The distinctions that took a second pass
+
+- **`isDone` used to mean two things.** "The pipeline finished this" and "this is behind the screen
+  you are on" could not differ before; now they can. Looking back at Stage 1 from a project that has
+  reached Review must not redraw Stages 2 and 3 as unfinished.
+- **Opening and reverting were the same click.** They are now the circle and a named
+  *"Restart from here"* link, because one of them can delete data and the other cannot.
+- **An openable stage looked identical to an unreachable one.** Photographed: stage 3 reachable,
+  stage 4 not, two pixel-identical grey circles. *"Which of these can I click"* is not a question a
+  stepper should make somebody answer by trying. Dashed ring for openable, faded for not.
+- **A deliberate move of the project drops the reader back to following it.** Otherwise starting a
+  run while looking at Stage 1 leaves you on Stage 1 watching nothing happen.
+- **A choice that has un-happened falls back.** You are reading Review; somebody reverts to Upload.
+  Rendering Review then shows analysis results that were just deleted.
+
+#### And the circle became a real `<button>`
+
+It was a `div` with `role="button"`, a hand-written `onKeyDown` for Enter and Space, a toggled
+`tabIndex` and an `aria-disabled` — thirty lines re-implementing what the element does for free, and
+getting disabled semantics only approximately.
+
+**Six mutations, all red**, including the two that matter: any stage becoming viewable, and the
+stepper going back to reverting on click. One assertion caught its own fixture rather than the code
+— `resolveViewStage('jobprep', 'research')` passes a *stage* where a *status* belongs — which is the
+good outcome, and is noted where it happened.
+
+Driven in a browser: Stage 3 → Stage 1 → back to Stage 3, with the banner appearing and clearing,
+and no write in between. Four palettes clean.
 
 ### N2 — Notes that survive ☐
 

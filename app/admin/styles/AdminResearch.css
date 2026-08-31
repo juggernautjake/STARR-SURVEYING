@@ -13072,3 +13072,109 @@
   font-weight: 600;
   text-decoration: underline;
 }
+
+/* ── Stage navigation (N1) ────────────────────────────────────────────────────
+ *
+ * The stage circle is a real <button> now rather than a div with role="button".
+ * It was already keyboard-operable by hand — onKeyDown for Enter and Space,
+ * tabIndex toggled, aria-disabled — which is thirty lines re-implementing what
+ * the element does for free, and getting `disabled` semantics only approximately.
+ *
+ * These four properties are the button reset. Everything else the circle needs
+ * is already on `.pipeline-stepper__circle` above. */
+.pipeline-stepper__circle {
+  padding: 0;
+  font-family: inherit;
+  cursor: default;
+  appearance: none;
+}
+
+.pipeline-stepper__circle:not(:disabled) {
+  cursor: pointer;
+}
+
+.pipeline-stepper__circle:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 3px;
+}
+
+/* Reverting is destructive and now says so, instead of being the same click that
+ * merely opens a screen. Quiet by default — it is the rarer of the two acts. */
+.pipeline-stepper__revert {
+  margin-top: 0.35rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--theme-fg-muted, #6B7280);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.pipeline-stepper__revert:hover {
+  color: var(--recon-danger-text, #B91C1C);
+}
+
+.pipeline-stepper__revert:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ── "You are looking at an earlier stage" ────────────────────────────────────
+ *
+ * Without this, a project that has finished analysing looks — to somebody who
+ * opened Stage 1 an hour ago — exactly like a project that never ran. */
+.research-stage-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  background: var(--color-info-surface, #EFF8FF);
+  border: 1px solid var(--color-info-border, #BFDBFE);
+  color: var(--color-info-text, #175CD3);
+}
+
+.research-stage-banner__btn {
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+}
+
+.research-stage-banner__btn:hover {
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+
+/* A stage you can OPEN has to look different from one you cannot (N1).
+ *
+ * Photographed on a project that had reached Review: stage 3 was reachable and
+ * stage 4 was not, and the two were pixel-identical grey circles. "Which of
+ * these can I click" is not a question a stepper should make somebody answer by
+ * trying. The dashed ring says openable; a disabled circle keeps the flat one. */
+.pipeline-stepper__circle--openable {
+  border-style: dashed;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.pipeline-stepper__circle--openable:hover {
+  border-style: solid;
+  border-color: var(--theme-accent, #1D3095);
+  box-shadow: 0 0 0 4px rgba(29, 48, 149, 0.14);
+}
+
+/* A stage the project has not got to is not a control. It reads as a signpost. */
+.pipeline-stepper__circle:disabled:not(.pipeline-stepper__circle--active) {
+  opacity: 0.55;
+}
