@@ -30,7 +30,25 @@ export interface RunRow {
   finished_at: string | null;
   cost_usd: number | string;
   paid_pages: number;
-  limits: { maxMinutes?: number; maxUsd?: number } | null;
+  /**
+   * The run budget, as the WORKER writes it.
+   *
+   * `maxWallClockMs` / `maxCostUsd` / `maxPaidPages` are the field names in
+   * `worker/src/infra/run-budget.ts`. This used to read `maxMinutes` and `maxUsd` — keys nothing
+   * has ever written — so `budgetMinutes` was permanently `undefined` and every run console said
+   * "no time limit is configured for this run" while the limit was configured AND enforced.
+   *
+   * The old names are kept as tolerated aliases rather than deleted: no row is known to carry
+   * them, but removing them is a guess about data this session cannot see, and one `??` is cheap.
+   */
+  limits: {
+    maxWallClockMs?: number;
+    maxCostUsd?: number;
+    maxPaidPages?: number;
+    /** Legacy aliases; nothing is known to write these. See above. */
+    maxMinutes?: number;
+    maxUsd?: number;
+  } | null;
   skipped_work: Array<{ step?: string; what?: string; reason?: string }> | null;
   budget_summary: string | null;
   failure_reason: string | null;
@@ -95,8 +113,12 @@ export function timeStatus(run: RunRow, now: number): TimeStatus {
   const end = run.finished_at ? Date.parse(run.finished_at) : now;
   const elapsedMs = Math.max(0, end - started);
 
-  const budgetMinutes = run.limits?.maxMinutes;
-  const budgetMs = budgetMinutes && budgetMinutes > 0 ? budgetMinutes * 60_000 : null;
+  // The worker persists a wall-clock ceiling in MILLISECONDS (`maxWallClockMs`). Reading
+  // `maxMinutes` — which nothing writes — made this permanently undefined, so `budgetMs` was
+  // always null, `fractionUsed` always null, and the headline always claimed no limit existed.
+  const budgetMs = run.limits?.maxWallClockMs && run.limits.maxWallClockMs > 0
+    ? run.limits.maxWallClockMs
+    : (run.limits?.maxMinutes && run.limits.maxMinutes > 0 ? run.limits.maxMinutes * 60_000 : null);
   const fractionUsed = budgetMs ? Math.min(elapsedMs / budgetMs, 1) : null;
 
   const sinceHeartbeatMs = Math.max(0, now - Date.parse(run.heartbeat_at));

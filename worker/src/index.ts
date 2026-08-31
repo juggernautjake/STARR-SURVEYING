@@ -1125,7 +1125,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     projectId,
     county,
     address: researchInput.address,
-    limits: budgetLimits as unknown as Record<string, unknown>,
+    limits: budgetLimits,
   });
 
   // Enable function-level tracing when the request came from the Testing Lab.
