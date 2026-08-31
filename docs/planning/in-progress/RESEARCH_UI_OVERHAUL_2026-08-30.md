@@ -211,7 +211,25 @@ rather than writing a sixth ad-hoc stripper. It runs behind a control, since a s
 
 **Remaining under B1a:** `ProjectHeader`, `RunControls`, `DocumentsSummary`, `AnalysisSection`.
 Same shape each time: move, compare against `HEAD`, assert the page still mounts it.
-### B3 — Extract Documents ☐
+### B3 — ~~Second extraction~~ SHIPPED 2026-08-31 — `_sections/ProjectHeader.tsx`
+
+Title, address line, description and the two project-level actions. 37 lines out; **3,637 to 3,607**.
+
+**The inline hexes came across unchanged, on purpose.** `#D1D5DB`, `#FECACA` and `#DC2626` are
+inline here and tokens exist for all three. Tidying them in the same commit would turn the diff
+from *"these lines moved"* into *"these lines moved AND something changed"* — the shape a real
+regression hides in — and destroy the byte-for-byte comparison against `HEAD` that makes each
+extraction trustworthy. The inline-hex ratchet is per-file, so the count moves with the code and
+the total is unchanged; nothing is lost by tokenising in a separate pass.
+
+**B2's lesson carried forward.** The "renders it unconditionally" assertion was written into this
+slice from the start, because `{false && <ProjectHeader ...}` satisfies a naive is-it-rendered
+check while putting nothing on screen.
+
+The address line has two mutually exclusive branches — county-as-badge, or a bare state — and both
+are pinned, along with the case where neither is known. Collapsing them would print the state twice.
+
+Mutation-tested six ways; all six fail.
 ### B4 — Extract Boundary ☐
 ### B5 — Extract Report ☐
 

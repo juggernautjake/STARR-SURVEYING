@@ -1,5 +1,13 @@
 # Settings: per-system (PF2/IG) rules variants (parked from the Settings Overhaul)
 
+**Back in `pending/` — 2026-08-31.** Briefly moved to `in-progress/` and returned the same day
+on the owner's direction: *"I just want to build stuff that is related to the research software
+that researches properties."*
+
+Not abandoned, and not obsolete. `in-progress/` drives an automated slice loop, so a doc sitting
+there is a doc that gets worked; parking this one is what keeps that loop pointed at research.
+Move it back when the owner wants this subject built.
+
 **Status:** PENDING · parked 2026-07-26 · split out of `completed/SHEET_SETTINGS_OVERHAUL_2026-07-22.md`
 
 > **2026-07-25 — S-4a and S-4b shipped** (commit `e15ebf1d`); **S-6 + its browser pass shipped 2026-07-26.**

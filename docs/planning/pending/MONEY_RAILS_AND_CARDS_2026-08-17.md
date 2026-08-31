@@ -1,5 +1,13 @@
 # Getting paid, paying people, and knowing whose card it was
 
+**Back in `pending/` — 2026-08-31.** Briefly moved to `in-progress/` and returned the same day
+on the owner's direction: *"I just want to build stuff that is related to the research software
+that researches properties."*
+
+Not abandoned, and not obsolete. `in-progress/` drives an automated slice loop, so a doc sitting
+there is a doc that gets worked; parking this one is what keeps that loop pointed at research.
+Move it back when the owner wants this subject built.
+
 **Status:** PENDING · opened 2026-08-17 · **every remaining item is an owner action in an external
 dashboard.** Moved out of `in-progress/` on 2026-08-17 per the rubric in `../README.md`: that folder
 is for "action items being worked NOW", and the engineering half is done.
