@@ -853,7 +853,68 @@ because that string still *contains* `<ErrorState`. The assertion now covers the
 error rendered inside the empty-state container looks like an empty list again, whatever the
 component is called.
 
-### E2b — Re-theme `BillingTab` and `LibraryTab` (open)
+### E2b — Re-theme `BillingTab` and `LibraryTab` — **LibraryTab SHIPPED 2026-08-31**, Billing open
+
+`LibraryTab` is re-themed. 36 dark Tailwind utilities → **zero in live code**: the portal's
+`research-page` shell, the shared primitives for the three data states, and a new
+`research-library__*` block for what is genuinely specific to a document list.
+
+Inside a tab panel `min-h-screen` fills nothing — it just wrapped the portal's own chrome around a
+black rectangle. That is why E2 declined to fix only the error state here.
+
+**Not just a repaint.** Four things were wrong under the paint:
+
+· The two selects had **no labels at all** — "All Counties" and "Newest First" were the only clue
+  what each controlled, and a screen reader got neither.
+· Rows styled `hover:border-blue-600` and nothing for focus, so tabbing through 25 documents moved
+  an invisible cursor.
+· Counts carried meaning in colour alone (`text-green-400`, `text-yellow-400`); they are `StatPill`
+  tones with words now.
+· The empty state told **everyone** to "run a research project to harvest documents" — wrong advice
+  for somebody with 900 documents behind an active county filter.
+
+### The tripwire for this entry passed for the wrong reason
+
+`one-state-vocabulary` existed precisely to fail when this deferral stopped applying. It ran
+`read(f).includes('min-h-screen bg-gray-950')` over the raw file — and after the re-theme it still
+counted LibraryTab as dark, **because the comment explaining the re-theme quotes the string being
+searched for**.
+
+> A deferral tripwire went green on a file with no dark utilities left in it. Ninth time a guard in
+> this repository has matched its own prose.
+
+Comments are stripped now, with a control proving the stripper did not simply blank the file.
+
+### And `panel-contrast` failed a file for being fixed
+
+Its `DARK_SURFACES` was six hardcoded paths, despite its own comment saying the list came from a
+sweep. It demanded an explicit colour on an `<h1>` that now correctly inherits the light global —
+failing LibraryTab for no longer being dark.
+
+The list is swept now. Same count, different membership: it had **never included
+`InteractiveBoundaryViewer.tsx`**, a dark panel whose headings and labels went unchecked for as
+long as the list was typed by hand. That is the drift that mattered — the stale entry was noisy,
+the missing entry was silent.
+
+One more thing fell out: the per-file "no headings found" control failed a panel for legitimately
+having none. It is corpus-wide now, which is the level it was actually protecting.
+
+### The empty-state decision is a function, not three JSX props
+
+Mutation testing drove this. A mutation that flipped **one** of three inline copies of the
+`filtersNarrowed` condition passed every text-based check: all the copy was still in the file, the
+component simply disagreed with itself about which state it was in. `emptyLibraryCopy()` is pure
+and exported, so a logic change is one call away instead of invisible.
+
+Two more survivors on the way: `toContain('<ErrorState')` also matches `<ErrorStateX` (**fourth**
+time that substring flaw has got through here), and testing the helper is not testing the caller —
+hard-coding `title={'Your document library is empty.'}` left every string the helper returns still
+sitting in the file. Thirteen mutations in total, all caught.
+
+**Still open: `BillingTab`** (607 lines, 63 dark utilities). Same treatment, larger surface — it
+carries tier pricing tables and a Stripe-ish billing history, so it is a slice of its own rather
+than a second half of this one. The tripwire now names Billing alone.
+
 
 **Why they were left out rather than half-fixed.** Both are entirely dark-themed pages —
 `min-h-screen bg-gray-950`, their own `<header>` — left from before the portal consolidation, while

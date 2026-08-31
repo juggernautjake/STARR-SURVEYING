@@ -29,6 +29,8 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { emptyLibraryCopy } from '@/app/admin/research/_tabs/LibraryTab';
+
 const ROOT = process.cwd();
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
@@ -130,15 +132,101 @@ describe('the primitives are honest about motion and overflow', () => {
 });
 
 describe('the dark pair is recorded, not forgotten', () => {
-  it('Billing and Library are still dark, and that is why they were left', () => {
-    // If somebody re-themes them, this test fails and points at the plan doc — which is the
-    // intent. A deferral that no longer applies should not sit silently in a doc for months.
-    const dark = ['app/admin/research/_tabs/BillingTab.tsx', 'app/admin/research/_tabs/LibraryTab.tsx']
-      .filter((f) => read(f).includes('min-h-screen bg-gray-950'));
+  // ── THIS CHECK PASSED FOR THE WRONG REASON ────────────────────────────────────────────────────
+  //
+  // It used to run `read(f).includes('min-h-screen bg-gray-950')` over the RAW file. When LibraryTab
+  // was re-themed (E2b, 2026-08-31) the check still counted it as dark — because the comment
+  // explaining the re-theme quotes the very string being searched for.
+  //
+  // So the deferral tripwire, whose entire job is to fire when a deferral stops applying, went green
+  // on a file that no longer contained a single dark utility in live code. Ninth time a guard in
+  // this repository has matched its own prose. Comments are stripped now, and a control below
+  // proves the stripper did not simply blank the file.
+
+  const LIB = 'app/admin/research/_tabs/LibraryTab.tsx';
+  const BILL = 'app/admin/research/_tabs/BillingTab.tsx';
+
+  /** Comments removed, so prose about a class cannot be mistaken for a use of it. */
+  function code(f: string): string {
+    return read(f)
+      .replace(/\/\*[\s\S]*?\*\//g, ' ')
+      .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1 ');
+  }
+
+  it('the comment stripper leaves the component behind', () => {
+    // Control. An over-eager stripper returns something close to empty, and an empty string contains
+    // no dark utilities either — which is the same false green by a different route.
+    expect(code(LIB)).toContain('export default function LibraryTab');
+    expect(code(LIB).length).toBeGreaterThan(3000);
+  });
+
+  it('LibraryTab is re-themed — no dark utility survives in live code', () => {
+    const src = code(LIB);
+    for (const util of ['min-h-screen', 'bg-gray-950', 'bg-gray-900', 'text-gray-100', 'border-gray-800']) {
+      expect(src, `${util} is still applied in LibraryTab`).not.toContain(util);
+    }
+  });
+
+  it('and it uses the shared states instead', () => {
+    expect(read(LIB)).toMatch(/from '\.\.\/components\/ui'/);
+    for (const prim of ['LoadingState', 'ErrorState', 'EmptyState']) {
+      // `[\s/>]` matters: `toContain('<ErrorState')` also matches `<ErrorStateX`, so renaming the
+      // component to something that does not exist passed this check. Fourth time that substring
+      // flaw has got through in this repository.
+      expect(read(LIB), `${LIB} should render <${prim}>`).toMatch(new RegExp(`<${prim}[\\s/>]`));
+    }
+  });
+
+  it('tells the two emptinesses apart — as logic, not as three strings', () => {
+    // Every earlier version of this was a text search over the file, and a mutation that flipped
+    // ONE of the three inline conditions passed it: the copy was all still present, the component
+    // just disagreed with itself about which state it was in. The decision is a pure function now,
+    // so a logic change is one call away rather than invisible.
+    const filtered = emptyLibraryCopy(true);
+    const genuine = emptyLibraryCopy(false);
+
+    expect(filtered.canClear, 'a filtered-to-nothing list must offer to clear them').toBe(true);
+    expect(genuine.canClear, 'there is nothing to clear on a genuinely empty library').toBe(false);
+
+    // The advice must actually differ. Identical copy for both is the bug this replaced.
+    expect(filtered.title).not.toBe(genuine.title);
+    expect(filtered.body).not.toBe(genuine.body);
+
+    // And each must give the advice that fits ITS cause — swapping them would still differ.
+    expect(filtered.body).toMatch(/filter/i);
+    expect(genuine.body).toMatch(/research run/i);
+    expect(genuine.body, 'do not tell somebody with an active filter to go harvest documents')
+      .not.toMatch(/filter/i);
+  });
+
+  it('and the tab renders that decision rather than its own copy', () => {
+    // Filtered-to-nothing and genuinely-empty are not the same state, and the advice differs.
+    // The dark version said "Run a research project to harvest documents" to somebody who might
+    // have 900 documents sitting behind an active county filter — wrong advice, confidently given.
+    const src = read(LIB);
+
+    // ONE binding, not the condition written out three times. A mutation that flipped only the
+    // title's copy of it left the body and the action correct, so the check passed while the
+    // component disagreed with itself. There is now nothing to flip independently.
+    expect(src).toContain('const filtersNarrowed =');
+    expect(src).toContain('emptyLibraryCopy(filtersNarrowed)');
+
+    // Testing the helper is not testing the tab. Hard-coding `title={'Your document library is
+    // empty.'}` left every string the helper returns still sitting in the file, so a copy-presence
+    // check passed on a component that had stopped consulting the decision at all. This is the
+    // caller-side assertion: all three fields have to be read.
+    for (const field of ['emptyCopy.title', 'emptyCopy.body', 'emptyCopy.canClear']) {
+      expect(src, `the empty state must render ${field}`).toContain(field);
+    }
+  });
+
+  it('BillingTab is still dark, and that is why it is still deferred', () => {
+    // The remaining half of E2b. If somebody re-themes it, this fails and points at the plan doc —
+    // which is the intent. A deferral that no longer applies should not sit silently for months.
     expect(
-      dark.length,
-      'If these are no longer dark full-page layouts, wire them to the shared states and update E2b '
-      + 'in docs/planning/in-progress/RESEARCH_UI_OVERHAUL_2026-08-30.md.',
-    ).toBe(2);
+      code(BILL),
+      'If BillingTab is no longer a dark full-page layout, wire it to the shared states and close '
+      + 'E2b in docs/planning/in-progress/RESEARCH_UI_OVERHAUL_2026-08-30.md.',
+    ).toContain('min-h-screen bg-gray-950');
   });
 });

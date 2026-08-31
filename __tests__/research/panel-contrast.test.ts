@@ -51,15 +51,77 @@ function hasColour(tag: string, src = ''): boolean {
  *
  *  Found by sweeping for `bg-gray-9xx` rather than by listing what I had touched. Two of these
  *  panels were mine; the four PAGES were pre-existing and had the same bug — including the Boundary
- *  Viewer, whose `<h1>` title has been invisible to every surveyor who has ever opened it. */
-const DARK_SURFACES = [
-  'app/admin/research/components/RotationPanel.tsx',
-  'app/admin/research/components/VendorAccountsPanel.tsx',
-  'app/admin/research/_tabs/BillingTab.tsx',
-  'app/admin/research/_tabs/LibraryTab.tsx',
-  'app/admin/research/[projectId]/boundary/page.tsx',
-  'app/admin/research/[projectId]/documents/page.tsx',
-];
+ *  Viewer, whose `<h1>` title has been invisible to every surveyor who has ever opened it.
+ *
+ *  ── THE LIST IS SWEPT, NOT TYPED ──────────────────────────────────────────────────────────────
+ *
+ *  It used to be six hardcoded paths, despite the paragraph above saying it came from a sweep. When
+ *  `LibraryTab` was re-themed to light (E2b, 2026-08-31) the entry stayed, and the check demanded an
+ *  explicit colour on an `<h1>` that now correctly inherits the global one — failing a file for
+ *  being fixed. The opposite drift is the dangerous one: a NEW dark panel would never have been
+ *  added to the list, and would have gone unchecked forever.
+ *
+ *  Comments are stripped first, so prose quoting `bg-gray-900` — this file's own explanation of the
+ *  bug, and LibraryTab's — does not enrol a light file. */
+function darkSurfaces(): string[] {
+  const dirs = ['app/admin/research'];
+  const found: string[] = [];
+
+  const strip = (s: string) => s
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1 ');
+
+  const walk = (rel: string) => {
+    const abs = path.join(process.cwd(), rel);
+    if (!fs.existsSync(abs)) return;
+    for (const e of fs.readdirSync(abs, { withFileTypes: true })) {
+      if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+      const next = `${rel}/${e.name}`;
+      if (e.isDirectory()) walk(next);
+      else if (/\.tsx$/.test(e.name) && /\bbg-(gray|slate|zinc)-(8|9)\d{2}\b/.test(strip(read(next)))) {
+        found.push(next);
+      }
+    }
+  };
+
+  for (const d of dirs) walk(d);
+  return found.sort();
+}
+
+const DARK_SURFACES = darkSurfaces();
+
+describe('the sweep for dark surfaces works', () => {
+  it('finds some', () => {
+    // Control. An empty list makes every check below vacuous, and vacuous is what this check looked
+    // like the first time it silently stopped matching.
+    expect(DARK_SURFACES.length).toBeGreaterThan(0);
+  });
+
+  it('still catches the panel this check was written for', () => {
+    expect(DARK_SURFACES).toContain('app/admin/research/components/RotationPanel.tsx');
+  });
+
+  it('and does not enrol a file that only WRITES about dark utilities', () => {
+    // LibraryTab is light now, but its header comment quotes `bg-gray-950` while explaining the
+    // re-theme. Without stripping comments the sweep would put it straight back on the list.
+    expect(DARK_SURFACES).not.toContain('app/admin/research/_tabs/LibraryTab.tsx');
+  });
+
+  it('found a file the hardcoded list had missed', () => {
+    // The point of sweeping. This dark panel was never in the six typed paths, so its headings and
+    // labels went unchecked for as long as the list was maintained by hand.
+    expect(DARK_SURFACES).toContain('app/admin/research/components/InteractiveBoundaryViewer.tsx');
+  });
+
+  it('the heading matcher still matches headings somewhere in the corpus', () => {
+    // Corpus-wide control, replacing a per-file one that failed a panel for legitimately having no
+    // headings. If the regex breaks, every file reports zero and every check below passes on air.
+    const total = DARK_SURFACES.reduce(
+      (n, f) => n + [...read(f).matchAll(/<h[1-6]\s[^>]*>/g)].length, 0,
+    );
+    expect(total, 'no headings found in ANY dark surface — the matcher is broken').toBeGreaterThan(5);
+  });
+});
 
 describe('the global rules that make this necessary still exist', () => {
   // If these ever change, this whole check can go — so it fails loudly rather than quietly guarding
@@ -87,7 +149,10 @@ describe('every heading and label on a dark surface names its own colour', () =>
       // matches multi-line JSX, which a `className="…"`-only pattern misses — that is how the first
       // sweep of these files came back clean while two headings were still bare.
       const tags = [...src.matchAll(/<h[1-6]\s[^>]*>/g)].map((m) => m[0]);
-      expect(tags.length, 'no headings found — did this file change shape?').toBeGreaterThan(0);
+      // A dark panel with no headings is fine — `InteractiveBoundaryViewer` is one, and the sweep
+      // found it only because the hardcoded list this replaced had never included it. Demanding at
+      // least one heading PER FILE failed it for a shape it is allowed to have. The control that
+      // matters is corpus-wide and lives below: if the matcher stops working, no file has headings.
       const bare = tags.filter((t) => !hasColour(t, src));
       expect(bare, `these headings inherit a colour they will never receive:\n  ${bare.join('\n  ')}`)
         .toEqual([]);

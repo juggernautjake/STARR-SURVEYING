@@ -12153,3 +12153,217 @@
   outline: 2px solid var(--color-brand-blue, #2563EB);
   outline-offset: 2px;
 }
+
+/* ── Document Library (E2b) ─────────────────────────────────────────────────
+ *
+ * This tab was a dark full-page layout — `min-h-screen bg-gray-950`, its own
+ * `<header>`, 36 dark Tailwind utilities — left over from when it lived at
+ * /admin/research/library and owned the viewport. The other five tabs use zero
+ * dark utilities. Inside a tab panel `min-h-screen` fills nothing; it just
+ * wraps the portal's own chrome around a black rectangle.
+ *
+ * The three data states and the status chips come from the shared primitives.
+ * What is below is only the part genuinely specific to a document list.
+ *
+ * NOTE: this stylesheet is route-scoped and loads LAST on its routes, so a
+ * declaration here beats the same selector defined anywhere earlier. That is
+ * why the shared `research-page__*` classes are reused rather than restyled —
+ * overriding them here would silently change the Projects tab too. */
+
+.research-library__type-bar {
+  display: flex;
+  gap: 1.25rem;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid #E5E7EB;
+  font-size: 0.75rem;
+  color: #6B7280;
+  scrollbar-width: thin;
+}
+
+.research-library__type-stat {
+  white-space: nowrap;
+  text-transform: capitalize;
+}
+
+.research-library__type-stat strong { color: #111827; }
+
+/* Six chips do not fit 390px. They scroll sideways rather than wrap: wrapping
+ * to three lines pushes the document list below the fold, and the list is what
+ * people came for. `flex-shrink: 0` on the chips so they keep their size
+ * instead of being squeezed into unreadable slivers. */
+.research-library__filters {
+  overflow-x: auto;
+  max-width: 100%;
+  scrollbar-width: thin;
+}
+
+.research-library__filters .research-page__status-chip { flex-shrink: 0; }
+
+.research-library__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+/* The dark version's selects carried no label at all — "All Counties" and
+ * "Newest First" were the only clue what each one controlled, and a screen
+ * reader got neither. */
+.research-library__field-label {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.research-library__select {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.8125rem;
+  color: #111827;
+  cursor: pointer;
+}
+
+.research-library__select:focus {
+  outline: none;
+  border-color: #2563EB;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.research-library__search { flex: 1 1 16rem; min-width: 12rem; }
+
+.research-library__result-count {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #6B7280;
+  white-space: nowrap;
+}
+
+.research-library__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.research-library__doc {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #E5E7EB;
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #fff);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.research-library__doc:hover {
+  border-color: #2563EB;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+/* Hover is not focus. The dark version styled only `hover:border-blue-600`, so
+ * tabbing through a 25-row list moved an invisible cursor. */
+.research-library__doc:focus-visible {
+  outline: 2px solid #2563EB;
+  outline-offset: 2px;
+}
+
+.research-library__doc-icon {
+  flex-shrink: 0;
+  color: #6B7280;
+  line-height: 1;
+}
+
+.research-library__doc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.research-library__doc-tags {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.research-library__doc-type {
+  padding: 0.1rem 0.5rem;
+  border-radius: 4px;
+  background: #F3F4F6;
+  color: #374151;
+  font-size: 0.7rem;
+  text-transform: capitalize;
+}
+
+.research-library__doc-instrument {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  color: #1D4ED8;
+}
+
+.research-library__doc-desc {
+  font-size: 0.8125rem;
+  color: #374151;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-library__doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  color: #6B7280;
+}
+
+.research-library__doc-address {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #4B5563;
+}
+
+.research-library__doc-cost {
+  flex-shrink: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #047857;
+}
+
+.research-library__pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+}
+
+.research-library__pager-btn {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid #D1D5DB;
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.research-library__pager-btn:hover:not(:disabled) { background: #F3F4F6; }
+
+.research-library__pager-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.research-library__pager-status {
+  font-size: 0.8125rem;
+  color: #4B5563;
+}
