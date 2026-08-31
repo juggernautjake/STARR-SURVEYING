@@ -273,17 +273,22 @@ export default function TemplateManager({
         )}
       </div>
 
-      {/* Create Form Modal */}
+      {/* Create Form Modal.
+
+          Third form modal in the research portal with a click-outside-to-close overlay, after the
+          New Project and Edit Project ones. Nothing mounts this component today (recorded as an
+          owner call in the module reachability guard), so nobody has lost a template to it — but
+          fixing it costs one line and means it does not arrive with the bug already in it if the
+          owner decides where it belongs. Escape still closes; so does Cancel. */}
       {showCreate && (
         <div
           className="research-templates__modal-overlay"
-          onClick={() => setShowCreate(false)}
           onKeyDown={e => { if (e.key === 'Escape') setShowCreate(false); }}
           role="dialog"
           aria-modal="true"
           aria-label={`New ${type === 'analysis' ? 'Analysis' : 'Drawing'} Template`}
         >
-          <div className="research-templates__modal" onClick={e => e.stopPropagation()}>
+          <div className="research-templates__modal">
             <h4 className="research-templates__modal-title">
               New {type === 'analysis' ? 'Analysis' : 'Drawing'} Template
             </h4>
