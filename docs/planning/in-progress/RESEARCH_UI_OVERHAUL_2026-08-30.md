@@ -169,6 +169,43 @@ This is the fifth parked premise in this repo to turn out false when checked. Ch
 
 ### B1a — Split the Overview route by SECTION, not by tab ☐ *(replaces B1)*
 
+**Review → Survey SHIPPED 2026-08-31.** 3,254 → 3,234 lines, and it came with the guard this
+repository has needed for a while.
+
+That panel opened with a **25-line cast** declaring 29 keys across four nested structures. The
+worker builds that object by hand in `worker/src/index.ts`; the panel declared by hand what it
+expected to find; nothing connected the two. A cast is a claim, not a check — TypeScript will
+happily let the panel read `result.platSummaries` from an object whose key is `platSummary`, and
+**an empty "Plat Analyses" section looks exactly like a deed that had no plats.**
+
+All 29 are produced. `review-reads-what-the-worker-writes.test.ts` keeps it that way, because the
+next key added is the one that will not be.
+
+### Verifying it took three tries, and the first two were the probe
+
+1. Accepting `foo,` **anywhere** reported all 29 produced — it matches any variable in an argument
+   list, so the sweep could not have returned a negative. A probe that cannot fail is a green light.
+2. Rejecting that form reported `platAnalyses` as never produced, when `worker/src/index.ts:475`
+   writes exactly that — in shorthand, on its own line. A false negative sends somebody to fix
+   working code.
+
+The rule is now three explicit forms with the shorthand **anchored to its own line**, and it is
+tested against a synthetic corpus rather than the real one: measured against the real corpus, the
+anti-control could not tell the anchored and unanchored versions apart, because the fake key it
+looks for appears nowhere either way. That mutation survived the first pass for exactly that
+reason.
+
+### And a `&&` that was standing in for a boolean
+
+`const hasBoundary = boundary && (…)` evaluates to its LEFT operand when that is falsy — so with
+no boundary at all `hasBoundary` was `null`, not `false`. It happened to work, and it doubled as a
+type narrowing that `tsc` immediately missed once it became a real boolean. Both sites use optional
+chaining now.
+
+The empty-call-list case alone does **not** distinguish the two forms — that mutation survived the
+first pass too. It is the no-boundary case that separates them.
+
+
 **Review → Property SHIPPED 2026-08-31.** 3,283 → 3,254 lines. The field PRECEDENCE moved to
 `_sections/property-review-fields.ts`, where it can be asserted: every field has a fallback, and
 which side wins is the only thing in that block a surveyor would notice being wrong — a stale

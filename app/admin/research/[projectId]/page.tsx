@@ -38,6 +38,7 @@ import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
 import ResearchRunPanel from '../components/ResearchRunPanel';
 import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
+import { surveyReviewData } from './_sections/survey-review-data';
 // What the run has spent and how much of its budget is left (research plan R22).
 import RunConsoleBar from '../components/RunConsoleBar';
 // What changed since the last run — research is not a one-shot (research plan R27).
@@ -2250,35 +2251,14 @@ export default function ResearchProjectPage() {
 
               {/* ── Tab: Survey Data ── */}
               {reviewTab === 'survey' && (() => {
-                const meta = project.analysis_metadata as Record<string, unknown> | null;
-                const result = meta?.result as Record<string, unknown> | null;
-                const boundary = result?.boundary as {
-                  bearingsAndDistances?: string[];
-                  lotDimensions?: string[];
-                  monuments?: string[];
-                  curves?: string[];
-                  rowWidths?: string[];
-                  platEasements?: string[];
-                  callCount?: number;
-                  confidence?: number;
-                } | null;
-                const chainOfTitle = (result?.chainOfTitle ?? []) as Array<{
-                  order: number; instrumentNumber: string | null; date: string | null;
-                  from: string; to: string; type: string;
-                }>;
-                const platAnalyses = (result?.platAnalyses ?? []) as Array<{
-                  name: string; instrumentNumber: string | null; date: string | null;
-                  narrative: string; bearingsAndDistances: string[]; lotDimensions: string[];
-                  monuments: string[]; easements: string[]; curves: string[];
-                  rowWidths: string[]; adjacentReferences: string[]; changesFromPrevious: string[];
-                }>;
-                const crossValidation = (result?.crossValidation ?? []) as string[];
-                const deedSummary = (result?.deedSummary ?? '') as string;
-                const platSummary = (result?.platSummary ?? '') as string;
-
-                const hasBoundary = boundary && (boundary.bearingsAndDistances?.length ?? 0) > 0;
-                const hasChain = chainOfTitle.length > 0;
-                const hasPlats = platAnalyses.length > 0;
+                // B1a — the 25-line cast this used to open with moved to
+                // `_sections/survey-review-data.ts`. It reads 29 keys across four nested
+                // structures, all hand-written on both sides; a cast is a claim, not a check,
+                // and `review-reads-what-the-worker-writes` is what turns it into one.
+                const {
+                  boundary, chainOfTitle, platAnalyses, crossValidation, deedSummary,
+                  platSummary, hasBoundary, hasChain, hasPlats,
+                } = surveyReviewData(project.analysis_metadata);
 
                 return (
                   <div className="review-tab-content">
@@ -2301,7 +2281,7 @@ export default function ResearchProjectPage() {
                     {/* Boundary Bearings & Distances */}
                     {hasBoundary ? (
                       <div className="review-data-section" style={{ marginBottom: '1rem' }}>
-                        <div className="review-narrative__label">Boundary Bearings &amp; Distances ({boundary.bearingsAndDistances?.length ?? 0} calls)</div>
+                        <div className="review-narrative__label">Boundary Bearings &amp; Distances ({boundary?.bearingsAndDistances?.length ?? 0} calls)</div>
                         <div className="admin-table-wrap"><table className="review-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem', marginTop: '0.5rem' }}>
                           <thead>
                             <tr style={{ borderBottom: '2px solid #1e40af' }}>
@@ -2310,7 +2290,7 @@ export default function ResearchProjectPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(boundary.bearingsAndDistances ?? []).map((call, i) => (
+                            {(boundary?.bearingsAndDistances ?? []).map((call, i) => (
                               <tr key={i} style={{ borderBottom: '1px solid #dbeafe', background: i % 2 === 0 ? '#f0f7ff' : '#ffffff' }}>
                                 <td style={{ padding: '0.4rem 0.6rem', color: '#1e40af', fontWeight: 700, width: '2.5rem' }}>{i + 1}</td>
                                 <td style={{ padding: '0.4rem 0.6rem', color: 'var(--theme-fg-primary, #111827)', fontFamily: 'monospace', fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.02em' }}>{call}</td>
