@@ -219,7 +219,14 @@ async function fetchMapImage(url: string): Promise<Buffer | null> {
       signal: AbortSignal.timeout(45_000),
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Say something rather than nothing. This service fetches from USGS National Map, which
+      // needs no key — so there is no Google failure to classify here (that belongs to
+      // parcel-map-capture and progressive-zoom, which do call maps.googleapis.com). But a bare
+      // `return null` still meant a missing aerial photo with no recorded reason.
+      console.warn(`[MapImage] Image source returned HTTP ${res.status} for ${url.slice(0, 120)}`);
+      return null;
+    }
     const ct = res.headers.get('content-type') || '';
     if (!ct.startsWith('image/')) return null; // USGS returns error JSON when out of bounds
 

@@ -17,6 +17,7 @@ import type { DocumentType } from '@/types/research';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
 import { BELL_CAD_FEATURE_SERVER } from './bell-cad-arcgis.service';
 import type { PipelineLogger } from './pipeline-logger';
+import { classifyStaticMapFailure } from '@/lib/maps/static-map-status';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -211,7 +212,16 @@ async function fetchImage(url: string): Promise<Buffer | null> {
       },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // The body is the only part that says WHICH failure this is. See static-map-status.ts.
+      if (url.includes('maps.googleapis.com')) {
+        const body = await res.text().catch(() => '');
+        console.warn(`[ParcelMapCapture] ${classifyStaticMapFailure(res.status, body).message}`);
+      } else {
+        console.warn(`[ParcelMapCapture] Image source returned HTTP ${res.status}`);
+      }
+      return null;
+    }
     const ct = res.headers.get('content-type') || '';
     if (!ct.startsWith('image/')) return null;
     return Buffer.from(await res.arrayBuffer());

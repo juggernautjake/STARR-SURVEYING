@@ -17,6 +17,7 @@ import type { DocumentType } from '@/types/research';
 import { geocodeAddress, type GeoPoint } from './map-image.service';
 import { PipelineLogger } from './pipeline-logger';
 import { fetchParcelCentroidWgs84 as fetchSharedCentroid } from './bell-cad-arcgis.service';
+import { classifyStaticMapFailure } from '@/lib/maps/static-map-status';
 
 // ── Parcel Centroid Lookup ───────────────────────────────────────────────────
 
@@ -170,7 +171,15 @@ async function fetchImage(url: string, logger?: PipelineLogger, label?: string):
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) {
-      logger?.warn('map_capture', `Image fetch failed: HTTP ${res.status} for ${label ?? shortUrl}`, { status: res.status, url: shortUrl });
+      // "HTTP 403" was true and useless — the same code covers "API switched off", "wrong key" and
+      // "a browser key used server-side", which need three different people. See
+      // static-map-status.ts; the body is the only part that distinguishes them.
+      let detail = '';
+      if (url.includes('maps.googleapis.com')) {
+        const body = await res.text().catch(() => '');
+        detail = ` — ${classifyStaticMapFailure(res.status, body).message}`;
+      }
+      logger?.warn('map_capture', `Image fetch failed: HTTP ${res.status} for ${label ?? shortUrl}${detail}`, { status: res.status, url: shortUrl });
       return null;
     }
     const ct = res.headers.get('content-type') || '';
