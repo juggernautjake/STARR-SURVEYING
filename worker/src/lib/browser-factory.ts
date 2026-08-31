@@ -186,6 +186,131 @@ export async function acquireBrowser(opts: BrowserFactoryOptions = {}): Promise<
   return session.browser;
 }
 
+// ── Leasing: one browser across many documents ─────────────────────────────
+//
+// ── THE COST THIS REMOVES ──────────────────────────────────────────────────
+//
+// From the owner's 2026-08-30 run, once per document, eleven times:
+//
+//     Browser launched — viewport 1920x1200 for max resolution capture
+//
+// `acquireBrowser` launches a fresh Chromium every call. Capturing a document set therefore paid
+// eleven cold starts for eleven visits to the SAME portal.
+//
+// ── WHY A SEPARATE API AND NOT POOLING BEHIND acquireBrowser ───────────────
+//
+// Because 30+ call sites do `browser.close()` when they are done, and that is correct for them.
+// Quietly pooling behind the existing function would mean the first caller to finish destroys the
+// browser every other caller is still using — a fault that appears as random "Target closed"
+// errors far from its cause. Leasing is opt-in: a caller that takes a lease releases it, and only
+// the last release closes anything.
+//
+// ── WHY BROWSERBASE IS NEVER POOLED ────────────────────────────────────────
+//
+// A Browserbase session is billed, remotely hosted, and has its own lifecycle — `acquireBrowser`
+// hooks 'disconnected' to release it. Holding one open across documents would extend a paid
+// session for as long as the lease lives, which is the opposite of what the per-adapter gate is
+// for. Leases fall back to launch-and-close for any non-local backend.
+
+interface BrowserLease {
+  browser: Browser;
+  /** Release this lease. The browser closes when the last holder releases and the idle timer fires. */
+  release: () => Promise<void>;
+}
+
+interface PooledBrowser {
+  browser: Browser;
+  /** Which backend produced it. The health check below only means something for a real Chromium:
+   *  the stub deliberately reports isConnected() === false, being a test double rather than a
+   *  connected browser, and treating that as "dead" recycled the pool on every single lease. */
+  backend: BrowserBackend;
+  refs: number;
+  /** Recycled after this many leases — a long-lived Chromium accumulates memory. */
+  uses: number;
+  idleTimer: NodeJS.Timeout | null;
+}
+
+let pool: PooledBrowser | null = null;
+
+/** Close the pooled browser once nothing has used it for this long. */
+export const BROWSER_IDLE_CLOSE_MS = 60_000;
+/** Recycle after this many leases regardless of idleness. */
+export const BROWSER_MAX_LEASES = 40;
+
+async function closePool(reason: string): Promise<void> {
+  const current = pool;
+  pool = null;
+  if (!current) return;
+  if (current.idleTimer) clearTimeout(current.idleTimer);
+  try {
+    await current.browser.close();
+  } catch (err) {
+    console.warn(`[browser-factory] pooled browser close failed (${reason}):`, err);
+  }
+}
+
+/**
+ * Borrow a browser, reusing a live one when possible.
+ *
+ * The caller MUST call `release()` and MUST NOT call `browser.close()` — closing a leased browser
+ * pulls it out from under every other holder.
+ */
+export async function leaseBrowser(opts: BrowserFactoryOptions = {}): Promise<BrowserLease> {
+  // BROWSERBASE is never pooled — specifically it, not "everything non-local". The reason is
+  // billing and session lifecycle, which is a property of Browserbase and not of the stub backend;
+  // writing the guard as `!== 'local'` also made the pool untestable without launching a real
+  // Chromium, which the lease tests caught immediately.
+  if (resolveBackend(opts) === 'browserbase') {
+    const browser = await acquireBrowser(opts);
+    return { browser, release: async () => { await browser.close().catch(() => {}); } };
+  }
+
+  // A disconnected browser is worse than none: every page call fails with "Target closed" and the
+  // cause is a crash that happened during somebody else's document.
+  const poolIsDead = pool !== null && pool.backend === 'local' && !pool.browser.isConnected();
+  if (pool && (poolIsDead || pool.uses >= BROWSER_MAX_LEASES)) {
+    const why = poolIsDead ? 'browser disconnected' : 'lease limit reached';
+    if (pool.refs === 0) await closePool(why);
+    else pool = null; // in use by someone else; let them finish, start a fresh one here
+  }
+
+  if (!pool) {
+    pool = { browser: await acquireBrowser(opts), backend: resolveBackend(opts), refs: 0, uses: 0, idleTimer: null };
+  }
+
+  const current = pool;
+  current.refs += 1;
+  current.uses += 1;
+  if (current.idleTimer) { clearTimeout(current.idleTimer); current.idleTimer = null; }
+
+  let released = false;
+  return {
+    browser: current.browser,
+    release: async () => {
+      if (released) return;   // double-release must not drive refs negative
+      released = true;
+      current.refs -= 1;
+      if (current.refs > 0 || pool !== current) return;
+      // Last holder. Do not close immediately — the next document is milliseconds away, and
+      // closing between every document would reinstate the cost this exists to remove.
+      current.idleTimer = setTimeout(() => {
+        if (pool === current && current.refs === 0) void closePool('idle');
+      }, BROWSER_IDLE_CLOSE_MS);
+      current.idleTimer.unref?.();
+    },
+  };
+}
+
+/** Close the pooled browser now. For shutdown and for tests. */
+export async function closeLeasedBrowser(): Promise<void> {
+  await closePool('explicit');
+}
+
+/** Lease bookkeeping, for tests and diagnostics. */
+export function leasedBrowserState(): { open: boolean; refs: number; uses: number } {
+  return { open: pool !== null, refs: pool?.refs ?? 0, uses: pool?.uses ?? 0 };
+}
+
 // ── Backend resolution ─────────────────────────────────────────────────────
 
 /**
@@ -198,7 +323,10 @@ export async function acquireBrowser(opts: BrowserFactoryOptions = {}): Promise<
  * the per-adapter gate is consulted. Adapters not in
  * BROWSERBASE_ENABLED_ADAPTERS fall back to 'local' with a debug log.
  */
-function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
+/** Exported so the routing DECISION can be asserted without launching a browser — the
+ *  Browserbase promotion rule is a policy, and a test that has to start Chromium to check a policy
+ *  is testing the wrong thing (and fails on any machine without it installed). */
+export function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
   let backend: BrowserBackend;
   if (opts.backend) {
     backend = opts.backend;
@@ -214,6 +342,30 @@ function resolveBackend(opts: BrowserFactoryOptions): BrowserBackend {
       backend = 'stub';
     } else {
       backend = 'local';
+    }
+  }
+
+  // ── PROMOTION: the adapter list can turn Browserbase ON for one adapter ──────────────────────
+  //
+  // Until 2026-08-30 this list could only ever RESTRICT — it was consulted after the backend had
+  // already resolved to browserbase. So the only way to use Browserbase for a single adapter was
+  // `BROWSER_BACKEND=browserbase`, and the block below then pushed the other GATED adapters back to
+  // local. Ungated calls — and there are many, the factory's own header says they "always honor
+  // BROWSER_BACKEND" — went to Browserbase regardless.
+  //
+  // That is a per-session bill for the clerk scraping (~40 navigations a run, working perfectly on
+  // local Chromium) in order to fix the CAD adapter, which is not it. The list reads like an opt-in
+  // everywhere it is described; it now behaves like one.
+  //
+  // This is NOT the auto-promotion the header says was stripped. That inferred the backend from the
+  // mere PRESENCE of BROWSERBASE_API_KEY — paid infrastructure switched on by a credential existing.
+  // This requires an operator to name the adapter explicitly, and the list is empty by default, so
+  // nothing changes for anyone who has not opted in.
+  if (backend === 'local' && opts.adapterId !== undefined) {
+    const enabled = parseEnabledAdapters(process.env.BROWSERBASE_ENABLED_ADAPTERS);
+    if (enabled.has(opts.adapterId)) {
+      console.log(`[browser-factory] adapter "${opts.adapterId}" promoted → browserbase (named in BROWSERBASE_ENABLED_ADAPTERS)`);
+      return 'browserbase';
     }
   }
 

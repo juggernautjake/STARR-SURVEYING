@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import type { DocumentRef, DocumentResult, PageScreenshot, DocumentPage } from '../types/index.js';
 import { PipelineLogger } from '../lib/logger.js';
 import type { Response as PlaywrightResponse } from 'playwright';
-import { acquireBrowser } from '../lib/browser-factory.js';
+import { acquireBrowser, leaseBrowser } from '../lib/browser-factory.js';
 import { withPoliteness } from '../infra/politeness.js';
 
 // ── Kofile PublicSearch Configuration ──────────────────────────────────────
@@ -2705,14 +2705,19 @@ export async function fetchDocumentImages(
     return [];
   }
   let browser: import('playwright').Browser | null = null;
+  let lease: Awaited<ReturnType<typeof leaseBrowser>> | null = null;
   const attempt = logger.attempt('2D-IMG', baseUrl, 'PLAYWRIGHT_IMAGES', instrumentNumber);
   const pages: DocumentPage[] = [];
 
   try {
-    browser = await acquireBrowser({
+    // Leased, not launched: eleven documents in one run meant eleven Chromium cold starts against
+    // the same portal. The lease keeps one browser warm and closes it once nothing has used it for a
+    // minute. Each document still gets its own CONTEXT below, so viewer state does not carry over.
+    lease = await leaseBrowser({
       adapterId: 'bell-clerk',
       launchOptions: { headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] },
     });
+    browser = lease.browser;
 
     // Disable browser HTTP cache to ensure fresh signed URLs on every visit.
     // Without this, revisiting a document serves cached (expired) signed URLs,
@@ -3074,7 +3079,8 @@ export async function fetchDocumentImages(
     }
 
     page.removeAllListeners('response');
-    await browser.close();
+    // Close the CONTEXT, never the leased browser — other documents may be holding it.
+    await context.close().catch(() => {});
 
     if (pages.length > 0) {
       attempt.success(pages.length, `Downloaded ${pages.length} page images`);
@@ -3098,7 +3104,9 @@ export async function fetchDocumentImages(
     attempt.fail(err.message);
     return [];
   } finally {
-    await safeCloseBrowser(browser, logger, '2D-IMG');
+    // Release, do not close. Closing a leased browser pulls it out from under every other
+    // holder, which surfaces as "Target closed" during somebody else's document.
+    await lease?.release();
     browser = null;
   }
 }
