@@ -33,21 +33,26 @@ You enabled Places, Geocoding and Maps Static on the Cloud project on 2026-08-30
 confirmation: the errors changed from *"this API is not activated"* to a **different** refusal,
 which is what proves the enabling worked.
 
-### Step 1 — add Maps Static to the key's API restriction list ☐
+### Step 1 — ~~add Maps Static to the browser key~~ **NOT NEEDED — corrected 2026-08-30** ✅
 
-Cloud Console → **APIs & Services → Credentials** → your Maps key → **API restrictions**.
+The first version of this guide said to add Maps Static and Geocoding to the existing key. That was
+wrong, and checking which code actually calls them is what caught it:
 
-If it is set to "Restrict key", the list must include:
+| API | Call sites | All server-side? |
+|---|---|---|
+| Maps Static | `parcel-map-capture`, `progressive-zoom`, `lot-correlator` | **yes** |
+| Geocoding | `boundary-fetch` | **yes** |
+| Places | `AddressAutocomplete` (browser SDK) | no — browser |
+| Maps JavaScript | the map itself | no — browser |
 
-- Maps JavaScript API *(already there — the map draws)*
-- Places API
-- Geocoding API
-- **Maps Static API** ← the one currently missing
+**Nothing in the browser calls Maps Static or Geocoding.** So the browser key needs exactly what it
+already has — Maps JavaScript API and Places API — and adding more to it would widen a public key's
+reach for no gain. Leave it alone.
 
-Measured right now: Static Maps returns `403 — "This API key is not authorized to use this service
-or API."` That message means the API is on and this key is not in its allow-list.
+The Cloud Console screen showing *"No API keys to display"* for Maps Static is therefore not a
+problem to fix on that key; it is the reason to create the second one below.
 
-### Step 2 — create a SECOND key for server-side use ☐
+### Step 2 — create a SECOND key for server-side use ☐ **← the whole task**
 
 **This is the step that is easy to miss, and nothing works without it.**
 
@@ -61,9 +66,18 @@ No amount of enabling APIs fixes this. It needs a different key.
 
 1. Cloud Console → Credentials → **Create credentials → API key**
 2. Name it something like `starr-server-maps`
-3. **Application restrictions:** choose **IP addresses** and add the worker's IP `152.53.48.240`
-   — or **None** if you keep the key server-side only. Do **not** choose HTTP referrers.
-4. **API restrictions:** Geocoding API + Maps Static API
+3. **Application restrictions: None.**
+
+   Not "IP addresses", and the reason matters. Three of the four server-side callers
+   (`boundary-fetch`, `parcel-map-capture`, `progressive-zoom`) run **on Vercel**, whose function
+   egress IPs are dynamic — an IP allow-list would work for the worker box and silently break the
+   app. Only `lot-correlator` runs on the netcup box at `152.53.48.240`.
+
+   "None" is safe here **because this key never reaches a browser.** Its protection is that it lives
+   only in Doppler and the worker's `.env`, never in a `NEXT_PUBLIC_` variable. If you later put
+   Vercel's static-IP add-on in place, tighten this to an IP list then.
+4. **API restrictions:** Geocoding API + Maps Static API — those two only. Not Places, not Maps
+   JavaScript; the browser key covers those and this key should be able to do nothing else.
 5. Set it in **both** places, because both the app and the worker call Google server-side:
    - **Doppler `prd`** → `GOOGLE_MAPS_SERVER_KEY` (Vercel picks it up)
    - **`/opt/starr/worker/.env`** → `GOOGLE_MAPS_SERVER_KEY`
@@ -167,12 +181,56 @@ Two are worth money if you ever want them:
 
 | Item | Recommendation |
 |---|---|
-| **Browserbase** | **Cancel.** Valid key, **zero sessions in four months**, and nothing in the pipeline reaches for it. It is an escape hatch for counties that block datacentre IPs — a real problem you have not hit. Re-subscribing takes minutes if a county starts refusing the box. |
+| **Browserbase** | **Decide AFTER the first real run, not before** — see §4b. Earlier advice here said "cancel", which under-weighted one fact: the worker is in **Vienna**, and a Texas county portal seeing automated traffic from an Austrian datacentre IP is a classic blocking profile. Nothing has been blocked, but nothing has been tried either — those are currently the same observation. |
 | **CapSolver** | Key was rejected. Only needed for counties with captchas; none of yours currently. Leave it. |
 | **Google Business Profile** | Photos, description (paste-ready text is in the planning doc §G4), and reviews. Slow real-world work, biggest effect on lead volume. |
 | **Profile URLs** | Business Profile, Facebook, LinkedIn, BBB — whichever exist. They fill `sameAs` in the site's structured data. If some do not exist, say so and the field gets dropped rather than left half-filled. |
 
 ---
+
+## 4b. Browserbase — would it help, and what would switching it on take?
+
+**Measured live 2026-08-30:** `/healthz` reports `browser: {"backend":"local"}`. The worker launches
+its own Chromium; Browserbase is paid for and idle, as it has been for four months.
+
+### Would it be useful?
+
+Its real value for this platform is **US-based, less-flagged IPs and anti-fingerprinting** — not
+"cloud browsers" as a feature. That matters here for one specific reason: **the worker is in Vienna,
+Austria.** A Texas county clerk portal receiving automated traffic from an Austrian datacentre IP is
+a recognisable profile for blocking or geo-filtering.
+
+**But no portal has ever blocked us, because no purchase run has ever executed.**
+`research_document_purchases` has 0 rows. "We do not need it" and "we have not tested it" are
+currently the same observation, and only the first sounds like a conclusion.
+
+### So: run the test first
+
+The first real research run (§5) is the cheapest possible experiment and it is decisive:
+
+- **Run completes normally** → cancel Browserbase. The Vienna IP is fine and the money is waste.
+- **Portal blocks or challenges** → you have a concrete reason to enable it, and you know exactly
+  *which adapter* needs it, which is what the per-adapter gate is for.
+
+Cancelling first risks the opposite mistake: discovering on a real job that a county will not talk
+to the box, with no fallback configured.
+
+### What switching it on takes — configuration, not a build
+
+The plumbing already exists: `getBrowser({ adapterId })` in `worker/src/lib/browser-factory.ts`
+routes per adapter, with telemetry attribution.
+
+1. **Prove the key.** The audit called it "valid"; zero sessions means that was never exercised. One
+   test session before relying on it.
+2. **On the worker** (`/opt/starr/worker/.env`): `BROWSERBASE_API_KEY`, `BROWSERBASE_PROJECT_ID`.
+3. **Enable per adapter**, never globally: `BROWSERBASE_ENABLED_ADAPTERS=kofile-clerk,texasfile`
+   (comma-separated ids from `KNOWN_ADAPTER_IDS`). It bills per session, so it belongs in the
+   variable-cost column as an exception for portals that need it — never as the default backend.
+   That is why `BROWSER_BACKEND` and this list are separate switches.
+4. **Redeploy** (§2), then confirm `/healthz` shows `browser.backend` leaving `local` for those
+   adapters.
+
+About ten minutes, and reversible by clearing one variable.
 
 ## 5. The one test that has never been run
 
