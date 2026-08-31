@@ -196,13 +196,30 @@ analysis, does not purchase documents, and links to the batch form for a worker 
 
 ## Phase C — intake
 
-### C1 — New Research Project modal ☐
+### C1 — ~~New Research Project modal~~ ✅ **SHIPPED 2026-08-30**
 
-Required path is **address or Property ID, plus county**. Everything else (owner, project name,
-notes, city/ZIP/state) goes behind an `Accordion` labelled "Optional details". The paid-documents
-toggle uses `Toggle`.
+Twelve fields became four. City, ZIP, owner, project name and notes moved behind the A2
+`Accordion`; Property ID, address, county and the paid-documents toggle stay in front.
 
-**Done:** the modal opens showing four fields, not twelve.
+**What stays visible was the actual decision.** Address and county decide whether a run can start
+and where it routes. The paid toggle stays because it is the one control that can spend money, and
+folding that away would be the worst possible choice of thing to hide.
+
+**The summary counts what is filled** — "city, notes" or "none set" — because a collapsed section
+that cannot tell you whether anything is inside makes people open it every time, which is worse
+than not collapsing it at all.
+
+**The risk here was silent data loss, not layout.** A hidden field is only safe while it is still
+SENT, and these reach the API for exactly one reason: the POST body spreads the whole form state.
+Tidying that into an explicit field list would drop every collapsed field while the modal looked
+completely correct. 8 tests pin it — including the post-create reset object, since a field omitted
+*there* keeps the PREVIOUS project's value, which is worse than losing it because it looks
+deliberate. Mutation-tested: replacing the spread fails it.
+
+The `Toggle` primitive was **not** swapped in for the paid-documents control. Its help text changes
+with state and carries specific wording about what a run will and will not buy; rewriting that into
+the generic primitive would have risked the message for a cosmetic gain. Deferred deliberately, not
+missed.
 
 ### C2 — Address + county feedback ☐
 
