@@ -729,6 +729,54 @@ Mutation-tested five ways. One is an equivalent mutant and stayed green correctl
 changes nothing because the `&&` already short-circuits on zero. Untyping the payload again is
 caught by `tsc` rather than by a test, which is the right mechanism for it.
 
+## G4 — Every full extraction has been throwing its report away (2026-08-31)
+
+The full-extract route persists its extraction report like this:
+
+```ts
+await supabaseAdmin.from('research_documents')
+  .update({ analysis_metadata: { full_extraction_report, extraction_atoms_count, … } })
+```
+
+`analysis_metadata` is a column on **research_projects**. `research_documents` has never had one.
+PostgREST rejects the update — and the call sat inside a bare `try { … } catch { }`, so nothing
+was logged, nothing failed, and the route went on returning 200 with the report in the response.
+Only the saved copy was lost, every time, since the route was written.
+
+This is the `activity_log` defect again: that one wrote `action`/`details` to a table whose columns
+are `action_type`/`metadata`, and recorded nothing for as long as it existed.
+
+**Seed 621 adds the column** — per-document, not per-project, because writing to
+`research_projects.analysis_metadata` would have each document overwrite the last: a quieter bug
+in place of a loud one. **⚠ It must be applied to the live database**; until then the route now
+says so in its log instead of swallowing it.
+
+**The `catch` was never going to work anyway.** The Supabase client does not throw on a rejected
+write — it returns `{ error }`. So the error had to be read, not caught. Both are fixed.
+
+### The check took five attempts, and four of them reported ZERO
+
+Every one of those zeros looked like good news:
+
+1. **136 findings**, including columns literally named `null` and `false`, and one table's columns
+   attributed to another.
+2. **0** — offsets taken from a comment-STRIPPED source were used to index the ORIGINAL. Stripping
+   changes lengths, so the two stopped lining up.
+3. **0** — `after.slice(0, op.index)`, where `after` starts AT the `.from(`, so the "no other
+   `.from()` in between" guard matched itself and skipped every candidate.
+4. **0**, still, because that fix was applied to a mangled regex.
+5. **4**, of which three were false positives: a ternary's true-branch
+   (`storage_path: ok ? storagePath : null` read as a column called `storagepath`) and a
+   multi-column `ALTER TABLE … ADD COLUMN a, ADD COLUMN b` where only the first was parsed.
+
+It was caught each time by **injecting a fake column and requiring the probe to see it** — never by
+reading the code, which looked correct at every step. That control is now the first assertion in
+the shipped guard, and its probe file deliberately carries block comments, a line comment and a
+URL: without something ahead of the call for offsets to drift over, breaking the blanker goes
+unnoticed. That mutation survived the first pass.
+
+**A structural check that cannot fail is worse than no check — it is a green light.**
+
 ## Status 2026-08-31 — why this doc stays in `in-progress/`
 
 Shipped: **A1 A2 A3 A4 · B6 · C1 C2 C3 · D0 · E1 E2 · F1**. Twelve of the original items, plus two
