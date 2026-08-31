@@ -12,8 +12,22 @@
   --recon-success: #047857;   /* 5.48:1 on white — was #059669 at 3.77 */
   --recon-warning: #D97706;
   --recon-border: var(--theme-border, #E5E7EB);
-  --recon-bg: #F8FAFC;
-  --recon-card: #FFFFFF;
+  --recon-bg: var(--theme-bg-elevated, #F8FAFC);
+  /* The near-white the portal uses for inset panels — log boxes, detail boxes, the
+   * dropzone. Nine rules hard-coded #FAFAFA, so under a dark palette they stayed
+   * near-white while their text followed the theme. Pointing them straight at
+   * --theme-bg-elevated would have worked and would ALSO have moved the default from
+   * #FAFAFA to #F1F5F9 — a bluer, darker grey that drops #DC2626 from 4.73:1 to 4.41:1
+   * on the deed-chain break count. So the default keeps its exact value and only a
+   * non-default palette follows the token. */
+  --recon-subtle: #FAFAFA;
+  /* Danger as TEXT, not as a fill. `--theme-danger` is tuned to be legible on the
+   * palette its own surfaces use, and on the default palette that is #EF4444 — 3.6:1
+   * on the page, which is what the Archive button measured. A red dark enough for a
+   * white page is 2.9:1 on a black one, so this is the one pair that genuinely needs
+   * two values rather than one token. */
+  --recon-danger-text: #B91C1C;   /* 6.47:1 on white */
+  --recon-card: var(--theme-bg-surface, #FFFFFF);
 }
 
 /* ── Project List Page ────────────────────────────────────────────────────── */
@@ -748,9 +762,16 @@
   color: var(--recon-brand);
 }
 
+/* A FIXED PALE CHIP MUST NOT TAKE ITS TEXT FROM THE THEME. `#EEF2FF` is a fixed pale
+ * indigo and `--recon-brand` follows the palette: under forest-dark the accent is
+ * #4ADE80 — mint on pale indigo, 1.56:1 — and under high-contrast-dark it is #FFFF00,
+ * yellow on near-white at 1.04:1, which is nothing at all. Same rule as the coverage
+ * tone cards: an element that brings its own background brings its own foreground. */
 .research-project-nav__link--active {
   background: #EEF2FF;
-  color: var(--recon-brand);
+  /* `!important` for the reason spelled out at the bottom of this file: it is competing
+   * with `.admin-layout a:not(…)` at 0,6,1, and this rule is a single class. */
+  color: var(--recon-brand-dark, #152050) !important;   /* 13.87:1 on #EEF2FF, every palette */
   font-weight: 600;
 }
 
@@ -771,7 +792,7 @@
 .research-export-bar__label {
   font-size: 0.82rem;
   font-weight: 600;
-  color: var(--recon-text, #374151);
+  color: var(--theme-fg-secondary, #374151);
   margin-right: 0.15rem;
 }
 .research-export-bar__btn {
@@ -818,7 +839,7 @@
   flex: 1;
   min-width: 180px;
   font-size: 0.88rem;
-  color: var(--recon-text, #374151);
+  color: var(--theme-fg-secondary, #374151);
   line-height: 1.45;
   display: inline-flex;
   align-items: center;
@@ -831,7 +852,7 @@
   align-items: center;
   gap: 0.4rem;
   background: var(--recon-brand, #1E3A8A);
-  color: #fff;
+  color: var(--theme-accent-fg, #fff);
   border: none;
   border-radius: 8px;
   padding: 0.6rem 1.1rem;
@@ -894,7 +915,7 @@
 .research-county-badge {
   margin-left: 0.5rem;
   background: #EEF2FF;
-  color: var(--recon-brand);
+  color: var(--recon-brand-dark, #152050);   /* see the note on the active nav link */
   font-size: 0.78rem;
   font-weight: 600;
   border-radius: 999px;
@@ -917,7 +938,7 @@
   text-align: center;
   cursor: pointer;
   transition: all 0.2s;
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
 }
 
 .research-upload__dropzone:hover {
@@ -960,7 +981,7 @@
 .research-upload__manual-btn {
   background: none;
   border: none;
-  color: #2563EB;
+  color: var(--theme-accent, #2563EB);
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0;
@@ -1550,7 +1571,7 @@
   border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 8px;
   overflow: hidden;
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
 }
 .research-analyzing__log-header {
   display: flex;
@@ -2048,7 +2069,7 @@
 }
 
 .research-review__dp-main:hover {
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
 }
 
 .research-review__dp-value {
@@ -3532,7 +3553,7 @@
 .coherence-review__detail-box {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--theme-border, #E5E7EB);
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
 }
 
 .coherence-review__detail-box-title {
@@ -3595,7 +3616,7 @@
   border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 10px;
   overflow: hidden;
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
 }
 
 .misc-docs-toggle__summary {
@@ -3754,7 +3775,7 @@
   font-size: 0.88rem;
   border: 1px solid #D1D5DB;
   border-radius: 8px;
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
   color: var(--theme-fg-primary, #1F2937);
   transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
@@ -8636,7 +8657,7 @@
   gap: 0.5rem;
   padding: 0.45rem 0.75rem;
   cursor: pointer;
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
   transition: background 0.1s;
 }
 
@@ -8709,7 +8730,7 @@
   gap: 0.75rem;
   align-items: flex-start;
   padding: 0.6rem 0.85rem;
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
   border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 0.375rem;
 }
@@ -9669,7 +9690,7 @@
 }
 
 .research-boundary__row--curve {
-  background: #FAFAFA;
+  background: var(--recon-subtle, #FAFAFA);
 }
 
 /* ============================================================================
@@ -10224,7 +10245,7 @@
   background: transparent;
   font-size: 0.85rem;
   font-weight: 600;
-  color: #64748b;
+  color: #475569;   /* 6.92:1 on the tab strip — was #64748b at 4.34, and 13.6px is not large text */
   cursor: pointer;
   border-bottom: 2px solid transparent;
   white-space: nowrap;
@@ -11078,7 +11099,7 @@
 /* New-batch creation panel. */
 .research-pipeline__create-btn {
   background: var(--recon-brand);
-  color: #FFFFFF;
+  color: var(--theme-accent-fg, #FFFFFF);
   border: 1px solid var(--recon-brand);
   border-radius: 6px;
   padding: 0.5rem 1rem;
@@ -11782,7 +11803,11 @@
   cursor: pointer;
 }
 
-.packet-builder__create:disabled { background: #9CA3AF; cursor: default; }
+/* #9CA3AF put white text at 2.54:1. WCAG 1.4.3 exempts an inactive control, and a
+ * disabled button a surveyor cannot read is still a disabled button they cannot read —
+ * it is the one that says WHY the packet cannot be built. #6B7280 is 4.83:1 and still
+ * reads as off. */
+.packet-builder__create:disabled { background: #6B7280; cursor: default; }
 .packet-builder__note { color: var(--theme-fg-muted, #6B7280); font-style: italic; }
 
 /* ── Neighbours (plan R31–R33) ────────────────────────────────────────────── */
@@ -12142,7 +12167,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: var(--color-brand-blue, #2563EB);
+  color: var(--theme-accent, #2563EB);
   font: inherit;
   font-weight: 600;
   text-decoration: underline;
@@ -12178,9 +12203,9 @@
   overflow-x: auto;
   padding: 0.5rem 0;
   margin-bottom: 0.75rem;
-  border-bottom: 1px solid #E5E7EB;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
   font-size: 0.75rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   scrollbar-width: thin;
 }
 
@@ -12189,7 +12214,7 @@
   text-transform: capitalize;
 }
 
-.research-library__type-stat strong { color: #111827; }
+.research-library__type-stat strong { color: var(--theme-fg-primary, #111827); }
 
 /* Six chips do not fit 390px. They scroll sideways rather than wrap: wrapping
  * to three lines pushes the document list below the fold, and the list is what
@@ -12208,7 +12233,7 @@
   align-items: center;
   gap: 0.4rem;
   font-size: 0.75rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 /* The dark version's selects carried no label at all — "All Counties" and
@@ -12240,7 +12265,7 @@
 .research-library__result-count {
   margin-left: auto;
   font-size: 0.75rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
   white-space: nowrap;
 }
 
@@ -12416,13 +12441,13 @@
   margin: 0;
   font-size: 1.5rem;
   font-weight: 700;
-  color: #111827;
+  color: var(--theme-fg-primary, #111827);
 }
 
 .research-billing__price {
   margin: 0;
   font-size: 0.8125rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 .research-billing__trial {
@@ -12442,7 +12467,7 @@
 
 .research-billing__next-date {
   font-size: 0.8125rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 .research-billing__manage-btn {
@@ -12487,10 +12512,10 @@
   justify-content: space-between;
   margin-bottom: 0.3rem;
   font-size: 0.8125rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
-.research-billing__usage-count { color: #111827; font-weight: 600; }
+.research-billing__usage-count { color: var(--theme-fg-primary, #111827); font-weight: 600; }
 
 .research-billing__meter {
   height: 8px;
@@ -12529,7 +12554,7 @@
 .research-billing__stat,
 .research-billing__panel {
   padding: 1rem;
-  border: 1px solid #E5E7EB;
+  border: 1px solid var(--theme-border, #E5E7EB);
   border-radius: 10px;
   background: var(--theme-bg-surface, #fff);
 }
@@ -12539,13 +12564,13 @@
 .research-billing__stat-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #111827;
+  color: var(--theme-fg-primary, #111827);
 }
 
 .research-billing__stat-label {
   margin-top: 0.2rem;
   font-size: 0.75rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 .research-billing__row {
@@ -12553,13 +12578,13 @@
   justify-content: space-between;
   gap: 1rem;
   padding: 0.35rem 0;
-  border-bottom: 1px solid #F3F4F6;
+  border-bottom: 1px solid var(--theme-border, #F3F4F6);
   font-size: 0.8125rem;
-  color: #4B5563;
+  color: var(--theme-fg-secondary, #4B5563);
 }
 
 .research-billing__row:last-child { border-bottom: none; }
-.research-billing__row-value { color: #111827; font-weight: 600; }
+.research-billing__row-value { color: var(--theme-fg-primary, #111827); font-weight: 600; }
 
 .research-billing__vendors { margin-bottom: 1.25rem; }
 
@@ -12920,4 +12945,82 @@
   margin-top: 1rem;
   border-top: 1px solid var(--theme-border, #E5E7EB);
   padding-top: 1rem;
+}
+
+/* See the note on `--recon-subtle` at the top of this file. The default palette is
+ * excluded by name so its inset panels stay exactly #FAFAFA and every contrast pair
+ * measured against that value stays measured against it. */
+[data-theme]:not([data-theme="starr-default"]) {
+  --recon-subtle: var(--theme-bg-elevated, #FAFAFA);
+}
+
+/* ── The two Tailwind-dark research pages ─────────────────────────────────────
+ *
+ * F2 browser half, 2026-08-31. The boundary viewer and the documents page are
+ * dark applications built with Tailwind — `bg-gray-950`, `text-gray-100` — sitting
+ * inside a light admin shell. Under a THEME they came apart:
+ *
+ *     A.text-gray-400  → #1D3095 on #111827   1.61:1
+ *     P.               → #475569 on #030712   2.66:1
+ *     LABEL.           → #475569 on #111827   2.34:1
+ *
+ * The cause is the one `panel-contrast.test.ts` already records, one step further
+ * on. `app/styles/globals.css` sets `a`, `p`, `label` and `h1–h6` by ELEMENT
+ * selector, and the themes re-point `--brand-red` / `--brand-dark` /
+ * `--text-secondary` at the palette's light-page values. An element rule outside
+ * `@layer` beats a Tailwind utility inside one — so `text-gray-400` on the anchor
+ * never applied, on any theme, including the default.
+ *
+ * The real fix is to move those four rules into `@layer base`, which is a
+ * whole-application change and not this doc's slice. This is the route-scoped
+ * version: on these two pages, those elements inherit again, which is what lets
+ * the Tailwind utility on the element itself decide. `AdminResearch.css` loads
+ * last on research routes — trap #1 in the plan doc — so this is where it works.
+ *
+ * ── WHY THIS BLOCK USES `!important`, WHICH IS OTHERWISE NOT THIS FILE'S HABIT ──
+ *
+ * It is not competing with `a { }`. It is competing with `AdminLayout.css:86`:
+ *
+ *     .admin-layout a:not(.btn):not([class*="dashboard-card"]):not([class*="sidebar"])
+ *       :not([class*="topbar"]):not([class*="admin-rail"]):not([class*="__btn"])
+ *       :not([class*="-btn"]) { color: var(--color-brand-navy, #1D3095); }
+ *
+ * That is specificity 0,6,1 and it is right for the light admin. Out-specifying it
+ * from here means either repeating `.research-dark-app` seven times or copying its
+ * six `:not()` clauses — both of which encode the number 6 in a second place, where
+ * it will rot. Lowering the layout rule with `:where()` would change the cascade for
+ * every admin page in the product to fix two.
+ *
+ * `!important` on a block scoped to one class on two pages is the smaller, more
+ * honest instrument, and it says what it means: inside a dark island, the island's
+ * own colours win. Between the two rules below, ordinary specificity still decides
+ * — `.research-dark-app .text-gray-400` (0,2,0) beats `.research-dark-app :is(a…)`
+ * (0,1,1) — so a utility on the element still overrides the inherit. */
+/* The container declares its own background rather than leaving it to `bg-gray-950`.
+ * Two reasons, and the second is the one that bit: it makes the stylesheet say what
+ * surface these rules are for, and it lets `verify:contrast` resolve the ancestor —
+ * without it the checker read `.research-dark-app .text-white` as white on the page
+ * and reported 1:1 on a rule that only ever renders on #030712. */
+.research-dark-app { background: #030712; }
+
+.research-dark-app :is(a, p, label, h1, h2, h3, h4, h5, h6, strong, em, code, td, th) {
+  color: inherit !important;
+}
+
+/* …and the utilities that ARE on the element have to win over that, so the ones
+ * these two pages actually use are re-stated. Listed rather than globbed: a
+ * wildcard here would silently claim every Tailwind grey in the product. */
+.research-dark-app .text-gray-100 { color: #F3F4F6 !important; }
+.research-dark-app .text-gray-300 { color: #D1D5DB !important; }
+.research-dark-app .text-gray-400 { color: #9CA3AF !important; }
+.research-dark-app .text-gray-500 { color: #9CA3AF !important; }  /* #6B7280 is 3.67:1 on #111827 */
+.research-dark-app .text-white    { color: #FFFFFF !important; }
+.research-dark-app .text-red-400  { color: #FCA5A5 !important; }  /* 9.98:1 on #0B1020 */
+
+/* The dark palettes need the opposite red — see `--recon-danger-text` above. */
+[data-theme="starr-dark"],
+[data-theme="slate-dark"],
+[data-theme="forest-dark"],
+[data-theme="high-contrast-dark"] {
+  --recon-danger-text: #F87171;   /* 6.84:1 on #0B1020 */
 }

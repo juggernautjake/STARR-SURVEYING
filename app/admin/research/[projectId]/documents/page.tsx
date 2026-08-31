@@ -181,7 +181,7 @@ export default function ProjectDocumentsPage() {
 
   if (sessionStatus === 'loading' || loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="research-dark-app min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-gray-300 text-center">
           <div className="text-4xl mb-4 animate-spin">⟳</div>
           <p>Loading documents…</p>
@@ -192,7 +192,7 @@ export default function ProjectDocumentsPage() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="research-dark-app min-h-screen bg-gray-950 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 text-lg mb-4">Failed to load documents</p>
           <p className="text-gray-500 text-sm mb-6">{loadError}</p>
@@ -208,7 +208,7 @@ export default function ProjectDocumentsPage() {
   const usedCount = documents.filter(d => d.usedInAnalysis).length;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-gray-100">
+    <div className="research-dark-app min-h-screen bg-gray-950 text-gray-100">
       {/* ── Header ── */}
       <header className="bg-gray-900 border-b border-gray-800 px-6 py-4">
         <div className="flex items-center justify-between">

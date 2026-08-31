@@ -37,6 +37,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { encode } from '@auth/core/jwt';
 import { PROBE, OCCLUSION_PROBE, scrollToTheEnd, type Offender } from './_responsive-probes';
+// The same page function `check-portal-themes.mjs` runs over routes. The Review tabs are state, so
+// they are unreachable from any route list, and this is the only place they get measured as painted.
+import { AUDIT } from '../scripts/_contrast-audit-probe.mjs';
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:3050';
 const AUDIT_ONLY = process.env.AUDIT === '1';
@@ -485,6 +488,9 @@ for (const { name, viewport, mobile } of WIDTHS) {
       expect(count, 'the review panel did not render; the fixture is not reaching the page').toBe(8);
 
       const bad: string[] = [];
+      const dim: string[] = [];
+      let measured = 0;
+
       for (let i = 0; i < count; i++) {
         const label = (await tabs.nth(i).textContent())?.trim() ?? `tab ${i}`;
         await tabs.nth(i).click();
@@ -495,18 +501,47 @@ for (const { name, viewport, mobile } of WIDTHS) {
         const chars = await page.evaluate(
           "(document.querySelector('.review-tab-content')?.innerText || '').trim().length",
         ) as number;
+
+        // ── F2, THE BROWSER HALF ──────────────────────────────────────────────────────────────
+        //
+        // `verify:contrast` reads stylesheets and inline styles statically and reports clean over
+        // 930 pairs. It still cannot see cascade, inheritance, or what a themed token resolves to —
+        // it says so itself: it is a floor, not a ceiling. `check-portal-themes.mjs` is the real
+        // instrument, and it walks ROUTES; the Review tabs are STATE, so it has never once
+        // rendered the Easements, Survey Data or coherence panels. This is the only place they get
+        // measured as painted.
+        const contrast = await page.evaluate(AUDIT, { normal: 4.5, large: 3 }) as {
+          pageIsDark: boolean;
+          islands: Array<{ what: string; bg: string; area: number }>;
+          unreadable: Array<{ what: string; ratio: number; need: number; size: number; color: string }>;
+          unmeasurable: Array<{ what: string; why: string }>;
+        };
+        measured += 1;
+
         console.log(`    review tab "${label}" @ ${name}: ${chars} chars, `
           + `sideways=${r.docScrollsSideways} (${r.scrollWidth} vs ${r.viewport}), `
-          + `offenders=${r.offenders.length}`
-          + r.offenders.map((o) => `\n        ${o.tag}.${o.cls.split(' ')[0]} ${o.width}px "${o.text}"`).join(''));
+          + `offenders=${r.offenders.length}, `
+          + `unreadable=${contrast.unreadable.length}, unmeasurable=${contrast.unmeasurable.length}`
+          + r.offenders.map((o) => `\n        ${o.tag}.${o.cls.split(' ')[0]} ${o.width}px "${o.text}"`).join('')
+          + contrast.unreadable.map((u) => `\n        ${u.what} ${u.ratio}:1 (need ${u.need}) ${u.color} @ ${u.size}px`).join(''));
+
         if (r.docScrollsSideways) {
           bad.push(`${label}: ${r.scrollWidth}px in ${r.viewport}px — `
             + r.offenders.map((o) => `${o.tag}.${o.cls.split(' ')[0]} ${o.width}px`).join(', '));
         }
+        for (const u of contrast.unreadable) {
+          dim.push(`${label} → ${u.what}: ${u.ratio}:1 (needs ${u.need}) — ${u.color} at ${u.size}px`);
+        }
       }
+
+      // Control: the contrast probe ran on every tab, not on none of them. An `evaluate` that
+      // throws inside the page returns nothing useful and an empty findings list looks identical
+      // to a clean one.
+      expect(measured, 'the contrast probe did not run on every tab').toBe(count);
 
       if (AUDIT_ONLY) return;
       expect(bad, `Review tabs that scroll sideways at ${name}:\n  ${bad.join('\n  ')}`).toEqual([]);
+      expect(dim, `Text below WCAG AA on a Review tab at ${name}:\n  ${dim.join('\n  ')}`).toEqual([]);
     });
   });
 }

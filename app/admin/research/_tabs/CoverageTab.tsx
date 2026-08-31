@@ -80,7 +80,7 @@ export default function CoverageTab() {
           * renders inside, which lands you on the Projects tab and reads as a bug. Fourth slice
           * running that an absorbed body carried one; five of the seven did here. */}
         <h1 style={{ marginTop: 8 }}>Statewide Coverage</h1>
-        <p style={{ color: '#475569', fontSize: '14px' }}>
+        <p style={{ color: 'var(--theme-fg-secondary, #475569)', fontSize: '14px' }}>
           Clerk-system routing for Texas&apos; 254 counties. The registry
           carries {CLERK_REGISTRY.length} explicit entries; the remaining{' '}
           {254 - CLERK_REGISTRY.length} fall back to the TexasFile aggregator at{' '}
@@ -154,9 +154,9 @@ export default function CoverageTab() {
             <thead>
               <tr
                 style={{
-                  background: '#F8FAFC',
+                  background: 'var(--theme-bg-elevated, #F8FAFC)',
                   textAlign: 'left',
-                  borderBottom: '1px solid #E2E8F0',
+                  borderBottom: '1px solid var(--theme-border, #E2E8F0)',
                 }}
               >
                 <th style={th}>FIPS</th>
@@ -197,7 +197,7 @@ export default function CoverageTab() {
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
-                          color: '#2563EB',
+                          color: 'var(--theme-accent, #2563EB)',
                           fontSize: 12,
                           marginRight: 6,
                         }}
@@ -205,7 +205,7 @@ export default function CoverageTab() {
                         portal ↗
                       </a>
                     ) : null}
-                    <span style={{ color: '#64748B', fontSize: 12 }}>
+                    <span style={{ color: 'var(--theme-fg-muted, #64748B)', fontSize: 12 }}>
                       {entry.notes ?? '—'}
                     </span>
                   </td>
@@ -216,7 +216,7 @@ export default function CoverageTab() {
         </div>
       </section>
 
-      <p style={{ marginTop: 16, fontSize: '12px', color: '#4B5563' }}>
+      <p style={{ marginTop: 16, fontSize: '12px', color: 'var(--theme-fg-secondary, #4B5563)' }}>
         Source of truth:{' '}
         <code>worker/src/adapters/clerk-registry.ts</code>. Add a county or
         promote a stub by editing that file.
@@ -228,14 +228,14 @@ export default function CoverageTab() {
 const th: React.CSSProperties = {
   padding: '10px 14px',
   fontWeight: 600,
-  color: '#0F172A',
+  color: 'var(--theme-fg-primary, #0F172A)',
   fontSize: '13px',
 };
 
 const td: React.CSSProperties = {
   padding: '10px 14px',
   verticalAlign: 'top',
-  color: '#1E293B',
+  color: 'var(--theme-fg-primary, #1E293B)',
 };
 
 function CoverageStat({
@@ -285,7 +285,9 @@ function CoverageStat({
       >
         {count}
       </div>
-      <div style={{ fontSize: '12px', color: '#475569', marginTop: 4 }}>
+      {/* `palette.text`, not the theme token. This card paints its own background, so its
+          text has to come from the same palette — see the note in the plan doc. */}
+      <div style={{ fontSize: '12px', color: palette.text, marginTop: 4 }}>
         {hint}
       </div>
     </div>

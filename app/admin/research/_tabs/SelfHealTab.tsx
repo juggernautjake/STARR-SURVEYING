@@ -551,8 +551,10 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.5,
   },
   card: {
-    background: '#FFFFFF',
-    border: '1px solid #E5E7EB',
+    // Was '#FFFFFF'. The card stayed white while its heading followed
+    // `--theme-fg-primary` to #F1F5F9 — 1.1:1 under starr-dark, a title that is not there.
+    background: 'var(--theme-bg-surface, #FFFFFF)',
+    border: '1px solid var(--theme-border, #E5E7EB)',
     borderRadius: 14,
     padding: '1.25rem 1.4rem',
     marginBottom: '1.25rem',

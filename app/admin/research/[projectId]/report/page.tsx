@@ -74,9 +74,13 @@ function formatPct(score: number): string {
 function FieldCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div style={{
-      background: '#fff',
+      // The card painted itself white while its heading and body followed the theme. On
+      // forest-dark that is #ECFDF5 on #FFFFFF — 1.05:1 — and on high-contrast-dark it is
+      // exactly 1:1. This is the FIELD REPORT: the page a crew opens on a phone standing on
+      // the tract, and the property address was the line that disappeared.
+      background: 'var(--theme-bg-surface, #fff)',
       borderRadius: 16,
-      border: '1px solid #e5e7eb',
+      border: '1px solid var(--theme-border, #e5e7eb)',
       padding: '20px 18px',
       marginBottom: 14,
     }}>
@@ -178,7 +182,7 @@ export default function FieldReportPage() {
 
   if (loading || authStatus === 'loading') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--theme-bg-page, #f9fafb)' }}>
         <p style={{ color: '#4b5563', fontSize: 15 }}>Loading field report…</p>
       </div>
     );
@@ -186,7 +190,7 @@ export default function FieldReportPage() {
 
   if (error || !project) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', padding: '0 16px' }}>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--theme-bg-page, #f9fafb)', padding: '0 16px' }}>
         <div style={{ textAlign: 'center' }}>
           <p style={{ color: 'var(--theme-fg-secondary, #6b7280)', fontSize: 15 }}>{error ?? 'Report not found.'}</p>
           {projectId && (
@@ -210,7 +214,7 @@ export default function FieldReportPage() {
   const visibleMonuments = showAllMonuments ? monuments : monuments.slice(0, 6);
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3f4f6', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--theme-bg-page, #f3f4f6)', overflowX: 'hidden' }}>
       {/* Top nav */}
       <div style={{
         background: '#1e3a5f',
@@ -416,9 +420,9 @@ export default function FieldReportPage() {
         )}
 
         {/* Footer */}
-        <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-          <p style={{ fontSize: 12, color: '#4b5563', margin: 0 }}>
-            Powered by <strong style={{ color: '#2563eb' }}>Starr Recon</strong> — Starr Surveying Company, Belton, TX
+        <div style={{ textAlign: 'center', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--theme-border, #e5e7eb)' }}>
+          <p style={{ fontSize: 12, color: 'var(--theme-fg-secondary, #4b5563)', margin: 0 }}>
+            Powered by <strong style={{ color: 'var(--theme-accent, #2563eb)' }}>Starr Recon</strong> — Starr Surveying Company, Belton, TX
           </p>
           <Link
             href={`/admin/research/${projectId}`}

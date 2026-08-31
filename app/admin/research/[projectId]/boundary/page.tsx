@@ -230,7 +230,7 @@ export default function BoundaryViewerPage() {
 
   if (sessionStatus === 'loading' || loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-950">
+      <div className="research-dark-app flex items-center justify-center h-screen bg-gray-950">
         <div className="text-center text-gray-300">
           <div className="text-4xl mb-4 animate-spin">⟳</div>
           <p>Loading boundary data…</p>
@@ -241,7 +241,7 @@ export default function BoundaryViewerPage() {
 
   if (loadError) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-950">
+      <div className="research-dark-app flex items-center justify-center h-screen bg-gray-950">
         <div className="text-center">
           <p className="text-red-400 text-lg mb-4">Failed to load boundary data</p>
           <p className="text-gray-500 text-sm mb-6">{loadError}</p>
@@ -256,7 +256,7 @@ export default function BoundaryViewerPage() {
   const calls = viewState?.calls ?? [];
 
   return (
-    <div className="flex flex-col h-screen bg-gray-950 text-gray-100 overflow-hidden">
+    <div className="research-dark-app flex flex-col h-screen bg-gray-950 text-gray-100 overflow-hidden">
       {/* ── Header ── */}
       <header className="flex items-center justify-between px-4 py-3 bg-gray-900 border-b border-gray-800 flex-shrink-0">
         <div className="flex items-center gap-3">

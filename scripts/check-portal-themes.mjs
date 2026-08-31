@@ -53,99 +53,11 @@ const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } })
 await ctx.addCookies([{ name: 'authjs.session-token', value: token, domain: new URL(BASE).hostname, path: '/', httpOnly: true, sameSite: 'Lax' }]);
 const page = await ctx.newPage();
 
-// The measuring function runs in the page: it needs getComputedStyle and the real stacking order.
-const AUDIT = (limits) => {
-  const parse = (css) => {
-    const m = /^rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)$/.exec(css || '');
-    if (!m) return null;
-    return { r: +m[1], g: +m[2], b: +m[3], a: m[4] === undefined ? 1 : +m[4] };
-  };
-  const lum = (c) => {
-    const f = (v) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
-    return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
-  };
-  const ratio = (a, b) => {
-    const la = lum(a); const lb = lum(b);
-    return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-  };
-  /** What is actually painted behind this element — walk up until something is not transparent. */
-  const behind = (el) => {
-    let node = el;
-    while (node && node !== document.documentElement) {
-      const bg = parse(getComputedStyle(node).backgroundColor);
-      if (bg && bg.a > 0.5) return bg;
-      // ── A GRADIENT IS NOT A COLOUR, AND GUESSING ONE MANUFACTURES A FINDING ──────────────────
-      //
-      // The hub greeting is a brand hero: white text on `linear-gradient(135deg, …)`, with no
-      // background-COLOR anywhere in its ancestry. This walk read `backgroundColor` only, found
-      // `rgba(0,0,0,0)` all the way to the root, fell back to the page, and reported white text
-      // at 1.05:1 — on all eleven themes, light and dark alike, which is the tell: a real contrast
-      // defect does not have the same ratio on a white page and a black one.
-      //
-      // Four findings per run, about a banner that is perfectly legible. This is the fifth time an
-      // instrument in this system has reported its own blind spot as a property of the app, and
-      // the cost is always the same — a confidently wrong measurement is indistinguishable from a
-      // discovery, and it buries the real ones.
-      //
-      // Answering "unknown" rather than a number is the honest result. What is behind the text is
-      // a ramp of colours, and no single ratio describes it.
-      if (getComputedStyle(node).backgroundImage !== 'none') return null;
-      node = node.parentElement;
-    }
-    const root = parse(getComputedStyle(document.documentElement).backgroundColor);
-    return root && root.a > 0.5 ? root : { r: 255, g: 255, b: 255, a: 1 };
-  };
-
-  const pageBg = behind(document.body) ?? { r: 255, g: 255, b: 255, a: 1 };
-  const pageIsDark = lum(pageBg) < 0.4;
-
-  const islands = [];
-  const unreadable = [];
-  // Counted and reported, never silently dropped: "we did not look at 4 things" and "we looked at
-  // 4 things and they were fine" are different statements, and a check that cannot tell them apart
-  // is one you can quietly narrow to nothing.
-  const unmeasurable = [];
-  const seen = new Set();
-
-  const scope = document.querySelector('.admin-layout__content') ?? document.body;
-  scope.querySelectorAll('*').forEach((el) => {
-    const r = el.getBoundingClientRect();
-    if (r.width < 24 || r.height < 12) return;             // too small to read as a surface
-    const s = getComputedStyle(el);
-    if (s.visibility === 'hidden' || s.display === 'none' || +s.opacity === 0) return;
-
-    const cls = (typeof el.className === 'string' ? el.className : '').split(/\s+/).filter(Boolean).slice(0, 2).join('.');
-    const key = `${el.tagName}.${cls}`;
-
-    // ── Unthemed island: a big pale surface sitting in a dark app ────────────────────────────────
-    const bg = parse(s.backgroundColor);
-    if (pageIsDark && bg && bg.a > 0.5 && lum(bg) > 0.7 && r.width * r.height > 12000) {
-      if (!seen.has(`i:${key}`)) { seen.add(`i:${key}`); islands.push({ what: key, bg: s.backgroundColor, area: Math.round(r.width * r.height) }); }
-    }
-
-    // ── Unreadable text: only elements that actually own visible text ───────────────────────────
-    const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent || '').trim().length > 1);
-    if (!ownText) return;
-    const fg = parse(s.color);
-    if (!fg || fg.a < 0.5) return;
-    const size = parseFloat(s.fontSize) || 16;
-    const bold = (parseInt(s.fontWeight, 10) || 400) >= 700;
-    const large = size >= 24 || (size >= 18.66 && bold);
-    const need = large ? limits.large : limits.normal;
-    const paper = behind(el);
-    if (!paper) {
-      if (!seen.has(`u:${key}`)) { seen.add(`u:${key}`); unmeasurable.push({ what: key, why: 'sits on a gradient' }); }
-      return;
-    }
-    const got = ratio(fg, paper);
-    if (got < need && !seen.has(`t:${key}`)) {
-      seen.add(`t:${key}`);
-      unreadable.push({ what: key, ratio: Math.round(got * 100) / 100, need, size: Math.round(size * 10) / 10, color: s.color });
-    }
-  });
-
-  return { pageIsDark, pageBg: `rgb(${pageBg.r}, ${pageBg.g}, ${pageBg.b})`, islands, unreadable, unmeasurable };
-};
+// The measuring function that runs IN the page lives in `_contrast-audit-probe.mjs`. The research
+// portal's E3 responsive spec runs the same one over the Review TABS, which are state rather than
+// routes and so are unreachable from any route list — and a second hand-written copy of a probe
+// this subtle is the copy that stops being maintained and goes on reporting clean.
+import { AUDIT } from './_contrast-audit-probe.mjs';
 
 console.log(`\n  ${BASE} — do the portal themes hold up?\n`);
 
@@ -233,14 +145,20 @@ for (const theme of THEMES) {
     continue;
   }
   if (skipped) console.log(skipped);
-  for (const i of [...summary.islands.values()].slice(0, 30)) {
+  // The caps and the counts have to be the SAME numbers. They were 30/40 and 8/10, so a run that
+  // printed all 25 of its findings then announced "…and 15 more text problems" — sending somebody
+  // to look for fifteen defects that were already on the screen. A reporter that miscounts its own
+  // output is the cheapest way there is to lose trust in a real list.
+  const ISLAND_CAP = 30;
+  const TEXT_CAP = 40;
+  for (const i of [...summary.islands.values()].slice(0, ISLAND_CAP)) {
     console.log(`     ✗ light surface in a dark app: ${i.what} — ${i.bg}`);
   }
-  for (const u of [...summary.unreadable.values()].slice(0, 40)) {
+  for (const u of [...summary.unreadable.values()].slice(0, TEXT_CAP)) {
     console.log(`     ✗ ${u.what} — ${u.ratio}:1, needs ${u.need}:1 (${u.size}px ${u.color})`);
   }
-  if (summary.islands.size > 8) console.log(`     …and ${summary.islands.size - 8} more surfaces`);
-  if (summary.unreadable.size > 10) console.log(`     …and ${summary.unreadable.size - 10} more text problems`);
+  if (summary.islands.size > ISLAND_CAP) console.log(`     …and ${summary.islands.size - ISLAND_CAP} more surfaces`);
+  if (summary.unreadable.size > TEXT_CAP) console.log(`     …and ${summary.unreadable.size - TEXT_CAP} more text problems`);
   console.log('');
 }
 

@@ -49,9 +49,15 @@
 /* The active tab is marked by weight and an underline, not by colour alone — the same reason the
  * contrast pass exists. A palette where the accent is close to the body colour would otherwise
  * leave the strip with no visible selection at all. */
+/* `--color-accent` is a base-system token, not a themed one, so the ACTIVE tab —
+ * the one that tells you where you are — stayed #2563EB and measured 3.66:1 on the
+ * dark page. `--theme-accent` is the palette's own accent — 11:1 on the default white page and
+ * 6.96:1 on the dark one. `--theme-info` was tried first and was WORSE on the default
+ * theme: #3B82F6 is 3.52:1 on white, so fixing the dark palettes broke the light one.
+ * The old token stays as the fallback, so an unthemed page does not move. */
 .rsh-portal__tab--active {
-  color: var(--color-accent, #2563EB);
-  border-bottom-color: var(--color-accent, #2563EB);
+  color: var(--theme-accent, #2563EB);
+  border-bottom-color: var(--theme-accent, #2563EB);
   font-weight: 650;
 }
 

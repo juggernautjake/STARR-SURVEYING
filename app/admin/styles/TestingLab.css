@@ -14,7 +14,10 @@
 /* ── CSS Custom Properties ─────────────────────────────────────────────────── */
 
 :root {
+  /* 3.32:1 as tab text on the dark page background. The lab keeps its purple; the dark
+   * palettes get a lighter one that clears 4.5:1 on #0B1020 — see the block below. */
   --lab-accent:       #7C3AED;
+  --lab-accent-fg:    #FFFFFF;
   --lab-accent-dark:  #6D28D9;
   --lab-accent-light: rgba(124, 58, 237, 0.12);
   --lab-dark-bg:      #0F1419;
@@ -68,7 +71,7 @@
   display: inline-block;
   padding: 0.25rem 0.75rem;
   background: var(--lab-accent);
-  color: #fff;
+  color: var(--lab-accent-fg, #fff);
   border-radius: 9999px;
   font-size: 0.7rem;
   font-weight: 600;
@@ -3148,4 +3151,28 @@
 .testing-lab__ai-chat__send-btn:disabled {
   background: #93C5FD;
   cursor: default;
+}
+
+/* ── The lab accent on a dark palette ──────────────────────────────────────────
+ *
+ * F2 browser half, 2026-08-31. `--lab-accent: #7C3AED` is the testing lab's
+ * identity and it is right on a light page. On a dark one the tab label reads
+ * 3.32:1 against `#0B1020`, and the ACTIVE tab is the one that tells you where
+ * you are.
+ *
+ * `#A78BFA` is the same hue two steps lighter: 6.96:1 on the dark page and
+ * unmistakably the same accent. Scoped to the dark palettes by attribute, so
+ * the light ones are untouched — the default theme renders byte-identically. */
+[data-theme="starr-dark"],
+[data-theme="forest-dark"],
+/* plum is a LIGHT palette — page #FAF5FF — and was in this list on the strength of its
+ * name alone. The lightened accent measured 2.54:1 on it: the fix applied to the wrong
+ * theme, which is its own kind of wrong answer. Dark palettes only. */
+[data-theme="slate-dark"],
+[data-theme="high-contrast-dark"] {
+  --lab-accent:       #A78BFA;
+  /* White on #A78BFA is 2.72:1. An accent and the text ON it move together. */
+  --lab-accent-fg:    #2E1065;
+  --lab-accent-dark:  #C4B5FD;
+  --lab-accent-light: rgba(167, 139, 250, 0.18);
 }

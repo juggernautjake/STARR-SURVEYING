@@ -1081,7 +1081,7 @@ export function PipelineProgressStyles() {
 .ppanel__result-value        { color: #1e293b; }
 .ppanel__result-value--owner { font-weight: 700; color: #0f172a; }
 .ppanel__result-value--legal { color: #475569; font-size: 0.73rem; line-height: 1.4; }
-.ppanel__result-value--meta  { color: #94a3b8; font-size: 0.72rem; }
+.ppanel__result-value--meta  { color: #475569; font-size: 0.72rem; }  /* 7.24:1 on #f8fafc — was #94a3b8 at 2.45 */
 
 .ppanel__confidence {
   display: inline-block;
@@ -1164,15 +1164,15 @@ export function PipelineProgressStyles() {
 .ppanel__log-status--skip    { color: #94a3b8; }
 .ppanel__log-status--partial { color: #f59e0b; }
 
-.ppanel__log-ts { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; font-size: 0.66rem; white-space: nowrap; }
+.ppanel__log-ts { color: #475569;   /* 7.08:1 on the error-row tint — was #94a3b8 at 2.40 */ flex-shrink: 0; font-variant-numeric: tabular-nums; font-size: 0.66rem; white-space: nowrap; }
 
-.ppanel__log-layer  { color: #6366f1; font-weight: 600; flex-shrink: 0; min-width: 3.5rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ppanel__log-layer  { color: #4338ca;   /* 7.39:1 — was #6366f1 at 4.18 */ font-weight: 600; flex-shrink: 0; min-width: 3.5rem; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-source { color: #0369a1; flex-shrink: 0; min-width: 3rem; max-width: 7rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-method { color: #475569; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ppanel__log-method--msg { white-space: normal; word-break: break-word; overflow-wrap: break-word; overflow: visible; }
 .ppanel__log-points { color: #059669; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ppanel__log-dur    { color: #94a3b8; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.ppanel__log-expand { color: #94a3b8; flex-shrink: 0; font-size: 0.6rem; margin-left: auto; }
+.ppanel__log-dur    { color: #475569; flex-shrink: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ppanel__log-expand { color: #475569; flex-shrink: 0; font-size: 0.6rem; margin-left: auto; }
 
 .ppanel__log-detail {
   padding: 0.2rem 0.6rem 0.3rem 1.8rem;
@@ -1296,12 +1296,12 @@ export function PipelineProgressStyles() {
 
 .ppanel__logstream-footer-note {
   font-size: 0.72rem;
-  color: #64748b;
+  color: #475569;   /* 6.92:1 on #f1f5f9 — was #64748b at 4.34 */
   flex: 1;
 }
 
-.ppanel__logstream-footer-errors   { color: #dc2626; font-weight: 600; }
-.ppanel__logstream-footer-warnings { color: #d97706; font-weight: 600; }
+.ppanel__logstream-footer-errors   { color: #b91c1c; font-weight: 600; }  /* 5.91:1 — was #dc2626 at 4.41 */
+.ppanel__logstream-footer-warnings { color: #b45309; font-weight: 600; }  /* 4.58:1 — was #d97706 at 2.91 */
 
 /* ── Log filter bar ──────────────────────────────────────── */
 .ppanel__logstream-filters {
@@ -1331,7 +1331,7 @@ export function PipelineProgressStyles() {
 .ppanel__logstream-filter--active { background: #e0e7ff; border-color: #6366f1; color: #3730a3; font-weight: 700; }
 .ppanel__logstream-filter--has-errors  { border-color: #fca5a5; color: #dc2626; }
 .ppanel__logstream-filter--has-errors.ppanel__logstream-filter--active { background: #fee2e2; border-color: #ef4444; color: #991b1b; }
-.ppanel__logstream-filter--has-warnings  { border-color: #fcd34d; color: #d97706; }
+.ppanel__logstream-filter--has-warnings  { border-color: #fcd34d; color: #b45309; }  /* 4.80:1 — was #d97706 at 3.19 */
 .ppanel__logstream-filter--has-warnings.ppanel__logstream-filter--active { background: #fef3c7; border-color: #f59e0b; color: #92400e; }
 .ppanel__logstream-filter-count {
   background: rgba(0,0,0,0.07);

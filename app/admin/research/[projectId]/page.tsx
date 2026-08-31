@@ -1587,7 +1587,7 @@ export default function ResearchProjectPage() {
       <div style={{ marginBottom: '1rem' }}>
         <button
           onClick={() => router.push('/admin/research')}
-          style={{ background: 'none', border: 'none', color: '#2563EB', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
+          style={{ background: 'none', border: 'none', color: 'var(--theme-accent, #2563EB)', cursor: 'pointer', fontSize: '0.85rem', padding: 0 }}
         >
           &larr; All Research Projects
         </button>

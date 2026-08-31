@@ -1575,7 +1575,113 @@ Mutation-tested three ways (URL guard dropped, strip order reversed, helper unwi
 
 ---
 
-### F2 — Contrast ✅ **SHIPPED 2026-08-31** (the static half; the browser half stays a programme)
+### F2 — Contrast ✅ **BOTH HALVES SHIPPED 2026-08-31**
+
+The static half was already done. The browser half is now done too, and it starts with an
+instrument failure rather than a finding.
+
+#### The first three runs reported "clean" and were measuring nothing
+
+`check-portal-themes.mjs` was run against the research routes and printed *"Every theme tested
+holds up"* three times. All three were **vacuous**. `next build` had replaced `.next` under a
+running `next start`; the second `next start` could not bind the port and exited quietly; the first
+went on serving HTML that referenced chunk files the rebuild had deleted. Every asset returned 400,
+React never hydrated, and the checker measured an empty page. A page that renders nothing scrolls
+sideways zero pixels and has no unreadable text.
+
+The same failure had already produced one wrong answer that day — E3's fixture assertion caught it
+as *"the review panel did not render"*. It is worth stating as a rule: **`pkill -f` does not kill
+`next start` on Windows.** `Get-NetTCPConnection -LocalPort 3050 | Stop-Process` does, and any
+browser check that follows a rebuild has to prove the page rendered before it reports clean.
+
+Against a live server: **76 problems.** The default theme was clean; all 76 were on the other ten
+palettes, plus eight on the Review screen that no route-walking checker can reach.
+
+#### The eight on the Review screen — the only place they get measured
+
+The Review tabs are STATE, not routes. `check-portal-themes.mjs` walks routes, so it has never
+rendered the coherence panel, the Survey tab or the Easements tab. E3's spec drives them, so the
+same probe now runs there — extracted to `scripts/_contrast-audit-probe.mjs` rather than copied,
+because a probe carrying five hard-won corrections is the worst possible thing to have two of.
+
+Seven were in `PipelineProgressPanel`'s own `<style>` block, which `verify:contrast` reads none of:
+the run log's timestamps at **2.40:1**, its warning count at **2.91:1**, the layer chip, the
+footer, the filter chip. One was the inactive Review tab label at 4.34:1. All fixed.
+
+And one false positive, fixed in the probe rather than in the app: `.pipeline-stepper__stage-icon`
+renders 📋 and reported **1.62:1** on every one of the eight tabs. A colour emoji is a glyph with
+its own palette; the CSS `color` never reaches a pixel. Sixth time an instrument here has reported
+its own blind spot as a property of the app. Text that is *entirely* pictographs is skipped — "⚠
+Warnings" is still measured, and was a real finding in the same run.
+
+#### `--recon-card: #FFFFFF` — one literal, most of the white panels
+
+Declared once on bare `:root`, so no theme could reach it. `.research-pipeline__section` stayed
+white under starr-dark while its heading followed `--theme-fg-primary` to `#F1F5F9`: **1.1:1**, a
+section title that is not there. Pointing `--recon-card` and `--recon-bg` at the tokens is two lines
+and fixes every panel that uses them; the literal stays as the fallback, so the default palette is
+byte-identical.
+
+#### The rule this pass kept re-learning
+
+**An element that brings its own background brings its own foreground.** Three separate defects were
+the same half-themed shape:
+
+| | |
+|---|---|
+| Coverage tone cards | Pale green/amber/red panels whose hint line alone read `--theme-fg-secondary` — `#CBD5E1` on `#F0FDF4`, **1.42:1** |
+| `.research-county-badge`, active project-nav link | Fixed `#EEF2FF` chips reading `--recon-brand`: mint on pale indigo under forest-dark (1.56:1), **yellow on near-white under high-contrast-dark (1.04:1)** |
+| The testing lab badge | White on `--lab-accent`, which this pass had just lightened for the dark palettes — the fix breaking its own neighbour, until `--lab-accent-fg` made the pair move together |
+
+#### The two Tailwind-dark pages, and a specificity fight worth recording
+
+The boundary viewer and the documents page are dark applications built with Tailwind inside a light
+admin shell. Under a theme they came apart — `A.text-gray-400` rendering at **1.61:1**, `LABEL` at
+2.34:1 — and the cause is one step past what `panel-contrast.test.ts` records. `globals.css` sets
+`a`, `p`, `label` and `h1–h6` by element selector and the themes re-point `--brand-red` /
+`--brand-dark` at the palette's LIGHT-PAGE values. **An element rule outside `@layer` beats a
+Tailwind utility inside one**, so `text-gray-400` on that anchor never applied — on any theme,
+including the default.
+
+`.research-dark-app` is the route-scoped answer, and it is the one block in `AdminResearch.css` that
+uses `!important`. Not to beat `a { }`, but `AdminLayout.css:86` — `.admin-layout a:not(.btn):not(…)`
+at specificity **0,6,1**, which is right for the light admin. Out-specifying it means repeating the
+class seven times or copying six `:not()` clauses, both of which encode the number 6 in a second
+place where it will rot; lowering it with `:where()` changes the cascade for every admin page to fix
+two. `!important` on one class across two pages says what it means.
+
+The container also declares `background: #030712` rather than leaving it to `bg-gray-950` — which
+`verify:contrast` immediately needed, because without it the checker read
+`.research-dark-app .text-white` as white on the page and reported 1:1.
+
+#### `--recon-subtle`, and one pair that genuinely needs two values
+
+Nine rules hard-coded `#FAFAFA` for inset panels. Pointing them straight at `--theme-bg-elevated`
+would have worked *and* moved the default from `#FAFAFA` to `#F1F5F9` — a bluer, darker grey that
+drops the deed-chain break count from 4.73:1 to **4.41:1**. So the default keeps its exact value and
+only a non-default palette follows the token.
+
+`--recon-danger-text` is the same shape and the honest exception to "one token, one value": a red
+dark enough for a white page (`#B91C1C`, 6.47:1) is **2.9:1** on a black one. Two values, stated.
+
+#### And a fix applied to the wrong theme
+
+`plum` went into the dark-palette list on the strength of its name. Its page is `#FAF5FF`, so the
+lightened lab accent measured **2.54:1** on it. Caught on the next sweep, which is the argument for
+re-measuring every palette after every change rather than the two you were looking at.
+
+#### The reporter was miscounting its own output
+
+`check-portal-themes.mjs` printed up to 40 findings and then announced *"…and `size - 10` more"* —
+so a run that printed all 25 of its findings told the reader to go looking for fifteen more that
+were already on the screen. The cap and the count are one constant each now.
+
+**Final:** 11 palettes × 12 research routes, **no unthemed surfaces and no unreadable text on any of
+them**; `verify:contrast` clean over 938 static pairs; the eight Review tabs clean at both widths.
+
+---
+
+#### The static half, as originally recorded
 
 **28 real failures found and fixed** across the research stylesheets, plus a new checker that runs
 with no server: `npm run verify:contrast`.
@@ -2107,7 +2213,7 @@ blocked; none costs more than it is worth. They are simply not done.
 | **E1b** | ☐ Open, and correctly outside this doc — admin shell, not the research portal. |
 | **E2b** | ✅ **BOTH SHIPPED 2026-08-31** — `BillingTab` and `LibraryTab` re-themed; the Billing pass found a button with no `onClick` at all. |
 | **E3** | ✅ **SHIPPED 2026-08-31** — `e2e/research-responsive.spec.ts`: 12 routes × 2 widths plus the 8 Review tabs at each, 26 checks, all green against a production build. Found G16, a reset-view button under the floating dock. |
-| **F2** | ◐ **Static half SHIPPED** (51 real failures fixed; `verify:contrast` reports *no contrast failures* across **930** pairs, with only 120 skipped — the scanner now reads ternary branches AND resolves the nearest ancestor that paints a background, which is how the chain of title was found rendering white on white). The browser half stays a programme, and pairs with E3. |
+| **F2** | ✅ **BOTH HALVES SHIPPED 2026-08-31.** Static: 51 failures fixed, `verify:contrast` clean over 938 pairs. Browser: 76 more, found only after discovering the first three "clean" runs were measuring an unhydrated page. 11 palettes × 12 research routes now report no unthemed surfaces and no unreadable text. |
 
 ### And the thing no amount of this can settle
 

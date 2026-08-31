@@ -129,15 +129,15 @@ export default function PortalWatchPanel(): React.ReactElement {
       {error && <p className="pw__error" role="alert">{error}</p>}
 
       <style jsx>{`
-        .pw { padding: 14px 16px; border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px;
-          background: var(--color-bg-surface, #fff); }
+        .pw { padding: 14px 16px; border: 1px solid var(--theme-border, #e5e7eb); border-radius: 10px;
+          background: var(--theme-bg-surface, #fff); }
         .pw__title { font-size: 1rem; margin: 0 0 6px; font-weight: 600; }
-        .pw__sub { color: var(--color-text-secondary, #6b7280); font-size: 0.84rem; margin: 0 0 12px; }
+        .pw__sub { color: var(--theme-fg-secondary, #6b7280); font-size: 0.84rem; margin: 0 0 12px; }
         .pw__row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
         .pw__row input { flex: 1 1 180px; padding: 8px 10px; border: 1px solid var(--color-border, #d1d5db);
           border-radius: 8px; font: inherit; min-height: 40px; }
-        .pw__row button { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--color-brand, #1d3095);
-          background: var(--color-brand, #1d3095); color: #fff; font: inherit; cursor: pointer; min-height: 40px; }
+        .pw__row button { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--theme-accent, #1d3095);
+          background: var(--theme-accent, #1d3095); color: var(--theme-accent-fg, #fff); font: inherit; cursor: pointer; min-height: 40px; }
         .pw__row button:disabled { opacity: 0.45; cursor: not-allowed; }
         .pw__status { font-size: 0.82rem; margin: 0 0 8px; padding: 7px 10px; border-radius: 8px; }
         .pw__status--ok { background: var(--color-info-bg, #eff6ff); color: var(--color-info-text, #1e3a8a); }

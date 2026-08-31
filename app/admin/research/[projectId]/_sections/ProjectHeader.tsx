@@ -73,7 +73,7 @@ export default function ProjectHeader({ project, onEdit, onArchive }: ProjectHea
         </button>
         <button
           onClick={onArchive}
-          style={{ background: 'none', border: '1px solid #FECACA', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: '#DC2626' }}
+          style={{ background: 'none', border: '1px solid var(--theme-border, #FECACA)', borderRadius: '0.375rem', padding: '0.375rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem', color: 'var(--recon-danger-text, #B91C1C)' }}
           aria-label="Archive project"
         >
           Archive
