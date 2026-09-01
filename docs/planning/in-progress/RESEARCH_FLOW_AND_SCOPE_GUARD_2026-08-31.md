@@ -234,11 +234,66 @@ to *"which jobs are there"*, and one of them means try again.
 
 Checked on four palettes; every colour is a token that exists, asserted.
 
-### J2 — Carry the job's property into the form ☐
+### J2 — Carry the job's property into the form ✅ **SHIPPED 2026-08-31**
 
 Creating a research project *from* a job should pre-fill the address, county and state from the job
 rather than asking twice. This is where the scope check earns its keep silently — the address is
 already known to be one we work.
+
+`/admin/jobs/<id>` → **Start research** now opens `/admin/research?new=1&job=<id>`, and the form
+arrives filled in **and already linked**. Pre-filling without pre-linking would have been the half
+that does not matter: an address can be retyped, the attachment is the thing that gets forgotten,
+and research nobody attached is research nobody bills for.
+
+Three decisions worth keeping:
+
+- **An empty field on the job must not blank a default.** `state` starts as `'TX'`;
+  `job.state?.trim() || p.state` leaves it there. Without that, arriving from a job would make the
+  scope verdict *worse* than starting from scratch.
+- **`job_id: null as string | null` belongs in the initial state, not only in the updater.** The
+  POST body is `{ ...newProject }`. Setting the field only inside `setNewProject` compiles — a
+  spread triggers no excess-property check — and then silently never reaches the server. That is
+  this repo's *authored but not wired* shape at the width of a single property.
+- **A failed job lookup still opens the form.** Refusing because a fetch failed is a worse answer
+  than an empty form; the person came here to start research either way.
+
+#### The premise was two-thirds true
+
+This section was written on the claim that *"the address, county and state on a job have already
+been checked by somebody"*. Measured against the live database once the flow worked — six jobs
+sampled — **four had an empty or null county**. Every one had a state.
+
+So the common outcome of arriving from a job is a form that **looks** completely filled in, with the
+one field that decides which clerk gets searched, and therefore whether the run costs anything,
+blank and unremarked. Two components were each correctly silent about it: `CountyNote` says
+nothing about an empty county (a blank field is not a mistake while somebody is still typing), and
+`checkScope('TX', '')` returns `unknown`, which `ScopeNotice` also renders as nothing. Two
+correct silences summing to a gap.
+
+The form now says so at the field, and clears the moment anything is typed. The next signal
+otherwise was the run button refusing on the project page — a screen away from the field that fixes
+it.
+
+**It does not guess.** The form knows the city is Buda and could derive Hays County. A wrong county
+routes to the wrong clerk and returns a confident report about somebody else's land, which is far
+worse than a blank field. There is a test whose only job is to fail if a future city→county lookup
+lands here.
+
+#### Two guards that would have shipped as decoration
+
+- The no-guess check was first written `/county:s*(?!job.county)/`, which matches the
+  **correct** line: `s*` backtracks to zero width, the lookahead reads `" job.county"` rather
+  than `"job.county"`, and the negative passes. Only the control test — *"this check can fail"* —
+  caught it.
+- The note first reused `.research-county-note--warn`, which lives in `CountyNote.css`, a sheet
+  `CountyNote` imports and `ProjectsTab` does not. It **rendered correctly**, because CountyNote
+  is mounted on the same page and pulls the sheet in. `rendered-classes-are-styled` went 454 → 456
+  and was right: the styling worked by proximity, and deleting CountyNote from that page would have
+  silently unstyled the note. It has its own `.research-prefill-note` rule now, in the sheet the
+  file actually loads.
+
+Verified in the browser on both paths: the Buda job (no county) shows the note, the link, and clears
+on typing; the Belton job pre-fills `Bell` and shows nothing. 28 tests, all four mutants killed.
 
 ---
 
@@ -400,10 +455,66 @@ visible, loading from `/api/admin/research/[projectId]/logs` on demand — so th
 this section say nothing?"*, which is asked while reading results, is answerable from the screen
 where it is asked. Nothing to build.
 
-### N4 — Upload your own files and images ☐
+### N4 — Upload your own files and images ✅ **SHIPPED 2026-08-31** — `components/upload-documents.ts`
 
 `DocumentUploadPanel` exists and works. What it lacks is parity with the retrieved list: an upload
 should land in the same place, be viewable the same way, and be distinguishable by `source_type`.
+
+Two of the three already held once G17's shaping was shared. `document-rows.ts` reads
+`source_type === 'user_upload'` for the "Uploaded" pill, and `pageImagesOf` falls back to
+`storage_url` when `ocr_regions` has no rendered pages — so an uploaded JPEG is viewable through
+the same gallery as a retrieved plat, with no second code path.
+
+**"The same place" did not hold.** The Document Library — the page that *is* the files — could only
+say:
+
+> Run the research pipeline, or upload deeds and plats from the project page.
+
+A list you cannot add to, pointing at another screen; and that screen's panel renders its own second
+copy of the same list. Two screens each holding half of one feature, each sending you to the other.
+
+#### The sequence moved rather than got copied
+
+The upload is **three calls**, and the middle one PUTs straight to Supabase Storage because routing
+a 40 MB plat through the Next.js route body parser returns **413 Payload Too Large**. That is why it
+is not one call, and it is the first thing somebody "simplifying" it would undo.
+
+Hand-writing a second copy on the documents page is the *two pipelines* defect: they agree the day
+they are written and then quietly stop. The specific damage here is narrow and bad — the POST in
+step 1 is what stamps `source_type: 'user_upload'`, and that one value is what every "Uploaded"
+pill, filter and count downstream reads. A copy that skipped step 3, or posted somewhere slightly
+different, would produce rows that look **retrieved** — indistinguishable from documents the firm
+actually paid for.
+
+So `uploadDocuments()` and `validateFiles()` are one module, and both surfaces call it. Three
+behaviours in there are worth not losing, each with a test that kills the mutant:
+
+- **A failed PUT deletes the record it just created.** Otherwise a dropped connection leaves a row
+  with no bytes behind it: a document that lists, opens, and shows nothing.
+- **A duplicate counts as success.** The document the person wanted in the project is in the
+  project. Reporting a failure sends them looking for a problem that is not there.
+- **A failed step 3 is not fatal.** The bytes are stored and the row exists as `pending`; Retry
+  re-triggers processing. Treating it as failure would delete a file that uploaded perfectly.
+
+#### A fourth copy of the accepted-file list
+
+The panel's `accept=` attribute hard-coded the extensions, beside `ACCEPTED_EXTENSIONS` and
+`ACCEPTED_MIME_TYPES` which the validator used. A picker that disagrees with the validator refuses
+to *offer* a file the system would happily take, and that reads to the person as the file being
+unsupported. Both pickers derive `ACCEPT_ATTRIBUTE` from the sets now.
+
+#### What the page gained
+
+A **+ Upload files** button in the toolbar, a drop target over the list, errors and the
+after-upload note **above** the list rather than below it (a message under a scrolled list is a
+message nobody reads), and an empty state that no longer points somewhere else.
+
+`preventDefault` on `dragOver` is load-bearing: without it the browser **navigates to the
+dropped file** and the page is gone, which reads as a crash rather than as an unsupported gesture.
+
+Verified against the live project: 20 rows → 21, the note rendered, the row carried the "Uploaded"
+pill, and the *uploaded* filter found it. The probe document was deleted afterwards. 29 tests, nine
+mutants killed.
 
 ---
 
@@ -559,11 +670,49 @@ fallback is gone matched the *comment in `DocumentUploadPanel` explaining what i
 | **G** | The document rows carry a circle that reads as a radio button beside "Select all" / "Deselect all". It is a real `<input type="checkbox">` — the affordance is the bug, not the behaviour. |
 | **H** | `library` and `billing` render 429 and 519 characters on a 1440px page, with no empty state saying what would fill them. |
 
-### U4 — Every new surface, on every palette ☐
+### U4 — Every new surface, on every palette ✅ **SHIPPED 2026-08-31**
 
 Anything this doc adds is checked with `check-portal-themes.mjs` across all eleven palettes before
 it is called done. F2 established that this is cheap once the instrument exists; the cost of not
 doing it was 76 findings.
+
+Every slice in this doc was checked that way. Closing the item, though, turned up the thing the
+policy could not say — **which pages the check was running against.**
+
+#### Every default route was an index route
+
+`--routes` defaulted to `/admin/jobs,/admin/employees,/admin/work,/admin/research,/admin/learn,/admin/settings`,
+and the research sweeps added the eight portal tabs. All index routes, because a detail route cannot
+be reached by typing a path with no id in it. The list quietly described *the pages that are easy to
+name* rather than *the pages people use* — and the pages people actually spend a research run on are
+`/admin/research/<projectId>` and its Documents view.
+
+Pointing the sweep at them for the first time found two real defects, on all four dark palettes,
+that had been on screen the whole time:
+
+- **"No Active Research" at 1.05:1.** The idle panel's text already read
+  `var(--theme-fg-primary, #1F2937)`; the panel under it was a hard-coded `#F9FAFB`. On a dark
+  palette `--theme-fg-primary` is near-white, so the empty state rendered **white on white**.
+
+  *Half-tokenised is worse than neither.* Two literals would have been self-consistent and merely
+  off-palette. Tokenising exactly one of the pair is what made the panel invisible — and it is the
+  more likely mistake, because it looks like progress.
+
+- **Completed stage labels at 3.03:1.** `--recon-success: #047857` carries the comment
+  *"5.48:1 on white — was #059669 at 3.77"*. Still true, and silent about **which** surface, because
+  when it was written there was only one. On the dark palettes' ~`#111935` page it is 3.15:1, which
+  made the labels for the stages a person has **already finished** the least readable text on the
+  screen. A lighter green for dark grounds; the light palettes keep the audited hex untouched, since
+  overriding it globally would undo the original finding rather than complete it.
+
+#### The route list is the finding
+
+Fixing two colours is the small half. `--routes` accepts `:projectId` now, expanded from the
+database at startup — and **fails** rather than skipping when it cannot resolve one. A silently
+skipped route is exactly how this lasted: a green run that checked eight of ten pages and said so
+nowhere.
+
+Final state: **11 palettes × 10 routes, no unthemed surfaces and no unreadable text.**
 
 ---
 
