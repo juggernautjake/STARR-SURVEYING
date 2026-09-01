@@ -19,6 +19,44 @@
       ]
     },
     {
+      "route": "/admin/branding",
+      "file": "app/admin/branding/page.tsx",
+      "tabs": [
+        {
+          "id": "overview",
+          "label": "Overview"
+        },
+        {
+          "id": "logos",
+          "label": "Logos"
+        },
+        {
+          "id": "colours",
+          "label": "Colours"
+        },
+        {
+          "id": "type",
+          "label": "Typography"
+        },
+        {
+          "id": "pairings",
+          "label": "Combinations"
+        },
+        {
+          "id": "blocks",
+          "label": "Building blocks"
+        },
+        {
+          "id": "downloads",
+          "label": "Downloads"
+        },
+        {
+          "id": "upload",
+          "label": "Add a design"
+        }
+      ]
+    },
+    {
       "route": "/admin/design",
       "file": "app/admin/design/page.tsx",
       "tabs": [

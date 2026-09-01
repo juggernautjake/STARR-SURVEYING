@@ -17,17 +17,26 @@ last three days' work. Each gets a phase.
 
 ---
 
-## ⚠ READ FIRST — what is actually true today, measured 2026-09-01
+## ⚠ READ FIRST — what was true when this doc opened, measured 2026-09-01
 
 Every row was checked against the repository or the live database, not remembered. This repo has now
 recorded **seven** parked premises that were false when finally checked; this table exists so this
 doc does not add an eighth.
 
+> **This table is the STARTING measurement and is deliberately not updated in place.** Every "FALSE"
+> below has since been fixed — the seed is applied, the 39 classes have rules, the viewers have their
+> controls. It is left as written because a doc that edits its own evidence to match its conclusion
+> cannot be checked afterwards, and the phases below record what each row became.
+>
+> An eighth false premise did turn up while working this doc: `RESEARCH_FLOW_AND_SCOPE_GUARD`'s
+> finding **H** — that the Library and Billing tabs had no empty state — was already fixed by E2b
+> and G18 before this doc opened. See R2.
+
 | Claim | Measured 2026-09-01 |
 |---|---|
 | The brand page renders every logo file | **True.** `public/branding` holds 178 files. `BRAND_LOGOS` names 34; `RECOLOUR_MARKS × RECOLOUR_WAYS` derives the other 144. Nothing on disk is unreferenced, nothing referenced is missing. Both directions checked. |
 | The brand page has all the colours | **True.** 27 `hex:` entries in `palette.ts`, and `ColoursTab` renders `BRAND_COLOURS`. |
-| The brand page has all the fonts | **True of the data.** 11 `stack:` entries. Whether all 11 reach the browser through `googleFontsHref()` is **not yet checked** — B4. |
+| The brand page has all the fonts | **True, and already guarded** — checked in B3 rather than rebuilt. 11 `stack:` entries, and `brand-system.test.ts` already asserts the Google Fonts href is DERIVED from them and that every stack has a real fallback after the webfont. |
 | The upload flow is finished | **False, twice over.** See the two rows below. |
 | `seeds/622_brand_assets.sql` has been applied | **FALSE.** Live probe over `SUPABASE_DB_URL`: `information_schema.tables LIKE 'brand_%'` returns **`[]`**, and `storage.buckets WHERE id='starr-brand-assets'` returns **`[]`**. The whole upload feature has no tables and no bucket. It cannot work anywhere. |
 | The upload UI is styled | **FALSE.** 145 `brand-*` classes are used across `app/admin/branding`; **39 of them have no CSS rule in any stylesheet in the repo.** Control: `.brand-plate` *is* found by the same scan, so the scan can produce a positive. |
@@ -169,11 +178,58 @@ disk that nothing lists. Every download href on the tab is built by `logoSrc()` 
 a manifest entry the test proves exists, and `assetUrl` addresses a route that re-validates the
 filename against the same manifest before it resizes anything.
 
-### B6 — Every palette, every width ☐
+### B6 — Every palette, every tab, and then a browser ✅ **SHIPPED 2026-09-01 — and this is where the real defect was**
 
-`check-portal-themes.mjs` across all eleven palettes on `/admin/branding`, plus the responsive pass
-at 1440 and 390 against a **production** build. F2 in the previous doc established the cost of not
-doing this: 76 findings.
+`check-portal-themes.mjs`, eleven palettes, **all eight tabs** — not just the index. The script's
+own header records that every default route it shipped with was an index route, and that pointing it
+at a real detail page found two defects immediately; `/admin/branding` alone would have measured the
+Overview tab and nothing else. `?tab=upload` and the six others were passed explicitly.
+
+```
+starr-default · starr-dark · slate-light · slate-dark · forest-light · forest-dark
+sunset · ocean · plum · high-contrast-light · high-contrast-dark
+    ✓ no unthemed surfaces, no unreadable text          (all 11, all 8 tabs)
+    ✓ the public site carries no theme attribute
+```
+
+**And it was clean while the primary button was rendering pure white.**
+
+That is the finding. `.brand-btn--primary` sets `background: var(--theme-accent)` and the button
+came back `rgb(255, 255, 255)`:
+
+| Selector | Specificity | Declaration |
+|---|---|---|
+| `button.brand-btn` | **(0,1,1)** | `background: var(--theme-bg-surface)` |
+| `.brand-btn--primary` | (0,1,0) | `background: var(--theme-accent)` |
+
+The element-scoped rule wins regardless of source order. `--danger` had it too.
+
+**Three green checks could not see it, and each for a defensible reason:**
+
+| Check | Why it passed |
+|---|---|
+| `tsc`, `npm run build` | Neither reads CSS |
+| `brand-classes.test.ts` | Proves every class has a RULE. It did. Nothing resolves the cascade |
+| the eleven-palette sweep | A white button on a white card is neither an unthemed island nor unreadable text — the sweep was **right** |
+
+Only `getComputedStyle` on the live page could answer "what actually ended up on this element", so
+`npm run verify:brand-page` is now committed rather than thrown away. It screenshots all eight tabs
+and measures. Its controls are the point: the Blocks-tab specimen `<span>` must still be
+`cursor: default` (proving the element-scoped rules did not leak into the demos), and a class with
+no rule must compute to a **0px** border, so the drop zone's 2px dashed means something.
+
+**Two of its own assertions were wrong before they were right.** *"The primary is not transparent"*
+PASSED against the white button — asking *is something painted here* cannot distinguish a filled
+button from an unfilled one, so it now compares against the panel behind it. And a class with no
+rule computes to `border-style: solid` with width 0 under this app's reset, not `none`; the width is
+the reading that carries information.
+
+**Two things that looked like defects in the screenshots and were not.** The upload tab's lede
+appeared to render in three colours — every text node measures `rgb(71, 85, 105)`; it is an
+artifact of the downscaled screenshot. And the `.fab-menu` appeared to sit on top of the empty-state
+text — it is `position: fixed`, which a full-page screenshot composites at its viewport position;
+scrolled to the bottom of five different routes, `elementFromPoint` finds nothing occluded. Both
+checked rather than "fixed".
 
 ---
 
@@ -243,6 +299,37 @@ is not reachable from outside the frame. What the browser's toolbar cannot do is
 around itself, so **only** full screen and an explicit download were added. Building a bespoke PDF
 toolbar here would have been four worse copies of things that already work.
 
+
+### V8 — Verified in a browser, against a real county scan ✅ **SHIPPED 2026-09-01** — `npm run verify:viewer`
+
+Everything above is tested against numbers and against the caller. Neither answers the owner's
+actual question, which is geometric. This one opens `/admin/research/<project>`, opens a document,
+and reads `getBoundingClientRect` on the image **after** the transform.
+
+| Measured | Result |
+|---|---|
+| A 2750×2783 judgment in a 1368×803 panel, on open | **58% · fit**, `insideW` and `insideH` both true |
+| **CONTROL** — the same page at the OLD default of zoom 1 | laid out **1384px** tall in an **803px** container. It genuinely overflowed |
+| Click to page 2 (2750×3397) | re-fitted to **48% · fit** |
+| Rotate a quarter | **90°**, still inside, re-fitted to **59% · fit** |
+| The download link | `JUDGMENT-Instr.-1945006189-2-pages-p2.png` — a filename, not a storage key |
+| `+` | zoomed, and the readout dropped the `· fit` suffix |
+| `0` | back to fit |
+| The shortcut panel | **13 items**, rendered from `VIEWER_SHORTCUTS` |
+| **`Ctrl+0`** | geometry unchanged before and after — measurably NOT swallowed |
+| Page errors | **0** |
+
+The control is the row that matters. Without it, *"the page fits"* is equally true of a viewer that
+was never broken, and the run proves nothing about the fix.
+
+**The runner had to be stopped from repairing its own setup.** `DocumentUploadPanel` — the surface
+that mounts the viewer — is on the Property Information stage, so a project on stage 2 shows zero
+document rows; the first run reported that against a project holding 35 documents. The obvious
+repair is to click *"Back to Property Information"*, and that opens a **"Revert workflow step?"**
+confirmation which moves a real project backwards. It now requires a project already on stage 1
+(`status = 'upload'`). An audit that changes what it is auditing is not an audit — the same rule
+this repository already writes down for Approve/Demote/Ban on the employee screens.
+
 ---
 
 ## Phase R — the tail of the last three days
@@ -296,19 +383,85 @@ Nothing to build.
 
 ---
 
-## Phase W — worker run speed
+## Phase W — worker run speed ✅ **CLOSED 2026-09-01**
 
-From `RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md`. Open, engineering-side, not owner-gated:
+From `RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md`. **The table there was stale, and checking
+it before building was worth more than the building.**
 
-| | |
+| | State, measured 2026-09-01 |
 |---|---|
-| **E5b** ☐ | Every document relaunches Chromium — ~11 cold starts in one run |
-| **E5c** ☐ | Each document is re-found by search+click though the log already printed its real URL — ~10s × 11 |
-| **E5d** ☐ | Documents are captured strictly serially — the big one |
-| **E5e** ☐ | Bell CAD unreachable took **213s to admit it** |
+| **E5b** — a Chromium cold start per document | ✅ **Already shipped.** `fetchDocumentImages` leases rather than launches. Verified wired, and now guarded by a test |
+| **E5d** — strictly serial capture | ✅ **Already shipped.** `infra/bounded-map.ts` exists and `clerk-scraper` calls it. Verified it has a real caller outside its own tests |
+| **E5c** — re-finding a URL the search already printed | ◐ **Shipped on ONE call site of nineteen.** Now fourteen |
+| **E5e** — 213s to admit a host was down | ◐ **The module existed and guarded two of three doors** |
 
-The worker runs in Docker; there is no `npm` on the host for it. Rebuild with
-`BUILD_SHA=$(git rev-parse --short HEAD) docker compose build worker`.
+### E5c — a parameter added, documented, and wired once
+
+`knownViewerUrl` exists because `/doc/{id}` takes Kofile's INTERNAL document id (98732828) and not
+the instrument number (2004032468) — which is why the search+click exists, and why it cannot be
+skipped unless the caller supplies the URL.
+
+The parameter was added and wired into **one** of nineteen call sites. And most of the other
+eighteen already had the URL, in the same block:
+
+| Where | What it did |
+|---|---|
+| `clerk-scraper` ownerSearch | `const realUrl = ref.url` — **and logged it**, *"real URL from search = …/doc/98732828"* — twelve lines above a capture that omitted it |
+| `plat-scraper` | did the same lookup **twenty lines below** the capture, and used the result only to record where the document came from. Hoisting it above is the entire fix |
+| `pipeline` | built `{instrNum, docType}` tuples out of search results whose `url` it dropped on the way past |
+
+Fourteen sites pass it now. **Four genuinely cannot** — they hold an instrument number that came out
+of a legal description or out of AI-extracted document text, with no search behind it; constructing
+a `/doc/` URL there is the exact guess the search+click exists to avoid. A fifth is
+`captureDocumentPages`, which has **zero callers anywhere in the worker** — recorded rather than
+"fixed", because threading a URL into dead code is work spent on something nothing runs.
+
+The guard is *pass it, or say why you cannot*: a per-file allowlist that requires a reason, and
+asserts every allowlisted file still exists and still calls the function.
+
+### E5e — I nearly wrote the module that was already there
+
+`infra/host-reachability.ts` was written before the repository was checked. `infra/host-circuit.ts`
+already existed — better documented, with the owner's log pasted into its own header. **Deleted
+mine.** Eighth time in this repository that the right pattern was already present in a file nobody
+had looked in.
+
+What was actually missing was one door. The circuit guarded `searchCadHttp` and the Playwright
+layer. It did not guard `searchCadHttpRawKeyword` — the function whose label appears three times in
+the owner's log as the 26-second repeats:
+
+```
+26002ms  Stage1A-Keyword — Failed to acquire session token
+26003ms  Stage1A-Keyword (again, different variant)
+26002ms  Stage1A-Keyword (again)
+```
+
+Four call sites reach it — PropertyId, StreetNumber-only, StreetName-only, OwnerName — each running
+a reCAPTCHA probe (8s), a homepage fetch (10s) and a token request (8s) before searching, none aware
+the previous had already failed at the socket. **Two guarded doors and one open one is the same as
+no guard, for anything that walks through the open one.**
+
+The existing test asserted `httpCircuit` and `pwCircuit` **by name**, which is exactly why it could
+not notice a third. It checks the property now: every function in the file that reaches `baseUrl`
+over the network must consult the circuit first.
+
+### Three probes were the bug before the code was
+
+| The probe | What it did |
+|---|---|
+| A regex written through a **heredoc** | The heredoc ate one level of backslash: `\s+` became `s+`, so the function-declaration scan matched **nothing** and every assertion passed vacuously |
+| A **brace-matching** body parser | Silently truncated on this file's regex literals, returning a 900-character fragment of a 7,000-character function |
+| A naive **block-comment stripper** | Started a comment at `'application/json, text/plain, */*'` — a MIME type containing `/*` — ran to the next `*/` several hundred lines later, and blanked **six thousand characters of real code**, including the very call the check was looking for |
+
+Each produced a confident clean reading of a region it had itself destroyed. Anchoring the stripper
+to line starts fixes the third; the first two were replaced outright.
+
+> The worker runs in Docker on the server, but `worker/node_modules` is present locally, so
+> `npx tsc --noEmit` and `npx vitest run` both work on the host — the "no npm for the worker" note in
+> the older doc is about REBUILDING the deployed image, not about running its tests. Deploy still
+> needs `BUILD_SHA=$(git rev-parse --short HEAD) docker compose build worker`.
+
+**Worker tsc 0 · 1,768 tests pass · both new guards mutation-tested red.**
 
 ---
 
@@ -330,6 +483,35 @@ The worker runs in Docker; there is no `npm` on the host for it. Rebuild with
 4. **`$?` after a pipe** is the pipe's status.
 5. **Two research pipelines.** Any run-starting UI must name its engine.
 
+### And the five this pass added
+
+6. **Nothing in this repository resolves the CSS cascade.** `tsc`, the build, the class-existence
+   guard and the eleven-palette theme sweep were all green while `.brand-btn--primary` (0,1,0) lost
+   to `button.brand-btn` (0,1,1) and the primary button rendered pure white. A rule EXISTING and a
+   rule WINNING are different questions, and only `getComputedStyle` on a live page answers the
+   second. This is the same shape as the checkbox bug fixed in R1, a thousand lines apart in a
+   different file — **a later, more specific rule quietly defeating an earlier intentional one.**
+7. **A comparative assertion or none.** *"The primary button is not transparent"* passed against the
+   white button. *"Is something painted here"* cannot tell a filled control from an unfilled one;
+   compare it against the thing beside it.
+8. **A mutation that applied is not a mutation that applied where you meant.** `sed '0,/pattern/'`
+   replaced the first match in the file — a rule ~890 lines above the one under test. The count
+   changed, the suite stayed green, and it read exactly like a guard that cannot go red.
+9. **Heredocs eat one level of backslash.** A regex written through one turned `\s+` into `s+` and
+   matched nothing. Write regexes with the file tools, or verify the file after writing it.
+10. **A comment stripper must know about strings.** `'application/json, text/plain, */*'` contains
+    `/*`. An unanchored block-comment strip started there, ran to the next `*/` hundreds of lines
+    later, and blanked six thousand characters of code — then reported the hole as clean. Anchor to
+    line starts.
+
+### And one about auditing
+
+11. **An audit must not change what it is auditing.** The viewer QA's first failure was "no document
+    rows", and the obvious repair — clicking "Back to Property Information" — opens a *"Revert
+    workflow step?"* confirmation that moves a real project backwards. Pick a subject in the state
+    you need; do not move one into it. Same rule this repository already writes down for
+    Approve/Demote/Ban on the employee screens.
+
 ---
 
 ## Slice log
@@ -338,4 +520,6 @@ The worker runs in Docker; there is no `npm` on the host for it. Rebuild with
 |---|---|---|
 | 2026-09-01 | **B0 + B1** | Seed 622 applied to the live database — the brand upload feature had no tables and no bucket anywhere. 39 `brand-*` classes given rules; `brand-classes.test.ts` guards both directions with four controls. The scanner was wrong twice first. |
 | 2026-09-01 | **V1–V7** | Fit-to-window on open and on every page change; rotate, full screen and download in both research viewers; thirteen shortcuts on a map the on-screen hint is derived from. `lib/viewers/viewer-fit.ts` is now shared by four viewers, and giving the research ones a rotate control found the other two turning pages without re-fitting them. |
-</content>
+| 2026-09-01 | **R1 + B2** | Every checkbox in the admin was a circle, so it read as a radio button — two deliberate blocks ~1,000 lines apart, the later winning on source order. Square box, tick instead of a dot, radios untouched. And the brand upload path exercised end to end against the live database: 39 checks, both unique indexes and the status CHECK confirmed, database left at zero rows. |
+| 2026-09-01 | **B6 + V8** | Eleven palettes across all eight brand tabs, then a browser — which found the primary button rendering white behind three green checks. `verify:brand-page` and `verify:viewer` are committed rather than thrown away; the viewer one measures a real 2750×2783 county scan fitting a 1368×803 panel, with a control proving the old default overflowed it. |
+| 2026-09-01 | **W (E5b–E5e)** | E5b and E5d were already shipped — checked before building. E5c was wired into one call site of nineteen while most of the rest held the URL in the same block; fourteen now pass it, four genuinely cannot, and a guard requires a stated reason. E5e's module already existed and guarded two doors of three. Three probes were the bug before the code was. |
