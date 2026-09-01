@@ -264,6 +264,101 @@ exist. Do not plan the next one from a name that has not been grepped.
 **Done:** behaviour identical; the route renders the same markup; each extraction is separately
 revertable.
 
+### B1a — fourteenth extraction: `_sections/gis-quality-data.ts` + `GisQualityCard.tsx` — SHIPPED 2026-08-31
+
+The Artifacts tab's GIS screenshot quality panel: seven keys across two nesting levels, an IIFE, and
+five literal colours, inline in `page.tsx`. **3,398 → 3,353 lines.**
+
+All seven key names match `worker/src`. There was no key bug — the contract test is there for the
+next one, because the panel's guard is `if (!qr || !qr.checks?.length) return null`, so a rename
+does not throw, does not warn, and does not render. Indistinguishable from the normal case.
+
+**What the extraction actually found was four unreadable colours, and the reason no instrument had
+seen them is the interesting part.**
+
+Measured on white: `#22c55e` **2.28:1** · `#eab308` **1.92:1** · `#ef4444` **3.76:1** ·
+`#999` **2.85:1**. The 1.92 is the score itself — the one number the card exists to show.
+
+Both instruments were blind, for two different reasons:
+
+- **`check-portal-themes.mjs`** measures rendered text, and **0 of 50 projects** carry a
+  `gisQualityReport` with checks. Only the Bell orchestrator writes one, only when GIS
+  screenshots exist and AI credits are not depleted. Nothing to measure. *Third instance* of this
+  blind spot: the Document Library's row colours (G18) and the project-scoped routes (U4) were the
+  first two.
+- **`audit-research-contrast.mjs`** reads inline style objects, and the colour was a ternary
+  assigned to a local — `const color = score >= 70 ? '#22c55e' : …` then `style={{ color }}`.
+  No literal in the object to find.
+
+Neither was wrong. Between them they cover *rendered* and *written literally*, and this was neither.
+The fix is named rules and a fixture: a value with a name is a value an audit can follow, and a
+fixture is what makes a never-rendered branch measurable. `REVIEW_FIXTURE` now carries three
+checks straddling both score bands, because a fixture that exercised one band would have left two
+colours unmeasured — which is how this happened the first time.
+
+#### Two token families for one job, and the portal used the wrong one
+
+Fixing the card surfaced something wider. `themes.css` carries a block dated
+**THEME-STATUS-PAIRS-2026-08-24** whose comment describes this exact bug being fixed once already:
+*"a dark theme repainted the app around a #FFFAEB amber panel and left it there:
+`.worker-status--warn` measured 1.16:1 on forest-dark."* Its answer is the `-surface` / `-text`
+pair, derived per palette and defined in all twelve palette blocks.
+
+A later slice (**C2**) then added `--color-*-bg` and `--color-*-border` to `tokens.css`, in
+one place, with no palette definitions. Its own comments read *"--color-warning-border did not exist
+until that slice"* — written by somebody who looked for a token, did not find it, and created it,
+not knowing the themed pair was already there under a different name.
+
+So half of every status pair followed the theme and half did not. **The GIS card measured 1.31:1 on
+the dark palettes before the swap and 4.55:1 after.** 25 references across six research files moved
+to the themed pair; borders are derived from the token that *is* themed, the pattern
+`PageOffGate.css` already used. `DesignStudio.css:1436` names it best, having hit it
+independently a third time: *"the ink followed the theme and the paper did not."*
+
+**An existing test caught a real regression in the middle of this** — `validation-notices-agree`
+exists to assert the county note and the Places note use the *same* amber, and swapping one of the
+two broke exactly that. Both moved; the test now names the themed pair and keeps its property.
+
+#### Three phantom tokens in one afternoon
+
+`--text-tertiary`, `--color-accent`, and the `-bg`/`-border` half-pair are all read by
+product code and defined **nowhere**, so their hex fallbacks paint unconditionally on every palette.
+`var(--x, #999)` reads like a safety net and is, in that case, simply `#999`.
+
+`--color-accent` was the active **portal tab** on `/admin/jobs` and `/admin/people` — the
+label of the tab you are currently on, at 3.62–4.06:1 on the dark palettes. Outside the research
+portal, but the same defect with the same already-proven remedy (`--theme-accent`, defined twelve
+times), two lines each, and the instrument to verify was already running. Fixed rather than filed.
+
+#### The auditor was resolving a mix as its first ingredient
+
+`color-mix(in srgb, var(--theme-warning) 38%, var(--theme-fg-primary))` resolved to `#f59e0b`,
+because the `var()` match is not anchored and found the first variable in the string. The auditor
+then measured pure amber on white and reported **2.15:1** for a rule the browser measures at
+**4.55:1 on its worst palette** — a confident false finding, the shape this repo has hit four times.
+`color-mix` is skipped now and lands in the count the script already prints as *"skipped — a
+background this cannot resolve"*. Unresolved and honest beats resolved and wrong.
+
+**And the scratch probe written to verify all this had two bugs of its own**, both producing
+confident findings against correct CSS: it parsed `color(srgb 0.53 0.88 0.76)` as 0–255 rather
+than 0–1, and its transparency test `!/, 0\)$/` also matched `rgb(0, 0, 0)`, so it skipped
+every black surface and walked to a white default. *A probe can be the bug* — checked before
+"fixing" CSS that turned out to be correct.
+
+#### Note on the e2e "0 chars" readings
+
+`research-responsive` reports 0 chars for Neighbours, Discrepancies, Artifacts and Packet. Driving
+the spec's own `REVIEW_FIXTURE` by hand renders the GIS card at **1,026 chars**, so those readings
+are the spec probe's container scope, not empty tabs. It still reports `offenders=0` honestly — it
+is measuring nothing rather than claiming nothing is wrong — but the number should not be read as
+evidence a tab is empty.
+
+**32 contract tests, all mutants killed** (including the two that survived the first pass: a key
+list that was checking itself, and an icon assertion that a rename survived). 11 palettes × 14
+routes clean. tsc 0 · full suite **27,622 pass**.
+
+---
+
 ### B1a — thirteenth extraction: `_sections/easements-review-data.ts` — SHIPPED 2026-08-31
 
 **The last cast on the Review tab.** Twenty-seven keys off `analysis_metadata.result` across four

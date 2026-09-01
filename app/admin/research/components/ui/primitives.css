@@ -325,8 +325,8 @@
   border-radius: 8px;
   /* The C2 status tokens. --color-error-border did not exist before that slice
    * either — it was read with a fallback and defined nowhere. */
-  background: var(--color-error-bg, #FEF2F2);
-  border: 1px solid var(--color-error-border, #FECACA);
+  background: var(--color-error-surface, #FEF2F2);
+  border: 1px solid color-mix(in srgb, var(--color-error-text) 25%, transparent);
   color: var(--color-error-text, #B42318);
 }
 
@@ -348,7 +348,7 @@
   margin-top: 0.7rem;
   padding: 0.4rem 0.9rem;
   border-radius: 6px;
-  border: 1px solid var(--color-error-border, #FECACA);
+  border: 1px solid color-mix(in srgb, var(--color-error-text) 25%, transparent);
   background: var(--color-bg-card, #FFFFFF);
   color: var(--color-error-text, #B42318);
   font-size: 0.82rem;
@@ -357,7 +357,7 @@
 }
 
 .rui-error__retry:hover {
-  background: var(--color-error-bg, #FEF2F2);
+  background: var(--color-error-surface, #FEF2F2);
 }
 
 .rui-error__retry:focus-visible {

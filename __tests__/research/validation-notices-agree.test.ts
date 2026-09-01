@@ -49,6 +49,9 @@ describe('the status tokens the notices read are actually defined', () => {
   });
 
   it('defines the bg and text tokens the notices read', () => {
+    // Still asserted to EXIST: 200-odd sites outside the research portal read it, and this test
+    // is not the place to claim they have all moved. What is asserted below is that the two
+    // notices agree with each other, on the themed pair.
     expect(TOKENS).toContain('--color-warning-bg:');
     expect(TOKENS).toContain('--color-warning-text:');
   });
@@ -59,19 +62,29 @@ describe('the two notices agree', () => {
   const places = ruleFor(AUTOCOMPLETE, '.address-autocomplete__notice');
 
   it('the county note reads tokens rather than hardcoding hex', () => {
-    expect(county).toContain('var(--color-warning-bg');
-    expect(county).toContain('var(--color-warning-border');
+    // The token NAMES moved on 2026-08-31. `--color-warning-bg` is defined once, in tokens.css,
+    // and in no palette block — so it stayed a fixed cream while `--color-warning-text` followed
+    // the theme, and a dark palette put light text on a pale panel: 1.31:1, measured on the GIS
+    // quality card that shares this pair. `themes.css` had already solved it under the
+    // `-surface` name (THEME-STATUS-PAIRS-2026-08-24) before the C2 slice added the second,
+    // unthemed family without knowing. The property this test protects is unchanged; the pair it
+    // names is the themed one now.
+    expect(county).toContain('var(--color-warning-surface');
+    expect(county).toContain('color-mix(in srgb, var(--color-warning-text)');
     expect(county).toContain('var(--color-warning-text');
   });
 
   it('both use the same background token — one severity, one colour', () => {
-    expect(county).toContain('--color-warning-bg');
-    expect(places).toContain('--color-warning-bg');
+    expect(county).toContain('--color-warning-surface');
+    expect(places).toContain('--color-warning-surface');
   });
 
   it('both use the same border token', () => {
-    expect(county).toContain('--color-warning-border');
-    expect(places).toContain('--color-warning-border');
+    // Derived from the token that IS themed, which is the pattern PageOffGate.css established. A
+    // fixed #FDE68A border around a dark panel is the same defect one layer out.
+    const derived = 'color-mix(in srgb, var(--color-warning-text) 25%, transparent)';
+    expect(county).toContain(derived);
+    expect(places).toContain(derived);
   });
 
   it('neither hardcodes the amber it used to', () => {

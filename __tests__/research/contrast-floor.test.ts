@@ -512,3 +512,95 @@ describe('the sweep can reach a detail route at all', () => {
     expect(src.slice(at, at + 120)).toContain('process.exit(2)');
   });
 });
+
+// ── TWO TOKEN FAMILIES FOR ONE JOB, AND THE PORTAL USED THE WRONG ONE ───────────────────────────
+//
+// `themes.css` carries a block dated THEME-STATUS-PAIRS-2026-08-24 whose comment describes this
+// exact bug being fixed once already: *"a dark theme repainted the app around a #FFFAEB amber panel
+// and left it there: .worker-status--warn measured 1.16:1 on forest-dark."* Its answer is the
+// `-surface` / `-text` pair, derived per palette — 12% of the hue over this theme's surface,
+// 55% toward this theme's foreground — and it is defined in all twelve palette blocks.
+//
+// A later slice (C2) then added `--color-*-bg` and `--color-*-border` to `tokens.css`, in ONE
+// place, with no palette definitions. Two families for one job, and the newer one is the unthemed
+// one. Its own comments in CountyNote.css and primitives.css read *"--color-warning-border did not
+// exist until that slice"* — written by somebody who had looked for a token, not found it, and
+// created it, without knowing the themed pair was already there under a different name.
+//
+// The result is half a pair following the theme: `-text` adapts, `-bg` does not. On the four
+// dark palettes that is light text on a permanently cream panel. The GIS quality card measured
+// **1.31:1** before the swap and 4.55:1 after.
+//
+// `DesignStudio.css:1436` names it best, having hit it independently a third time:
+// *"the ink followed the theme and the paper did not."*
+
+describe('the research portal uses the THEMED half of the status pair', () => {
+  const FILES = [
+    'app/admin/research/components/CountyNote.css',
+    'app/admin/research/components/ScopeNotice.css',
+    'app/admin/research/components/ui/primitives.css',
+    'app/admin/research/components/VerificationPanel.tsx',
+    'app/admin/research/_tabs/PortalWatchPanel.tsx',
+    'app/admin/styles/AdminResearch.css',
+  ];
+
+  const readFile = (f: string) => fs.readFileSync(path.join(process.cwd(), f), 'utf8');
+
+  it('control: the themed pair really is defined per palette, and the other really is not', () => {
+    // Without this the rule below could be enforcing a swap to a token that does not exist, which
+    // would render everything as its hex fallback and pass anyway.
+    const themes = readFile('app/styles/themes.css');
+    const tokens = readFile('app/styles/tokens.css');
+    for (const tone of ['success', 'warning', 'error', 'info']) {
+      expect(themes.split(`--color-${tone}-surface:`).length - 1,
+        `--color-${tone}-surface is not defined per palette`).toBe(12);
+      expect(themes, `--color-${tone}-bg has become themed; re-read this rule`)
+        .not.toContain(`--color-${tone}-bg:`);
+      expect(tokens, `--color-${tone}-bg is gone from tokens.css`).toContain(`--color-${tone}-bg:`);
+    }
+  });
+
+  for (const f of FILES) {
+    it(`${f.split('/').pop()} reads no unthemed status background`, () => {
+      const src = readFile(f);
+      // Comments are stripped: several of these files EXPLAIN the old tokens by name, and a scan
+      // that matched prose would report a file that had been fixed. Fifteenth instance.
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ');
+      const bad = [...code.matchAll(/var\(--color-(success|warning|error|info)-(bg|border)/g)]
+        .map((m) => m[0]);
+      expect(bad, `${f} paints a themed foreground on a fixed light panel`).toEqual([]);
+    });
+  }
+
+  it('control: the scan can fail', () => {
+    const sample = 'background: var(--color-warning-bg, #FFFBEB);';
+    expect([...sample.matchAll(/var\(--color-(success|warning|error|info)-(bg|border)/g)]).toHaveLength(1);
+  });
+
+  it('and the border is derived from the token that IS themed', () => {
+    // The pattern app/admin/components/PageOffGate.css already uses. A fixed #FDE68A border around
+    // a dark panel is the same defect one layer out.
+    const css = readFile('app/admin/styles/AdminResearch.css');
+    expect(css).toContain('color-mix(in srgb, var(--color-warning-text) 25%, transparent)');
+  });
+});
+
+describe('a mix is not its first ingredient', () => {
+  it('color-mix() is skipped, not misread as its first variable', () => {
+    // `color-mix(in srgb, var(--theme-warning) 38%, var(--theme-fg-primary))` resolved to #f59e0b,
+    // because the var() match is not anchored and found the first variable in the string. The
+    // auditor then measured pure amber on white and reported 2.15:1 for a rule the BROWSER sweep
+    // measures at 4.55:1 on its worst palette. A confident false finding.
+    const vars = new Map([['--theme-warning', [245, 158, 11]], ['--theme-fg-primary', [17, 24, 39]]]);
+    expect(colourOf('color-mix(in srgb, var(--theme-warning) 38%, var(--theme-fg-primary))', vars))
+      .toBeNull();
+  });
+
+  it('control: an ordinary var() still resolves, so the skip is narrow', () => {
+    // If the guard were too broad it would silently stop auditing everything, and this file's
+    // "skips less than 40% of pairs" ratchet is the second line of defence for that.
+    const vars = new Map([['--theme-warning', [245, 158, 11]]]);
+    expect(colourOf('var(--theme-warning)', vars)).toEqual([245, 158, 11]);
+    expect(colourOf('#B54708', vars)).toEqual([181, 71, 8]);
+  });
+});

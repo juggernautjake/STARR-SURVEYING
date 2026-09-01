@@ -17,8 +17,8 @@
 
 .research-county-note--warn {
   color: var(--color-warning-text, #92400E);
-  background: var(--color-warning-bg, #FFFBEB);
-  border: 1px solid var(--color-warning-border, #FDE68A);
+  background: var(--color-warning-surface, #FFFBEB);
+  border: 1px solid color-mix(in srgb, var(--color-warning-text) 25%, transparent);
   border-radius: 6px;
   padding: 0.4rem 0.55rem;
 }

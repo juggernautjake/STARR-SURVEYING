@@ -140,8 +140,8 @@ export default function PortalWatchPanel(): React.ReactElement {
           background: var(--theme-accent, #1d3095); color: var(--theme-accent-fg, #fff); font: inherit; cursor: pointer; min-height: 40px; }
         .pw__row button:disabled { opacity: 0.45; cursor: not-allowed; }
         .pw__status { font-size: 0.82rem; margin: 0 0 8px; padding: 7px 10px; border-radius: 8px; }
-        .pw__status--ok { background: var(--color-info-bg, #eff6ff); color: var(--color-info-text, #1e3a8a); }
-        .pw__status--warn { background: var(--color-warning-bg, #fef3c7); color: var(--color-warning-text, #78350f); }
+        .pw__status--ok { background: var(--color-info-surface, #eff6ff); color: var(--color-info-text, #1e3a8a); }
+        .pw__status--warn { background: var(--color-warning-surface, #fef3c7); color: var(--color-warning-text, #78350f); }
         .pw__status--off { background: var(--color-bg-subtle, #f3f4f6); color: var(--color-text-secondary, #4b5563); }
         .pw__counts { font-size: 0.8rem; color: var(--color-text-secondary, #6b7280); margin: 0 0 10px;
           font-variant-numeric: tabular-nums; }
@@ -151,8 +151,8 @@ export default function PortalWatchPanel(): React.ReactElement {
         .pw__head { display: flex; gap: 8px; align-items: center; margin-bottom: 4px; }
         .pw__verdict { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em;
           padding: 2px 7px; border-radius: 99px; }
-        .pw__verdict--likely { background: var(--color-success-bg, #dcfce7); color: var(--color-success-text, #14532d); }
-        .pw__verdict--possible { background: var(--color-warning-bg, #fef3c7); color: var(--color-warning-text, #78350f); }
+        .pw__verdict--likely { background: var(--color-success-surface, #dcfce7); color: var(--color-success-text, #14532d); }
+        .pw__verdict--possible { background: var(--color-warning-surface, #fef3c7); color: var(--color-warning-text, #78350f); }
         .pw__year { font-size: 0.72rem; color: var(--color-text-tertiary, #6b7280); font-variant-numeric: tabular-nums; }
         .pw__link { font-size: 0.87rem; font-weight: 500; color: var(--color-brand, #1d3095); }
         .pw__excerpt { font-size: 0.83rem; color: var(--color-text-primary, #374151); margin: 5px 0 3px;

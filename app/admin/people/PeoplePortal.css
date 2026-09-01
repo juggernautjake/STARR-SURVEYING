@@ -53,9 +53,13 @@
 /* The active tab is marked by weight and an underline, not by colour alone — the same reason the
  * contrast pass exists. A palette where the accent is close to the body colour would otherwise
  * leave the strip with no visible selection at all. */
+/* --color-accent is defined in NEITHER tokens.css NOR themes.css, so the #2563EB fallback
+   painted on every palette and failed on the four dark ones: 3.62-4.06:1 for the label of the
+   tab you are currently on. --theme-accent is the real token, defined in all twelve palette
+   blocks, and is what the research portal's active tab was moved to for this same reason. */
 .ppl-portal__tab--active {
-  color: var(--color-accent, #2563EB);
-  border-bottom-color: var(--color-accent, #2563EB);
+  color: var(--theme-accent, #2563EB);
+  border-bottom-color: var(--theme-accent, #2563EB);
   font-weight: 650;
 }
 

@@ -84,6 +84,22 @@ export function stripJs(src) {
  * shipped sixteen theme tokens that were read by 159 rules and defined nowhere.
  */
 export function colourOf(value, vars = new Map()) {
+  // ── A MIX IS NOT ITS FIRST INGREDIENT ─────────────────────────────────────────────────────
+  //
+  // `color-mix(in srgb, var(--theme-warning) 38%, var(--theme-fg-primary))` used to resolve to
+  // #f59e0b, because the var() match below is not anchored and simply found the first variable in
+  // the string. The auditor then measured pure amber against white and reported 2.15:1 on a rule
+  // the browser measures at 4.55:1 on its worst palette.
+  //
+  // That is the shape this file's own header warns about four times over: a probe that resolves a
+  // value WRONG produces a confident list of findings, and "a check that sends somebody to fix
+  // working code is worse than no check". Computing the mix properly would mean resolving two
+  // themed variables per palette, which is what the BROWSER sweep already does correctly.
+  //
+  // So it is skipped, and lands in the count this script already prints as "skipped — a background
+  // this cannot resolve". Unresolved and honest beats resolved and wrong.
+  if (/color-mix\s*\(/i.test(value)) return null;
+
   const fallback = value.match(/var\(\s*(--[a-z0-9-]+)\s*(?:,\s*([^)]+))?\)/i);
   if (fallback) {
     // A variable defined in these sheets wins; otherwise its fallback; otherwise unknown.

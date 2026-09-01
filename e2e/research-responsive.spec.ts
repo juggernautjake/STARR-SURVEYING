@@ -260,6 +260,51 @@ const REVIEW_FIXTURE = {
         adjacentReferences: ['SCHOENEBERG ADDITION to the north', 'HOLLAND ISD tract to the west'],
       },
     ],
+    // ── The Artifacts tab's GIS quality card ────────────────────────────────────────────────
+    //
+    // Added 2026-08-31 with the fourteenth B1a extraction. Before this the Artifacts tab measured
+    // **0 chars** in this very spec, and 0 of 50 real projects carry a report — so the card had
+    // literally never rendered, and four unreadable colours sat in it while every instrument
+    // reported green. A branch nothing renders is a branch nothing can measure.
+    //
+    // The three scores straddle both bands ON PURPOSE. 82 is good, 55 is the fair band — the one
+    // that measured **1.92:1** as #eab308 and is the reason this fixture exists — and 22 is poor.
+    // A fixture that exercised one band would have left two colours unmeasured, which is how this
+    // happened the first time.
+    gisQualityReport: {
+      summary: 'Three GIS captures assessed. Two are usable for boundary comparison; the parcel '
+        + 'overlay capture is zoomed too far out to resolve the east line.',
+      checks: [
+        {
+          label: 'Bell CAD parcel overview',
+          qualityScore: 82,
+          zoomAssessment: 'appropriate',
+          whatIsShown: 'Subject tract with parcel lines, adjoining tract IDs and the Pecan School Road right-of-way clearly legible.',
+          recommendations: [],
+        },
+        {
+          label: 'Aerial imagery with parcel overlay',
+          qualityScore: 55,
+          zoomAssessment: 'too far out',
+          whatIsShown: 'Subject tract visible but parcel boundary lines are thinner than one pixel along the east line.',
+          recommendations: [
+            'Re-capture at zoom level 18 or closer',
+            'Disable the roads layer, which obscures the south boundary at this scale',
+          ],
+        },
+        {
+          label: 'FEMA flood hazard layer',
+          qualityScore: 22,
+          zoomAssessment: 'unusable',
+          whatIsShown: 'Layer failed to draw; the capture shows the basemap only, with no hazard shading present.',
+          recommendations: ['Retry after the FEMA service returns', 'Fall back to the static FIRM panel'],
+        },
+      ],
+      actionableAdjustments: [
+        'Re-run GIS capture for the aerial overlay at a closer zoom before relying on the east line',
+        'The FEMA capture carries no data — treat flood determination as unresolved rather than clear',
+      ],
+    },
     crossValidation: [],
     deedSummary: 'Four instruments, 1957 to 2019, with one break at the 2004 transfer.',
     platSummary: 'One recorded plat, 1961, with a 0°14′ bearing disagreement on the east line.',

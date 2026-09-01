@@ -27,7 +27,7 @@
 .research-scope-notice--warn {
   color: var(--color-warning-text, #B54708);
   background: var(--color-warning-surface, #FFFAEB);
-  border-color: var(--color-warning-border, #FDE68A);
+  border-color: color-mix(in srgb, var(--color-warning-text) 25%, transparent);
 }
 
 /* Not runnable. */
@@ -37,7 +37,7 @@
    * whole notice out of theming — tokens.css:110 records the last time that happened here. */
   color: var(--color-error-text, #B42318);
   background: var(--color-error-surface, #FEF3F2);
-  border-color: var(--color-error-border, #FECACA);
+  border-color: color-mix(in srgb, var(--color-error-text) 25%, transparent);
 }
 
 /* The word, not the colour, is what carries the meaning — see the note in the component. */

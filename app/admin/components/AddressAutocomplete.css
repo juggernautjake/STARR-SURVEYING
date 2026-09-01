@@ -92,7 +92,11 @@
   font-size: 0.78rem;
   line-height: 1.35;
   color: var(--color-text-secondary, #4B5563);
-  background: var(--color-warning-bg, #FEF3C7);
-  border: 1px solid var(--color-warning-border, #FDE68A);
+  /* The THEMED half of the status pair. --color-warning-bg is a fixed cream defined once in
+     tokens.css, so on a dark palette this panel stayed pale while its themed text went light:
+     1.31:1, measured on the sibling notice. See themes.css THEME-STATUS-PAIRS-2026-08-24, which
+     fixed this once already under the -surface name. */
+  background: var(--color-warning-surface, #FEF3C7);
+  border: 1px solid color-mix(in srgb, var(--color-warning-text) 25%, transparent);
   border-radius: 8px;
 }
