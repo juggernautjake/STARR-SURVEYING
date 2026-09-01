@@ -132,3 +132,5 @@ ui-fit-shots/
 _tmp_*
 _*.mjs
 _*.png
+# Screenshot output from verify:brand-page and verify:viewer.
+_qa/

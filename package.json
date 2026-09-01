@@ -54,6 +54,8 @@
     "audit:natives": "npx --yes vite-node -c vitest.config.ts scripts/audit-native-coverage.mjs --",
     "verify:orphans": "node scripts/find-orphaned-modules.mjs",
     "verify:contrast": "node scripts/audit-research-contrast.mjs",
+    "verify:brand-page": "node --env-file=.env.local scripts/check-brand-page.mjs",
+    "verify:viewer": "node --env-file=.env.local scripts/check-document-viewer.mjs",
     "verify:worker": "node --experimental-strip-types --no-warnings scripts/verify-worker.mjs",
     "verify:unmerged": "node scripts/verify-unmerged.mjs",
     "e2e:research-responsive": "playwright test e2e/research-responsive.spec.ts"

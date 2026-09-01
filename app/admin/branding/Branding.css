@@ -1104,6 +1104,31 @@ label.brand-btn:focus-within {
 
 button.brand-btn:disabled { opacity: .55; cursor: not-allowed; }
 
+/*
+ * ── THE MODIFIERS HAVE TO OUT-SPECIFY THE ELEMENT RULE ──────────────────
+ *
+ * These were written as bare `.brand-btn--primary` and rendered WHITE. Not
+ * a typo, not a missing token — an arithmetic loss:
+ *
+ *     button.brand-btn        (0,1,1)   background: var(--theme-bg-surface)
+ *     .brand-btn--primary     (0,1,0)   background: var(--theme-accent)
+ *
+ * The element rule above wins on specificity regardless of order, so the
+ * primary button was the same white as the secondary one and `--theme-accent`
+ * never reached it. tsc cannot see this, the build cannot see this, and the
+ * eleven-palette theme sweep reported the tab CLEAN — because a white button
+ * on a white card is neither an unthemed island nor unreadable text.
+ *
+ * It took opening the page in a browser and reading `getComputedStyle`.
+ * `rgb(255,255,255)` where the accent should be. Exactly the failure the
+ * checkbox bug had — a later, more specific rule quietly defeating an earlier
+ * intentional one — reintroduced in this same session, one file over.
+ *
+ * `button.brand-btn.brand-btn--primary` is (0,2,1) and wins. Stated on both
+ * `button` and `label` because both exist as real controls here.
+ */
+button.brand-btn.brand-btn--primary,
+label.brand-btn.brand-btn--primary,
 .brand-btn--primary {
   background: var(--theme-accent, #1D3095);
   border-color: var(--theme-accent, #1D3095);
@@ -1117,6 +1142,9 @@ button.brand-btn--primary:hover:not(:disabled) {
   filter: brightness(1.1);
 }
 
+/* Same specificity arithmetic as the primary above — this one rendered white too. */
+button.brand-btn.brand-btn--danger,
+label.brand-btn.brand-btn--danger,
 .brand-btn--danger {
   border-color: var(--color-error-border, #FDA29B);
   color: var(--color-error-text, #B42318);
