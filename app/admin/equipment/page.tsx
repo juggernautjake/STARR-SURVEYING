@@ -94,7 +94,7 @@ export default function EquipmentPortal() {
 
   // No second query parameter — this portal is billing-shaped, not marketing-shaped. A tab that
   // later grows one (a date range on the schedule, say) passes it here and nothing else changes.
-  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
   const activeTab = tabs.find((t) => t.id === active);
 
   return (
@@ -113,22 +113,14 @@ export default function EquipmentPortal() {
               key={t.id}
               type="button"
               role="tab"
+              data-tab-id={t.id}
               id={`eq-tab-${t.id}`}
               aria-selected={isActive}
               aria-controls={`eq-panel-${t.id}`}
               tabIndex={isActive ? 0 : -1}
               className={`eq-portal__tab${isActive ? ' eq-portal__tab--active' : ''}`}
               onClick={() => select(t.id)}
-              onKeyDown={(e) => {
-                // Arrow-key navigation, matching the billing portal. A tablist that cannot be
-                // walked with the keyboard is a tablist in markup only.
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                e.preventDefault();
-                const i = tabs.findIndex((x) => x.id === t.id);
-                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-                select(next.id);
-                document.getElementById(`eq-tab-${next.id}`)?.focus();
-              }}
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>

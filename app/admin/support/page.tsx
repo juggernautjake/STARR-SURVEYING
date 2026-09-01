@@ -66,7 +66,7 @@ export default function SupportPortal() {
   const { data: session } = useSession();
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
   const activeTab = tabs.find((t) => t.id === active);
 
   return (
@@ -80,20 +80,14 @@ export default function SupportPortal() {
               key={t.id}
               type="button"
               role="tab"
+              data-tab-id={t.id}
               id={`sys-tab-${t.id}`}
               aria-selected={isActive}
               aria-controls={`sys-panel-${t.id}`}
               tabIndex={isActive ? 0 : -1}
               className={`sys-portal__tab${isActive ? ' sys-portal__tab--active' : ''}`}
               onClick={() => select(t.id)}
-              onKeyDown={(e) => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                e.preventDefault();
-                const i = tabs.findIndex((x) => x.id === t.id);
-                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-                select(next.id);
-                document.getElementById(`sys-tab-${next.id}`)?.focus();
-              }}
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>

@@ -106,7 +106,7 @@ export default function SettingsPage() {
   const { data: session } = useSession();
   const { safeFetch, safeAction } = usePageError('SettingsPage');
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
-  const { active: activeSection, tabs: visibleSections, select: setActiveSection } = usePortalTabs(PORTAL, viewer);
+  const { active: activeSection, tabs: visibleSections, select: setActiveSection, tabKeyDown } = usePortalTabs(PORTAL, viewer);
   const [general, setGeneral] = useState<GeneralSettings>(GENERAL_DEFAULTS);
   const [company, setCompany] = useState<CompanySettings>(COMPANY_DEFAULTS);
   const [savingKey, setSavingKey] = useState<string | null>(null);
@@ -167,15 +167,29 @@ export default function SettingsPage() {
         <h2 className="jobs-page__title">Settings</h2>
       </div>
 
-      {/* Section tabs */}
-      <div className="job-detail__tabs">
+      {/* ── Section tabs ────────────────────────────────────────────────────────────────────
+          E1b: this was a row of plain `<button>`s. Unlike the marketing bar it made no promise it
+          failed to keep — no `role="tablist"`, so no screen reader told anybody arrow keys would
+          work. It was still fourteen separate Tab stops in front of the panel, which is the same
+          cost without the false advertising.
+          Now a real tablist, on the shared keyboard helper like every other portal. */}
+      <div className="job-detail__tabs" role="tablist" aria-label="Settings sections">
         {visibleSections.map(s => {
           const Icon = s.icon as typeof Settings;
+          const isActive = activeSection === s.id;
           return (
             <button
               key={s.id}
-              className={`job-detail__tab ${activeSection === s.id ? 'job-detail__tab--active' : ''}`}
+              type="button"
+              role="tab"
+              data-tab-id={s.id}
+              id={`settings-tab-${s.id}`}
+              aria-selected={isActive}
+              aria-controls="settings-panel"
+              tabIndex={isActive ? 0 : -1}
+              className={`job-detail__tab ${isActive ? 'job-detail__tab--active' : ''}`}
               onClick={() => setActiveSection(s.id)}
+              onKeyDown={tabKeyDown}
             >
               <span className="job-detail__tab-icon"><Icon size={15} strokeWidth={1.75} /></span>
               {s.label}
@@ -184,7 +198,14 @@ export default function SettingsPage() {
         })}
       </div>
 
-      <div className="job-detail__content">
+      {/* One panel element that swaps its contents, so `aria-controls` has a stable target. Fifteen
+          `aria-controls` pointing at ids that do not exist would be worse than none. */}
+      <div
+        className="job-detail__content"
+        id="settings-panel"
+        role="tabpanel"
+        aria-labelledby={activeSection ? `settings-tab-${activeSection}` : undefined}
+      >
         {activeSection === 'general' && (
           <div className="job-detail__section">
             <h3>General Settings</h3>

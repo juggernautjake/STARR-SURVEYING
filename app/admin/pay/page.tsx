@@ -157,7 +157,7 @@ export default function PayPortal() {
   const { data: session } = useSession();
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
   const activeTab = tabs.find((t) => t.id === active);
   const isAdmin = viewer.roles.includes('admin');
 
@@ -172,20 +172,14 @@ export default function PayPortal() {
               key={t.id}
               type="button"
               role="tab"
+              data-tab-id={t.id}
               id={`pay-tab-${t.id}`}
               aria-selected={isActive}
               aria-controls={`pay-panel-${t.id}`}
               tabIndex={isActive ? 0 : -1}
               className={`pay-portal__tab${isActive ? ' pay-portal__tab--active' : ''}`}
               onClick={() => select(t.id)}
-              onKeyDown={(e) => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                e.preventDefault();
-                const i = tabs.findIndex((x) => x.id === t.id);
-                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-                select(next.id);
-                document.getElementById(`pay-tab-${next.id}`)?.focus();
-              }}
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>

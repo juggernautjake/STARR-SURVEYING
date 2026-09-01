@@ -89,7 +89,7 @@ export default function JobsPortal() {
   const { data: session } = useSession();
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
   const activeTab = tabs.find((t) => t.id === active);
   const isAdmin = viewer.roles.includes('admin');
 
@@ -104,20 +104,14 @@ export default function JobsPortal() {
               key={t.id}
               type="button"
               role="tab"
+              data-tab-id={t.id}
               id={`jbp-tab-${t.id}`}
               aria-selected={isActive}
               aria-controls={`jbp-panel-${t.id}`}
               tabIndex={isActive ? 0 : -1}
               className={`jbp-portal__tab${isActive ? ' jbp-portal__tab--active' : ''}`}
               onClick={() => select(t.id)}
-              onKeyDown={(e) => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                e.preventDefault();
-                const i = tabs.findIndex((x) => x.id === t.id);
-                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
-                select(next.id);
-                document.getElementById(`jbp-tab-${next.id}`)?.focus();
-              }}
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>

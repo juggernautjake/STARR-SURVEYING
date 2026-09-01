@@ -30,7 +30,6 @@ import { useSession } from 'next-auth/react';
 import { Palette, Type, Shapes, Component, Download, BookOpen, Blend, UploadCloud } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
-import { tabMoveTarget } from '@/lib/admin/portal/tab-keyboard';
 import { googleFontsHref } from '@/lib/branding/palette';
 
 import OverviewTab from './_tabs/OverviewTab';
@@ -62,7 +61,7 @@ export default function BrandingPortal() {
   const { data: session } = useSession();
   const viewer = useMemo(() => ({ roles: (session?.user?.roles ?? []) as string[] }), [session]);
 
-  const { active, tabs, select } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs, select, tabKeyDown } = usePortalTabs(PORTAL, viewer);
 
   return (
     <div className="brand-portal">
@@ -86,6 +85,7 @@ export default function BrandingPortal() {
               key={t.id}
               type="button"
               role="tab"
+              data-tab-id={t.id}
               id={`brand-tab-${t.id}`}
               aria-selected={isActive}
               aria-controls={`brand-panel-${t.id}`}
@@ -93,15 +93,15 @@ export default function BrandingPortal() {
               title={t.hint}
               className={`brand-portal__tab${isActive ? ' brand-portal__tab--active' : ''}`}
               onClick={() => select(t.id)}
-              onKeyDown={(e) => {
-                // E1b's shared helper rather than a fourth hand-rolled copy of the arrow-key
-                // dance. It also handles Home and End, which every hand-rolled version forgot.
-                const next = tabMoveTarget(e.key, tabs.map((x) => x.id), t.id);
-                if (!next) return;
-                e.preventDefault();
-                select(next);
-                document.getElementById(`brand-tab-${next}`)?.focus();
-              }}
+              // The hook's own handler, not a local one built on the same helper.
+              //
+              // This page did call `tabMoveTarget` — the pure half — and then focused
+              // `#brand-tab-${next}` by an id convention, which is precisely the approach
+              // `tab-keyboard.ts` warns against in its own header: an id lookup that drifts focuses
+              // NOTHING, and focusing nothing looks exactly like arrow keys never having been
+              // wired. The guard added for E1b caught this page as the sixteenth portal doing its
+              // own version of a solved problem.
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>

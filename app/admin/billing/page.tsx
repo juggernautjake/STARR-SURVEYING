@@ -153,7 +153,7 @@ export default function CustomerBillingPage() {
 
   // Billing has no second query parameter, so nothing is passed through. `/admin/marketing` passes
   // its date range in that argument, and that one difference is the entire reason the shell takes it.
-  const { active, tabs: TABS, select: setTab } = usePortalTabs(PORTAL, viewer);
+  const { active, tabs: TABS, select: setTab, tabKeyDown } = usePortalTabs(PORTAL, viewer);
 
   // `active` is null only when a viewer can see no tab at all — every tab switched off in Settings.
   // The overview is the honest fallback for the panel body; the strip below renders empty and says
@@ -295,21 +295,14 @@ export default function CustomerBillingPage() {
             key={t.id}
             type="button"
             role="tab"
+            data-tab-id={t.id}
             id={`billing-tab-${t.id}`}
             aria-selected={tab === t.id}
             aria-controls={`billing-panel-${t.id}`}
             tabIndex={tab === t.id ? 0 : -1}
             className={`billing-tab ${tab === t.id ? 'billing-tab--active' : ''}`}
             onClick={() => setTab(t.id)}
-            onKeyDown={(e) => {
-              if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-              e.preventDefault();
-              const dir = e.key === 'ArrowRight' ? 1 : -1;
-              const next = TABS[(i + dir + TABS.length) % TABS.length];
-              setTab(next.id);
-              const el = document.getElementById(`billing-tab-${next.id}`);
-              el?.focus();
-            }}
+            onKeyDown={tabKeyDown}
           >
             {t.label}
           </button>

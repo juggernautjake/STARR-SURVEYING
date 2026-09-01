@@ -415,19 +415,27 @@ describe('the page is wired', () => {
     expect(rendered.length).toBe(8);
   });
 
-  it('uses the shared keyboard helper rather than a hand-rolled arrow dance', () => {
-    // E1b: four portals hand-rolled this and all four forgot Home and End.
+  it('uses the shared keyboard handler rather than its own build of one', () => {
+    // ── THIS ASSERTION WAS TWO STEPS BEHIND THE PROBLEM ──────────────────────────────────────
     //
-    // Asserting the NAME appears was the first version, and renaming the call site survived it —
-    // the import line still contained the string. Second time today a name check passed for a
-    // renamed usage. This reads the keydown handler and requires the call inside it.
+    // E1b: four portals hand-rolled the arrow dance and all four forgot Home and End. The first
+    // version of this test checked that the NAME `tabMoveTarget` appeared somewhere in the file,
+    // and renaming the call site survived it — the import line still contained the string. It was
+    // tightened to read the keydown handler and require the call inside it.
+    //
+    // Both versions were satisfied by this page building its own handler on the pure half of the
+    // helper and then focusing `#brand-tab-${next}` by an id convention — which `tab-keyboard.ts`
+    // warns against in its own header, because an id lookup that drifts focuses NOTHING and
+    // focusing nothing looks exactly like arrow keys never having been wired.
+    //
+    // `usePortalTabs` returns a finished `tabKeyDown` that finds its siblings in the DOM. Fifteen
+    // other portals spread it. Asserting THAT is the check; the guard that caught this page as the
+    // sixteenth is `__tests__/admin/portal-tab-keyboard.test.ts`, which holds every portal to it.
     const src = read(PAGE);
-    const at = src.indexOf('onKeyDown');
-    expect(at, 'the tab bar has no keyboard handler at all').toBeGreaterThan(-1);
-    const handler = src.slice(at, at + 420);
-    expect(handler, 'the keydown handler no longer calls the shared helper')
-      .toMatch(/tabMoveTarget\(/);
-    expect(handler, 'the helper is called but its answer is ignored').toContain('select(next)');
+    expect(src, 'the tab button has no keyboard handler at all').toContain('onKeyDown={tabKeyDown}');
+    expect(src, 'tabKeyDown is spread but never taken off the hook').toMatch(/tabKeyDown \} = usePortalTabs/);
+    expect(src, 'without data-tab-id the handler reads empty ids and silently does nothing')
+      .toContain('data-tab-id={t.id}');
   });
 
   it('is registered in the route registry and gated in middleware, with the same roles', () => {

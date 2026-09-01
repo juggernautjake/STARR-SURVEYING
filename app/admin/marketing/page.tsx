@@ -130,7 +130,7 @@ export default function MarketingPage(): React.ReactElement {
   // page remembering to do it — which is what makes it hold for the sixteen portals after this one.
   const rangeParams = useMemo(() => rangeToParams(range), [range]);
 
-  const { active: rawActive, tabs: VISIBLE, select, navigate: go } = usePortalTabs(PORTAL, viewer, rangeParams);
+  const { active: rawActive, tabs: VISIBLE, select, navigate: go, tabKeyDown } = usePortalTabs(PORTAL, viewer, rangeParams);
   const active = (rawActive ?? 'overview') as TabId;
 
   const navigate = useCallback(
@@ -156,10 +156,18 @@ export default function MarketingPage(): React.ReactElement {
               key={t.id}
               type="button"
               role="tab"
+              data-tab-id={t.id}
               aria-selected={isActive}
               aria-controls={`mkt-panel-${t.id}`}
+              // E1b: this bar declared `role="tablist"` and implemented NO keyboard behaviour —
+              // one of the three the helper's own header counted. The role is a promise: a screen
+              // reader announces "tab 2 of 7", so somebody reaches for an arrow key and nothing
+              // happens. Worse, without a roving tabindex every tab was its own Tab stop, so
+              // reaching the panel behind a seven-tab bar took eight presses.
+              tabIndex={isActive ? 0 : -1}
               className={`mkt-tab${isActive ? ' mkt-tab--active' : ''}`}
               onClick={() => select(t.id)}
+              onKeyDown={tabKeyDown}
             >
               <Icon size={15} aria-hidden />
               <span>{t.label}</span>
