@@ -61,6 +61,15 @@ export interface CountyResearchProgress {
   phase: string;
   message: string;
   timestamp: string;
+  /**
+   * How far through THIS phase the run is, 0–100.
+   *
+   * Optional; absent means "unknown", which `RunProgressTracker` treats as "just entered the
+   * phase". It has been declared on this interface since it was written and **nothing has ever set
+   * it** — which is why the client was reduced to running regexes over the status prose to guess a
+   * percentage. Setting it from a phase that knows its own denominator ("deed 12 of 40") is the
+   * cheapest possible improvement to the bar.
+   */
   pct?: number;
 }
 

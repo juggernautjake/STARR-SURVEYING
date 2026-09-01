@@ -442,6 +442,33 @@ export interface ActivePipeline {
   lastUpdate?: string;
   /** AbortController to cancel the running pipeline */
   abortController?: AbortController;
+
+  /** The `research_runs` row this pipeline is writing to, and its ordinal within the project.
+   *
+   *  Absent only when the run record could not be written (Supabase down). Everything that files a
+   *  document during the run stamps it with this, which is what makes "17 new documents" mean
+   *  documents THIS run found rather than every document the project has ever held. */
+  runId?: string | null;
+  runNumber?: number | null;
+
+  /**
+   * Why the abort signal was raised, when it was.
+   *
+   * ── THE BUG THIS FIELD EXISTS TO KILL ────────────────────────────────────────────────────────
+   *
+   * Two call sites abort a run — the budget ceiling and a person pressing cancel — and the status
+   * endpoint could see only `signal.aborted`, so it answered both with:
+   *
+   *     { status: 'failed', failureReason: 'Pipeline cancelled by user' }
+   *
+   * A run that finished early because it reached its $2.00 or 25-minute ceiling is not a failure
+   * and was not cancelled by anybody. Operators were shown "Research Failed — Pipeline cancelled by
+   * user" beside a budget bar reading "Finished in 2 minutes for $0.02", for the same run.
+   */
+  stopReason?: { kind: 'budget' | 'cancelled' | 'error'; message: string } | null;
+
+  /** The settings this run was given, so the status endpoint can report what it was asked to do. */
+  settings?: Record<string, unknown>;
 }
 
 // ── Document Purchase Record ────────────────────────

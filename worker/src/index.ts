@@ -30,6 +30,8 @@ import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
+import { RunProgressTracker } from './research/run-phases.js';
+import { normaliseRunSettings, describeRunSettings, type RunSettings } from './research/run-settings.js';
 import type { PurchaseReport } from './types/purchase.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
 import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
@@ -71,7 +73,7 @@ import { makeQueueClient } from './infra/queue-client.js';
 import { clerkEntriesToCompiled, publishCompiledAdapters } from './infra/adapter-registry.js';
 import { parseSiteId, persistHealthResults } from './infra/health-persistence.js';
 import { checkBudget, endRun, limitsFor, startRun, windDownSummary } from './infra/run-budget.js';
-import { describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns } from './infra/run-store.js';
+import { closeOpenRuns, describeRecovery, recordRunFinish, recordRunPhase, recordRunStart, recoverInterruptedRuns, type RunTrigger } from './infra/run-store.js';
 import { resetRunSpend, spendForRun } from './infra/usage.js';
 import { CLERK_REGISTRY } from './adapters/clerk-registry.js';
 import { setSolveAttemptSink } from './lib/captcha-solver.js';
@@ -207,6 +209,15 @@ function requireAuth(req: Request, res: Response, next: () => void): void {
 // ── In-Memory State ────────────────────────────────────────────────────────
 
 const activePipelines = new Map<string, ActivePipeline>();
+/**
+ * How far each live run has got, kept OUTSIDE `activePipelines` because it must survive the moment
+ * the pipeline is removed from that map — the status endpoint needs a truthful final percentage for
+ * a run that has just ended, and a run that stopped at 68% should keep saying 68%.
+ *
+ * The tracker is monotonic by construction; see `research/run-phases.ts` for why that matters more
+ * than accuracy at any single instant.
+ */
+const runProgress = new Map<string, RunProgressTracker>();
 const completedResults = new Map<string, UnifiedResearchResult>();
 /** Cached live log entries for county-specific pipelines, keyed by projectId. */
 const completedLogs = new Map<string, LayerAttempt[]>();
@@ -989,8 +1000,15 @@ app.post('/research/validate-address', requireAuth, async (req: Request, res: Re
 
 // ── POST /research/property-lookup ─────────────────────────────────────────
 
-app.post('/research/property-lookup', requireAuth, (req: Request, res: Response) => {
-  const body = req.body as Partial<PipelineInput> & { userFiles?: unknown };
+app.post('/research/property-lookup', requireAuth, async (req: Request, res: Response) => {
+  const body = req.body as Partial<PipelineInput> & {
+    userFiles?: unknown;
+    /** Per-run settings the operator chose. See `RunSettings` and seed 623. */
+    settings?: Record<string, unknown>;
+    /** Free-text starting information the operator typed for this run. */
+    operatorNotes?: string;
+    trigger?: RunTrigger;
+  };
 
   const { projectId, address, county, state, propertyId, ownerName, userFiles } = body;
 
@@ -1077,24 +1095,88 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     })),
   };
 
-  // Register active pipeline — clear any stale completed result so that
-  // the status endpoint returns "running" (not the old failed/complete result)
-  // while this new run is in progress.
+  // ── Everything the previous run left behind, cleared before this one exists ───────────────────
+  //
+  // This block used to clear three in-process maps and stop. It was not enough, and the gap was
+  // visible on screen: a re-run showed **"Research Failed — Pipeline cancelled by user"** while the
+  // new run was happily retrieving documents in the background.
+  //
+  // The mechanism was a race with a stale cache. `GET /research/status/:projectId` consulted
+  // `completedResults` BEFORE `activePipelines`, so between the operator pressing re-run and this
+  // handler running, every poll returned the PREVIOUS run's terminal result. The panel latched
+  // `failed`, called `stopPolling()`, and never looked again — so the moment the old result was
+  // deleted here made no difference, because nothing was still asking.
+  //
+  // Both halves are fixed: the status endpoint now prefers a live pipeline over any cached result
+  // (an actively running pipeline cannot be less current than a finished one), and the clearing
+  // happens here as well so a poll landing between the two also gets the right answer.
   completedResults.delete(projectId);
   completedResultsCachedAt.delete(projectId);
-  // Also clear any stale running-message from a previous run so that a
-  // crash/abort that didn't clean up doesn't bleed into the new run's status.
+  completedLogs.delete(projectId);
   clearRunningMessage(projectId);
+  clearLiveLogForProject(projectId);
+  clearTracker(projectId);
+  runProgress.delete(projectId);
+
+  // Any `research_runs` row still marked `running` for this project belongs to a run that is over —
+  // this handler refuses to start while one is genuinely active (the 409 above). Leaving it open
+  // makes an ended run look live to every DB-fallback path forever.
+  await closeOpenRuns(
+    projectId,
+    'interrupted',
+    'A new run was started for this project before this one had been closed out.',
+  );
+
   const pipelineAbortController = new AbortController();
+  const startedAtIso = new Date().toISOString();
+
+  // ── The run record, created BEFORE the pipeline, and awaited ──────────────────────────────────
+  //
+  // It was `void recordRunStart({…})` further down, after the 202 had already gone out. Nothing
+  // downstream could know the run's id, which is precisely why the app's own report card carries
+  // the line "nothing tags a document or fact with its run". Awaiting it costs one round trip and
+  // buys attribution for every document the run files.
+  const runSettings = normaliseRunSettings(body.settings);
+  const budgetLimits = limitsFor({
+    // Both of these were being dropped. `limitsFor()` has accepted a per-run clock and a per-run
+    // cost since it was written; the app never sent either, so every run silently got the defaults
+    // whatever the operator chose in the UI.
+    maxResearchTimeMinutes: runSettings.maxResearchTimeMinutes ?? researchInput.maxResearchTimeMinutes,
+    maxCostUsd: runSettings.maxCostUsd ?? researchInput.maxCostUsd,
+  });
+
+  const startedRun = await recordRunStart({
+    projectId,
+    county,
+    address: researchInput.address,
+    limits: budgetLimits,
+    trigger: body.trigger,
+    settings: runSettings as unknown as Record<string, unknown>,
+    inputs: {
+      address: researchInput.address ?? null,
+      county,
+      state: researchInput.state ?? 'TX',
+      parcelId: researchInput.propertyId ?? null,
+      ownerName: researchInput.ownerName ?? null,
+      operatorNotes: body.operatorNotes ?? null,
+      attachedFiles: parsedUserFiles?.map((f) => f.filename) ?? [],
+    },
+  });
+
   activePipelines.set(projectId, {
     projectId,
     address: researchInput.address ?? '',
     county,
     state: researchInput.state ?? 'TX',
-    startedAt: new Date().toISOString(),
+    startedAt: startedAtIso,
     currentStage: 'Routing',
     abortController: pipelineAbortController,
+    runId: startedRun?.runId ?? null,
+    runNumber: startedRun?.runNumber ?? null,
+    stopReason: null,
+    settings: runSettings as unknown as Record<string, unknown>,
   });
+  runProgress.set(projectId, new RunProgressTracker());
 
   // Initialize the timeline tracker for this pipeline run so every log entry
   // and phase transition is captured as a granular timeline event for the
@@ -1105,28 +1187,16 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
   // Budget + timebox (plan R5). The owner's ask is a run that works for 20–30 minutes and is "as
   // cheap but as effective as possible" — both halves are ceilings, and without them a run that
   // finds an interesting chain of title follows it for an hour.
-  const budgetLimits = limitsFor({
-    maxResearchTimeMinutes: researchInput.maxResearchTimeMinutes,
-    // Was dropped on the floor here: limitsFor() has accepted a per-run cost since it was written
-    // and no caller ever passed one, so every run got the $2.00 default whatever it asked for.
-    maxCostUsd: researchInput.maxCostUsd,
-  });
+  //
+  // `budgetLimits` is computed further up now, because the run record has to carry it and the run
+  // record has to exist before the pipeline files its first document.
   resetRunSpend(projectId);
   startRun(projectId, budgetLimits);
   console.log(
     `[budget] ${projectId}: ${Math.round(budgetLimits.maxWallClockMs / 60_000)} min, ` +
-    `${budgetLimits.maxCostUsd.toFixed(2)}, ${budgetLimits.maxPaidPages} paid page(s)`,
+    `$${budgetLimits.maxCostUsd.toFixed(2)}, ${budgetLimits.maxPaidPages} paid page(s)` +
+    `, paid documents ${runSettings.allowPaidDocuments === false ? 'OFF' : 'on'}`,
   );
-
-  // Durable run record (plan R3). The documents this run produces are already persisted as they
-  // are found; what used to vanish on a restart was the RUN itself — its phase, clock, spend and
-  // outcome — so a restarted worker showed a two-thirds-finished run as though it never started.
-  void recordRunStart({
-    projectId,
-    county,
-    address: researchInput.address,
-    limits: budgetLimits,
-  });
 
   // Enable function-level tracing when the request came from the Testing Lab.
   // testMode is set by the run proxy route's workerBody.
@@ -1174,11 +1244,21 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
     .success(0, `[Worker→Frontend] Pipeline starting for ${county} County`);
   console.log(`[Worker] ${projectId} → Frontend: pipeline started handshake emitted`);
 
-  // Return 202 immediately
+  // Return 202 immediately.
+  //
+  // `runId` travels in the acceptance, and that is what lets the client refuse a stale answer. The
+  // panel records the run it started; any status payload naming a different run — or naming none —
+  // cannot end its poll. Without it, a poll landing on the previous run's cached terminal result
+  // latched "Research Failed" and called `stopPolling()` while this run was still working.
   res.status(202).json({
     message: 'Pipeline started',
     projectId,
     status: 'running',
+    runId: startedRun?.runId ?? null,
+    runNumber: startedRun?.runNumber ?? null,
+    startedAt: startedAtIso,
+    settings: runSettings,
+    settingsSummary: describeRunSettings(runSettings),
     pollUrl: `/research/status/${projectId}`,
     input: {
       address: researchInput.address || undefined,
@@ -1186,6 +1266,7 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
       propertyId: researchInput.propertyId,
       ownerName: researchInput.ownerName,
       userFileCount: parsedUserFiles?.length ?? 0,
+      operatorNotes: body.operatorNotes ?? null,
     },
   });
 
@@ -1205,12 +1286,23 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         console.warn(`[budget] ${projectId}: ${summary}`);
         setRunningMessage(projectId, summary ?? 'Finished early — budget reached.');
         timeline.add('log', 'Budget', summary ?? 'budget reached');
+        // ── SAY WHY, BEFORE ABORTING ──────────────────────────────────────────────────────────
+        //
+        // The abort itself carries no reason, and the status endpoint could only see
+        // `signal.aborted`. So this — a run reaching the operator's own ceiling, which is a normal
+        // and successful early finish — was reported identically to a person pressing cancel:
+        // `{ status: 'failed', failureReason: 'Pipeline cancelled by user' }`. Operators saw
+        // "Research Failed — Pipeline cancelled by user" beside a bar reading "Finished in 2
+        // minutes for $0.02", describing the same run.
+        const active = activePipelines.get(projectId);
+        if (active) {
+          active.stopReason = {
+            kind: 'budget',
+            message: summary ?? 'Finished early because this run reached its configured ceiling.',
+          };
+        }
         pipelineAbortController.abort();
       }
-
-      // Heartbeat the durable record (plan R3). Carries the spend, so an interrupted run's cost is
-      // known to within one phase rather than being reconstructed afterwards.
-      void recordRunPhase(projectId, progress.phase, progress.message ?? null, spendForRun(projectId));
 
       // Update active pipeline stage from progress events
       const pipeline = activePipelines.get(projectId);
@@ -1218,6 +1310,30 @@ app.post('/research/property-lookup', requireAuth, (req: Request, res: Response)
         pipeline.currentStage = progress.phase;
         pipeline.lastUpdate = progress.timestamp;
       }
+
+      // Where the run actually is. Monotonic by construction — see research/run-phases.ts for why a
+      // bar that walks backwards is read as "it crashed and started over", which is the complaint
+      // this replaces.
+      const tracker = runProgress.get(projectId);
+      // `progress.pct` is documented as 0–100 WITHIN the current phase, and the tracker wants a
+      // 0–1 fraction. Converting here rather than changing the field's meaning: `pct` has been on
+      // `CountyResearchProgress` since the router was written and has never been set by anything,
+      // so its meaning is still ours to fix rather than to preserve.
+      const withinPhase = typeof progress.pct === 'number' ? progress.pct / 100 : 0;
+      const snapshot = tracker?.observe(progress.phase, progress.message, withinPhase);
+
+      // Heartbeat the durable record (plan R3). Carries the spend, so an interrupted run's cost is
+      // known to within one phase rather than being reconstructed afterwards — and now the phase and
+      // percentage too, so a poll that cannot reach this process still draws a truthful bar.
+      void recordRunPhase(
+        projectId,
+        progress.phase,
+        progress.message ?? null,
+        spendForRun(projectId),
+        0,
+        pipeline?.runId ?? null,
+        snapshot?.percent,
+      );
       // Push the latest phase message to the running-message cache so the status
       // endpoint can return it as the `message` field. Without this, Bell County
       // runs always return `message: undefined` and the frontend stays stuck on
@@ -1834,8 +1950,114 @@ app.get('/research/logs/:projectId', requireAuth, async (req: Request, res: Resp
 
 // ── GET /research/status/:projectId ────────────────────────────────────────
 
+/**
+ * The status of a run that is happening right now.
+ *
+ * Pulled out of the route so the route can consult it FIRST, before any cached result — see the
+ * comment at the call site for why that ordering is the whole fix for "it says failed while it is
+ * still working".
+ *
+ * Every payload names its run. A client that knows which run it started can then refuse an answer
+ * about a different one, which is the second half of the same fix: a terminal status for run 1 must
+ * never be able to stop the poll for run 2.
+ */
+async function respondWithLivePipeline(projectId: string, res: Response): Promise<void> {
+  const pipeline = activePipelines.get(projectId)!;
+  const snapshot = runProgress.get(projectId)?.snapshot() ?? null;
+  const liveLog = getLiveLogForProject(projectId) ?? [];
+  const timelineEntries = getTrackerIfExists(projectId)?.getEntries() ?? [];
+
+  const base = {
+    projectId,
+    runId: pipeline.runId ?? null,
+    runNumber: pipeline.runNumber ?? null,
+    startedAt: pipeline.startedAt,
+    currentStage: pipeline.currentStage,
+    address: pipeline.address,
+    county: pipeline.county,
+    settings: pipeline.settings ?? {},
+    phaseId: snapshot?.phaseId ?? null,
+    phaseLabel: snapshot?.phaseLabel ?? null,
+    phaseIndex: snapshot?.phaseIndex ?? 0,
+    phaseCount: snapshot?.phaseCount ?? 0,
+    percent: snapshot?.percent ?? 0,
+    log: liveLog,
+    timeline: timelineEntries,
+  };
+
+  // ── AN ABORTED RUN IS NOT AUTOMATICALLY A FAILED ONE ────────────────────────────────────────
+  //
+  // Two things abort a run and they mean opposite things to the operator. Reporting both as
+  // `failed` + "Pipeline cancelled by user" told people their research had broken because of
+  // something they did, when in fact it had finished early inside the ceiling they set.
+  if (pipeline.abortController?.signal.aborted) {
+    const stop = pipeline.stopReason;
+    const isBudget = stop?.kind === 'budget';
+    console.log(
+      `[Worker] ${projectId} → Frontend: status poll — aborted (${stop?.kind ?? 'cancelled'})`,
+    );
+    res.json({
+      ...base,
+      // A budget wind-down produces a usable result: the run did the work it could afford and
+      // stopped at a boundary, which is what the ceiling is for.
+      status: isBudget ? 'complete' : 'cancelled',
+      stopReason: isBudget ? 'budget_reached' : 'cancelled_by_user',
+      message: stop?.message ?? 'The run was cancelled.',
+      // `failureReason` stays null for both: neither is a failure. It exists for genuine errors and
+      // filling it here is what made a wind-down render as a crash.
+      failureReason: null,
+      windDownSummary: isBudget ? stop?.message ?? null : null,
+    });
+    return;
+  }
+
+  // Prefer the in-memory message cache (updated synchronously by updateStatus in pipeline.ts) over
+  // a Supabase round-trip, so the UI sees live stage updates even when Supabase is slow.
+  let message: string | undefined = getRunningMessage(projectId);
+  if (!message) {
+    try {
+      const supabase = await getSupabase();
+      if (supabase) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from('research_projects')
+          .select('research_message')
+          .eq('id', projectId)
+          .single();
+        if (data?.research_message) message = String(data.research_message);
+      }
+    } catch { /* non-fatal — return without message */ }
+  }
+
+  console.log(
+    `[Worker] ${projectId} → Frontend: status poll — run=${pipeline.runNumber ?? '?'} ` +
+    `phase="${snapshot?.phaseId ?? 'unknown'}" ${snapshot?.percent ?? 0}% logEntries=${liveLog.length}`,
+  );
+
+  res.json({ ...base, status: 'running', stopReason: null, message, failureReason: null });
+}
+
 app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Response) => {
   const { projectId } = req.params;
+
+  // ── A LIVE PIPELINE OUTRANKS ANY CACHED RESULT ────────────────────────────────────────────────
+  //
+  // This block used to come SECOND, after `completedResults`, and that ordering is the mechanism
+  // behind the complaint that a re-run "shows that the run failed, but really the AI is still
+  // working in the background".
+  //
+  // On a re-run the previous run's terminal result sits in `completedResults` until
+  // `property-lookup` deletes it. Every poll in that window returned it. `ResearchRunPanel` sets its
+  // state from whatever arrives and then calls `stopPolling()` on a terminal status — permanently.
+  // So by the time the new run registered, nothing was still asking, and the screen kept saying
+  // "Research Failed" over a run that went on to retrieve seventeen documents.
+  //
+  // The ordering is not a heuristic. A pipeline that is running RIGHT NOW cannot be less current
+  // than one that finished earlier; there is no case where the cached answer is the better one.
+  if (activePipelines.has(projectId)) {
+    respondWithLivePipeline(projectId, res);
+    return;
+  }
 
   if (completedResults.has(projectId)) {
     const unified = completedResults.get(projectId)!;
@@ -1946,72 +2168,6 @@ app.get('/research/status/:projectId', requireAuth, async (req: Request, res: Re
     return;
   }
 
-  if (activePipelines.has(projectId)) {
-    const pipeline = activePipelines.get(projectId)!;
-
-    // If the abort controller has been triggered, report 'failed' (cancelled)
-    // immediately — don't wait for the async pipeline unwinding to finish.
-    if (pipeline.abortController?.signal.aborted) {
-      const liveLog = getLiveLogForProject(projectId) ?? [];
-      console.log(`[Worker] ${projectId} → Frontend: status poll — pipeline ABORTED, reporting failed`);
-      res.json({
-        projectId,
-        status: 'failed',
-        failureReason: 'Pipeline cancelled by user',
-        startedAt: pipeline.startedAt,
-        currentStage: pipeline.currentStage,
-        message: 'Pipeline cancelled by user',
-        address: pipeline.address,
-        county: pipeline.county,
-        log: liveLog,
-        timeline: getTrackerIfExists(projectId)?.getEntries() ?? [],
-      });
-      return;
-    }
-
-    // Prefer the in-memory message cache (updated synchronously by updateStatus
-    // in pipeline.ts) over a Supabase round-trip. This ensures the UI sees live
-    // stage updates immediately even when Supabase is slow or not configured,
-    // which was the primary cause of the stepper appearing permanently "stuck".
-    let message: string | undefined = getRunningMessage(projectId);
-
-    if (!message) {
-      // Fallback: read from Supabase (covers cross-process / restarted-worker cases)
-      try {
-        const supabase = await getSupabase();
-        if (supabase) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { data } = await (supabase as any)
-            .from('research_projects')
-            .select('research_message')
-            .eq('id', projectId)
-            .single();
-          if (data?.research_message) message = String(data.research_message);
-        }
-      } catch { /* non-fatal — return without message */ }
-    }
-
-    const liveLog = getLiveLogForProject(projectId) ?? [];
-    // Log a confirmation that we're actively sending live data to the frontend
-    console.log(`[Worker] ${projectId} → Frontend: status poll — stage="${pipeline.currentStage ?? 'unknown'}" logEntries=${liveLog.length} msg="${(message ?? '').slice(0, 60)}"`);
-
-    // Include timeline events for the Testing Lab's ExecutionTimeline
-    const timelineEntries = getTrackerIfExists(projectId)?.getEntries() ?? [];
-
-    res.json({
-      projectId,
-      status: 'running',
-      startedAt: pipeline.startedAt,
-      currentStage: pipeline.currentStage,
-      message,
-      address: pipeline.address,
-      county: pipeline.county,
-      log: liveLog,
-      timeline: timelineEntries,
-    });
-    return;
-  }
-
   res.status(404).json({ error: `No pipeline found for project ${projectId}` });
 });
 
@@ -2089,6 +2245,10 @@ app.post('/research/cancel/:projectId', requireAuth, (req: Request, res: Respons
 
   const pipeline = activePipelines.get(projectId)!;
   if (pipeline.abortController) {
+    // Say WHY before aborting. The signal carries no reason, and until this line the status
+    // endpoint had to guess — so it called every abort a user cancellation, including the ones
+    // caused by the budget ceiling. Now only this path is a user cancellation.
+    pipeline.stopReason = { kind: 'cancelled', message: 'Cancelled by the operator.' };
     pipeline.abortController.abort();
     console.log(`[Worker] ${projectId}: cancel requested — AbortController.abort() called`);
     res.json({ message: `Cancel signal sent for project ${projectId}`, status: 'cancelling' });
@@ -2098,6 +2258,61 @@ app.post('/research/cancel/:projectId', requireAuth, (req: Request, res: Respons
     console.log(`[Worker] ${projectId}: cancel requested — no AbortController, force-removed from active`);
     res.json({ message: `Pipeline force-removed for project ${projectId}`, status: 'removed' });
   }
+});
+
+// ── POST /research/reset/:projectId ───────────────────────────────────────
+//
+// Everything this process remembers about a project's previous run, forgotten on purpose.
+//
+// ── WHY THE APP CANNOT DO THIS ITSELF ─────────────────────────────────────
+//
+// A re-run's reset lives in the app: it clears analysis rows and flips the project's status. But
+// the state that actually breaks the next run is HERE, in this process's memory —
+// `completedResults` holding the last run's terminal outcome, `completedLogs` holding its log, the
+// live-log registry, the timeline tracker and the progress tracker. The app has no reach into any
+// of it, so a re-run inherited the previous run's outcome and the operator was shown "Research
+// Failed" over a run that had not started yet.
+//
+// Idempotent, and deliberately forgiving: resetting a project with nothing to reset is a success,
+// because the caller's intent — "make sure nothing stale is left" — is satisfied either way. A 404
+// here would make the app's reset fail for the most common case of all, a first run.
+app.post('/research/reset/:projectId', requireAuth, async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  const cleared: string[] = [];
+
+  const active = activePipelines.get(projectId);
+  if (active) {
+    if (active.abortController && !active.abortController.signal.aborted) {
+      active.stopReason = {
+        kind: 'cancelled',
+        message: 'Stopped because the operator restarted this project from the beginning.',
+      };
+      active.abortController.abort();
+      cleared.push('aborted the run that was still in flight');
+    }
+    activePipelines.delete(projectId);
+    cleared.push('active pipeline');
+  }
+
+  if (completedResults.delete(projectId)) cleared.push('cached result from the previous run');
+  completedResultsCachedAt.delete(projectId);
+  if (completedLogs.delete(projectId)) cleared.push('cached log from the previous run');
+  if (runProgress.delete(projectId)) cleared.push('progress tracker');
+  clearRunningMessage(projectId);
+  clearLiveLogForProject(projectId);
+  clearTracker(projectId);
+  cleared.push('live log and timeline');
+
+  // The durable side: any run row still marked `running` is over, whatever it says.
+  await closeOpenRuns(
+    projectId,
+    'cancelled',
+    'The operator restarted this project from the beginning.',
+  );
+  cleared.push('closed any open run record');
+
+  console.log(`[Worker] ${projectId}: reset — ${cleared.join('; ')}`);
+  res.json({ projectId, reset: true, cleared });
 });
 
 // ── POST /research/pause/:projectId ───────────────────────────────────────
