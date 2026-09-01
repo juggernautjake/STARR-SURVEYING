@@ -991,16 +991,30 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           await searchBellClerkOwnerForPlatDeed(ownerNameForPlatSearch, logger);
 
         // Retrieve page images for each instrument (plats get more expected pages)
-        const instrToFetch: Array<{ instrNum: string; docType: string }> = [
-          ...platInstruments.slice(0, 2).map(n => ({ instrNum: n, docType: 'Final Plat' })),
-          ...deedInstruments.slice(0, 3).map(n => ({ instrNum: n, docType: 'Warranty Deed' })),
+        const instrToFetch: Array<{ instrNum: string; docType: string; url: string | null }> = [
+          // ── E5c: carry the viewer URL, not only the type ──────────────────────────────────
+          //
+          // `b2AllDocs` is the search result these instrument numbers came from, and every entry
+          // in it holds the REAL `/doc/{internalId}` URL. Only the "other" branch looked the ref
+          // up, and only to read its document type; the URL went in the bin, and the capture then
+          // spent ~10s per document searching the portal to find the page it had just been given.
+          //
+          // All three branches look the ref up now, and `url` rides along with `docType`.
+          ...platInstruments.slice(0, 2).map(n => ({
+            instrNum: n, docType: 'Final Plat',
+            url: b2AllDocs.find(d => d.instrumentNumber === n)?.url ?? null,
+          })),
+          ...deedInstruments.slice(0, 3).map(n => ({
+            instrNum: n, docType: 'Warranty Deed',
+            url: b2AllDocs.find(d => d.instrumentNumber === n)?.url ?? null,
+          })),
           ...otherInstruments.slice(0, 3).map(n => {
             const ref = b2AllDocs.find(d => d.instrumentNumber === n);
-            return { instrNum: n, docType: ref?.documentType ?? 'Other Document' };
+            return { instrNum: n, docType: ref?.documentType ?? 'Other Document', url: ref?.url ?? null };
           }),
         ];
 
-        for (const { instrNum, docType } of instrToFetch) {
+        for (const { instrNum, docType, url: knownUrl } of instrToFetch) {
           await updateStatus(input.projectId, 'running',
             `Stage 2: Downloading ${docType} ${instrNum} for "${ownerNameForPlatSearch}"…`);
           try {
@@ -1008,7 +1022,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
             // Use 20 as the upper bound for plats — large multi-lot plats can have
             // many pages and the dynamic stopping in fetchDocumentImages will bail
             // out early once no more pages are found.  Deeds rarely exceed 4 pages.
-            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger, input.county);
+            const pages = await fetchDocumentImages(instrNum, isPlat ? 20 : 4, logger, input.county, undefined, knownUrl ?? undefined);
             if (pages.length > 0) {
               const docResult: DocumentResult = {
                 ref: {
@@ -1088,7 +1102,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
               try {
                 // Fetch more pages for plats (large plats may have many pages)
                 const expectedPgs = isPlat ? 10 : 2;
-                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger, input.county);
+                const pages = await fetchDocumentImages(instrNum, expectedPgs, logger, input.county, undefined, ref?.url ?? undefined);
                 if (pages.length > 0) {
                   const docResult: DocumentResult = {
                     ref: {
@@ -1154,7 +1168,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
           if (!doc.ref.instrumentNumber) continue;
           try {
             const isPlat = /plat/i.test(doc.ref.documentType);
-            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger, input.county);
+            const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger, input.county, undefined, doc.ref.url ?? undefined);
             if (pages.length > 0) {
               doc.pages = pages;
               totalPages += pages.length;
@@ -1253,7 +1267,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
               const batchResults = await Promise.allSettled(
                 batchItems.map(async (doc) => {
                   const fetchStart = Date.now();
-                  const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger, input.county);
+                  const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, /plat/i.test(doc.ref.documentType) ? 3 : 2, logger, input.county, undefined, doc.ref.url ?? undefined);
                   logger.info('Stage2-Addr', `Fetched ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
                   return { doc, pages };
                 }),
@@ -1308,7 +1322,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
               batchItems.map(async (doc) => {
                 const fetchStart = Date.now();
                 // Plats often have more pages — request up to 5
-                const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, 5, logger, input.county);
+                const pages = await fetchDocumentImages(doc.ref.instrumentNumber!, 5, logger, input.county, undefined, doc.ref.url ?? undefined);
                 logger.info('Stage2-Plat', `Fetched plat ${doc.ref.instrumentNumber}: ${pages.length} pages in ${Date.now() - fetchStart}ms`);
                 return { doc, pages };
               }),
@@ -1641,7 +1655,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
                   const imgT = logger.attempt('Discovery', `${input.county} County Clerk`, 'fetchDocumentImages', doc.ref.instrumentNumber);
                   try {
                     const isPlat = /plat/i.test(doc.ref.documentType);
-                    const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger, input.county);
+                    const pages = await fetchDocumentImages(doc.ref.instrumentNumber, isPlat ? 10 : 2, logger, input.county, undefined, doc.ref.url ?? undefined);
                     if (pages.length > 0) {
                       doc.pages = pages;
                       discoveryState.totalDocumentsRetrieved++;
@@ -1697,7 +1711,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
                   const docType = isPlat ? 'Final Plat (discovery)' : isDeed ? 'Warranty Deed (discovery)' : `${discRef?.documentType ?? 'Other Document'} (discovery)`;
                   const imgT = logger.attempt('Discovery', 'Bell County Clerk', 'fetchDocumentImages', instrNum);
                   try {
-                    const pages = await fetchDocumentImages(instrNum, isPlat ? 10 : 4, logger, input.county);
+                    const pages = await fetchDocumentImages(instrNum, isPlat ? 10 : 4, logger, input.county, undefined, discRef?.url ?? undefined);
                     if (pages.length > 0) {
                       const docResult: DocumentResult = {
                         ref: {

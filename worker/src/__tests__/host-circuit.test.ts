@@ -123,3 +123,116 @@ describe('the CAD paths actually consult it', () => {
     expect(src).toMatch(/const pwCircuit = hostCircuit\(baseUrl\)/);
   });
 });
+
+// ── THE CHECK ABOVE NAMED THE DOORS THAT WERE GUARDED ───────────────────────────────────────────
+//
+// `httpCircuit` and `pwCircuit` were the two entry points somebody thought of, and asserting those
+// two by name proves only that they still exist. It cannot notice a THIRD door.
+//
+// There was one. `searchCadHttpRawKeyword` — reached from four call sites: PropertyId,
+// StreetNumber-only, StreetName-only and OwnerName — ran a reCAPTCHA probe (8s), a homepage fetch
+// (10s) and a token request (8s) before its search, with no circuit check at all. That function's
+// label is the one that appears three times in the owner's log as the 26-second repeats:
+//
+//     26002ms  Stage1A-Keyword — Failed to acquire session token
+//     26003ms  Stage1A-Keyword (again, different variant)
+//     26002ms  Stage1A-Keyword (again)
+//
+// **Two guarded doors and one open one is the same as no guard, for anything that walks through the
+// open one.** So this checks the property rather than the list: every function in the file that
+// reaches the network on `baseUrl` must consult the circuit first.
+describe('every door is guarded, not just the two somebody listed', () => {
+  const raw = fs.readFileSync(path.resolve(__dirname, '../services/bis-cad.ts'), 'utf8')
+    .split('\r\n').join('\n');
+  // ── THE STRIPPER ATE 6,000 CHARACTERS OF CODE ───────────────────────────────────────────────
+  //
+  // The obvious block-comment pattern — `/\/\*[\s\S]*?\*\//` — is wrong on this file, and the way
+  // it is wrong is invisible:
+  //
+  //     'Accept': 'application/json, text/plain, */*',
+  //
+  // That MIME type contains `/*`. An unanchored stripper starts a comment there, runs to the next
+  // `*/` several hundred lines later, and blanks every line between — including the very
+  // `requestSessionToken` call this check exists to find. The region came back as real code with a
+  // hole in it, and the check reported the hole as "no network call here".
+  //
+  // Anchoring to the start of a line fixes it: every block comment in this codebase begins a line,
+  // and a `*/*` inside a string never does. Length-preserving, so slices by index still land.
+  const src = raw
+    .replace(/^[ \t]*\/\*[\s\S]*?\*\//gm, (m) => m.replace(/[^\n]/g, ' '))
+    .replace(/(^|[^:'"`])\/\/[^\n]*/g, (m, p1: string) => p1 + ' '.repeat(m.length - p1.length));
+
+  /**
+   * The file split at each top-level `function` declaration: each region runs from its own
+   * declaration to the next one.
+   *
+   * Brace-matching was the first version and it silently truncated — this file carries regex
+   * literals and template strings whose braces do not balance under a naive counter, so
+   * `searchCadHttpRawKeyword` came back as a 900-character fragment that did not even contain
+   * `requestSessionToken`. A check reading the wrong half of a function is worse than no check:
+   * it reports clean on the half that has no network call in it.
+   *
+   * Splitting at declarations cannot truncate. It can only over-include — the tail of the last
+   * region — and over-including makes this check STRICTER, never more permissive.
+   */
+  function topLevelFunctions(): Array<{ name: string; body: string }> {
+    const marks: Array<{ name: string; at: number }> = [];
+    for (const m of src.matchAll(/^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_]+)/gm)) {
+      marks.push({ name: m[1]!, at: m.index! });
+    }
+    return marks.map((mk, i) => ({
+      name: mk.name,
+      body: src.slice(mk.at, i + 1 < marks.length ? marks[i + 1]!.at : src.length),
+    }));
+  }
+
+  const fns = topLevelFunctions();
+
+  it('control: the file was parsed into real functions', () => {
+    // Without this every assertion below passes against an empty list, which is precisely how the
+    // third door stayed open under a green test.
+    expect(fns.length, 'no top-level functions parsed out of bis-cad.ts').toBeGreaterThan(10);
+    expect(fns.map((f) => f.name)).toContain('searchCadHttpRawKeyword');
+    expect(fns.map((f) => f.name)).toContain('searchCadHttp');
+  });
+
+  it('control: the parser captured whole bodies, not fragments', () => {
+    const keyword = fns.find((f) => f.name === 'searchCadHttpRawKeyword')!;
+    expect(keyword.body.length).toBeGreaterThan(1500);
+    expect(keyword.body).toContain('requestSessionToken');
+  });
+
+  it('every function that reaches baseUrl over the network consults the circuit first', () => {
+    // `page.goto` counts too: the Playwright layer's 70s navigation was the single largest timeout
+    // in the 213 seconds.
+    const reachesNetwork = (b: string) =>
+      /await\s+(?:noting|fetch)\s*\(\s*`?\$?\{?baseUrl/.test(b)
+      || /await\s+fetch\(baseUrl/.test(b)
+      || /await\s+noting\(baseUrl/.test(b)
+      || /\.goto\(\s*`?\$?\{?baseUrl/.test(b);
+
+    const networked = fns.filter((f) => reachesNetwork(f.body));
+    expect(networked.length, 'no networked functions found — the matcher is broken')
+      .toBeGreaterThanOrEqual(2);
+
+    const unguarded = networked
+      .filter((f) => !/hostCircuit\s*\(/.test(f.body))
+      .map((f) => f.name);
+    expect(unguarded,
+      `these reach the CAD host without checking whether it just refused a connection:\n  ${unguarded.join('\n  ')}`)
+      .toEqual([]);
+  });
+
+  it('and the keyword path specifically, since that is the one that was open', () => {
+    const keyword = fns.find((f) => f.name === 'searchCadHttpRawKeyword')!;
+    expect(keyword.body).toMatch(/hostCircuit\(baseUrl\)/);
+    expect(keyword.body, 'a connection failure there must also trip the circuit')
+      .toMatch(/tripHost\(baseUrl, err\)/);
+  });
+
+  it('control: the matcher would notice an unguarded function', () => {
+    const fake = 'function x() { const r = await fetch(`${baseUrl}/a`); }';
+    expect(/await\s+(?:noting|fetch)\s*\(\s*`?\$?\{?baseUrl/.test(fake)).toBe(true);
+    expect(/hostCircuit\s*\(/.test(fake)).toBe(false);
+  });
+});

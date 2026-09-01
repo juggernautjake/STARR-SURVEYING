@@ -481,6 +481,10 @@ async function searchCadHttp(
   } catch (err) {
     const { category, detail } = classifyError(err);
     tokenTracker({ status: 'fail', error: `[${category}] ${detail}` });
+    // The reCAPTCHA probe above already trips on a connection failure; the token request is a
+    // second chance to learn the same thing, and `tripHost` is a no-op for anything that is not
+    // connection-level. Recording here covers a host that answers the probe and then stops.
+    tripHost(baseUrl, err);
   }
 
   if (!sessionToken) {
@@ -489,7 +493,24 @@ async function searchCadHttp(
   }
 
   // Step 3: Try each variant with GET /search/result?keywords=...&searchSessionToken=...
+  //
+  // ── E5e: THREE VARIANTS AGAINST A CLOSED SOCKET IS THREE TIMEOUTS ───────────────────────────
+  //
+  // The owner's 2026-08-30 run spent 26 seconds per variant proving, three times, a fact the
+  // session-token request had already established: nothing was listening. Address variants are for
+  // a host that answers and does not recognise the address — they cannot fix a host that is absent.
+  //
+  // The check is inside the loop rather than before it on purpose: a host can go down midway, and
+  // the point is to stop at the FIRST connection failure rather than to decide up front.
   for (const variant of exactVariants) {
+    const variantCircuit = hostCircuit(baseUrl);
+    if (variantCircuit.down) {
+      logger.warn('Stage1A',
+        `Skipping the remaining address variant(s) — ${baseUrl} did not answer `
+        + `${Math.round((variantCircuit.ageMs ?? 0) / 1000)}s ago (${variantCircuit.reason}).`);
+      break;
+    }
+
     const tracker = logger.startAttempt({
       layer: 'Stage1A',
       source: 'CAD-HTTP',
@@ -2123,6 +2144,31 @@ async function searchCadHttpRawKeyword(
   label: string,
   logger: PipelineLogger,
 ): Promise<CadSearchResult[] | null> {
+  // ── E5e: THE ONE ENTRY POINT THE CIRCUIT DID NOT GUARD ─────────────────────────────────────
+  //
+  // `host-circuit.ts` was built for exactly this and already guards `searchCadHttp` and the
+  // Playwright layer. It did NOT guard this function — and this function is the one whose label
+  // appears three times in the owner's 2026-08-30 log as the 26-second repeats:
+  //
+  //     26002ms  Stage1A-Keyword — Failed to acquire session token
+  //     26003ms  Stage1A-Keyword (again, different variant)
+  //     26002ms  Stage1A-Keyword (again)
+  //
+  // Four call sites reach it — PropertyId, StreetNumber-only, StreetName-only, OwnerName — and each
+  // runs the whole sequence from scratch: a reCAPTCHA probe (8s), a homepage fetch (10s), a token
+  // request (8s), then the search. Against a host that is not answering that is ~26 seconds
+  // apiece, and none of them knew the previous one had already failed at the socket.
+  //
+  // Two guarded doors and one open one is the same as no guard, for anything that walks through
+  // the open one.
+  const circuit = hostCircuit(baseUrl);
+  if (circuit.down) {
+    logger.warn('Stage1A-Keyword',
+      `Skipping ${label} — ${baseUrl} did not answer ${Math.round((circuit.ageMs ?? 0) / 1000)}s ago `
+      + `(${circuit.reason}).`);
+    return null;
+  }
+
   const tracker = logger.startAttempt({
     layer: 'Stage1A-Keyword',
     source: 'CAD-HTTP',
@@ -2130,15 +2176,33 @@ async function searchCadHttpRawKeyword(
     input: `${label}: ${keywords.substring(0, 80)}`,
   });
 
+  /**
+   * `fetch`, but a connection-level failure trips the circuit on the way past.
+   *
+   * The three calls below already swallowed their errors with `.catch(() => null)`, which is right
+   * for their control flow and throws away the one thing worth keeping: WHY it failed. A timeout
+   * and a refused connection both arrived as `null`, and only one of them means the host is absent.
+   * `tripHost` is a no-op for anything that is not connection-level, so a 403 still reads as a host
+   * that answered.
+   */
+  const noting = async (url: string, init: RequestInit): Promise<Response | null> => {
+    try {
+      return await fetch(url, init);
+    } catch (err) {
+      tripHost(baseUrl, err);
+      return null;
+    }
+  };
+
   try {
     // Check reCAPTCHA requirement
-    const recaptchaResp = await fetch(`${baseUrl}/search/shouldUseRecaptcha`, {
+    const recaptchaResp = await noting(`${baseUrl}/search/shouldUseRecaptcha`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json',
       },
       signal: AbortSignal.timeout(8_000),
-    }).catch(() => null);
+    });
 
     if (recaptchaResp?.ok) {
       const data = await recaptchaResp.json().catch(() => ({})) as { shouldUseRecaptcha?: boolean };
@@ -2152,14 +2216,14 @@ async function searchCadHttpRawKeyword(
     let sessionCookies: string | null = null;
     let sessionToken: string | null = null;
 
-    const pageResp = await fetch(baseUrl, {
+    const pageResp = await noting(baseUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'text/html,application/xhtml+xml',
       },
       redirect: 'follow',
       signal: AbortSignal.timeout(10_000),
-    }).catch(() => null);
+    });
 
     if (pageResp?.ok) {
       const setCookie = pageResp.headers.get('set-cookie');
@@ -2176,10 +2240,10 @@ async function searchCadHttpRawKeyword(
     };
     if (sessionCookies) tokenHeaders['Cookie'] = sessionCookies;
 
-    const tokenResp = await fetch(`${baseUrl}/search/requestSessionToken`, {
+    const tokenResp = await noting(`${baseUrl}/search/requestSessionToken`, {
       headers: tokenHeaders,
       signal: AbortSignal.timeout(8_000),
-    }).catch(() => null);
+    });
 
     if (tokenResp?.ok) {
       const tokenData = await tokenResp.json().catch(() => ({})) as { searchSessionToken?: string };

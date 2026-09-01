@@ -584,7 +584,7 @@ async function searchClerkByOwner(
         if (captureImages && instrNum) {
           try {
             progress(`  [ownerSearch] Capturing pages for ${instrNum}...`);
-            const pages = await fetchDocumentImages(instrNum, 10, logger);
+            const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, realUrl ?? undefined);
             pageImages = pages.map(p => p.imageBase64).filter(Boolean);
             progress(`  [ownerSearch] ${instrNum}: ${pageImages.length} page(s) captured`);
             console.log(`[ClerkScraper] Owner doc ${instrNum}: ${pageImages.length} pages captured`);
@@ -705,7 +705,7 @@ async function searchClerkBySubdivision(
       captureImages ? platInstruments : [],
       async (instrNum) => {
         progress(`  [subdivSearch] Capturing plat pages for ${instrNum}...`);
-        const pages = await fetchDocumentImages(instrNum, 15, logger);
+        const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [subdivSearch] ✓ Plat ${instrNum}: ${imgs.length} pages captured`);
         console.log(`[ClerkScraper] Subdivision plat ${instrNum}: ${imgs.length} pages`);
@@ -756,7 +756,7 @@ async function searchClerkBySubdivision(
       captureImages ? deedInstruments : [],
       async (instrNum) => {
         progress(`  [subdivSearch] Capturing deed pages for ${instrNum}...`);
-        const pages = await fetchDocumentImages(instrNum, 10, logger);
+        const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [subdivSearch] ✓ Deed ${instrNum}: ${imgs.length} pages captured`);
         console.log(`[ClerkScraper] Subdivision deed ${instrNum}: ${imgs.length} pages`);
@@ -808,7 +808,7 @@ async function searchClerkBySubdivision(
         const oref = allDocuments.find(d => d.instrumentNumber === instrNum);
         const otherDocType = oref?.documentType ?? 'Other Document';
         progress(`  [subdivSearch] Capturing ${otherDocType} pages for ${instrNum}...`);
-        const pages = await fetchDocumentImages(instrNum, 10, logger);
+        const pages = await fetchDocumentImages(instrNum, 10, logger, 'bell', undefined, getDocUrl(instrNum) ?? undefined);
         const imgs = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [subdivSearch] ✓ ${otherDocType} ${instrNum}: ${imgs.length} pages captured`);
         console.log(`[ClerkScraper] Subdivision ${otherDocType} ${instrNum}: ${imgs.length} pages`);
@@ -897,7 +897,7 @@ async function fetchByVolumePage(
     if (captureImages && match.instrumentNumber) {
       try {
         progress(`  [volPage] Capturing pages for ${match.instrumentNumber}...`);
-        const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger);
+        const pages = await fetchDocumentImages(match.instrumentNumber, 10, logger, 'bell', undefined, realUrl ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`  [volPage] ✓ ${match.instrumentNumber}: ${pageImages.length} page(s) captured`);
       } catch (imgErr) {

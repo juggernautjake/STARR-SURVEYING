@@ -439,11 +439,23 @@ async function searchClerkForPlats(
     otherInstruments = result.otherInstruments;
 
     for (const instrNum of result.platInstruments) {
+      // ── E5c: the lookup moved ABOVE the capture ────────────────────────────────────────────
+      //
+      // This `find` used to sit twenty lines below, and its result was used only to record the
+      // document's URL. The capture above it then spent ~10s re-deriving the SAME url by searching
+      // the portal and clicking the result — because `/doc/{id}` takes Kofile's internal document
+      // id, not the instrument number, so the capture cannot construct one and has to go looking.
+      //
+      // Nothing was wrong with either half. They simply ran in the wrong order, and the search log
+      // said so out loud on every run: "real URL from search = …/doc/98732828" immediately followed
+      // by "Search+click: searching for instrument …". Hoisting the lookup is the whole fix.
+      const docRef = result.allDocuments.find(d => d.instrumentNumber === instrNum);
+
       let pageImages: string[] = [];
       if (captureImages) {
         try {
           progress(`    Capturing plat pages: ${instrNum}`);
-          const pages = await fetchDocumentImages(instrNum, 15, logger);
+          const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, docRef?.url ?? undefined);
           pageImages = pages.map(p => p.imageBase64).filter(Boolean);
           progress(`    ✓ ${pageImages.length} page(s) for instrument ${instrNum}`);
         } catch (imgErr) {
@@ -452,7 +464,6 @@ async function searchClerkForPlats(
       }
 
       // Use the correct Kofile internal document URL from allDocuments (not constructed from instrument number)
-      const docRef = result.allDocuments.find(d => d.instrumentNumber === instrNum);
       const docUrl = docRef?.url ?? BELL_ENDPOINTS.clerk.document(instrNum);
       urlsVisited.push(docUrl);
       plats.push({
@@ -504,7 +515,7 @@ async function searchByCabinetSlide(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages(instrNum, 15, logger);
+        const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, platRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -556,7 +567,7 @@ async function searchByVolumePage(
     let pageImages: string[] = [];
     if (captureImages && instrNum) {
       try {
-        const pages = await fetchDocumentImages(instrNum, 15, logger);
+        const pages = await fetchDocumentImages(instrNum, 15, logger, 'bell', undefined, platRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
       } catch { /* continue */ }
     }
@@ -610,7 +621,7 @@ async function checkInstrumentForPlat(
     let pageImages: string[] = [];
     if (captureImages) {
       try {
-        const pages = await fetchDocumentImages(instrumentNumber, 15, logger);
+        const pages = await fetchDocumentImages(instrumentNumber, 15, logger, 'bell', undefined, docRef.url ?? undefined);
         pageImages = pages.map(p => p.imageBase64).filter(Boolean);
         progress(`    ✓ ${pageImages.length} page(s) for plat ${instrumentNumber}`);
       } catch { /* continue */ }
