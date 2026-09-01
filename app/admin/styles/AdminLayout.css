@@ -1371,7 +1371,36 @@
   .notif-toast { top: 60px; right: 8px; left: 8px; width: auto; }
 }
 
-/* ── Global Checkbox Styles (circle / dot design) ────────────────────────── */
+/* ── Global Checkbox Styles ───────────────────────────────────────────────
+ *
+ * ── THIS BLOCK USED TO SAY "circle / dot design", AND THAT WAS THE BUG ────
+ *
+ * Two deliberate decisions about the same control lived ~1,000 lines apart in
+ * this one file and disagreed:
+ *
+ *   line ~350   `checkbox-radio-reset-2026-06-21` — resets to native so every
+ *               control reads as *"proper, perfectly round (radio) or square
+ *               (checkbox)"*, in its own words.
+ *   here        re-styled every checkbox as a CIRCLE with a round dot.
+ *
+ * At equal specificity the later one wins on source order, so the reset was
+ * defeated and every checkbox in the admin rendered as a radio button. Radios
+ * — which this block does not touch — stayed round too, so the two controls
+ * were visually identical while meaning opposite things: a radio says *pick
+ * one of these*, a checkbox says *pick any number*.
+ *
+ * Found in a research screenshot: the document list carries "Select all" /
+ * "Deselect all" beside controls that look like radios, which is a sentence
+ * the shape of the control contradicts.
+ *
+ * Recorded in RESEARCH_FLOW_AND_SCOPE_GUARD_2026-08-31.md as finding G and
+ * deliberately NOT changed there, because it is product-wide and one
+ * screenshot is not grounds for a global change. Fixed here instead.
+ *
+ * The custom design is KEPT — the size, the palette, the hover, the focus
+ * ring and the disabled treatment are all unchanged. Only the two properties
+ * that make it a radio are different: the box is square, and the mark inside
+ * is a tick rather than a dot. */
 
 .admin-layout__content input[type="checkbox"],
 .admin-sidebar input[type="checkbox"] {
@@ -1383,7 +1412,10 @@
   min-width: 14px;
   min-height: 14px;
   border: 1.5px solid #B0B8C9;
-  border-radius: 50%;
+  /* Square, with just enough softening to match the buttons beside it. A
+   * checkbox and a radio have to be distinguishable at a glance, at 14px,
+   * from across a table — which rules out anything above ~4px here. */
+  border-radius: 3px;
   background: var(--theme-bg-surface, #FFF);
   cursor: pointer;
   position: relative;
@@ -1404,23 +1436,32 @@
   box-shadow: 0 0 0 2px rgba(29, 48, 149, 0.15);
 }
 
+/* Checked fills, rather than leaving a white box with a mark floating in it.
+ * At 14px a navy tick on white is a smudge; a white tick on navy reads at a
+ * glance and is also what every native checkbox on every platform does. */
 .admin-layout__content input[type="checkbox"]:checked,
 .admin-sidebar input[type="checkbox"]:checked {
   border-color: var(--color-brand-navy);
-  background: var(--theme-bg-surface, #FFF);
+  background: var(--color-brand-navy);
 }
 
+/* A tick, not a dot. Two borders of a rotated rectangle — no glyph, so it does
+ * not depend on a font being loaded, and it scales with the box.
+ * `translate(-50%, -60%)` rather than -50%: a check mark's optical centre sits
+ * below its bounding box's centre, so a true centre looks low. */
 .admin-layout__content input[type="checkbox"]:checked::after,
 .admin-sidebar input[type="checkbox"]:checked::after {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 6px;
-  height: 6px;
-  background: var(--color-brand-navy);
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
+  width: 3.5px;
+  height: 7px;
+  background: none;
+  border: solid var(--color-text-on-brand, #FFFFFF);
+  border-width: 0 2px 2px 0;
+  border-radius: 0;
+  transform: translate(-50%, -60%) rotate(45deg);
 }
 
 .admin-layout__content input[type="checkbox"]:disabled,
@@ -1429,9 +1470,13 @@
   cursor: not-allowed;
 }
 
-.admin-layout__content input[type="checkbox"]:disabled:checked::after,
-.admin-sidebar input[type="checkbox"]:disabled:checked::after {
+/* The tick is a BORDER now, so tinting `background` here did nothing once the
+ * dot became a check. The disabled fill is what carries the greying; the tick
+ * on it stays white so it is still legible against that fill. */
+.admin-layout__content input[type="checkbox"]:disabled:checked,
+.admin-sidebar input[type="checkbox"]:disabled:checked {
   background: #94A3B8;
+  border-color: #94A3B8;
 }
 
 /* Labels next to checkboxes */
