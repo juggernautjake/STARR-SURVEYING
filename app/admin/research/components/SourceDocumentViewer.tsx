@@ -6,6 +6,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ResearchDocument } from '@/types/research';
 import { DOCUMENT_TYPE_LABELS } from '@/types/research';
+import {
+  fitScale, isAtFit, clampZoom, nextRotation, viewerIntent, isTypingTarget,
+  VIEWER_SHORTCUTS, ZOOM_STEP, WHEEL_STEP, type Rotation,
+} from '@/lib/viewers/viewer-fit';
 // Markup that survives closing the viewer, kept apart from the original (research plan R24).
 import {
   normaliseWidth,
@@ -96,7 +100,29 @@ export default function SourceDocumentViewer({
 
   // Image viewer state
   const [currentPage, setCurrentPage] = useState(0);
+  // 1 is a bad default and was the bug: it means 100% of the image's NATURAL size, not "fits the
+  // window". A 2550×3300 scan in a 900px-tall panel at zoom 1 shows the top third of the page, and
+  // clicking to the next page put you back there every time. `fitZoom` is computed from the real
+  // dimensions once the image loads — see `fitToContainer`.
   const [zoom, setZoom] = useState(1);
+  /** The scale at which the whole page is visible. The default, and what Reset returns to. */
+  const [fitZoom, setFitZoom] = useState(1);
+  /** Set when the page changes, cleared once the new image has been measured and fitted. */
+  const needsFit = useRef(true);
+  // ── ROTATION ────────────────────────────────────────────────────────────────────────────────
+  //
+  // A county scan arriving sideways is not the exception; on plats it is close to the rule. Before
+  // this there was no way to turn one at all — the only viewer in the product that could rotate was
+  // the JOBS file viewer, which nobody had complained about.
+  //
+  // Deliberately NOT persisted per document. A rotation is a way of looking at the page for the
+  // next thirty seconds, not a fact about the file, and storing it means the next person opens a
+  // document already turned with no clue why.
+  const [rotation, setRotation] = useState<Rotation>(0);
+  /** Whether the viewer is currently the browser's full-screen element. */
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  /** The shortcut list, off by default. See the comment at its render site. */
+  const [showKeys, setShowKeys] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
@@ -121,17 +147,143 @@ export default function SourceDocumentViewer({
   const typeInfo = doc.document_type ? DOCUMENT_TYPE_LABELS[doc.document_type] : null;
   const text = doc.extracted_text || '';
   const overlayRef = useRef<HTMLDivElement>(null);
+  /** The modal panel. Full screen is requested on this, not on the overlay: the overlay is a
+   *  translucent backdrop, and full-screening it fills the screen with the backdrop. */
+  const panelRef = useRef<HTMLDivElement>(null);
+  /** The download anchor in the toolbar. The `d` shortcut clicks the real link rather than
+   *  building a second download path — one implementation, so the key and the button cannot end up
+   *  saving different things. */
+  const downloadRef = useRef<HTMLAnchorElement>(null);
 
   // Auto-focus the modal on mount so arrow keys work immediately
   useEffect(() => {
     overlayRef.current?.focus();
   }, []);
 
-  // Reset zoom/pan when page changes
+  // ── FIT THE WHOLE PAGE, EVERY TIME ──────────────────────────────────────────────────────────
+  //
+  // Owner: *"the default view should show the full image/page each time the user opens a image/file
+  // or clicks between pages. once they are viewing the page, they can zoom in and out and pan."*
+  //
+  // The image is laid out at `maxWidth: 100%`, so its width already fits the container — but a
+  // portrait scan constrained to the container's WIDTH is far taller than the container, and the
+  // wrapper's `scale(1)` left it that way. Only the top of the page was ever on screen.
+  //
+  // So the fit is the smaller of the two ratios, and it is capped at 1: a small image is shown at
+  // its own size rather than blown up into a blur.
+  const fitToContainer = useCallback((forRotation?: Rotation) => {
+    const el = containerRef.current;
+    const img = imgRef.current;
+    if (!el || !img || !img.naturalWidth || !img.naturalHeight) return;
+
+    // The arithmetic — and its five edge cases — is `lib/viewers/viewer-fit.ts`, where it can be
+    // tested against numbers instead of against a browser. `null` means not measurable yet.
+    //
+    // `forRotation` exists because `setRotation` is asynchronous: the rotate handler needs the fit
+    // for the turn it is APPLYING, not the one still in state. Reading `rotation` here would fit
+    // the previous orientation and leave a turned portrait scan running off both sides — a bug
+    // that looks exactly like the one this module was written to fix.
+    const scale = fitScale({
+      containerW: el.clientWidth,
+      containerH: el.clientHeight,
+      naturalW: img.naturalWidth,
+      naturalH: img.naturalHeight,
+      rotation: forRotation ?? rotation,
+    });
+    if (scale === null) return;
+
+    setFitZoom(scale);
+    setZoom(scale);
+    setPosition({ x: 0, y: 0 });
+    needsFit.current = false;
+  }, [rotation]);
+
+  /** Turn a quarter, and re-fit to the box the page now occupies. */
+  const rotateBy = useCallback((direction: 'cw' | 'ccw') => {
+    const next = nextRotation(rotation, direction);
+    setRotation(next);
+    fitToContainer(next);
+  }, [rotation, fitToContainer]);
+
+  // A page change asks for a re-fit. It does not set a zoom itself: the new image's dimensions are
+  // not known yet, and guessing produces exactly the flash of wrong scale this is meant to remove.
+  // `onLoad` fires for every `src` change, cached or not, and does the measuring.
+  //
+  // The ROTATION deliberately survives a page change. A deed scanned sideways is scanned sideways
+  // on all fourteen pages, and re-turning it fourteen times is the thing somebody would complain
+  // about next. It resets when the viewer closes, because the component unmounts.
   useEffect(() => {
-    setZoom(1);
+    needsFit.current = true;
     setPosition({ x: 0, y: 0 });
   }, [currentPage]);
+
+  // ── FULL SCREEN ─────────────────────────────────────────────────────────────────────────────
+  //
+  // A survey plat in a 900px panel inside a modal is a picture of a plat, not a plat you can read.
+  //
+  // The state is driven by the `fullscreenchange` EVENT rather than set optimistically next to the
+  // request, because the browser is the authority: Escape leaves full screen without calling
+  // anything of ours, a request can be refused outright, and an optimistic flag would then label
+  // the button "Exit full screen" on a window that is not. `requestFullscreen` also rejects rather
+  // than throwing synchronously, so the promise is caught.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => { /* already out */ });
+    } else if (el.requestFullscreen) {
+      void el.requestFullscreen().catch(() => { /* refused; the button simply does nothing */ });
+    }
+  }, []);
+
+  // Full screen changes the container's size, so what "the whole page" means changes with it.
+  // Same rule as the resize observer: only re-fit somebody who had not zoomed away.
+  useEffect(() => {
+    if (isAtFit(zoom, fitZoom)) fitToContainer();
+    // `fitToContainer` is intentionally out of the deps: including it re-runs this on every
+    // rotation, which would snap a zoomed reader back to fit for a reason unrelated to full screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFullscreen]);
+
+  // ── DOWNLOAD ────────────────────────────────────────────────────────────────────────────────
+  //
+  // `SourceDocumentViewer` had ZERO occurrences of the word `download`. The scan was on screen and
+  // there was no way to keep it.
+  //
+  // A plain `<a download>` is the honest implementation and it comes with a caveat worth stating:
+  // the `download` attribute is ignored cross-origin, and these files are served from Supabase
+  // storage. So the anchor also carries `target="_blank"` — same-origin it saves, cross-origin it
+  // opens in a tab the person can save from. Both outcomes end with the file in their hands; a
+  // fetch-and-blob dance would force the whole scan through the browser's memory to guarantee the
+  // nicer one, and silently fail on a CORS header nobody controls.
+  const downloadName = useCallback((pageIndex: number, total: number) => {
+    const base = (doc.document_label || doc.original_filename || 'document')
+      .replace(/\.[a-z0-9]+$/i, '')
+      .replace(/[^\w.-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80) || 'document';
+    return total > 1 ? `${base}-p${pageIndex + 1}.png` : `${base}.png`;
+  }, [doc.document_label, doc.original_filename]);
+
+  // Re-fit when the panel resizes — opening the drawing sidebar, rotating a tablet, or dragging the
+  // window narrower all change what "the whole page" means.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => {
+      // Only re-fit somebody who has not zoomed away from it. Snapping a person back to fit while
+      // they are reading a detail at 400% would be worse than the bug being fixed.
+      if (isAtFit(zoom, fitZoom)) fitToContainer();
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [zoom, fitZoom, fitToContainer, activeTab]);
 
   // ── Drawing logic ──────────────────────────────────────────────────────
 
@@ -325,9 +477,9 @@ export default function SourceDocumentViewer({
     function onWheel(e: WheelEvent) {
       if (drawMode) return;
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      const delta = e.deltaY > 0 ? -WHEEL_STEP : WHEEL_STEP;
       setZoom(prev => {
-        const next = Math.min(Math.max(prev + delta, 0.1), 10);
+        const next = clampZoom(prev + delta);
         console.log(`[SourceDocumentViewer] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
           deltaY: e.deltaY,
         });
@@ -338,12 +490,10 @@ export default function SourceDocumentViewer({
     return () => el.removeEventListener('wheel', onWheel);
   }, [activeTab, drawMode]);
 
+  /** Back to the whole page. Reset used to mean 100% of natural size, which on most scans was the
+   *  zoomed-in state somebody was pressing it to escape. */
   function resetView() {
-    console.log(`[SourceDocumentViewer] Reset view — zoom: ${(zoom * 100).toFixed(0)}% → 100%, position: (${position.x}, ${position.y}) → (0, 0)`, {
-      page: currentPage, doc_label: doc.document_label,
-    });
-    setZoom(1);
-    setPosition({ x: 0, y: 0 });
+    fitToContainer();
   }
 
   // ── Extracted text with summary ────────────────────────────────────────
@@ -471,10 +621,44 @@ export default function SourceDocumentViewer({
             </div>
             <div className="research-viewer__img-toolbar-right">
               {/* Zoom controls */}
-              <button onClick={() => setZoom(z => { const next = Math.max(z - 0.25, 0.1); console.log(`[SourceDocumentViewer] Zoom OUT button: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom out">−</button>
-              <span className="research-viewer__img-zoom-info">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => { const next = Math.min(z + 0.25, 10); console.log(`[SourceDocumentViewer] Zoom IN button: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom in">+</button>
-              <button onClick={resetView} title="Reset view">⟲</button>
+              <button onClick={() => setZoom(z => { const next = clampZoom(z - 0.25); console.log(`[SourceDocumentViewer] Zoom OUT button: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom out">−</button>
+              <span className="research-viewer__img-zoom-info">
+                {Math.round(zoom * 100)}%{isAtFit(zoom, fitZoom) ? ' · fit' : ''}
+              </span>
+              <button onClick={() => setZoom(z => { const next = clampZoom(z + ZOOM_STEP); console.log(`[SourceDocumentViewer] Zoom IN button: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom in (+)">+</button>
+              <button onClick={resetView} title="Fit the whole page in view (0)">⟲ Fit</button>
+              <button onClick={() => { setZoom(1); setPosition({ x: 0, y: 0 }); }}
+                      title="Actual size — 100% of the scan's own pixels (1)"
+                      data-active={isAtFit(zoom, 1) && !isAtFit(fitZoom, 1) ? 'true' : undefined}>
+                1:1
+              </button>
+
+              {/* ── Rotate ──────────────────────────────────────────────────────────────────
+                  A sideways scan is the normal case for a plat, and until now this viewer could
+                  not turn one. The angle is shown when it is not zero, so somebody who turned the
+                  page and scrolled away can still tell why it looks like that. */}
+              <span className="research-viewer__img-divider" />
+              <button onClick={() => rotateBy('ccw')} title="Rotate left (⇧R)">⤺</button>
+              <button onClick={() => rotateBy('cw')} title="Rotate right (R)">⤼</button>
+              {rotation !== 0 && (
+                <span className="research-viewer__img-zoom-info" aria-live="polite">{rotation}°</span>
+              )}
+
+              {/* ── Save the file you are looking at ────────────────────────────────────────
+                  Cross-origin the `download` attribute is ignored and this opens a tab instead;
+                  both endings put the file in somebody's hands. See `downloadName`. */}
+              <a
+                ref={downloadRef}
+                href={imgUrl}
+                download={downloadName(currentPage, pageImageUrls.length)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="research-viewer__img-download"
+                title={`Download this page (D) — ${downloadName(currentPage, pageImageUrls.length)}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                ⇓
+              </a>
 
               {/* Draw controls */}
               <span className="research-viewer__img-divider" />
@@ -547,23 +731,55 @@ export default function SourceDocumentViewer({
                 <span className="research-viewer__markup-error" role="alert">{annotationError}</span>
               )}
 
-              {/* Expand toggle */}
+              {/* Expand toggle, and true full screen.
+                  Two different things, and the labels now say which is which: Expand grows the
+                  modal inside the page, Full screen hands the panel to the browser. */}
               <span className="research-viewer__img-divider" />
-              <button onClick={() => setExpanded(!expanded)} title={expanded ? 'Shrink modal' : 'Expand modal'}>
+              <button onClick={() => setExpanded(!expanded)} title={expanded ? 'Shrink the modal' : 'Grow the modal within the page'}>
                 {expanded ? '⊟ Shrink' : '⊞ Expand'}
+              </button>
+              <button onClick={toggleFullscreen}
+                      title={isFullscreen ? 'Leave full screen (F, or Esc)' : 'Full screen (F)'}
+                      data-active={isFullscreen ? 'true' : undefined}>
+                {isFullscreen ? '⤡ Exit full screen' : '⤢ Full screen'}
               </button>
             </div>
           </div>
 
           {/* Image caption + keyboard hint */}
+          {/* ── The shortcut hint, DERIVED ──────────────────────────────────────────────────
+              Rendered from `VIEWER_SHORTCUTS`, the same list `viewerIntent` reads. The previous
+              version was hand-typed and named two of the three keys that worked; a hand-typed
+              list of thirteen would be wrong within a week. Adding a shortcut to the module now
+              adds it here, and removing one removes it from both.
+
+              Behind a toggle rather than inline: thirteen "← Previous page" pairs across a caption
+              bar is thirteen things competing with the caption, which is the one line saying WHICH
+              page of WHICH document you are looking at. */}
           <div className="research-viewer__img-caption">
-            {summary}
-            {pageImageUrls.length > 1 && (
-              <span className="research-viewer__key-hint">
-                Use <kbd>&larr;</kbd> <kbd>&rarr;</kbd> arrow keys to navigate pages
-              </span>
-            )}
+            <span className="research-viewer__img-caption-text">{summary}</span>
+            <button
+              type="button"
+              className="research-viewer__key-toggle"
+              aria-expanded={showKeys}
+              onClick={() => setShowKeys((v) => !v)}
+              title="Keyboard shortcuts for this viewer"
+            >
+              ⌨ Shortcuts
+            </button>
           </div>
+
+          {showKeys && (
+            <div className="research-viewer__key-hint" role="group" aria-label="Keyboard shortcuts">
+              {VIEWER_SHORTCUTS
+                .filter((s) => !s.paged || pageImageUrls.length > 1)
+                .map((s) => (
+                  <span className="research-viewer__key-hint-item" key={s.intent}>
+                    <kbd>{s.shown}</kbd> {s.label}
+                  </span>
+                ))}
+            </div>
+          )}
 
           {/* Image display area with zoom/pan/draw */}
           <div
@@ -576,7 +792,11 @@ export default function SourceDocumentViewer({
           >
             <div
               style={{
-                transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+                // Order matters only in that the translate is applied in SCREEN space and must
+                // come first — pan then stays "one pixel of drag is one pixel of movement"
+                // whatever the page is turned to. `rotate` and `scale` commute for a uniform
+                // scale, so their order between themselves is not load-bearing.
+                transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoom})`,
                 transition: dragging ? 'none' : 'transform 0.15s ease',
                 transformOrigin: 'center center',
                 position: 'relative',
@@ -590,7 +810,12 @@ export default function SourceDocumentViewer({
                 alt={summary}
                 style={{ maxWidth: '100%', display: 'block', userSelect: 'none' }}
                 draggable={false}
-                onLoad={() => redrawCanvas()}
+                onLoad={() => {
+                  // Fires on every src change, so this is the one place that reliably knows the
+                  // new page's real dimensions.
+                  if (needsFit.current) fitToContainer();
+                  redrawCanvas();
+                }}
               />
               {/* Drawing canvas overlay */}
               <canvas
@@ -641,13 +866,44 @@ export default function SourceDocumentViewer({
                 ? `${doc.page_count} page${doc.page_count !== 1 ? 's' : ''}`
                 : 'Document Pages'}
             </span>
-            <button
-              onClick={() => setExpanded(!expanded)}
-              className="research-viewer__pdf-open-btn"
-              title={expanded ? 'Shrink modal' : 'Expand modal'}
-            >
-              {expanded ? '⊟ Shrink' : '⊞ Expand'}
-            </button>
+            {/* ── PDF CONTROLS ──────────────────────────────────────────────────────────────
+                Deliberately only two, and this is the reason: `#toolbar=1` keeps the BROWSER's own
+                PDF toolbar, which already has zoom, rotate, page navigation and download, and it
+                does all four better than a re-implementation over an iframe could — the page
+                content is not reachable from here to zoom it.
+                What the browser's toolbar cannot do is resize the modal around itself, so those
+                are the two added. `zoom=page-fit` already gives the PDF path the whole-page
+                default the image path was missing. */}
+            {/* Grouped, because the toolbar is `justify-content: space-between` — three loose
+                children would spread themselves across the bar rather than sitting together
+                opposite the label. */}
+            <div className="research-viewer__pdf-acts">
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="research-viewer__pdf-open-btn"
+                title={expanded ? 'Shrink the modal' : 'Grow the modal within the page'}
+              >
+                {expanded ? '⊟ Shrink' : '⊞ Expand'}
+              </button>
+              <button
+                onClick={toggleFullscreen}
+                className="research-viewer__pdf-open-btn"
+                title={isFullscreen ? 'Leave full screen' : 'Full screen'}
+              >
+                {isFullscreen ? '⤡ Exit full screen' : '⤢ Full screen'}
+              </button>
+              <a
+                href={pdfUrl}
+                download
+                target="_blank"
+                rel="noopener noreferrer"
+                className="research-viewer__pdf-open-btn"
+                title="Download this document"
+                onClick={(e) => e.stopPropagation()}
+              >
+                ⇓ Download
+              </a>
+            </div>
           </div>
           <iframe
             src={`${pdfUrl}#toolbar=1&navpanes=0&scrollbar=1&zoom=page-fit`}
@@ -675,21 +931,56 @@ export default function SourceDocumentViewer({
 
   // ── Keyboard ───────────────────────────────────────────────────────────
 
+  // Every shortcut resolves through `viewerIntent`, which reads the same `VIEWER_SHORTCUTS` list
+  // the on-screen hint renders. Before this the viewer handled three keys and printed a hint for
+  // two of them; every other control was mouse-only.
+  //
+  // The switch is exhaustive over the intents this viewer can serve. `download` and `fullscreen`
+  // fall through to their handlers; `actual-size` is 100% of natural pixels, which is what the old
+  // Reset button did and is still occasionally what you want — it is now a separate key rather than
+  // the default nobody chose.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (drawMode) {
-          setDrawMode(false);
-        } else {
-          requestClose();
-        }
+      // A `d` typed into the caption field must write a `d`.
+      if (isTypingTarget(e.target)) return;
+
+      const intent = viewerIntent(e);
+      if (intent === null) return;
+
+      if (intent === 'close') {
+        // Escape backs out of drawing first, then out of full screen (the browser does that one
+        // itself), then closes. Closing straight from draw mode would discard a stroke somebody was
+        // mid-way through.
+        if (drawMode) setDrawMode(false);
+        else if (!document.fullscreenElement) requestClose();
+        return;
       }
-      if (activeTab === 'images' && pageImageUrls.length > 1) {
-        if (e.key === 'ArrowLeft') setCurrentPage(p => Math.max(0, p - 1));
-        if (e.key === 'ArrowRight') setCurrentPage(p => Math.min(pageImageUrls.length - 1, p + 1));
+
+      // Everything below acts on the image viewer. On the text tab they mean nothing, and
+      // swallowing them there would break find-in-page and text selection.
+      if (activeTab !== 'images' || pageImageUrls.length === 0) return;
+
+      const lastPage = pageImageUrls.length - 1;
+      switch (intent) {
+        case 'prev-page':   setCurrentPage(p => Math.max(0, p - 1)); break;
+        case 'next-page':   setCurrentPage(p => Math.min(lastPage, p + 1)); break;
+        case 'first-page':  setCurrentPage(0); break;
+        case 'last-page':   setCurrentPage(lastPage); break;
+        case 'zoom-in':     setZoom(z => clampZoom(z + ZOOM_STEP)); break;
+        case 'zoom-out':    setZoom(z => clampZoom(z - ZOOM_STEP)); break;
+        case 'fit':         fitToContainer(); break;
+        case 'actual-size': setZoom(1); setPosition({ x: 0, y: 0 }); break;
+        case 'rotate-cw':   rotateBy('cw'); break;
+        case 'rotate-ccw':  rotateBy('ccw'); break;
+        case 'fullscreen':  toggleFullscreen(); break;
+        case 'download':    downloadRef.current?.click(); break;
+        default: break;
       }
+      // Only prevented for keys that were actually handled — `preventDefault` on the whole handler
+      // would eat Tab and the browser's own find.
+      e.preventDefault();
     },
-    [requestClose, drawMode, activeTab, pageImageUrls.length],
+    [requestClose, drawMode, activeTab, pageImageUrls.length, fitToContainer, rotateBy, toggleFullscreen],
   );
 
   useEffect(() => {
@@ -718,7 +1009,8 @@ export default function SourceDocumentViewer({
       style={{ outline: 'none' }}
     >
       <div
-        className={`research-viewer${expanded ? ' research-viewer--expanded' : ''}${hasImages ? ' research-viewer--with-pdf' : ''}`}
+        ref={panelRef}
+        className={`research-viewer${expanded ? ' research-viewer--expanded' : ''}${hasImages ? ' research-viewer--with-pdf' : ''}${isFullscreen ? ' research-viewer--fullscreen' : ''}`}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}

@@ -6,6 +6,20 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
+// ── ONE SET OF VIEWER RULES, TWO VIEWERS ────────────────────────────────────────────────────────
+//
+// The lightbox and `SourceDocumentViewer` are different components for good reasons — one browses a
+// run's artifacts, the other reads one document with markup on it — but "what does R do" must have
+// the same answer in both, and so must the clamp, the wheel step and the rotation arithmetic.
+//
+// Measured before this: the two disagreed about everything except Escape. The gallery's ↗ button
+// OPENED the file in a tab and was the only thing resembling a download; it had no rotation and no
+// full screen at all.
+import {
+  clampZoom, nextRotation, rotationFit, viewerIntent, isTypingTarget,
+  VIEWER_SHORTCUTS, ZOOM_STEP, WHEEL_STEP, type Rotation,
+} from '@/lib/viewers/viewer-fit';
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Artifact {
@@ -136,17 +150,9 @@ export default function ArtifactGallery({ projectId, refreshInterval }: Artifact
     setLightboxArtifact(viewableArtifacts[prev]);
   }, [lightboxIndex, viewableArtifacts]);
 
-  // Keyboard navigation
-  useEffect(() => {
-    if (!lightboxArtifact) return;
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowRight') goNext();
-      if (e.key === 'ArrowLeft') goPrev();
-    }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [lightboxArtifact, closeLightbox, goNext, goPrev]);
+  // The keyboard used to live here and handled three keys. It now lives inside `Lightbox`, because
+  // the rest of the shortcuts act on state that only the lightbox has — zoom, rotation, full
+  // screen. Leaving a second handler up here would fire the arrows twice and skip a page.
 
   // ── Category toggle ─────────────────────────────────────────────────
   function toggleCategory(cat: string) {
@@ -462,20 +468,76 @@ function Lightbox({
   onNext: () => void;
   onPrev: () => void;
 }) {
+  // ── ZOOM 1 IS THE RIGHT DEFAULT *HERE*, AND THAT WAS WORTH CHECKING ─────────────────────────
+  //
+  // `SourceDocumentViewer` had a real bug in exactly this line — `setZoom(1)` meant 100% of the
+  // scan's own pixels, and a portrait page showed its top third. The obvious move was to copy the
+  // fix over. Measured instead: `.artifact-lightbox__image` is `max-width: 90vw; max-height: 80vh;
+  // object-fit: contain`, so this image is constrained on BOTH axes and already fits the window at
+  // scale 1. That CSS is why the owner's complaint was about the document viewer and not this one.
+  //
+  // What both-constrained layout still gets wrong is rotation — see `rotationFit`.
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [dragging, setDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [rotation, setRotation] = useState<Rotation>(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const downloadRef = useRef<HTMLAnchorElement>(null);
 
-  // Reset zoom/pan when artifact changes
+  // Reset zoom, pan AND rotation when the artifact changes. Rotation resets here where it does not
+  // in the document viewer, and the difference is the unit of work: pages of one deed share an
+  // orientation, two unrelated artifacts do not.
   useEffect(() => {
     setZoom(1);
     setPosition({ x: 0, y: 0 });
+    setRotation(0);
   }, [artifact.id]);
 
   const viewUrl = artifact.storageUrl || artifact.pagesPdfUrl || '';
   const isImage = artifact.isImage;
+
+  /** The scale that keeps a quarter-turned page inside the window. 1 when upright. */
+  const fitForRotation = useCallback((next: Rotation) => {
+    const el = containerRef.current;
+    const img = imgRef.current;
+    if (!el || !img) return 1;
+    // `clientWidth/Height` is the LAID OUT size and is unaffected by the transform — reading
+    // `getBoundingClientRect` here would measure the box after the rotation and scale already
+    // applied, and feed the result back into itself.
+    return rotationFit({
+      containerW: el.clientWidth,
+      containerH: el.clientHeight,
+      laidOutW: img.clientWidth,
+      laidOutH: img.clientHeight,
+      rotation: next,
+    });
+  }, []);
+
+  const rotateBy = useCallback((direction: 'cw' | 'ccw') => {
+    const next = nextRotation(rotation, direction);
+    setRotation(next);
+    setZoom(fitForRotation(next));
+    setPosition({ x: 0, y: 0 });
+  }, [rotation, fitForRotation]);
+
+  // The browser is the authority on full screen: Escape leaves it without calling anything of ours.
+  useEffect(() => {
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else if (el.requestFullscreen) void el.requestFullscreen().catch(() => {});
+  }, []);
 
   // Zoom with scroll
   useEffect(() => {
@@ -483,9 +545,9 @@ function Lightbox({
     if (!el || !isImage) return;
     function onWheel(e: WheelEvent) {
       e.preventDefault();
-      const delta = e.deltaY > 0 ? -0.15 : 0.15;
+      const delta = e.deltaY > 0 ? -WHEEL_STEP : WHEEL_STEP;
       setZoom(prev => {
-        const next = Math.min(Math.max(prev + delta, 0.1), 10);
+        const next = clampZoom(prev + delta);
         console.log(`[ArtifactGallery] Scroll zoom: ${(prev * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`, {
           deltaY: e.deltaY,
         });
@@ -511,14 +573,63 @@ function Lightbox({
 
   const handleMouseUp = useCallback(() => setDragging(false), []);
 
-  function resetView() {
-    console.log(`[ArtifactGallery] Reset view — zoom: ${(zoom * 100).toFixed(0)}% → 100%`, { artifact: artifact?.label });
-    setZoom(1);
+  /** Back to the whole page — which here means the CSS-fitted size, adjusted for any rotation. */
+  const resetView = useCallback(() => {
+    setZoom(fitForRotation(rotation));
     setPosition({ x: 0, y: 0 });
-  }
+  }, [fitForRotation, rotation]);
+
+  /** A filename somebody can find again, rather than `download` on a storage URL. */
+  const downloadName = (() => {
+    const fromFile = (artifact.filename || artifact.label || 'artifact')
+      .replace(/[^\w.-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 100);
+    return fromFile || 'artifact';
+  })();
+
+  // ── The keyboard, on the same map the document viewer uses ──────────────────────────────────
+  //
+  // It used to live in the parent and handled Escape and the two arrows. Everything else here acts
+  // on state only this component has.
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (isTypingTarget(e.target)) return;
+      const intent = viewerIntent(e);
+      if (intent === null) return;
+
+      if (intent === 'close') {
+        // The browser handles Escape out of full screen itself; closing as well would shut the
+        // lightbox on the way back to the page.
+        if (!document.fullscreenElement) onClose();
+        return;
+      }
+      if (intent === 'prev-page') { onPrev(); e.preventDefault(); return; }
+      if (intent === 'next-page') { onNext(); e.preventDefault(); return; }
+      if (intent === 'fullscreen') { toggleFullscreen(); e.preventDefault(); return; }
+      if (intent === 'download') { downloadRef.current?.click(); e.preventDefault(); return; }
+
+      // The rest only mean something for an image. On a PDF the iframe has its own controls, and
+      // on an unsupported type there is nothing to zoom.
+      if (!isImage) return;
+      switch (intent) {
+        case 'zoom-in':     setZoom(z => clampZoom(z + ZOOM_STEP)); break;
+        case 'zoom-out':    setZoom(z => clampZoom(z - ZOOM_STEP)); break;
+        case 'fit':         resetView(); break;
+        case 'actual-size': setZoom(1); setPosition({ x: 0, y: 0 }); break;
+        case 'rotate-cw':   rotateBy('cw'); break;
+        case 'rotate-ccw':  rotateBy('ccw'); break;
+        // first-page / last-page have no meaning in a gallery of unrelated artifacts.
+        default: return;
+      }
+      e.preventDefault();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [onClose, onPrev, onNext, isImage, resetView, rotateBy, toggleFullscreen]);
 
   return (
-    <div className="artifact-lightbox" onClick={(e) => {
+    <div ref={rootRef} className="artifact-lightbox" onClick={(e) => {
       if (e.target === e.currentTarget) onClose();
     }}>
       {/* Header */}
@@ -532,26 +643,75 @@ function Lightbox({
         <div className="artifact-lightbox__controls">
           {isImage && (
             <>
-              <button onClick={() => setZoom(z => { const next = Math.max(z - 0.25, 0.1); console.log(`[ArtifactGallery] Zoom OUT: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom out">−</button>
+              <button onClick={() => setZoom(z => clampZoom(z - ZOOM_STEP))} title="Zoom out (−)">−</button>
               <span className="artifact-lightbox__zoom">{Math.round(zoom * 100)}%</span>
-              <button onClick={() => setZoom(z => { const next = Math.min(z + 0.25, 10); console.log(`[ArtifactGallery] Zoom IN: ${(z * 100).toFixed(0)}% → ${(next * 100).toFixed(0)}%`); return next; })} title="Zoom in">+</button>
-              <button onClick={resetView} title="Reset view">⟲</button>
+              <button onClick={() => setZoom(z => clampZoom(z + ZOOM_STEP))} title="Zoom in (+)">+</button>
+              <button onClick={resetView} title="Fit the whole image in view (0)">⟲</button>
+              <button onClick={() => rotateBy('ccw')} title="Rotate left (⇧R)">⤺</button>
+              <button onClick={() => rotateBy('cw')} title="Rotate right (R)">⤼</button>
+              {rotation !== 0 && (
+                <span className="artifact-lightbox__zoom" aria-live="polite">{rotation}°</span>
+              )}
             </>
           )}
+          <button onClick={toggleFullscreen}
+                  title={isFullscreen ? 'Leave full screen (F)' : 'Full screen (F)'}>
+            {isFullscreen ? '⤡' : '⤢'}
+          </button>
+          <button onClick={() => setShowKeys(v => !v)} aria-expanded={showKeys}
+                  title="Keyboard shortcuts">⌨</button>
           {viewUrl && (
-            <a
-              href={viewUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="artifact-lightbox__download"
-              title="Open in new tab"
-            >
-              ↗
-            </a>
+            <>
+              {/* Two links, because they are two different acts and one button cannot be both.
+                  ⇓ SAVES the file; ↗ OPENS it, which is what you want for a PDF you are about to
+                  read in the browser's own viewer. Before this only the second existed and it was
+                  labelled with a download-shaped tooltip. */}
+              <a
+                ref={downloadRef}
+                href={viewUrl}
+                download={downloadName}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="artifact-lightbox__download"
+                title={`Download (D) — ${downloadName}`}
+              >
+                ⇓
+              </a>
+              <a
+                href={viewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="artifact-lightbox__download"
+                title="Open in a new tab"
+              >
+                ↗
+              </a>
+            </>
           )}
           <button onClick={onClose} className="artifact-lightbox__close" title="Close (Esc)">✕</button>
         </div>
       </div>
+
+      {/* The shortcut list, derived from the same `VIEWER_SHORTCUTS` the handler above reads and
+          the document viewer renders. `paged` entries are the ones about moving through a
+          document; here they move between artifacts, so the labels are re-stated rather than
+          reused — the only place the two viewers legitimately differ, and the filter says so.
+          `first-page`/`last-page` are dropped: a gallery of unrelated artifacts has no first. */}
+      {showKeys && (
+        <div className="artifact-lightbox__keys" role="group" aria-label="Keyboard shortcuts">
+          {VIEWER_SHORTCUTS
+            .filter((s) => s.intent !== 'first-page' && s.intent !== 'last-page')
+            .filter((s) => isImage || !['zoom-in', 'zoom-out', 'fit', 'actual-size', 'rotate-cw', 'rotate-ccw'].includes(s.intent))
+            .map((s) => (
+              <span className="artifact-lightbox__keys-item" key={s.intent}>
+                <kbd>{s.shown}</kbd>{' '}
+                {s.intent === 'prev-page' ? 'Previous artifact'
+                  : s.intent === 'next-page' ? 'Next artifact'
+                  : s.label}
+              </span>
+            ))}
+        </div>
+      )}
 
       {/* Navigation arrows */}
       {total > 1 && (
@@ -578,11 +738,12 @@ function Lightbox({
         {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
+            ref={imgRef}
             src={viewUrl}
             alt={artifact.label}
             className="artifact-lightbox__image"
             style={{
-              transform: `translate(${position.x}px, ${position.y}px) scale(${zoom})`,
+              transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoom})`,
               transition: dragging ? 'none' : 'transform 0.15s ease',
             }}
             draggable={false}

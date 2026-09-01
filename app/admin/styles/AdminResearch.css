@@ -13367,3 +13367,199 @@
 .pipeline-stepper__circle:disabled:not(.pipeline-stepper__circle--active) {
   opacity: 0.55;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * DOCUMENT VIEWER — rotate, full screen, download, and the derived key list
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Owner: *"fix the viewing settings and properties and controls for images/docs
+ * on the backend, especially for the research side of things."*
+ *
+ * Measured before this: of the five image viewers in the admin, the RESEARCH
+ * ones were the poorest. `SourceDocumentViewer` had zoom and pan and nothing
+ * else — no rotate, no full screen, and zero occurrences of the word
+ * `download`. The richest viewer in the product was the jobs one, which is the
+ * one nobody had complained about.
+ *
+ * NOTE ON SOURCE ORDER: `AdminResearch.css` loads LAST on the research routes,
+ * which has already swallowed three fixes made in shared stylesheets. That is
+ * why these rules live here and not beside the other viewer chrome.
+ */
+
+/* The download control is an `<a>`, not a `<button>`, because it downloads a
+ * file — so the toolbar's `button` rules do not reach it and it would render
+ * as a bare link between two buttons. Matched to the button shape by hand,
+ * which is the cost of it being the right element. */
+.research-viewer__img-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.9rem;
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid #D1D5DB;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--theme-fg-secondary, #374151);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.research-viewer__img-download:hover {
+  background: #EFF6FF;
+  border-color: #93C5FD;
+}
+
+.research-viewer__img-download:focus-visible {
+  outline: 2px solid #1D4ED8;
+  outline-offset: 1px;
+}
+
+/* ── full screen ─────────────────────────────────────────────────────────
+ *
+ * The browser sizes the full-screen element itself, so the modal's own
+ * max-width/max-height would fight it and leave a 95vw panel centred on a
+ * black field. `:fullscreen` is the authoritative selector; the class mirrors
+ * it for the JSDOM-side tests and for the one browser that supports the API
+ * under a prefix. Both are listed rather than one, because a selector list
+ * containing an unsupported pseudo-class is dropped WHOLE by the parser — the
+ * reason this is two rules and not one. */
+.research-viewer--fullscreen {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.research-viewer:fullscreen {
+  max-width: 100vw;
+  max-height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+/* The panel is translucent-on-backdrop inside the page; full screen has no
+ * backdrop behind it, so it needs its own ground or the page shows through as
+ * black. */
+.research-viewer--fullscreen,
+.research-viewer:fullscreen {
+  background: var(--theme-bg-surface, #fff);
+}
+
+/* ── the caption, now that it shares its row ─────────────────────────────
+ *
+ * The caption bar was `white-space: nowrap` with `text-overflow: ellipsis` on
+ * the ROW. That truncated the row, not the text in it, so the new toggle at
+ * the end would have been the first thing clipped. The ellipsis moves to the
+ * text span, which is the thing that is genuinely allowed to be too long. */
+.research-viewer__img-caption-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.research-viewer__key-toggle {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-family: inherit;
+  color: var(--theme-fg-muted, #6B7280);
+  cursor: pointer;
+}
+
+.research-viewer__key-toggle:hover {
+  border-color: var(--theme-border, #D1D5DB);
+  color: var(--theme-fg-secondary, #374151);
+}
+
+.research-viewer__key-toggle[aria-expanded="true"] {
+  border-color: var(--theme-border, #D1D5DB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-secondary, #374151);
+}
+
+.research-viewer__key-toggle:focus-visible {
+  outline: 2px solid #1D4ED8;
+  outline-offset: 1px;
+}
+
+/* ── the shortcut list ───────────────────────────────────────────────────
+ *
+ * Wraps rather than scrolls. Thirteen items on one line is a horizontal
+ * scrollbar in a panel that already has two, and a shortcut you have to
+ * scroll to find is a shortcut nobody uses. */
+.research-viewer__key-hint {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2rem 0.9rem;
+  padding: 0.4rem 0.75rem;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.7rem;
+  color: var(--theme-fg-muted, #6B7280);
+  flex-shrink: 0;
+}
+
+.research-viewer__key-hint-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+/* The PDF toolbar is `justify-content: space-between`; its controls are grouped so they sit
+ * together opposite the page-count label rather than spreading across the bar. */
+.research-viewer__pdf-acts {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+/* ── The gallery lightbox's shortcut list ────────────────────────────────
+ * Sits under the header, over the image. `position: absolute` rather than in
+ * flow because the lightbox content area is a centring flex box, and a block
+ * added to it pushes the image off centre for as long as the panel is open. */
+.artifact-lightbox__keys {
+  position: absolute;
+  top: 3.4rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem 0.9rem;
+  max-width: min(720px, 92vw);
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  background: rgba(17, 24, 39, 0.92);
+  color: #E5E7EB;
+  font-size: 0.72rem;
+}
+
+.artifact-lightbox__keys-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.artifact-lightbox__keys kbd {
+  display: inline-block;
+  padding: 0.05rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.68rem;
+  background: #374151;
+  border: 1px solid #4B5563;
+  border-radius: 3px;
+  color: #F9FAFB;
+}

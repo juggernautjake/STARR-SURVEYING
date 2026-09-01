@@ -28,6 +28,10 @@ import {
   Paperclip, RotateCw, SkipBack, SkipForward, Trash2, X,
 } from 'lucide-react';
 import FileDetailsPanel, { type DetailsFile } from './FileDetailsPanel';
+// The rotation arithmetic, shared with the two research viewers. Not a research module any more —
+// four viewers in the admin now turn a page, and each one having its own idea of what that means
+// is how "rotate" ends up with four behaviours.
+import { nextRotation, rotationFit, type Rotation } from '@/lib/viewers/viewer-fit';
 // The viewer's own stylesheet, imported HERE rather than from a route layout. These rules used to
 // live in `AdminJobs.css`, which only loads under /admin/jobs and /admin/leads — so a caller in
 // /admin/projects got an unstyled dialog. Importing it from the component makes that impossible.
@@ -126,6 +130,8 @@ export default function FileViewer({ file, files, onClose, onSelect, onPatched, 
   const [speed, setSpeed] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  /** The image itself, to measure the box the browser laid out before the transform. */
+  const imgRef = useRef<HTMLImageElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const touchStartX = useRef<number | null>(null);
 
@@ -159,6 +165,36 @@ export default function FileViewer({ file, files, onClose, onSelect, onPatched, 
 
   const zoomIn = useCallback(() => setScale((s) => Math.min(s + 0.25, 3)), []);
   const zoomOut = useCallback(() => setScale((s) => Math.max(s - 0.25, 0.05)), []);
+
+  // ── ROTATION WAS TURNING THE PAGE WITHOUT RE-FITTING IT ─────────────────────────────────────
+  //
+  // Found while giving the RESEARCH viewers a rotate control they had never had. This viewer has
+  // had one all along, and it has always had this bug: `.file-viewer__image` is
+  // `max-width: 100%; max-height: 85vh`, so an upright photo fits exactly — and a transform is not
+  // layout, so turning it a quarter leaves the 85vh side lying across a stage that is nowhere near
+  // 85vh wide. A portrait phone photo — which is most of what a field crew uploads — rotated once
+  // ran off both sides of the frame at scale 1.
+  //
+  // Nothing failed. The photo was still there; you just could not see the ends of it.
+  //
+  // Written against the CURRENT `rotation` rather than inside a `setRotation` updater. An updater
+  // must be pure — React may call it twice — and this one has to set two other pieces of state.
+  const rotate = useCallback(() => {
+    const next = nextRotation(rotation as Rotation);
+    setRotation(next);
+    const el = containerRef.current;
+    const img = imgRef.current;
+    if (!el || !img) return;
+    // `clientWidth/Height` is the laid-out size, unaffected by the transform already applied.
+    setScale(rotationFit({
+      containerW: el.clientWidth,
+      containerH: el.clientHeight,
+      laidOutW: img.clientWidth,
+      laidOutH: img.clientHeight,
+      rotation: next,
+    }));
+    setPosition({ x: 0, y: 0 });
+  }, [rotation]);
 
   // A new file starts fresh. Carrying a 300% zoom onto the next photo shows somebody a grey
   // rectangle and reads as a broken viewer.
@@ -258,7 +294,7 @@ export default function FileViewer({ file, files, onClose, onSelect, onPatched, 
         case '+': case '=': zoomIn(); break;
         case '-': zoomOut(); break;
         case '0': resetView(); break;
-        case 'r': case 'R': setRotation((d) => (d + 90) % 360); break;
+        case 'r': case 'R': rotate(); break;
         case 'f': case 'F': toggleFullscreen(); break;
         case 'i': case 'I': setShowDetails((s) => !s); break;
         case 'j': case 'J': seek(-10); break;
@@ -276,7 +312,9 @@ export default function FileViewer({ file, files, onClose, onSelect, onPatched, 
     }
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [onClose, zoomIn, zoomOut, resetView, step]);
+    // `rotate` is in here because it now closes over `rotation`. Without it the R key would keep
+    // calling the first render's handler and turn the page from 0° every time.
+  }, [onClose, zoomIn, zoomOut, resetView, step, rotate]);
 
   // Swipe to step, on the phone this is most used on. Ignored while zoomed in, where a horizontal
   // drag means panning the image and stealing it would make a zoomed photo impossible to explore.
@@ -335,7 +373,7 @@ export default function FileViewer({ file, files, onClose, onSelect, onPatched, 
                 <button className="file-viewer__ctrl-btn" onClick={zoomIn} title="Zoom in (+)">+</button>
                 <button
                   className="file-viewer__ctrl-btn"
-                  onClick={() => setRotation((d) => (d + 90) % 360)}
+                  onClick={rotate}
                   title="Rotate 90° (R)"
                   aria-label="Rotate"
                 >
@@ -452,6 +490,7 @@ export default function FileViewer({ file, files, onClose, onSelect, onPatched, 
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
+                    ref={imgRef}
                     // Keyed by id so stepping swaps the element rather than mutating one <img>,
                     // which otherwise keeps showing the PREVIOUS photo until the next one decodes.
                     key={file.id ?? file.file_name}
