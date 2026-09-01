@@ -20,6 +20,7 @@ import {
   MICRO_STAGES, inferMicroStage, progressPercent, type MicroStageId,
 } from './run-progress';
 import { isDoneStatus } from './pipeline-log';
+import { storedFileUrl } from '@/lib/research/stored-file';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -33,6 +34,9 @@ interface ResearchDoc {
   file_type: string | null;
   file_size_bytes: number | null;
   storage_url: string | null;
+  /** Optional because not every caller selects it. `undefined` means "not asked", which is a
+   *  different fact from `null` — see `lib/research/stored-file.ts`. */
+  storage_path?: string | null;
   pages_pdf_url: string | null;
   source_url: string | null;
   processing_status: string | null;
@@ -1554,6 +1558,9 @@ const SOURCE_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
 
 function isMiscDoc(doc: ResearchDoc): boolean {
   const label = (doc.document_label || '').toLowerCase();
+  // Raw `storage_url` on purpose, not `storedFileUrl`. This reads the URL as a STRING to classify
+  // where the artifact came from; it never fetches it. A misc screenshot whose upload failed is
+  // still a misc screenshot, and suppressing the path here would promote it back into the list.
   const path = (doc.storage_url || '').toLowerCase();
   return label.includes('misc screenshot') || label.startsWith('misc:') || path.includes('/screenshots-misc/');
 }
@@ -1669,16 +1676,19 @@ function DocCard({ doc }: { doc: ResearchDoc }) {
   const typeIcon = getDocTypeIcon(doc.document_type);
   const typeName = formatDocType(doc.document_type);
   const title = doc.document_label || doc.original_filename || typeName;
-  const hasViewable = !!(doc.pages_pdf_url || doc.storage_url);
+  // `storedFileUrl`, not `doc.storage_url` — a row whose `storage_path` is null advertises a file
+  // that was never written, and its URL 400s. 22 such rows exist. See lib/research/stored-file.ts.
+  const storedUrl = storedFileUrl(doc);
+  const hasViewable = !!(doc.pages_pdf_url || storedUrl);
   const pageUrls = getPageUrls(doc.ocr_regions);
-  const thumbnailUrl = doc.storage_url || (pageUrls.length > 0 ? pageUrls[0] : null);
+  const thumbnailUrl = storedUrl || (pageUrls.length > 0 ? pageUrls[0] : null);
   const isImage = !!(thumbnailUrl && /\.(png|jpe?g|gif|webp|tiff?)/i.test(thumbnailUrl));
   const excerpt = doc.extracted_text
     ? doc.extracted_text.slice(0, 280) + (doc.extracted_text.length > 280 ? '…' : '')
     : null;
 
   const handleView = () => {
-    const url = doc.pages_pdf_url || doc.storage_url;
+    const url = doc.pages_pdf_url || storedUrl;
     if (url) window.open(url, '_blank', 'noopener');
   };
 

@@ -28,6 +28,15 @@ interface Artifact {
   fileType: string;
   fileSize: number | null;
   storageUrl: string | null;
+  /**
+   * The row carries a `storage_url` for a file that was never written.
+   *
+   * The API nulls `storageUrl` for these, so the card correctly offers no thumbnail and no View
+   * button. Silence would be the wrong ending though: somebody who ran a job that produced eleven
+   * aerial photos and can open ten has nothing to search for. This is what turns a missing card
+   * into a stated fact. 22 rows across 10 projects, measured 2026-09-01.
+   */
+  fileMissing?: boolean;
   pagesPdfUrl: string | null;
   sourceUrl: string | null;
   documentType: string | null;
@@ -346,6 +355,14 @@ function ArtifactCard({ artifact, onView }: { artifact: Artifact; onView: () => 
         )}
         {artifact.status === 'error' && (
           <span className="review-doc-card__badge review-doc-card__badge--err">Error</span>
+        )}
+        {artifact.fileMissing && (
+          <span
+            className="review-doc-card__badge review-doc-card__badge--err"
+            title="The run recorded this document but the file never reached storage, so there is nothing to open. The record is kept — it still says what was found and where."
+          >
+            File not stored
+          </span>
         )}
         {artifact.pageCount != null && artifact.pageCount > 1 && (
           <span className="review-doc-card__badge review-doc-card__badge--pages">{artifact.pageCount} pg</span>

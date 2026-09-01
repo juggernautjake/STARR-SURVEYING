@@ -10,6 +10,8 @@ import {
   fitScale, isAtFit, clampZoom, nextRotation, viewerIntent, isTypingTarget,
   VIEWER_SHORTCUTS, ZOOM_STEP, WHEEL_STEP, type Rotation,
 } from '@/lib/viewers/viewer-fit';
+// A `storage_url` is a string built by `getPublicUrl`, never a check that the file exists.
+import { storedFileUrl } from '@/lib/research/stored-file';
 // Markup that survives closing the viewer, kept apart from the original (research plan R24).
 import {
   normaliseWidth,
@@ -37,7 +39,8 @@ type ViewTab = 'images' | 'text';
 function getPdfUrl(doc: ResearchDocument, extra?: string | null): string | null {
   if (extra) return extra;
   if (doc.pages_pdf_url) return doc.pages_pdf_url;
-  const su = doc.storage_url ?? '';
+  // Same rule as the images below: only a file that was actually stored.
+  const su = storedFileUrl(doc) ?? '';
   if (su && (su.endsWith('.pdf') || su.includes('/pdf') || doc.file_type === 'pdf')) return su;
   return null;
 }
@@ -58,11 +61,16 @@ function getPageImageUrls(doc: ResearchDocument): string[] {
     } catch { /* not valid JSON */ }
   }
 
-  // Fallback: use storage_url if it's an image
-  if (urls.length === 0 && doc.storage_url) {
-    const su = doc.storage_url;
-    if (/\.(png|jpe?g|gif|webp|tiff?)/i.test(su) || doc.file_type === 'png' || doc.file_type === 'jpg') {
-      urls.push(su);
+  // Fallback: use the stored file if it's an image.
+  //
+  // `storedFileUrl`, not `doc.storage_url`. 22 live rows carry a `storage_url` beside a NULL
+  // `storage_path` — a URL built by `getPublicUrl` for an upload that never landed. Pushing one
+  // here makes the viewer report "1 page" and render a broken box, which is a worse answer than
+  // "no page images", because it looks like the image failed to load THIS time.
+  const stored = storedFileUrl(doc);
+  if (urls.length === 0 && stored) {
+    if (/\.(png|jpe?g|gif|webp|tiff?)/i.test(stored) || doc.file_type === 'png' || doc.file_type === 'jpg') {
+      urls.push(stored);
     }
   }
 

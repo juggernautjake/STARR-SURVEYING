@@ -9,6 +9,7 @@ import { withErrorHandler } from '@/lib/apiErrorHandler';
 // Shared with full-extract, which needs the same answer about the same rows. It had its own copy of
 // this logic pointed at a `research_artifacts` table that never existed (platform audit §8.4).
 import { categorizeDocument, isImageFileType } from '@/lib/research/artifact-category';
+import { storedFileUrl, advertisesMissingFile } from '@/lib/research/stored-file';
 
 function extractProjectId(req: NextRequest): string | null {
   const parts = req.nextUrl.pathname.split('/research/')[1]?.split('/');
@@ -49,7 +50,19 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     filename: doc.original_filename,
     fileType: doc.file_type,
     fileSize: doc.file_size_bytes,
-    storageUrl: doc.storage_url,
+    // ── `storage_url` is a CLAIM, and 22 live rows are lying ────────────────────────────────
+    //
+    // `getPublicUrl` builds a string; it never asks the bucket whether anything is there. Measured
+    // 2026-09-01: 22 rows carry a `storage_url` beside a NULL `storage_path` — eleven aerial photos
+    // and eleven topo maps, across ten projects — and every one of those URLs 400s.
+    //
+    // The lightbox took `storageUrl` as its viewUrl, so those ten projects each offered artifacts
+    // that opened to a broken image with no explanation. Same shape as "the Document Library
+    // rendered seventeen empty boxes" and "0 viewable images on a project holding 73 of them".
+    storageUrl: storedFileUrl(doc),
+    // Stated rather than silently dropped. A gallery that quietly shows ten of eleven aerial photos
+    // is a gallery where somebody counts and finds nothing to search for.
+    fileMissing: advertisesMissingFile(doc),
     pagesPdfUrl: doc.pages_pdf_url,
     sourceUrl: doc.source_url,
     documentType: doc.document_type,

@@ -29,6 +29,10 @@
 // `DOCUMENT_ROW_COLUMNS` against the table's real column list. A cast inside a `.tsx` is a claim
 // nobody can check; a function with a key list beside it is a claim a test can.
 
+// A `storage_url` is a string built by `getPublicUrl`, never a check that the bucket holds
+// anything. 22 live rows carry one beside a null `storage_path`.
+import { storedFileUrl, hasStoredFile } from '@/lib/research/stored-file';
+
 /** A row of `research_documents`, by the names the database actually uses. */
 export interface DocumentRow {
   id: string;
@@ -43,6 +47,9 @@ export interface DocumentRow {
   source_type?: string | null;
   source_url?: string | null;
   storage_url?: string | null;
+  /** The bucket key. `null` means the upload did not land, whatever `storage_url` claims —
+   *  22 live rows say exactly that. See `lib/research/stored-file.ts`. */
+  storage_path?: string | null;
   pages_pdf_url?: string | null;
   processing_status?: string | null;
   /** A JSON STRING from PostgREST, not an object — see `pageImagesOf`. */
@@ -149,7 +156,12 @@ export function toCard(row: DocumentRow): DocumentCard {
     isUpload: (row.source_type ?? '').toLowerCase() === 'user_upload',
     sourceLabel: sourceLabelOf(row),
     // `pages_pdf_url` is the rendered multi-page PDF when one exists; `storage_url` is the original.
-    fileUrl: row.pages_pdf_url ?? row.storage_url ?? row.source_url ?? null,
+    //
+    // `storedFileUrl` rather than `row.storage_url`: a row whose `storage_path` is null is
+    // advertising a file that was never written, and offering its URL here is how somebody clicks
+    // a document and gets a 400. `source_url` is unaffected — that is the county's own page, not
+    // ours, and it is the correct thing to fall back to.
+    fileUrl: row.pages_pdf_url ?? storedFileUrl(row) ?? row.source_url ?? null,
     isImage: isImageRow(row),
     pageImages: pageImagesOf(row),
     status: row.processing_status ?? 'unknown',
@@ -185,6 +197,9 @@ export function formatBytes(n: number | null): string {
 export const DOCUMENT_ROW_COLUMNS = [
   'id', 'document_type', 'document_label', 'original_filename', 'file_type', 'file_size_bytes',
   'page_count', 'recorded_date', 'recording_info', 'source_type', 'source_url', 'storage_url',
+  // `storage_path` is selected because `storage_url` alone cannot say whether a file exists — see
+  // lib/research/stored-file.ts. Omitting it makes the check a silent no-op on this screen.
+  'storage_path',
   'pages_pdf_url', 'processing_status', 'processing_error', 'ocr_regions',
 ] as const;
 
@@ -277,9 +292,11 @@ export function pageImagesOf(row: DocumentRow & { ocr_regions?: unknown }): stri
     } catch { /* not valid JSON — the fallback below still applies */ }
   }
 
-  if (urls.length === 0 && row.storage_url) {
-    const su = row.storage_url;
-    if (/\.(png|jpe?g|gif|webp|tiff?)(\?|$)/i.test(su) || isImageRow(row)) urls.push(su);
+  // `storedFileUrl`, not `row.storage_url`. A page image that 400s is worse than no page image:
+  // the viewer opens, reports "1 page", and shows a broken box with no explanation of why.
+  const stored = storedFileUrl(row);
+  if (urls.length === 0 && stored) {
+    if (/\.(png|jpe?g|gif|webp|tiff?)(\?|$)/i.test(stored) || isImageRow(row)) urls.push(stored);
   }
 
   return urls;

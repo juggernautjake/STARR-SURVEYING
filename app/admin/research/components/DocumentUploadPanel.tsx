@@ -7,6 +7,7 @@ import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import SourceDocumentViewer from './SourceDocumentViewer';
 // One vocabulary for `processing_status`, shared with the Document Library. See the note below.
 import { statusLabel } from '../[projectId]/documents/document-rows';
+import { storedFileUrl, hasStoredFile } from '@/lib/research/stored-file';
 // N4: the three-step upload, the accepted types and the size limit all live in one module now, so
 // this panel and the Documents page cannot drift into two upload paths that disagree.
 import {
@@ -507,8 +508,12 @@ function getViewerMode(doc: ResearchDocument): 'image' | 'pdf' | 'text' | 'none'
 
   if (doc.extracted_text) return 'text';
 
-  // If a storage URL exists but we don't know the type, try to display as image
-  if (doc.storage_url) return 'image';
+  // If a storage URL exists but we don't know the type, try to display as image.
+  //
+  // `hasStoredFile`, not `doc.storage_url`: a row whose `storage_path` is null advertises a file
+  // that was never written, and guessing "image" for it opens the viewer on a URL that 400s. With
+  // no file and no text, `'none'` is the truthful answer — and the viewer says so.
+  if (hasStoredFile(doc)) return 'image';
 
   return 'none';
 }
@@ -534,7 +539,9 @@ function DocumentViewerModal({ doc, onClose }: DocumentViewerModalProps) {
   }, [handleKeyDown]);
 
   const title = doc.document_label || doc.original_filename || 'Document';
-  const storageUrl = doc.storage_url ?? null;
+  // Everything below renders from this. Nulling it here means one change covers the image, the PDF
+  // frame and the download link, rather than three sites that have to agree.
+  const storageUrl = storedFileUrl(doc);
 
   return (
     <div
