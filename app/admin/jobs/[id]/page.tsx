@@ -914,11 +914,37 @@ export default function JobDetailPage() {
         )}
 
         {activeTab === 'research' && (
-          <JobResearchPanel
-            research={research}
-            onAdd={addResearch}
-            onDelete={deleteResearch}
-          />
+          <>
+            {/* ── THE OTHER END OF THE JOB LINK (Phase J2) ────────────────────────────────────
+                `research_projects.job_id` has existed since seeds/090 with an index on it, and
+                until J1 nothing in the product wrote it. This is the side a person actually starts
+                from: they are looking at a job and want the deeds for it.
+
+                The link carries the job id, so the research form opens pre-filled from this job
+                AND already attached to it — the attachment is the thing that gets forgotten when
+                it has to be made afterwards, and research nobody attached is research nobody
+                bills for. */}
+            <div className="job-research-start">
+              <div>
+                <strong>Property research</strong>
+                <p>
+                  STARR RECON searches the county records for this property, captures the sources,
+                  and extracts the data. It opens with this job&apos;s address already filled in.
+                </p>
+              </div>
+              <a
+                className="job-research-start__btn"
+                href={`/admin/research?new=1&job=${jobId}`}
+              >
+                Start property research
+              </a>
+            </div>
+            <JobResearchPanel
+              research={research}
+              onAdd={addResearch}
+              onDelete={deleteResearch}
+            />
+          </>
         )}
 
         {activeTab === 'cad' && (

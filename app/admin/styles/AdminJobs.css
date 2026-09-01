@@ -2259,3 +2259,60 @@
   line-height: 1.5;
   color: var(--color-text-muted, #6B7280);
 }
+
+/* ── Start property research, from the job (Phase J2) ─────────────────────────
+ *
+ * `research_projects.job_id` has existed since seeds/090 with an index on it,
+ * and until J1 nothing in the product wrote it. This is the side a person
+ * actually starts from: they are looking at a job and want the deeds for it.
+ *
+ * Every colour is a token with its literal as the fallback, so it follows all
+ * eleven palettes. */
+.job-research-start {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #FFFFFF);
+}
+
+.job-research-start strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.job-research-start p {
+  margin: 0.2rem 0 0;
+  max-width: 46rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #374151);
+}
+
+.job-research-start__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  background: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFFFFF);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.job-research-start__btn:hover {
+  filter: brightness(1.08);
+}
+
+.job-research-start__btn:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+}

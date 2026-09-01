@@ -21,6 +21,7 @@ import { checkCounty } from '@/lib/research/county-input';
 import CountyNote, { countyDescribedBy, isCountyInvalid } from '../components/CountyNote';
 import { checkScope } from '@/lib/research/scope';
 import ScopeNotice from '../components/ScopeNotice';
+import JobLinkPicker, { type JobSummary } from '../components/JobLinkPicker';
 import { Accordion, ErrorState } from '../components/ui';
 
 const STATUS_LABELS: Record<WorkflowStep, string> = {
@@ -47,6 +48,13 @@ export default function ProjectsTab() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  // Named, not just linked — see the note in JobLinkPicker. Set from the deep link, and by the
+  // picker itself when somebody chooses one by hand.
+  const [createLinkedJob, setCreateLinkedJob] = useState<JobSummary | null>(null);
+  /* Set when we prefilled from a job that had no county on it. Measured 2026-08-31: FOUR of six
+     jobs in this database have an empty or null county, so this is the common arrival, not an
+     edge case worth skipping. */
+  const [jobHadNoCounty, setJobHadNoCounty] = useState(false);
   const [newProject, setNewProject] = useState({
     name: '',
     description: '',
@@ -60,6 +68,10 @@ export default function ProjectsTab() {
   // Spend gate (seed 620). ON by default so behaviour matches every existing project;
     // the toggle below makes the choice explicit rather than inherited from a column default.
     allow_paid_documents: true,
+    // J1/J2 — declared here so it is part of the state's TYPE and therefore part of the POST
+    // body. Setting it only in the updater compiles (a spread does not trigger excess-property
+    // checks) and then silently never reaches the server.
+    job_id: null as string | null,
   });
 
   /** A run needs SOME way to find the parcel — an address or a CAD id. Either is enough;
@@ -88,6 +100,52 @@ export default function ProjectsTab() {
   // here with ?new=1 to open the create modal straight away.
   useEffect(() => {
     if (searchParams?.get('new') === '1') setShowCreate(true);
+  }, [searchParams]);
+
+  // ── STARTING RESEARCH FROM A JOB (Phase J2) ─────────────────────────────────────────────────
+  //
+  // `?new=1&job=<id>` opens the form already filled in from the job and already linked to it.
+  //
+  // The point is not saving keystrokes. It is that the address, county and state on a job have
+  // already been checked by somebody — so the scope verdict the form shows is about a real
+  // property rather than about what was typed, and the link that J1 made possible gets made by
+  // default rather than remembered later.
+  //
+  // A failed lookup is silent: the modal still opens, empty, and somebody fills it in. Refusing to
+  // open the form because a job could not be fetched would be a worse answer than an empty form.
+  useEffect(() => {
+    const jobId = searchParams?.get('job');
+    if (!jobId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/jobs?id=${jobId}`);
+        if (!res.ok) return;
+        const { job } = await res.json() as {
+          job?: { id: string; job_number?: string | null; name?: string | null;
+                  address?: string | null; city?: string | null; state?: string | null;
+                  zip?: string | null; county?: string | null };
+        };
+        if (cancelled || !job) return;
+        setShowCreate(true);
+        setNewProject(p => ({
+          ...p,
+          // The job's own values win over whatever is in the blank form, but an EMPTY field on the
+          // job must not blank a default — `state` starts as 'TX' and a job with no state should
+          // leave it there rather than clear it.
+          name: job.name?.trim() || job.address?.trim() || p.name,
+          property_address: job.address?.trim() || p.property_address,
+          city: job.city?.trim() || p.city,
+          county: job.county?.trim() || p.county,
+          state: job.state?.trim() || p.state,
+          zip: job.zip?.trim() || p.zip,
+          job_id: job.id,
+        }));
+        setCreateLinkedJob(job);
+        setJobHadNoCounty(!job.county?.trim());
+      } catch { /* the modal still opens; somebody fills it in */ }
+    })();
+    return () => { cancelled = true; };
   }, [searchParams]);
 
   // Debounced search: auto-reload 400ms after typing stops
@@ -153,7 +211,8 @@ export default function ProjectsTab() {
       if (res.ok) {
         const data = await res.json();
         setShowCreate(false);
-        setNewProject({ name: '', description: '', property_address: '', city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '', allow_paid_documents: true });
+        setNewProject({ name: '', description: '', property_address: '', city: '', county: '', state: 'TX', zip: '', owner_name: '', parcel_id: '', allow_paid_documents: true, job_id: null });
+      setJobHadNoCounty(false);
         router.push(`/admin/research/${data.project.id}`);
       } else {
         const err = await res.json();
@@ -486,6 +545,29 @@ export default function ProjectsTab() {
                     typed={newProject.county}
                     onPick={s => setNewProject(p => ({ ...p, county: s }))}
                   />
+
+                  {/* ── THE ONE FIELD THE JOB COULD NOT FILL IN ────────────────────────────────
+                      CountyNote says nothing about an empty county, and that is right for a form
+                      somebody is still typing into: a blank field is not a mistake yet.
+
+                      Arriving from a job is a different situation. Everything else got filled in,
+                      so the form LOOKS complete, and the one field that decides which clerk gets
+                      searched — and therefore whether the run costs anything — is the one that
+                      silently did not. Without this, the next signal is the run button refusing on
+                      the project page, a screen away from the field that fixes it.
+
+                      Deliberately NOT inferred from the city. Buda is in Hays County and this form
+                      could say so, but a wrong county routes to the wrong clerk and returns a
+                      confident report about somebody else's land — far worse than a blank field.
+                      Ask; do not guess.
+
+                      It clears the moment anything is typed, so it cannot nag. */}
+                  {jobHadNoCounty && !newProject.county.trim() && (
+                    <div className="research-prefill-note" role="status">
+                      This job has no county on it, so it could not be filled in. Research is routed
+                      by county — add it here.
+                    </div>
+                  )}
                 </div>
 
                 {/* ── PAID DOCUMENTS ───────────────────────────────────────────────────────────
@@ -635,6 +717,20 @@ export default function ProjectsTab() {
                   Enter a property address or a Property ID — either one identifies the parcel.
                 </div>
               )}
+
+              {/* ── AND THE JOB, IF THERE IS ONE (Phase J2) ──────────────────────────────────
+                  Pre-filled and pre-selected when you arrive from a job (`?new=1&job=<id>`), and
+                  settable by hand otherwise. Making the link at creation beats remembering to make
+                  it later, which is what "research nobody billed for" looks like from the inside. */}
+              <div className="research-modal__field">
+                <JobLinkPicker
+                  id="create-project-job"
+                  value={newProject.job_id}
+                  linked={createLinkedJob}
+                  onChange={jobId => setNewProject(p => ({ ...p, job_id: jobId }))}
+                  disabled={creating}
+                />
+              </div>
 
               {/* ── SCOPE, BEFORE THE PROJECT EXISTS (Phase S3) ─────────────────────────────────
                   Shown here and NOT enforced here, deliberately. Creating a record for a property
