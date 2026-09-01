@@ -4,7 +4,7 @@
 //   npm run verify:worker -- https://host       # or an explicit base URL
 //
 // Exit 0 when the worker can take a deep run. Exit 1 otherwise. W5 of
-// docs/planning/in-progress/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
+// docs/planning/completed/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
 //
 // ── WHY THIS EXISTS WHEN W4 ARGUED AGAINST A SCRIPT ─────────────────────────────────────────────
 //

@@ -1,7 +1,28 @@
 # Research worker rebuild, open-web research, and the growth backlog — 2026-08-26
 
-**Status:** IN PROGRESS · opened 2026-08-26 · **this is the live doc for the netcup migration and
-everything parked behind it.**
+**Status:** ✅ **COMPLETE (engineering)** — closed 2026-09-01. The worker rebuild this doc exists for
+has shipped: it runs on netcup, verified from outside over TLS, with R2 storage, the `org_id` drift
+closed, all five Tavily applications, every defect the walkthrough surfaced, and E1–E5e.
+
+> ### What was left, and where it went
+>
+> Everything still open here needs a **dashboard login, a payment decision, the firm's own words and
+> photographs, or a physical act on the server.** None of it is waiting on code, and none of it is
+> "deferred" — deferred implies the work is not wanted, and it is wanted. It is *blocked*, which is a
+> different fact.
+>
+> So it moved to a page somebody can actually work from:
+> **[`docs/planning/pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md`](../pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md)**
+> — three items that change what a research run can do, five money decisions, three secrets, one
+> command on the box, and the marketing list.
+>
+> **This doc stays as the record.** Every line on that page has its measurement trail here, and the
+> ☐ markers below are left exactly as they were rather than rewritten — a doc that edits its own
+> evidence to match its conclusion cannot be checked afterwards.
+>
+> ⚠ **Complete means on a branch.** This work sits on `claude/research-duplicate-geometry-2026-08-31`,
+> which is not an ancestor of `main`. `git merge-base --is-ancestor <sha> main` before believing
+> any ✅ here.
 
 This absorbs the loose ends of a long working session: the research worker being gone, the local-SEO
 work that shipped, the Google Business Profile that is claimed but empty, and a cost audit of 110
@@ -656,7 +677,23 @@ it moves, defers while a run is in flight, rolls back if the new build does not 
 **Nothing in this doc is a regression.** Every ☐ item now needs a decision or an account only the
 owner has — the server half is finished.
 
-### Why this doc is still in `in-progress/` — read this before trying to move it
+### ~~Why this doc is still in `in-progress/`~~ — RESOLVED 2026-09-01, and the reasoning held
+
+> This section argued the doc could not be closed because *"none of them are deferrable by an
+> engineer"*. **That was correct and is still correct** — every category below is real. What it did
+> not consider is that the same items could stop being a 2,600-line doc and become a page somebody
+> can act from.
+>
+> They did: [`pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md`](../pending/OWNER_ACTIONS_RESEARCH_AND_MARKETING.md).
+> Nothing was marked deferred, and nothing was dropped. The table below is what it was built from.
+>
+> The one thing this section got wrong, on re-measurement 2026-09-01: it said the engineering half
+> was finished, and **four engineering items were still open** — E5b–E5e, plus a live read-side
+> defect hiding in M5. Two of the four turned out to be already done. A doc that says "only
+> owner-gated items remain" is a claim worth re-checking, which is the whole lesson of the six false
+> parked premises this repository has recorded.
+
+#### The original reasoning, kept
 
 Per the rubric in `docs/planning/README.md`, a doc is IN-PROGRESS if it "contains action items not
 yet done". This one does, and **none of them are deferrable by an engineer**, which is the
@@ -1681,8 +1718,38 @@ from the real `robots.txt` rules rather than hand-written.
   comments — a guard that reads its own documentation will certify anything that merely talks about
   being correct. Mutation-tested after: un-guarding each of the three services fails it.
 
-  **The 22 existing rows are still in the table.** Nulling their `storage_url` is a data repair
-  rather than a code change, and is left for the owner to authorise:
+  **✅ THE READ SIDE IS FIXED 2026-09-01 — and that was the half that mattered.**
+
+  Re-measured before touching anything: still **22 rows**, still 11 `aerial_photo` + 11 `topo_map`,
+  now across **10 projects** of 671 total rows. The inverse — a path with no url — is still **0**,
+  which is what makes it a pattern rather than noise.
+
+  Then the question nobody had asked: **does the app render them?** It did. Measured across every
+  read path, **not one consulted `storage_path`** — the artifacts route, `document-rows.ts`,
+  `DocumentUploadPanel`, `ResearchRunPanel` and `SourceDocumentViewer` all decided "is this
+  viewable" from `storage_url` alone. So ten projects each offered artifacts that opened to a broken
+  image with no explanation. Same shape as *"the Document Library rendered seventeen empty boxes"*
+  and *"0 viewable images on a project holding 73 of them"*.
+
+  `lib/research/stored-file.ts` is the one predicate all five now read, and the row is **stated**
+  rather than dropped — the API returns `fileMissing` and the card shows *"File not stored"*. A
+  gallery that quietly shows ten of eleven aerial photos is one where somebody counts and has
+  nothing to search for.
+
+  **The dangerous case is `undefined`, not `null`.** An unselected `storage_path` is *not asked*,
+  which is the opposite fact from *not stored* wearing the same falsy value — and `document-rows.ts`
+  did not select it. Treating absence as "no file" would have blanked every document on those
+  screens, turning a 22-row cosmetic defect into a silent blackout. Absence keeps today's behaviour;
+  a test requires every caller to select the column, so "cannot tell" is a bug in the query rather
+  than a state the product lives in.
+
+  My own predicate was wrong first: `selectsStoragePath` bounded the name with `[\s,(]`, correct for
+  a PostgREST string and wrong for an array of quoted names, so it reported the column missing from
+  a list that plainly contains it. A guard that cries wolf about correct code is one somebody
+  switches off. Mutation-tested three ways after fixing it.
+
+  **The data repair below is now OPTIONAL rather than necessary**, and is still worth doing. It
+  stays with the owner because it mutates production data:
 
   ```sql
   -- Restores truth to rows that advertise a file that was never written.

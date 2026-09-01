@@ -240,7 +240,7 @@ export function configWarnings(env: NodeJS.ProcessEnv = process.env): string[] {
   // Not fixed by probing the provider at boot, on purpose: a worker whose startup depends on a
   // third-party API cannot start during that API's outage, which is worse than the problem. Validity
   // belongs to the moment a provider is switched on — see R4a in
-  // docs/planning/in-progress/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
+  // docs/planning/completed/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
   // ⚠ AND THE LARGER PROBLEM, MEASURED 2026-08-30: THE SOLVER IS NOT CALLED BY ANYTHING.
   //
   // Controlled for — `getCaptchaSolver()` has zero callers outside its own module and tests, while

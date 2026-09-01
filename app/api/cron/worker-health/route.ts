@@ -4,7 +4,7 @@
 //   Hourly, at :17 rather than :00 — every cron in the world fires on the hour, and a worker that is
 //   busy because eighteen other schedulers just woke is not a worker that is unhealthy.
 //
-// W5 of docs/planning/in-progress/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
+// W5 of docs/planning/completed/RESEARCH_WORKER_REBUILD_AND_GROWTH_2026-08-26.md.
 //
 // ── WHY, WHEN A BANNER AND A CLI ALREADY EXIST ──────────────────────────────────────────────────
 //

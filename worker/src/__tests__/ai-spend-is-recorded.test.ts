@@ -20,6 +20,23 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+// ── HOISTED FROM INSIDE THE TESTS, BECAUSE THE TIMEOUT WAS THE IMPORT ────────────────────────────
+//
+// The last two tests each did `await import('../infra/usage.js')` in their own body. Alone that
+// costs ~780ms; inside the full worker suite it reached **5,028ms** and tripped vitest's 5s default,
+// so the suite failed with the machine under load and passed with it idle. A test that depends on
+// how busy the laptop is will eventually fail in CI and be re-run until it goes green, which is how
+// a real failure gets dismissed as "just the flaky one".
+//
+// The dynamic form was buying nothing. There is no `vi.mock`, no `vi.resetModules` and no
+// `beforeEach` in this file, so both calls resolved the SAME cached module instance — the isolation
+// a dynamic import usually provides was never there. The second test already calls `resetRunSpend`
+// explicitly to get its clean state, which is the honest way to do it and is unaffected.
+//
+// Static, so the module graph is transformed once at load rather than inside a timed assertion.
+import {
+  opsAccountingKey, isOpsAccountingKey, recordOpsAiCall, spendForRun, resetRunSpend,
+} from '../infra/usage.js';
 
 const WORKER = path.join(process.cwd());
 const SRC = path.join(WORKER, 'src');
@@ -312,7 +329,7 @@ describe('ops spend is recorded WITHOUT becoming run spend', () => {
   // would be worse than the gap it closed: a receipt batch would quietly eat a customer's research
   // budget, and R5 would stop a run for money the run never spent.
   it('an ops key can never be mistaken for a research project id', async () => {
-    const { opsAccountingKey, isOpsAccountingKey } = await import('../infra/usage.js');
+
     const key = opsAccountingKey('receipt-extraction');
     expect(isOpsAccountingKey(key)).toBe(true);
     // A project id is a UUID; nothing about it can start with the ops prefix.
@@ -321,7 +338,7 @@ describe('ops spend is recorded WITHOUT becoming run spend', () => {
   });
 
   it('does not add ops spend to a run ceiling', async () => {
-    const { recordOpsAiCall, spendForRun, resetRunSpend, opsAccountingKey } = await import('../infra/usage.js');
+
     const project = '4d1f2b7a-9c3e-4a5b-8d6f-0e1a2b3c4d5e';
     resetRunSpend(project);
     await recordOpsAiCall('receipt-extraction', 'claude-sonnet-4-5', { input: 100_000, output: 10_000 });
