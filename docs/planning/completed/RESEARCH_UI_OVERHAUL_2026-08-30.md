@@ -1,6 +1,13 @@
 # Research UI overhaul — 2026-08-30
 
-**Status:** IN PROGRESS · opened 2026-08-30 · **built one slice per pass; see "How to work this doc".**
+**Status:** ✅ **COMPLETE** — every item closed. A1–A4 · B1a · B2–B6 · C1–C3 · D0–D3 · E1–E3 · F1–F2
+plus the sixteen unplanned findings G1–G16. The last one, **E1b**, shipped 2026-09-01 as R3 of
+`docs/planning/completed/BRAND_KIT_AND_DOCUMENT_VIEWERS_2026-09-01.md`.
+
+> ⚠ **Complete means on a branch.** This work sits on `claude/research-duplicate-geometry-2026-08-31`,
+> which is not an ancestor of `main`. Check with `git merge-base --is-ancestor <sha> main` before
+> believing any ✅ here — this repository has already lost a whole feature to a doc that said DONE
+> while every commit sat on an unmerged branch.
 
 The owner asked for the research pages to be rebuilt: better formatted, better styled, more
 intuitive, using toggles, sliders, accordions and tabs so everything that needs surfacing is
@@ -167,7 +174,12 @@ browser's own history.
 This is the fifth parked premise in this repo to turn out false when checked. Checking cost one
 `cat` of a 24-line file.
 
-### B1a — Split the Overview route by SECTION, not by tab ☐ *(replaces B1)*
+### B1a — Split the Overview route by SECTION, not by tab ✅ **CLOSED 2026-08-31** *(replaces B1)*
+
+> The ☐ on this heading was stale from 2026-08-31 and was corrected on 2026-09-01. The status table
+> at the foot of this doc already recorded it closed — thirteen extractions live in `_sections/`,
+> every one verified imported by `page.tsx` — and the heading had simply not been updated with it.
+> Two markers for one item is how a doc ends up disagreeing with itself.
 
 **Review → Survey SHIPPED 2026-08-31.** 3,254 → 3,234 lines, and it came with the guard this
 repository has needed for a while.
@@ -1353,7 +1365,16 @@ Mutation-tested six ways. All six fail.
 none. The shared piece exists and adoption is now one prop each. That is outside this doc's remit —
 it is the admin shell, not the research portal — and belongs in its own slice with its own QA.
 
-### E1b — Adopt `tabKeyDown` in the other 16 portals ☐ *(outside this doc — admin shell)*
+### E1b — Adopt `tabKeyDown` in the other 16 portals ✅ **SHIPPED 2026-09-01** *(as R3 of BRAND_KIT_AND_DOCUMENT_VIEWERS_2026-09-01.md)*
+
+Fifteen portals now spread the hook's `tabKeyDown` and carry `data-tab-id`; 126 lines of duplicated
+handler deleted. `marketing` had declared `role="tablist"` with no keyboard at all; `settings` was a
+row of plain buttons and is now a real tablist.
+
+**The guard written for it caught a sixteenth portal** — `/admin/branding`, shipped that same
+morning, which called `tabMoveTarget` and then focused by an id convention. Two earlier versions of
+its test had passed it, because both asked whether the helper was *called* rather than whether the
+finished handler was *used*.
 ### E2 — ~~One empty state, one error state, one loading state~~ SHIPPED 2026-08-31
 
 Measured first: **five loading treatments and six error ones** across the seven tabs.
@@ -2305,7 +2326,7 @@ blocked; none costs more than it is worth. They are simply not done.
 | **B1a remainder** | ✅ **CLOSED 2026-08-31.** Thirteen extractions live in `_sections/`, every one verified imported by `page.tsx`. Every cast on the Review tab is now extracted and contract-tested — `summary`, `property`, `survey`, the coherence review (against a PROMPT) and the easements. The three named targets in the original row never existed. |
 | **D1 / D2** | ✅ **SHIPPED 2026-08-31**, and each found a live defect — the Stage 3.5 label and the two disagreeing definitions of "done". Both panels remain large (`ResearchRunPanel` 1,753, `PipelineProgressPanel` 1,481); that is a size question, not an open slice. |
 | **D3** | ✅ **CLOSED 2026-08-31** — already shipped. |
-| **E1b** | ☐ Open, and correctly outside this doc — admin shell, not the research portal. |
+| **E1b** | ✅ **SHIPPED 2026-09-01** — as R3 of `BRAND_KIT_AND_DOCUMENT_VIEWERS_2026-09-01.md`. Correctly scoped out of this doc; picked up when that one swept the admin shell. |
 | **E2b** | ✅ **BOTH SHIPPED 2026-08-31** — `BillingTab` and `LibraryTab` re-themed; the Billing pass found a button with no `onClick` at all. |
 | **E3** | ✅ **SHIPPED 2026-08-31** — `e2e/research-responsive.spec.ts`: 12 routes × 2 widths plus the 8 Review tabs at each, 26 checks, all green against a production build. Found G16, a reset-view button under the floating dock. |
 | **F2** | ✅ **BOTH HALVES SHIPPED 2026-08-31.** Static: 51 failures fixed, `verify:contrast` clean over 938 pairs. Browser: 76 more, found only after discovering the first three "clean" runs were measuring an unhydrated page. 11 palettes × 12 research routes now report no unthemed surfaces and no unreadable text. |

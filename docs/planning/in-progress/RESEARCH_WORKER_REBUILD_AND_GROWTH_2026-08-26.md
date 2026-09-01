@@ -293,7 +293,23 @@ here needs a decision, an account, or a physical act only the owner can perform.
 > Mutation-tested: reintroducing the `websocket_auth` line fails the guard; restoring it goes green.
 > Worker suite green.
 
-## ⚠ ENGINEERING BACKLOG — found 2026-08-30, and the reason this doc came back to `in-progress`
+## ✅ ENGINEERING BACKLOG — CLOSED 2026-09-01
+
+> Every item in this section is now shipped. E5a–E5e are all ✅ in the table below; E4 remains and is
+> an OWNER ACTION (one command on the box), not engineering.
+>
+> **This doc still belongs in `in-progress/`** for the reason its own "Why this doc is still in
+> in-progress" section gives further down: what is left needs a dashboard login, a purchase, the
+> owner's own content, or a physical act. Marking it deferred to empty the folder would be a lie
+> about who is blocked.
+>
+> Two of the four E5 items turned out to be **already shipped** when checked on 2026-09-01, and one
+> more had its module already written. Checking before building was worth more than the building:
+> see §W of `docs/planning/completed/BRAND_KIT_AND_DOCUMENT_VIEWERS_2026-09-01.md`.
+
+### The original heading, kept for the record
+
+**⚠ ENGINEERING BACKLOG — found 2026-08-30, and the reason this doc came back to `in-progress`**
 
 This doc was parked as "everything left is owner-gated". That was true of the items it *listed*.
 Preparing the owner's three-county test then turned up four things that are nobody's decision — they
@@ -440,11 +456,11 @@ that hour went.
 |---|---|---|
 | **60s of dead time at the end of EVERY document.** `btn.click()` used Playwright's default 30s actionability timeout; on the last page the next-button is present but disabled, so two matching selectors waited 30s each | **~11 min of the hour** | ✅ **FIXED 2026-08-30** |
 | **`temperature` 400 on Sonnet 5.** `[Stage1D] ai-variant-generation` died on *"temperature is deprecated for this model"* | one lost stage | ✅ **FIXED** — helper + the failing call site |
-| 13 more call sites still send a literal `temperature` | latent 400s | ☐ **E5a** |
-| Every document relaunches Chromium (`Browser launched` per instrument) | ~11 cold starts | ☐ **E5b** |
-| Each document is re-found by search+click, though the log already printed `real URL from search = …/doc/98732828` | ~10s × 11 ≈ 2 min | ☐ **E5c** |
-| Documents are captured strictly **serially** | the big one | ☐ **E5d** |
-| **Bell CAD unreachable** — `fetch failed`, `Session acquisition failed`, `page.goto: Timeout 30000ms`, then 3 × 26s keyword retries | **213s to admit it** | ☐ **E5e** |
+| 13 more call sites still send a literal `temperature` | latent 400s | ✅ **E5a SHIPPED 2026-08-30** — 18 sites, not 13 |
+| Every document relaunches Chromium (`Browser launched` per instrument) | ~11 cold starts | ✅ **E5b SHIPPED** — `fetchDocumentImages` leases; re-verified wired 2026-09-01 and now guarded |
+| Each document is re-found by search+click, though the log already printed `real URL from search = …/doc/98732828` | ~10s × 11 ≈ 2 min | ✅ **E5c COMPLETED 2026-09-01** — the parameter existed and was wired into **1 of 19** call sites. Fourteen now pass it; four genuinely have no URL; one is a dead export. Guard: pass it, or state why not |
+| Documents are captured strictly **serially** | the big one | ✅ **E5d SHIPPED** — `infra/bounded-map.ts`; re-verified 2026-09-01 to have a real caller |
+| **Bell CAD unreachable** — `fetch failed`, `Session acquisition failed`, `page.goto: Timeout 30000ms`, then 3 × 26s keyword retries | **213s to admit it** | ✅ **E5e COMPLETED 2026-09-01** — `infra/host-circuit.ts` existed and guarded two of three doors. The unguarded one, `searchCadHttpRawKeyword`, is exactly the function whose label appears three times in the log |
 
 #### E5a — ~~thread samplingFor() through the remaining call sites~~ ✅ **SHIPPED 2026-08-30**
 

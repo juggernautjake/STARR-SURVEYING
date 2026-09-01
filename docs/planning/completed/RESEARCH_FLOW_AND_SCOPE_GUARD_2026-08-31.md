@@ -1,6 +1,12 @@
 # Research flow, scope guard, and the UI audit — 2026-08-31
 
-**Status:** IN PROGRESS · opened 2026-08-31 · built one slice per pass.
+**Status:** ✅ **COMPLETE** — every item closed. S1–S4 · J1–J2 · N1–N5 · U1–U4, plus G17 and G18.
+The last three U3 findings closed 2026-09-01: **G** fixed product-wide, **E** kept by decision, and
+**H** found to be a premise that was no longer true.
+
+> ⚠ **Complete means on a branch.** This work sits on `claude/research-duplicate-geometry-2026-08-31`,
+> which is not an ancestor of `main`. Check with `git merge-base --is-ancestor <sha> main` before
+> believing any ✅ here.
 
 Follows `RESEARCH_UI_OVERHAUL_2026-08-30.md`, which closed the same day. That doc was about how the
 research pages *look and are built*. This one is about what a person can actually **do** with them,
@@ -628,7 +634,7 @@ Recorded here rather than fixed in the same pass, one cluster per slice:
 | H | `library--desktop.png`, `billing--desktop.png` | 429 and 519 characters on a 1440px page. Near-empty screens with no empty state explaining what would fill them. |
 
 
-### U3 — Fix what U2 found ◐ **FIRST BATCH SHIPPED 2026-08-31**
+### U3 — Fix what U2 found ✅ **ALL EIGHT CLOSED — first batch 2026-08-31, the last three 2026-09-01**
 
 Six of the eight clusters. Each was found in a picture, and none of them by an assertion.
 
@@ -662,13 +668,13 @@ documents. `#F59E0B` (2.15:1) and `#059669` (3.77:1) went with it.
 fallback is gone matched the *comment in `DocumentUploadPanel` explaining what it used to do*.
 `stripJs` before scanning, with a control asserting both directions.
 
-#### Still open
+#### The last three, closed 2026-09-01
 
-| # | Finding |
-|---|---|
-| **E** | The stats row reads `17 / 0 / 0 / –`. Considered and **kept**: the em-dash is "no discrepancies to resolve yet", which `0/0` would misstate. Recorded rather than changed, because the existing code reasoned about it explicitly and overriding that on cosmetic grounds is the wrong call. |
-| **G** | The document rows carry a circle that reads as a radio button beside "Select all" / "Deselect all". It is a real `<input type="checkbox">` — the affordance is the bug, not the behaviour. |
-| **H** | `library` and `billing` render 429 and 519 characters on a 1440px page, with no empty state saying what would fill them. |
+| # | Finding | Outcome |
+|---|---|---|
+| **E** | The stats row reads `17 / 0 / 0 / –` | **KEPT, deliberately.** The em-dash means "no discrepancies to resolve yet", which `0/0` would misstate. The existing code reasoned about this explicitly; overriding that on cosmetic grounds is the wrong call. |
+| **G** | The document rows carry a circle that reads as a radio button beside "Select all" / "Deselect all" | ✅ **FIXED 2026-09-01** as R1 of `completed/BRAND_KIT_AND_DOCUMENT_VIEWERS_2026-09-01.md`. It was product-wide: `AdminLayout.css:1376` ("circle / dot design") silently defeated `AdminLayout.css:350` (`checkbox-radio-reset-2026-06-21`), whose own comment says the fix exists so checkboxes read as squares. Square box, tick instead of a dot, radios untouched, and a selector-aware guard holding both directions. |
+| **H** | `library` and `billing` render 429 and 519 characters with no empty state | ⛔ **PREMISE NO LONGER TRUE.** Checked 2026-09-01 before building: `LibraryTab` renders `EmptyState` on `paginated.length === 0` with two different messages depending on whether a FILTER is hiding everything, and `BillingTab` renders one for invoices and another for purchases. The screenshots predate E2b and G18. This doc had already half-corrected itself — finding H is traced to G18 above — and the table below it was never updated to match. **Eighth parked premise in this repository to be false when finally checked.** |
 
 ### U4 — Every new surface, on every palette ✅ **SHIPPED 2026-08-31**
 

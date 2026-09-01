@@ -1,6 +1,24 @@
 # Brand kit, and the viewers for images and documents — 2026-09-01
 
-**Status:** IN PROGRESS · opened 2026-09-01 · one slice per pass.
+**Status:** ✅ **COMPLETE** — every phase closed 2026-09-01.
+
+> ### ⚠ "COMPLETE" MEANS ON A BRANCH, NOT ON `main`
+>
+> All of this sits on `claude/research-duplicate-geometry-2026-08-31`, **38 commits ahead of
+> `main`**, and the owner authorises each merge. Until that happens, none of it is live.
+>
+> This repository has already lost a whole feature to a document that said DONE: the business-phone
+> work was recorded as shipped for weeks while every commit sat on an unmerged branch and the
+> `calls` table held zero rows. A ✅ is a claim about a branch until somebody checks, and the check
+> is one command:
+>
+> ```
+> git merge-base --is-ancestor <sha> main
+> ```
+>
+> As of writing that returns **false**. The **one** exception — live regardless of the merge — is
+> `seeds/622_brand_assets.sql`, applied directly to the production database in B0. The tables, the
+> bucket, the indexes and the RLS policies exist now whatever happens to this branch.
 
 ---
 
@@ -334,7 +352,8 @@ this repository already writes down for Approve/Demote/Ban on the employee scree
 
 ## Phase R — the tail of the last three days
 
-From `RESEARCH_FLOW_AND_SCOPE_GUARD_2026-08-31.md`.
+The open items from `RESEARCH_FLOW_AND_SCOPE_GUARD_2026-08-31.md` and the last one from
+`RESEARCH_UI_OVERHAUL_2026-08-30.md`.
 
 ### R1 — U3-G: the checkbox that reads as a radio ✅ **SHIPPED 2026-09-01**
 
@@ -380,6 +399,51 @@ The screenshots that produced the finding predate E2b and G18. **Eighth parked p
 repository to be false when finally checked** — and this one had already been half-corrected in its
 own doc, where finding H was traced to G18's blank rows rather than to a missing empty state.
 Nothing to build.
+
+
+### R3 — E1b: the shared tab keyboard, in the other sixteen portals ✅ **SHIPPED 2026-09-01**
+
+The last engineering item left open in `RESEARCH_UI_OVERHAUL_2026-08-30.md`, where it was correctly
+scoped out as *"admin shell, not the research portal"*.
+
+`role="tablist"` is a **promise about the keyboard**. A screen reader announces "tab 2 of 7", so
+somebody reaches for an arrow key, because that is what the role means. Measured: **three of
+seventeen** portals declared the role and implemented none of the behaviour; the other **fourteen
+each hand-rolled the same eight lines**, and not one handled Home or End.
+
+Without a roving `tabIndex` it is worse than plain buttons would have been: every tab is its own Tab
+stop, so reaching the panel behind a fourteen-tab bar takes fifteen presses while the markup claims
+otherwise.
+
+Fifteen portals now spread the hook's `tabKeyDown` and carry `data-tab-id`. **126 lines of
+duplicated handler deleted, 74 added.** Two were not the same defect and are recorded separately:
+
+| Portal | What it actually was |
+|---|---|
+| `marketing` | Declared the role, implemented **nothing** — one of the three the helper's own header counted. Now has the handler and the roving tabIndex |
+| `settings` | Plain buttons: **no false promise**, but still fourteen Tab stops in front of the panel. Now a real tablist, with one stable `#settings-panel` so `aria-controls` points at something that exists |
+
+### The guard caught a sixteenth portal — the one shipped that morning
+
+`/admin/branding` called `tabMoveTarget` — the pure half — and then focused `#brand-tab-${next}` by
+an id convention. That is precisely the approach `tab-keyboard.ts` warns against in its own header:
+an id lookup that drifts focuses **nothing**, and focusing nothing looks exactly like arrow keys
+never having been wired.
+
+**Two previous versions of the branding test had been satisfied by it**, because both asked whether
+the helper was CALLED rather than whether the finished handler was used. The new guard asks the
+property instead — every page using `usePortalTabs` must declare the role, spread `tabKeyDown`,
+carry `data-tab-id`, use a roving tabIndex, and contain no raw `ArrowRight` comparison.
+
+### And the codemod matched prose, for the third time today
+
+Its `data-tab-id` insertion targeted the first `role="tab"` in each file. In `billing` that is inside
+a comment explaining *that the tabs are real tabs*. It reported `PARTIAL` rather than succeeding
+wrongly — because it verifies every edit changed the file — but the lesson is the recurring one:
+**strip comments before scanning, or anchor to something prose cannot contain.**
+
+Mutation-tested both directions: replacing one handler turns 2 red, dropping one `data-tab-id` turns
+1 red.
 
 ---
 
@@ -523,3 +587,5 @@ to line starts fixes the third; the first two were replaced outright.
 | 2026-09-01 | **R1 + B2** | Every checkbox in the admin was a circle, so it read as a radio button — two deliberate blocks ~1,000 lines apart, the later winning on source order. Square box, tick instead of a dot, radios untouched. And the brand upload path exercised end to end against the live database: 39 checks, both unique indexes and the status CHECK confirmed, database left at zero rows. |
 | 2026-09-01 | **B6 + V8** | Eleven palettes across all eight brand tabs, then a browser — which found the primary button rendering white behind three green checks. `verify:brand-page` and `verify:viewer` are committed rather than thrown away; the viewer one measures a real 2750×2783 county scan fitting a 1368×803 panel, with a control proving the old default overflowed it. |
 | 2026-09-01 | **W (E5b–E5e)** | E5b and E5d were already shipped — checked before building. E5c was wired into one call site of nineteen while most of the rest held the URL in the same block; fourteen now pass it, four genuinely cannot, and a guard requires a stated reason. E5e's module already existed and guarded two doors of three. Three probes were the bug before the code was. |
+| 2026-09-01 | **R3 (E1b)** | Seventeen admin tablists: three with no keyboard at all, fourteen with their own copy of one handler, none handling Home. Fifteen now share `tabKeyDown` — 126 lines of duplication deleted. The guard caught a sixteenth: the branding portal shipped that same morning, which two earlier tests had passed because they asked whether the helper was *called* rather than whether the finished handler was *used*. |
+| 2026-09-01 | **Full suite** | 1,828 files / 27,848 tests, run twice. It caught the one thing no targeted run could: `/admin/branding` was missing from `tabs.generated.json` **entirely** — not the new tab, the whole eight-tab portal — so its tabs could not be switched off in settings. Absent means ON, which is why nothing looked broken. |

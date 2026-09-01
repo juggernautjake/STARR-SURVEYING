@@ -1,6 +1,6 @@
 # `AdminResearch.css` — what is in it, and what is safe to touch
 
-**Measured 2026-08-30.** Phase A1 of `docs/planning/in-progress/RESEARCH_UI_OVERHAUL_2026-08-30.md`.
+**Measured 2026-08-30.** Phase A1 of `docs/planning/completed/RESEARCH_UI_OVERHAUL_2026-08-30.md`.
 
 **No CSS was changed in producing this.** That is the point of the slice: deleting or renaming
 before knowing what renders is how a working screen disappears.
