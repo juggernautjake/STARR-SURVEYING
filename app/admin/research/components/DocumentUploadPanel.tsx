@@ -7,26 +7,17 @@ import { DOCUMENT_TYPE_LABELS } from '@/types/research';
 import SourceDocumentViewer from './SourceDocumentViewer';
 // One vocabulary for `processing_status`, shared with the Document Library. See the note below.
 import { statusLabel } from '../[projectId]/documents/document-rows';
+// N4: the three-step upload, the accepted types and the size limit all live in one module now, so
+// this panel and the Documents page cannot drift into two upload paths that disagree.
+import {
+  ACCEPT_ATTRIBUTE, formatFileSize, uploadDocuments, validateFiles,
+} from './upload-documents';
 
 interface DocumentUploadPanelProps {
   projectId: string;
   documents: ResearchDocument[];
   onDocumentsChanged: () => void;
 }
-
-const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
-const ACCEPTED_EXTENSIONS = new Set([
-  '.pdf',
-  '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.gif', '.heic', '.heif',
-  '.docx', '.txt', '.rtf',
-]);
-const ACCEPTED_MIME_TYPES = new Set([
-  'application/pdf',
-  'image/png', 'image/jpeg', 'image/tiff', 'image/webp', 'image/bmp', 'image/gif',
-  'image/heic', 'image/heif',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'text/plain', 'text/rtf', 'application/rtf',
-]);
 
 // ── THE STATUS VOCABULARY MOVED, AND THE FALLBACK WAS THE BUG (U3-F) ──────────────────────────
 //
@@ -46,42 +37,6 @@ const STATUS_TONE: Record<string, string> = {
   good:    '#047857',   // 5.48:1 — #059669 was 3.77:1
   bad:     'var(--color-error-text, #B42318)',
 };
-
-function formatFileSize(bytes: number | null): string {
-  if (!bytes) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function getFileExtension(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot >= 0 ? name.slice(dot).toLowerCase() : '';
-}
-
-function validateFiles(files: File[]): { valid: File[]; errors: string[] } {
-  const valid: File[] = [];
-  const errors: string[] = [];
-
-  for (const file of files) {
-    const ext = getFileExtension(file.name);
-    if (!ACCEPTED_EXTENSIONS.has(ext) && !ACCEPTED_MIME_TYPES.has(file.type)) {
-      errors.push(`"${file.name}" — unsupported file type (${ext || file.type || 'unknown'})`);
-      continue;
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      errors.push(`"${file.name}" — file too large (${formatFileSize(file.size)}, max 50 MB)`);
-      continue;
-    }
-    if (file.size === 0) {
-      errors.push(`"${file.name}" — file is empty`);
-      continue;
-    }
-    valid.push(file);
-  }
-
-  return { valid, errors };
-}
 
 export default function DocumentUploadPanel({ projectId, documents, onDocumentsChanged }: DocumentUploadPanelProps) {
   const [uploading, setUploading] = useState(false);
@@ -131,94 +86,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
 
     setUploading(true);
 
-    // Upload each file directly to Supabase Storage via a signed URL to avoid
-    // the 413 "Payload Too Large" error caused by routing large files through
-    // the Next.js API route body parser.
-    //
-    // Three-step flow per file:
-    //   1. POST /documents/upload-url — validate, create DB record, get signed URL
-    //   2. PUT  <signedUrl>            — upload file bytes directly to Supabase
-    //   3. PATCH /documents?action=confirm_upload — trigger background processing
-    const uploadErrors: string[] = [];
-    let anySuccess = false;
-
-    for (const file of valid) {
-      // ── Step 1: Request a signed upload URL ──────────────────────────────
-      let docId: string | null = null;
-      let signedUrl: string | null = null;
-      let storagePath: string | null = null;
-      const contentType = file.type || 'application/octet-stream';
-
-      try {
-        const urlRes = await fetch(`/api/admin/research/${projectId}/documents/upload-url`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: file.name,
-            fileSize: file.size,
-            fileType: file.type,
-          }),
-        });
-
-        const urlData = await urlRes.json().catch(() => ({ error: 'Invalid server response' }));
-
-        if (!urlRes.ok) {
-          uploadErrors.push(`"${file.name}": ${urlData.error ?? 'Failed to initialize upload'}`);
-          continue;
-        }
-
-        // Duplicate file — already present in the project
-        if (urlData.document && !urlData.signedUrl) {
-          anySuccess = true;
-          continue;
-        }
-
-        docId = urlData.docId as string;
-        signedUrl = urlData.signedUrl as string;
-        storagePath = urlData.storagePath as string;
-      } catch {
-        uploadErrors.push(`"${file.name}": Failed to initialize upload. Check your connection.`);
-        continue;
-      }
-
-      // ── Step 2: Upload file bytes directly to Supabase ───────────────────
-      try {
-        const putRes = await fetch(signedUrl!, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': contentType },
-        });
-
-        if (!putRes.ok) {
-          // Remove the orphaned DB record
-          await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' }).catch(() => {});
-          uploadErrors.push(`"${file.name}": File upload failed (${putRes.status}). Please try again.`);
-          continue;
-        }
-      } catch {
-        // Remove the orphaned DB record
-        await fetch(`/api/admin/research/${projectId}/documents?id=${docId}`, { method: 'DELETE' }).catch(() => {});
-        uploadErrors.push(`"${file.name}": File upload failed. Check your connection.`);
-        continue;
-      }
-
-      // ── Step 3: Confirm the upload and trigger background processing ─────
-      try {
-        await fetch(
-          `/api/admin/research/${projectId}/documents?id=${docId}&action=confirm_upload`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ storagePath }),
-          },
-        );
-      } catch {
-        // Non-fatal — the document exists with processing_status='pending'.
-        // The user can trigger reprocessing via the Retry button if needed.
-      }
-
-      anySuccess = true;
-    }
+    const { anySuccess, errors: uploadErrors } = await uploadDocuments(projectId, valid);
 
     if (uploadErrors.length > 0) {
       setUploadError(uploadErrors.join('\n'));
@@ -356,7 +224,7 @@ export default function DocumentUploadPanel({ projectId, documents, onDocumentsC
           ref={fileInputRef}
           type="file"
           multiple
-          accept=".pdf,.png,.jpg,.jpeg,.tiff,.tif,.webp,.bmp,.gif,.heic,.heif,.docx,.txt,.rtf"
+          accept={ACCEPT_ATTRIBUTE}
           style={{ display: 'none' }}
           onChange={e => e.target.files && handleFileUpload(e.target.files)}
         />

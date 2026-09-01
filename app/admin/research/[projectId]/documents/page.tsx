@@ -20,13 +20,17 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   toCards, formatBytes, statusLabel, type DocumentCard, type DocumentKind,
 } from './document-rows';
+// N4. The SAME sequence DocumentUploadPanel runs — not a second one. See upload-documents.ts for
+// why that matters: the route it posts to is what stamps `source_type: 'user_upload'`, and that
+// one value is what every "Uploaded" pill, filter and count on this page reads.
+import { ACCEPT_ATTRIBUTE, uploadDocuments, validateFiles } from '../../components/upload-documents';
 
 type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved' | 'images';
 type SortBy = 'date' | 'type' | 'name' | 'size';
@@ -63,6 +67,18 @@ export default function ProjectDocumentsPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<DocumentCard | null>(null);
 
+  // ── ADDING A FILE WHERE THE FILES ARE (N4) ────────────────────────────────────────────────
+  //
+  // This page's empty state used to read "Run the research pipeline, or upload deeds and plats
+  // from the project page." A list you cannot add to, telling you to go somewhere else — and the
+  // somewhere else shows its own copy of this same list, so the two screens were each half of one
+  // feature.
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadNote, setUploadNote] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     if (sessionStatus === 'unauthenticated') router.push('/admin/login');
   }, [sessionStatus, router]);
@@ -85,6 +101,34 @@ export default function ProjectDocumentsPage() {
   }, [projectId]);
 
   useEffect(() => { loadDocuments(); }, [loadDocuments]);
+
+  const handleFiles = useCallback(async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (!list.length || uploading) return;
+
+    setUploadError(null);
+    setUploadNote(null);
+
+    const { valid, errors } = validateFiles(list);
+    // Both halves are reported. Showing only the failures hides that four of six went through;
+    // showing only the successes hides that two did not.
+    if (errors.length) setUploadError(errors.join('\n'));
+    if (!valid.length) return;
+
+    setUploading(true);
+    const { anySuccess, errors: uploadErrors } = await uploadDocuments(projectId, valid);
+    if (uploadErrors.length) {
+      setUploadError([...errors, ...uploadErrors].join('\n'));
+    }
+    if (anySuccess) {
+      // Processing is a background job, so a file that just landed shows as "Pending" here and
+      // fills in on the next load. Saying so beats a row that looks stuck.
+      setUploadNote('Uploaded. Processing runs in the background — reload to see extracted pages.');
+      await loadDocuments();
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [projectId, uploading, loadDocuments]);
 
   const filtered = useMemo(() => documents
     .filter((d) => {
@@ -211,9 +255,55 @@ export default function ProjectDocumentsPage() {
                 <option value="size">Size</option>
               </select>
             </label>
+
+            {/* N4. Same three-step sequence as the project page's panel, same route, same
+                `source_type` — so a file added here is indistinguishable from one added there,
+                which is the whole point of "land in the same place". */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ACCEPT_ATTRIBUTE}
+              className="hidden"
+              onChange={(e) => e.target.files && handleFiles(e.target.files)}
+              data-testid="documents-upload-input"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="ml-auto px-3 py-1.5 rounded text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {uploading ? 'Uploading…' : '+ Upload files'}
+            </button>
           </div>
 
-          <div className="flex-1 lg:overflow-y-auto p-4">
+          {/* Errors and the after-upload note sit ABOVE the list, where the thing that changed is.
+              A message under a scrolled list is a message nobody reads. */}
+          {uploadError && (
+            <div role="alert" className="mx-4 mt-3 rounded border border-red-700 bg-red-950 px-3 py-2 text-sm text-red-200 whitespace-pre-line">
+              {uploadError}
+            </div>
+          )}
+          {uploadNote && !uploadError && (
+            <div role="status" className="mx-4 mt-3 rounded border border-green-700 bg-green-950 px-3 py-2 text-sm text-green-200">
+              {uploadNote}
+            </div>
+          )}
+
+          {/* Dropping a plat onto the list is the gesture people try first. Without
+              `preventDefault` on dragOver the browser NAVIGATES to the file instead, losing the
+              page — the failure looks like a crash rather than like an unsupported gesture. */}
+          <div
+            className={`flex-1 lg:overflow-y-auto p-4 ${dragging ? 'ring-2 ring-inset ring-blue-500 bg-blue-950/20' : ''}`}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragging(false);
+              if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
+            }}
+          >
             {filtered.length === 0 ? (
               <div className="text-center text-gray-300 py-16">
                 <div className="text-4xl mb-3">📁</div>
@@ -222,7 +312,7 @@ export default function ProjectDocumentsPage() {
                 </p>
                 <p className="text-sm text-gray-400 mt-1">
                   {documents.length === 0
-                    ? 'Run the research pipeline, or upload deeds and plats from the project page.'
+                    ? 'Run the research pipeline, or drop deeds and plats here.'
                     : 'Clear the search or pick another filter.'}
                 </p>
               </div>
