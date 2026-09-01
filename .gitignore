@@ -116,3 +116,5 @@ scripts/_tmp_*
 ui-fit-report.json
 ui-fit-shots/
 _tmp_*
+_*.mjs
+_*.png
