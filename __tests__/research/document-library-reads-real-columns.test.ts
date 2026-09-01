@@ -34,7 +34,7 @@ import path from 'node:path';
 import { stripJs } from '@/scripts/audit-research-contrast.mjs';
 import {
   toCard, toCards, kindOf, titleOf, instrumentOf, isImageRow, sourceLabelOf, formatBytes,
-  DOCUMENT_ROW_COLUMNS, NEVER_PRODUCED_KEYS, statusLabel, KNOWN_STATUSES, pageImagesOf, type DocumentRow,
+  DOCUMENT_ROW_COLUMNS, NEVER_PRODUCED_KEYS, statusLabel, KNOWN_STATUSES, pageImagesOf, toLibraryCard, toLibraryCards, type DocumentRow,
 } from '@/app/admin/research/[projectId]/documents/document-rows';
 
 const ROOT = process.cwd();
@@ -350,5 +350,92 @@ describe('page images', () => {
   it('and `ocr_regions` is a column that exists', () => {
     expect(COLUMNS.has('ocr_regions')).toBe(true);
     expect(DOCUMENT_ROW_COLUMNS).toContain('ocr_regions');
+  });
+});
+
+// ── AND THE PORTAL-WIDE LIBRARY TAB HAD THE SAME DEFECT, IN A SECOND FILE ──────────────────────
+//
+// Found the same way — by looking at `library--desktop.png`. Seventeen rows, all blank, and a
+// header reading **"17 purchased · $0.00 spent"**.
+//
+// `_tabs/LibraryTab.tsx` cast `/api/admin/research/library`'s response to its own `LibraryDocument`
+// (`documentId`, `instrumentNumber`, `description`, `grantor`, `grantee`, `purchased`,
+// `usedInAnalysis`, `relevanceScore`, `fileFormat`). That route returns the same raw
+// `research_documents` rows the per-project one does, plus a `project` join. Every field was
+// `undefined`.
+//
+// The bug had already been found once, in a different file, which is exactly why nobody looked.
+
+describe('the portal-wide Library reads the same real shape', () => {
+  const TAB = read('app/admin/research/_tabs/LibraryTab.tsx');
+
+  it('uses the shared shaping rather than a third cast', () => {
+    // A third hand-written cast against one table is how a fix in one place leaves the other two
+    // broken — which is precisely what happened between these two screens.
+    expect(TAB).toContain('toLibraryCards(');
+    expect(TAB, 'the fictional interface is back').not.toContain('documentId: string;');
+    expect(TAB).not.toContain('relevanceScore?: number;');
+  });
+
+  it('and one formatBytes, not two', () => {
+    expect(stripJs(TAB), 'the local copy is back').not.toContain('function formatBytes(');
+  });
+
+  it('the project join comes through', () => {
+    const card = toLibraryCard({
+      id: 'a', document_label: 'DEED', research_project_id: 'p1',
+      project: { id: 'p1', property_address: '16991 Pecan School Rd', county: 'Bell' },
+    });
+    expect(card.projectId).toBe('p1');
+    expect(card.projectAddress).toBe('16991 Pecan School Rd');
+    expect(card.countyName).toBe('Bell');
+    expect(card.title).toBe('DEED');
+  });
+
+  it('and falls back to the id column when the join is absent', () => {
+    expect(toLibraryCard({ id: 'a', research_project_id: 'p1' }).projectId).toBe('p1');
+    expect(toLibraryCard({ id: 'a' }).projectId).toBeNull();
+  });
+
+  it('drops rows with no id, like the per-project list', () => {
+    expect(toLibraryCards({ documents: [{ document_label: 'no id' }, { id: 'a' }] })).toHaveLength(1);
+  });
+
+  it('the filters no longer key on fields that do not exist', () => {
+    // `purchased` and `relevanceScore` were both `undefined` on every row, so the "Purchased" chip
+    // matched nothing on every project and the "relevance" sort was a no-op that looked like an
+    // option. Both are real questions now — was it uploaded by us, and which is the big plat.
+    expect(TAB).toContain("if (filter === 'uploaded') return doc.isUpload;");
+    expect(TAB).toContain('(b.sizeBytes ?? 0) - (a.sizeBytes ?? 0)');
+  });
+});
+
+describe('"17 purchased · $0.00 spent" was a self-contradiction', () => {
+  const ROUTE = read('app/api/admin/research/library/route.ts');
+
+  it('counts purchases from the purchases table', () => {
+    // It counted every document whose `source_type` was `property_search` or `linked_reference` —
+    // everything the pipeline RETRIEVED, free or not — so a firm with zero rows in
+    // `research_document_purchases` was told it had bought seventeen documents.
+    expect(ROUTE).toContain("from('research_document_purchases')");
+    expect(ROUTE, 'the retrieved-means-purchased rule is back')
+      .not.toContain("d.source_type === 'property_search' || d.source_type === 'linked_reference'");
+  });
+
+  it('and only `completed` counts', () => {
+    // The seed's partial unique index says why: a failed attempt is a record, not a claim of
+    // ownership, and a refund releases the document to be bought again.
+    expect(ROUTE).toContain("eq('status', 'completed')");
+  });
+
+  it('so the money is real rather than a hard-coded zero', () => {
+    // Scoped to the block that builds the REAL stats. A whole-file scan flags the two
+    // `{ totalDocuments: 0, totalPurchased: 0, totalSpent: 0, … }` empty-state responses, which are
+    // correct — a firm with no projects has spent nothing — and a check that sends somebody to
+    // "fix" working code is worse than no check.
+    const at = ROUTE.indexOf('const totalSpent =');
+    expect(at, 'the computed total is gone').toBeGreaterThan(-1);
+    expect(ROUTE).toContain('Number(p.cost_usd ?? 0)');
+    expect(stripJs(ROUTE), 'the TODO is back').not.toContain('TODO: integrate with billing tracker');
   });
 });

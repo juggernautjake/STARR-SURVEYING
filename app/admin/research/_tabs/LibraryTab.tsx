@@ -18,30 +18,21 @@ import {
 // E2b — the three data states and the status chip come from the shared primitives now, not from
 // this file's own dark Tailwind. `Loader2` went with them: LoadingState owns the spinner.
 import { LoadingState, ErrorState, EmptyState, StatPill } from '../components/ui';
+import { toLibraryCards, formatBytes, type LibraryCard } from '../[projectId]/documents/document-rows';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface LibraryDocument {
-  documentId: string;
-  projectId: string;
-  projectAddress?: string;
-  countyName?: string;
-  type: 'plat' | 'deed' | 'easement' | 'survey' | 'other';
-  instrumentNumber?: string;
-  description?: string;
-  grantor?: string;
-  grantee?: string;
-  recordedDate?: string;
-  pageCount?: number;
-  sizeBytes?: number;
-  relevanceScore?: number;
-  purchased: boolean;
-  purchasedAt?: string;
-  purchaseCost?: number;
-  usedInAnalysis?: boolean;
-  source?: string;
-  fileFormat?: string;
-}
+// ── THE SHAPE CAME FROM A CAST THAT MATCHED NOTHING ─────────────────────────────────────────────
+//
+// `LibraryDocument` declared `documentId`, `instrumentNumber`, `description`, `grantor`,
+// `grantee`, `purchased`, `usedInAnalysis`, `relevanceScore` and `fileFormat`. The route returns
+// raw `research_documents` rows plus a `project` join, so every one of those was `undefined` and
+// this tab rendered SEVENTEEN BLANK ROWS — the same defect as the per-project Document Library,
+// in a second file, found the same way: by looking at a screenshot.
+//
+// The shaping is shared now. A third hand-written cast against one table is how a fix in one place
+// leaves the other two broken.
+type LibraryDocument = LibraryCard;
 
 interface LibraryStats {
   totalDocuments: number;
@@ -51,7 +42,7 @@ interface LibraryStats {
   byCounty: Record<string, number>;
 }
 
-type DocFilter = 'all' | 'plat' | 'deed' | 'easement' | 'survey' | 'purchased';
+type DocFilter = 'all' | 'plat' | 'deed' | 'easement' | 'survey' | 'uploaded';
 type SortBy = 'date_desc' | 'date_asc' | 'relevance' | 'type' | 'county';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -98,12 +89,8 @@ export function emptyLibraryCopy(filtersNarrowed: boolean): {
   };
 }
 
-function formatBytes(bytes: number | undefined): string {
-  if (!bytes) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
+// formatBytes comes from document-rows now — one implementation, already tested there.
+
 
 // ── Page ───────────────────────────────────────────────────────────────────────
 
@@ -133,8 +120,8 @@ export default function LibraryTab() {
     try {
       const res = await fetch('/api/admin/research/library');
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { documents: LibraryDocument[]; stats: LibraryStats };
-      setDocuments(data.documents ?? []);
+      const data = await res.json() as { stats?: LibraryStats };
+      setDocuments(toLibraryCards(data));
       setStats(data.stats ?? null);
     } catch (err) {
       setLoadError(String(err));
@@ -155,8 +142,11 @@ export default function LibraryTab() {
 
   const filtered = documents
     .filter(doc => {
-      if (filter === 'purchased') return doc.purchased;
-      if (filter !== 'all') return doc.type === filter;
+      // 'purchased' became 'uploaded': the old chip filtered on a field that does not exist, so it
+      // matched nothing on every project. Whether a document was BOUGHT lives in
+      // research_document_purchases, which the stats now read and the row list does not join.
+      if (filter === 'uploaded') return doc.isUpload;
+      if (filter !== 'all') return doc.kind === filter;
       return true;
     })
     .filter(doc => countyFilter === 'all' || doc.countyName === countyFilter)
@@ -164,10 +154,9 @@ export default function LibraryTab() {
       if (!search) return true;
       const q = search.toLowerCase();
       return (
-        (doc.instrumentNumber ?? '').toLowerCase().includes(q) ||
-        (doc.description ?? '').toLowerCase().includes(q) ||
-        (doc.grantor ?? '').toLowerCase().includes(q) ||
-        (doc.grantee ?? '').toLowerCase().includes(q) ||
+        doc.title.toLowerCase().includes(q) ||
+        (doc.instrument ?? '').toLowerCase().includes(q) ||
+        doc.sourceLabel.toLowerCase().includes(q) ||
         (doc.projectAddress ?? '').toLowerCase().includes(q)
       );
     })
@@ -175,8 +164,10 @@ export default function LibraryTab() {
       switch (sortBy) {
         case 'date_desc': return (b.recordedDate ?? '').localeCompare(a.recordedDate ?? '');
         case 'date_asc':  return (a.recordedDate ?? '').localeCompare(b.recordedDate ?? '');
-        case 'relevance': return (b.relevanceScore ?? 0) - (a.relevanceScore ?? 0);
-        case 'type':      return a.type.localeCompare(b.type);
+        // 'relevance' sorted on a field that does not exist, so it was a no-op that looked like
+        // an option. Size is a real column and a real question — which of these is the big plat.
+        case 'relevance': return (b.sizeBytes ?? 0) - (a.sizeBytes ?? 0);
+        case 'type':      return a.kind.localeCompare(b.kind);
         case 'county':    return (a.countyName ?? '').localeCompare(b.countyName ?? '');
         default: return 0;
       }
@@ -270,7 +261,7 @@ export default function LibraryTab() {
             sideways rather than wrap — six chips do not fit 390px, and wrapping pushes the list
             people came for below the fold. */}
         <div className="research-page__status-filters research-library__filters">
-          {(['all', 'plat', 'deed', 'easement', 'survey', 'purchased'] as DocFilter[]).map(f => (
+          {(['all', 'plat', 'deed', 'easement', 'survey', 'uploaded'] as DocFilter[]).map(f => (
             <button
               key={f}
               type="button"
@@ -343,31 +334,33 @@ export default function LibraryTab() {
         <div className="research-library__list">
           {paginated.map(doc => (
             <Link
-              key={doc.documentId}
+              key={doc.id}
               href={`/admin/research/${doc.projectId}/documents`}
               className="research-library__doc"
             >
               <span className="research-library__doc-icon" aria-hidden="true">
-                <DocTypeIcon type={doc.type} size={20} />
+                <DocTypeIcon type={doc.kind} size={20} />
               </span>
 
               <span className="research-library__doc-body">
                 <span className="research-library__doc-tags">
-                  <span className="research-library__doc-type">{doc.type}</span>
-                  {doc.instrumentNumber && (
-                    <span className="research-library__doc-instrument">{doc.instrumentNumber}</span>
+                  <span className="research-library__doc-type">{doc.kind}</span>
+                  {doc.instrument && (
+                    <span className="research-library__doc-instrument">{doc.instrument}</span>
                   )}
-                  {doc.purchased && (
-                    <StatPill tone="good"><Check size={11} strokeWidth={2.5} aria-hidden="true" /> Purchased</StatPill>
+                  {doc.isUpload && (
+                    <StatPill tone="info"><Check size={11} strokeWidth={2.5} aria-hidden="true" /> Uploaded</StatPill>
                   )}
-                  {doc.usedInAnalysis && (
-                    <StatPill tone="info"><Check size={11} strokeWidth={2.5} aria-hidden="true" /> Used</StatPill>
+                  {doc.pageImages.length > 0 && (
+                    <StatPill tone="neutral">
+                      {doc.pageImages.length} page{doc.pageImages.length === 1 ? '' : 's'}
+                    </StatPill>
                   )}
                 </span>
 
-                {doc.description && (
-                  <span className="research-library__doc-desc">{doc.description}</span>
-                )}
+                {/* The TITLE, which is what the blank rows were missing. `titleOf` never returns an
+                    empty string — see the note in document-rows.ts. */}
+                <span className="research-library__doc-desc">{doc.title}</span>
 
                 <span className="research-library__doc-meta">
                   {doc.projectAddress && (
@@ -376,15 +369,11 @@ export default function LibraryTab() {
                     </span>
                   )}
                   {doc.countyName && <span>{doc.countyName} County</span>}
-                  {doc.grantor && <span>From: {doc.grantor}</span>}
+                  <span>{doc.sourceLabel}</span>
                   {doc.recordedDate && <span>{doc.recordedDate}</span>}
-                  {doc.sizeBytes && <span>{formatBytes(doc.sizeBytes)}</span>}
+                  {doc.sizeBytes != null && <span>{formatBytes(doc.sizeBytes)}</span>}
                 </span>
               </span>
-
-              {doc.purchaseCost !== undefined && (
-                <span className="research-library__doc-cost">${doc.purchaseCost.toFixed(2)}</span>
-              )}
             </Link>
           ))}
         </div>

@@ -159,6 +159,18 @@ export default function PipelineTab() {
   // at all, whatever the slider says.
   const maxSpend = autoPurchase ? readyRows * batchBudget : 0;
 
+  // ── WHICH ROWS ACTUALLY COST MONEY (Phase S4) ────────────────────────────────────────────────
+  //
+  // "A ceiling, not a forecast — counties with a free portal spend nothing" was true and
+  // unactionable: it said SOME of these are free without saying which. The scope check already
+  // knows, per row, whether the county has an adapter of its own or falls through to the TexasFile
+  // aggregator, so the estimate can name the number rather than gesture at it.
+  //
+  // `degraded` is exactly the paying case and `supported` is exactly the free one. Anything else
+  // will not run at all, and is reported separately beside the submit.
+  const payingRows = batchRows.filter((r, i) => isReadyRow(r) && rowScopes[i]!.verdict === 'degraded').length;
+  const freeRows = batchRows.filter((r, i) => isReadyRow(r) && rowScopes[i]!.verdict === 'supported').length;
+
   function addBatchRow() {
     setBatchRows(r => [...r, { address: '', county: '', state: 'TX' }]);
   }
@@ -342,8 +354,22 @@ export default function PipelineTab() {
                   <>
                     <strong>Up to ${maxSpend.toFixed(2)}</strong> for this batch —
                     {' '}${batchBudget.toFixed(2)} × {readyRows}{' '}
-                    {readyRows === 1 ? 'property' : 'properties'}. A ceiling, not a forecast:
-                    {' '}counties with a free portal spend nothing.
+                    {readyRows === 1 ? 'property' : 'properties'}. A ceiling, not a forecast.
+                    {/* WHICH ones, not just that some are free (S4). The scope check already knows
+                        per row, so the sentence can carry the number. */}
+                    {payingRows > 0 && (
+                      <>
+                        {' '}<strong>{payingRows}</strong> of them {payingRows === 1 ? 'is' : 'are'} in
+                        {' '}a county with no adapter of our own, so {payingRows === 1 ? 'its' : 'their'}
+                        {' '}documents come from the TexasFile aggregator and are charged per document.
+                      </>
+                    )}
+                    {freeRows > 0 && (
+                      <>
+                        {' '}<strong>{freeRows}</strong> {freeRows === 1 ? 'uses' : 'use'} a free
+                        {' '}county portal and will spend nothing.
+                      </>
+                    )}
                   </>
                 ) : (
                   <><strong>$0.00.</strong> Purchasing is off, so nothing can be bought whatever the limit says.</>

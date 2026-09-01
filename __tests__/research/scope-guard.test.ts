@@ -23,6 +23,7 @@ import {
   checkScope, normalizeState, scopeRefusal, SUPPORTED_STATES,
 } from '@/lib/research/scope';
 import { scopeLabel, scopeDescribedBy } from '@/app/admin/research/components/ScopeNotice';
+import { stripJs } from '@/scripts/audit-research-contrast.mjs';
 import { CLERK_REGISTRY } from '@/worker/src/adapters/clerk-registry';
 import { TEXAS_COUNTIES } from '@/worker/src/lib/county-fips';
 
@@ -417,5 +418,51 @@ describe('the notice itself', () => {
     for (const t of tokens) {
       expect(defined, `${t} is read by ScopeNotice.css and defined nowhere`).toContain(`${t}:`);
     }
+  });
+});
+
+// ── DEGRADED IS A PRICE, SO THE FORM SAYS WHICH ROWS PAY IT (Phase S4) ──────────────────────────
+//
+// The batch form's estimate read: *"A ceiling, not a forecast: counties with a free portal spend
+// nothing."* True, and unactionable — it says SOME of these are free without saying which, so an
+// operator looking at "Up to $500.00" has no way to tell whether that means five dollars or five
+// hundred.
+//
+// The scope check already knows, per row. `degraded` is exactly the paying case (no adapter of our
+// own, so the TexasFile aggregator, charged per document) and `supported` is exactly the free one.
+
+describe('the batch form names which rows cost money', () => {
+  const BATCH = read('app/admin/research/_tabs/PipelineTab.tsx');
+
+  it('counts the paying rows off the SCOPE verdict, not a second rule', () => {
+    // A hand-written "is this county free" test beside `checkScope` would be a fourth copy of the
+    // registry, and would disagree with the guard the moment an adapter shipped.
+    expect(BATCH).toContain("rowScopes[i]!.verdict === 'degraded'");
+    expect(BATCH).toContain("rowScopes[i]!.verdict === 'supported'");
+  });
+
+  it('and counts only rows that would actually run', () => {
+    // A half-typed row is not a cost. Counting it would inflate the number somebody is deciding on.
+    expect(BATCH).toContain("isReadyRow(r) && rowScopes[i]!.verdict === 'degraded'");
+  });
+
+  it('says the number rather than gesturing at it', () => {
+    expect(BATCH).toContain('{payingRows}');
+    expect(BATCH).toContain('{freeRows}');
+    // stripJs: the comment in PipelineTab that explains why the vague sentence was replaced
+    // QUOTES it. Thirteenth time a check in this repository has matched its own documentation.
+    expect(stripJs(BATCH), 'the vague version is back')
+      .not.toContain('counties with a free portal spend nothing');
+  });
+
+  it('and that check reads CODE, not the note explaining the change', () => {
+    expect(BATCH, 'the explanatory comment is gone, so the control above is vacuous')
+      .toContain('counties with a free portal spend nothing');
+  });
+
+  it('and still says the estimate is a ceiling', () => {
+    // Removing that would be the opposite error: most runs in this firm's working area spend
+    // nothing, so presenting the ceiling as a forecast would make every batch look unaffordable.
+    expect(BATCH).toContain('A ceiling, not a forecast');
   });
 });

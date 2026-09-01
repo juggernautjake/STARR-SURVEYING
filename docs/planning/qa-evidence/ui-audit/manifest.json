@@ -1,7 +1,7 @@
 {
   "base": "http://localhost:3050",
   "theme": "starr-default",
-  "capturedAt": "2026-08-31T23:59:51.587Z",
+  "capturedAt": "2026-09-01T00:27:21.619Z",
   "shots": [
     {
       "route": "/admin/research",
@@ -49,7 +49,7 @@
       "route": "/admin/research/library",
       "width": "desktop",
       "file": "library--desktop.png",
-      "chars": 429
+      "chars": 3239
     },
     {
       "route": "/admin/research/pipeline",
@@ -121,7 +121,7 @@
       "route": "/admin/research/library",
       "width": "phone",
       "file": "library--phone.png",
-      "chars": 648
+      "chars": 3458
     },
     {
       "route": "/admin/research/pipeline",

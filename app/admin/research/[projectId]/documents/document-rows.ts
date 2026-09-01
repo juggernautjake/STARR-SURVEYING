@@ -284,3 +284,52 @@ export function pageImagesOf(row: DocumentRow & { ocr_regions?: unknown }): stri
 
   return urls;
 }
+
+// ── AND THE PORTAL-WIDE LIBRARY HAD THE SAME DEFECT, IN A SECOND FILE ──────────────────────────
+//
+// `_tabs/LibraryTab.tsx` cast `/api/admin/research/library`'s response to its own `LibraryDocument`
+// — `documentId`, `instrumentNumber`, `description`, `grantor`, `grantee`, `purchased`,
+// `usedInAnalysis`, `relevanceScore`, `fileFormat` — and that route returns the same raw
+// `research_documents` rows the per-project one does, plus a `project` join.
+//
+// So the Library tab rendered seventeen blank rows too, for exactly the reason the project's
+// Document Library did, in a file nobody thought to look at because the bug had already been found
+// once. Two casts, one wrong shape, two screens.
+//
+// This is why the shaping is shared rather than copied a third time.
+
+export interface LibraryRow extends DocumentRow {
+  research_project_id?: string | null;
+  /** The `research_projects` join the library route adds. */
+  project?: {
+    id?: string | null;
+    property_address?: string | null;
+    county?: string | null;
+    state?: string | null;
+  } | null;
+}
+
+export interface LibraryCard extends DocumentCard {
+  projectId: string | null;
+  projectAddress: string | null;
+  countyName: string | null;
+}
+
+export function toLibraryCard(row: LibraryRow): LibraryCard {
+  return {
+    ...toCard(row),
+    projectId: row.project?.id ?? row.research_project_id ?? null,
+    projectAddress: row.project?.property_address ?? null,
+    countyName: row.project?.county ?? null,
+  };
+}
+
+export function toLibraryCards(payload: unknown): LibraryCard[] {
+  const rows = Array.isArray(payload)
+    ? payload
+    : ((payload as { documents?: unknown })?.documents ?? []);
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .filter((r): r is LibraryRow => Boolean(r) && typeof r === 'object' && typeof (r as LibraryRow).id === 'string')
+    .map(toLibraryCard);
+}

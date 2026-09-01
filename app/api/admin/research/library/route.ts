@@ -147,15 +147,35 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   const allDocs = (allDocsRaw ?? []) as DocumentStatsRow[];
   const byType: Record<string, number> = {};
   const byCounty: Record<string, number> = {};
-  let totalPurchased = 0;
 
   for (const d of allDocs) {
     if (d.document_type) byType[d.document_type] = (byType[d.document_type] ?? 0) + 1;
     const proj = projectById.get(d.research_project_id as string);
     if (proj?.county) byCounty[proj.county] = (byCounty[proj.county] ?? 0) + 1;
-    // Purchased documents are those retrieved from clerk/vendor systems, not user-uploaded files
-    if (d.source_type === 'property_search' || d.source_type === 'linked_reference') totalPurchased++;
   }
+
+  // ── '17 PURCHASED · $0.00 SPENT' WAS A SELF-CONTRADICTION ──────────────────────────────────
+  //
+  // `totalPurchased` counted every document whose `source_type` was `property_search` or
+  // `linked_reference` — which is everything the pipeline RETRIEVED, free or not — and
+  // `totalSpent` was a hard-coded `0` behind a TODO. So the Library reported seventeen documents
+  // bought for nothing, on a firm where `research_document_purchases` has zero rows.
+  //
+  // Both numbers come from the purchases table now, and only `completed` counts: a failed attempt
+  // is recorded so the reason is visible, and a refund releases the document — the seed says so at
+  // the partial unique index, and a count that ignored status would claim ownership of neither.
+  const { data: purchases } = await supabaseAdmin
+    .from('research_document_purchases')
+    .select('cost_usd')
+    .eq('status', 'completed')
+    .in('research_project_id', projectIds);
+
+  const completedPurchases = (purchases ?? []) as Array<{ cost_usd?: number | string | null }>;
+  const totalPurchased = completedPurchases.length;
+  const totalSpent = completedPurchases.reduce(
+    (sum: number, p) => sum + Number(p.cost_usd ?? 0),
+    0,
+  );
 
   const total = count ?? filteredDocs.length;
   return NextResponse.json({
@@ -163,7 +183,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     stats: {
       totalDocuments: allDocs.length,
       totalPurchased,
-      totalSpent: 0,  // TODO: integrate with billing tracker
+      totalSpent,
       byType,
       byCounty,
     },

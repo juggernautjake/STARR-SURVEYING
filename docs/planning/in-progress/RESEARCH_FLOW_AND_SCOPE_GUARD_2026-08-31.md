@@ -113,11 +113,84 @@ was right.
 And the project page's run button carries the verdict too. A button that starts a run it knows will
 be refused is worse than a disabled one.
 
-### S4 — Degraded is a price, so show the price ☐
+### S4 — Degraded is a price, so show the price ✅ **SHIPPED 2026-08-31**
 
-A `stub` county means TexasFile at roughly $1–3 a document. `research_document_purchases` still has
-**0 rows**, so no run has ever bought one — which means this is the first time the number will be
-real. The confirmation says the county, the adapter, and the spend limit that will apply.
+The batch form's estimate read *"A ceiling, not a forecast: counties with a free portal spend
+nothing."* True, and unactionable — it says **some** of these are free without saying **which**, so
+an operator looking at "Up to $500.00" cannot tell whether that means five dollars or five hundred.
+
+The scope check already knows, per row: `degraded` is exactly the paying case (no adapter of our
+own, so the TexasFile aggregator, charged per document) and `supported` is exactly the free one. The
+sentence carries the numbers now — *"3 of them are in a county with no adapter of our own… 2 use a
+free county portal and will spend nothing"* — derived from the same verdicts the guard and the
+row notices use, so a fourth rule cannot disagree with them.
+
+"A ceiling, not a forecast" stays. Removing it would be the opposite error: most runs in this firm's
+working area spend nothing, and presenting the ceiling as a forecast makes every batch look
+unaffordable.
+
+**The in-app path deliberately gets none of this**, because it cannot buy a document at all — the
+doc's READ FIRST fact. A spend confirmation on a screen that cannot spend is noise that teaches
+people to click through the one that can.
+
+---
+
+## G18 — the portal Library had the same blank rows, in a second file (2026-08-31)
+
+`library--desktop.png`. Seventeen rows, all blank. **"17 purchased · $0.00 spent"** in the header.
+
+`_tabs/LibraryTab.tsx` cast `/api/admin/research/library`'s response to its own `LibraryDocument` —
+`documentId`, `instrumentNumber`, `description`, `grantor`, `grantee`, `purchased`,
+`usedInAnalysis`, `relevanceScore`, `fileFormat`. That route returns the same raw
+`research_documents` rows the per-project one does, plus a `project` join. Every field `undefined`.
+
+**G17 in a second file.** The bug had already been found once, which is exactly why nobody looked
+again — and it is the argument for the shaping being *shared* rather than fixed twice. `LibraryTab`
+reads `toLibraryCards` now, and there is one `formatBytes` instead of two.
+
+Two filters were dead as well, and dead in a way that looked like a working feature:
+
+- **"Purchased"** filtered on `doc.purchased`, which does not exist — so the chip matched nothing on
+  every project, forever. It is **"Uploaded"** now, on `source_type`, which is a real question.
+- **Sort by "relevance"** compared `undefined` to `undefined` — a no-op presented as an option. It
+  sorts by size, which is a real question: which of these is the big plat.
+
+### "17 purchased · $0.00 spent" was a self-contradiction
+
+`totalPurchased` counted every document whose `source_type` was `property_search` or
+`linked_reference` — **everything the pipeline retrieved, free or not** — and `totalSpent` was a
+hard-coded `0` behind a `TODO: integrate with billing tracker`. So a firm with **zero rows** in
+`research_document_purchases` was told it had bought seventeen documents for nothing.
+
+Both come from the purchases table now, and only `completed` counts — the seed's partial unique
+index says why: a failed attempt is a record, not a claim of ownership, and a refund releases the
+document to be bought again. The header reads **"0 purchased · $0.00 spent"**, which is true.
+
+**429 chars of rendered text → 3,239.**
+
+And the check that asserts the hard-coded zero is gone had to be **narrowed**: a whole-file scan
+flagged the two `{ totalDocuments: 0, totalPurchased: 0, totalSpent: 0 }` empty-state responses,
+which are correct — a firm with no projects has spent nothing — and a check that sends somebody to
+fix working code is worse than no check.
+
+---
+
+## The two remaining audit findings
+
+**G — the round checkbox is real, product-wide, and not this doc's to change.** Measured rather
+than eyeballed: `border-radius: 50%` and `appearance: none` genuinely apply. The source is
+`AdminLayout.css:1376`, *"Global Checkbox Styles (circle / dot design)"* — and it silently defeats
+`AdminLayout.css:350`, the `checkbox-radio-reset-2026-06-21` block whose own comment says the fix
+exists so *"checkboxes/radios across the site read as proper, perfectly round (radio) or square
+(checkbox) controls"*.
+
+Two deliberate decisions, ~1,000 lines apart in one file, disagreeing about whether a checkbox is
+round; the later one wins on source order at equal specificity. **Every checkbox in the admin is
+affected**, so this is an admin-shell finding like E1b, recorded with its evidence and not changed
+on the strength of one research screenshot.
+
+**H — was not what it looked like.** The Library's 429 characters were not a missing empty state.
+They were G18: the page was full of rows that rendered nothing. Fixed above.
 
 ---
 
