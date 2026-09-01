@@ -439,3 +439,47 @@ describe('"17 purchased · $0.00 spent" was a self-contradiction', () => {
     expect(stripJs(ROUTE), 'the TODO is back').not.toContain('TODO: integrate with billing tracker');
   });
 });
+
+// ── THE RENDERING BUG WAS HIDING A CONTRAST BUG ─────────────────────────────────────────────────
+//
+// The 11-palette sweep that CONFIRMED the fix above also failed, in the same run, on four dark
+// palettes: `.research-library__doc-desc` at 1.61:1. Those greys had been hard-coded since the rows
+// were written and had passed every previous sweep — because the rows rendered blank, and a probe
+// that measures rendered text finds nothing to measure in an empty span.
+//
+// So "the theme check is green" meant less than it looked like on any surface that was not actually
+// drawing. Worth keeping as a check, because the same trap is set wherever an empty state hides
+// styling nobody has exercised.
+
+describe('the row text is themed, not hard-coded', () => {
+  const CSS = read('app/admin/styles/AdminResearch.css');
+
+  const ruleFor = (selector: string) => {
+    const at = CSS.indexOf(`.research-library__${selector} {`);
+    expect(at, `.research-library__${selector} is gone`).toBeGreaterThan(-1);
+    return CSS.slice(at, CSS.indexOf('}', at));
+  };
+
+  for (const selector of ['doc-instrument', 'doc-desc', 'doc-meta', 'doc-address']) {
+    it(`${selector} takes its colour from a token`, () => {
+      const rule = ruleFor(selector);
+      expect(rule, `${selector} declares no colour at all`).toContain('color:');
+      // A literal is allowed only as the var() fallback, never as the declaration itself.
+      expect(rule.replace(/var\([^)]*\)/g, 'TOKEN'), `${selector} hard-codes its colour again`)
+        .not.toMatch(/color:\s*#/);
+    });
+  }
+
+  it('and the title is PRIMARY, not muted', () => {
+    // It is the one string that says which document this is. It was the muted grey that measured
+    // 1.61:1, and demoting it back would be a legibility regression dressed as a palette choice.
+    expect(ruleFor('doc-desc')).toContain('--theme-fg-primary');
+  });
+
+  it('control: this check can actually fail', () => {
+    // The regex above is the load-bearing part. If `color: #374151` stopped matching it, every
+    // assertion in this block would pass on a stylesheet that had reverted completely.
+    const reverted = '.research-library__doc-desc {\n  color: #374151;\n';
+    expect(reverted.replace(/var\([^)]*\)/g, 'TOKEN')).toMatch(/color:\s*#/);
+  });
+});

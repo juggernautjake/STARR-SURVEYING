@@ -30,6 +30,8 @@
 // 158 findings became 28 once it was right. All 28 were real and are fixed.
 
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   audit, contrast, parseHex, colourOf, readVars, backgroundFor, requiredRatio, inlinePair, paintsDark,
   auditInline, jsxTags, ancestorSurfaces, styleObjects,
@@ -442,5 +444,71 @@ describe('the research stylesheets clear WCAG AA on the default theme', () => {
         `  ${f.ratio}:1 (need ${f.need}) ${f.selector} — ${f.fg} on ${f.bg}  ${f.file}:${f.line}`,
     );
     expect(result.findings, `contrast failures:\n${lines.join('\n')}`).toEqual([]);
+  });
+});
+
+// ── WHAT THE STATIC AUDIT CANNOT SEE, AND WHERE IT WAS NOT LOOKING (U4) ─────────────────────────
+//
+// Everything above reads stylesheets. The browser sweep reads rendered pages. Both had been green
+// for a week, and both were only ever pointed at INDEX routes — `/admin/research`, the eight
+// portal tabs. A detail route cannot be reached by typing a path with no id in it, so the route
+// list quietly described "the pages that are easy to name" rather than "the pages people use".
+//
+// The first run against `/admin/research/<projectId>` found two real defects on all four dark
+// palettes. Neither is exotic; both had been on screen the whole time.
+
+describe('the two defects the project-scoped sweep found', () => {
+  const read = (f: string) => fs.readFileSync(path.join(process.cwd(), f), 'utf8');
+
+  it('the idle panel takes its BACKGROUND from the theme, not only its text', () => {
+    // 1.05:1, measured. The text already read `var(--theme-fg-primary, #1F2937)`; the panel under
+    // it was a hard-coded #F9FAFB. On a dark palette --theme-fg-primary is near-white, so
+    // "No Active Research" rendered white on white.
+    //
+    // Half-tokenised is worse than neither. Two literals would have been self-consistent and
+    // merely off-palette; tokenising exactly one of the pair is what made the panel invisible.
+    const src = read('app/admin/research/components/ResearchRunPanel.tsx');
+    const at = src.indexOf("className=\"rrp__progress rrp__progress--idle\"");
+    expect(at, 'the idle panel is gone').toBeGreaterThan(-1);
+    const block = src.slice(at, at + 460);
+    expect(block).toContain("background: 'var(--theme-bg-elevated");
+    expect(block, 'the panel background is a literal again').not.toMatch(/background: '#/);
+  });
+
+  it('and the completed-stage green is defined for dark grounds', () => {
+    // #047857 was audited once, against white — "5.48:1 on white" — which was true, and silent
+    // about which surface. On the dark palettes' ~#111935 page it is 3.15:1, making the labels for
+    // the stages a person has ALREADY FINISHED the least readable text on the screen.
+    const css = read('app/admin/styles/AdminResearch.css');
+    expect(css, 'the light-surface green is still the only definition')
+      .toContain('--recon-success: #34D399');
+    const at = css.indexOf('--recon-success: #34D399');
+    const selector = css.slice(Math.max(0, at - 400), at);
+    for (const theme of ['starr-dark', 'slate-dark', 'forest-dark', 'high-contrast-dark']) {
+      expect(selector, `${theme} does not get the dark-ground green`).toContain(theme);
+    }
+  });
+
+  it('control: the light palettes keep the audited hex', () => {
+    // Overriding it globally would undo the original 5.48:1 finding rather than complete it.
+    const css = read('app/admin/styles/AdminResearch.css');
+    expect(css).toContain('--recon-success: #047857');
+  });
+});
+
+describe('the sweep can reach a detail route at all', () => {
+  it('a :projectId in --routes is expanded from the database', () => {
+    const src = fs.readFileSync(path.join(process.cwd(), 'scripts/check-portal-themes.mjs'), 'utf8');
+    expect(src).toContain(':projectId');
+    expect(src).toContain('research_projects?select=id');
+  });
+
+  it('and an unresolvable id FAILS rather than skipping the route', () => {
+    // A silently-skipped route is exactly how this gap lasted: a green run that checked eight of
+    // ten pages and said so nowhere.
+    const src = fs.readFileSync(path.join(process.cwd(), 'scripts/check-portal-themes.mjs'), 'utf8');
+    const at = src.indexOf('no research project could be resolved');
+    expect(at, 'the unresolvable case is not handled').toBeGreaterThan(-1);
+    expect(src.slice(at, at + 120)).toContain('process.exit(2)');
   });
 });

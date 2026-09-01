@@ -38,7 +38,49 @@ const arg = (f) => { const i = process.argv.indexOf(f); return i === -1 ? undefi
 const BASE = (arg('--base') ?? 'http://127.0.0.1:3015').replace(/\/$/, '');
 const AS = arg('--as') ?? 'jacobmaddux@starr-surveying.com';
 const THEMES = (arg('--themes') ?? 'starr-default,starr-dark,forest-dark,ocean,high-contrast-dark').split(',');
-const ROUTES = (arg('--routes') ?? '/admin/jobs,/admin/employees,/admin/work,/admin/research,/admin/learn,/admin/settings').split(',');
+const RAW_ROUTES = (arg('--routes') ?? '/admin/jobs,/admin/employees,/admin/work,/admin/research,/admin/learn,/admin/settings').split(',');
+
+// ── EVERY DEFAULT ROUTE WAS AN INDEX ROUTE ──────────────────────────────────────────────────────
+//
+// Measured 2026-08-31. The eight research portal tabs had been swept clean across all eleven
+// palettes for a week. The first time this script was pointed at a PROJECT-scoped route it found
+// two real defects immediately:
+//
+//   · "No Active Research" at 1.05:1 — near-white text on a hard-coded #F9FAFB panel, on all four
+//     dark palettes. The text was tokenised and the background was not, which is worse than
+//     tokenising neither: a literal pair would at least have been self-consistent.
+//   · the stepper's completed-stage labels at 3.03:1 — a green audited once, against white.
+//
+// Neither is exotic. They survived because a detail route cannot be reached by typing a path with
+// no id in it, so the route list quietly described "the pages that are easy to name" rather than
+// "the pages people use". A route with a `:projectId` in it is expanded from the database here.
+//
+// It FAILS rather than skipping when the id cannot be resolved. A silently-skipped route is
+// precisely how this gap lasted as long as it did — a green run that checked eight of ten pages
+// and said so nowhere.
+async function resolveRoutes(routes) {
+  if (!routes.some((r) => r.includes(':projectId'))) return routes;
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) {
+    console.error('--routes contains :projectId but SUPABASE env vars are not set');
+    process.exit(2);
+  }
+
+  const res = await fetch(`${url}/rest/v1/research_projects?select=id&order=created_at.desc&limit=1`,
+    { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+  const rows = await res.json().catch(() => null);
+  if (!Array.isArray(rows) || !rows[0]?.id) {
+    console.error('--routes contains :projectId and no research project could be resolved');
+    process.exit(2);
+  }
+
+  console.log(`  :projectId → ${rows[0].id}`);
+  return routes.map((r) => r.replace(':projectId', rows[0].id));
+}
+
+const ROUTES = await resolveRoutes(RAW_ROUTES);
 
 const secret = (process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET ?? '').replace(/^["']|["']$/g, '');
 if (!secret) { console.error('AUTH_SECRET is not set'); process.exit(2); }

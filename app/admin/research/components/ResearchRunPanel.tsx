@@ -765,15 +765,26 @@ export default function ResearchRunPanel({
         </button>
       )}
 
-      {/* ── Idle State: no pipeline running, waiting for user action ── */}
+      {/* ── Idle State: no pipeline running, waiting for user action ──
+           HALF-TOKENISED IS WORSE THAN NEITHER. The text here already read
+           `var(--theme-fg-primary, #1F2937)`; the panel it sits on was a
+           hard-coded #F9FAFB. On the four dark palettes --theme-fg-primary
+           resolves to near-white, so "No Active Research" rendered white on
+           white — 1.05:1, measured. Had the background stayed a literal beside
+           literal text the pair would at least have been self-consistent; it was
+           tokenising ONE of the two that produced an invisible panel.
+
+           Found 2026-08-31 the first time check-portal-themes was pointed at a
+           project-scoped route. See the --recon-success note in AdminResearch.css:
+           same run, same cause, same lesson about which routes were being swept. */}
       {isIdle && (
         <div className="rrp__progress rrp__progress--idle" style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           padding: '3rem 2rem',
-          background: '#F9FAFB',
-          border: '1px solid #E5E7EB',
+          background: 'var(--theme-bg-elevated, #F9FAFB)',
+          border: '1px solid var(--theme-border, #E5E7EB)',
           borderRadius: '0.75rem',
           textAlign: 'center',
           gap: '0.75rem',

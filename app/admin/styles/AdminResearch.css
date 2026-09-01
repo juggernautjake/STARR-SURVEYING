@@ -12323,21 +12323,52 @@
 .research-library__doc-type {
   padding: 0.1rem 0.5rem;
   border-radius: 4px;
-  background: #F3F4F6;
-  color: #374151;
+  /* Self-consistent light-on-light, so the contrast probe passed it. But a pale chip on a dark
+     card is the unthemed-surface shape: readable, and still obviously wrong. */
+  background: var(--theme-bg-subtle, #F3F4F6);
+  color: var(--theme-fg-secondary, #374151);
   font-size: 0.7rem;
   text-transform: capitalize;
+}
+
+/* These four carried hard-coded greys and a hard-coded blue from the day they were written, and
+   passed every theme check for exactly as long as the rows rendered BLANK: there was no text for
+   the contrast probe to measure. G18 filled the rows in, and the very run that proved the fix
+   worked also reported 1.61:1 on four dark palettes. A rendering bug had been hiding a contrast
+   bug. The checker was never wrong; it had nothing to look at. */
+/* ── PREFILL ADVICE ─────────────────────────────────────────────────────────────────────────
+   Deliberately NOT `.research-county-note--warn`. That class lives in CountyNote.css, which
+   CountyNote imports and ProjectsTab does not — so borrowing it renders correctly (the component
+   is mounted on the same page and pulls the sheet in) while `rendered-classes-are-styled` counts
+   two classes no sheet reachable from this file defines. The guard was right: the styling worked
+   by proximity, and deleting CountyNote from this page would have silently unstyled the note.
+
+   It is also a different thing. CountyNote advises on what was TYPED; this reports what the
+   prefill could not supply. Same tokens, so a palette change still moves both together. */
+.research-prefill-note {
+  margin-top: 0.375rem;
+  padding: 0.5rem 0.625rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-warning-text, #92400E);
+  background: var(--color-warning-bg, #FFFBEB);
+  border: 1px solid var(--color-warning-border, #FDE68A);
+  border-radius: 6px;
 }
 
 .research-library__doc-instrument {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.8125rem;
-  color: #1D4ED8;
+  /* --theme-accent, not --theme-info: #3B82F6 is 3.52:1 on white and broke starr-default once
+     already. The monospace face carries the "this is an identifier" signal by itself, so colour
+     is never the only thing saying it. */
+  color: var(--theme-accent, #1D4ED8);
 }
 
 .research-library__doc-desc {
   font-size: 0.8125rem;
-  color: #374151;
+  /* The document TITLE, the single most important string in the row. Primary, not muted. */
+  color: var(--theme-fg-primary, #374151);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -12349,14 +12380,14 @@
   gap: 0.75rem;
   flex-wrap: wrap;
   font-size: 0.75rem;
-  color: #6B7280;
+  color: var(--theme-fg-muted, #6B7280);
 }
 
 .research-library__doc-address {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  color: #4B5563;
+  color: var(--theme-fg-secondary, #4B5563);
 }
 
 .research-library__doc-cost {
@@ -12952,6 +12983,32 @@
  * measured against that value stays measured against it. */
 [data-theme]:not([data-theme="starr-default"]) {
   --recon-subtle: var(--theme-bg-elevated, #FAFAFA);
+}
+
+/* ── #047857 IS A LIGHT-SURFACE GREEN ──────────────────────────────────────────
+ *
+ * `--recon-success` was measured once, against white: "5.48:1 on white — was
+ * #059669 at 3.77". That comment is still true and still the reason the hex is
+ * what it is. What it does not say is which surface, because at the time there
+ * was only one.
+ *
+ * The pipeline stepper sits on the themed page background. On the four dark
+ * palettes that is around #111935, where the same green measures 3.03–3.83:1 —
+ * so "Property Information ✓" was the least readable label on the screen, on
+ * exactly the stages a person has already finished.
+ *
+ * Found 2026-08-31, by pointing check-portal-themes at the PROJECT-scoped routes
+ * for the first time. The eight portal tabs had been swept clean for a week; the
+ * two pages a person spends the run on had never been in the route list. That is
+ * the U4 lesson more than the colour is.
+ *
+ * A lighter green for dark grounds, and the light palettes keep the audited hex
+ * untouched. */
+[data-theme="starr-dark"],
+[data-theme="slate-dark"],
+[data-theme="forest-dark"],
+[data-theme="high-contrast-dark"] {
+  --recon-success: #34D399;   /* 8.1:1 on #111935 — #047857 was 3.15:1 */
 }
 
 /* ── The two Tailwind-dark research pages ─────────────────────────────────────
