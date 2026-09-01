@@ -78,6 +78,15 @@ const ROUTE_ROLES: { prefix: string; roles: UserRole[] }[] = [
   // customer conversion values and hashed identifiers, and it writes into the ad account's record of what
   // has been uploaded. That is a commercial control, not a work queue.
   { prefix: '/admin/marketing', roles: ['admin'] },
+  // The brand system. Gated to the roles that PRODUCE things carrying the logo — an admin ordering
+  // merch, a developer building the site, tech support making templates, a teacher writing course
+  // material, an employee putting together a proposal. Not gated to field_crew, student or guest,
+  // who wear and read the output rather than make it.
+  //
+  // Worth being honest about what this gate is: there is nothing behind it but the firm's own marks
+  // and hex codes, so it is scoping rather than security. The reason to scope it anyway is that a
+  // nav entry offered to somebody who will never order a shirt is clutter, not access.
+  { prefix: '/admin/branding', roles: ['admin', 'developer', 'tech_support', 'teacher', 'employee'] },
   // Editing what an activity pays changes everybody's wages, so it sits with payroll rather than
   // with the work queues that tech_support can reach.
   { prefix: '/admin/pay-rates', roles: ['admin', 'developer'] },

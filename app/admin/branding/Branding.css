@@ -1,0 +1,996 @@
+/* app/admin/branding/Branding.css
+ *
+ * ── THEMED CHROME, FIXED SWATCHES ────────────────────────────────────────────
+ *
+ * Two kinds of colour live on this page and they follow opposite rules.
+ *
+ * The CHROME — cards, rules, headings, body copy — is themed like every other
+ * admin surface, so the branding portal looks like the rest of the product on
+ * all eleven palettes.
+ *
+ * The SWATCHES are not, and must never be. A brand colour rendered through a
+ * theme is not that brand colour any more, and the entire purpose of the page
+ * is to show what #BD1218 actually looks like. Every literal hex below sits
+ * inside a swatch, a specimen or a demo tile, and each one is set from the
+ * palette module via an inline style rather than written here.
+ *
+ * The one consequence worth stating: the contrast checker will measure the
+ * demo tiles and find pairs it does not like — a tile whose whole job is to
+ * demonstrate 1.7:1 genuinely is 1.7:1. Those tiles carry `data-demo="fail"`
+ * so the probe can skip what it is supposed to skip, rather than the page
+ * being "fixed" into telling a lie.
+ */
+
+.brand-portal {
+  padding: 0 0 3rem;
+}
+
+/* ── tabs ─────────────────────────────────────────────────────────── */
+.brand-portal__tabs {
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  margin-bottom: 1.5rem;
+  scrollbar-width: thin;
+}
+
+.brand-portal__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1rem;
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .12s, border-color .12s;
+}
+
+.brand-portal__tab:hover { color: var(--theme-fg-primary, #111827); }
+
+.brand-portal__tab--active {
+  color: var(--theme-accent, #1D3095);
+  border-bottom-color: var(--theme-accent, #1D3095);
+  font-weight: 650;
+}
+
+.brand-portal__tab:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: -2px;
+  border-radius: 4px 4px 0 0;
+}
+
+.brand-portal__none {
+  padding: 2rem;
+  color: var(--theme-fg-muted, #6B7280);
+  text-align: center;
+}
+
+/* ── shared section furniture ─────────────────────────────────────── */
+.brand-section { margin-bottom: 2.5rem; }
+
+.brand-section__title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #4B5563);
+  margin: 0 0 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+}
+
+.brand-lede {
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  max-width: 78ch;
+  margin: 0 0 1.5rem;
+}
+
+.brand-grid { display: grid; gap: 1rem; }
+.brand-grid--4 { grid-template-columns: repeat(auto-fill, minmax(min(215px, 100%), 1fr)); }
+.brand-grid--3 { grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); }
+.brand-grid--2 { grid-template-columns: repeat(auto-fill, minmax(min(400px, 100%), 1fr)); }
+
+.brand-card {
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.brand-card__body { padding: 0.85rem 1rem; }
+
+.brand-card__name {
+  margin: 0 0 0.2rem;
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-card__note {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+/* ── colour swatches ──────────────────────────────────────────────── */
+.brand-swatch__chip {
+  height: 92px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+
+.brand-swatch__ink {
+  font-size: 0.58rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  white-space: nowrap;
+}
+
+.brand-swatch__hex {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #111827);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.brand-swatch__hex:hover { color: var(--theme-accent, #1D3095); }
+.brand-swatch__hex:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.brand-swatch__copied {
+  font-size: 0.62rem;
+  color: var(--color-success-text, #027A48);
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+
+.brand-swatch__vals {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.66rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #6B7280);
+  margin-top: 0.3rem;
+}
+
+.brand-swatch__use {
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--theme-fg-secondary, #4B5563);
+  margin: 0.45rem 0 0;
+}
+
+.brand-swatch__sampled {
+  font-size: 0.66rem;
+  color: var(--theme-fg-muted, #6B7280);
+  font-style: italic;
+  margin-top: 0.35rem;
+  line-height: 1.4;
+}
+
+/* ── logo plates ──────────────────────────────────────────────────── */
+.brand-plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  min-height: 148px;
+}
+
+/* Fixed grounds on purpose: these are the surfaces the artwork was drawn for,
+   and showing a red-on-white badge on a themed dark card would misrepresent it. */
+.brand-plate--white { background: #FFFFFF; }
+.brand-plate--mist  { background: #E5E7EB; }
+.brand-plate--cream { background: #F5EFE3; }
+.brand-plate--dark  { background: #0F1419; }
+.brand-plate--none  { padding: 0; min-height: 0; }
+
+.brand-plate img { max-width: 100%; height: auto; display: block; }
+.brand-plate--none img { width: 100%; }
+
+.brand-tag {
+  display: inline-block;
+  font-size: 0.6rem;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 999px;
+  margin-bottom: 0.4rem;
+  background: var(--color-info-surface, #EFF6FF);
+  color: var(--color-info-text, #1E40AF);
+}
+
+/* ── type specimens ───────────────────────────────────────────────── */
+.brand-font { margin-bottom: 1rem; }
+
+.brand-font__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.6rem 1rem;
+  background: var(--theme-bg-elevated, #F3F4F6);
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+}
+
+.brand-font__name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-font__purpose {
+  font-size: 0.7rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6B7280);
+  font-weight: 600;
+}
+
+.brand-font__spec { padding: 1.1rem 1rem 0.4rem; }
+
+.brand-font__sample {
+  margin: 0 0 0.6rem;
+  line-height: 1.15;
+  color: var(--theme-fg-primary, #111827);
+  word-break: break-word;
+}
+
+.brand-font__alpha {
+  font-size: 0.82rem;
+  color: var(--theme-fg-muted, #6B7280);
+  line-height: 1.6;
+  margin: 0 0 0.5rem;
+  word-break: break-word;
+}
+
+.brand-font__use {
+  padding: 0.7rem 1rem 0.9rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-font__stack {
+  display: block;
+  margin-top: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* ── pairing demo tiles ───────────────────────────────────────────── */
+.brand-combo { border-radius: 10px; overflow: hidden; border: 1px solid var(--theme-border, #E5E7EB); }
+
+.brand-combo__demo { padding: 1.3rem 0.9rem; text-align: center; }
+
+.brand-combo__big {
+  display: block;
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+
+.brand-combo__small {
+  display: block;
+  font-size: 0.72rem;
+  margin-top: 0.25rem;
+  opacity: .92;
+  letter-spacing: .1em;
+}
+
+.brand-combo__cap {
+  background: var(--theme-bg-surface, #fff);
+  padding: 0.5rem 0.7rem;
+  font-size: 0.72rem;
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+}
+
+.brand-combo__cap > span:first-child { color: var(--theme-fg-secondary, #4B5563); }
+
+.brand-ratio {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.brand-ratio--ok   { color: var(--color-success-text, #027A48); }
+.brand-ratio--mid  { color: var(--color-warning-text, #B54708); }
+.brand-ratio--fail { color: var(--color-error-text, #B42318); }
+
+/* ── notes ────────────────────────────────────────────────────────── */
+.brand-note {
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+  margin: 0 0 1.5rem;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  border: 1px solid;
+  border-left-width: 4px;
+}
+
+.brand-note--info {
+  background: var(--color-info-surface, #EFF6FF);
+  border-color: color-mix(in srgb, var(--color-info-text, #1E40AF) 25%, transparent);
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-note--warn {
+  background: var(--color-warning-surface, #FFFBEB);
+  border-color: color-mix(in srgb, var(--color-warning-text, #B54708) 25%, transparent);
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-note--stop {
+  background: var(--color-error-surface, #FEF2F2);
+  border-color: color-mix(in srgb, var(--color-error-text, #B42318) 25%, transparent);
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-note strong { color: var(--theme-fg-primary, #111827); }
+
+/* ── table ────────────────────────────────────────────────────────── */
+.brand-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  background: var(--theme-bg-surface, #fff);
+}
+
+.brand-table { border-collapse: collapse; width: 100%; font-size: 0.83rem; min-width: 640px; }
+
+.brand-table th {
+  background: var(--theme-bg-elevated, #F3F4F6);
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.68rem;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  font-weight: 700;
+  text-align: left;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+}
+
+.brand-table td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-table tbody tr:last-child td { border-bottom: none; }
+
+.brand-table code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.76rem;
+}
+
+.brand-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(15, 20, 25, .2);
+  vertical-align: -2px;
+  margin-right: 0.5rem;
+}
+
+/* ── building blocks ──────────────────────────────────────────────── */
+/* FIXED ground, not a themed one, and for the same reason the logo plates are fixed.
+ *
+ * These blocks are templates for things placed on white and cream paper. Rendering them on a themed
+ * surface was not a neutral choice: the outline button is Midnight Navy type with a transparent
+ * background, so on the four dark palettes it measured 1.02:1 — navy on near-navy — and the tab's
+ * own copy claims every pair on it clears 4.5:1.
+ *
+ * Third instance this session of one half of a pair following the theme while the other does not.
+ * The half to move is the themed one, because the whole point of a template is what it looks like
+ * where it will actually be printed. */
+.brand-blocks__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 1rem;
+  background: #F9FAFB;
+  border-radius: 10px;
+  border: 1px solid #E5E7EB;
+  margin-bottom: 0.6rem;
+}
+
+/* The label sits on that same fixed paper, so it cannot take a theme token either. */
+.brand-blocks__row .brand-blocks__label { color: #4B5563; }
+
+.brand-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: default;
+}
+
+.brand-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+
+.brand-blocks__label {
+  font-size: 0.7rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #6B7280;
+  font-weight: 600;
+  width: 100%;
+  margin-bottom: 0.15rem;
+}
+
+/* ── downloads ────────────────────────────────────────────────────── */
+.brand-dl {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #111827);
+  text-decoration: none;
+  margin-bottom: 0.6rem;
+  transition: border-color .12s, background .12s;
+}
+
+.brand-dl:hover {
+  border-color: var(--theme-accent, #1D3095);
+  background: var(--theme-bg-elevated, #F9FAFB);
+}
+
+.brand-dl__icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: var(--color-info-surface, #EFF6FF);
+  color: var(--color-info-text, #1E40AF);
+}
+
+.brand-dl__name { font-weight: 600; font-size: 0.9rem; }
+.brand-dl__note { font-size: 0.76rem; color: var(--theme-fg-muted, #6B7280); margin-top: 1px; }
+
+@media print {
+  .brand-portal__tabs { display: none; }
+  .brand-card, .brand-combo, .brand-scroll, .brand-font { break-inside: avoid; }
+  .brand-swatch__chip, .brand-combo__demo, .brand-plate {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ── EXPANDABLE LOGO PROFILES ─────────────────────────────────────────
+ *
+ * The card is a button and the panel opens in the grid row beneath it,
+ * spanning every column. That span is what keeps the rest of the family
+ * on screen while one mark is open — the whole reason this is not a
+ * modal. See the header of LogosTab.tsx. */
+.brand-card--clickable { padding: 0; }
+
+.brand-card__trigger {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.brand-card__trigger:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+
+.brand-card--open { border-color: var(--theme-accent, #1D3095); }
+
+.brand-card__name, .brand-card__note, .brand-card__more { display: block; }
+
+.brand-card__more {
+  margin-top: 0.55rem;
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--theme-accent, #1D3095);
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.brand-card__chev { transition: transform .15s; }
+.brand-card__chev--up { transform: rotate(180deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-card__chev { transition: none; }
+}
+
+/* Spans every column of whichever grid it lands in. */
+.brand-profile__slot { grid-column: 1 / -1; }
+
+.brand-profile {
+  position: relative;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border: 1px solid var(--theme-accent, #1D3095);
+  border-radius: 14px;
+  padding: 1.3rem 1.4rem;
+}
+
+.brand-profile__close {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.7rem;
+  background: var(--theme-bg-surface, #fff);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-profile__close:hover { color: var(--theme-fg-primary, #111827); }
+.brand-profile__close:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+}
+
+.brand-profile__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 1.6rem;
+}
+
+@media (max-width: 860px) {
+  .brand-profile__grid { grid-template-columns: 1fr; }
+}
+
+.brand-profile__preview {
+  border-radius: 10px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  min-height: 210px;
+  margin-bottom: 1rem;
+}
+
+.brand-profile__name {
+  margin: 0 0 0.5rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-profile__desc {
+  margin: 0 0 1.1rem;
+  font-size: 0.88rem;
+  line-height: 1.65;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-profile__label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 1rem 0 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.brand-profile__label--warn { color: var(--color-error-text, #B42318); }
+
+.brand-profile__list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.84rem;
+  line-height: 1.6;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-profile__list li { margin-bottom: 0.2rem; }
+.brand-profile__list--warn li { color: var(--color-error-text, #B42318); }
+
+.brand-profile__minsize {
+  margin: 0;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-profile__file {
+  margin: 1.1rem 0 0;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+  font-size: 0.72rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.brand-profile__file code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ── colourway strip ─────────────────────────────────────────────── */
+.brand-profile__ways {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.brand-profile__way {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.74rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.brand-profile__way:hover { border-color: var(--theme-accent, #1D3095); }
+
+.brand-profile__way--on {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-fg-primary, #111827);
+  font-weight: 650;
+  box-shadow: inset 0 0 0 1px var(--theme-accent, #1D3095);
+}
+
+.brand-profile__way:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+}
+
+.brand-profile__way-swatches { display: inline-flex; }
+
+.brand-profile__way-swatches i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 20, 25, .22);
+  margin-right: -4px;
+}
+
+.brand-profile__waynote {
+  margin: 0.5rem 0 0;
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* ── size ladder ─────────────────────────────────────────────────── */
+.brand-profile__sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.brand-profile__size {
+  padding: 0.32rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.brand-profile__size:hover,
+.brand-profile__size--on {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent, #1D3095);
+}
+
+.brand-profile__size:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+}
+
+.brand-profile__size--raw { font-weight: 500; }
+
+/* ── colour chips ────────────────────────────────────────────────── */
+.brand-profile__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.brand-profile__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.74rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-profile__chip code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.7rem;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.brand-profile__chip-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid rgba(15, 20, 25, .22);
+}
+
+/* ── PAIRING FILTERS ──────────────────────────────────────────────── */
+.brand-pairfilter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+}
+
+.brand-pairfilter__grades { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+.brand-pairfilter__grade {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 8px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.brand-pairfilter__grade:hover { border-color: var(--theme-accent, #1D3095); }
+
+.brand-pairfilter__grade--on {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent, #1D3095);
+  font-weight: 650;
+  box-shadow: inset 0 0 0 1px var(--theme-accent, #1D3095);
+}
+
+.brand-pairfilter__grade:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+}
+
+.brand-pairfilter__count {
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-fg-muted, #6B7280);
+  background: var(--theme-bg-elevated, #F3F4F6);
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+
+.brand-pairfilter__search,
+.brand-pairfilter__ground {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-pairfilter__search input,
+.brand-pairfilter__ground select {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #111827);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.8rem;
+  font-family: inherit;
+  min-width: 9rem;
+}
+
+.brand-pairfilter__search input:focus-visible,
+.brand-pairfilter__ground select:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+}
+
+.brand-pairfilter__result {
+  margin: 0 0 1.1rem;
+  font-size: 0.8rem;
+  color: var(--theme-fg-muted, #6B7280);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── COLOURWAY FAMILIES ───────────────────────────────────────────── */
+/*
+ * The panel that opens under a colourway card and lays its eighteen marks
+ * out together. `auto-fill` rather than a fixed column count: the marks in a
+ * family run from a square badge to a very wide wordmark, and a fixed grid
+ * either crops the wordmarks or wastes two thirds of the row on the badges.
+ */
+.brand-ways__marks {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.brand-ways__mark {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Every mark in a family sits on the same plate at the same height, because
+ * the point of the panel is comparison and a mark shown larger than its
+ * siblings reads as the important one. */
+.brand-ways__mark-plate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 128px;
+  padding: 0.5rem;
+  border-radius: 10px;
+}
+
+.brand-ways__mark figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.brand-ways__mark-name {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+  line-height: 1.25;
+}
+
+.brand-ways__mark-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.brand-ways__mark-sizes a {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.35rem;
+  border-radius: 5px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.66rem;
+  color: var(--theme-fg-muted, #6B7280);
+  text-decoration: none;
+}
+
+.brand-ways__mark-sizes a:hover,
+.brand-ways__mark-sizes a:focus-visible {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent, #1D3095);
+}
+
+/* ── COLOURWAY DOWNLOAD INDEX ─────────────────────────────────────── */
+/*
+ * A row per family, eight links across. Deliberately text rather than
+ * thumbnails: 144 thumbnails is a scroll, and somebody on this tab already
+ * knows which file they came for.
+ */
+.brand-dlways {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.brand-dlways__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.85rem;
+  padding: 0.55rem 0.9rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+}
+
+.brand-dlways__row:last-child { border-bottom: 0; }
+.brand-dlways__row:nth-child(even) { background: var(--theme-bg-elevated, #F9FAFB); }
+
+.brand-dlways__mark {
+  flex: 0 0 11rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-dlways__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.55rem;
+}
+
+.brand-dlways__links a {
+  font-size: 0.74rem;
+  color: var(--theme-fg-secondary, #4B5563);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--theme-border-strong, #D1D5DB);
+}
+
+.brand-dlways__links a:hover,
+.brand-dlways__links a:focus-visible {
+  color: var(--theme-accent, #1D3095);
+  border-bottom-color: currentColor;
+}
+
+@media (max-width: 640px) {
+  .brand-dlways__mark { flex: 1 0 100%; }
+}

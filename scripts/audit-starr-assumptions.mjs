@@ -107,6 +107,19 @@ const CORRECT_FOREVER = [
   // its own domain is useless. sitemap.ts has been listed since this file was written; robots.ts
   // simply did not exist yet, and arrived straight into the `tenant` fallthrough.
   { prefix: 'app/robots.ts', bucket: 'own-site', why: 'crawler directives for the firm’s own public website — sitemap.ts’s twin' },
+  // Added 2026-09-01 with the brand portal. This is the same distinction the entries above draw,
+  // applied to a surface that did not exist when they were written: /admin/branding holds STARR'S
+  // OWN marks, hex values and typefaces. A second firm on this platform would have a brand page of
+  // their own, with their colours in it — the Starr name here is the subject of the page, not an
+  // assumption baked into a shared product surface.
+  //
+  // The test worth being clear about: this is the one place where an own-site classification could
+  // be used to hide real debt, because the page lives under /admin. The check is whether replacing
+  // "Starr" with another firm's name would make the page CORRECT for them. On /admin/jobs it would;
+  // on this page it would produce a document about a brand they do not have.
+  { prefix: 'app/admin/branding', bucket: 'own-site', why: 'the firm’s own brand assets — another firm would have their own page, not a renamed copy of this one' },
+  { prefix: 'lib/branding', bucket: 'own-site', why: 'the firm’s own palette, typefaces and logo manifest' },
+  { prefix: 'scripts/build-brand-guide.mjs', bucket: 'own-site', why: 'generates the firm’s own brand guide from its own palette' },
   { prefix: 'app/layout.tsx', bucket: 'own-site', why: 'metadata for the firm’s own public website' },
   { prefix: 'app/components/Header', bucket: 'own-site', why: 'the public site’s chrome' },
   { prefix: 'app/components/Footer', bucket: 'own-site', why: 'the public site’s chrome' },

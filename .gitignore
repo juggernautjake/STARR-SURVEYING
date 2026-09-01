@@ -100,6 +100,20 @@ dev-server.log
 .playwright-mcp/
 *.png
 
+# ── except the brand library ─────────────────────────────────────────
+#
+# The blanket *.png above is aimed at audit screenshots. public/branding/
+# is the opposite of a screenshot: it is the approved artwork, it is what
+# /admin/branding renders, and the app serves it from this path at runtime.
+#
+# Without this negation the whole library is invisible to git — 170 of its
+# 178 files, every original mark and all 144 generated colourways, because
+# only the JPG photographs happened to fall outside the pattern. The page
+# looks finished on the machine that generated them and ships as 178 broken
+# images to everybody else. Found by counting what `git add -A` actually
+# staged rather than by trusting that it had.
+!public/branding/**
+
 # Local audit artefacts — screenshots + token dumps from scripts/contact-sheet.mjs and audit-mobile.mjs.
 # Evidence for a slice, not source: regenerate with `node scripts/contact-sheet.mjs`.
 .audit/

@@ -82,6 +82,24 @@ export const AUDIT = (limits) => {
       if (!seen.has(`i:${key}`)) { seen.add(`i:${key}`); islands.push({ what: key, bg: s.backgroundColor, area: Math.round(r.width * r.height) }); }
     }
 
+    // ── A DELIBERATE DEMONSTRATION OF FAILURE IS NOT A FAILURE ──────────────────────────────────
+    //
+    // /admin/branding shows six pairings that MUST never ship, rendered in their real colours so
+    // the failure is visible rather than asserted. A tile whose whole job is to demonstrate 1.71:1
+    // genuinely measures 1.71:1, and reporting it is the instrument marking its own worked example
+    // wrong.
+    //
+    // Seventh time something in this system has reported a blind spot as a property of the app,
+    // and the first where the honest answer is an opt-out rather than a smarter probe: there is no
+    // way to tell "red on navy, as a warning" from "red on navy, by mistake" by looking at pixels.
+    // Somebody has to say which it is, so `data-demo="fail"` is that statement.
+    //
+    // Scoped as tightly as it can be: it is an explicit attribute, it must be on the element or an
+    // ancestor, and `__tests__/branding/demo-optout.test.ts` caps how many may exist and asserts every one
+    // sits inside the never-pair block. An escape hatch nobody counts becomes the place failures
+    // go to be hidden.
+    if (el.closest('[data-demo="fail"]')) return;
+
     // ── Unreadable text: only elements that actually own visible text ───────────────────────────
     const ownText = [...el.childNodes].some((n) => n.nodeType === 3 && (n.textContent || '').trim().length > 1);
     if (!ownText) return;
