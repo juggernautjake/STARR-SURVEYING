@@ -285,22 +285,52 @@ prose.** `stripJs`, as the house rule says.
 Five mutations, all red. Driven in a browser including a forced 500: the box says *Not saved — HTTP
 500* with a working Retry. Four palettes clean.
 
-### N3 — Every retrieved file, and every image ☐
+### N3 — Every retrieved file, and every image ✅ **SHIPPED 2026-08-31**
 
-The documents page lists what was retrieved. Images need a **viewer**: full-size, zoomable,
-keyboard-navigable, with the document's own metadata beside it. A plat you cannot read at full size
-is a plat you have not checked.
+**The library said "0 viewable images" on a project holding 73 of them.**
+
+Measured on the live project: 17 documents, `file_type` `'pdf'` on every one — and every one of
+those PDFs had its pages rendered to PNGs by the artifact uploader and stored in
+`ocr_regions.pageUrls`. The header keyed "is there an image" off `file_type`, so it reported zero.
+
+#### `ocr_regions` is a JSON string, and that is the whole trap
+
+PostgREST returns it as text. Reading `.pageUrls` off the string gives `undefined`; iterating its
+keys gives `0, 1, 2 … 343`, which is what a 343-character string looks like when you mistake it for
+an object. That is exactly what the first probe here printed, and it is why the diagnosis took a
+second look rather than one.
+
+`SourceDocumentViewer` has had the correct extractor all along. It moved into the shared module
+rather than being written a second time — two parsers for one column is how they come to disagree
+about whether a document has pages, which is G12 with a different shape.
+
+#### What the library does now
+
+| | |
+|---|---|
+| Header | **73 page images** rather than 0. A number that is true. |
+| Filter | **Images (17)** — the documents you can actually look at. |
+| Row chip | *"2 pages to view"*, not a bare "Image" badge. What a reader wants is how many. |
+| Viewer | **The pages, in order, at full resolution**, each a link that opens full size — lazy-loaded, with a "Page 1 of 3" label under each when there is more than one. |
+
+Pages before the PDF frame, deliberately: they scroll, they zoom, they open full size, and they
+work where a browser's PDF plugin does not. The `<object>` fallback stays for a document with no
+rendered pages, and a record with no stored file still says so rather than showing a broken frame.
+
+Driven in a browser against the live storage bucket: the first deed renders at **2550px natural
+width**, readable, with its three pages labelled.
+
+### N5 — The logs, where you are ✅ **ALREADY SHIPPED — closed 2026-08-31**
+
+Checked rather than assumed. The Review stage already carries a "Research Logs" section, always
+visible, loading from `/api/admin/research/[projectId]/logs` on demand — so the question *"why does
+this section say nothing?"*, which is asked while reading results, is answerable from the screen
+where it is asked. Nothing to build.
 
 ### N4 — Upload your own files and images ☐
 
 `DocumentUploadPanel` exists and works. What it lacks is parity with the retrieved list: an upload
 should land in the same place, be viewable the same way, and be distinguishable by `source_type`.
-
-### N5 — The logs, where you are ☐
-
-The run console exists and is good. It is reachable from one screen. It should be reachable from the
-review stage too, because the question "why does this section say nothing?" is asked *while reading
-the results*, not while watching the run.
 
 ---
 

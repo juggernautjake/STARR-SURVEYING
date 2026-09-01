@@ -45,6 +45,8 @@ export interface DocumentRow {
   storage_url?: string | null;
   pages_pdf_url?: string | null;
   processing_status?: string | null;
+  /** A JSON STRING from PostgREST, not an object — see `pageImagesOf`. */
+  ocr_regions?: unknown;
   processing_error?: string | null;
   readability?: string | null;
   created_at?: string | null;
@@ -69,6 +71,8 @@ export interface DocumentCard {
   fileUrl: string | null;
   /** Whether it can be shown as an image rather than downloaded. */
   isImage: boolean;
+  /** Every page of it, as an image. Empty when there is nothing to show. */
+  pageImages: string[];
   status: string;
   statusError: string | null;
 }
@@ -147,6 +151,7 @@ export function toCard(row: DocumentRow): DocumentCard {
     // `pages_pdf_url` is the rendered multi-page PDF when one exists; `storage_url` is the original.
     fileUrl: row.pages_pdf_url ?? row.storage_url ?? row.source_url ?? null,
     isImage: isImageRow(row),
+    pageImages: pageImagesOf(row),
     status: row.processing_status ?? 'unknown',
     statusError: row.processing_error ?? null,
   };
@@ -180,7 +185,7 @@ export function formatBytes(n: number | null): string {
 export const DOCUMENT_ROW_COLUMNS = [
   'id', 'document_type', 'document_label', 'original_filename', 'file_type', 'file_size_bytes',
   'page_count', 'recorded_date', 'recording_info', 'source_type', 'source_url', 'storage_url',
-  'pages_pdf_url', 'processing_status', 'processing_error',
+  'pages_pdf_url', 'processing_status', 'processing_error', 'ocr_regions',
 ] as const;
 
 /**
@@ -238,3 +243,44 @@ export function statusLabel(status: string | null | undefined): StatusLabel {
 
 /** Every status the map knows, for the test that holds both screens to it. */
 export const KNOWN_STATUSES = Object.keys(STATUS_LABELS);
+
+// ── EVERY PAGE OF EVERY DOCUMENT IS AN IMAGE, AND THE LIBRARY SAID THERE WERE NONE ─────────────
+//
+// Owner: *"be able to view all images"*.
+//
+// Measured 2026-08-31 on the live project: **17 documents, `file_type` `'pdf'` on every one, and
+// 343 characters of `ocr_regions`** — which is a JSON *string*, not an object, so reading
+// `.pageUrls` off it directly gives `undefined` and iterating its keys gives `0, 1, 2 … 343`.
+//
+// Parsed, it holds `pageUrls`: a rendered PNG per page, uploaded by the artifact uploader. So every
+// document in the project has viewable page images, and the Library's header reported
+// **"0 viewable images"** because `isImageRow` only looked at `file_type`.
+//
+// `SourceDocumentViewer` already had this extractor and has had it all along. Moving it here rather
+// than writing a second one: two parsers for one column is how they come to disagree about whether
+// a document has pages, and G12 in the previous doc is four hand-written copies of one list.
+
+/** Page images for a row: the rendered pages of a PDF, or the file itself when it is an image. */
+export function pageImagesOf(row: DocumentRow & { ocr_regions?: unknown }): string[] {
+  const urls: string[] = [];
+
+  // `ocr_regions` arrives as a JSON STRING from PostgREST. Reading `.pageUrls` off the string
+  // silently yields `undefined` — which is exactly how "0 viewable images" happened.
+  if (row.ocr_regions) {
+    try {
+      const parsed = typeof row.ocr_regions === 'string'
+        ? JSON.parse(row.ocr_regions) as { pageUrls?: unknown }
+        : row.ocr_regions as { pageUrls?: unknown };
+      if (Array.isArray(parsed?.pageUrls)) {
+        urls.push(...parsed.pageUrls.filter((u): u is string => typeof u === 'string' && u !== ''));
+      }
+    } catch { /* not valid JSON — the fallback below still applies */ }
+  }
+
+  if (urls.length === 0 && row.storage_url) {
+    const su = row.storage_url;
+    if (/\.(png|jpe?g|gif|webp|tiff?)(\?|$)/i.test(su) || isImageRow(row)) urls.push(su);
+  }
+
+  return urls;
+}

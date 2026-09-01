@@ -34,7 +34,7 @@ import path from 'node:path';
 import { stripJs } from '@/scripts/audit-research-contrast.mjs';
 import {
   toCard, toCards, kindOf, titleOf, instrumentOf, isImageRow, sourceLabelOf, formatBytes,
-  DOCUMENT_ROW_COLUMNS, NEVER_PRODUCED_KEYS, statusLabel, KNOWN_STATUSES, type DocumentRow,
+  DOCUMENT_ROW_COLUMNS, NEVER_PRODUCED_KEYS, statusLabel, KNOWN_STATUSES, pageImagesOf, type DocumentRow,
 } from '@/app/admin/research/[projectId]/documents/document-rows';
 
 const ROOT = process.cwd();
@@ -275,5 +275,80 @@ describe('one status vocabulary, shared by both screens', () => {
     for (const hex of ['#F59E0B', '#059669']) {
       expect(panel, `${hex} is back in the status colours`).not.toContain(`working: '${hex}'`);
     }
+  });
+});
+
+// ── EVERY PAGE OF EVERY DOCUMENT IS AN IMAGE, AND THE LIBRARY SAID THERE WERE NONE ─────────────
+//
+// Owner: *"be able to view all images"*.
+//
+// Measured on the live project: 17 documents, `file_type` `'pdf'` on every one, and a header
+// reading **"0 viewable images"**. `ocr_regions` holds `pageUrls` — a rendered PNG per page,
+// uploaded by the artifact uploader — and it arrives from PostgREST as a JSON **string**. Reading
+// `.pageUrls` off the string gives `undefined`; iterating its keys gives `0, 1, 2 … 343`, which is
+// how a 343-character string looks when you mistake it for an object.
+//
+// `SourceDocumentViewer` had this extractor all along. It moved to the shared module rather than
+// being written a second time: two parsers for one column is how they come to disagree about
+// whether a document has pages.
+
+describe('page images', () => {
+  const withRegions = (regions: unknown, over: Partial<DocumentRow> = {}): DocumentRow =>
+    ({ id: 'abc12345-0000', ocr_regions: regions, ...over });
+
+  it('parses pageUrls out of the JSON STRING PostgREST returns', () => {
+    // The whole finding. An object works too, but the string is what actually arrives.
+    const asString = JSON.stringify({ pageUrls: ['https://x/p1.png', 'https://x/p2.png'] });
+    expect(pageImagesOf(withRegions(asString))).toHaveLength(2);
+    expect(pageImagesOf(withRegions({ pageUrls: ['https://x/p1.png'] }))).toHaveLength(1);
+  });
+
+  it('and a PDF with rendered pages counts as viewable', () => {
+    // `file_type: 'pdf'` on every document in the live project. Keying "is there an image" off the
+    // file type reported zero on a project holding dozens.
+    const card = toCard(withRegions(
+      JSON.stringify({ pageUrls: ['https://x/p1.png'] }),
+      { file_type: 'pdf' },
+    ));
+    expect(card.isImage, 'the FILE is still a pdf').toBe(false);
+    expect(card.pageImages, 'but its pages are viewable').toHaveLength(1);
+  });
+
+  it('survives ocr_regions that is not JSON at all', () => {
+    for (const junk of ['not json', '', null, undefined, 42, []]) {
+      expect(() => pageImagesOf(withRegions(junk)), String(junk)).not.toThrow();
+    }
+    expect(pageImagesOf(withRegions('not json'))).toEqual([]);
+  });
+
+  it('and drops entries that are not usable URLs', () => {
+    const regions = JSON.stringify({ pageUrls: ['https://x/p1.png', '', null, 42] });
+    expect(pageImagesOf(withRegions(regions))).toEqual(['https://x/p1.png']);
+  });
+
+  it('falls back to the file itself when it IS an image', () => {
+    expect(pageImagesOf({ id: 'a', storage_url: 'https://x/plat.png' })).toEqual(['https://x/plat.png']);
+    expect(pageImagesOf({ id: 'a', storage_url: 'https://x/deed.pdf' })).toEqual([]);
+  });
+
+  it('the library counts PAGES, not files whose type happens to be an image', () => {
+    const page = read('app/admin/research/[projectId]/documents/page.tsx');
+    expect(page).toContain('n + d.pageImages.length');
+    expect(page, 'the header still promises "viewable images" from file_type')
+      .not.toContain('documents.filter((d) => d.isImage).length');
+  });
+
+  it('and the viewer shows the pages before falling back to a PDF frame', () => {
+    // Pages scroll, zoom, open full size, and work where a browser's PDF plugin does not.
+    const page = read('app/admin/research/[projectId]/documents/page.tsx');
+    const pages = page.indexOf('selected.pageImages.length > 0 ?');
+    const pdf = page.indexOf("type=\"application/pdf\"");
+    expect(pages, 'the page gallery is gone').toBeGreaterThan(-1);
+    expect(pages, 'the PDF frame wins over the rendered pages').toBeLessThan(pdf);
+  });
+
+  it('and `ocr_regions` is a column that exists', () => {
+    expect(COLUMNS.has('ocr_regions')).toBe(true);
+    expect(DOCUMENT_ROW_COLUMNS).toContain('ocr_regions');
   });
 });

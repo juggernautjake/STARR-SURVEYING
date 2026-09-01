@@ -28,7 +28,7 @@ import {
   toCards, formatBytes, statusLabel, type DocumentCard, type DocumentKind,
 } from './document-rows';
 
-type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved';
+type DocFilter = 'all' | DocumentKind | 'uploaded' | 'retrieved' | 'images';
 type SortBy = 'date' | 'type' | 'name' | 'size';
 
 const KIND_ICON: Record<DocumentKind, string> = {
@@ -91,6 +91,7 @@ export default function ProjectDocumentsPage() {
       if (filter === 'all') return true;
       if (filter === 'uploaded') return d.isUpload;
       if (filter === 'retrieved') return !d.isUpload;
+      if (filter === 'images') return d.pageImages.length > 0;
       return d.kind === filter;
     })
     .filter((d) => {
@@ -110,7 +111,11 @@ export default function ProjectDocumentsPage() {
     }), [documents, filter, search, sortBy]);
 
   const uploaded = documents.filter((d) => d.isUpload).length;
-  const images = documents.filter((d) => d.isImage).length;
+  // Every PAGE of every document, not just files whose `file_type` is an image. Measured on the
+  // live project: 17 PDFs, and every one of them has rendered page images in `ocr_regions`. The
+  // header used to read "0 viewable images" on a project holding dozens.
+  const pageCount = documents.reduce((n, d) => n + d.pageImages.length, 0);
+  const withImages = documents.filter((d) => d.pageImages.length > 0).length;
 
   if (sessionStatus === 'loading' || loading) {
     return (
@@ -152,7 +157,7 @@ export default function ProjectDocumentsPage() {
           <div className="flex gap-4 text-sm text-gray-300">
             <span><strong className="text-white">{documents.length}</strong> documents</span>
             <span><strong className="text-white">{uploaded}</strong> uploaded by us</span>
-            <span><strong className="text-white">{images}</strong> viewable images</span>
+            <span><strong className="text-white">{pageCount}</strong> page images</span>
           </div>
         </div>
       </header>
@@ -161,10 +166,11 @@ export default function ProjectDocumentsPage() {
         <div className="flex-1 flex flex-col lg:overflow-hidden">
           <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex flex-wrap items-center gap-3">
             <div className="flex gap-1 flex-wrap">
-              {(['all', 'plat', 'deed', 'easement', 'survey', 'uploaded', 'retrieved'] as DocFilter[]).map((f) => {
+              {(['all', 'plat', 'deed', 'easement', 'survey', 'uploaded', 'retrieved', 'images'] as DocFilter[]).map((f) => {
                 const n = f === 'all' ? documents.length
                   : f === 'uploaded' ? uploaded
                   : f === 'retrieved' ? documents.length - uploaded
+                  : f === 'images' ? withImages
                   : documents.filter((d) => d.kind === f).length;
                 return (
                   <button
@@ -245,8 +251,13 @@ export default function ProjectDocumentsPage() {
                           {doc.isUpload && (
                             <span className="text-xs px-2 py-0.5 bg-blue-900 text-blue-200 rounded">Uploaded</span>
                           )}
-                          {doc.isImage && (
-                            <span className="text-xs px-2 py-0.5 bg-gray-700 text-gray-200 rounded">Image</span>
+                          {/* The page COUNT, not a bare "Image" chip. Every document here is a PDF
+                              whose pages were rendered; what a reader wants to know is how many
+                              there are to look at. */}
+                          {doc.pageImages.length > 0 && (
+                            <span className="text-xs px-2 py-0.5 bg-gray-700 text-gray-200 rounded">
+                              {doc.pageImages.length} page{doc.pageImages.length === 1 ? '' : 's'} to view
+                            </span>
                           )}
                           <span className={`text-xs px-2 py-0.5 rounded ${TONE_CLASS[statusLabel(doc.status).tone]}`}>
                             {statusLabel(doc.status).label}
@@ -290,32 +301,55 @@ export default function ProjectDocumentsPage() {
             </div>
 
             <div className="p-4 space-y-3">
-              {selected.fileUrl ? (
-                selected.isImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- a Supabase storage URL
-                  // is not a configured next/image domain, and a plat has to open at full size.
-                  <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" title="Open full size">
-                    <img
-                      src={selected.fileUrl}
-                      alt={selected.title}
-                      className="w-full rounded border border-gray-800 bg-gray-950"
-                    />
-                  </a>
-                ) : (
-                  <object
-                    data={selected.fileUrl}
-                    type="application/pdf"
-                    className="w-full h-96 rounded border border-gray-800 bg-gray-950"
-                    aria-label={`Preview of ${selected.title}`}
-                  >
-                    <p className="text-sm text-gray-300 p-3">
-                      This document cannot be shown inline.{' '}
-                      <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">
-                        Open it in a new tab
-                      </a>.
-                    </p>
-                  </object>
-                )
+              {/* ── PAGES FIRST, THE FILE SECOND (N3) ──────────────────────────────────────────
+                  Every document in this project is a PDF whose pages were rendered to PNGs by the
+                  artifact uploader and stored in `ocr_regions.pageUrls`. Showing the pages beats
+                  showing a PDF frame: they scroll, they zoom, they open full size, and they work
+                  where a browser's PDF plugin does not.
+
+                  The `<object>` fallback stays for a document with no rendered pages. */}
+              {selected.pageImages.length > 0 ? (
+                <div className="space-y-2">
+                  {selected.pageImages.map((url, i) => (
+                    <a
+                      key={url}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={`Page ${i + 1} of ${selected.pageImages.length} — open full size`}
+                      className="block"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- a Supabase storage
+                          URL is not a configured next/image domain, and a plat has to open at full
+                          size rather than be resampled. */}
+                      <img
+                        src={url}
+                        alt={`${selected.title} — page ${i + 1}`}
+                        loading="lazy"
+                        className="w-full rounded border border-gray-800 bg-gray-950"
+                      />
+                      {selected.pageImages.length > 1 && (
+                        <span className="block text-xs text-gray-400 mt-0.5">
+                          Page {i + 1} of {selected.pageImages.length}
+                        </span>
+                      )}
+                    </a>
+                  ))}
+                </div>
+              ) : selected.fileUrl ? (
+                <object
+                  data={selected.fileUrl}
+                  type="application/pdf"
+                  className="w-full h-96 rounded border border-gray-800 bg-gray-950"
+                  aria-label={`Preview of ${selected.title}`}
+                >
+                  <p className="text-sm text-gray-300 p-3">
+                    This document cannot be shown inline.{' '}
+                    <a href={selected.fileUrl} target="_blank" rel="noopener noreferrer" className="text-blue-300 underline">
+                      Open it in a new tab
+                    </a>.
+                  </p>
+                </object>
               ) : (
                 <p className="text-sm text-gray-300">
                   No file was stored for this record — only its metadata was captured.
