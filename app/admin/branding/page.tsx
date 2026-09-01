@@ -27,7 +27,7 @@
 
 import { useMemo } from 'react';
 import { useSession } from 'next-auth/react';
-import { Palette, Type, Shapes, Component, Download, BookOpen, Blend } from 'lucide-react';
+import { Palette, Type, Shapes, Component, Download, BookOpen, Blend, UploadCloud } from 'lucide-react';
 
 import { usePortalTabs, type PortalSpec } from '@/lib/admin/portal/usePortalTabs';
 import { tabMoveTarget } from '@/lib/admin/portal/tab-keyboard';
@@ -40,6 +40,7 @@ import TypeTab from './_tabs/TypeTab';
 import PairingsTab from './_tabs/PairingsTab';
 import BlocksTab from './_tabs/BlocksTab';
 import DownloadsTab from './_tabs/DownloadsTab';
+import UploadTab from './_tabs/UploadTab';
 import './Branding.css';
 
 const PORTAL: PortalSpec = {
@@ -52,6 +53,7 @@ const PORTAL: PortalSpec = {
     { id: 'pairings', label: 'Combinations', icon: Blend, hint: 'Every colour pairing graded, plus the font pairings that work together.' },
     { id: 'blocks', label: 'Building blocks', icon: Component, hint: 'Buttons, pills, cards and callouts built from the palette.' },
     { id: 'downloads', label: 'Downloads', icon: Download, hint: 'The asset files and the standalone guide for printers.' },
+    { id: 'upload', label: 'Add a design', icon: UploadCloud, hint: 'Upload a new design, describe it, and generate its resolutions.' },
   ],
   defaultTab: 'overview',
 };
@@ -127,6 +129,7 @@ export default function BrandingPortal() {
           {active === 'pairings' && <PairingsTab />}
           {active === 'blocks' && <BlocksTab />}
           {active === 'downloads' && <DownloadsTab />}
+          {active === 'upload' && <UploadTab />}
         </div>
       )}
     </div>

@@ -994,3 +994,555 @@
 @media (max-width: 640px) {
   .brand-dlways__mark { flex: 1 0 100%; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+ * UPLOAD — the "Add a design" tab
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * ── WHY THIS BLOCK EXISTS ───────────────────────────────────────────
+ *
+ * `UploadTab`, `DesignUploadForm`, `UploadedAssetPanel` and `fields.tsx`
+ * were written complete and shipped **unstyled**: 39 of the 145
+ * `brand-*` classes used across this portal resolved to no rule in any
+ * stylesheet in the repository. A drop zone with no border is not a
+ * drop zone, a colour picker with no chips is a list of words, and a
+ * variant table with no rows is a paragraph. Nothing failed — which is
+ * exactly why it survived a green build and a green test run.
+ *
+ * One of the 39, `.brand-profile__text`, is used by `LogosTab.tsx`,
+ * which is already merged and live. So this was never confined to the
+ * new work; it is defined here with the rest.
+ *
+ * `verify:brand-classes` now scans both directions, with a control.
+ *
+ * ── THEMED, NOT PINNED ──────────────────────────────────────────────
+ *
+ * Everything below is CHROME — a form, a picker, a file list — so it
+ * follows the eleven palettes like every other admin surface. The rule
+ * at the top of this file about pinned colour applies to swatches,
+ * specimens and demo tiles, and there are none in here. The single
+ * exception is `.brand-pick__dot`, whose background is a brand hex set
+ * inline by `ColourPicker`: that dot IS a swatch.
+ */
+
+/* ── the tab's own furniture ─────────────────────────────────────── */
+
+/* Used by UploadTab's "Include retired designs". A plain label+checkbox
+ * row; the circular-checkbox override in AdminLayout.css applies here
+ * as it does product-wide, and is tracked separately. */
+.brand-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+  font-size: 0.82rem;
+  color: var(--theme-fg-secondary, #4B5563);
+  cursor: pointer;
+  user-select: none;
+}
+
+.brand-check input { cursor: pointer; }
+
+.brand-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 2.5rem 1.5rem;
+  border: 1px dashed var(--theme-border-strong, #D1D5DB);
+  border-radius: 12px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  color: var(--theme-fg-muted, #6B7280);
+  text-align: center;
+}
+
+.brand-empty p { margin: 0; font-size: 0.88rem; }
+.brand-empty svg { color: var(--theme-fg-muted, #6B7280); opacity: .7; }
+
+/* Every `<Loader2 className="brand-spin">` in the portal. Reduced
+ * motion stops it rather than hiding it: a still spinner still reads as
+ * "working", a missing one reads as "nothing happened". */
+.brand-spin { animation: brand-spin-kf .9s linear infinite; }
+
+@keyframes brand-spin-kf { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-spin { animation: none; }
+}
+
+/* ── real buttons ────────────────────────────────────────────────── */
+/*
+ * `.brand-btn` on its own is the Building blocks SPECIMEN — a `<span>`
+ * with its colours set inline, `cursor: default`, no hover. The upload
+ * surfaces reuse the same shape for controls people actually press.
+ *
+ * So the interactive chrome is attached by ELEMENT, not by adding a
+ * modifier to `.brand-btn`. `button.brand-btn` and `label.brand-btn`
+ * are real controls; the six spans on the Blocks tab are untouched and
+ * keep demonstrating exactly what they demonstrated before.
+ */
+button.brand-btn,
+label.brand-btn {
+  cursor: pointer;
+  background: var(--theme-bg-surface, #fff);
+  border-color: var(--theme-border-strong, #D1D5DB);
+  color: var(--theme-fg-primary, #111827);
+  transition: border-color .12s, background .12s, color .12s;
+}
+
+button.brand-btn:hover:not(:disabled),
+label.brand-btn:hover {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent, #1D3095);
+}
+
+button.brand-btn:focus-visible,
+label.brand-btn:focus-within {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+}
+
+button.brand-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+.brand-btn--primary {
+  background: var(--theme-accent, #1D3095);
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFFFFF);
+}
+
+button.brand-btn--primary:hover:not(:disabled) {
+  background: var(--theme-accent, #1D3095);
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent-fg, #FFFFFF);
+  filter: brightness(1.1);
+}
+
+.brand-btn--danger {
+  border-color: var(--color-error-border, #FDA29B);
+  color: var(--color-error-text, #B42318);
+  background: var(--color-error-surface, #FEF3F2);
+}
+
+button.brand-btn--danger:hover:not(:disabled) {
+  border-color: var(--color-error-text, #B42318);
+  color: var(--color-error-text, #B42318);
+}
+
+/* A `<label>` wrapping a hidden `<input type="file">`. The input is
+ * transparent and stretched over the label rather than `display:none`,
+ * so it stays focusable and `:focus-within` above can show the ring — a
+ * `display:none` file input is unreachable by keyboard. */
+.brand-btn--file { position: relative; overflow: hidden; }
+
+.brand-btn--file input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* ── the drop zone ───────────────────────────────────────────────── */
+.brand-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 2.6rem 1.5rem;
+  border: 2px dashed var(--theme-border-strong, #D1D5DB);
+  border-radius: 14px;
+  background: var(--theme-bg-elevated, #F9FAFB);
+  text-align: center;
+  transition: border-color .12s, background .12s;
+}
+
+.brand-drop--over {
+  border-color: var(--theme-accent, #1D3095);
+  background: var(--color-info-surface, #EFF6FF);
+}
+
+.brand-drop__lede {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+}
+
+.brand-drop__note {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.brand-drop__note code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* ── the staged file, before it is sent ──────────────────────────── */
+.brand-upload {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 14px;
+  padding: 1.1rem;
+  background: var(--theme-bg-surface, #fff);
+}
+
+/* Preview on the left, the form on the right; one column under 820px,
+ * where a 240px preview beside a form leaves neither enough room. */
+.brand-upload__staged {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 1.3rem;
+  align-items: start;
+}
+
+@media (max-width: 820px) {
+  .brand-upload__staged { grid-template-columns: 1fr; }
+}
+
+.brand-upload__preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.brand-upload__preview .brand-plate { min-height: 160px; }
+
+.brand-upload__filemeta {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--theme-fg-muted, #6B7280);
+  overflow-wrap: anywhere;
+}
+
+.brand-upload__form { min-width: 0; }
+
+.brand-upload__profile {
+  margin-top: 0.9rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--theme-border, #E5E7EB);
+}
+
+.brand-upload__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.1rem;
+}
+
+.brand-upload__hint {
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+/* The "fill in the whole profile" toggle. A summary-style row rather
+ * than a filled button, because what it reveals is optional and a
+ * button implies a step you have to take. */
+.brand-disclose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.9rem;
+  padding: 0.4rem 0;
+  background: none;
+  border: none;
+  color: var(--theme-accent, #1D3095);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.brand-disclose:hover { text-decoration: underline; }
+
+.brand-disclose:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── fields ──────────────────────────────────────────────────────── */
+.brand-field { margin-bottom: 1.1rem; }
+
+.brand-field__label {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  color: var(--theme-fg-secondary, #4B5563);
+}
+
+.brand-field__hint {
+  margin: 0 0 0.45rem;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.brand-field__hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+}
+
+/* Scoped to the field wrapper rather than set globally: this portal
+ * renders demo inputs on the Blocks tab that must keep their own look. */
+.brand-field input[type="text"],
+.brand-field textarea,
+.brand-listedit__row input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--theme-border-strong, #D1D5DB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-primary, #111827);
+  font-size: 0.88rem;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.brand-field textarea { resize: vertical; min-height: 5.5rem; }
+
+.brand-field input[type="text"]::placeholder,
+.brand-field textarea::placeholder,
+.brand-listedit__row input::placeholder {
+  color: var(--theme-fg-muted, #6B7280);
+  opacity: 1;
+}
+
+.brand-field input[type="text"]:focus-visible,
+.brand-field textarea:focus-visible,
+.brand-listedit__row input:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: -1px;
+  border-color: var(--theme-accent, #1D3095);
+}
+
+.brand-formerror {
+  margin: 0.8rem 0 0;
+  padding: 0.6rem 0.8rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-error-border, #FDA29B);
+  background: var(--color-error-surface, #FEF3F2);
+  color: var(--color-error-text, #B42318);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+/* ── the list editor ─────────────────────────────────────────────── */
+.brand-listedit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.brand-listedit__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* The remove button sits at a fixed square so the inputs above and
+ * below it stay the same width whether or not a row has one — a row
+ * that grows when it gains a button makes the list jump as you type.
+ * The last row has no button, so it is padded by the same amount. */
+.brand-listedit__row button {
+  flex: 0 0 1.9rem;
+  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 8px;
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-muted, #6B7280);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.brand-listedit__row button:hover {
+  border-color: var(--color-error-text, #B42318);
+  color: var(--color-error-text, #B42318);
+}
+
+.brand-listedit__row button:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+}
+
+.brand-listedit__row:last-child { padding-right: 2.3rem; }
+
+/* ── the pickers ─────────────────────────────────────────────────── */
+.brand-pick { margin-bottom: 0.7rem; }
+
+.brand-pick__group {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--theme-fg-muted, #6B7280);
+}
+
+.brand-pick__opts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+/*
+ * `aria-pressed` carries the state; `--on` carries the look. Both are
+ * set together by every caller. The selected state is deliberately a
+ * ring plus a weight change plus a border, not colour alone — on the
+ * mono palettes an accent-only difference between selected and not is
+ * close to invisible, and F2 spent a day on exactly that class of bug.
+ */
+.brand-pick__opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--theme-border-strong, #D1D5DB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-secondary, #4B5563);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .12s, color .12s;
+}
+
+.brand-pick__opt:hover { border-color: var(--theme-accent, #1D3095); }
+
+.brand-pick__opt:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 2px;
+}
+
+.brand-pick__opt:disabled { opacity: .55; cursor: not-allowed; }
+
+.brand-pick__opt--on {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-fg-primary, #111827);
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px var(--theme-accent, #1D3095);
+}
+
+/* A swatch, not chrome: the background is a brand hex set inline by
+ * `ColourPicker`. The ring is here so a near-white brand colour is
+ * still a visible dot on a white ground. */
+.brand-pick__dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .18);
+}
+
+/* ── the uploaded-asset profile ──────────────────────────────────── */
+/*
+ * `.brand-profile__text` is the right-hand column of the profile grid.
+ * It is used by `LogosTab.tsx` as well — which is already live, and had
+ * been rendering without it.
+ */
+.brand-profile__text { min-width: 0; }
+
+.brand-profile__desc--empty {
+  color: var(--theme-fg-muted, #6B7280);
+  font-style: italic;
+}
+
+/* A quieter tag than `.brand-tag`, for "original" / "generated" /
+ * "Work in progress" — facts about a row rather than a callout. */
+.brand-tag--quiet {
+  background: var(--theme-bg-elevated, #F9FAFB);
+  color: var(--theme-fg-secondary, #4B5563);
+  border: 1px solid var(--theme-border, #E5E7EB);
+  margin-bottom: 0;
+}
+
+/* ── the resolution list ─────────────────────────────────────────── */
+.brand-variants {
+  border: 1px solid var(--theme-border, #E5E7EB);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 0.9rem;
+}
+
+.brand-variants__row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  border-bottom: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  font-size: 0.8rem;
+}
+
+.brand-variants__row:last-child { border-bottom: 0; }
+.brand-variants__row:nth-child(even) { background: var(--theme-bg-elevated, #F9FAFB); }
+
+.brand-variants__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-width: 0;
+  font-weight: 600;
+  color: var(--theme-fg-primary, #111827);
+  overflow-wrap: anywhere;
+}
+
+/* `margin-left: auto` pushes the meta and the actions right, so the
+ * dimensions line up down the list whatever the label's length. */
+.brand-variants__meta {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  color: var(--theme-fg-muted, #6B7280);
+  white-space: nowrap;
+}
+
+.brand-variants__acts {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex: 0 0 auto;
+}
+
+.brand-variants__acts a,
+.brand-variants__acts button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--theme-border, #E5E7EB);
+  background: var(--theme-bg-surface, #fff);
+  color: var(--theme-fg-secondary, #4B5563);
+  cursor: pointer;
+}
+
+.brand-variants__acts a:hover,
+.brand-variants__acts button:hover:not(:disabled) {
+  border-color: var(--theme-accent, #1D3095);
+  color: var(--theme-accent, #1D3095);
+}
+
+.brand-variants__acts button:disabled { opacity: .5; cursor: not-allowed; }
+
+.brand-variants__acts a:focus-visible,
+.brand-variants__acts button:focus-visible {
+  outline: 2px solid var(--theme-accent, #1D3095);
+  outline-offset: 1px;
+}

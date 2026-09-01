@@ -401,7 +401,7 @@ describe('the page is wired', () => {
 
   it('the portal renders every tab it declares', () => {
     const src = read(PAGE);
-    for (const id of ['overview', 'logos', 'colours', 'type', 'pairings', 'blocks', 'downloads']) {
+    for (const id of ['overview', 'logos', 'colours', 'type', 'pairings', 'blocks', 'downloads', 'upload']) {
       expect(src, `tab "${id}" is declared and never rendered`).toContain(`active === '${id}'`);
     }
   });
@@ -412,7 +412,7 @@ describe('the page is wired', () => {
     for (const id of rendered) {
       expect(src, `tab "${id}" is rendered and never declared`).toMatch(new RegExp(`id: '${id}'`));
     }
-    expect(rendered.length).toBe(7);
+    expect(rendered.length).toBe(8);
   });
 
   it('uses the shared keyboard helper rather than a hand-rolled arrow dance', () => {
