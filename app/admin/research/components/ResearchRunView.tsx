@@ -109,6 +109,13 @@ export default function ResearchRunView({
     () => run.documents.filter((d) => d.superseded_at && !d.duplicate_of),
     [run.documents],
   );
+  // B5 — the rows that were folded into another one. Filtered OUT of the list above and, until
+  // now, shown nowhere at all: a document quietly merged with no screen saying so is
+  // functionally deleted, because nobody can find it and nobody can tell you were wrong.
+  const duplicateDocs = useMemo(
+    () => run.documents.filter((d) => d.duplicate_of),
+    [run.documents],
+  );
 
   return (
     <div className="rrv">
@@ -223,6 +230,9 @@ export default function ResearchRunView({
           <DocumentList
             docs={liveDocs}
             prior={priorDocs}
+            duplicates={duplicateDocs}
+            projectId={projectId}
+            onChanged={run.refresh}
             loading={run.documentsLoading}
             active={state.lifecycle === 'active'}
           />
@@ -374,10 +384,26 @@ function Tab({ id, current, onSelect, icon, count, children }: {
 
 // ── Documents ───────────────────────────────────────────────────────────────────────────────────
 
-function DocumentList({ docs, prior, loading, active }: {
-  docs: RunDocument[]; prior: RunDocument[]; loading: boolean; active: boolean;
+function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, active }: {
+  docs: RunDocument[]; prior: RunDocument[]; duplicates: RunDocument[];
+  projectId: string; onChanged: () => void; loading: boolean; active: boolean;
 }) {
   const [showPrior, setShowPrior] = useState(false);
+  const [showDupes, setShowDupes] = useState(false);
+  const [unmarking, setUnmarking] = useState<string | null>(null);
+
+  async function unmark(id: string) {
+    setUnmarking(id);
+    try {
+      await fetch(`/api/admin/research/${projectId}/duplicates`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ documentId: id }),
+      });
+      onChanged();
+    } catch { /* the list simply does not change; nothing was destroyed either way */ }
+    setUnmarking(null);
+  }
 
   if (docs.length === 0) {
     return (
@@ -415,6 +441,42 @@ function DocumentList({ docs, prior, loading, active }: {
           </li>
         ))}
       </ul>
+
+      {duplicates.length > 0 && (
+        <div className="rrv__prior">
+          <button type="button" className="rrv__btn rrv__btn--quiet"
+                  onClick={() => setShowDupes((v) => !v)} aria-expanded={showDupes}>
+            {showDupes ? 'Hide' : 'Show'} {duplicates.length} merged duplicate(s)
+          </button>
+          {showDupes && (
+            <>
+              <p className="rrv__dupe-note">
+                These were folded into another document. Nothing was deleted — the file is still
+                here. The match rules are deliberately willing to be wrong in this direction, so
+                if one of these is genuinely a different record, un-mark it.
+              </p>
+              <ul className="rrv__docs rrv__docs--prior">
+                {duplicates.map((d) => (
+                  <li key={d.id} className="rrv__doc rrv__doc--dupe">
+                    <FileText size={14} className="rrv__doc-icon" aria-hidden />
+                    <span className="rrv__doc-label">
+                      {d.document_label || d.document_type || 'Untitled'}
+                      {/* The reason, always. A merge nobody can argue with has to be trusted
+                          completely or not at all. */}
+                      <span className="rrv__doc-reason">{d.duplicate_reason ?? 'No reason was recorded.'}</span>
+                    </span>
+                    <button type="button" className="rrv__btn rrv__btn--quiet"
+                            disabled={unmarking === d.id}
+                            onClick={() => void unmark(d.id)}>
+                      {unmarking === d.id ? 'Un-marking…' : 'Not a duplicate'}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
 
       {prior.length > 0 && (
         <div className="rrv__prior">
@@ -622,6 +684,9 @@ function RunViewStyles() {
 .rrv__doc-seen { border: 1px solid var(--theme-border, #D1D5DB); border-radius: 999px; padding: 0 0.35rem; }
 .rrv__docs--prior { opacity: 0.75; margin-top: 0.4rem; }
 .rrv__prior { margin-top: 0.6rem; }
+.rrv__dupe-note { margin: 0.4rem 0; font-size: 0.78rem; line-height: 1.5; color: var(--theme-fg-muted, #6B7280); }
+.rrv__doc--dupe { align-items: flex-start; }
+.rrv__doc-reason { display: block; font-size: 0.72rem; line-height: 1.45; color: var(--theme-fg-muted, #6B7280); white-space: normal; }
 
 /* ── Log ─────────────────────────────────────────────────────────────────────────────────── */
 .rrv__log {

@@ -60,6 +60,9 @@ export interface RunDocument {
   created_at?: string | null;
   superseded_at?: string | null;
   duplicate_of?: string | null;
+  /** Why it was merged. Rendered next to the row — a merge with no stated reason cannot be
+   *  argued with, and a reader who cannot argue with it must trust the whole library blindly. */
+  duplicate_reason?: string | null;
   research_run_id?: string | null;
   run_seen_count?: number | null;
 }

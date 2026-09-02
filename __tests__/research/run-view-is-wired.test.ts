@@ -51,9 +51,25 @@ describe('the rebuilt run view is actually mounted', () => {
   });
 
   it('the run view does NOT re-derive status with its own fetch', () => {
-    // Every fetch on this screen belongs to the hook. A fetch here would be a second opinion, and
-    // second opinions are the whole defect.
-    expect(runView).not.toMatch(/\bfetch\(/);
+    // ── WHAT THIS GUARD IS ACTUALLY FOR ────────────────────────────────────────────────────────
+    //
+    // The defect is a second opinion about the RUN: a component reading the status or console
+    // endpoint on its own interval and rendering its own answer. That is what put "Finished in 2
+    // minutes" beside "Research Failed".
+    //
+    // It was first written as a blanket ban on `fetch(` in this file, and that over-reached — it
+    // failed the moment the view gained a button that UN-MARKS A DUPLICATE, which is a mutation
+    // and reads no status at all. A guard whose letter is wider than its purpose gets edited by
+    // whoever it blocks next, and then it stops guarding anything.
+    //
+    // So it names the endpoints that carry run state. Reading either of those here is the bug;
+    // POSTing a correction is not.
+    for (const stateEndpoint of ['/pipeline', '/run-console']) {
+      expect(runView, `${stateEndpoint} must be read only by useRunState`)
+        .not.toContain(`${stateEndpoint}\``);
+    }
+    // And the status must come from the hook, not from anything this file computed.
+    expect(runView).toContain('const run = useRunState(projectId)');
   });
 
   it('only a genuine problem may render the status card red', () => {
