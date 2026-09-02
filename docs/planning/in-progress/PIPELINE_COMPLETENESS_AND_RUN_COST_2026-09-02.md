@@ -300,6 +300,31 @@ reachability number until it exists.**
       claim about the property from a missing input), and a scoring failure cannot fail a run whose
       research already succeeded.
 
+- [x] **C2d** Every county has a clerk source. **The biggest single gap in the plan.**
+
+      §1.5 measured it: the generic pipeline's clerk search is Kofile-only, 43 of its 72 counties
+      pointed at dead hosts, and `searchClerkRecords` returned `[]` for everywhere else — which the
+      pipeline reads as "the clerk holds nothing for this owner". So outside 29 counties, a run
+      reported no clerk records having never contacted a clerk.
+
+      The fix is one branch. `searchClerkRecords` now asks `services/clerk-registry.ts` which vendor
+      the county actually uses — eDocTec, Tyler, USLandRecords, Aumentum, iDocket, Fidlar, or
+      TexasFile as the universal fallback — and searches it. Chosen there rather than in the
+      pipeline because all three existing call sites go through that one function, so they all gain
+      coverage without the pipeline changing at all.
+
+      Grantor AND grantee, because they are different questions: an owner is grantee on the deed
+      that gave them the property and grantor on anything they have since conveyed.
+
+      The outcome is a STATEMENT, not just an array. "The index answered and holds nothing" is a
+      finding about the property; "we never reached a vendor" is a finding about us; and both used
+      to arrive as `[]`. Results carry the VENDOR that answered, because "which vendor did we
+      reach" is the first question when a county starts returning nothing and is unanswerable
+      afterwards if every result says "clerk".
+
+      **This is also what makes the TexasFile work reach a normal run.** The sign-in and the real
+      form fixed the adapter; until now nothing in a run could construct it.
+
 - [ ] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
       path. Not everything should run on every property — the answer must be written down either way,
       because "unreachable" and "deliberately optional" look identical from the outside.

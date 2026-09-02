@@ -1038,8 +1038,25 @@ export async function searchClerkRecords(
 ): Promise<DocumentResult[]> {
   const config = KOFILE_CONFIGS[county.toLowerCase()];
   if (!config) {
-    logger.warn('Stage2', `No Kofile config for county: ${county}. Known: ${Object.keys(KOFILE_CONFIGS).join(', ')}`);
-    return [];
+    // ── NOT A KOFILE COUNTY IS NOT "NO CLERK" ──────────────────────────────────────────────────
+    //
+    // This returned [] and warned, and the pipeline reads [] as "the clerk holds nothing for this
+    // owner". Of the 254 Texas counties, 29 have a working Kofile portal — so for everywhere else a
+    // run reported no clerk records having never contacted a clerk.
+    //
+    // `services/clerk-registry.ts` has known which vendor each county actually uses all along —
+    // eDocTec, Tyler, USLandRecords, Aumentum, iDocket, Fidlar, TexasFile — and the generic pipeline
+    // never called it, because the pipeline's clerk search is this file and this file is Kofile-only.
+    const { lookupCountyFIPS } = await import('../lib/county-fips.js');
+    const { searchClerkByVendor } = await import('./clerk-vendor-search.js');
+
+    const fips = lookupCountyFIPS(county, 'TX');
+    const outcome = await searchClerkByVendor(county, fips, ownerName, logger);
+
+    // Said either way. "The index answered and holds nothing" and "we never reached a vendor" are
+    // different facts, and both used to arrive as an empty array.
+    logger.info('Stage2', outcome.statement);
+    return outcome.documents;
   }
 
   const searchNames = formatOwnerForSearch(ownerName);
