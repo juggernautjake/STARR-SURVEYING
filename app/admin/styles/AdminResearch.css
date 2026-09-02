@@ -11682,6 +11682,14 @@
 }
 
 .report-card__not-measured-label { font-weight: 650; color: var(--theme-fg-secondary, #4B5563); }
+/* D5 — stated positively when the card really is about one run, so a reader knows which of the
+   two sentences they are looking at. */
+.report-card__scope {
+  margin: 0 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--theme-fg-secondary, #4B5563);
+}
 .report-card__not-measured ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
 
 .report-card__comparison { margin-top: 0.6rem; border-top: 1px solid var(--theme-border, #E5E7EB); padding-top: 0.5rem; }

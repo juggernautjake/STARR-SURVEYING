@@ -13,6 +13,9 @@ interface Payload {
   card: ReportCard | null;
   comparison: CardComparison | null;
   contentIsPerProject?: boolean;
+  /** True when every count above came from documents attributed to this run. */
+  documentsScopedToRun?: boolean;
+  runNumber?: number | null;
   message?: string;
 }
 
@@ -75,15 +78,32 @@ export default function ReportCardPanel({ projectId }: { projectId: string }) {
         </details>
       )}
 
+      {data.documentsScopedToRun && (
+        <p className="report-card__scope">
+          These counts are for run {data.runNumber ?? '?'} alone.
+        </p>
+      )}
+
       {/* The honest half. A missing measurement said out loud is worth more than a fabricated one. */}
       <div className="report-card__not-measured">
         <span className="report-card__not-measured-label">This card does not measure:</span>
         <ul>
           {c.notMeasured.map((n, i) => <li key={i}>{n}</li>)}
+          {/* ── D5: THIS DISCLAIMER OUTLIVED ITS LIMITATION ─────────────────────────────────
+              It read, unconditionally: "nothing tags a document or fact with its run, so the
+              counts above are for the whole project, not this run alone." That was true when it
+              was written and seed 623 made it false — research_documents.research_run_id records
+              which run produced each row.
+
+              A disclaimer that survives the limitation it describes is worse than none: it
+              trains people to discount a number that has become correct. So it now fires only
+              when the counts really are project-wide, and says WHY they are. */}
           {data.contentIsPerProject && (
             <li>
-              Which run produced which fact — nothing tags a document or fact with its run, so the
-              counts above are for the whole project, not this run alone.
+              Which run produced which fact. No document in this project carries a run
+              attribution — 671 rows predate it — so the counts above are for the whole project,
+              not this run alone. Documents retrieved from now on are attributed, and this note
+              disappears once they are.
             </li>
           )}
         </ul>

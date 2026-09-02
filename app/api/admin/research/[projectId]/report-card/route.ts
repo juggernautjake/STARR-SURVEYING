@@ -68,10 +68,25 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ card: null, message: 'No run has been recorded for this project yet.' });
   }
 
-  // Content is measured per PROJECT, not per run: nothing tags a document or a fact with the run
-  // that produced it. Said out loud on the card rather than silently attributing every fact ever
-  // extracted to the latest run.
-  const [docRes, factRes, conflictRes, adapterRes, projectRes] = await Promise.all([
+  // ── SCOPED TO THE RUN, NOW THAT A DOCUMENT CAN NAME ITS RUN (plan D5) ─────────────────────
+  //
+  // This measured the whole PROJECT and said so on the card: "nothing tags a document or fact
+  // with its run, so the counts above are for the whole project, not this run alone." That was
+  // true, and seed 623 made it false — `research_documents.research_run_id` records which run
+  // first produced each row.
+  //
+  // A disclaimer that outlives the limitation it describes is worse than no disclaimer: it
+  // trains people to discount a number that has become correct.
+  //
+  // The fallback is not cosmetic. 671 documents in this database predate attribution entirely,
+  // and for a project made only of those, a run-scoped count is ZERO — which would read as a run
+  // that found nothing rather than a run nobody labelled. So: count by run when the run has any
+  // attributed rows, fall back to the project when it has none, and SAY WHICH on the card.
+  const [runDocRes, docRes, factRes, conflictRes, adapterRes, projectRes] = await Promise.all([
+    supabaseAdmin.from('research_documents')
+      .select('id, readability, processing_status')
+      .eq('research_project_id', projectId)
+      .eq('research_run_id', runs[0].id),
     supabaseAdmin.from('research_documents')
       .select('id, readability, processing_status').eq('research_project_id', projectId),
     supabaseAdmin.from('extracted_data_points').select('*').eq('research_project_id', projectId),
@@ -80,7 +95,13 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     supabaseAdmin.from('research_projects').select('county').eq('id', projectId).single(),
   ]);
 
-  const documents = (docRes.data ?? []) as Array<{ readability: string | null; processing_status: string }>;
+  type DocRow = { readability: string | null; processing_status: string };
+  const runDocuments = (runDocRes.data ?? []) as DocRow[];
+  const projectDocuments = (docRes.data ?? []) as DocRow[];
+  // Attributed rows exist for this run → the card is about this run. None → it is about the
+  // project, and the card says that in place of the old blanket disclaimer.
+  const scopedToRun = runDocuments.length > 0;
+  const documents = scopedToRun ? runDocuments : projectDocuments;
   const facts = (factRes.data ?? []) as ExtractedDataPoint[];
   const unreadable = documents.filter((d) => d.processing_status === 'unreadable').length;
 
@@ -116,7 +137,12 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
       card: cards[0],
       // Two runs on one property with different budgets, on one screen — the acceptance case.
       comparison: compare && cards.length === 2 ? compareCards(cards[1]!, cards[0]!) : null,
-      contentIsPerProject: true,
+      // Was an unconditional `true` beside a disclaimer saying the card could never be
+      // run-scoped. It can be now (plan D5), so this reports which scope was actually used —
+      // and the panel renders a different sentence for each.
+      contentIsPerProject: !scopedToRun,
+      documentsScopedToRun: scopedToRun,
+      runNumber: (runs[0] as unknown as { run_number?: number }).run_number ?? null,
     },
     { headers: { 'Cache-Control': 'no-store' } },
   );
