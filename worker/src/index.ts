@@ -1476,8 +1476,18 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
 
       const filing = endFiling(projectId);
       if (filing) {
-        handshakeLogger.attempt('[Library]', 'info', 'Duplicate check', filing.describe())
-          .success(0, filing.describe());
+        // B1. This logged 'info' and `.success()` unconditionally, so `1 could not be written` was
+        // reported to the screen as a successful step. A run that captured a document and then lost
+        // it has not succeeded at filing, and the one place that knows must be the place that says so.
+        const summary = filing.describe();
+        if (filing.hasFailures) {
+          handshakeLogger.attempt('[Library]', 'warn', 'Duplicate check', summary)
+            .warn(summary);
+          console.warn(`[Library] ${projectId}: ${filing.describeFailures()}`);
+        } else {
+          handshakeLogger.attempt('[Library]', 'info', 'Duplicate check', summary)
+            .success(0, summary);
+        }
       }
       const stopped = activePipelines.get(projectId)?.stopReason;
       void recordRunFinish({

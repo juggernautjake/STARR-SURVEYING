@@ -216,10 +216,30 @@ Ship in order within a phase. Each is independently useful and independently rev
 
 ### Phase B — every document, filed once, immediately
 
-- [ ] **B1** `[Library]: 0 new document(s) filed. 1 could not be written.` A document was captured
+- [x] **B1** `[Library]: 0 new document(s) filed. 1 could not be written.` A document was captured
       and could not be persisted, and the run completed anyway. Find out why one row failed, and make
       the reason reach the screen — "could not be written" with no cause is the shape of the
       22-documents-advertising-a-missing-file defect.
+
+      **DONE, and the cause was never missing.** `FilingTally.record()` has been storing the actual
+      error string since it was written, and `describe()` printed `.length` and threw the string
+      away one line before it would have been useful. The count with no cause was not a gap in what
+      the code knew — it was a gap in what it said.
+
+      `describeFailures()` now names the distinct reasons, counted where they repeat, capped at
+      three with the remainder stated rather than dropped. Distinct reasons and not one line per
+      document, because a portal that times out fails every document in a batch identically and
+      fifty copies of one message is how a log stops being read.
+
+      The second half was worse than the first: the call site logged `info` and `.success()`
+      unconditionally, so `1 could not be written` reached the screen as a SUCCESSFUL step. It now
+      branches on `hasFailures` and warns. A run that captured a document and then lost it has not
+      succeeded at filing.
+
+      11 tests, with a control that a clean tally is unchanged (otherwise "always append a warning"
+      would pass everything) and a mutation control on the warn branch. The ordering assertion
+      strips comments first — this block's own comment quotes the code it replaced, and the probe
+      matched the prose on the first run. Fifth time in this repository.
 - [ ] **B2** Verify the immediacy guarantee holds for the GENERIC pipeline as well as Bell. The nine
       guards in `documents-are-filed-immediately.test.ts` cover the Bell orchestrator's seven
       incremental call sites; the generic pipeline's path is not yet asserted.
