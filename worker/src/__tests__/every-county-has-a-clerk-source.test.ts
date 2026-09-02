@@ -99,6 +99,42 @@ describe('the counties this actually covers', () => {
   });
 });
 
+describe('C3: a paywall is reported as a paywall, not as an empty index', () => {
+  const VENDOR = fs.readFileSync(
+    path.join(process.cwd(), 'src/services/clerk-vendor-search.ts'), 'utf8',
+  );
+
+  it('reads the adapter verdict that nothing used to read', () => {
+    // `TexasFileAdapter.lastAccess` has been set on every search since the adapter was written and
+    // read by nothing, so "5,000 records exist here and we cannot open them" reached a
+    // console.warn and stopped there.
+    expect(VENDOR).toContain('lastAccess');
+  });
+
+  it('carries it out on the outcome, not just into a log line', () => {
+    expect(VENDOR).toContain('paywall: { recordCount: number | null; statement: string } | null;');
+  });
+
+  it('a paywalled county does NOT read as "no documents"', () => {
+    // The distinction that decides whether to buy a subscription or look somewhere else. Rendering
+    // both as an empty result is the defect this entire plan is about.
+    expect(VENDOR).toContain('The records EXIST');
+    expect(VENDOR).toContain('absence of access, not of documents');
+  });
+
+  it('keeps the COUNT, which is the part that makes it actionable', () => {
+    // "5,000 records" is a purchasing decision. "Some records" is not.
+    expect(VENDOR).toContain('paywall.recordCount');
+  });
+
+  it('CONTROL: an open search still reports its documents normally', () => {
+    // Without this, "always report a paywall" would satisfy the assertions above and would tell an
+    // operator to buy a subscription for a county that answered perfectly well.
+    expect(VENDOR).toContain('document(s) found for');
+    expect(VENDOR).toContain("access?.state === 'paywalled'");
+  });
+});
+
 describe('a vendor result becomes a document the pipeline can carry', () => {
   it('maps the fields the run needs', () => {
     const d = toDocumentResult(doc(), 'edoctec');

@@ -328,8 +328,16 @@ reachability number until it exists.**
 - [ ] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
       path. Not everything should run on every property — the answer must be written down either way,
       because "unreachable" and "deliberately optional" look identical from the outside.
-- [ ] **C3** The paywall verdict escapes the adapter: `lastAccess` reaches the run so an operator can
+- [x] **C3** The paywall verdict escapes the adapter: `lastAccess` reaches the run so an operator can
       see "N records exist here and are behind a paywall" instead of nothing.
+
+      **DONE, and C2d is what made it reachable** — until a run could construct the TexasFile
+      adapter, its verdict had nowhere to go.
+
+      `lastAccess` is read now and travels out on the outcome. A paywalled county reports
+      "N record(s) exist and will not be shown without a subscription — the records EXIST, this is
+      the absence of access, not of documents", with the COUNT, which is the part that makes it a
+      purchasing decision rather than a shrug.
 
 ### Phase D — the run can buy documents
 

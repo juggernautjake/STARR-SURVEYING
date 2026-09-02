@@ -54,6 +54,16 @@ export interface VendorSearchOutcome {
   vendor: string | null;
   /** A sentence for the run log. Never "no records" when nothing was searched. */
   statement: string;
+  /**
+   * C3 — what the vendor actually let us see.
+   *
+   * `TexasFileAdapter` has set `lastAccess` on every search since it was written and NOTHING read
+   * it, so "5,000 records exist here and we cannot open them" reached a `console.warn` and stopped.
+   * That is the single most decision-shaped fact a run can produce about a county — it is the
+   * difference between buying a subscription and looking somewhere else — and it never left the
+   * adapter.
+   */
+  paywall: { recordCount: number | null; statement: string } | null;
 }
 
 /**
@@ -74,6 +84,7 @@ export async function searchClerkByVendor(
   if (!countyFIPS) {
     return {
       documents: [],
+      paywall: null,
       vendor: null,
       statement:
         `No FIPS code could be resolved for ${county} County, so no clerk vendor could be selected. ` +
@@ -88,6 +99,7 @@ export async function searchClerkByVendor(
   } catch (err) {
     return {
       documents: [],
+      paywall: null,
       vendor,
       statement:
         `${county} County routes to ${vendor}, and that adapter could not be created ` +
@@ -128,6 +140,7 @@ export async function searchClerkByVendor(
   } catch (err) {
     return {
       documents,
+      paywall: null,
       vendor,
       statement:
         `${county} County routes to ${vendor}, and the session could not be opened ` +
@@ -140,11 +153,31 @@ export async function searchClerkByVendor(
     } catch { /* a browser that will not close must not fail the search that already ran */ }
   }
 
+  // The adapter's own verdict on what it was allowed to see. Structural, because only the
+  // TexasFile adapter has one — the others either return records or throw.
+  const access = (adapter as unknown as {
+    lastAccess?: { state?: string; recordCount?: number | null; statement?: string } | null;
+  }).lastAccess ?? null;
+  const paywall = access?.state === 'paywalled'
+    ? { recordCount: access.recordCount ?? null, statement: access.statement ?? '' }
+    : null;
+
+  if (paywall) {
+    // Said in the run log, not just returned. A count behind a paywall is a purchasing decision;
+    // an empty result is a wrong answer about someone's property.
+    logger.warn('Stage2', paywall.statement);
+  }
+
   return {
     documents,
+    paywall,
     vendor,
     statement: documents.length > 0
       ? `${documents.length} document(s) found for "${ownerName}" via ${vendor} in ${county} County.`
+      : paywall
+      ? `${vendor} reports ${paywall.recordCount ?? 'an unknown number of'} record(s) for ` +
+        `"${ownerName}" in ${county} County and will not show them without a subscription. ` +
+        `The records EXIST — this is the absence of access, not of documents.`
       : `${vendor} returned no documents for "${ownerName}" in ${county} County. The search ran and ` +
         `the index answered — this is a finding about the name, not a gap in coverage.`,
   };
