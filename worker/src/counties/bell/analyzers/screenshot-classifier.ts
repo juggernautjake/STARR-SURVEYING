@@ -13,6 +13,7 @@
 // irrelevant content, etc.
 
 import type { ScreenshotCapture } from '../types/research-result.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call what kind of screenshot is this.
 import { modelFor } from '../../../infra/model-router.js';
@@ -266,6 +267,14 @@ Respond with a JSON array (one entry per screenshot, in order):
         },
       ],
     }],
+  });
+
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/screenshot-classifier', modelFor('classify').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
   });
 
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;

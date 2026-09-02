@@ -10,6 +10,7 @@
  */
 
 import { convertLength } from '../../../services/survey-units.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 import type { DeedRecord, ChainLink, DeedsAndRecordsSection, AiUsageSummary, BoundaryCall, PointOfBeginning, ComputedTraverse } from '../types/research-result.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call reads a scanned deed page region.
@@ -445,6 +446,14 @@ IMPORTANT: This is a cropped region of a larger document. Extract everything vis
     }],
   });
 
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/deed-analyzer', modelFor('read_scan').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
+  });
+
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
   return {
     text: textBlock?.text ?? '',
@@ -495,6 +504,14 @@ ${regionTexts}
 
 Produce the final merged analysis following the 13-section format. Be exhaustive. Include a final section summarizing what was learned from the multi-region analysis that would have been missed in a single-pass review.`,
     }],
+  });
+
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/deed-analyzer', modelFor('read_scan').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
   });
 
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
@@ -730,6 +747,14 @@ Write a thorough ownership history summary (8-15 sentences) covering:
 - Abstract/survey references (e.g., "William Hartrick Survey, A-488")
 - Any red flags: boundary discrepancies, unclear descriptions, potential title issues`,
       }],
+    });
+
+    // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+    // inspected, because the tokens are gone whether or not the model returned something
+    // usable, and priced with the model `modelFor` actually chose rather than a constant.
+    void recordAmbientAiCall('bell/deed-analyzer', modelFor('read_scan').model, {
+      input:  response.usage?.input_tokens  ?? 0,
+      output: response.usage?.output_tokens ?? 0,
     });
 
     const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;

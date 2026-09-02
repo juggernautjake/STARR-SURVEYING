@@ -12,6 +12,7 @@
  */
 
 import type { PlatRecord, PlatAnalysis, PlatSection, AiUsageSummary, BoundaryCall } from '../types/research-result.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call reads a scanned plat sheet.
 import { modelFor } from '../../../infra/model-router.js';
@@ -405,6 +406,14 @@ IMPORTANT: This is a cropped region of a larger plat. Extract everything visible
     }],
   });
 
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/plat-analyzer', modelFor('read_scan').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
+  });
+
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
   return {
     text: textBlock?.text ?? '',
@@ -454,6 +463,14 @@ ${regionTexts}
 
 Produce the final merged result as a single JSON object with the same schema: lotDimensions, bearingsAndDistances, monuments, easements, curves, rowWidths, adjacentReferences, changesFromPrevious, narrative. The narrative should be a comprehensive 10-15 sentence summary incorporating insights from all regions. Include a final paragraph noting what the multi-region analysis revealed that a single-pass review would have missed.`,
     }],
+  });
+
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/plat-analyzer', modelFor('read_scan').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
   });
 
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;

@@ -12,6 +12,7 @@
 // Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §5
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import { recordAiCall } from '../infra/usage.js';
 import { adaptiveVisionOcr } from './adaptive-vision.js';
 import { analyzeVisualGeometry, reconcileGeometry } from './geo-reconcile.js';
@@ -451,6 +452,14 @@ export class AIPlatAnalyzer {
         max_tokens: 8192,
         ...samplingFor(AI_MODEL),
         messages: [{ role: 'user', content: prompt }],
+      });
+
+      // R4b — this call spent money and did not say so. Priced with AI_MODEL, which is the model
+      // this file actually sends; recorded before the response is inspected, because the tokens
+      // are gone whether or not the model returned something usable.
+      void recordAmbientAiCall('ai-plat-analyzer', AI_MODEL, {
+        input:  response.usage?.input_tokens  ?? 0,
+        output: response.usage?.output_tokens ?? 0,
       });
 
       // R4b — recorded before the parse, because the tokens were spent whether or not the JSON is

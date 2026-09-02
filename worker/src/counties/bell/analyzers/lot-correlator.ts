@@ -13,6 +13,7 @@
 // coordinates, showing the target parcel highlighted with its neighbors.
 
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call decides which lot a description matches.
 import { modelFor } from '../../../infra/model-router.js';
@@ -558,6 +559,14 @@ Respond in JSON:
         { type: 'text', text: prompt },
       ],
     }],
+  });
+
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/lot-correlator', modelFor('reconcile').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
   });
 
   const textBlock = response.content.find(b => b.type === 'text') as { type: 'text'; text: string } | undefined;
