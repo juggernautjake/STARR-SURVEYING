@@ -15,8 +15,6 @@ import { usePageError } from '../../hooks/usePageError';
 import PipelineStepper from '../components/PipelineStepper';
 import { confirm as confirmDialog } from '../components/ConfirmDialog';
 import DocumentUploadPanel from '../components/DocumentUploadPanel';
-import PropertySearchPanel from '../components/PropertySearchPanel';
-import ResearchAnalysisPanel from '../components/ResearchAnalysisPanel';
 import DocumentDeepAnalysisPanel from '../components/DocumentDeepAnalysisPanel';
 import DataPointsPanel from '../components/DataPointsPanel';
 import DiscrepancyPanel from '../components/DiscrepancyPanel';
@@ -38,7 +36,6 @@ import VerificationPanel from '../components/VerificationPanel';
 import ExportPanel from '../components/ExportPanel';
 import SurveyPlanPanel from '../components/SurveyPlanPanel';
 import { PipelineProgressPanel, PipelineProgressStyles, type PipelineLogEntry } from '../components/PipelineProgressPanel';
-import ResearchRunPanel from '../components/ResearchRunPanel';
 import { propertyReviewFields, type ProjectLike } from './_sections/property-review-fields';
 import { surveyReviewData } from './_sections/survey-review-data';
 import { summaryReviewData } from './_sections/summary-review-data';
@@ -51,11 +48,6 @@ import {
   DEED_BREAKS_COLOR, MISSING_INSTRUMENTS_COLOR,
 } from './_sections/coherence-review-data';
 // What the run has spent and how much of its budget is left (research plan R22).
-import RunConsoleBar from '../components/RunConsoleBar';
-// What changed since the last run — research is not a one-shot (research plan R27).
-import RunDiffPanel from '../components/RunDiffPanel';
-// What the run achieved, per dollar — 'as cheap but as effective as possible', as a number (R30).
-import ReportCardPanel from '../components/ReportCardPanel';
 import EditProjectModal, { type EditProjectValue } from './_sections/EditProjectModal';
 import { type JobSummary } from '../components/JobLinkPicker';
 import ResearchStagePanel from './_sections/ResearchStagePanel';
@@ -1878,6 +1870,7 @@ export default function ResearchProjectPage() {
           parcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
           ownerName={pendingSearchParams?.ownerName ?? projectOwnerName(project) ?? ''}
           autoStart={shouldAutoStartPipeline}
+          onRerun={() => setShowRerunConfirm(true)}
           onPipelineStart={() => {
             setPipelineHasStarted(true);
             setHoldOnResearchStage(true);

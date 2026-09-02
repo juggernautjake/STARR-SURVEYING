@@ -1,25 +1,35 @@
 'use client';
 
-// app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx — Phase B1a.
-
-// Fourth extraction from `page.tsx`: Stage 2, the screen an operator watches while a run is going.
+// app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx — Phase B1a, rebuilt for plan E2.
 //
-// ── THE SEARCH INPUTS ARE RESOLVED BY THE CALLER ────────────────────────────────────────────────
+// ── WHAT THIS PANEL USED TO DO ──────────────────────────────────────────────────────────────────
 //
-// The four search fields were each a three-way fallback inline in the JSX —
-// `pendingSearchParams?.county ?? project.county ?? ''` — repeated four times with a different
-// field. That is a decision, not markup, and it is the decision that G10 got wrong for months:
-// the owner name fell back to a project column that does not exist, so the worker's owner-based
-// clerk search never ran.
+// Stack four independent components and hope they agreed:
 //
-// Resolved on the page and passed in as four plain strings. This panel renders what it is given.
+//     <RunConsoleBar    projectId={projectId} />   // its own fetch, its own status
+//     <RunDiffPanel     projectId={projectId} />   // its own fetch
+//     <ReportCardPanel  projectId={projectId} />   // its own fetch
+//     <ResearchRunPanel … />                        // its own fetch, its own status, 1,774 lines
+//
+// They did not agree. On 2026-09-01 this exact stack rendered "AI analysis is running", "Finished
+// in 2 minutes for $0.02" and "✕ Research Failed" simultaneously, about one run — with the
+// completion and seventeen retrieved documents ABOVE the panel claiming failure, so an operator
+// scrolled past the good news to reach the wrong news.
+//
+// ── WHAT IT DOES NOW ────────────────────────────────────────────────────────────────────────────
+//
+// Renders one view. `ResearchRunView` owns the whole screen and takes its numbers from
+// `useRunState`, which polls once and derives everything from one object. The diff and the report
+// card are still their own components with their own subjects — they are tab bodies inside that
+// view now, so they can no longer sit beside a status they are not describing.
+//
+// The search inputs are still resolved by the CALLER and passed as four plain strings. They were
+// once four three-way fallbacks inline in the JSX, and that is the decision G10 got wrong for
+// months: the owner name fell back to a project column that does not exist, so the worker's
+// owner-based clerk search never ran.
 
 import React from 'react';
-import { Microscope } from 'lucide-react';
-import RunConsoleBar from '../../components/RunConsoleBar';
-import RunDiffPanel from '../../components/RunDiffPanel';
-import ReportCardPanel from '../../components/ReportCardPanel';
-import ResearchRunPanel from '../../components/ResearchRunPanel';
+import ResearchRunView from '../../components/ResearchRunView';
 
 export interface ResearchStagePanelProps {
   projectId: string;
@@ -32,30 +42,18 @@ export interface ResearchStagePanelProps {
   onPipelineComplete: (status: string) => void;
   onBack: () => void;
   onContinueToReview: () => void;
+  /** Opens the editable re-run dialog. The page owns it — a re-run resets project-level state. */
+  onRerun?: () => void;
 }
 
 export default function ResearchStagePanel({
   projectId, address, county, parcelId, ownerName, autoStart,
-  onPipelineStart, onPipelineComplete, onBack, onContinueToReview,
+  onPipelineStart, onPipelineComplete, onBack, onContinueToReview, onRerun,
 }: ResearchStagePanelProps) {
   return (
     <div className="research-stage2">
       <div className="research-stage2__launch">
-        <div className="research-step-header" style={{ marginBottom: '1rem' }}>
-          <span className="research-step-header__icon"><Microscope size={18} strokeWidth={1.75} /></span>
-          <div className="research-step-header__body">
-            <h2 className="research-step-header__title">Research &amp; Analysis</h2>
-          </div>
-        </div>
-        {/* Cost and elapsed-vs-budget, above the progress list (plan R22). The run panel showed
-            neither, so an operator watching a 25-minute run could not tell what it had spent or
-            whether it would finish. */}
-        <RunConsoleBar projectId={projectId} />
-        {/* A job that sat for three months and gained two new deeds needs to say so, and the
-            approved packet needs to be told it is out of date (plan R27). */}
-        <RunDiffPanel projectId={projectId} />
-        <ReportCardPanel projectId={projectId} />
-        <ResearchRunPanel
+        <ResearchRunView
           projectId={projectId}
           address={address}
           county={county}
@@ -66,8 +64,9 @@ export default function ResearchStagePanel({
           onPipelineComplete={onPipelineComplete}
           onBack={onBack}
           onContinueToReview={onContinueToReview}
+          onRerun={onRerun}
         />
-  </div>
-</div>
+      </div>
+    </div>
   );
 }
