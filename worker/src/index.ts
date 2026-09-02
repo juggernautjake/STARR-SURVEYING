@@ -35,6 +35,7 @@ import { normaliseRunSettings, describeRunSettings, type RunSettings } from './r
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
 import { runCaptures } from './research/capture-runner.js';
+import { huntDrawings, DRAWING_SEARCH_TERMS } from './research/drawing-hunt.js';
 // The 19 counties that carry a GIS viewer URL. Already in the tree, used only to query features
 // until now — never to photograph the viewer, which is what was asked for.
 import { BIS_CONFIGS } from './services/bis-cad.js';
@@ -1440,6 +1441,27 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         await captureImageryForRun(projectId, county, unifiedResult);
       } catch (e) {
         console.warn(`[Capture] ${projectId}: imagery phase threw — ${String(e)}`);
+      }
+
+      // ── THE DRAWING HUNT (plan F6) ──────────────────────────────────────────────────────
+      //
+      // "Work especially hard on finding drawings and cad work." The cheap half of that is to
+      // recognise the drawings this run ALREADY retrieved: `DocumentType` is a five-value union
+      // and the clerk classifier tests only the literal word PLAT, so "MAP OF SURVEY" — a
+      // completed retracement with monuments called for, the single most useful document a
+      // surveyor can find — was filed as `other` and became invisible.
+      try {
+        const docs = documentsForDrawingHunt(unifiedResult);
+        const hunt = huntDrawings(docs, DRAWING_SEARCH_TERMS.map((t) => t.term));
+        console.log(`[Drawings] ${projectId}: ${hunt.summary}`);
+        for (const d of hunt.found) {
+          console.log(`[Drawings] ${projectId}: ${d.category} (${d.strength}) — ${d.reason}`);
+        }
+        // Onto the result, so the report and the review screen can show it. A hunt whose answer
+        // never leaves the log is indistinguishable from no hunt.
+        (unifiedResult as unknown as Record<string, unknown>).drawingHunt = hunt;
+      } catch (e) {
+        console.warn(`[Drawings] ${projectId}: hunt threw — ${String(e)}`);
       }
 
       const filing = endFiling(projectId);
@@ -3454,6 +3476,38 @@ async function captureImageryForRun(
   for (const o of report.outcomes) {
     if (o.status !== 'filed') console.log(`[Capture] ${projectId}: ${o.label} — ${o.status}: ${o.detail}`);
   }
+}
+
+/** Every document a run retrieved, in the one shape the drawing hunt needs.
+ *
+ *  Reads both result shapes. A county result keeps its documents in typed sections; a generic
+ *  pipeline result keeps them in one array. Missing either would silently halve the hunt. */
+function documentsForDrawingHunt(
+  unifiedResult: UnifiedResearchResult,
+): Array<{ label?: string | null; documentType?: string | null }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (unifiedResult as any)?.data ?? {};
+  const out: Array<{ label?: string | null; documentType?: string | null }> = [];
+
+  // Generic pipeline: one flat array of documents, each with a ref.
+  if (Array.isArray(data.documents)) {
+    for (const d of data.documents) {
+      out.push({
+        label: d?.ref?.documentType ?? d?.ref?.description ?? d?.documentLabel ?? null,
+        documentType: d?.ref?.documentType ?? d?.extractedData?.type ?? null,
+      });
+    }
+  }
+
+  // County result: deeds and plats live in their own sections.
+  for (const rec of (data.deedsAndRecords?.records ?? []) as Array<Record<string, unknown>>) {
+    out.push({ label: String(rec.documentType ?? rec.description ?? ''), documentType: String(rec.documentType ?? '') });
+  }
+  for (const rec of (data.plats?.records ?? []) as Array<Record<string, unknown>>) {
+    out.push({ label: String(rec.title ?? rec.description ?? 'PLAT'), documentType: 'plat' });
+  }
+
+  return out.filter((d) => (d.label ?? d.documentType ?? '').toString().trim().length > 0);
 }
 
 /** Everything the capture plan needs, pulled off whatever shape of result the county produced.
