@@ -146,7 +146,14 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // here and read by NOTHING (grepped across app/, lib/ and worker/src) — so the context an
       // operator took the trouble to type has been going into the database and stopping there. This
       // column is read by the briefing that goes to the AI.
-      intake_notes: (intake_notes ?? description ?? '').trim() || null,
+      //
+      // `||`, NOT `??`. Found by creating a real project through the form and reading the row back:
+      // the operator's notes landed in `description` and `intake_notes` came out NULL, so the
+      // context still did not reach the run. The create form holds `intake_notes: ''` in its state
+      // and spreads the whole object, so the field arrives as an EMPTY STRING — which `??` happily
+      // keeps, because it only falls back on null and undefined. The fallback existed and could
+      // never fire.
+      intake_notes: (intake_notes || description || '').trim() || null,
       county: county?.trim() || null,
       state: state?.trim() || 'TX',
       parcel_id: parcel_id?.trim() || null,
@@ -163,7 +170,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
       // route selects and what the worker is given.
       analysis_metadata: {
         owner_name: owner_name?.trim() || null,
-        user_notes: (intake_notes ?? description ?? '').trim() || null,
+        user_notes: (intake_notes || description || '').trim() || null,
         city: city?.trim() || null,
         zip: zip?.trim() || null,
       },

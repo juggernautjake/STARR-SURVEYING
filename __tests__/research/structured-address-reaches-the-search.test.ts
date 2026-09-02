@@ -8,6 +8,7 @@ import {
   cadSearchTerms,
   describeAddressInput,
   hasStructuredParts,
+  splitFullAddress,
 } from '@/lib/research/property-address';
 
 // ── THE DEFECT THIS CLOSES, MEASURED ────────────────────────────────────────────────────────────
@@ -107,6 +108,64 @@ describe('splitting a street line', () => {
     // If this ever returned city "TEMPLE", the split would be re-creating the parser it replaces.
     const r = splitStreetLine('123 MAIN ST');
     expect(Object.keys(r).sort()).toEqual(['streetName', 'streetNumber', 'unit']);
+  });
+
+  it('STOPS AT THE FIRST COMMA — found in a browser, not by the 32 tests above it', () => {
+    // Pasting a whole address into the street box left `streetName` as
+    // "MAIN ST, WACO, TX, 76701" — the exact string this whole change exists to keep out of a
+    // county search box, reproduced in the field meant to prevent it. The worker's copy of this
+    // function already stopped at the comma; the two had drifted in BEHAVIOUR while the drift
+    // guard only compared field names.
+    for (const line of [
+      '123 MAIN ST, WACO, TX, 76701',
+      '123 MAIN ST, TEMPLE, TX 76501',
+      '500 ELM ST, GEORGETOWN, TX, 78626',
+    ]) {
+      const r = splitStreetLine(line);
+      expect(r.streetName, `"${r.streetName}" from "${line}"`).not.toContain(',');
+      expect(r.streetName).not.toMatch(/\bTX\b/);
+      expect(r.streetName).not.toMatch(/\d{5}/);
+    }
+  });
+});
+
+describe('a pasted full address fills every field it can', () => {
+  // Discarding the city and ZIP silently would be its own small betrayal: a street field that
+  // accepts a paste and keeps a third of it.
+  it('recovers city, state and ZIP into their own fields', () => {
+    expect(splitFullAddress('123 MAIN ST, WACO, TX, 76701')).toEqual({
+      streetNumber: '123', streetName: 'MAIN ST', unit: '', city: 'WACO', state: 'TX', zip: '76701',
+    });
+  });
+
+  it('handles the state and ZIP as one segment', () => {
+    const a = splitFullAddress('3779 W FM 436, Belton, TX 76513');
+    expect(a.city).toBe('Belton');
+    expect(a.state).toBe('TX');
+    expect(a.zip).toBe('76513');
+  });
+
+  it('handles a city segment carrying its own state and ZIP', () => {
+    const a = splitFullAddress('400 AVE H, TEMPLE TX 76501');
+    expect(a.city).toBe('TEMPLE');
+    expect(a.zip).toBe('76501');
+  });
+
+  it('CONTROL: a bare street line still yields the street and nothing invented', () => {
+    expect(splitFullAddress('CR 218')).toEqual({
+      streetNumber: '', streetName: 'CR 218', unit: '', city: '', state: '', zip: '',
+    });
+  });
+
+  it('round-trips through composeAddress unchanged', () => {
+    // The property that matters: split then compose must not lose or move anything, or the preview
+    // shows one address and the run searches another.
+    const line = '3779 W FM 436, Belton, TX 76513';
+    const a = splitFullAddress(line);
+    expect(composeAddress({
+      streetNumber: a.streetNumber, streetName: a.streetName, unit: a.unit,
+      city: a.city, state: a.state, zip: a.zip,
+    })).toBe(line);
   });
 });
 
@@ -222,6 +281,16 @@ describe('the create route stores the parts', () => {
     for (const col of ['street_number:', 'street_name:', 'unit:', 'city:', 'zip:', 'intake_notes:']) {
       expect(ROUTE, `${col} is not inserted`).toContain(col);
     }
+  });
+
+  it('falls back to description with || and NOT ??, which an empty string defeats', () => {
+    // Found by creating a real project through the form and reading the row back: the notes landed
+    // in `description` and `intake_notes` came out NULL. The form holds `intake_notes: ''` in its
+    // state and spreads the whole object, so the field arrives as an EMPTY STRING — which `??`
+    // keeps, because it falls back only on null and undefined. The fallback existed and could never
+    // fire, and the operator's context still did not reach the AI.
+    expect(ROUTE, '?? cannot fall back from an empty string').not.toContain('intake_notes ?? description');
+    expect(ROUTE).toContain('intake_notes || description');
   });
 
   it('accepts them on PATCH too, or the columns rot after creation', () => {

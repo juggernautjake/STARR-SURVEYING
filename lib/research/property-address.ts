@@ -81,7 +81,17 @@ export function splitStreetLine(line: string): {
   const text = clean(line).replace(/\s+/g, ' ');
   if (!text) return { streetNumber: '', streetName: '', unit: '' };
 
-  let rest = text;
+  // ── STOP AT THE FIRST COMMA ─────────────────────────────────────────────────────────────────
+  //
+  // Found by driving the form in a browser on 2026-09-02, after 32 green tests. Pasting a whole
+  // address into the street-name box left `streetName` as "MAIN ST, WACO, TX, 76701" — the exact
+  // string this entire change exists to stop reaching a county search box, reproduced in the field
+  // meant to prevent it.
+  //
+  // The worker's copy of this function already did stop at the comma. The two had drifted in
+  // BEHAVIOUR while the drift guard was only comparing field names. Use `splitFullAddress` when
+  // the city and ZIP need to go somewhere rather than be discarded.
+  let rest = text.split(',')[0].trim();
   let streetNumber = '';
 
   // A leading number, optionally with a letter — `123`, `123A`, `1/2` blocks are left alone.
@@ -101,6 +111,55 @@ export function splitStreetLine(line: string): {
   }
 
   return { streetNumber, streetName: rest.trim(), unit };
+}
+
+/**
+ * Split a WHOLE pasted address into every field it can fill.
+ *
+ * `splitStreetLine` deliberately discards everything after the first comma, because a street name
+ * carrying a city is the defect this module exists to remove. But when somebody pastes a full
+ * address into the street box — which they will, because that is what every other address field in
+ * the world accepts — throwing the city and ZIP away silently is its own small betrayal. This
+ * recovers them into the fields that own them.
+ *
+ * Handles `TX 76501` and `TX, 76501` both, since the app emitted the second for months.
+ */
+export function splitFullAddress(line: string): {
+  streetNumber: string;
+  streetName: string;
+  unit: string;
+  city: string;
+  state: string;
+  zip: string;
+} {
+  const street = splitStreetLine(line);
+  const segments = clean(line).split(',').map((s) => s.trim()).filter(Boolean);
+
+  let city = '';
+  let state = '';
+  let zip = '';
+
+  for (const seg of segments.slice(1)) {
+    // `TX 76501` as one segment, or `TX` and `76501` as two.
+    const stateZip = seg.match(/^(TX|TEXAS|[A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/i);
+    if (stateZip) {
+      state = stateZip[1].toUpperCase() === 'TEXAS' ? 'TX' : stateZip[1].toUpperCase();
+      if (stateZip[2]) zip = stateZip[2];
+      continue;
+    }
+    if (/^\d{5}(-\d{4})?$/.test(seg)) { zip = seg; continue; }
+    // A city segment may still carry a trailing state and ZIP: "TEMPLE TX 76501".
+    const trailing = seg.match(/^(.*?)\s+(TX|TEXAS)\s*(\d{5}(?:-\d{4})?)?$/i);
+    if (trailing) {
+      if (!city) city = trailing[1].trim();
+      state = 'TX';
+      if (trailing[3]) zip = trailing[3];
+      continue;
+    }
+    if (!city) city = seg;
+  }
+
+  return { ...street, city, state, zip };
 }
 
 /** Does this address carry parts, or only a legacy flattened string? Decides whether the worker

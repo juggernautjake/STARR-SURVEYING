@@ -23,7 +23,7 @@ import { checkScope } from '@/lib/research/scope';
 import ScopeNotice from '../components/ScopeNotice';
 import JobLinkPicker, { type JobSummary } from '../components/JobLinkPicker';
 import { Accordion, ErrorState } from '../components/ui';
-import { composeAddress, splitStreetLine } from '@/lib/research/property-address';
+import { composeAddress, splitStreetLine, splitFullAddress } from '@/lib/research/property-address';
 // The SAME upload path the project page uses — signed URL straight to storage, a 50 MB cap, and
 // per-file errors that do not stop the other files. Writing a second uploader here would have meant
 // two size limits, two validation lists and two ways to fail.
@@ -679,15 +679,20 @@ export default function ProjectsTab() {
                     // worth catching at the keyboard rather than twenty minutes into a run.
                     onBlur={e => {
                       const v = e.target.value;
-                      if (v.includes(',')) {
-                        const street = splitStreetLine(v);
-                        setNewProject(p => ({
-                          ...p,
-                          street_number: p.street_number || street.streetNumber,
-                          street_name: street.streetName,
-                          unit: p.unit || street.unit,
-                        }));
-                      }
+                      if (!v.includes(',')) return;
+                      // Everything the paste contained goes to the field that owns it, rather than
+                      // the city and ZIP being quietly dropped. Existing values win: this is a
+                      // rescue, not an overwrite.
+                      const a = splitFullAddress(v);
+                      setNewProject(p => ({
+                        ...p,
+                        street_number: p.street_number || a.streetNumber,
+                        street_name: a.streetName,
+                        unit: p.unit || a.unit,
+                        city: p.city || a.city,
+                        state: p.state || a.state,
+                        zip: p.zip || a.zip,
+                      }));
                     }}
                   />
                 </div>
