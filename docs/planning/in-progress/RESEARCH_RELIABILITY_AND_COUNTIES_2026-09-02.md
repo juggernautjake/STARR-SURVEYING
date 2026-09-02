@@ -183,7 +183,7 @@ Ship in order within a phase. Each is independently useful and independently rev
       17 tests, including a mutation control: moving `noteHostAnswered` behind the `resp.ok` check
       makes the wiring test fail, and restoring it makes it pass. A wiring test that cannot fail is
       the defect this repo keeps rediscovering.
-- [ ] **A4** Coryell: same treatment. `esearch.coryellcad.org` + `gis.bisclient.com/coryellcad/`.
+- [x] **A4** Coryell: same treatment. `esearch.coryellcad.org` + `gis.bisclient.com/coryellcad/`.
       **Registry half done.** The two registries contradicted each other: `adapters/clerk-registry.ts`
       had Coryell as `system: 'kofile', status: 'stub'` on a dead county-website URL, while
       `services/clerk-registry.ts` has routed it to eDocTec since plan R39 (12,705 documents). The
@@ -194,11 +194,25 @@ Ship in order within a phase. Each is independently useful and independently rev
       is why the correct value could not be written; adding it made the app typecheck fail on a
       `Record<ClerkSystem, string>` label map that had no eDocTec entry — the type system finding the
       second half of the same gap.
-- [ ] **A5** Register both in the GIS-capture path so `capture-plan.ts` can photograph their viewers
+- [x] **A5** Register both in the GIS-capture path so `capture-plan.ts` can photograph their viewers
       (it reads `BIS_CONFIGS[county].gisBaseUrl`; confirm both counties resolve).
-- [ ] **A6** Tests: the adapter registry answers for both counties, the router routes to them, and
+      **Already true, now proven — and checking it meant checking the right file.**
+      `capture-plan.ts` does not read `BIS_CONFIGS`; it takes `gisBaseUrl` as an input. The caller
+      is `index.ts:gisBaseUrlFor()`, which lowercases and strips a trailing " county" before the
+      lookup, and both keys exist (`gis.bisclient.com/milamcad/`, `gis.bisclient.com/coryellcad/`).
+      A6 asserts a `cad_gis` capture is actually PLANNED for each, not that a config holds a string.
+- [x] **A6** Tests: the adapter registry answers for both counties, the router routes to them, and
       the capture plan produces a `cad_gis` capture for each. Structural tests only — a live portal
       test is not reproducible and the portals were down during the reference runs.
+      **DONE** — `milam-coryell-coverage.test.ts`, 12 tests. Each county is checked at every layer
+      a run touches: a CAD entry with a GIS viewer, the clerk vendor it is really served by, its
+      FIPS set, a planned `cad_gis` capture, and three distinct satellite zoom bands. Plus the
+      county-name normaliser, so a county arriving as "Milam County" does not silently lose its
+      GIS viewer.
+
+      It opens with a CONTROL: an unconfigured county resolves to `undefined` and routes to the
+      `texasfile` fallback. Without that, every assertion in the file would pass equally against a
+      registry that answered yes to everything.
 
 ### Phase B — every document, filed once, immediately
 
