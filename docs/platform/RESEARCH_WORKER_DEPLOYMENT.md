@@ -350,8 +350,12 @@ real certificate.
 > dig +short worker.starr-surveying.com    # must print the server IP before you continue
 > ```
 >
-> As of 2026-08-29 that record still points at `104.131.20.240` — the destroyed DigitalOcean
-> droplet. It must become `152.53.48.240`.
+> **Done — verified 2026-09-02.** `worker.starr-surveying.com` resolves to `152.53.48.240` (the
+> netcup box) and serves TLS. The note this replaces said the record "still points at
+> `104.131.20.240` — the destroyed DigitalOcean droplet", which was true when written on
+> 2026-08-29 and stopped being true afterwards. A dated status line in a runbook becomes a
+> landmine the moment the status changes: the next person reads it, believes the cutover is still
+> pending, and starts editing DNS that is already correct.
 
 ```bash
 apt install -y caddy
@@ -491,7 +495,7 @@ cd worker && BUILD_SHA=$(git rev-parse --short HEAD) docker compose up -d --buil
 
 `buildSha` on `/healthz` confirms which commit is actually serving — the point of stamping it.
 
-### 3.7 Automatic updates — pull `main` when it moves ☐ *(install once)*
+### 3.7 Automatic updates — pull `main` when it moves ☑ *(installed 2026-09-02)*
 
 `worker/deploy/auto-update.sh`, driven by a systemd timer every two minutes. Install:
 
