@@ -301,6 +301,22 @@ export function StatusCard({
   );
 }
 
+/**
+ * What the money went on, in the order a reader checks it.
+ *
+ * Event types are stored as snake_case (`document_purchase`, `ai_call`). Rendered as-is they read
+ * like column names; a person paying an invoice should not have to translate them.
+ */
+function spendBreakdownText(byType: Array<{ type: string; count: number; usd: number }>): string {
+  const label = (t: string) => t.replace(/_/g, ' ');
+  const parts = byType
+    .filter((b) => b.usd > 0 || b.count > 0)
+    .map((b) => `${label(b.type)}: ${b.usd.toFixed(2)} over ${b.count} call(s)`);
+  return parts.length > 0
+    ? `What this cost so far — ${parts.join("; ")}.`
+    : 'Nothing has been charged to this run yet.';
+}
+
 function Counter({ label, value, live, hint }: {
   label: string; value: number | string; live?: boolean; hint?: string;
 }) {
@@ -583,6 +599,12 @@ export function RunCounters({ state, documentCount, pageCount }: {
               ? 'The cost has not been read yet. It updates every few seconds while the run works.'
               : state.spendUnrecorded
               ? 'No usage events were recorded for this run. That is NOT the same as it having cost nothing.'
+              // B3. A single total cannot be checked by the person paying it: $2.14 of model calls
+              // and $2.14 of purchased pages are different runs, and only one of them bought
+              // anything. `summariseSpend` has computed this breakdown since it was written and the
+              // state layer dropped it, so the screen could only ever show the one number.
+              : state.spendByType.length > 0
+              ? spendBreakdownText(state.spendByType)
               : state.spendIncomplete
                 ? 'The usage read failed, so the cost shown above is incomplete.'
                 : undefined}

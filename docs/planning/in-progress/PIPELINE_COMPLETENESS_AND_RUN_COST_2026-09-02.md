@@ -150,8 +150,19 @@ reachability number until it exists.**
       completion is the test.
       **VERIFIED.** `recordRunFinish` writes `costUsd: finalBudget.spentUsd` on the run row, so the
       figure survives the console going away. Pinned by a test rather than assumed.
-- [ ] **B3** Show what the money BOUGHT, not only the total: model calls versus purchased pages.
+- [x] **B3** Show what the money BOUGHT, not only the total: model calls versus purchased pages.
       A single number cannot be checked by the person paying it.
+
+      **DONE, and the breakdown already existed.** `summariseSpend` has computed `byType` since it
+      was written; `ConsolePayload.spend` carried only the total, so the state layer dropped it and
+      the screen could show one number and nothing else.
+
+      It reaches the Spent counter now, sorted most-expensive first — that is the line a reader
+      checks — with the event types rendered readably rather than as `document_purchase`, which is
+      a column name and not something a person paying an invoice should have to translate.
+
+      $2.14 of model calls and $2.14 of purchased pages are different runs, and only one of them
+      bought anything.
 
 ### Phase C — the pipeline uses what the codebase has
 

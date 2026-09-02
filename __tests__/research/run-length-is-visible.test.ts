@@ -118,6 +118,66 @@ describe('the run view puts the ceiling where the clock is', () => {
   });
 });
 
+describe('the spend says what it bought — B3', () => {
+  const VIEW = read('app/admin/research/components/ResearchRunView.tsx');
+
+  it('CONTROL: an empty breakdown produces no claim', () => {
+    // A run that has spent nothing must not render an itemisation of nothing, which would read as
+    // a finished accounting rather than an absent one.
+    const state = buildRunState({ poll: { status: 'running' } as never, console: null });
+    expect(state.spendByType).toEqual([]);
+  });
+
+  it('carries the per-type breakdown the console already computed', () => {
+    // `summariseSpend` has produced `byType` since it was written; the state layer dropped it, so
+    // the screen could only ever show one number.
+    const state = buildRunState({
+      poll: { status: 'running' } as never,
+      console: {
+        spend: {
+          totalUsd: 3.5,
+          noEventsRecorded: false,
+          headline: '',
+          byType: {
+            ai_call: { count: 40, usd: 1.5 },
+            document_purchase: { count: 2, usd: 2 },
+          },
+        },
+      } as never,
+    });
+    expect(state.spendByType).toHaveLength(2);
+  });
+
+  it('puts the most expensive first, because that is the line a reader checks', () => {
+    const state = buildRunState({
+      poll: { status: 'running' } as never,
+      console: {
+        spend: {
+          totalUsd: 3.5, noEventsRecorded: false, headline: '',
+          byType: {
+            ai_call: { count: 40, usd: 1.5 },
+            document_purchase: { count: 2, usd: 2 },
+          },
+        },
+      } as never,
+    });
+    expect(state.spendByType[0].type).toBe('document_purchase');
+  });
+
+  it('the view renders it, rather than computing a second opinion', () => {
+    expect(VIEW).toContain('spendBreakdownText(state.spendByType)');
+  });
+
+  it('the labels are readable, not column names', () => {
+    // `document_purchase` reads like a database column. A person paying an invoice should not have
+    // to translate it.
+    // Substring, not a regex. A regex written through a shell layer has lost its backslashes four
+    // times today, and an unterminated group makes the whole FILE fail to load — which vitest
+    // reports as "no tests" rather than as a failure.
+    expect(VIEW).toContain("t.replace(/_/g, ' ')");
+  });
+});
+
 describe('formatElapsed renders a ceiling sensibly', () => {
   it('30 minutes reads as 30:00, not 1800', () => {
     expect(formatElapsed(30 * 60_000)).toBe('30:00');

@@ -335,7 +335,20 @@ export interface ConsolePayload {
   status?: string | null;
   phase?: string | null;
   activity?: string | null;
-  spend?: { totalUsd: number; noEventsRecorded: boolean; headline: string } | null;
+  spend?: {
+    totalUsd: number;
+    noEventsRecorded: boolean;
+    headline: string;
+    /**
+     * What the money went ON, per event type — B3.
+     *
+     * `summariseSpend` has computed this since it was written and the state layer dropped it,
+     * so the screen could only ever show one number. A single total cannot be CHECKED by the
+     * person paying it: $2.14 of model calls and $2.14 of purchased pages are different runs,
+     * and only one of them bought anything.
+     */
+    byType?: Record<string, { count: number; usd: number }>;
+  } | null;
   /**
    * The usage READ failed, as opposed to finding nothing.
    *
@@ -369,6 +382,8 @@ export interface RunState {
   /** Wall-clock ceiling, when one was configured. */
   budgetMs: number | null;
   spendUsd: number | null;
+  /** What the spend was made of, per event type. Empty when nothing has been recorded. */
+  spendByType: Array<{ type: string; count: number; usd: number }>;
   /** True when no usage event exists at all — NOT the same as $0.00 spent. */
   spendUnrecorded: boolean;
   /**
@@ -476,6 +491,10 @@ export function buildRunState(input: BuildRunStateInput): RunState {
     // elapsed" against an invisible ceiling tells a reader nothing about whether to keep waiting.
     budgetMs: cons?.time?.budgetMs ?? chosenBudgetMs(poll?.settings),
     spendUsd: cons?.spend ? cons.spend.totalUsd : null,
+    // Sorted by cost, because the first line is the one a reader checks.
+    spendByType: Object.entries(cons?.spend?.byType ?? {})
+      .map(([type, v]) => ({ type, count: v.count, usd: v.usd }))
+      .sort((a, b) => b.usd - a.usd),
     spendUnrecorded: cons?.spend?.noEventsRecorded ?? false,
     spendIncomplete: cons?.usageFailed ?? false,
     paidDocumentsNotice: input.paidDocumentsNotice ?? null,
