@@ -123,16 +123,47 @@ Ship in order within a phase. Each is independently useful and independently rev
 
 ### Phase A — Milam and Coryell adapters
 
-- [ ] **A1** Read the existing adapter pattern end to end before writing anything: `BIS_CONFIGS`
+- [x] **A1** Read the existing adapter pattern end to end before writing anything: `BIS_CONFIGS`
       (`services/bis-cad.ts`), `cad-registry.ts`, `clerk-registry.ts`, `counties/router.ts`, and one
       worked example. Both counties are already **partly** present — Milam and Coryell both have
       `esearch.*` and `gis.bisclient.com/*` entries in `BIS_CONFIGS` — so the premise "build an
       adapter from scratch" is probably wrong and the real work is completing and testing what is
       registered. **Check this first; the last four parked premises in this repo were false.**
-- [ ] **A2** Milam: confirm the clerk is Kofile at `milam.tx.publicsearch.us` (the log says so), the
+
+      **Premise confirmed — both counties were already routed.** `services/clerk-registry.ts` is the
+      registry that actually routes, and it routes by FIPS: Milam (48331) is in `KOFILE_FIPS_SET`,
+      Coryell (48099) in `EDOCTEC_FIPS_SET`. Both have `BIS_CONFIGS` entries for CAD and GIS. So
+      there was never an adapter to build; the work is making the searches return something.
+
+      Worth knowing for anyone reading these files: `adapters/clerk-registry.ts` is a DIFFERENT and
+      largely descriptive table of 21 counties that does not include Milam at all, and it is the one
+      that had Coryell wrong. Two files with nearly the same name, only one of which decides
+      anything.
+- [x] **A2** Milam: confirm the clerk is Kofile at `milam.tx.publicsearch.us` (the log says so), the
       CAD is BIS at `esearch.milamcad.org`, and the GIS is `gis.bisclient.com/milamcad/`. Make the
       address-based clerk search work — the log shows six address variants tried and
       `0 total, 0 deed-relevant`, with a failure dump that captured the HTML.
+
+      **DONE, and the premise was half wrong in an instructive way.** There IS an address-based
+      clerk search — `Stage2-Addr` in `services/bell-clerk.ts`, which is generic despite its name
+      (`KOFILE_CONFIGS` is keyed by county). It was not broken so much as pointed at the wrong
+      index: `buildTylerUrl` sent `searchType=quickSearch`, the indexed PARTY-NAME search, and a
+      street address is not a party name. Six variants, six wrong questions, and the result
+      rendered as "0 total, 0 deed-relevant" — indistinguishable from a county with no records.
+
+      `buildTylerUrl` now takes a mode, and the address search runs the whole variant list against
+      the name index first, then the broad keyword sweep — the mode that can match an address
+      sitting in a legal description or in OCR text. `kofile-clerk-adapter.ts` had already measured
+      the two on this exact county (5,484 against 220,777 for one term) and recorded that they are
+      different questions; nothing had connected that finding to the address path.
+
+      The keyword pass is skipped outright once anything has been captured, so a county that
+      answers the narrow search still costs six page loads. The extra six are spent only in the
+      case that previously returned nothing at all.
+
+      Note the interaction with §1.5: Milam CAD was unreachable during the reference run, so no
+      owner name or legal description was available and the address search was the only one with
+      anything to go on. That is precisely when it needs to work.
 - [x] **A3** The 147-second dead-host discovery. Milam's Stage 1 spent 12 sequential ArcGIS layer
       queries at 10 s each against a host that never answered. The circuit breaker exists and did not
       cover the ArcGIS path. One unreachable host should cost one timeout, not twelve.

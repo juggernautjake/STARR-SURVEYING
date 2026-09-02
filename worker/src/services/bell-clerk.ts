@@ -186,12 +186,29 @@ async function safeCloseBrowser(browser: import('playwright').Browser | null, lo
  *
  * Offset is 0-based: page 1 = offset 0, page 2 = offset 50, page 3 = offset 100, etc.
  */
-function buildTylerUrl(baseUrl: string, searchValue: string, offset = 0): string {
+/**
+ * A Kofile/PublicSearch results URL.
+ *
+ * `mode` is why this takes a parameter at all:
+ *
+ *   'name'     the INDEXED PARTY-NAME search. Correct for a grantor or grantee lookup, and the
+ *              wrong index for a street address, because an address is not a party name. Milam,
+ *              2026-09-02: six address variants against this index returned 0 documents, which
+ *              read on screen as "this county has nothing" rather than "wrong question".
+ *
+ *   'keyword'  the broad sweep over the record text. kofile-clerk-adapter.ts measured the two on
+ *              this same county — the same term gives 5,484 under the narrow search against
+ *              220,777 under the broad one — so they are genuinely different questions. An
+ *              address can appear in a legal description or in OCR text, and this is the only
+ *              mode that can see it there.
+ */
+function buildTylerUrl(baseUrl: string, searchValue: string, offset = 0, mode: 'name' | 'keyword' = 'name'): string {
   const d = new Date();
   const dateTo = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
   return (
     `${baseUrl}/results?department=RP&limit=50&offset=${offset}` +
     `&recordedDateRange=16000101%2C${dateTo}&searchOcrText=true&searchType=quickSearch` +
+    `&keywordSearch=${mode === 'keyword'}` +
     `&searchValue=${encodeURIComponent(searchValue)}`
   );
 }
@@ -2232,13 +2249,29 @@ export async function searchClerkByAddress(
     };
     page.on('response', (r) => { void handleResponse(r); });
 
-    // Try each address variant as a quickSearch query
-    for (const q of queriesToTry) {
+    // Each address variant is asked against the narrow party-name index first, and only then
+    // against the broad keyword sweep.
+    //
+    // Until 2026-09-02 it only ever asked the narrow one. That index cannot contain a street
+    // address, so Milam's "0 total, 0 deed-relevant" was not a finding about the county — it was
+    // the wrong question asked six times, reported as an answer.
+    //
+    // Ordered name-pass-then-keyword-pass rather than interleaved, and the keyword pass is skipped
+    // outright once anything has been captured, so a county that DOES answer the narrow search
+    // still costs six page loads. The extra six are spent only in the case that used to return
+    // nothing at all.
+    const attempts: Array<{ q: (typeof queriesToTry)[number]; mode: 'name' | 'keyword' }> = [
+      ...queriesToTry.map((q) => ({ q, mode: 'name' as const })),
+      ...queriesToTry.map((q) => ({ q, mode: 'keyword' as const })),
+    ];
+
+    for (const { q, mode } of attempts) {
+      if (mode === 'keyword' && allCaptured.length > 0) continue;
       const searchTerm = `${q.streetNumber} ${q.streetName}`.trim();
       if (!searchTerm) continue;
 
-      const url = buildTylerUrl(baseUrl, searchTerm, 0);
-      logger.info('Stage2-Addr', `Trying: "${searchTerm}" (${q.format})`);
+      const url = buildTylerUrl(baseUrl, searchTerm, 0, mode);
+      logger.info('Stage2-Addr', `Trying: "${searchTerm}" (${q.format}, ${mode} search)`);
 
       try {
         await politeGoto(page, url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
