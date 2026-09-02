@@ -94,7 +94,19 @@ describe('the paid-documents toggle is wired end to end', () => {
 // So these assert the CALLER, not the callee. A test that only checked the panel imports something
 // would have passed all day while the panel rendered nothing.
 
-const PANEL = 'app/admin/research/components/ResearchAnalysisPanel.tsx';
+// ── THE GUARD FOLLOWED THE CODE, AND FOUND THE FEATURE GONE ────────────────────────────────────
+//
+// This named ResearchAnalysisPanel, which the one-view rebuild retired and 2026-09-02 deleted. The
+// notice did not move with it: the analyze route went on computing `paidDocumentsNotice` and putting
+// it on the response, and NOTHING fetched that route any more. "Why did this run buy nothing from
+// TexasFile?" had no answer on screen — and the reachability guard was reporting that route as dead
+// at the same time, two guards describing one dropped feature from opposite ends.
+//
+// Reading and rendering now live in two files, so this asserts both halves. That is stronger than
+// what it replaced, not weaker: a hook that read the field into state it never rendered would
+// satisfy the reading half alone, and that is the exact defect this file was written for.
+const HOOK = 'app/admin/research/components/useRunState.ts';
+const PANEL = 'app/admin/research/components/ResearchRunView.tsx';
 const STATUS_ROUTE = 'app/api/admin/research/[projectId]/analyze/route.ts';
 const PANEL_CSS = 'app/admin/styles/AdminResearch.css';
 
@@ -112,9 +124,24 @@ describe('the paid-documents notice reaches the reader', () => {
     expect(src).toContain('no_vendor_credentials');
   });
 
-  it('THE PANEL READS THE FIELD — the assertion that was missing', () => {
-    const src = stripComments(read(PANEL));
+  it('THE HOOK READS THE FIELD — the assertion that was missing', () => {
+    const src = stripComments(read(HOOK));
     expect(src).toMatch(/data\.paidDocumentsNotice/);
+  });
+
+  it('THE HOOK ACTUALLY CALLS THE ROUTE — the half that went missing', () => {
+    // The field was being read off a response nobody requested. Asserting the parse without
+    // asserting the fetch is how a dropped feature kept a green test.
+    const src = stripComments(read(HOOK));
+    expect(src).toContain(`/analyze`);
+    expect(src).toContain(`setPaidNotice`);
+  });
+
+  it('THE VIEW TAKES IT FROM THE SHARED STATE, not a second opinion', () => {
+    // One run state. A view fetching its own copy is how four panels came to contradict each other
+    // about one run.
+    expect(stripComments(read(PANEL))).toContain(`const { paidDocumentsNotice } = state;`);
+    expect(stripComments(read('lib/research/run-state.ts'))).toContain(`paidDocumentsNotice: string | null;`);
   });
 
   it('THE PANEL RENDERS IT — reading it into state is not showing it', () => {
@@ -129,8 +156,8 @@ describe('the paid-documents notice reaches the reader', () => {
     // The dangerous default. If a failed fetch set the notice to a cheerful empty string, an
     // unreachable API would render as "everything was retrieved" — a false all-clear, which is
     // worse than silence because it is a claim.
-    const src = stripComments(read(PANEL));
-    expect(src).toMatch(/setPaidDocumentsNotice\(data\.paidDocumentsNotice \?\? null\)/);
+    const src = stripComments(read(HOOK));
+    expect(src).toMatch(/setPaidNotice\(data\.paidDocumentsNotice \?\? null\)/);
   });
 
   it('the notice has a style, so it reads as a caveat rather than a stray line', () => {

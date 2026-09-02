@@ -22,6 +22,10 @@ export type ClerkSystem =
   | 'idocket'          // iDocket — stub
   | 'fidlar'           // Fidlar Technologies — stub
   | 'texasfile'        // TexasFile aggregator (fallback purchase route)
+  // Added 2026-09-02. eDocTec has been a proven vendor in services/clerk-registry.ts since plan R39
+  // and was never in THIS union, which is why Coryell sat here mislabelled as a dead Kofile stub:
+  // the correct value could not be written.
+  | 'edoctec'          // eDocTec — Coryell + Lampasas, driven end to end before listing
   | 'harris_custom'    // HCAD custom system — stub
   | 'dallas_custom'    // Dallas County custom — stub
   | 'tarrant_custom'   // TAD/Tarrant custom — stub
@@ -76,13 +80,24 @@ const CLERK_REGISTRY: ClerkRegistryEntry[] = [
   {
     fips: '099',
     county: 'Coryell',
-    system: 'kofile',
-    status: 'stub',
-    // Verified 2026-08-26: this URL returns 404. Kept rather than nulled because the county clerk
-    // plainly exists — what is missing is the current address, and a null would read as "no online
-    // system", which is a different and wronger claim.
-    baseUrl: 'https://www.coryellcounty.org/county-clerk',
-    notes: 'DEAD LINK — 404 as of 2026-08-26. Needs the current Coryell clerk URL before use.',
+    // eDocTec, NOT Kofile. This entry said `kofile` with a dead county-website URL and status
+    // `stub`, while services/clerk-registry.ts has routed Coryell to eDocTec since plan R39 —
+    // searched live, 12,705 documents / 20,267 party records, no login and no paywall.
+    //
+    // Two registries disagreeing about whether a county is supported is worse than either answer on
+    // its own: a reader who consults this one concludes Coryell cannot be researched, and stops.
+    //
+    // Confirmed 2026-09-02 WITH A CONTROL: milam.tx.publicsearch.us and bell.tx.publicsearch.us both
+    // answer 200, while coryell.tx.publicsearch.us does not resolve — the identical result to a
+    // deliberately nonexistent subdomain. So the old entry was wrong about the VENDOR, not merely
+    // stale about the URL, and swapping in a Kofile address would have been the wrong repair.
+    system: 'edoctec',
+    status: 'implemented',
+    // The real address, from `edoctecBaseUrl()` in the adapter. The host is `mclennan` for EVERY
+    // eDocTec county — the vendor serves them all from one deployment and separates them by path.
+    // It looks like a copy-paste error and is not; a "fix" to `coryell.edoctec.com` would break it.
+    baseUrl: 'https://mclennan.edoctec.com/CoryellPublicRecords',
+    notes: 'eDocTec — 12,705 documents / 20,267 party records, driven end to end before listing (plan R39). Coryell is Gatesville AND Copperas Cove.',
   },
   {
     fips: '281',

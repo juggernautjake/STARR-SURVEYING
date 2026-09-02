@@ -12,6 +12,7 @@
 // screenshot, logged to both worker console and frontend progress logs.
 
 import type { ScreenshotCapture } from '../types/research-result.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call judges GIS geometry quality.
 import { modelFor } from '../../../infra/model-router.js';
@@ -262,6 +263,14 @@ Target property ID: ${propertyId ?? 'unknown'}`,
     model: modelFor('extract').model,
     max_tokens: 4000,
     messages: [{ role: 'user', content: content as never }],
+  });
+
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/gis-quality-analyzer', modelFor('extract').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
   });
 
   // Extract usage

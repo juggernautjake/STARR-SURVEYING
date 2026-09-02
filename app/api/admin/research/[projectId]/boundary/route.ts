@@ -93,6 +93,19 @@ function walkTraverse(
 // Merges reconciled calls + confidence scores + discrepancy flags into the
 // BoundaryCall shape expected by the InteractiveBoundaryViewer page.
 
+/** A boundary call as the RUN persists it, in `analysis_metadata.result.boundary.calls`. */
+interface RunCall {
+  sequence: number;
+  callId?: string | null;
+  bearing?: string | null;
+  bearingDegrees?: number | null;
+  distance?: number | null;
+  distanceUnit?: string | null;
+  along?: string | null;
+  toPoint?: string | null;
+  confidence?: number;
+}
+
 interface ReconCall {
   callId?: string;
   reconciledBearing?: string | null;
@@ -175,7 +188,7 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // 1. Verify project exists and get metadata
   const { data: project, error: projErr } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state')
+    .select('id, property_address, county, state, analysis_metadata')
     .eq('id', projectId)
     .single();
 
@@ -211,7 +224,34 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     }
   }
 
-  const reconCalls = reconciledBoundary?.calls ?? [];
+  // ── C2: the calls the RUN produced, when the Lab report does not exist ──────────────────────
+  //
+  // `/research/reconcile/:projectId` reads `/tmp/analysis/{id}/reconciled_boundary.json`, and that
+  // file is written ONLY by the Testing Lab's Phase 7. A normal run never writes it — it reconciles
+  // at Stage 3.5 through a different module — so this viewer had nothing to draw for any run an
+  // operator actually started, and said `hasWorkerData: false`, which reads as "the worker is down".
+  //
+  // The run persists its own calls now. They are the same boundary, without the Phase-7 cross-source
+  // aggregation, so they are used only when the richer report is absent and the response says which
+  // it was. Showing the poorer answer silently would be the same defect wearing better clothes.
+  const meta = (project.analysis_metadata ?? {}) as {
+    result?: { boundary?: { calls?: RunCall[]; callsTruncated?: boolean } };
+  };
+  const runCalls = meta.result?.boundary?.calls ?? [];
+  const usedRunCalls = (reconciledBoundary?.calls ?? []).length === 0 && runCalls.length > 0;
+
+  const reconCalls = usedRunCalls
+    ? runCalls.map((c): ReconCall => ({
+        callId: c.callId ?? `SEQ_${c.sequence}`,
+        reconciledBearing: c.bearing ?? null,
+        reconciledDistance: c.distance ?? null,
+        along: c.along ?? undefined,
+        finalConfidence: c.confidence,
+        // Named so the viewer can say where this came from. A Stage 3.5 call has one reading by
+        // construction; the Phase-7 report is what carries several.
+        readings: [{ source: 'run' }],
+      }))
+    : (reconciledBoundary?.calls ?? []);
   const callScores = confidenceReport?.callConfidence ?? [];
   const discrepancies = confidenceReport?.discrepancies ?? [];
   const overallConfidence = confidenceReport?.overallConfidence ?? {};
@@ -234,6 +274,11 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     calls,
     callCount: calls.length,
     hasWorkerData: WORKER_URL !== '' && reconCalls.length > 0,
+    // Which answer this is. "No calls" and "the run's own calls, without the Phase-7 cross-source
+    // reconciliation" are different things, and a viewer that renders them identically invites a
+    // conclusion about the PROPERTY from a fact about the pipeline.
+    callSource: reconCalls.length === 0 ? 'none' : usedRunCalls ? 'run' : 'phase7',
+    callsTruncated: usedRunCalls ? (meta.result?.boundary?.callsTruncated ?? false) : false,
   });
 }, { routeName: 'research/boundary/get' });
 

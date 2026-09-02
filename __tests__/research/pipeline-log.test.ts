@@ -62,17 +62,24 @@ describe('one definition of done', () => {
     expect(both).toEqual([]);
   });
 
-  it('and both panels use it', () => {
+  it('and the surviving consumer uses it — nobody keeps a second opinion', () => {
+    // Was "both panels". ResearchRunPanel, the second one, was deleted on 2026-09-02 as part of the
+    // one-view rebuild. That does not retire the guarantee, it narrows where it can break: the log
+    // panel must still import the shared definition, and the view that replaced the other panel
+    // must NOT have grown its own idea of "done" — which is the failure the shared module exists
+    // to prevent, and the one the four-panel screen actually shipped.
     const read = (p: string) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
     const prog = read('app/admin/research/components/PipelineProgressPanel.tsx');
-    const run = read('app/admin/research/components/ResearchRunPanel.tsx');
+    const view = read('app/admin/research/components/ResearchRunView.tsx');
 
-    for (const [name, src] of [['PipelineProgressPanel', prog], ['ResearchRunPanel', run]] as const) {
-      expect(src, `${name} should import the shared definition`).toContain("from './pipeline-log'");
-    }
-    expect(run, 'the denylist is back').not.toContain("!== 'running' && normalizedStatus !== 'starting'");
-    expect(run).toContain('isDoneStatus(normalizedStatus)');
-    expect(prog, 'a local copy would shadow the import').not.toMatch(/function isDoneStatus\s*\(/);
+    expect(prog, 'PipelineProgressPanel should import the shared definition')
+      .toContain("from './pipeline-log'");
+    expect(prog, 'a local copy would shadow the import').not.toContain('function isDoneStatus');
+
+    // The view derives lifecycle from run-state, the single source, rather than comparing strings.
+    expect(view, 'the run view re-derives done-ness instead of deriving it once')
+      .not.toContain('function isDoneStatus');
+    expect(view).toContain('state.lifecycle');
   });
 });
 

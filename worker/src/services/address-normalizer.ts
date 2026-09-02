@@ -9,6 +9,7 @@
 // IMPORTANT: Census geocoder returns preQualifier="FM" separately from
 // streetName="436". This module recombines them before generating variants.
 
+import { salvageJsonArray } from '../research/salvage-json-array.js';
 import { lookupCountyFIPS } from '../lib/county-fips.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call normalises an address string.
 import { modelFor } from '../infra/model-router.js';
@@ -565,7 +566,8 @@ export async function generateAiAddressVariants(
     const aiModel = modelFor('read_text').model;
     const response = await client.messages.create({
       model: aiModel,
-      max_tokens: 1024,
+      // E1. Was 1024, and the responses were being cut off mid-string on real runs.
+      max_tokens: 2048,
       ...samplingFor(aiModel),
       messages: [{
         role: 'user',
@@ -601,10 +603,21 @@ Important: Do NOT repeat strings already tried. Only return NEW variants.`,
     const text = response.content.find((c) => c.type === 'text');
     if (!text || text.type !== 'text') return [];
 
+    // E1. The second copy of the same bug. This one returns plain strings rather than objects, and
+    // had the identical `JSON.parse` + `catch { return [] }` shape — a list cut off inside its last
+    // entry threw away every entry before it.
     const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const aiResults = JSON.parse(cleaned) as string[];
+    const salvaged = salvageJsonArray<string>(cleaned);
+    const aiResults = salvaged.items;
 
-    if (!Array.isArray(aiResults) || aiResults.length === 0) return [];
+    if (salvaged.truncated) {
+      console.warn(
+        `[address-normalizer] The AI variant list was cut off (${salvaged.reason}). ` +
+          `Using the ${aiResults.length} complete variant(s) that survived.`,
+      );
+    }
+
+    if (aiResults.length === 0) return [];
 
     const triedKeys = new Set(alreadyTried.map((v) => v.searchString.toLowerCase()));
     const newVariants: AddressVariant[] = [];

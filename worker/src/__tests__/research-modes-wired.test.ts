@@ -40,7 +40,11 @@ describe('FREE is not a filter', () => {
   it('returns before the purchase orchestrator is constructed', () => {
     // The ordering is the mechanism. A check placed after the orchestrator would still spend.
     const guard = index.indexOf("if (runMode === 'free')");
-    const orchestrator = index.indexOf('new DocumentPurchaseOrchestrator(projectId)');
+    // Scoped to the route that owns this guard. D1 added a SECOND orchestrator construction — in
+    // the normal run, thousands of lines earlier — so a bare indexOf finds that one and compares
+    // two unrelated call sites. The run's own site is gated by `resolvePurchasePermission`, which
+    // refuses free mode; this assertion is about the Phase-9 route's own guard.
+    const orchestrator = index.indexOf('new DocumentPurchaseOrchestrator(projectId)', guard);
     expect(guard).toBeGreaterThan(-1);
     expect(orchestrator).toBeGreaterThan(-1);
     expect(guard).toBeLessThan(orchestrator);

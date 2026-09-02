@@ -26,6 +26,12 @@ import { describePersist, persistAdjoiners, type AdjoinerInput } from './infra/a
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
+import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
+import { recordSkippedPurchases } from './services/purchase-ledger.js';
+import { describeRunOutcome } from './research/run-outcome.js';
+import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
+import { lookupCountyFIPS } from './lib/county-fips.js';
+import { assessPurchaseReadiness } from './research/purchase-readiness.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -1205,6 +1211,12 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   //
   // Failure to load is not fatal: with no context the filer writes as it always did. A document
   // lost because its bookkeeping was unavailable is a worse outcome than a duplicate.
+  // B2. Opened unconditionally and before the library, because it tracks what the run has FILED
+  // rather than what it has seen before. If the library fails to open, documents still file (without
+  // cross-run dedupe), and the end-of-run sweep must still know which of them already landed —
+  // otherwise a failed library turns into duplicated rows.
+  beginGenericFiling(projectId);
+
   try {
     const supabaseForFiling = await getSupabase();
     if (supabaseForFiling) {
@@ -1239,7 +1251,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
 
   // Enable function-level tracing when the request came from the Testing Lab.
   // testMode is set by the run proxy route's workerBody.
-  if ((body as Record<string, unknown>).testMode) enableTracing();
+  if ((body as Record<string, unknown>).testMode) enableTracing(projectId);
 
   // Enable step-through mode when executionMode='step' is set by the Testing Lab.
   if ((body as Record<string, unknown>).executionMode === 'step') {
@@ -1417,7 +1429,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     .then(async (unifiedResult) => {
       // Emit pipeline-complete timeline event
       timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
-      disableTracing();
+      disableTracing(projectId);
       globalStepGate.disableStepMode(projectId);
 
       // A run that stopped at a ceiling is not a failure — it is a usable answer plus a decision
@@ -1476,8 +1488,18 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
 
       const filing = endFiling(projectId);
       if (filing) {
-        handshakeLogger.attempt('[Library]', 'info', 'Duplicate check', filing.describe())
-          .success(0, filing.describe());
+        // B1. This logged 'info' and `.success()` unconditionally, so `1 could not be written` was
+        // reported to the screen as a successful step. A run that captured a document and then lost
+        // it has not succeeded at filing, and the one place that knows must be the place that says so.
+        const summary = filing.describe();
+        if (filing.hasFailures) {
+          handshakeLogger.attempt('[Library]', 'warn', 'Duplicate check', summary)
+            .warn(summary);
+          console.warn(`[Library] ${projectId}: ${filing.describeFailures()}`);
+        } else {
+          handshakeLogger.attempt('[Library]', 'info', 'Duplicate check', summary)
+            .success(0, summary);
+        }
       }
       const stopped = activePipelines.get(projectId)?.stopReason;
       void recordRunFinish({
@@ -1500,13 +1522,38 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // county-specific pipelines (Bell etc.) the progress callback calls
       // setRunningMessage on every event but nothing ever clears it.
       clearRunningMessage(projectId);
-      // ── Handshake: emit a pipeline-complete entry so the final poll sees it
-      handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Complete',
-        unifiedResult.resultType === 'generic-pipeline'
-          ? `status=${unifiedResult.data.status} docs=${unifiedResult.data.documents?.length ?? 0}`
-          : `status=complete county=${unifiedResult.county}`)
-        .success(0, `[Worker→Frontend] Pipeline finished — results ready`);
-      console.log(`[Worker] ${projectId} → Frontend: pipeline complete handshake emitted`);
+      // ── Handshake: emit a lifecycle entry so the final poll sees it ────────────────────────
+      //
+      // D2. This said "Pipeline Complete" and called `.success()` no matter what the run found,
+      // which is how the Milam log came to carry `Pipeline FAILED in 261.9s` at 10:53 and
+      // `Pipeline Complete` at 15:58 about the same run. This line is about the LIFECYCLE — the
+      // pipeline resolved rather than threw — and it was being read as a verdict on the RESULT.
+      //
+      // It now takes its wording from the same place the pipeline's own line does, so the two
+      // cannot disagree, and a run that found nothing is not announced as a success.
+      const lifecycleOutcome = unifiedResult.resultType === 'generic-pipeline'
+        ? describeRunOutcome(unifiedResult.data.status, {
+            documents: unifiedResult.data.documents?.length ?? 0,
+            durationMs: unifiedResult.data.duration_ms ?? 0,
+          })
+        : describeRunOutcome('complete', { documents: 0, durationMs: 0 });
+
+      const lifecycleDetail = unifiedResult.resultType === 'generic-pipeline'
+        ? `status=${unifiedResult.data.status} docs=${unifiedResult.data.documents?.length ?? 0}`
+        : `status=complete county=${unifiedResult.county}`;
+
+      const lifecycleAttempt = handshakeLogger.attempt(
+        '[Pipeline Lifecycle]',
+        lifecycleOutcome.isProblem ? 'warn' : 'handshake',
+        lifecycleOutcome.label,
+        lifecycleDetail,
+      );
+      if (lifecycleOutcome.isProblem) {
+        lifecycleAttempt.warn(`[Worker→Frontend] ${lifecycleOutcome.sentence}`);
+      } else {
+        lifecycleAttempt.success(0, `[Worker→Frontend] ${lifecycleOutcome.sentence}`);
+      }
+      console.log(`[Worker] ${projectId} → Frontend: ${lifecycleOutcome.label} handshake emitted`);
 
       // ── Save verification handshake entries (captured before live-log clear) ──
       // Emit structured entries announcing what will be saved to the review DB.
@@ -1586,58 +1633,185 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // them after navigating away or refreshing the page.
         // User-uploaded documents (fromUserUpload=true) already exist in the DB
         // from Stage 1 — skip them to avoid duplicates.
-        const pipelineDocs = r.documents.filter(d => !d.fromUserUpload);
+        // ── B2: a SWEEP, not the filing ─────────────────────────────────────
+        //
+        // This used to be where generic-pipeline documents were written, and it did two harmful
+        // things. It waited for the run to end, so nothing was viewable until then — the batching
+        // the owner asked us to stop. And it DELETED the project's previous `property_search` rows
+        // first, so a re-run destroyed what the last run found, and a run that crashed after the
+        // delete left the project with fewer documents than it started with. That is the precise
+        // opposite of the supersede-not-delete rule the cross-run library exists to enforce.
+        //
+        // Documents are now filed by `onDocument` as the pipeline finds them, through the same
+        // duplicate check Bell uses. What remains here is a safety net for anything the incremental
+        // path could not write — a transient Supabase failure mid-run should not cost the document.
+        // Anything already filed this run is skipped, so the net cannot double-write.
+        // ── C2b: write the run's reconciliation where every reader already looks ──────────
+        //
+        // `/tmp/analysis/{id}/reconciled_boundary.json` is read by the boundary viewer, by
+        // `GET /research/boundary/:id`, by the master orchestrator, and — as its INPUT — by
+        // Phase 8. Only the Testing Lab ever wrote it, so all four read nothing for every real
+        // run, and Phase 8 could not run at all. Phase 9 takes its purchase recommendations from
+        // Phase 8, which is why no run has ever bought a document.
+        //
+        // The run was not missing the work — it reconciles at Stage 3.5 and kept the answer in
+        // memory. This writes it down.
+        try {
+          const p7 = buildPhase7Document(
+            projectId,
+            (r.boundary?.calls ?? []) as never,
+            {
+              // Closure lives on the VALIDATION result, not the boundary.
+              closureError: r.validation?.closureError_ft ?? null,
+              // `precisionRatio` is a string — "1:5000" — and the schema wants a number whose
+              // units are not stated. Parsing it would be guessing at what the number means, and
+              // a wrong closure ratio on a survey is a confident wrong answer with a surveyor's
+              // authority behind it. Omitted until something needs it and can say what it is.
+              closureRatio: null,
+            },
+          );
+          const wrote = writePhase7Document(ANALYSIS_DIR, p7);
+          console.log(
+            `[Worker] ${projectId}: reconciled_boundary.json ` +
+              (wrote.written ? `written — ${wrote.reason}` : `not written — ${wrote.reason}`),
+          );
+
+          // ── C2c: Phase 8 can finally run, and it is free ────────────────────────────────
+          //
+          // The confidence engine takes the reconciled boundary as its INPUT, which is why it
+          // has never run outside the Testing Lab: the file did not exist. It is pure
+          // computation — no model calls, measured — so there is nothing to gate and no reason
+          // to make an operator ask for it.
+          //
+          // It writes confidence_report.json beside the reconciled file, which is what the
+          // boundary viewer reads for per-call scores and what Phase 9 reads for its purchase
+          // recommendations. Both have been reading an absent file.
+          if (wrote.written) {
+            try {
+              const reconciledPath = path.join(ANALYSIS_DIR, projectId, 'reconciled_boundary.json');
+              const report = await new ConfidenceScoringEngine().score(projectId, reconciledPath);
+              handshakeLogger
+                .attempt('[Confidence]', 'info', 'Scored the boundary',
+                  `${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'})`)
+                .success(
+                  report.documentPurchaseRecommendations?.length ?? 0,
+                  `Confidence ${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'}). ` +
+                  `${report.documentPurchaseRecommendations?.length ?? 0} document(s) would raise it if bought.`,
+                );
+
+              // ── D1: buy the documents the report says are worth buying ──────────────────
+              //
+              // The last link. Phase 9 has existed, complete, with one caller: the Testing Lab.
+              // It needs recommendations, which come from Phase 8, which needed the reconciled
+              // boundary, which nothing wrote. Three phases were never "unwired" — they were
+              // waiting on a file.
+              //
+              // Every safeguard this needs was built for it and has never run: `decidePurchase`
+              // (which refuses when permission cannot be READ, not just when it is denied), the
+              // per-run spend ceiling, the cross-run library that will not buy a page twice, and
+              // the skip ledger.
+              const recs = report.documentPurchaseRecommendations ?? [];
+              if (recs.length > 0) {
+                const permission = await resolvePurchasePermission(projectId);
+                const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+
+                if (!permission.allowed) {
+                  // Recorded, not just logged — the notice on the screen counts these rows, and
+                  // for months there were none to count.
+                  if (permission.skipStatus) {
+                    const skipRec = await recordSkippedPurchases(
+                      recs.map((rec: { instrument: string; documentType: string; source: string }) => ({
+                        projectId,
+                        runId: activePipelines.get(projectId)?.runId ?? null,
+                        countyFips: countyFIPS,
+                        instrument: rec.instrument,
+                        documentType: rec.documentType,
+                        platformId: rec.source,
+                        pages: 0,
+                      })),
+                      permission.skipStatus,
+                      permission.reason,
+                    );
+                    if (skipRec.error) {
+                      // A run that correctly declined to spend must not fail because it could not
+                      // file the note saying so — but the note going missing is why the notice on
+                      // screen was empty for months, so it is reported rather than swallowed.
+                      console.warn(
+                        `[Worker] ${projectId}: Could not record the skipped documents — ${skipRec.error}`,
+                      );
+                    }
+                  }
+                  handshakeLogger
+                    .attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
+                    .success(0, describeSkippedPurchase(permission, recs.length));
+                } else {
+                  // SAID BEFORE IT IS SPENT. A run that announces a purchase after making it has
+                  // told the operator nothing they could have acted on.
+                  const ceiling = runSettings.maxCostUsd ?? 25;
+                  handshakeLogger
+                    .attempt('[Purchase]', 'info', 'Buying documents',
+                      `${recs.length} recommended, ceiling $${ceiling.toFixed(2)}`)
+                    .success(recs.length,
+                      `Buying up to ${recs.length} document(s) that would raise this boundary’s ` +
+                      `confidence, within the $${ceiling.toFixed(2)} ceiling this run was given.`);
+
+                  const orchestrator = new DocumentPurchaseOrchestrator(projectId);
+                  const purchaseResult = await orchestrator.executePurchases(
+                    projectId,
+                    recs,
+                    {
+                      kofileCredentials: process.env.KOFILE_USERNAME ? {
+                        username: process.env.KOFILE_USERNAME,
+                        password: process.env.KOFILE_PASSWORD!,
+                        paymentOnFile: true,
+                      } : undefined,
+                      texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
+                        username: process.env.TEXASFILE_USERNAME,
+                        password: process.env.TEXASFILE_PASSWORD!,
+                        accountType: 'pay_per_page',
+                      } : undefined,
+                      budget: ceiling,
+                      autoReanalyze: false,
+                    },
+                    countyFIPS,
+                    county ?? '',
+                  );
+
+                  const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
+                  const spent = purchaseResult.billing?.totalCharged ?? 0;
+                  handshakeLogger
+                    .attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
+                      `${bought.length} bought, $${spent.toFixed(2)}`)
+                    .success(bought.length,
+                      `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ` +
+                      `${purchaseResult.purchases.length - bought.length} were not obtained.`);
+                }
+              }
+            } catch (err) {
+              // Scoring is an enhancement to a run that has already succeeded.
+              console.warn(`[Worker] ${projectId}: confidence scoring failed:`, err);
+            }
+          }
+        } catch (err) {
+          // Bookkeeping must not fail a run whose research succeeded.
+          console.warn(`[Worker] ${projectId}: could not write the reconciled boundary:`, err);
+        }
+
+        const pipelineDocs = r.documents
+          .filter((d) => !d.fromUserUpload)
+          .filter((d) => !alreadyFiledThisRun(projectId, d));
         if (pipelineDocs.length > 0) {
+          console.log(
+            `[Worker] ${projectId}: ${pipelineDocs.length} document(s) were not filed during the run — sweeping`,
+          );
           getSupabase()
             .then(async (supabase) => {
               if (!supabase) return;
-              // Delete documents from any previous pipeline run for this project
-              // so a re-run always shows fresh results.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (supabase as any)
-                .from('research_documents')
-                .delete()
-                .eq('research_project_id', projectId)
-                .eq('source_type', 'property_search');
-
               const now = new Date().toISOString();
-              const docInserts = pipelineDocs.map((doc) => {
-                const ref = doc.ref;
-                const instr = ref.instrumentNumber;
-                const volPage = ref.volume && ref.page ? `Vol. ${ref.volume}, Pg. ${ref.page}` : null;
-                const recordingInfo = [
-                  instr ? `Instrument No. ${instr}` : null,
-                  volPage,
-                ].filter(Boolean).join(' — ') || null;
-                const pageCount = (doc.pages?.length ?? doc.pageScreenshots?.length) || null;
-                const rawText = doc.ocrText ?? doc.textContent ?? null;
-                // Cap at MAX_EXTRACTED_TEXT_LENGTH chars to stay within DB limits
-                const extractedText = rawText ? rawText.slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
-                // Build a descriptive label: "Warranty Deed - Smith to Jones (Instr. 12345)"
-                const grantorStr = ref.grantors?.length ? ref.grantors.slice(0, 2).join(', ') : null;
-                const granteeStr = ref.grantees?.length ? ref.grantees.slice(0, 2).join(', ') : null;
-                const partyStr = grantorStr && granteeStr ? ` — ${grantorStr} to ${granteeStr}` : (grantorStr ? ` — ${grantorStr}` : '');
-                const instrStr = instr ? ` (Instr. ${instr})` : '';
-                const docLabel = `${ref.documentType || 'Document'}${partyStr}${instrStr}`;
-
-                return {
-                  research_project_id: projectId,
-                  source_type: 'property_search',
-                  original_filename: docLabel,
-                  file_type: doc.imageFormat ?? 'pdf',
-                  document_type: normDocType(ref.documentType),
-                  document_label: ref.documentType || 'Document',
-                  recording_info: recordingInfo,
-                  recorded_date: ref.recordingDate ?? null,
-                  extracted_text: extractedText,
-                  processing_status: 'analyzed',
-                  page_count: pageCount ?? null,
-                  source_url: ref.url ?? null,
-                  ocr_confidence: doc.extractedData?.confidence ?? null,
-                  created_at: now,
-                  updated_at: now,
-                };
-              });
+              // One row shape, shared with the incremental path in file-generic-document.ts. It was
+              // inlined here and nowhere else, which is how a column comes to be added to one
+              // writer and not the other.
+              const docInserts = pipelineDocs.map((doc) => genericDocumentRow(projectId, doc, now));
 
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { error: docsErr } = await (supabase as any)
@@ -1651,7 +1825,14 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             })
             .catch((err: unknown) => {
               console.warn(`[Worker] ${projectId}: error saving pipeline docs:`, err instanceof Error ? err.message : String(err));
-            });
+            })
+            // Released only once the sweep has finished with it. `endFiling` runs earlier in this
+            // handler, and clearing the filed-set at the same time would leave the sweep unable to
+            // tell what had already landed — it writes with a plain insert, so it would have
+            // duplicated every document in the run rather than skipping them.
+            .finally(() => { endGenericFiling(projectId); });
+        } else {
+          endGenericFiling(projectId);
         }
 
         // ── Persist result summary to analysis_metadata ────────────────────
@@ -1694,6 +1875,31 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                 boundary: r.boundary ? {
                   type: r.boundary.type,
                   callCount: r.boundary.calls.length,
+                  // ── C2: the CALLS, not just how many there were ──────────────────────────
+                  //
+                  // The run computes the boundary calls at Stage 2 and reconciles them at Stage
+                  // 3.5, and persisted only the count. The boundary viewer asks the worker for
+                  // `/research/reconcile/:projectId`, which reads a Phase-7 file written ONLY by
+                  // the Testing Lab — so for every normal run the viewer had nothing to draw and
+                  // reported `hasWorkerData: false`, which reads as "the worker is down" rather
+                  // than "nobody computed this".
+                  //
+                  // Capped: a boundary is a few dozen calls, and a runaway extraction must not
+                  // push a megabyte of JSON into a metadata column. Truncation is stated rather
+                  // than silent, because a boundary missing its last calls does not close, and a
+                  // reader would blame the survey.
+                  calls: r.boundary.calls.slice(0, 400).map((c) => ({
+                    sequence: c.sequence,
+                    callId: c.callId ?? null,
+                    bearing: c.bearing?.raw ?? null,
+                    bearingDegrees: c.bearing?.decimalDegrees ?? null,
+                    distance: c.distance?.value ?? null,
+                    distanceUnit: c.distance?.unit ?? null,
+                    along: c.along ?? null,
+                    toPoint: c.toPoint ?? null,
+                    confidence: c.confidence,
+                  })),
+                  callsTruncated: r.boundary.calls.length > 400,
                   referenceCount: r.boundary.references.length,
                   confidence: r.boundary.confidence,
                   lotBlock: r.boundary.lotBlock,
@@ -1701,6 +1907,52 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                   verified: r.boundary.verified ?? false,
                 } : null,
                 validation: r.validation ?? null,
+
+                // ── C2e: the Stage 5 validation report, which the run paid for and threw away ──
+                //
+                // `runPropertyValidationPipeline` is an AI pass over everything the run found. It
+                // produces the most decision-shaped output a run has: an overall confidence with a
+                // rating, the documents worth buying next WITH cost estimates and the confidence
+                // boost each would give, a ranked list of adjacent owners to research, per-call
+                // evidence strength, and discrepancies with severity.
+                //
+                // Three lines of it reached the log — the top 3 actions and the top 3 adjacent
+                // owners — and nothing was persisted. `grep validationReport index.ts` returned
+                // nothing, and the app had never heard of it. So the run bought an analysis on
+                // every property and kept a summary sentence.
+                //
+                // Arrays are capped. A boundary with 200 calls produces 200 per-call confidence
+                // entries, and a metadata column is not the place for that — but the caps are
+                // STATED, because a truncated list of discrepancies that does not say it was
+                // truncated reads as a property with fewer problems than it has.
+                validationReport: r.validationReport ? {
+                  overallConfidencePct: r.validationReport.overallConfidencePct ?? null,
+                  overallRating: r.validationReport.overallRating ?? null,
+                  propertyName: r.validationReport.propertyName ?? null,
+                  acreage: r.validationReport.acreage ?? null,
+                  datum: r.validationReport.datum ?? null,
+                  pobDescription: r.validationReport.pobDescription ?? null,
+                  recordingReferences: (r.validationReport.recordingReferences ?? []).slice(0, 40),
+
+                  // What to do next, and what it would cost. The single most useful thing here.
+                  topActions: (r.validationReport.topActions ?? []).slice(0, 20),
+                  topActionsTruncated: (r.validationReport.topActions ?? []).length > 20,
+
+                  // Which neighbour to research first, and why. Computed on every run and, until
+                  // now, printed three at a time and discarded.
+                  adjacentResearchOrder: (r.validationReport.adjacentResearchOrder ?? []).slice(0, 20),
+                  adjacentResearchOrderTruncated: (r.validationReport.adjacentResearchOrder ?? []).length > 20,
+
+                  discrepancies: (r.validationReport.discrepancies ?? []).slice(0, 50),
+                  discrepanciesTruncated: (r.validationReport.discrepancies ?? []).length > 50,
+
+                  perCallConfidence: (r.validationReport.perCallConfidence ?? []).slice(0, 200),
+                  perCallConfidenceTruncated: (r.validationReport.perCallConfidence ?? []).length > 200,
+
+                  adjacentProperties: (r.validationReport.adjacentProperties ?? []).slice(0, 40),
+                  roads: (r.validationReport.roads ?? []).slice(0, 20),
+                  easements: (r.validationReport.easements ?? []).slice(0, 40),
+                } : null,
                 // finalSummary is what the Summary tab renders as "Research Summary"
                 finalSummary: r.masterReportText ?? autoSummary,
                 masterReportText: r.masterReportText ?? null,
@@ -1827,10 +2079,20 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             .fail('AI CREDIT BALANCE DEPLETED — Some analysis steps were skipped because your Anthropic API credits ran out. Please add funds at console.anthropic.com/settings/billing, then re-run research for complete results.');
         }
 
-        // Final summary entry
-        handshakeLogger.attempt('Results', 'info', 'Pipeline Complete',
+        // Final summary entry.
+        //
+        // D2. The county path had its own third phrasing of the same idea. Left alone it would have
+        // been the one place still able to say "Pipeline Complete" about a run that had errors —
+        // and one exception is all it takes for two logs to disagree again. A run that reached the
+        // end carrying errors is PARTIAL: a usable answer with something missing, which is a
+        // different claim from a clean finish and from a run that found nothing.
+        const bellOutcome = describeRunOutcome(errorCount > 0 ? 'partial' : 'complete', {
+          documents: deedCount + platCount,
+          durationMs: Number(durationSec) * 1000,
+        });
+        handshakeLogger.attempt('Results', 'info', bellOutcome.label,
           `Confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`)
-          .success(0, `Pipeline completed in ${durationSec}s — ${deedCount + platCount} documents, ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
+          .success(0, `${bellOutcome.sentence} ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
 
         // ── Capture live logs NOW (after summary entries) and cache ──────────
         // capturedLiveLog includes ALL entries: progress events from the
@@ -1916,7 +2178,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     })
     .catch((err) => {
       // Emit pipeline-failed timeline event
-      disableTracing();
+      disableTracing(projectId);
       globalStepGate.disableStepMode(projectId);
       const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
@@ -3783,6 +4045,42 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
         'Purchase',
         `Paid documents NOT purchased (${permission.source}): ${permission.reason}`,
       );
+
+      // ── B3: the skip is now EVIDENCE, not just a sentence in a log ──────────────────────────
+      //
+      // The explanation path existed at both ends and nothing joined them in the middle. The app's
+      // analyze route counts `research_document_purchases` rows carrying a skip status to size its
+      // notice, and `paidDocumentsNotice()` returns null at a count of zero — and nothing in the
+      // product had ever written such a row. The table held 0 rows of any kind. So "N documents
+      // behind a paywall were not retrieved" was unreachable by construction, and the screen said
+      // nothing at all about the most expensive decision a run makes.
+      //
+      // Written here, at the moment of refusal, because this is the only place that knows both WHICH
+      // documents were skipped and WHY. Failure to write is reported and not thrown: a run that
+      // correctly declined to spend must not fail because it could not file the note saying so.
+      if (permission.skipStatus && recommendations.length > 0) {
+        const { recorded, error: skipErr } = await recordSkippedPurchases(
+          // Annotated because `confReport` is parsed as `any`; without it the row shape below is
+          // unchecked, which is how a column name drifts silently.
+          recommendations.map((rec: { instrument: string; documentType: string; source: string }) => ({
+            projectId,
+            runId: activePipelines.get(projectId)?.runId ?? null,
+            countyFips: countyFIPS,
+            instrument: rec.instrument,
+            documentType: rec.documentType,
+            platformId: rec.source,
+            pages: 0,
+          })),
+          permission.skipStatus,
+          permission.reason,
+        );
+        if (skipErr) {
+          purchaseLog.warn('Purchase', `Could not record the skipped documents: ${skipErr}`);
+        } else {
+          purchaseLog.info('Purchase', `Recorded ${recorded} skipped document(s) as ${permission.skipStatus}`);
+        }
+      }
+
       const blockedReport: PurchaseReport = {
         status: 'no_purchases_needed',
         projectId,
@@ -5275,6 +5573,57 @@ app.post('/research/purchase/automated', requireAuth, rateLimit(5, 60_000), asyn
 /**
  * GET /research/purchase/platforms/status
  * Returns which Phase 15 purchase adapters are currently configured (have credentials).
+ */
+/**
+ * GET /research/purchase/readiness/:projectId
+ *
+ * "Will a paid run work?", answered without spending anything — D3.
+ *
+ * The route below reports six Phase 15 adapters and NOT TexasFile or Kofile, which are the two the
+ * purchase orchestrator actually buys through, and it has no callers. So the one question worth
+ * asking before a deliberate paid run had no way to be asked.
+ *
+ * Nothing here logs in or buys. Credential checks are PRESENCE, and say so: a username being set
+ * proves nothing about whether the vendor accepts it or the account is funded.
+ */
+app.get('/research/purchase/readiness/:projectId', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const reconPath = path.join(ANALYSIS_DIR, projectId, 'reconciled_boundary.json');
+  const confPath = path.join(ANALYSIS_DIR, projectId, 'confidence_report.json');
+
+  let recommendationCount: number | null = null;
+  try {
+    if (fs.existsSync(confPath)) {
+      const report = JSON.parse(fs.readFileSync(confPath, 'utf-8')) as
+        { documentPurchaseRecommendations?: unknown[] };
+      recommendationCount = report.documentPurchaseRecommendations?.length ?? 0;
+    }
+  } catch { recommendationCount = null; }
+
+  let permission: { allowed: boolean; reason: string } | null = null;
+  try {
+    const decision = await resolvePurchasePermission(projectId);
+    permission = { allowed: decision.allowed, reason: decision.reason };
+  } catch { permission = null; }
+
+  res.json(assessPurchaseReadiness({
+    env: process.env,
+    permission,
+    recommendationCount,
+    hasReconciledBoundary: fs.existsSync(reconPath),
+  }));
+});
+
+/**
+ * GET /research/purchase/platforms/status
+ *
+ * Phase 15 adapters only. For "can this run buy?", use the readiness route above — these six are
+ * not the vendors the purchase orchestrator uses.
  */
 app.get('/research/purchase/platforms/status', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
   res.json({

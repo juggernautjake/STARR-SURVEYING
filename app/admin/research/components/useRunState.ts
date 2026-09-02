@@ -111,6 +111,12 @@ export function useRunState(projectId: string): UseRunStateResult {
   const [documents, setDocuments] = useState<RunDocument[]>([]);
   const [documentsLoading, setDocumentsLoading] = useState(false);
   const [liteFallback, setLiteFallback] = useState<string | null>(null);
+  /**
+   * Why this run could not buy documents. Its own slot because it comes from the analyze status
+   * route, which nothing else here polls — and which, until this was restored, nothing called at
+   * all. See the fetcher below.
+   */
+  const [paidNotice, setPaidNotice] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -142,11 +148,31 @@ export function useRunState(projectId: string): UseRunStateResult {
     try {
       const res = await fetch(`/api/admin/research/${projectId}/run-console`);
       if (!res.ok) return;
-      const data = await res.json() as { run?: ConsolePayload | null };
+      const data = await res.json() as { run?: ConsolePayload | null; usageFailed?: boolean };
       // `run: null` means no run has ever been recorded. Keeping the previous console would leave
       // run 1's cost on screen beside run 2, which is half of the contradiction this replaces.
-      setCons(data.run ?? null);
+      //
+      // `usageFailed` rides beside `run` on the wire; folding it in here is what lets the view say
+      // "this total is short" instead of showing a confident number it cannot stand behind.
+      setCons(data.run ? { ...data.run, usageFailed: !!data.usageFailed } : null);
     } catch { /* the console is an enhancement; its absence must not blank the status */ }
+  }, [projectId]);
+
+  /**
+   * Why paid documents were or were not bought.
+   *
+   * Deliberately NOT on the 3s poll: it changes only when the project's settings change or a
+   * purchase is attempted, so it is fetched on mount and on refresh. Failure is silent because a
+   * missing caveat must never be rendered as "nothing was skipped" — see the view, which treats
+   * null as "no answer" rather than as an all-clear.
+   */
+  const fetchPaidNotice = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/admin/research/${projectId}/analyze`);
+      if (!res.ok) return;
+      const data = await res.json() as { paidDocumentsNotice?: string | null };
+      setPaidNotice(data.paidDocumentsNotice ?? null);
+    } catch { /* a caveat we could not fetch is not an all-clear; leave it unset */ }
   }, [projectId]);
 
   const fetchDocuments = useCallback(async () => {
@@ -324,7 +350,8 @@ export function useRunState(projectId: string): UseRunStateResult {
     void pollStatus();
     void fetchConsole();
     void fetchDocuments();
-  }, [pollStatus, fetchConsole, fetchDocuments]);
+    void fetchPaidNotice();
+  }, [pollStatus, fetchConsole, fetchDocuments, fetchPaidNotice]);
 
   // ── Adopt a run that was already going when the page opened ───────────────────────────────────
 
@@ -369,7 +396,14 @@ export function useRunState(projectId: string): UseRunStateResult {
       )
     : null;
 
-  const state = buildRunState({ poll, console: cons, inferredPercent: inferred });
+  useEffect(() => { void fetchPaidNotice(); }, [fetchPaidNotice]);
+
+  const state = buildRunState({
+    poll,
+    console: cons,
+    inferredPercent: inferred,
+    paidDocumentsNotice: paidNotice,
+  });
 
   return {
     state, logs, documents, documentsLoading, liteFallback, startError,

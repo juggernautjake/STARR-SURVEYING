@@ -18,19 +18,45 @@ import { getTracker } from './timeline-tracker.js';
 import { globalStepGate } from './step-gate.js';
 import type { PipelineLogger } from './logger.js';
 
-// Global flag — set to true by the pipeline runner when testMode=true
-let tracingEnabled = false;
+// ── C2: tracing is PER PROJECT, and used not to be ──────────────────────────────────────────────
+//
+// This was `let tracingEnabled = false` — one boolean for the whole process — and `disableTracing()`
+// is called on the completion AND the failure path of every run. So with two runs going at once:
+//
+//   run A starts in testMode        → tracing on
+//   run B finishes (or crashes)     → tracing OFF, for everybody
+//   run A carries on               → the Testing Lab watching it goes silent, mid-run
+//
+// A completing run must not reach into a live one. Nothing failed and nothing said so; the timeline
+// simply stopped, which reads as "the run stalled" rather than "another run turned your tracing off".
+//
+// A Set keyed by project id, because the question this answers is always asked about a specific run:
+// `trace()` already has the project from its logger, and `getTracker(projectId)` next to it was
+// already per-project. The global flag was the odd one out.
+const tracingProjects = new Set<string>();
 
-export function enableTracing(): void {
-  tracingEnabled = true;
+export function enableTracing(projectId: string): void {
+  tracingProjects.add(projectId);
 }
 
-export function disableTracing(): void {
-  tracingEnabled = false;
+export function disableTracing(projectId: string): void {
+  tracingProjects.delete(projectId);
 }
 
-export function isTracingEnabled(): boolean {
-  return tracingEnabled;
+/**
+ * Is tracing on for this run?
+ *
+ * The argument is required for a decision about a run. The no-argument form answers "is ANY run
+ * being traced", which is only ever useful for a health readout — never for gating a trace call,
+ * where it would put run B's events into run A's timeline.
+ */
+export function isTracingEnabled(projectId: string): boolean {
+  return tracingProjects.has(projectId);
+}
+
+/** How many runs are being traced. For diagnostics; not a gate. */
+export function tracedProjectCount(): number {
+  return tracingProjects.size;
 }
 
 /**
@@ -52,9 +78,11 @@ export function createTracer(filePath: string) {
     label: string,
     data?: Record<string, unknown>,
   ): Promise<void> {
-    if (!tracingEnabled) return;
-
+    // The project is read BEFORE the gate, because the gate is now a question about this run rather
+    // than about the process.
     const projectId = logger.getProjectId();
+    if (!tracingProjects.has(projectId)) return;
+
     const tracker = getTracker(projectId);
 
     // Determine event type from the label

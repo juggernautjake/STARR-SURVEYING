@@ -206,7 +206,43 @@ export class FilingTally {
           `document is never dropped on a maybe.`,
       );
     }
-    if (this.errors.length > 0) parts.push(`${this.errors.length} could not be written.`);
+    if (this.errors.length > 0) parts.push(this.describeFailures());
     return parts.join(' ');
+  }
+
+  /** True when at least one document was captured and then lost. */
+  get hasFailures(): boolean {
+    return this.errors.length > 0;
+  }
+
+  /**
+   * Why documents could not be written — B1.
+   *
+   * This used to read `1 could not be written.` and stop there, which is the same defect as the 22
+   * rows that advertised a file nobody wrote: a count with no cause. The reason was never missing.
+   * `record()` has been storing the actual error string all along and `describe()` printed only
+   * `.length`, so the answer was in hand and discarded one line before it would have been useful.
+   *
+   * Distinct reasons, not one line per document: a clerk portal that times out fails every document
+   * in the batch identically, and fifty copies of one message is how a log stops being read. Counted
+   * where they repeat, capped at three, and the remainder is stated rather than silently dropped —
+   * "and 12 more" is a different claim from showing twelve and hoping.
+   */
+  describeFailures(): string {
+    const counts = new Map<string, number>();
+    for (const raw of this.errors) {
+      const msg = (raw ?? '').trim() || 'no reason given';
+      counts.set(msg, (counts.get(msg) ?? 0) + 1);
+    }
+
+    const ordered = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+    const shown = ordered.slice(0, 3).map(([msg, n]) => (n > 1 ? `${msg} (x${n})` : msg));
+    const hidden = ordered.length - shown.length;
+    if (hidden > 0) shown.push(`and ${hidden} other reason(s)`);
+
+    return (
+      `${this.errors.length} could not be written — ${shown.join('; ')}. ` +
+      `These documents were retrieved and then lost, so the review is incomplete.`
+    );
   }
 }

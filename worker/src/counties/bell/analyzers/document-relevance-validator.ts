@@ -17,6 +17,7 @@
 //   6. Legal description word overlap
 
 import type { DeedRecord } from '../types/research-result.js';
+import { recordAmbientAiCall } from '../../../infra/usage.js';
 // Model chosen by TASK, cheap-first, not pinned per call site (research plan R6):
 // this call is this document about our property.
 import { modelFor } from '../../../infra/model-router.js';
@@ -677,6 +678,14 @@ Respond in JSON:
     model: modelFor('classify').model,
     max_tokens: 400,
     messages: [{ role: 'user', content: prompt }],
+  });
+
+  // R4b — this call spent money and did not say so. Recorded BEFORE the response is
+  // inspected, because the tokens are gone whether or not the model returned something
+  // usable, and priced with the model `modelFor` actually chose rather than a constant.
+  void recordAmbientAiCall('bell/document-relevance-validator', modelFor('classify').model, {
+    input:  response.usage?.input_tokens  ?? 0,
+    output: response.usage?.output_tokens ?? 0,
   });
 
   const text = response.content.find((c: { type: string }) => c.type === 'text');

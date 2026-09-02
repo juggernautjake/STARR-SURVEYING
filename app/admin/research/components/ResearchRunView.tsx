@@ -75,6 +75,7 @@ export default function ResearchRunView({
 }: ResearchRunViewProps) {
   const run = useRunState(projectId);
   const { state } = run;
+  const { paidDocumentsNotice } = state;
   const [tab, setTab] = useState<TabId>('documents');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -170,49 +171,11 @@ export default function ResearchRunView({
         </p>
       )}
 
-      {state.looksStalled && state.lifecycle === 'active' && (
-        <p className="rrv__note rrv__note--warn">
-          <AlertTriangle size={14} aria-hidden />
-          Nothing has been heard from this run for over ten minutes. Its process has probably
-          stopped — the documents it already retrieved are kept either way.
-        </p>
-      )}
-
-      {state.skipped.length > 0 && (
-        <div className="rrv__note rrv__note--warn">
-          <AlertTriangle size={14} aria-hidden />
-          <div>
-            <strong>{state.skipped.length} piece(s) of work were skipped to stay inside the
-            budget.</strong> A run that finished having skipped the deed chain is not a run that
-            finished.
-            <ul className="rrv__skipped">
-              {state.skipped.map((s, i) => (
-                <li key={i}><strong>{s.what}</strong> — {s.reason}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+      <RunNotices state={state} />
 
       {/* ── 2. WHAT HAS IT FOUND ────────────────────────────────────────────────────────────── */}
-      <div className="rrv__counters">
-        <Counter label="Documents" value={liveDocs.length} live={state.lifecycle === 'active'} />
-        <Counter
-          label="Pages"
-          value={liveDocs.reduce((n, d) => n + (d.page_count ?? 0), 0)}
-          live={state.lifecycle === 'active'}
-        />
-        <Counter
-          label="Spent"
-          value={state.spendUnrecorded ? '—' : `$${(state.spendUsd ?? 0).toFixed(2)}`}
-          // $0.00 and "nothing was recorded" are different facts, and conflating them is how a
-          // broken spend writer looked like a free run for months.
-          hint={state.spendUnrecorded
-            ? 'No usage events were recorded for this run. That is NOT the same as it having cost nothing.'
-            : undefined}
-        />
-        <Counter label="Elapsed" value={formatElapsed(state.elapsedMs)} />
-      </div>
+      <RunCounters state={state} documentCount={liveDocs.length}
+                    pageCount={liveDocs.reduce((n, d) => n + (d.page_count ?? 0), 0)} />
 
       {/* ── 3. WHAT ELSE ────────────────────────────────────────────────────────────────────── */}
       <div className="rrv__tabs" role="tablist" aria-label="Run detail">
@@ -279,7 +242,7 @@ export default function ResearchRunView({
 
 // ── The status card ─────────────────────────────────────────────────────────────────────────────
 
-function StatusCard({
+export function StatusCard({
   state, cancelling, onCancelRequest,
 }: { state: RunState; cancelling: boolean; onCancelRequest: () => void }) {
   const { lifecycle, outcome } = state;
@@ -336,6 +299,22 @@ function StatusCard({
       )}
     </section>
   );
+}
+
+/**
+ * What the money went on, in the order a reader checks it.
+ *
+ * Event types are stored as snake_case (`document_purchase`, `ai_call`). Rendered as-is they read
+ * like column names; a person paying an invoice should not have to translate them.
+ */
+function spendBreakdownText(byType: Array<{ type: string; count: number; usd: number }>): string {
+  const label = (t: string) => t.replace(/_/g, ' ');
+  const parts = byType
+    .filter((b) => b.usd > 0 || b.count > 0)
+    .map((b) => `${label(b.type)}: ${b.usd.toFixed(2)} over ${b.count} call(s)`);
+  return parts.length > 0
+    ? `What this cost so far — ${parts.join("; ")}.`
+    : 'Nothing has been charged to this run yet.';
 }
 
 function Counter({ label, value, live, hint }: {
@@ -561,7 +540,132 @@ function ActivityLog({ logs, active }: { logs: PipelineLogEntry[]; active: boole
 // route, so a shared-class rule written there wins over anything a component sets, and a fix aimed
 // at this screen can silently miss it.
 
-function RunViewStyles() {
+// ── The notices that sit under the status card ──────────────────────────────────────────────────
+//
+// Extracted from the view body on 2026-09-02, for D1. It was inline JSX, which meant the browser
+// harness could mount `StatusCard` and NOT these — so a harness case for "documents were skipped"
+// or "paid documents refused" rendered an ordinary card and looked fine. A harness that claims to
+// show a state and does not is the same defect this whole plan is about, one level up.
+//
+// Extracted rather than copied into the harness: a copy would have been a second implementation to
+// keep in step, and QA of the copy would prove nothing about the screen.
+// ── The four counters ───────────────────────────────────────────────────────────────────────────
+//
+// Extracted alongside RunNotices, for the same reason: inline JSX cannot be mounted in the browser
+// harness, so the "spend was not recorded" and "the usage read failed" states — and D3's
+// `12:34 / 30:00` — had no way to be looked at without a live 30-minute run.
+//
+// The document and page counts are props rather than a `RunDocument[]`, because what these render
+// is two numbers; taking the array would make the harness supply fake documents to see a counter.
+export function RunCounters({ state, documentCount, pageCount }: {
+  state: RunState; documentCount: number; pageCount: number;
+}) {
+  return (
+        <div className="rrv__counters">
+          <Counter label="Documents" value={documentCount} live={state.lifecycle === 'active'} />
+          <Counter
+            label="Pages"
+            value={pageCount}
+            live={state.lifecycle === 'active'}
+          />
+          <Counter
+            label="Spent"
+            // The `$` was dropped on 2026-09-02 while adding the spendIncomplete hint — a shell
+            // layer ate one of the two dollars in `$${...}`. The counter rendered "0.00", which
+            // reads as a quantity of nothing in particular. 27,900 tests passed over it; the
+            // browser found it in one look, which is what D1 exists for.
+            // `spendUsd === null` is "we have not read the cost yet", and it used to render as
+            // `$0.00` — because `(null ?? 0).toFixed(2)` is a confident claim that the run has cost
+            // nothing. The console is fetched on every fourth status poll, so that lie was on screen
+            // for the first ~12 seconds of every run, and permanently for any run whose console read
+            // failed. Three different states, three different renderings:
+            //
+            //   null              not read yet          → "—", "still reading"
+            //   spendUnrecorded   nothing was written   → "—", "NOT the same as free"
+            //   a number          the figure            → "$2.14"
+            value={
+              state.spendUsd === null || state.spendUnrecorded
+                ? '—'
+                : `$${state.spendUsd.toFixed(2)}`
+            }
+            // Three different facts, and every one of them outranks a confident number:
+            //   spendUnrecorded  nothing was written    → "—", not "$0.00"
+            //   spendIncomplete  we could not look      → the total shown is short
+            //   otherwise        the figure is the figure
+            // Conflating the first with $0.00 is how a broken spend writer looked like a free run for
+            // months. The second is the same mistake one step earlier: a failed READ rendered as a
+            // total. The route has always sent `usageFailed`; nothing had read it since the rebuild.
+            hint={state.spendUsd === null
+              ? 'The cost has not been read yet. It updates every few seconds while the run works.'
+              : state.spendUnrecorded
+              ? 'No usage events were recorded for this run. That is NOT the same as it having cost nothing.'
+              // B3. A single total cannot be checked by the person paying it: $2.14 of model calls
+              // and $2.14 of purchased pages are different runs, and only one of them bought
+              // anything. `summariseSpend` has computed this breakdown since it was written and the
+              // state layer dropped it, so the screen could only ever show the one number.
+              : state.spendByType.length > 0
+              ? spendBreakdownText(state.spendByType)
+              : state.spendIncomplete
+                ? 'The usage read failed, so the cost shown above is incomplete.'
+                : undefined}
+          />
+          {/* D3. "24 minutes" against an invisible ceiling tells a reader nothing about whether to
+              keep waiting. The run's chosen length is shown beside the clock, not only in the status
+              block, because this counter is where a person looks for the time. */}
+          <Counter
+            label="Elapsed"
+            value={
+              state.budgetMs != null
+                ? `${formatElapsed(state.elapsedMs)} / ${formatElapsed(state.budgetMs)}`
+                : formatElapsed(state.elapsedMs)
+            }
+            hint={state.budgetMs != null
+              ? `This run was given ${Math.round(state.budgetMs / 60_000)} minutes. It stops there and keeps what it found.`
+              : undefined}
+          />
+        </div>
+  );
+}
+
+export function RunNotices({ state }: { state: RunState }) {
+  const { paidDocumentsNotice } = state;
+  return (
+    <>
+        {state.looksStalled && state.lifecycle === 'active' && (
+          <p className="rrv__note rrv__note--warn">
+            <AlertTriangle size={14} aria-hidden />
+            Nothing has been heard from this run for over ten minutes. Its process has probably
+            stopped — the documents it already retrieved are kept either way.
+          </p>
+        )}
+
+        {paidDocumentsNotice && (
+          <div className="rrv__note ra-results__paid-notice" data-testid="paid-documents-notice">
+            <AlertTriangle size={14} aria-hidden />
+            <div>{paidDocumentsNotice}</div>
+          </div>
+        )}
+
+        {state.skipped.length > 0 && (
+          <div className="rrv__note rrv__note--warn">
+            <AlertTriangle size={14} aria-hidden />
+            <div>
+              <strong>{state.skipped.length} piece(s) of work were skipped to stay inside the
+              budget.</strong> A run that finished having skipped the deed chain is not a run that
+              finished.
+              <ul className="rrv__skipped">
+                {state.skipped.map((s, i) => (
+                  <li key={i}><strong>{s.what}</strong> — {s.reason}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+    </>
+  );
+}
+
+export function RunViewStyles() {
   return (
     <style>{`
 .rrv { display: flex; flex-direction: column; gap: 0.85rem; }

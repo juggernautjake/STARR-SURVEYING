@@ -1384,8 +1384,12 @@ describe('hasKofileConfig', () => {
   });
 
   it('returns true for other configured Kofile counties', () => {
+    // `mclennan` was here until 2026-09-02 and is now correctly false. All 72 entries of
+    // KOFILE_CONFIGS were probed with controls that day and 43 did not resolve — mclennan among
+    // them — so the run had been searching a host that is not there and reporting no clerk records.
+    // Those moved to KOFILE_UNREACHABLE. Williamson answered and stays.
     expect(hasKofileConfig('williamson')).toBe(true);
-    expect(hasKofileConfig('mclennan')).toBe(true);
+    expect(hasKofileConfig('milam')).toBe(true);
   });
 
   it('returns false for unconfigured county', () => {

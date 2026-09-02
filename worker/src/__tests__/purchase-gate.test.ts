@@ -157,8 +157,19 @@ describe('every place the worker spends money consults the gate', () => {
     expect(index).toMatch(/status: 'not_purchased'/);
   });
 
-  it('consults the gate at three distinct sites', () => {
+  it('consults the gate at every site that spends, and at the one that only asks', () => {
+    // Was three: the two purchase routes and the document-access orchestrator's paid tier. D1
+    // added the fourth and most important — the normal RUN, which until then could not buy at
+    // all. The NUMBER is the point: a new spend site that forgets the gate makes this fail, which
+    // is the only way that mistake gets noticed.
+    // FIVE since the readiness route, and the fifth is NOT a spend site:
+    // `GET /research/purchase/readiness/:projectId` consults the gate to REPORT whether a run would
+    // be allowed to buy, without buying. It is counted anyway, because the number is the mechanism —
+    // a new call makes this fail, and whoever fixes it has to say which kind it is.
+    //
+    // The four that spend: the two purchase routes, the document-access orchestrator's paid tier,
+    // and the normal run (D1).
     const calls = index.match(/await resolvePurchasePermission\(projectId\)/g) ?? [];
-    expect(calls.length).toBe(3);
+    expect(calls.length).toBe(5);
   });
 });

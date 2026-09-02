@@ -30,6 +30,8 @@
 // can have been edited since — and shows every field the run can be given, with what changed.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import AddressAutocomplete from '../../components/AddressAutocomplete';
+import RunFileAttachments, { type RunFile } from './RunFileAttachments';
 import { RefreshCw, AlertTriangle, X, Info } from 'lucide-react';
 import type { RunSettingsInput, StartRunInput } from './useRunState';
 
@@ -164,6 +166,12 @@ export default function RerunDialog({
     return () => { cancelled = true; };
   }, [projectId]);
 
+  // G2. Kept out of FormState on purpose. FormState is seeded from what the PREVIOUS run was
+  // told, and re-presenting a previous run's attachments as this one's would be the same
+  // mistake the operator notes avoid: stale context wearing a fresh label. A file is attached to
+  // the attempt in front of you.
+  const [attachments, setAttachments] = useState<RunFile[]>([]);
+
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
 
@@ -192,9 +200,17 @@ export default function RerunDialog({
     if (s.maxCostUsd !== undefined) cmp('Cost ceiling ($)', s.maxCostUsd, form.maxCostUsd);
     if (s.mode !== undefined) cmp('Mode', s.mode, form.mode);
     if (form.operatorNotes.trim()) out.push('New starting information added');
+    // Attaching a survey changes what the run is given as much as editing a field does. Without
+    // this the dialog would report "nothing changed" and record the run as `rerun_same`.
+    if (attachments.length > 0) {
+      out.push(`${attachments.length} file(s) attached to this run`);
+    }
     if (form.refreshImagery) out.push('Imagery will be re-captured');
     return out;
-  }, [form, prev]);
+    // `attachments.length` and not `attachments`: the array identity changes on every keystroke-free
+    // re-render, and the summary only cares how many there are. Omitting it entirely would leave the
+    // dialog reporting "nothing changed" while a survey sits attached to the run.
+  }, [form, prev, attachments.length]);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -212,6 +228,8 @@ export default function RerunDialog({
       parcelId: form.parcelId,
       ownerName: form.ownerName,
       operatorNotes: form.operatorNotes,
+      // The worker has parsed `userFiles` since it was written and nothing ever sent one.
+      userFiles: attachments.length > 0 ? attachments : undefined,
       settings,
       // `rerun_edited` vs `rerun_same` is what the run list uses to explain a thinner report six
       // weeks later, so it is derived from whether anything actually changed rather than from
@@ -259,10 +277,34 @@ export default function RerunDialog({
             <fieldset className="rrd__group">
               <legend className="rrd__legend">Starting information</legend>
 
+              {/* ── F4: the same intake the NEW-project form has ──────────────────────────────
+                  This was a plain text box while the new-project form next door had Google Places
+                  autocomplete filling city, county, state and ZIP from one selection. A re-run is
+                  exactly where a corrected address gets typed — it is the whole reason the dialog
+                  is editable — so it was the one place that most needed the structure and had none.
+
+                  The county is the field that matters. It routes the entire run, and a re-run typed
+                  with the wrong county researches the wrong courthouse and reports it as a finding
+                  about the property. Selecting a suggestion fills it rather than leaving it to
+                  agree with the address by hand.
+
+                  It degrades to plain typing when the key is absent or refused, which is the same
+                  behaviour the component gives the new-project form. */}
               <label className="rrd__field">
                 <span className="rrd__label">Property address</span>
-                <input className="rrd__input" value={form.address}
-                       onChange={(e) => set('address', e.target.value)} />
+                <AddressAutocomplete
+                  value={form.address}
+                  onChange={(val) => set('address', val)}
+                  onSelect={(details) => {
+                    if (details.address) set('address', details.address);
+                    // Only overwrite the county when Google actually resolved one. An empty string
+                    // here would silently clear a county the operator had typed correctly.
+                    if (details.county) set('county', details.county);
+                  }}
+                  className="rrd__input"
+                  placeholder="Property address"
+                  biasTexas
+                />
               </label>
 
               <div className="rrd__row">
@@ -298,6 +340,12 @@ export default function RerunDialog({
                           value={form.operatorNotes}
                           onChange={(e) => set('operatorNotes', e.target.value)} />
               </label>
+
+              <RunFileAttachments
+                files={attachments}
+                onChange={setAttachments}
+                label="Files to start this run with"
+              />
             </fieldset>
 
             {/* ── What the run may do ────────────────────────────────────────────────────── */}

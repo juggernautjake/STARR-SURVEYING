@@ -4,6 +4,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
+// Static, not `await import(...)`: the orphan ratchet reads static imports, and a module reachable
+// only through a dynamic one is indistinguishable from a dead module to every guard in this repo.
+import { attachUploadedDocuments } from '@/lib/research/attach-uploaded-documents';
 
 const WORKER_URL = process.env.WORKER_URL || '';
 const WORKER_API_KEY = process.env.WORKER_API_KEY || '';
@@ -143,6 +146,54 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     ...(body.settings ?? {}),
   };
 
+  // ── G1: the files the operator already gave this project ────────────────────────────────────
+  //
+  // The Upload stage sits immediately before Research in the workflow, and it looked exactly like
+  // giving the run information. It was not: uploads land in `research_documents` with
+  // `source_type: 'user_upload'`, and neither this route nor the worker ever read them back. An
+  // operator could upload the client's survey, watch it appear on the project, start the run, and
+  // have the run never see it. Nothing failed — the file was stored, it just was not research.
+  //
+  // Files attached to THIS run (the re-run dialog) win outright: they are the operator's most recent
+  // statement of what the run should read, and re-adding the project's whole library behind them
+  // would quietly change what they asked for.
+  const bodyFiles = Array.isArray(body.userFiles) && body.userFiles.length > 0 ? body.userFiles : null;
+  let attachedFiles: unknown[] = bodyFiles ?? [];
+  const attachmentNotes: string[] = [];
+
+  if (!bodyFiles) {
+    try {
+      const { data: uploaded } = await supabaseAdmin
+        .from('research_documents')
+        .select('id, original_filename, file_type, storage_url, file_size_bytes, document_label')
+        .eq('research_project_id', projectId)
+        .eq('source_type', 'user_upload');
+
+      if (uploaded && uploaded.length > 0) {
+        const result = await attachUploadedDocuments(uploaded, async (url) => {
+          const res = await fetch(url);
+          if (!res.ok) return null;
+          return Buffer.from(await res.arrayBuffer());
+        });
+        attachedFiles = result.files;
+        attachmentNotes.push(...result.notes);
+        if (result.files.length > 0) {
+          console.log(`[pipeline/route] ${projectId}: attaching ${result.files.length} uploaded document(s) to the run`);
+        }
+      }
+    } catch (err) {
+      // Never fatal. A run that could not read the uploads is worse than one that could, and far
+      // better than no run at all — but it must SAY so rather than start as if there were none.
+      attachmentNotes.push(
+        'The documents uploaded to this project could not be read, so the run did not receive them.',
+      );
+      console.warn(
+        `[pipeline/route] ${projectId}: could not attach uploaded documents:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   const payload = {
     projectId,
     address: rawAddress,
@@ -150,8 +201,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     state: project.state || 'TX',
     propertyId: parcelId || undefined,
     ownerName: body.ownerName || undefined,
-    operatorNotes: body.operatorNotes?.trim() || undefined,
-    userFiles: Array.isArray(body.userFiles) && body.userFiles.length > 0 ? body.userFiles : undefined,
+    // Anything the attachment step could not do travels WITH the run rather than staying in a
+    // server log nobody reads. "Six of your twenty documents were attached" is exactly the kind of
+    // fact that, left unsaid, makes an operator believe the run read everything they gave it.
+    operatorNotes: [body.operatorNotes?.trim(), ...attachmentNotes]
+      .filter((s): s is string => !!s && s.length > 0)
+      .join('\n') || undefined,
+    userFiles: attachedFiles.length > 0 ? attachedFiles : undefined,
     settings,
     trigger: body.trigger,
   };

@@ -41,6 +41,7 @@ const SYSTEM_LABEL: Record<ClerkRegistryEntry['system'], string> = {
   henschen: 'Henschen & Associates',
   idocket: 'iDocket',
   fidlar: 'Fidlar Technologies',
+  edoctec: 'eDocTec',
   texasfile: 'TexasFile (aggregator)',
   harris_custom: 'Harris County custom',
   dallas_custom: 'Dallas County custom',

@@ -11,6 +11,7 @@
 // Spec: docs/planning/in-progress/STARR_RECON/PHASE_03_EXTRACTION.md §6
 
 import Anthropic from '@anthropic-ai/sdk';
+import { recordAmbientAiCall } from '../infra/usage.js';
 import { recordAiCall } from '../infra/usage.js';
 import { extractDocuments } from './ai-extraction.js';
 import { completeBoundaryCallCurve } from '../lib/curve-params.js';
@@ -411,6 +412,14 @@ export class AIDeedAnalyzer {
           role: 'user',
           content: `${DEED_METADATA_PROMPT}\n\n=== DEED TEXT ===\n${text.substring(0, 15000)}`,
         }],
+      });
+
+      // R4b — this call spent money and did not say so. Priced with AI_MODEL, which is the model
+      // this file actually sends; recorded before the response is inspected, because the tokens
+      // are gone whether or not the model returned something usable.
+      void recordAmbientAiCall('ai-deed-analyzer', AI_MODEL, {
+        input:  response.usage?.input_tokens  ?? 0,
+        output: response.usage?.output_tokens ?? 0,
       });
 
       // R4b — price this call through the one module that knows what a model costs. Deliberately

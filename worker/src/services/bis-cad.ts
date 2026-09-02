@@ -4,7 +4,9 @@
 // Layer 1C: Screenshot + Claude Vision OCR fallback
 // Every result is validated against the original search address.
 
+import { salvageJsonArray } from '../research/salvage-json-array.js';
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics, DeedHistoryEntry } from '../types/index.js';
+import { hostGate, noteHostAnswered, noteHostUnreachable, classifyTransportError } from '../infra/dead-host.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call pulls property fields from a CAD page.
 import { modelFor } from '../infra/model-router.js';
 import { recordAmbientAiCall } from '../infra/usage.js';
@@ -635,6 +637,11 @@ async function searchCadHttp(
         const noResults = /no\s+results?\s+found|0\s+results|no\s+records?\s+found/i.test(html);
         tracker.step(noResults ? '[html_structure] Page says "no results"' : '[html_structure] No results found in HTML and no "no results" message');
         tracker({ status: 'fail', error: noResults ? 'No results (server confirmed)' : '[html_structure] Could not extract results from HTML' });
+        // E1. This `continue` skipped the record, so the ONE outcome that is a genuine negative
+        // finding — the server answered and said it has nothing — was the one not counted. Every
+        // other path here records the attempt. The count is what the failure message reports, so
+        // under-counting it made a thorough search look like no search.
+        diagnostics.variantsTried.push({ variant, resultCount: 0, hitPropertyId: null });
         continue;
       }
 
@@ -1621,13 +1628,25 @@ Return ONLY valid JSON array, no markdown. If NO results visible, return [].`,
     }
 
     const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    let parsed: CadSearchResult[];
 
-    try {
-      parsed = JSON.parse(cleaned);
-      if (!Array.isArray(parsed)) parsed = [];
-    } catch {
-      finish({ status: 'fail', error: 'Failed to parse Vision JSON' });
+    // E1, third instance of the same shape. This one reads PROPERTY ROWS out of a CAD screenshot,
+    // and it had the identical `JSON.parse` + `catch → return []`: a response clipped after nine
+    // complete rows returned zero, and the run concluded the search found nothing. Its ceiling is
+    // 8,192 so it truncates less often than the variant calls — which makes it worse to leave, not
+    // better, because a rare silent loss is one nobody goes looking for.
+    const salvaged = salvageJsonArray<CadSearchResult>(cleaned);
+    const parsed: CadSearchResult[] = salvaged.items;
+
+    if (salvaged.truncated) {
+      logger.warn(
+        'Stage1C',
+        `The Vision reading of the results page was cut off (${salvaged.reason}). Using the ` +
+          `${parsed.length} complete row(s) that survived — there may have been more on the page.`,
+      );
+    }
+
+    if (parsed.length === 0 && salvaged.reason) {
+      finish({ status: 'fail', error: `Could not read the Vision response — ${salvaged.reason}` });
       return [];
     }
 
@@ -2049,7 +2068,10 @@ async function generateAiAddressVariants(
 
     const response = await client.messages.create({
       model: modelFor('extract').model,
-      max_tokens: 1024,
+      // E1. Was 1024. The 2026-09-02 responses were cut off at position 1452 — a ceiling, not a
+      // prompt problem. Raised so truncation is rare; the salvage below exists because the model
+      // picks the length and no ceiling makes it impossible.
+      max_tokens: 2048,
       ...samplingFor(modelFor('extract').model),
       messages: [{
         role: 'user',
@@ -2087,10 +2109,32 @@ Important: Do NOT repeat variants already tried. Only return NEW variants not in
     }
 
     const cleaned = text.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-    const aiResults = JSON.parse(cleaned) as Array<{ streetNumber: string; streetName: string }>;
 
-    if (!Array.isArray(aiResults) || aiResults.length === 0) {
-      tracker({ status: 'fail', error: 'Empty or invalid AI response' });
+    // E1. This was a bare `JSON.parse`, and the catch below returned []. On 2026-09-02 the response
+    // was cut off at position 1452 against a 1,024-token ceiling, so a dozen good variants were
+    // thrown away because the thirteenth was clipped — on BOTH reference runs, in both counties.
+    // A truncated list is not an empty list.
+    const salvaged = salvageJsonArray<{ streetNumber: string; streetName: string }>(cleaned);
+    const aiResults = salvaged.items;
+
+    if (salvaged.truncated) {
+      logger.warn(
+        'Stage1D',
+        `The AI variant list was cut off (${salvaged.reason}). Using the ${aiResults.length} complete ` +
+          `variant(s) that survived. Address matching is running on fewer variants than it asked for.`,
+      );
+    }
+
+    if (aiResults.length === 0) {
+      // E2: a capability loss, named as one. This used to be a 'fail' line indistinguishable from
+      // "the model had no ideas", and it silently halved address matching on both reference runs.
+      tracker({
+        status: 'fail',
+        error: salvaged.truncated
+          ? `AI variants UNAVAILABLE this run — the response was cut off before a single complete ` +
+            `variant (${salvaged.reason}). The CAD search ran on deterministic variants only.`
+          : `AI variants unavailable — ${salvaged.reason ?? 'empty or invalid AI response'}.`,
+      });
       return [];
     }
 
@@ -2711,7 +2755,39 @@ export async function searchBisCad(
     }
   }
 
-  logger.error('Stage1', `All CAD search layers exhausted — property not found. Tried ${diagnostics.variantsTried.length} variants.`);
+  // E1. This read `All CAD search layers exhausted — property not found. Tried 0 variants.` on the
+  // Bell run of 2026-09-02, which is self-contradictory: "exhausted" claims we tried everything and
+  // "0 variants" says we tried nothing. Both halves were generated without consulting the other.
+  //
+  // What actually happened is in §1.5 of the plan — the CAD host was unreachable and the circuit
+  // breaker correctly skipped the search rather than launching a browser at a dead host. So the
+  // layers were not exhausted, they were SKIPPED, and the sentence turned "we could not look" into
+  // "we looked and it is not there". That is a claim about the property, and it is the one defect
+  // this whole plan keeps meeting.
+  //
+  // (The plan's own guess — that a JSON parse failure had discarded the deterministic list — was
+  // wrong, and checking it is what found this. The AI truncation above is real and separate.)
+  const tried = diagnostics.variantsTried.length;
+  if (diagnostics.siteUnreachable) {
+    logger.error(
+      'Stage1',
+      `The CAD site was unreachable, so the address search could not run${tried > 0 ? ` past ${tried} variant(s)` : ' at all'}. ` +
+        `This is NOT a finding that the property does not exist — nothing was searched. ` +
+        `Check the site is up, then re-run.`,
+    );
+  } else if (tried === 0) {
+    logger.error(
+      'Stage1',
+      `No address variant was searched against the CAD, so nothing can be concluded about the ` +
+        `property from this stage. The reasons are in the attempts above.`,
+    );
+  } else {
+    logger.error(
+      'Stage1',
+      `All CAD search layers exhausted — property not found after ${tried} variant(s). ` +
+        `The property may be indexed by legal description or owner name rather than street address.`,
+    );
+  }
   diagnostics.searchDuration_ms = Date.now() - searchStart;
 
   // Preserve any screenshot from Stage 1B/1C in diagnostics so the pipeline
@@ -2875,16 +2951,46 @@ async function queryArcGisLayer(
 ): Promise<ArcGisFeatureSet | null> {
   const qs = new URLSearchParams({ ...params, f: 'json' }).toString();
   const fullUrl = `${url}?${qs}`;
+
+  // A3. This function is called from nested service × layer × field loops, each with its own 10 s
+  // timeout, so a dead host used to cost one timeout PER PROBE — 147 s on the Milam run of
+  // 2026-09-02. The gate is checked here, in the one funnel every one of those loops passes
+  // through, rather than in each loop, because there are five of them and the next one added would
+  // not have known to ask.
+  const gate = hostGate(fullUrl);
+  if (gate.blocked) {
+    logger.warn('Stage1E', `ArcGIS query skipped — ${gate.reason}`);
+    return null;
+  }
+
   try {
     const resp = await fetch(fullUrl, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     });
+    // ANY status code means the host is alive. A 404 is the normal answer to most of these probes —
+    // the loops walk candidate service and layer names, and most do not exist — so it must clear the
+    // host, not condemn it. Treating 404 as death would cancel the search one probe before it found
+    // the layer, which is exactly how Bell finds its own.
+    noteHostAnswered(fullUrl);
     if (!resp.ok) return null;
     const json = await resp.json() as ArcGisFeatureSet;
     return json;
   } catch (err) {
-    logger.warn('Stage1E', `ArcGIS query failed: ${fullUrl} — ${String(err)}`);
+    const kind = classifyTransportError(err);
+    if (!kind) {
+      // Answered, but unusably — a parse failure is a bad endpoint on a live host.
+      logger.warn('Stage1E', `ArcGIS query failed: ${fullUrl} — ${String(err)}`);
+      return null;
+    }
+    const { host, justGated } = noteHostUnreachable(fullUrl, kind);
+    logger.warn(
+      'Stage1E',
+      `ArcGIS query failed (${kind}): ${fullUrl} — ${String(err)}` +
+        (justGated
+          ? ` — ${host} looks unreachable; skipping further ArcGIS probes to it for now`
+          : ''),
+    );
     return null;
   }
 }

@@ -335,7 +335,28 @@ export interface ConsolePayload {
   status?: string | null;
   phase?: string | null;
   activity?: string | null;
-  spend?: { totalUsd: number; noEventsRecorded: boolean; headline: string } | null;
+  spend?: {
+    totalUsd: number;
+    noEventsRecorded: boolean;
+    headline: string;
+    /**
+     * What the money went ON, per event type — B3.
+     *
+     * `summariseSpend` has computed this since it was written and the state layer dropped it,
+     * so the screen could only ever show one number. A single total cannot be CHECKED by the
+     * person paying it: $2.14 of model calls and $2.14 of purchased pages are different runs,
+     * and only one of them bought anything.
+     */
+    byType?: Record<string, { count: number; usd: number }>;
+  } | null;
+  /**
+   * The usage READ failed, as opposed to finding nothing.
+   *
+   * Sits beside `run` on the wire, not inside it, so the hook folds it in here. The route has
+   * always sent it; between the four-panel rebuild and 2026-09-02 nothing read it, and a run
+   * whose spend query errored displayed a confident total instead of admitting the gap.
+   */
+  usageFailed?: boolean;
   time?: {
     elapsedMs: number;
     budgetMs: number | null;
@@ -361,8 +382,23 @@ export interface RunState {
   /** Wall-clock ceiling, when one was configured. */
   budgetMs: number | null;
   spendUsd: number | null;
+  /** What the spend was made of, per event type. Empty when nothing has been recorded. */
+  spendByType: Array<{ type: string; count: number; usd: number }>;
   /** True when no usage event exists at all — NOT the same as $0.00 spent. */
   spendUnrecorded: boolean;
+  /**
+   * The spend figure is known to be short — the usage read errored. Distinct again from
+   * `spendUnrecorded`: that one means "nothing was written", this one means "we could not look".
+   * Both must outrank a confident number.
+   */
+  spendIncomplete: boolean;
+  /**
+   * Why this run could not buy documents, when it could not. Null when buying was possible.
+   *
+   * The `analyze` route has computed this all along; its only reader was the panel the rebuild
+   * retired, so the answer to "why did TexasFile return nothing?" stopped reaching the screen.
+   */
+  paidDocumentsNotice: string | null;
   skipped: Array<{ what: string; reason: string }>;
   /** A `running` row nobody has heard from for ten minutes. */
   looksStalled: boolean;
@@ -375,6 +411,8 @@ export interface BuildRunStateInput {
   console: ConsolePayload | null;
   /** The percentage the legacy client-side inference produced, for a worker that predates `percent`. */
   inferredPercent?: number | null;
+  /** From the analyze status route, which is the only place it is computed. */
+  paidDocumentsNotice?: string | null;
   now?: number;
 }
 
@@ -392,6 +430,21 @@ export interface BuildRunStateInput {
  * live run 2. So status, percentage and phase come from the poll whenever it has them, and the
  * console contributes what only it knows: spend, the ceiling, and the work a budget dropped.
  */
+/**
+ * The run length the operator chose, in milliseconds, from the run's own settings.
+ *
+ * Bounded by the same 15/60 the dialog enforces, because a settings blob is data off the wire and a
+ * ceiling of 9,000 minutes would render as a progress bar that never moves. A value outside the
+ * range is treated as absent rather than clamped into a number nobody chose — showing "of 60
+ * minutes" for a run configured at 600 would be a confident lie, and no line at all is honest.
+ */
+export function chosenBudgetMs(settings: Record<string, unknown> | null | undefined): number | null {
+  const raw = settings?.['maxResearchTimeMinutes'];
+  if (typeof raw !== 'number' || !Number.isFinite(raw)) return null;
+  if (raw < 15 || raw > 60) return null;
+  return raw * 60_000;
+}
+
 export function buildRunState(input: BuildRunStateInput): RunState {
   const { poll, console: cons } = input;
   const now = input.now ?? Date.now();
@@ -429,9 +482,22 @@ export function buildRunState(input: BuildRunStateInput): RunState {
     phaseLabel: poll?.phaseLabel ?? poll?.currentStage ?? cons?.phase ?? null,
     activity: poll?.message ?? cons?.activity ?? null,
     elapsedMs,
-    budgetMs: cons?.time?.budgetMs ?? null,
+    // D3. The console's budget is authoritative when it exists, but it only exists once the console
+    // has been fetched and the run record carries a ceiling. The run's CHOSEN length is known from
+    // the moment it starts — it is what the operator picked in the dialog — so it stands in until the
+    // console catches up.
+    //
+    // Without the fallback the "N of M minutes used" line simply does not render, and "24 minutes
+    // elapsed" against an invisible ceiling tells a reader nothing about whether to keep waiting.
+    budgetMs: cons?.time?.budgetMs ?? chosenBudgetMs(poll?.settings),
     spendUsd: cons?.spend ? cons.spend.totalUsd : null,
+    // Sorted by cost, because the first line is the one a reader checks.
+    spendByType: Object.entries(cons?.spend?.byType ?? {})
+      .map(([type, v]) => ({ type, count: v.count, usd: v.usd }))
+      .sort((a, b) => b.usd - a.usd),
     spendUnrecorded: cons?.spend?.noEventsRecorded ?? false,
+    spendIncomplete: cons?.usageFailed ?? false,
+    paidDocumentsNotice: input.paidDocumentsNotice ?? null,
     skipped: cons?.skipped ?? [],
     looksStalled: cons?.time?.looksStalled ?? false,
     canCancel: lifecycle === 'active',
