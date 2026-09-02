@@ -401,8 +401,32 @@ reachability number until it exists.**
       attributed; a re-run reads them from the library without buying them again, which is what the
       cross-run ledger is for. Revisit if a paid run shows the extra pass is worth it.
 
-- [ ] **D3** One deliberate paid run against a real property, which is the only thing that can prove
+- [~] **D3** One deliberate paid run against a real property, which is the only thing that can prove
       the path. Owner-gated: it spends real money.
+
+      **DEFERRED — owner-gated, and NOT because the cost exceeds the value.** It is the last proof
+      that matters. It is deferred because it spends real money at a live vendor and picks a real
+      property, and neither is mine to choose.
+
+      **The non-spending half is SHIPPED:** `GET /research/purchase/readiness/:projectId` answers
+      "will a paid run work?" before the money is at stake — vendor credentials, the gate's verdict
+      for this run, whether the reconciled boundary exists, and whether Phase 8 recommended
+      anything. A paid run that fails on a missing password teaches nothing except that a password
+      was missing.
+
+      The existing `/research/purchase/platforms/status` does NOT answer this: it reports six
+      Phase 15 adapters and not TexasFile or Kofile, which are the two the orchestrator actually
+      buys through, and it has no callers.
+
+      Two things it deliberately refuses to claim. Credentials are reported as PRESENCE, saying so
+      in words — a username being set proves nothing about whether the vendor accepts it or the
+      account is funded, and this repository has already been caught reading a key that was merely
+      present as a working integration. And "nothing worth buying" is reported as NOT READY, because
+      a run that correctly buys nothing looks identical to one whose purchase path is broken, and
+      that is the easiest possible false all-clear.
+
+      **To close this item:** name a property, run it with paid documents on, and check that
+      `research_document_purchases` gains a row with `status: purchased`.
 
 ---
 
@@ -414,6 +438,53 @@ reachability number until it exists.**
 - **Must not report a bigger number as a better one.** A1 makes runs look more expensive because
   they always were; that is the point, and the commit should say it plainly.
 - **Must not cite the 88.** See §1.4.
+
+---
+
+## 3b. Closed — 2026-09-02
+
+Every item shipped except D3, which is deferred to the owner because it spends real money on a
+real property — not because its cost exceeds its value. Its non-spending half shipped.
+
+### The chain that was waiting on one file
+
+```
+run reconciles at Stage 3.5        always did, kept the answer in memory
+  → reconciled_boundary.json       C2b — nothing had ever written it
+    → Phase 8 confidence           C2c — could not run; its INPUT did not exist
+      → purchase recommendations   produced for the first time
+        → Phase 9 buys             D1 — complete code, one caller: the Testing Lab
+```
+
+Three phases were never "unwired". `research_document_purchases` had 0 rows because a file was
+missing, and the missing file was a FORMAT problem: the run computed the answer and never wrote it
+down anywhere a reader could find it.
+
+### What the measurements changed
+
+Four times, measuring first changed the answer — and twice it stopped a bad decision:
+
+| I was about to | measurement said |
+| --- | --- |
+| report 88 unreachable modules | the trace excluded `index.ts`; two of them I had wired that morning |
+| wire `DocumentHarvester`, `GeometricReconciliationEngine`, `subdivision-intelligence` | all three are PARALLEL — the run already does that work |
+| gate Phase 8 behind a setting | it makes no model calls; gating a free thing helps nobody |
+| trust `KOFILE_CONFIGS` | 43 of its 72 hosts do not resolve |
+
+### The shape, again
+
+Everything here is one defect wearing different clothes — **an absence rendered as a finding**:
+
+| said | meant |
+| --- | --- |
+| `$2.14 spent` | eight analysis phases never recorded theirs |
+| `$0.00` | the cost had not been read yet |
+| no clerk records, 43 counties | the host does not resolve |
+| no clerk records, 225 counties | the run never called a vendor |
+| an empty boundary viewer | nobody computed the report it reads |
+| a one-line validation summary | the full analysis was computed and discarded |
+
+A surveyor reading any of those draws a conclusion about a PROPERTY from a fact about the software.
 
 ---
 

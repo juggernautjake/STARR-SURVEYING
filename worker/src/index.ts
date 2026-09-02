@@ -31,6 +31,7 @@ import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
 import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
 import { lookupCountyFIPS } from './lib/county-fips.js';
+import { assessPurchaseReadiness } from './research/purchase-readiness.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -5572,6 +5573,57 @@ app.post('/research/purchase/automated', requireAuth, rateLimit(5, 60_000), asyn
 /**
  * GET /research/purchase/platforms/status
  * Returns which Phase 15 purchase adapters are currently configured (have credentials).
+ */
+/**
+ * GET /research/purchase/readiness/:projectId
+ *
+ * "Will a paid run work?", answered without spending anything — D3.
+ *
+ * The route below reports six Phase 15 adapters and NOT TexasFile or Kofile, which are the two the
+ * purchase orchestrator actually buys through, and it has no callers. So the one question worth
+ * asking before a deliberate paid run had no way to be asked.
+ *
+ * Nothing here logs in or buys. Credential checks are PRESENCE, and say so: a username being set
+ * proves nothing about whether the vendor accepts it or the account is funded.
+ */
+app.get('/research/purchase/readiness/:projectId', requireAuth, rateLimit(30, 60_000), async (req: Request, res: Response) => {
+  const { projectId } = req.params;
+  if (!/^[a-zA-Z0-9_-]+$/.test(projectId)) {
+    res.status(400).json({ error: 'Invalid projectId' });
+    return;
+  }
+
+  const reconPath = path.join(ANALYSIS_DIR, projectId, 'reconciled_boundary.json');
+  const confPath = path.join(ANALYSIS_DIR, projectId, 'confidence_report.json');
+
+  let recommendationCount: number | null = null;
+  try {
+    if (fs.existsSync(confPath)) {
+      const report = JSON.parse(fs.readFileSync(confPath, 'utf-8')) as
+        { documentPurchaseRecommendations?: unknown[] };
+      recommendationCount = report.documentPurchaseRecommendations?.length ?? 0;
+    }
+  } catch { recommendationCount = null; }
+
+  let permission: { allowed: boolean; reason: string } | null = null;
+  try {
+    const decision = await resolvePurchasePermission(projectId);
+    permission = { allowed: decision.allowed, reason: decision.reason };
+  } catch { permission = null; }
+
+  res.json(assessPurchaseReadiness({
+    env: process.env,
+    permission,
+    recommendationCount,
+    hasReconciledBoundary: fs.existsSync(reconPath),
+  }));
+});
+
+/**
+ * GET /research/purchase/platforms/status
+ *
+ * Phase 15 adapters only. For "can this run buy?", use the readiness route above — these six are
+ * not the vendors the purchase orchestrator uses.
  */
 app.get('/research/purchase/platforms/status', requireAuth, rateLimit(60, 60_000), (_req: Request, res: Response) => {
   res.json({
