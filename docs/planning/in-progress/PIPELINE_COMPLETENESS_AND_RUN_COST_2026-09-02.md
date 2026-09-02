@@ -240,6 +240,22 @@ reachability number until it exists.**
 
       Every bridged call is marked `single_source`, because it is one.
 
+- [x] **C2c** Phase 8 runs in the normal pipeline, and it is free.
+
+      Measured before deciding: the confidence engine makes **no model calls** — it is pure
+      computation. So there is nothing to gate and no reason to make an operator ask for it. It
+      never ran outside the Lab for one reason only: it takes the reconciled boundary as its INPUT,
+      and C2b is what made that file exist.
+
+      It writes `confidence_report.json` beside the reconciled file — the per-call scores the
+      boundary viewer reads, and the `documentPurchaseRecommendations` Phase 9 needs. Both had been
+      reading an absent file.
+
+      Guarded two ways: it runs only when the boundary was actually written (scoring an absent file
+      produces a FAILED report, which the viewer would then show as a badly-scoring boundary — a
+      claim about the property from a missing input), and a scoring failure cannot fail a run whose
+      research already succeeded.
+
 - [ ] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
       path. Not everything should run on every property — the answer must be written down either way,
       because "unreachable" and "deliberately optional" look identical from the outside.

@@ -1673,6 +1673,34 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             `[Worker] ${projectId}: reconciled_boundary.json ` +
               (wrote.written ? `written — ${wrote.reason}` : `not written — ${wrote.reason}`),
           );
+
+          // ── C2c: Phase 8 can finally run, and it is free ────────────────────────────────
+          //
+          // The confidence engine takes the reconciled boundary as its INPUT, which is why it
+          // has never run outside the Testing Lab: the file did not exist. It is pure
+          // computation — no model calls, measured — so there is nothing to gate and no reason
+          // to make an operator ask for it.
+          //
+          // It writes confidence_report.json beside the reconciled file, which is what the
+          // boundary viewer reads for per-call scores and what Phase 9 reads for its purchase
+          // recommendations. Both have been reading an absent file.
+          if (wrote.written) {
+            try {
+              const reconciledPath = path.join(ANALYSIS_DIR, projectId, 'reconciled_boundary.json');
+              const report = await new ConfidenceScoringEngine().score(projectId, reconciledPath);
+              handshakeLogger
+                .attempt('[Confidence]', 'info', 'Scored the boundary',
+                  `${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'})`)
+                .success(
+                  report.documentPurchaseRecommendations?.length ?? 0,
+                  `Confidence ${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'}). ` +
+                  `${report.documentPurchaseRecommendations?.length ?? 0} document(s) would raise it if bought.`,
+                );
+            } catch (err) {
+              // Scoring is an enhancement to a run that has already succeeded.
+              console.warn(`[Worker] ${projectId}: confidence scoring failed:`, err);
+            }
+          }
         } catch (err) {
           // Bookkeeping must not fail a run whose research succeeded.
           console.warn(`[Worker] ${projectId}: could not write the reconciled boundary:`, err);
