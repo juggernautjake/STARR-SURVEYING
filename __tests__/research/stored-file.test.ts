@@ -136,6 +136,10 @@ describe('every read path uses the predicate rather than the raw column', () => 
     'app/admin/research/components/SourceDocumentViewer.tsx',
     'app/admin/research/components/DocumentUploadPanel.tsx',
     'app/admin/research/components/ResearchRunPanel.tsx',
+    // The live run view decides, for every document as it ARRIVES mid-run, whether there is a file
+    // to open yet. That is exactly the judgement this predicate exists to centralise — 22 rows in
+    // this database once advertised a file that was never written.
+    'app/admin/research/components/ResearchRunView.tsx',
     'app/api/admin/research/[projectId]/artifacts/route.ts',
   ];
 

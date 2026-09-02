@@ -35,6 +35,7 @@ import {
   Loader2, CheckCircle2, XCircle, PauseCircle, AlertTriangle, Ban, RefreshCw, ChevronLeft,
 } from 'lucide-react';
 import { formatElapsed, type RunState } from '@/lib/research/run-state';
+import { hasStoredFile, storedFileUrl } from '@/lib/research/stored-file';
 import { useRunState, type RunDocument, type StartRunInput } from './useRunState';
 import RunDiffPanel from './RunDiffPanel';
 import ReportCardPanel from './ReportCardPanel';
@@ -409,7 +410,7 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
     return (
       <p className="rrv__empty">
         {active
-          ? 'No documents retrieved yet. They appear here as they arrive.'
+          ? 'No documents retrieved yet. They appear here as they arrive, and each one opens as soon as it lands — you do not have to wait for the run to finish.'
           : loading
             ? 'Loading documents…'
             : 'This run retrieved no documents.'}
@@ -420,14 +421,36 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
   return (
     <>
       <ul className="rrv__docs">
-        {docs.map((d) => (
+        {docs.map((d) => {
+          // ── OPENABLE THE MOMENT IT LANDS, NOT WHEN THE RUN ENDS ────────────────────────
+          //
+          // The worker uploads documents and screenshots INCREMENTALLY — seven call sites in
+          // counties/bell/orchestrator.ts push each one to Supabase as it is captured — and
+          // this list already polls every eight seconds, so the rows appeared live. They were
+          // just not clickable: an operator could watch documents arrive for twenty minutes
+          // and not read one until the run finished.
+          //
+          // `hasStoredFile` rather than a truthiness check on public_url. 22 rows in this
+          // database once advertised a file that was never written, and every viewer believed
+          // them — a link that 404s is worse than an honest "still uploading".
+          const url = hasStoredFile(d) ? storedFileUrl(d) : null;
+          const label = d.document_label || d.document_type || 'Untitled document';
+          return (
           <li key={d.id} className="rrv__doc">
             <FileText size={14} className="rrv__doc-icon" aria-hidden />
             <span className="rrv__doc-label">
-              {d.document_label || d.document_type || 'Untitled document'}
+              {url ? (
+                <a href={url} target="_blank" rel="noopener noreferrer" className="rrv__doc-link"
+                   title="Open this document — available now, the run does not have to finish">
+                  {label}
+                </a>
+              ) : label}
               {d.recording_info && <span className="rrv__doc-rec"> · {d.recording_info}</span>}
             </span>
             <span className="rrv__doc-meta">
+              {/* An honest state, not a dead link. A row exists before its bytes finish
+                  uploading, and saying so beats a link that 404s. */}
+              {!url && <span className="rrv__doc-pending">still uploading…</span>}
               {d.page_count ? `${d.page_count} pp` : ''}
               {/* A document run 2 found again is an OBSERVATION, not a new document — the row is
                   the same one, with its counter moved on. Saying so is what stops "17 new
@@ -439,7 +462,8 @@ function DocumentList({ docs, prior, duplicates, projectId, onChanged, loading, 
               )}
             </span>
           </li>
-        ))}
+          );
+        })}
       </ul>
 
       {duplicates.length > 0 && (
@@ -680,6 +704,10 @@ function RunViewStyles() {
 .rrv__doc-icon { flex: 0 0 auto; color: var(--theme-fg-muted, #6B7280); }
 .rrv__doc-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rrv__doc-rec { color: var(--theme-fg-muted, #6B7280); }
+.rrv__doc-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.rrv__doc-link:hover { color: #2563EB; }
+.rrv__doc-link:focus-visible { outline: 2px solid #2563EB; outline-offset: 2px; border-radius: 3px; }
+.rrv__doc-pending { font-style: italic; opacity: 0.8; }
 .rrv__doc-meta { flex: 0 0 auto; display: inline-flex; gap: 0.4rem; font-size: 0.74rem; color: var(--theme-fg-muted, #6B7280); }
 .rrv__doc-seen { border: 1px solid var(--theme-border, #D1D5DB); border-radius: 999px; padding: 0 0.35rem; }
 .rrv__docs--prior { opacity: 0.75; margin-top: 0.4rem; }

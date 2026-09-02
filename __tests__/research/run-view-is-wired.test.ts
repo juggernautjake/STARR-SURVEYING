@@ -135,3 +135,33 @@ describe('the action bar does not claim a run is running (plan D1)', () => {
     expect(page).not.toMatch(/\/pipeline`\s*,\s*\{\s*method: 'GET'/);
   });
 });
+
+describe('captured files are reviewable DURING the run', () => {
+  // The owner's report: "Right now we cannot view anything until the run has fully completed."
+  //
+  // The worker was never the problem — counties/bell/orchestrator.ts calls
+  // uploadDocumentIncremental / uploadScreenshotsIncremental at seven sites, so documents and
+  // screenshots reach Supabase as they are captured, and this view already polls for them every
+  // eight seconds. The rows appeared live and simply were not clickable.
+  it('each document row is a link once its file exists', () => {
+    expect(runView).toMatch(/<a href=\{url\}/);
+    expect(runView).toMatch(/target="_blank"/);
+  });
+
+  it('decides "is there a file" with the SHARED predicate, not a truthiness check', () => {
+    // 22 rows in this database once advertised a file that was never written, and every viewer
+    // believed them. A link that 404s is worse than an honest "still uploading".
+    expect(runView).toMatch(/from '@\/lib\/research\/stored-file'/);
+    expect(runView).toMatch(/hasStoredFile\(d\) \? storedFileUrl\(d\) : null/);
+  });
+
+  it('says so honestly when the bytes have not landed yet', () => {
+    expect(runView).toMatch(/still uploading/i);
+  });
+
+  it('polls for documents while the run is active', () => {
+    const hook = readFileSync(join(ROOT, 'app/admin/research/components/useRunState.ts'), 'utf8');
+    expect(hook).toMatch(/DOC_POLL_MS/);
+    expect(hook).toMatch(/fetchDocuments/);
+  });
+});
