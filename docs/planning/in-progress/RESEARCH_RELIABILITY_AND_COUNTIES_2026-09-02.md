@@ -377,10 +377,38 @@ Ship in order within a phase. Each is independently useful and independently rev
 
 - [ ] **D1** The bar's new pacing needs browser QA against a real run. A green suite has missed
       rendering bugs in this repo repeatedly.
-- [ ] **D2** A run that reports **FAILED** and then **Pipeline Complete** in the same log (Milam,
+- [x] **D2** A run that reports **FAILED** and then **Pipeline Complete** in the same log (Milam,
       10:53 → 15:58). Decide which it is and say it once.
-- [ ] **D3** Surface the chosen run length on the run view — "24 of 30 minutes" is only meaningful
+
+      **DONE.** Neither line was lying, which is why it survived. `pipeline.ts` reported the
+      RESULT (`status: failed` — no boundary, no property id, no documents); `index.ts` reported
+      the LIFECYCLE (the function resolved rather than threw) and called `.success()` regardless of
+      what was found. Two true statements about different things, neither saying which.
+
+      There was a THIRD phrasing on the county path, which would have been the one place still able
+      to announce "Pipeline Complete" about a run carrying errors. One exception is all it takes
+      for two logs to disagree again, so it uses the shared wording too.
+
+      `run-outcome.ts` is now the single vocabulary. It also fixes the word: `status: failed` means
+      the run executed correctly and found nothing, which is a FINDING and a different one from the
+      pipeline throwing. "Research Found Nothing" says so and points at the next action; "Research
+      Failed" is reserved for a crash. `partial` is deliberately not a problem — flagging a usable
+      answer red teaches an operator to ignore red.
+- [x] **D3** Surface the chosen run length on the run view — "24 of 30 minutes" is only meaningful
       when the 30 is visible.
+
+      **DONE.** The "N of M minutes" line existed and rendered only when the run-console had
+      supplied a `budgetMs` — which arrives after the console is fetched and only when the run
+      record carries a ceiling. So for the opening stretch of every run, and for any run whose
+      console read failed, the screen showed a clock counting up against nothing.
+
+      The chosen length is known from the moment the run starts, so it stands in until the console
+      catches up, and the ceiling now appears on the ELAPSED COUNTER itself — the place a person
+      actually looks for the time — as `12:34 / 30:00`.
+
+      An out-of-range settings value is treated as ABSENT rather than clamped: settings are data
+      off the wire, and rendering "of 60 minutes" for a run configured at 600 is a confident wrong
+      number that would make an operator stop waiting early. No ceiling is the honest answer.
 
 ### Phase E — the AI variant generator
 
