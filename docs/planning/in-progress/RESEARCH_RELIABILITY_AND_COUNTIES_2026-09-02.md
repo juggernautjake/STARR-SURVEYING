@@ -412,11 +412,49 @@ Ship in order within a phase. Each is independently useful and independently rev
 
 ### Phase E — the AI variant generator
 
-- [ ] **E1** Fix the truncated JSON (§1.4). Raise the token ceiling, and make a parse failure
+- [x] **E1** Fix the truncated JSON (§1.4). Raise the token ceiling, and make a parse failure
       degrade to the deterministic variants rather than to zero — Bell reported "Tried 0 variants"
       after generating 14, which means a parse failure discarded the deterministic list too.
-- [ ] **E2** A parse failure must be visible as a *capability* loss, not a log line. It silently
+
+      **DONE — and the last clause of this slice was WRONG, which changed the fix.**
+
+      A parse failure did not discard the deterministic list. `diagnostics.variantsTried` is
+      pushed when a variant gets a response, and the catch path pushes too, so a parse failure
+      cannot zero it. The real cause is §1.5: the CAD host was unreachable and the circuit breaker
+      correctly skipped the search. `Tried 0 variants` was literally true.
+
+      The defect is the SENTENCE around it — `All CAD search layers exhausted — property not
+      found. Tried 0 variants.` is self-contradictory (exhausted claims we tried everything, 0
+      says we tried nothing) and it turns "we could not look" into "we looked and it is not
+      there". That is a claim about the property produced by a search that never ran. It now
+      branches: unreachable site, nothing searched, or N variants tried.
+
+      One more found while there: the "server confirmed no results" path `continue`d without
+      recording the attempt — the ONE outcome that is a genuine negative finding was the one not
+      counted, so a thorough search reported a smaller number than it earned.
+
+      The truncation itself is real and separate. `max_tokens` 1024 → 2048 at both variant call
+      sites, and `salvageJsonArray` recovers the complete leading elements of a clipped array —
+      because raising a ceiling makes truncation rarer and the model still picks the length. A list
+      cut off after eleven entries HAS eleven usable entries.
+
+      **A third site had the identical bug**: the Vision reading of the CAD results page, which
+      returns property ROWS. Same `JSON.parse` + `catch → return []`. Its ceiling is 8,192 so it
+      truncates rarely, which makes it worse to leave rather than better — a rare silent loss is
+      one nobody goes looking for.
+
+      22 tests, including a control that valid JSON is not reported as salvaged (otherwise every
+      run would log a capability loss and the warning would stop meaning anything), and cases for
+      a brace inside a string and an escaped quote — which is why this is a character walk and not
+      a regex.
+- [x] **E2** A parse failure must be visible as a *capability* loss, not a log line. It silently
       halved address matching on both reference runs.
+
+      **DONE.** A truncated list now logs that the run is "matching on fewer variants than it
+      asked for", and a response with no complete entry reports AI variants as **UNAVAILABLE this
+      run** with "the CAD search ran on deterministic variants only". "The model had no
+      suggestions" and "we lost the model's suggestions" lead to different actions and used to
+      read identically.
 
 ---
 
