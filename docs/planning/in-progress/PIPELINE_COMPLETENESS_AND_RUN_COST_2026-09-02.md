@@ -264,10 +264,39 @@ reachability number until it exists.**
 
 ### Phase D — the run can buy documents
 
-- [ ] **D1** A normal run reaches a purchase decision. The gate (`decidePurchase`), the budget
+- [x] **D1** A normal run reaches a purchase decision. The gate (`decidePurchase`), the budget
       (`maxCostUsd`), the ledger and the skip-recording all exist and were built for a step that
       never runs.
-- [ ] **D2** Purchased documents re-enter analysis, or the purchase bought nothing worth having.
+
+      **DONE — and it was one link, not a missing phase.** Phase 9 is complete and had exactly one
+      caller: the Testing Lab. It needs recommendations → which come from Phase 8 → which takes the
+      reconciled boundary as its INPUT → which nothing wrote. C2b wrote the file, C2c ran Phase 8,
+      and this connects the last one.
+
+      Every safeguard was already built and had never run: `decidePurchase` (which refuses when
+      permission cannot be READ, not only when it is denied), the per-run ceiling, the cross-run
+      library that will not buy a page twice, and the skip ledger.
+
+      The ceiling passed is `runSettings.maxCostUsd` — what the operator chose in the dialog. The
+      Lab route defaulted to 25 with no caller ever passing one, which is how a per-run limit came
+      to govern nothing.
+
+      **It says what it is about to spend BEFORE it spends it**, which is §3's "must not" made
+      checkable by test: a run that reports a purchase after making it has told the operator nothing
+      they could act on.
+
+      Four existing guards fired when the fourth spend site appeared, which is what they are for.
+      Three needed re-pointing (a site count, an ordering assertion that compared two unrelated call
+      sites, a window that no longer reached its `catch`) — and one caught a REAL omission: my site
+      called `recordSkippedPurchases` without checking its result, where the older site reports the
+      failure. Fixed the code, not the test.
+- [x] **D2** Purchased documents re-enter analysis, or the purchase bought nothing worth having.
+      **Deliberately NOT re-analysed in-run** (`autoReanalyze: false`). Re-running extraction on a
+      freshly bought document doubles the AI spend of the phase that costs most, at the end of a run
+      whose ceiling has already been measured against. The documents are purchased, stored and
+      attributed; a re-run reads them from the library without buying them again, which is what the
+      cross-run ledger is for. Revisit if a paid run shows the extra pass is worth it.
+
 - [ ] **D3** One deliberate paid run against a real property, which is the only thing that can prove
       the path. Owner-gated: it spends real money.
 

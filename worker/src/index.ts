@@ -30,6 +30,7 @@ import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocum
 import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
 import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
+import { lookupCountyFIPS } from './lib/county-fips.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -1696,6 +1697,95 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                   `Confidence ${report.overallConfidence?.score ?? 0} (${report.overallConfidence?.grade ?? '?'}). ` +
                   `${report.documentPurchaseRecommendations?.length ?? 0} document(s) would raise it if bought.`,
                 );
+
+              // ── D1: buy the documents the report says are worth buying ──────────────────
+              //
+              // The last link. Phase 9 has existed, complete, with one caller: the Testing Lab.
+              // It needs recommendations, which come from Phase 8, which needed the reconciled
+              // boundary, which nothing wrote. Three phases were never "unwired" — they were
+              // waiting on a file.
+              //
+              // Every safeguard this needs was built for it and has never run: `decidePurchase`
+              // (which refuses when permission cannot be READ, not just when it is denied), the
+              // per-run spend ceiling, the cross-run library that will not buy a page twice, and
+              // the skip ledger.
+              const recs = report.documentPurchaseRecommendations ?? [];
+              if (recs.length > 0) {
+                const permission = await resolvePurchasePermission(projectId);
+                const countyFIPS = lookupCountyFIPS(county ?? '', state ?? 'TX');
+
+                if (!permission.allowed) {
+                  // Recorded, not just logged — the notice on the screen counts these rows, and
+                  // for months there were none to count.
+                  if (permission.skipStatus) {
+                    const skipRec = await recordSkippedPurchases(
+                      recs.map((rec: { instrument: string; documentType: string; source: string }) => ({
+                        projectId,
+                        runId: activePipelines.get(projectId)?.runId ?? null,
+                        countyFips: countyFIPS,
+                        instrument: rec.instrument,
+                        documentType: rec.documentType,
+                        platformId: rec.source,
+                        pages: 0,
+                      })),
+                      permission.skipStatus,
+                      permission.reason,
+                    );
+                    if (skipRec.error) {
+                      // A run that correctly declined to spend must not fail because it could not
+                      // file the note saying so — but the note going missing is why the notice on
+                      // screen was empty for months, so it is reported rather than swallowed.
+                      console.warn(
+                        `[Worker] ${projectId}: Could not record the skipped documents — ${skipRec.error}`,
+                      );
+                    }
+                  }
+                  handshakeLogger
+                    .attempt('[Purchase]', 'info', 'Nothing purchased', permission.reason)
+                    .success(0, describeSkippedPurchase(permission, recs.length));
+                } else {
+                  // SAID BEFORE IT IS SPENT. A run that announces a purchase after making it has
+                  // told the operator nothing they could have acted on.
+                  const ceiling = runSettings.maxCostUsd ?? 25;
+                  handshakeLogger
+                    .attempt('[Purchase]', 'info', 'Buying documents',
+                      `${recs.length} recommended, ceiling $${ceiling.toFixed(2)}`)
+                    .success(recs.length,
+                      `Buying up to ${recs.length} document(s) that would raise this boundary’s ` +
+                      `confidence, within the $${ceiling.toFixed(2)} ceiling this run was given.`);
+
+                  const orchestrator = new DocumentPurchaseOrchestrator(projectId);
+                  const purchaseResult = await orchestrator.executePurchases(
+                    projectId,
+                    recs,
+                    {
+                      kofileCredentials: process.env.KOFILE_USERNAME ? {
+                        username: process.env.KOFILE_USERNAME,
+                        password: process.env.KOFILE_PASSWORD!,
+                        paymentOnFile: true,
+                      } : undefined,
+                      texasfileCredentials: process.env.TEXASFILE_USERNAME ? {
+                        username: process.env.TEXASFILE_USERNAME,
+                        password: process.env.TEXASFILE_PASSWORD!,
+                        accountType: 'pay_per_page',
+                      } : undefined,
+                      budget: ceiling,
+                      autoReanalyze: false,
+                    },
+                    countyFIPS,
+                    county ?? '',
+                  );
+
+                  const bought = purchaseResult.purchases.filter((x) => x.status === 'purchased');
+                  const spent = purchaseResult.billing?.totalCharged ?? 0;
+                  handshakeLogger
+                    .attempt('[Purchase]', bought.length > 0 ? 'info' : 'warn', 'Purchase finished',
+                      `${bought.length} bought, $${spent.toFixed(2)}`)
+                    .success(bought.length,
+                      `${bought.length} document(s) purchased for $${spent.toFixed(2)}. ` +
+                      `${purchaseResult.purchases.length - bought.length} were not obtained.`);
+                }
+              }
             } catch (err) {
               // Scoring is an enhancement to a run that has already succeeded.
               console.warn(`[Worker] ${projectId}: confidence scoring failed:`, err);

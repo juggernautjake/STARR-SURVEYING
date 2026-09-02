@@ -112,9 +112,23 @@ describe('the worker actually records the skip — assert the CALLER', () => {
   });
 
   it('records one row per recommended document, not one per run', () => {
-    const at = codeOnly.indexOf('recordSkippedPurchases(');
-    const call = codeOnly.slice(at, at + 700);
-    expect(call).toContain('recommendations.map(');
+    // D1 added a SECOND recording site — the normal run — so this asserts BOTH map over their
+    // recommendations rather than pinning whichever one indexOf reaches first. One row per run
+    // would make the notice say "1 document was not retrieved" when twenty were.
+    // Written without a regex on purpose: a shell layer has eaten the backslashes out of one of
+    // these three times today, and an unterminated group makes the whole FILE fail to load — which
+    // reads as "no tests" rather than as a failure, so it is easy to walk past.
+    const sites: number[] = [];
+    for (let i = codeOnly.indexOf('recordSkippedPurchases('); i !== -1;
+         i = codeOnly.indexOf('recordSkippedPurchases(', i + 1)) {
+      sites.push(i);
+    }
+    expect(sites.length, 'a skip-recording site disappeared').toBeGreaterThanOrEqual(2);
+    for (const s of sites) {
+      const call = codeOnly.slice(s, s + 700);
+      const mapsPerDocument = call.includes('recs.map(') || call.includes('recommendations.map(');
+      expect(mapsPerDocument, 'a skip site records one row for the whole run').toBe(true);
+    }
   });
 
   it('reports a failure to record rather than swallowing it', () => {

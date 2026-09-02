@@ -157,8 +157,12 @@ describe('every place the worker spends money consults the gate', () => {
     expect(index).toMatch(/status: 'not_purchased'/);
   });
 
-  it('consults the gate at three distinct sites', () => {
+  it('consults the gate at every site that spends — FOUR since D1', () => {
+    // Was three: the two purchase routes and the document-access orchestrator's paid tier. D1
+    // added the fourth and most important — the normal RUN, which until then could not buy at
+    // all. The NUMBER is the point: a new spend site that forgets the gate makes this fail, which
+    // is the only way that mistake gets noticed.
     const calls = index.match(/await resolvePurchasePermission\(projectId\)/g) ?? [];
-    expect(calls.length).toBe(3);
+    expect(calls.length).toBe(4);
   });
 });
