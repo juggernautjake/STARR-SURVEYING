@@ -25,13 +25,14 @@ import { runAdjacentResearch, type FullCrossValidationReport } from './services/
 import { describePersist, persistAdjoiners, type AdjoinerInput } from './infra/adjoiner-persistence.js';
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
-import { uploadPipelineArtifacts, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
+import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
 import { RunProgressTracker } from './research/run-phases.js';
 import { normaliseRunSettings, describeRunSettings, type RunSettings } from './research/run-settings.js';
+import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import type { PurchaseReport } from './types/purchase.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
 import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
@@ -1178,6 +1179,27 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   });
   runProgress.set(projectId, new RunProgressTracker());
 
+  // ── The project's existing library, loaded before a single document is filed ─────────────────
+  //
+  // Opened HERE and not at the artifact-upload step, because most of a county run's documents are
+  // written incrementally while the run is still going — the deed images as the clerk scraper finds
+  // them, the plats as the plat scraper finds them. A check that only ran at the end would miss
+  // every one of them and dedupe only the tail.
+  //
+  // Failure to load is not fatal: with no context the filer writes as it always did. A document
+  // lost because its bookkeeping was unavailable is a worse outcome than a duplicate.
+  try {
+    const supabaseForFiling = await getSupabase();
+    if (supabaseForFiling) {
+      await beginFiling(supabaseForFiling as never, projectId, county, startedRun?.runId ?? null);
+    }
+  } catch (err) {
+    console.warn(
+      `[Worker] ${projectId}: could not open the project library — documents will be filed without ` +
+      `the cross-run duplicate check. ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   // Initialize the timeline tracker for this pipeline run so every log entry
   // and phase transition is captured as a granular timeline event for the
   // Testing Lab's ExecutionTimeline + CodeViewer.
@@ -1396,9 +1418,21 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         `[budget] ${projectId}: finished — ${Math.round(finalBudget.elapsedMs / 60_000)} min, ` +
         `${finalBudget.spentUsd.toFixed(4)} spent${finalBudget.exceeded ? ` (stopped on ${finalBudget.exceeded})` : ''}`,
       );
+      // What the cross-run duplicate check actually did, said out loud. The owner asked for "a very
+      // clear and detailed check"; a check whose result is never reported is indistinguishable from
+      // no check at all.
+      const filing = endFiling(projectId);
+      if (filing) {
+        handshakeLogger.attempt('[Library]', 'info', 'Duplicate check', filing.describe())
+          .success(0, filing.describe());
+      }
+      const stopped = activePipelines.get(projectId)?.stopReason;
       void recordRunFinish({
         projectId,
+        runId: activePipelines.get(projectId)?.runId ?? null,
         status: 'complete',
+        stopReason: stopped?.kind === 'budget' ? 'budget_reached' : 'finished',
+        progressPercent: runProgress.get(projectId)?.finish('complete').percent,
         costUsd: finalBudget.spentUsd,
         paidPages: finalBudget.paidPages,
         skippedWork: finalBudget.skipped,
@@ -1881,11 +1915,23 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         duration_ms: 0,
         failureReason: errMessage,
       };
+      endFiling(projectId);
+      // An abort caused by the BUDGET is a completion, not a cancellation and not a failure. The
+      // run did the work it could afford and stopped at a phase boundary, which is what the ceiling
+      // is for. Only the operator's cancel is a cancellation.
+      const stop = activePipelines.get(projectId)?.stopReason;
+      const budgetStop = stop?.kind === 'budget';
       void recordRunFinish({
         projectId,
-        status: isAborted ? 'cancelled' : 'failed',
+        runId: activePipelines.get(projectId)?.runId ?? null,
+        status: budgetStop ? 'complete' : isAborted ? 'cancelled' : 'failed',
+        stopReason: budgetStop ? 'budget_reached' : isAborted ? 'cancelled_by_user' : 'error',
+        progressPercent: runProgress.get(projectId)?.finish(
+          budgetStop ? 'complete' : isAborted ? 'cancelled' : 'failed',
+        ).percent,
         costUsd: spendForRun(projectId),
-        failureReason: errMessage.slice(0, 500),
+        budgetSummary: budgetStop ? stop?.message ?? null : null,
+        failureReason: budgetStop ? null : errMessage.slice(0, 500),
       });
       endRun(projectId);
       setCompletedResult(projectId, { resultType: 'generic-pipeline', county, data: fallback });
@@ -2476,7 +2522,13 @@ app.post('/research/harvest', requireAuth, async (req: Request, res: Response) =
     // Sync harvest results to Supabase: insert research_documents rows and
     // upload any downloaded images to Supabase Storage.
     try {
-      const syncResult = await syncHarvestToSupabase(input.projectId, result);
+      // The county travels with the sync. Identity is county-scoped — the same instrument number
+      // exists in many Texas counties — so without it the duplicate check degrades to matching
+      // identical files only, and says so in the log rather than pretending to have checked.
+      const syncResult = await syncHarvestToSupabase(input.projectId, result, {
+        county: input.county ?? '',
+        runId: activePipelines.get(input.projectId)?.runId ?? null,
+      });
       if (syncResult.errors.length > 0) {
         console.warn(
           `[Harvest] Supabase sync completed with ${syncResult.errors.length} warning(s) ` +
@@ -3299,6 +3351,54 @@ app.get('/research/confidence/:projectId', requireAuth, rateLimit(60, 60_000), (
   }
 });
 
+// ── May this run spend money? ─────────────────────────────────────────────────────────────────
+//
+// Plan C3. `mayRunBuyDocuments` existed, was careful, and was called by nothing — so the owner's
+// "whether or not it uses texasfile" switch changed a value in Postgres and changed nothing about
+// what a run bought. This is the reader the three spend sites consult.
+//
+// Three sources, most specific first, because the whole point of a per-run override is that a
+// re-run can turn paid documents off for one attempt without changing the project.
+//
+// A read that FAILS returns `unreadable`, and `decidePurchase` refuses on it. That is the money
+// direction of the same asymmetry `document-identity.ts` applies to identity: uncertainty resolves
+// toward the outcome you can undo, and an unspent dollar is recoverable while a spent one is not.
+async function resolvePurchasePermission(projectId: string): Promise<PurchaseDecision> {
+  const live = activePipelines.get(projectId)?.settings as RunSettings | undefined;
+
+  let runRecordSettings: Record<string, unknown> | null | undefined;
+  let projectAllowPaid: boolean | null | undefined;
+  try {
+    const supabase = await getSupabase();
+    if (supabase) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sb = supabase as any;
+      const [runRes, projRes] = await Promise.all([
+        sb.from('research_runs')
+          .select('settings')
+          .eq('research_project_id', projectId)
+          .order('started_at', { ascending: false })
+          .limit(1),
+        sb.from('research_projects')
+          .select('allow_paid_documents')
+          .eq('id', projectId)
+          .single(),
+      ]);
+      if (!runRes.error) runRecordSettings = runRes.data?.[0]?.settings ?? null;
+      if (!projRes.error && projRes.data) {
+        // `!== false` and not truthiness: the column defaults to true and NULL must not read as
+        // "off". Only an explicit false is an instruction not to spend.
+        projectAllowPaid = projRes.data.allow_paid_documents !== false;
+      }
+    }
+  } catch {
+    // Leave both undefined. `resolveEffectiveSettings` reports `unreadable`, which is a decision
+    // the caller can log and act on — not an exception that would abort a run mid-phase.
+  }
+
+  return decidePurchase(resolveEffectiveSettings(live, runRecordSettings, projectAllowPaid));
+}
+
 // ── POST /research/purchase ────────────────────────────────────────────────
 // Phase 9: Document Purchase & Automated Re-Analysis.
 // Takes Phase 8's purchase recommendations, automatically purchases official
@@ -3385,6 +3485,45 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
     const countyFIPS = confReport.propertyContext?.countyFIPS || '48027';
     const countyName = confReport.propertyContext?.county || 'Bell';
 
+    // ── C3: THE PAID-DOCUMENTS SWITCH, HONOURED ────────────────────────────────────────────
+    //
+    // Checked BEFORE the free/paid mode block below, because it is a harder veto: `mode` picks a
+    // source plan, this is a flat refusal to spend that applies whatever the plan says. Keeping
+    // them separate is what makes "run the paid plan but buy nothing" expressible, which is what
+    // a dry run is.
+    //
+    // The reason travels into the report. "Paid documents were switched off for this run" and
+    // "the county holds no such record" are completely different states of the world, and a
+    // report that renders them alike invites a conclusion about the property the run never tested.
+    const permission = await resolvePurchasePermission(projectId);
+    if (!permission.allowed) {
+      purchaseLog.info(
+        'Purchase',
+        `Paid documents NOT purchased (${permission.source}): ${permission.reason}`,
+      );
+      const blockedReport: PurchaseReport = {
+        status: 'no_purchases_needed',
+        projectId,
+        purchases: [],
+        reanalysis: { status: 'skipped', documentReanalyses: [], discrepanciesResolved: [] },
+        updatedReconciliation: null,
+        billing: {
+          totalDocumentCost: 0, taxOrFees: 0, totalCharged: 0,
+          paymentMethod: 'account_balance', remainingBalance: budget || 25.0, invoicePath: '',
+        },
+        timing: { totalMs: 0, purchaseMs: 0, downloadMs: 0, reanalysisMs: 0 },
+        aiCalls: 0,
+        // Not an error. Nothing failed — a decision was honoured.
+        errors: [],
+        mode: 'free',
+        modeStatement: describeSkippedPurchase(permission, recommendations.length),
+      };
+      const blockedPath = `/tmp/analysis/${projectId}/purchase_report.json`;
+      fs.mkdirSync(path.dirname(blockedPath), { recursive: true });
+      fs.writeFileSync(blockedPath, JSON.stringify(blockedReport, null, 2));
+      return;
+    }
+
     // ── The mode the researcher picked, finally governing something (plan S-11) ─────────────
     //
     // `research-modes.ts` was built for the owner's requirement — "a researcher picks a mode when
@@ -3462,6 +3601,55 @@ app.post('/research/purchase', requireAuth, rateLimit(5, 60_000), async (req: Re
         'Purchase',
         `Could not read the free pass results (${String(e)}) — proceeding without duplicate checking, ` +
           `which risks paying for documents already in hand.`,
+      );
+    }
+
+    // ── AND EVERYTHING EVERY PREVIOUS RUN ALREADY BOUGHT ────────────────────────────────────────
+    //
+    // The free-pass index above covers what THIS run found for nothing. It has never covered what an
+    // EARLIER run already paid for, because until now no document could say which run produced it.
+    //
+    // That is a money bug, not a tidiness one. The whole reason a re-run exists is that the first
+    // run was cut short — and a run cut short at minute 20 has usually already bought several
+    // documents. Re-running it bought them again.
+    //
+    // The purchase rule itself is unchanged and unchangeable: an UNCERTAIN match still buys, because
+    // a false match silently omits a document we do not have. Only exact matches against documents
+    // this project demonstrably holds can prevent a purchase.
+    try {
+      const supabaseForLibrary = await getSupabase();
+      if (supabaseForLibrary) {
+        const { ProjectLibrary } = await import('./research/project-library.js');
+        const library = await ProjectLibrary.load(supabaseForLibrary as never, projectId, countyName);
+        if (library.size > 0) {
+          const priorIndex = library.toDocumentIndex('paid');
+          purchaseLog.info(
+            'Purchase',
+            `Earlier runs: ${library.describe()} Anything exactly matching one of these will not be ` +
+              `bought again.`,
+          );
+          if (heldIndex) {
+            // Fold the library into the free pass's index rather than replacing it — the free pass
+            // knows what arrived in the last twenty minutes and the library knows what arrived in
+            // the last six weeks, and a purchase decision needs both.
+            for (const doc of priorIndex.all()) heldIndex.index.register(doc, doc.cost);
+          } else {
+            heldIndex = {
+              index: priorIndex,
+              registered: priorIndex.size,
+              watermarkedNotHeld: 0,
+              noImagesNotHeld: 0,
+              unkeyable: 0,
+              summary: library.describe(),
+            };
+          }
+        }
+      }
+    } catch (e) {
+      purchaseLog.warn(
+        'Purchase',
+        `Could not read what earlier runs already hold (${String(e)}) — a document a previous run ` +
+          `bought may be bought again.`,
       );
     }
 
@@ -4591,6 +4779,18 @@ app.post('/research/access/document', requireAuth, rateLimit(5, 60_000), async (
   const logger = new (await import('./lib/logger.js')).PipelineLogger(projectId);
   logger.info('DocAccess', `POST /research/access/document — ${instrumentNumber} (${countyName ?? countyFIPS})`);
 
+  // ── C3: the run's paid-documents switch forces freeOnly ────────────────────────────────────
+  //
+  // The flag already existed and only the CALLER could set it, so a run configured with paid
+  // documents off still reached the paid tier whenever the caller did not think to pass it.
+  // The run's own setting is not advice; a request may make a run freer than it was configured
+  // to be, never richer.
+  const permission = await resolvePurchasePermission(projectId);
+  const forcedFreeOnly = (freeOnly ?? false) || !permission.allowed;
+  if (!permission.allowed) {
+    logger.info('DocAccess', `Paid tier skipped (${permission.source}): ${permission.reason}`);
+  }
+
   try {
     const orchestrator = createDocumentAccessOrchestrator(projectId, {
       tryFreeFirst: true,
@@ -4604,7 +4804,7 @@ app.post('/research/access/document', requireAuth, rateLimit(5, 60_000), async (
       countyName: countyName ?? 'Unknown',
       instrumentNumber,
       documentType,
-      freeOnly: freeOnly ?? false,
+      freeOnly: forcedFreeOnly,
       maxCostPerDocument: maxCostPerDocument ?? 10.00,
       preferredPlatform: preferredPlatform as any ?? undefined,
       stripeCustomerId: stripeCustomerId ?? undefined,
@@ -4673,6 +4873,27 @@ app.post('/research/purchase/automated', requireAuth, rateLimit(5, 60_000), asyn
 
   if (!projectId || !countyFIPS || !instrumentNumber || !documentType || !platform) {
     res.status(400).json({ error: 'projectId, countyFIPS, instrumentNumber, documentType, platform are required' });
+    return;
+  }
+
+  // ── C3: this route has no free tier, so the switch is a flat refusal ───────────────────────
+  //
+  // Every branch below calls purchaseDocument(). Answered 200 with a reason rather than 4xx: a
+  // run that was told not to spend has not hit an error, and returning one would put a red
+  // failure on a screen describing a setting working exactly as configured.
+  const permission = await resolvePurchasePermission(projectId);
+  if (!permission.allowed) {
+    res.json({
+      status: 'not_purchased',
+      projectId,
+      instrumentNumber,
+      purchased: false,
+      reason: permission.reason,
+      settingsSource: permission.source,
+      // Said explicitly, because the absence of a document must never be read as a fact about
+      // the county. It was not looked for at a source that charges.
+      note: describeSkippedPurchase(permission, 1),
+    });
     return;
   }
 
