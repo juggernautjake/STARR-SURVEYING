@@ -33,6 +33,12 @@ import { buildPlan, type ResearchMode } from './research/research-modes.js';
 import { RunProgressTracker } from './research/run-phases.js';
 import { normaliseRunSettings, describeRunSettings, type RunSettings } from './research/run-settings.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
+import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
+import { runCaptures } from './research/capture-runner.js';
+// The 19 counties that carry a GIS viewer URL. Already in the tree, used only to query features
+// until now — never to photograph the viewer, which is what was asked for.
+import { BIS_CONFIGS } from './services/bis-cad.js';
+import { storeCaptureImage, fileCaptureRow } from './services/artifact-uploader.js';
 import type { PurchaseReport } from './types/purchase.js';
 import { PaidPlatformRegistry } from './services/paid-platform-registry.js';
 import { createDocumentAccessOrchestrator } from './services/document-access-orchestrator.js';
@@ -1421,6 +1427,21 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // What the cross-run duplicate check actually did, said out loud. The owner asked for "a very
       // clear and detailed check"; a check whose result is never reported is indistinguishable from
       // no check at all.
+      // ── IMAGERY, CAD GIS AND DRAWINGS (plan F1–F7) ──────────────────────────────────────
+      //
+      // Runs BEFORE endFiling, deliberately: the filing context holds the project library and
+      // this run's id, so a capture goes down the same dedupe-and-attribute path as a deed. Move
+      // this below endFiling and every screenshot is filed again on every run, which is the exact
+      // defect that produced 19 of the 53 duplicate document groups measured in production.
+      //
+      // Never allowed to fail the run. The research is the point; imagery is supporting evidence,
+      // and losing a completed run because a map server was slow would be a bad trade.
+      try {
+        await captureImageryForRun(projectId, county, unifiedResult);
+      } catch (e) {
+        console.warn(`[Capture] ${projectId}: imagery phase threw — ${String(e)}`);
+      }
+
       const filing = endFiling(projectId);
       if (filing) {
         handshakeLogger.attempt('[Library]', 'info', 'Duplicate check', filing.describe())
@@ -3350,6 +3371,141 @@ app.get('/research/confidence/:projectId', requireAuth, rateLimit(60, 60_000), (
     res.json({ status: 'in_progress' });
   }
 });
+
+// ── Imagery, CAD GIS and drawings ─────────────────────────────────────────────────────────────
+//
+// Plan F1–F7, and the answer to "we need to make sure we are collecting and saving screenshots of
+// satellite and eagle eye views of properties and their surrounding properties if possible, as
+// well as screenshots of the relevant CAD GIS maps that show the land."
+//
+// Everything this needs already existed and none of it was joined up: `planImagery()` had no
+// caller outside its own tests, `frameParcel()` had one (in a Bell analyzer), Bell's capture took
+// Google satellite at a FIXED zoom 20, and `BIS_CONFIGS` carried a `gisBaseUrl` for 19 counties
+// that was used only to query features and never to photograph the viewer.
+//
+// This is the caller. It is county-general.
+async function captureImageryForRun(
+  projectId: string,
+  county: string,
+  unifiedResult: UnifiedResearchResult,
+): Promise<void> {
+  const supabase = await getSupabase();
+  if (!supabase) {
+    console.warn(`[Capture] ${projectId}: no Supabase client — captures cannot be stored, so none were taken.`);
+    return;
+  }
+
+  const input = capturePlanInputFor(projectId, county, unifiedResult);
+  const plan = planCaptures(input);
+  console.log(`[Capture] ${projectId}: ${plan.summary}`);
+  for (const skip of plan.skipped) console.log(`[Capture] ${projectId}: skipped ${skip.kind} — ${skip.reason}`);
+  if (plan.captures.length === 0) return;
+
+  const report = await runCaptures(plan, {
+    // Playwright, through the same browser factory every scraper uses — so a capture inherits the
+    // proxy, the user agent and the Browserbase routing rather than opening its own unmanaged page.
+    screenshot: async (item) => {
+      if (!item.url) return null;
+      const { withBrowser } = await import('./lib/browser-factory.js');
+      return withBrowser({ adapterId: 'cad' }, async (session) => {
+        // `browser`, not `context`: BrowserSession hands back the Playwright Browser and leaves
+        // context creation to the caller, so a capture gets its own isolated context rather than
+        // inheriting cookies from whatever scraper ran last.
+        const context = await session.browser.newContext({ viewport: { width: 1440, height: 900 } });
+        const page = await context.newPage();
+        try {
+          await page.goto(item.url!, { waitUntil: 'networkidle', timeout: 45_000 });
+          // Map tiles load after networkidle fires. A fixed settle beats a selector here because
+          // the providers differ and a missing selector would silently produce a grey square.
+          await page.waitForTimeout(4_000);
+          const bytes = await page.screenshot({ type: 'png' });
+          return { bytes: Buffer.from(bytes) };
+        } finally {
+          await page.close().catch(() => {});
+          await context.close().catch(() => {});
+        }
+      });
+    },
+    // A lot number, a scale bar or a subdivision name inside a map image is TEXT. Left as pixels
+    // it is invisible to every search and every later question.
+    ocr: async (bytes, item) => {
+      // Needs a model key. Without one the image is still captured and filed — losing the
+      // picture because the reader is unconfigured would be the worse trade, and a map with no
+      // extracted text is still the map.
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) return null;
+      try {
+        const { adaptiveVisionOcr } = await import('./services/adaptive-vision.js');
+        const { PipelineLogger: OcrLog } = await import('./lib/logger.js');
+        const out = await adaptiveVisionOcr(
+          bytes, 'image/png', apiKey, new OcrLog(projectId), item.label,
+        );
+        return out.mergedText || null;
+      } catch {
+        return null;
+      }
+    },
+    store: (item, bytes) => storeCaptureImage(supabase as never, projectId, item.key, bytes),
+    file: (row) => fileCaptureRow(supabase as never, projectId, row),
+    log: (level, message) => (level === 'warn' ? console.warn(message) : console.log(message)),
+  }, { projectId, runId: activePipelines.get(projectId)?.runId ?? null, county });
+
+  console.log(`[Capture] ${projectId}: ${report.summary}`);
+  for (const o of report.outcomes) {
+    if (o.status !== 'filed') console.log(`[Capture] ${projectId}: ${o.label} — ${o.status}: ${o.detail}`);
+  }
+}
+
+/** Everything the capture plan needs, pulled off whatever shape of result the county produced.
+ *
+ *  Reads defensively because the two result shapes differ and a missing centroid is a legitimate
+ *  state, not an error — `planCaptures` records it as a gap in what the run identified rather than
+ *  as a fact about the land. */
+function capturePlanInputFor(
+  projectId: string,
+  county: string,
+  unifiedResult: UnifiedResearchResult,
+): CapturePlanInput {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = (unifiedResult as any)?.data ?? {};
+  const property = data.property ?? {};
+  const adjacent: Array<Record<string, unknown>> = Array.isArray(data.adjacentProperties)
+    ? data.adjacentProperties
+    : [];
+
+  const neighbours = adjacent
+    .map((a) => ({
+      label: String(a.ownerName ?? a.situsAddress ?? a.propertyId ?? 'adjoiner'),
+      lat: Number(a.lat), lon: Number(a.lon),
+    }))
+    .filter((n) => Number.isFinite(n.lat) && Number.isFinite(n.lon));
+
+  return {
+    projectId,
+    county,
+    latitude: Number.isFinite(Number(property.lat)) ? Number(property.lat) : null,
+    longitude: Number.isFinite(Number(property.lon)) ? Number(property.lon) : null,
+    acreage: Number.isFinite(Number(property.acreage)) ? Number(property.acreage) : null,
+    parcelId: property.propertyId ? String(property.propertyId) : (data.propertyId ? String(data.propertyId) : null),
+    // The 19 counties that carry a GIS viewer. This is the line that generalises CAD GIS capture
+    // past Bell — the data was already there, addressed by county key.
+    gisBaseUrl: gisBaseUrlFor(county),
+    controllingDeedDate: data.deedsAndRecords?.records?.[0]?.recordingDate ?? null,
+    neighbours,
+    // Bird's-eye is licensed, not free. Absent env, the plan records a configuration gap in those
+    // words rather than implying the county has no oblique coverage.
+    obliqueProvider: process.env.OBLIQUE_IMAGERY_PROVIDER || null,
+    refreshImagery: (activePipelines.get(projectId)?.settings as { refreshImagery?: boolean } | undefined)?.refreshImagery === true,
+  };
+}
+
+/** The county's GIS viewer URL, from the registry that already knows it. */
+function gisBaseUrlFor(county: string): string | null {
+  const key = county.trim().toLowerCase().replace(/\s+county$/, '');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cfg = (BIS_CONFIGS as any)[key];
+  return (cfg?.gisBaseUrl as string) ?? null;
+}
 
 // ── May this run spend money? ─────────────────────────────────────────────────────────────────
 //

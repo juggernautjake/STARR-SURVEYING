@@ -1017,3 +1017,65 @@ async function resilientInsertDocument(
 
   return { error: `${msg1} → fallback also failed: ${err2.message || String(err2)}` };
 }
+
+// ── Imagery captures (plan F5–F7) ───────────────────────────────────────────────────────────────
+//
+// A capture is a research document, and this is what makes that true rather than aspirational.
+//
+// Bell's screenshots already went through this file, and until the project library landed they went
+// through a bare `.insert(row)` — so every re-run filed every screenshot again. 19 of the 53
+// duplicate document groups measured in production on 2026-09-01 were one image, re-taken and
+// re-inserted. Routing captures through `resilientInsertDocument` puts them on exactly the same
+// dedupe-and-attribute path as a deed: same library, same run id, same "found it again is an
+// OBSERVATION, not a new document" rule.
+//
+// Exported so `capture-runner.ts` never needs to know the bucket name or the path convention, which
+// is the knowledge this file exists to own.
+
+/**
+ * Store one captured image and file its row.
+ *
+ * Returns null when the upload fails, and the caller files NOTHING in that case — a row pointing at
+ * a file that was never written is worse than no row at all, and this repository has shipped 22 of
+ * those before.
+ */
+export async function storeCaptureImage(
+  supabase: SupabaseClient,
+  projectId: string,
+  captureKey: string,
+  bytes: Buffer,
+): Promise<{ storagePath: string; publicUrl: string | null } | null> {
+  const safe = sanitizeFilename(captureKey.replace(/[^A-Za-z0-9]+/g, '_')).slice(0, 120);
+  const storagePath = `${projectId}/artifacts/captures/${safe}.png`;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: uploadErr } = await (supabase.storage as any)
+      .from(BUCKET)
+      .upload(storagePath, bytes, { contentType: 'image/png', upsert: true, cacheControl: '86400' });
+    if (uploadErr) {
+      console.warn(`[ArtifactUploader] ${projectId}: capture upload failed — ${uploadErr.message}`);
+      return null;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
+    return { storagePath, publicUrl: (data?.publicUrl as string) ?? null };
+  } catch (e) {
+    console.warn(`[ArtifactUploader] ${projectId}: capture upload threw — ${String(e)}`);
+    return null;
+  }
+}
+
+/** File a capture's row through the SAME path every other document takes. */
+export async function fileCaptureRow(
+  supabase: SupabaseClient,
+  projectId: string,
+  row: Record<string, unknown>,
+): Promise<{ outcome: 'inserted' | 'merged' | 'flagged' | 'error'; reason?: string; error?: string }> {
+  const { error } = await resilientInsertDocument(supabase, projectId, row);
+  if (error) return { outcome: 'error', error };
+  // `resilientInsertDocument` consults the filing context, so a merge or a flag has already been
+  // decided and tallied by the time it returns; it reports only success or failure. The tally is
+  // what the run log prints, so the distinction is not lost — it is just not per-row here.
+  return { outcome: 'inserted' };
+}
