@@ -217,6 +217,29 @@ reachability number until it exists.**
       gave: `callSource: none | run | phase7`. Rendering the poorer answer silently would be the
       same defect in better clothes.
 
+- [x] **C2b** The run writes its reconciliation where every reader already looks. **THE KEYSTONE.**
+
+      `/tmp/analysis/{id}/reconciled_boundary.json` has four readers — the boundary viewer,
+      `GET /research/boundary/:id`, the master orchestrator, and Phase 8, which takes it as its
+      INPUT. Exactly one thing wrote it: the Lab's `POST /research/reconcile`.
+
+      So all four read nothing for every real run, and **Phase 8 could not run at all** — its input
+      did not exist. Phase 9 takes its purchase recommendations from Phase 8. That is the actual
+      reason `research_document_purchases` has 0 rows, and it is one missing file rather than three
+      missing phases.
+
+      The run reconciles at Stage 3.5 and kept the answer in memory. `phase7-bridge.ts` writes it
+      down, and the tests validate the output against the same schema Phase 8 validates — so the
+      bridge is checked against the real contract, not against my reading of it.
+
+      Three deliberate refusals, all of the same kind: a malformed bearing is DROPPED rather than
+      coerced to satisfy the regex (a bearing bent to fit is wrong data with a surveyor's authority
+      behind it); `closureRatio` is omitted because `precisionRatio` is the string "1:5000" and the
+      schema wants a number whose units nobody states; and the bridge REFUSES to overwrite a real
+      Phase-7 report, which carries cross-source aggregation it does not.
+
+      Every bridged call is marked `single_source`, because it is one.
+
 - [ ] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
       path. Not everything should run on every property — the answer must be written down either way,
       because "unreachable" and "deliberately optional" look identical from the outside.

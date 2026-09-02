@@ -29,6 +29,7 @@ import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreensho
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
 import { recordSkippedPurchases } from './services/purchase-ledger.js';
 import { describeRunOutcome } from './research/run-outcome.js';
+import { buildPhase7Document, writePhase7Document } from './research/phase7-bridge.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -1643,6 +1644,40 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // duplicate check Bell uses. What remains here is a safety net for anything the incremental
         // path could not write — a transient Supabase failure mid-run should not cost the document.
         // Anything already filed this run is skipped, so the net cannot double-write.
+        // ── C2b: write the run's reconciliation where every reader already looks ──────────
+        //
+        // `/tmp/analysis/{id}/reconciled_boundary.json` is read by the boundary viewer, by
+        // `GET /research/boundary/:id`, by the master orchestrator, and — as its INPUT — by
+        // Phase 8. Only the Testing Lab ever wrote it, so all four read nothing for every real
+        // run, and Phase 8 could not run at all. Phase 9 takes its purchase recommendations from
+        // Phase 8, which is why no run has ever bought a document.
+        //
+        // The run was not missing the work — it reconciles at Stage 3.5 and kept the answer in
+        // memory. This writes it down.
+        try {
+          const p7 = buildPhase7Document(
+            projectId,
+            (r.boundary?.calls ?? []) as never,
+            {
+              // Closure lives on the VALIDATION result, not the boundary.
+              closureError: r.validation?.closureError_ft ?? null,
+              // `precisionRatio` is a string — "1:5000" — and the schema wants a number whose
+              // units are not stated. Parsing it would be guessing at what the number means, and
+              // a wrong closure ratio on a survey is a confident wrong answer with a surveyor's
+              // authority behind it. Omitted until something needs it and can say what it is.
+              closureRatio: null,
+            },
+          );
+          const wrote = writePhase7Document(ANALYSIS_DIR, p7);
+          console.log(
+            `[Worker] ${projectId}: reconciled_boundary.json ` +
+              (wrote.written ? `written — ${wrote.reason}` : `not written — ${wrote.reason}`),
+          );
+        } catch (err) {
+          // Bookkeeping must not fail a run whose research succeeded.
+          console.warn(`[Worker] ${projectId}: could not write the reconciled boundary:`, err);
+        }
+
         const pipelineDocs = r.documents
           .filter((d) => !d.fromUserUpload)
           .filter((d) => !alreadyFiledThisRun(projectId, d));
