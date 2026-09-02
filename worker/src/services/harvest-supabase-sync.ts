@@ -18,6 +18,9 @@ import type { DocumentImage } from '../adapters/clerk-adapter.js';
 
 // ── Supabase client (lazy init) ───────────────────────────────────────────────
 
+import { ProjectLibrary } from '../research/project-library.js';
+import { fileResearchDocument, FilingTally, type FileDocumentDb } from '../research/file-document.js';
+
 type SupabaseClient = Awaited<ReturnType<typeof import('@supabase/supabase-js').createClient>>;
 
 let _client: SupabaseClient | null = null;
@@ -92,10 +95,22 @@ function fileExtension(imagePath: string): string {
 interface SyncOptions {
   /** Supabase Storage bucket name (default: 'research-documents') */
   storageBucket?: string;
+  /** The county the harvest was for. Identity is county-scoped: the same instrument number exists
+   *  in many Texas counties, and a key without one would merge documents from different
+   *  courthouses. Absent means no cross-run duplicate check — stated, not silently skipped. */
+  county?: string;
+  /** The run filing these documents, so each row can say which run produced it. */
+  runId?: string | null;
 }
 
 export interface SyncResult {
   documentsInserted: number;
+  /** Documents this pass found again that the project already held. No second row was written —
+   *  the existing row records that this run saw it. */
+  documentsMerged: number;
+  /** Documents that MIGHT duplicate something held. Written and flagged: a document is never
+   *  dropped on a maybe. */
+  documentsFlagged: number;
   imagesUploaded: number;
   errors: string[];
 }
@@ -112,7 +127,9 @@ export async function syncHarvestToSupabase(
   result: HarvestResult,
   options: SyncOptions = {},
 ): Promise<SyncResult> {
-  const syncResult: SyncResult = { documentsInserted: 0, imagesUploaded: 0, errors: [] };
+  const syncResult: SyncResult = {
+    documentsInserted: 0, documentsMerged: 0, documentsFlagged: 0, imagesUploaded: 0, errors: [],
+  };
 
   const supabase = await getSupabase();
   if (!supabase) {
@@ -129,26 +146,55 @@ export async function syncHarvestToSupabase(
     ...Object.values(result.documents.adjacent).flat(),
   ];
 
+  // ── The library, before a single row is written ─────────────────────────────────────────────
+  //
+  // This path had no duplicate check of any kind — a bare insert per document — so re-harvesting a
+  // project filed everything a second time. It is one of the two writers responsible for the 78
+  // duplicate rows measured in production on 2026-09-01.
+  const county = options.county ?? '';
+  const library = await ProjectLibrary.load(supabase as never, projectId, county);
+  const tally = new FilingTally();
+  console.log(`[HarvestSync] ${projectId}: ${library.describe()}`);
+  if (!county) {
+    console.warn(
+      `[HarvestSync] ${projectId}: no county was supplied, so documents cannot be identified across ` +
+      `vendors and the duplicate check will only catch identical files.`,
+    );
+  }
+
   for (const doc of allDocs) {
     try {
       const row = buildResearchDocumentRow(projectId, doc);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: inserted, error: insertError } = await (supabase as any)
-        .from('research_documents')
-        .insert(row)
-        .select('id')
-        .single();
+      const outcome = tally.record(
+        await fileResearchDocument(supabase as unknown as FileDocumentDb, library, {
+          row,
+          runId: options.runId ?? null,
+          candidate: {
+            county,
+            instrumentNumber: doc.instrumentNumber,
+            recordingDate: doc.recordingDate,
+            documentLabel: row.document_label as string | undefined,
+          },
+        }),
+      );
 
-      if (insertError) {
-        syncResult.errors.push(`Insert failed for ${doc.instrumentNumber}: ${insertError.message}`);
+      if (outcome.outcome === 'error') {
+        syncResult.errors.push(`Insert failed for ${doc.instrumentNumber}: ${outcome.error}`);
         continue;
       }
+      if (outcome.outcome === 'merged') {
+        // Already held. Nothing new to upload — and re-uploading would overwrite a good page image
+        // with whatever this pass happened to fetch, which is a downgrade, not a refresh.
+        syncResult.documentsMerged++;
+        continue;
+      }
+      if (outcome.outcome === 'flagged') syncResult.documentsFlagged++;
 
       syncResult.documentsInserted++;
 
       // Upload images if present
-      const rowId: string = (inserted as { id: string }).id;
+      const rowId: string = outcome.id;
       const uploadResult = await uploadDocumentImages(supabase, bucket, projectId, rowId, doc);
       syncResult.imagesUploaded += uploadResult.uploaded;
       syncResult.errors.push(...uploadResult.errors);
@@ -159,12 +205,9 @@ export async function syncHarvestToSupabase(
     }
   }
 
-  if (syncResult.documentsInserted > 0) {
-    console.log(
-      `[HarvestSync] Synced ${syncResult.documentsInserted} documents, ` +
-      `${syncResult.imagesUploaded} images to Supabase for project ${projectId}`,
-    );
-  }
+  console.log(
+    `[HarvestSync] ${projectId}: ${tally.describe()} ${syncResult.imagesUploaded} image(s) uploaded.`,
+  );
 
   return syncResult;
 }

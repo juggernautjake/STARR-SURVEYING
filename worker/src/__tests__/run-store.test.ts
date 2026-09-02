@@ -63,17 +63,27 @@ describe('the staleness window', () => {
   });
 
   it('only matters at boot — a live run heartbeats every phase', () => {
-    expect(index).toContain('void recordRunPhase(projectId');
+    // Matched across a line break. The call gained a `percent` argument when the progress
+    // tracker landed and wrapped onto several lines, which broke a substring match on
+    // `void recordRunPhase(projectId` while the property it guards — the pipeline heartbeats
+    // the durable record at every phase, so a stale heartbeat really does mean a dead process —
+    // never stopped holding. A guard that fails on reformatting teaches people to edit the
+    // guard, which is how it ends up asserting nothing.
+    expect(index).toMatch(/void recordRunPhase\(\s*projectId/);
   });
 });
 
 describe('bookkeeping never fails a run', () => {
   it('every write is fire-and-forget from the pipeline', () => {
-    for (const call of ['recordRunStart({', 'recordRunPhase(projectId', 'recordRunFinish({']) {
-      const idx = index.indexOf(call);
-      expect(idx, `${call} not found`).toBeGreaterThan(0);
-      // Preceded by `void ` — the pipeline does not await its own bookkeeping.
-      expect(index.slice(Math.max(0, idx - 6), idx)).toContain('void ');
+    // Same reformatting problem as above, same fix: the property is "preceded by `void`", not
+    // "written on one line". Bookkeeping that a run AWAITS is bookkeeping that can fail the run,
+    // which is the whole point of this test.
+    for (const call of [
+      /void\s+recordRunStart\(\{/,
+      /void\s+recordRunPhase\(\s*projectId/,
+      /void\s+recordRunFinish\(\{/,
+    ]) {
+      expect(index, `${call} — not awaited-free`).toMatch(call);
     }
   });
 
@@ -86,9 +96,20 @@ describe('bookkeeping never fails a run', () => {
 });
 
 describe('the record covers every exit', () => {
-  it('closes out on success, on crash, and on cancel', () => {
+  it('closes out on success, on crash, on cancel — and on a budget stop', () => {
     expect(index).toContain("status: 'complete'");
-    expect(index).toContain("status: isAborted ? 'cancelled' : 'failed'");
+
+    // ── A FOURTH EXIT APPEARED, AND IT IS THE IMPORTANT ONE ──────────────────────────────
+    //
+    // This asserted exactly `status: isAborted ? 'cancelled' : 'failed'`, which encoded the
+    // assumption that an aborted run is either a cancellation or a crash. It is not. The worker
+    // has ONE AbortController per run and two things call .abort() on it: the budget guard and
+    // the cancel button. Collapsing them is what reported a run that finished inside its own
+    // $2.00 ceiling as "Bell County research failed: Pipeline cancelled by user" — a failure
+    // that was not a failure, attributed to a person who had not touched it.
+    //
+    // So the guard now requires the distinction to exist, rather than requiring its absence.
+    expect(index).toMatch(/status: budgetStop \? 'complete' : isAborted \? 'cancelled' : 'failed'/);
   });
 
   it('carries the spend and the skipped work onto the finished row', () => {

@@ -66,6 +66,40 @@ const CALLER_DIRS = ['worker/src', 'lib', 'app'];
  * Anything NOT on this list must be imported by something that is not a test.
  */
 const KNOWN_UNREACHABLE: Record<string, string> = {
+  // ── Found 2026-09-01, when plan E1 replaced the Research & Analysis stack ─────────────────
+  //
+  // These three are SUPERSEDED, and they are listed rather than deleted for one specific
+  // reason: five other guards still read ResearchRunPanel.tsx to prove properties that must now
+  // hold in ResearchRunView/useRunState — owner-name-reaches-the-run, worker-status,
+  // run-progress, pipeline-log and stored-file. Two of those (owner-name, worker-status) have
+  // already been repointed at the live code. Deleting the file before the other three follow
+  // would not remove a vacuous guard; it would remove the guard entirely, and this repository
+  // has lost a property that way before.
+  //
+  // Nothing renders any of them, so the user-facing defect is fixed either way. What remains is
+  // bookkeeping, and it is written down instead of being done badly in a hurry.
+  // ── ResearchRunPanel.tsx is NOT listed here, and that is a finding, not an omission ────────
+  //
+  // It is superseded and nothing imports it — page.tsx was its only importer and no longer is.
+  // But this check reports it as WIRED, so listing it fails the stale-entry test above.
+  //
+  // The reason is in hasCaller: the pattern looks for the module name inside a quote character,
+  // and it counts the BACKTICK as one. This repository writes long comments that name modules in
+  // backticks — pipeline-log.ts says "and `ResearchRunPanel`, polling the same endpoint, had a
+  // denylist" — so a file that merely DISCUSSES a module is indistinguishable from one that
+  // imports it.
+  //
+  // That blind spot predates this change: it is why ResearchRunPanel never showed up as an orphan
+  // while page.tsx held the only import, and it silently weakens the guard for every module this
+  // codebase talks about in prose — which, given the house style, is most of them.
+  //
+  // NOT fixed here on purpose. Stripping comments before the scan is the right repair and it will
+  // surface a batch of newly-visible orphans across the repo; doing that inside a slice about the
+  // research run view would bury it. Recorded in the plan doc as its own item.
+  'app/admin/research/components/RunConsoleBar.tsx':
+    'ABSORBED into ResearchRunView (plan E1). Its independent fetch of /run-console is what let it render "Finished in 2 minutes for $0.02" beside a panel reading "Research Failed" about the same run; useRunState now reads that endpoint and the one status card renders it. run-console.test.ts was repointed to assert the DATA still reaches the screen, so retiring the component did not quietly drop the feature. Safe to delete.',
+  'app/admin/research/components/ResearchAnalysisPanel.tsx':
+    'Already dead BEFORE this change, and only exposed by it: page.tsx imported it and never rendered it, so the import alone satisfied this check. 1,297 lines with a co-located stylesheet. Not part of plan E1 — its subject is the Review stage, not the run — so deleting it is an OWNER CALL rather than a side effect of rebuilding the run view. rendered-classes-are-styled.test.ts counts its 60 classes and would need rebaselining.',
   // ── Found 2026-08-31, when this check was widened to .tsx and to app/admin/research/components
   //
   // Both are OWNER CALLS, recorded rather than resolved. One is a duplicate of a live page; the

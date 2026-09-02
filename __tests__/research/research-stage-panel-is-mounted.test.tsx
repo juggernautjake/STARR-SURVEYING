@@ -89,18 +89,40 @@ describe('the panel is presentational', () => {
     expect(code).not.toContain('projectOwnerName');
   });
 
-  it('still mounts the four run-visibility panels, in order', () => {
-    // RunConsoleBar shows spend and elapsed-vs-budget; RunDiffPanel flags a stale packet;
-    // ReportCardPanel scores the run. Dropping one is invisible — the page still renders.
-    const order = ['RunConsoleBar', 'RunDiffPanel', 'ReportCardPanel', 'ResearchRunPanel']
-      .map((n) => SECT.indexOf(`<${n}`));
-    expect(order.every((i) => i > -1), 'a run-visibility panel went missing').toBe(true);
-    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  it('mounts the one run view, and no second opinion beside it', async () => {
+    // ── WHAT THIS TEST USED TO ASSERT, AND WHY IT IS INVERTED ──────────────────────────────
+    //
+    // It required FOUR panels here, in order: RunConsoleBar, RunDiffPanel, ReportCardPanel,
+    // ResearchRunPanel. That stack is the defect. On 2026-09-01 it rendered "Finished in 2
+    // minutes for $0.02", seventeen new documents, a scorecard of zeros, and "✕ Research
+    // Failed" — all describing one run, in that order down the page, with the alarming line
+    // last. Four components, four endpoints, four independent derivations of one answer.
+    //
+    // So the requirement is now the opposite: exactly one thing renders the run. The diff and
+    // report card survive INSIDE ResearchRunView as tab bodies, where they cannot sit beside a
+    // status they are not describing.
+    const { stripComments } = await import('../../scripts/audit-starr-assumptions.mjs');
+    const code = stripComments(SECT);
+    expect(code, 'the stripper ate the code too').toContain('<ResearchRunView');
+
+    // The stripper matters here more than usual: this section's header comment QUOTES the old
+    // four-panel stack to explain what it replaced, so a raw-text probe finds every name it is
+    // asserting the absence of — and passes while proving nothing. That happened.
+    for (const gone of ['RunConsoleBar', 'ResearchRunPanel']) {
+      expect(code, `${gone} is rendered again — that is a second opinion`)
+        .not.toContain(`<${gone}`);
+    }
   });
 
   it('forwards every callback the page needs to stay in sync', () => {
     for (const cb of ['onPipelineStart', 'onPipelineComplete', 'onBack', 'onContinueToReview']) {
-      expect(SECT, `${cb} must reach ResearchRunPanel`).toContain(`${cb}={${cb}}`);
+      expect(SECT, `${cb} must reach ResearchRunView`).toContain(`${cb}={${cb}}`);
     }
+  });
+
+  it('forwards the edited re-run settings, which are easy to drop silently', () => {
+    // The settings the operator just chose pass through here on their way to the POST. A panel
+    // that forgot to forward them would look completely correct on screen.
+    expect(SECT).toContain('pendingRunInput={pendingRunInput}');
   });
 });

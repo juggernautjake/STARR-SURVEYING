@@ -13,6 +13,60 @@ import { pageImagesToBuffer } from './pages-to-pdf.js';
 import type { DocumentPage } from '../types/index.js';
 
 import { assessOcr, isLandRecordType, type Readability } from '../infra/ocr-quality.js';
+import { ProjectLibrary, refFromRow } from '../research/project-library.js';
+import { fileResearchDocument, FilingTally, type FileDocumentDb } from '../research/file-document.js';
+
+// ── FILING CONTEXT ─────────────────────────────────────────────────────────────────────────────
+//
+// What a run needs in order to file a document without duplicating it: which project's library to
+// check against, which county the identity is scoped to, and which run to stamp the row with.
+//
+// Registered per project rather than passed down through five call sites, because every one of
+// those sites already has `projectId` in scope and none of them has any business knowing about
+// deduplication. Keyed by project and not held in a module-level singleton, because this worker
+// runs several pipelines at once (`CAPACITY.maxConcurrentPipelines`) and a shared context would
+// let one project's run dedupe against another project's library — which would silently drop
+// documents, the one failure this whole subsystem is built to make impossible.
+export interface FilingContext {
+  library: ProjectLibrary;
+  county: string;
+  runId: string | null;
+  tally: FilingTally;
+}
+
+const filingContexts = new Map<string, FilingContext>();
+
+/** Load the project's library and register it for the duration of a run. */
+export async function beginFiling(
+  supabase: SupabaseClient,
+  projectId: string,
+  county: string,
+  runId: string | null,
+): Promise<FilingContext> {
+  const library = await ProjectLibrary.load(
+    supabase as unknown as Parameters<typeof ProjectLibrary.load>[0],
+    projectId,
+    county,
+  );
+  const ctx: FilingContext = { library, county, runId, tally: new FilingTally() };
+  filingContexts.set(projectId, ctx);
+  console.log(`[ArtifactUploader] ${projectId}: ${library.describe()}`);
+  return ctx;
+}
+
+/** End a run's filing and hand back what deduplication actually did. */
+export function endFiling(projectId: string): FilingTally | null {
+  const ctx = filingContexts.get(projectId);
+  filingContexts.delete(projectId);
+  if (!ctx) return null;
+  console.log(`[ArtifactUploader] ${projectId}: ${ctx.tally.describe()}`);
+  return ctx.tally;
+}
+
+/** The live context, for callers that want to report progress mid-run. */
+export function filingTally(projectId: string): FilingTally | null {
+  return filingContexts.get(projectId)?.tally ?? null;
+}
 
 // ── The readability floor, on the worker path too (plan R18) ───────────────────────────────────
 //
@@ -267,7 +321,7 @@ export async function uploadPipelineArtifacts(
       const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
       const publicUrl: string = urlData?.publicUrl ?? '';
 
-      const { error: insertErr } = await resilientInsertDocument(supabase, {
+      const { error: insertErr } = await resilientInsertDocument(supabase, projectId, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: filename,
@@ -384,7 +438,7 @@ export async function uploadPipelineArtifacts(
         ? `${groupSource} (${groupScreenshots.length} pages)`
         : `Screenshot: ${firstSs.ss.description || groupSource}`;
 
-      const { error: grpInsertErr } = await resilientInsertDocument(supabase, {
+      const { error: grpInsertErr } = await resilientInsertDocument(supabase, projectId, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: `screenshot_${safeName}`,
@@ -543,7 +597,7 @@ export async function uploadPipelineArtifacts(
           : `${capitalizeFirst(category)}: ${label}`);
       const finalDocType = firstPage.documentType || docType;
 
-      const { error: docInsertErr } = await resilientInsertDocument(supabase, {
+      const { error: docInsertErr } = await resilientInsertDocument(supabase, projectId, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: `${category}_${safeLabel}`,
@@ -773,7 +827,7 @@ export async function uploadDocumentIncremental(
       ? (sorted.length > 1 ? `${richLabel} (${sorted.length} pages)` : richLabel)
       : `${capitalizeFirst(category)}: ${label}${sorted.length > 1 ? ` (${sorted.length} pages)` : ''}`;
 
-    const { error: insertErr } = await resilientInsertDocument(supabase, {
+    const { error: insertErr } = await resilientInsertDocument(supabase, projectId, {
       research_project_id: projectId,
       source_type: 'property_search',
       original_filename: `${category}_${safeLabel}`,
@@ -843,7 +897,7 @@ export async function uploadScreenshotsIncremental(
       const { data: urlData } = (supabase.storage as any).from(BUCKET).getPublicUrl(storagePath);
       const publicUrl = urlData?.publicUrl ?? '';
 
-      const { error: insertErr } = await resilientInsertDocument(supabase, {
+      const { error: insertErr } = await resilientInsertDocument(supabase, projectId, {
         research_project_id: projectId,
         source_type: 'property_search',
         original_filename: filename,
@@ -877,30 +931,84 @@ const ORIGINAL_DOC_TYPES = new Set([
   'topo_map', 'utility_map', 'other',
 ]);
 
+/** Strip the columns an older database will not have, for the retry.
+ *
+ *  Named, because it is this module's knowledge of its own schema drift — the generic filer has no
+ *  business knowing which of these columns are new. */
+function narrowRow(row: Record<string, unknown>): Record<string, unknown> {
+  const fallbackRow = { ...row };
+  delete fallbackRow.pages_pdf_url;
+  if (fallbackRow.document_type && !ORIGINAL_DOC_TYPES.has(fallbackRow.document_type as string)) {
+    fallbackRow.document_type = 'other';
+  }
+  return fallbackRow;
+}
+
 /**
- * Insert a research_documents row with automatic fallback:
- * 1. Try full insert (with pages_pdf_url and expanded doc types).
- * 2. If it fails (missing column or CHECK constraint), retry without
- *    pages_pdf_url and with document_type='other'.
+ * File a research_documents row — deduplicating first, when the run registered a filing context.
+ *
+ * ── WHY THIS IS NO LONGER A BARE INSERT ───────────────────────────────────────────────────────
+ *
+ * It was, and that is one half of why a re-run duplicated a project's entire library. The other
+ * half was that nothing stamped the row with the run that produced it, so the duplicates were
+ * invisible even after they existed. Both are handled in `research/file-document.ts`, which is now
+ * the only way a pipeline document reaches the table.
+ *
+ * With no context registered — a caller not yet updated, or Supabase unavailable when the run
+ * started — this behaves exactly as it did before. Losing a document because its bookkeeping was
+ * unavailable would be a worse failure than the duplicate this exists to prevent.
  */
 async function resilientInsertDocument(
   supabase: SupabaseClient,
+  projectId: string,
   row: Record<string, unknown>,
 ): Promise<{ error: string | null }> {
-  // First attempt — full insert
+  const ctx = filingContexts.get(projectId);
+
+  if (ctx) {
+    const derived = refFromRow(row, ctx.county);
+    const outcome = await fileResearchDocument(
+      supabase as unknown as FileDocumentDb,
+      ctx.library,
+      {
+        row,
+        runId: ctx.runId,
+        fallbackRow: narrowRow,
+        candidate: {
+          county: ctx.county,
+          instrumentNumber: derived.instrumentNumber,
+          recordingDate: derived.recordingDate,
+          documentLabel: (row.document_label as string) ?? undefined,
+          recordingInfo: (row.recording_info as string) ?? undefined,
+          storagePath: (row.storage_path as string) ?? undefined,
+          contentSha256: (row.content_sha256 as string) ?? undefined,
+        },
+      },
+    );
+    ctx.tally.record(outcome);
+
+    switch (outcome.outcome) {
+      case 'merged':
+        console.log(`[ArtifactUploader] ${projectId}: already held — ${outcome.reason}`);
+        return { error: null };
+      case 'flagged':
+        console.log(`[ArtifactUploader] ${projectId}: filed and flagged — ${outcome.reason}`);
+        return { error: null };
+      case 'error':
+        return { error: outcome.error };
+      default:
+        return { error: null };
+    }
+  }
+
+  // ── No filing context: the original behaviour, unchanged ────────────────────────────────────
   const { error: err1 } = await (supabase as any).from('research_documents').insert(row);
   if (!err1) return { error: null };
 
   const msg1 = err1.message || String(err1);
   console.warn(`[ArtifactUploader] Insert failed (attempt 1): ${msg1}`);
 
-  // Second attempt — remove pages_pdf_url, fall back doc type to 'other'
-  const fallbackRow = { ...row };
-  delete fallbackRow.pages_pdf_url;
-  if (fallbackRow.document_type && !ORIGINAL_DOC_TYPES.has(fallbackRow.document_type as string)) {
-    fallbackRow.document_type = 'other';
-  }
-
+  const fallbackRow = narrowRow(row);
   const { error: err2 } = await (supabase as any).from('research_documents').insert(fallbackRow);
   if (!err2) {
     console.log(`[ArtifactUploader] Fallback insert succeeded (without pages_pdf_url, type=${fallbackRow.document_type})`);

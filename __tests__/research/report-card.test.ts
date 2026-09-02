@@ -188,8 +188,14 @@ describe('the surface', () => {
     // satisfies it just as well. So it asserts BOTH: the section renders it, AND the page mounts
     // the section. That is the same two-part shape the county-check guard took when C3 extracted
     // `CountyNote`.
-    expect(read('app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx'))
-      .toContain('<ReportCardPanel projectId={projectId} />');
+    const VIEW = 'app/admin/research/components/ResearchRunView.tsx';
+    const SECTION = 'app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx';
+    // Innermost: the view renders it (as a tab body — see plan E1).
+    expect(read(VIEW)).toContain('<ReportCardPanel projectId={projectId} />');
+    // Middle: the section mounts the view.
+    expect(read(SECTION)).toContain('<ResearchRunView');
+    // Outermost: the page mounts the section.
+    expect(read('app/admin/research/[projectId]/page.tsx')).toMatch(/<ResearchStagePanel\s/);
     expect(read('app/admin/research/[projectId]/page.tsx'))
       .toMatch(/<ResearchStagePanel\s/);
   });

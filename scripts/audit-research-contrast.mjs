@@ -1,4 +1,7 @@
-#!/usr/bin/env node
+// (shebang removed) This module is imported by tests as well as run via `node`; a `#!` line
+// makes vitest's transform fail the whole file with "SyntaxError: Invalid or unexpected token",
+// which silently took SIX test files out of the suite. package.json invokes it as `node <path>`,
+// so the line was decorative.
 // scripts/audit-research-contrast.mjs — WCAG contrast over the research stylesheet, statically.
 //
 // ── WHY THIS EXISTS ALONGSIDE `check-portal-themes.mjs` ─────────────────────────────────────────

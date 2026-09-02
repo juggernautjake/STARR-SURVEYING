@@ -66,7 +66,19 @@ describe('the owner name survives the whole journey', () => {
   });
 
   it('the run panel sends it with the run', () => {
+    // Kept, but no longer the load-bearing assertion: ResearchRunPanel is superseded and
+    // nothing mounts it. The next test is the one that now proves the property.
     expect(PANEL).toMatch(/ownerName: ownerName\?\.trim\(\)/);
+  });
+
+  it('and the LIVE run path — useRunState — sends it', () => {
+    // The guard follows the code. ResearchRunView/useRunState replaced the panel, and a guard
+    // left pointing at the old file would keep passing while the shipping path dropped
+    // ownerName entirely. A vacuous guard is worse than no guard: it reports safety.
+    const HOOK = read('app/admin/research/components/useRunState.ts');
+    expect(HOOK).toMatch(/ownerName: input\.ownerName\?\.trim\(\)/);
+    const VIEW = read('app/admin/research/components/ResearchRunView.tsx');
+    expect(VIEW).toContain('ownerName');
   });
 
   it('and the RE-RUN paths carry it too', () => {

@@ -189,8 +189,24 @@ describe('the surface', () => {
     // satisfies it just as well. So it asserts BOTH: the section renders it, AND the page mounts
     // the section. That is the same two-part shape the county-check guard took when C3 extracted
     // `CountyNote`.
+    // RunConsoleBar the COMPONENT is retired (plan E1). Its independence is exactly what let it
+    // render "Finished in 2 minutes for $0.02" beside a panel reading "Research Failed" about
+    // the same run, so the fix was to absorb it rather than to keep two opinions in sync.
+    //
+    // The guard therefore asserts what it always actually meant: the run-console DATA reaches
+    // the screen. A retired component must not become a quietly dropped feature.
+    const HOOK = read('app/admin/research/components/useRunState.ts');
+    expect(HOOK).toContain('/run-console');
+
+    const VIEW = read('app/admin/research/components/ResearchRunView.tsx');
+    // Cost and elapsed-vs-budget, the two questions the console existed to answer.
+    expect(VIEW).toContain('state.spendUsd');
+    expect(VIEW).toContain('state.budgetMs');
+    // And the work a ceiling silently dropped, which was the third.
+    expect(VIEW).toContain('state.skipped');
+
     expect(read('app/admin/research/[projectId]/_sections/ResearchStagePanel.tsx'))
-      .toContain('<RunConsoleBar projectId={projectId} />');
+      .toContain('<ResearchRunView');
     expect(page).toMatch(/<ResearchStagePanel\s/);
   });
 });

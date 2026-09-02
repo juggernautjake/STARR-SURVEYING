@@ -114,8 +114,16 @@ describe('the wiring', () => {
   });
 
   it('says the run became a lite one, and keeps saying it', () => {
-    const panel = read('app/admin/research/components/ResearchRunPanel.tsx');
-    expect(panel).toContain('liteFallback');
-    expect(panel).toContain('rrp__lite-notice');
+    // Repointed from ResearchRunPanel, which is superseded and unmounted. The property is the
+    // one R2 established — the notice is rendered for the LIFE of the run rather than written
+    // into a status message the next progress line overwrites — and it now has to hold in the
+    // code that actually ships.
+    const hook = read('app/admin/research/components/useRunState.ts');
+    expect(hook).toContain('liteFallback');
+    expect(hook).toContain('setLiteFallback');
+
+    const view = read('app/admin/research/components/ResearchRunView.tsx');
+    expect(view).toContain('run.liteFallback');
+    expect(view).toMatch(/Running the reduced pipeline/i);
   });
 });
