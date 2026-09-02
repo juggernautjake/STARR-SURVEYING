@@ -80,12 +80,33 @@ describe('the run view puts the ceiling where the clock is', () => {
     expect(block).toContain('state.budgetMs != null');
   });
 
+  it('an unread cost is NOT rendered as $0.00 — B1', () => {
+    // `spendUsd` is null until the run-console has been fetched, which happens on every fourth
+    // status poll (~12s). It rendered `(null ?? 0).toFixed(2)` — a confident claim that the run
+    // has cost nothing — for the opening seconds of every run, and permanently for any run whose
+    // console read failed. Fourth instance in one day of an unknown shown as a confident zero.
+    expect(VIEW).toContain(`state.spendUsd === null || state.spendUnrecorded`);
+    expect(VIEW, 'the null-coalesce to zero is back').not.toContain('(state.spendUsd ?? 0).toFixed');
+  });
+
+  it('and says WHY it is blank, differently from "nothing was recorded"', () => {
+    // Three states, three renderings. "not read yet" resolves itself; "nothing was written" does
+    // not, and tells the operator the spend writer is broken.
+    expect(VIEW).toMatch(/has not been read yet/i);
+    expect(VIEW).toMatch(/NOT the same as it having cost nothing/);
+  });
+
   it('the spend counter still carries a currency symbol', () => {
     // Found by looking at the page, not by a test. The `$` was lost from `$${…}` while the
     // spendIncomplete hint was being added on 2026-09-02 — a shell layer ate one of the two dollars
     // — and the counter rendered "0.00", which reads as a quantity of nothing in particular.
     // 27,900 tests passed over it. This one exists so the next person does not need the browser.
-    expect(VIEW).toContain('`$${(state.spendUsd ?? 0).toFixed(2)}`');
+    //
+    // Re-pointed the same day: B1 replaced the `?? 0` coalesce (which rendered an unread cost as a
+    // confident $0.00) with an explicit null check. The guarantee is unchanged — the figure carries
+    // a currency symbol — so the assertion follows the code rather than pinning an expression that
+    // no longer exists.
+    expect(VIEW).toContain('`$${state.spendUsd.toFixed(2)}`');
   });
 
   it('says what the ceiling MEANS, not just its value', () => {

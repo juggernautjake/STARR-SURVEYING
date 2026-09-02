@@ -558,7 +558,20 @@ export function RunCounters({ state, documentCount, pageCount }: {
             // layer ate one of the two dollars in `$${...}`. The counter rendered "0.00", which
             // reads as a quantity of nothing in particular. 27,900 tests passed over it; the
             // browser found it in one look, which is what D1 exists for.
-            value={state.spendUnrecorded ? '—' : `$${(state.spendUsd ?? 0).toFixed(2)}`}
+            // `spendUsd === null` is "we have not read the cost yet", and it used to render as
+            // `$0.00` — because `(null ?? 0).toFixed(2)` is a confident claim that the run has cost
+            // nothing. The console is fetched on every fourth status poll, so that lie was on screen
+            // for the first ~12 seconds of every run, and permanently for any run whose console read
+            // failed. Three different states, three different renderings:
+            //
+            //   null              not read yet          → "—", "still reading"
+            //   spendUnrecorded   nothing was written   → "—", "NOT the same as free"
+            //   a number          the figure            → "$2.14"
+            value={
+              state.spendUsd === null || state.spendUnrecorded
+                ? '—'
+                : `$${state.spendUsd.toFixed(2)}`
+            }
             // Three different facts, and every one of them outranks a confident number:
             //   spendUnrecorded  nothing was written    → "—", not "$0.00"
             //   spendIncomplete  we could not look      → the total shown is short
@@ -566,7 +579,9 @@ export function RunCounters({ state, documentCount, pageCount }: {
             // Conflating the first with $0.00 is how a broken spend writer looked like a free run for
             // months. The second is the same mistake one step earlier: a failed READ rendered as a
             // total. The route has always sent `usageFailed`; nothing had read it since the rebuild.
-            hint={state.spendUnrecorded
+            hint={state.spendUsd === null
+              ? 'The cost has not been read yet. It updates every few seconds while the run works.'
+              : state.spendUnrecorded
               ? 'No usage events were recorded for this run. That is NOT the same as it having cost nothing.'
               : state.spendIncomplete
                 ? 'The usage read failed, so the cost shown above is incomplete.'

@@ -184,7 +184,12 @@ describe('the surface', () => {
     const view = read('app/admin/research/components/ResearchRunView.tsx');
     expect(view).toContain('state.spendUnrecorded');
     // The dash, not a formatted zero.
-    expect(view).toContain("state.spendUnrecorded ? '—'");
+    // B1 widened this the same day: an UNREAD cost (`spendUsd === null`, before the console has been
+    // fetched) now renders as "—" too, because `(null ?? 0).toFixed(2)` was a confident $0.00. The
+    // guarantee here is unchanged — "nothing was recorded" must not read as a zero — so the
+    // assertion follows the condition rather than pinning the narrower one it used to be.
+    expect(view).toContain("state.spendUsd === null || state.spendUnrecorded");
+    expect(view, 'the dash is gone').toContain("? '—'");
     expect(view).toContain('NOT the same as it having cost nothing');
   });
 

@@ -116,18 +116,40 @@ reachability number until it exists.**
       bills nothing), and a doc comment must NOT be counted — `model-sampling.ts` and
       `credit-guard.ts` both show `client.messages.create({ … })` in prose. Mutation-controlled:
       removing one recording call fails the suite by filename.
-- [ ] **A3** Verify the total reaches the screen: `research_usage_events` → run-console route →
+- [x] **A3** Verify the total reaches the screen: `research_usage_events` → run-console route →
       `RunState.spendUsd` → the Spent counter. Most of this exists; A3 is proving the chain end to
       end rather than assuming it.
+      **DONE** — `run-cost-reaches-the-screen.test.ts`, 9 tests. Every tier the router can return is
+      asserted to be priced: an unpriced tier silently falls back to Sonnet rates, so a Haiku run
+      would be billed at 3x and an Opus run at a fifth, with nothing saying so. An unknown model
+      must still cost SOMETHING — a zero would under-report every run that used it. And output must
+      be priced above input on every model, which catches a transposed pair that would make long
+      analyses look cheap, in a product whose spend is analysis.
+
+      Also pinned: a document purchase writes a usage event (money moved) and a SKIPPED purchase
+      does not (nothing moved, and a $0.00 event would put a purchase in the cost stream that never
+      happened).
 
 ### Phase B — the cost is live, and final
 
-- [ ] **B1** Confirm the Spent counter updates DURING a run, not only at the end. The console is
+- [x] **B1** Confirm the Spent counter updates DURING a run, not only at the end. The console is
       polled every fourth status poll (~12s); check that is true in a browser and that a long gap
       does not read as $0.00.
-- [ ] **B2** The final figure is persisted on the run record and survives a page reload —
+
+      **DONE — and it was a real bug.** `spendUsd` is null until the run-console is fetched, which
+      happens on every FOURTH status poll (~12s). The counter rendered `(state.spendUsd ?? 0)`, so
+      an unread cost displayed as **$0.00** — a confident claim that the run had cost nothing — for
+      the opening seconds of every run, and permanently for any run whose console read failed.
+
+      Fourth instance in one day of an unknown rendered as a confident zero. Three states now read
+      differently: not-read-yet and nothing-recorded both show "—" with different hints, and only a
+      real figure shows a number. The first resolves itself; the second means the spend writer is
+      broken, and an operator should be able to tell those apart.
+- [x] **B2** The final figure is persisted on the run record and survives a page reload —
       `recordRunFinish` writes `costUsd`, so this is a verification slice, and a re-read after
       completion is the test.
+      **VERIFIED.** `recordRunFinish` writes `costUsd: finalBudget.spentUsd` on the run row, so the
+      figure survives the console going away. Pinned by a test rather than assumed.
 - [ ] **B3** Show what the money BOUGHT, not only the total: model calls versus purchased pages.
       A single number cannot be checked by the person paying it.
 
