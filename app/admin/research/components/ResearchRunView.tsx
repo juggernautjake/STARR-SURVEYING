@@ -226,7 +226,20 @@ export default function ResearchRunView({
               ? 'The usage read failed, so the cost shown above is incomplete.'
               : undefined}
         />
-        <Counter label="Elapsed" value={formatElapsed(state.elapsedMs)} />
+        {/* D3. "24 minutes" against an invisible ceiling tells a reader nothing about whether to
+            keep waiting. The run's chosen length is shown beside the clock, not only in the status
+            block, because this counter is where a person looks for the time. */}
+        <Counter
+          label="Elapsed"
+          value={
+            state.budgetMs != null
+              ? `${formatElapsed(state.elapsedMs)} / ${formatElapsed(state.budgetMs)}`
+              : formatElapsed(state.elapsedMs)
+          }
+          hint={state.budgetMs != null
+            ? `This run was given ${Math.round(state.budgetMs / 60_000)} minutes. It stops there and keeps what it found.`
+            : undefined}
+        />
       </div>
 
       {/* ── 3. WHAT ELSE ────────────────────────────────────────────────────────────────────── */}

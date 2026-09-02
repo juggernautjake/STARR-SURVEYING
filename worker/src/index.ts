@@ -28,6 +28,7 @@ import { GeometricReconciliationEngine } from './services/geometric-reconciliati
 import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
 import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
 import { recordSkippedPurchases } from './services/purchase-ledger.js';
+import { describeRunOutcome } from './research/run-outcome.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -1518,13 +1519,38 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
       // county-specific pipelines (Bell etc.) the progress callback calls
       // setRunningMessage on every event but nothing ever clears it.
       clearRunningMessage(projectId);
-      // ── Handshake: emit a pipeline-complete entry so the final poll sees it
-      handshakeLogger.attempt('[Pipeline Lifecycle]', 'handshake', 'Pipeline Complete',
-        unifiedResult.resultType === 'generic-pipeline'
-          ? `status=${unifiedResult.data.status} docs=${unifiedResult.data.documents?.length ?? 0}`
-          : `status=complete county=${unifiedResult.county}`)
-        .success(0, `[Worker→Frontend] Pipeline finished — results ready`);
-      console.log(`[Worker] ${projectId} → Frontend: pipeline complete handshake emitted`);
+      // ── Handshake: emit a lifecycle entry so the final poll sees it ────────────────────────
+      //
+      // D2. This said "Pipeline Complete" and called `.success()` no matter what the run found,
+      // which is how the Milam log came to carry `Pipeline FAILED in 261.9s` at 10:53 and
+      // `Pipeline Complete` at 15:58 about the same run. This line is about the LIFECYCLE — the
+      // pipeline resolved rather than threw — and it was being read as a verdict on the RESULT.
+      //
+      // It now takes its wording from the same place the pipeline's own line does, so the two
+      // cannot disagree, and a run that found nothing is not announced as a success.
+      const lifecycleOutcome = unifiedResult.resultType === 'generic-pipeline'
+        ? describeRunOutcome(unifiedResult.data.status, {
+            documents: unifiedResult.data.documents?.length ?? 0,
+            durationMs: unifiedResult.data.duration_ms ?? 0,
+          })
+        : describeRunOutcome('complete', { documents: 0, durationMs: 0 });
+
+      const lifecycleDetail = unifiedResult.resultType === 'generic-pipeline'
+        ? `status=${unifiedResult.data.status} docs=${unifiedResult.data.documents?.length ?? 0}`
+        : `status=complete county=${unifiedResult.county}`;
+
+      const lifecycleAttempt = handshakeLogger.attempt(
+        '[Pipeline Lifecycle]',
+        lifecycleOutcome.isProblem ? 'warn' : 'handshake',
+        lifecycleOutcome.label,
+        lifecycleDetail,
+      );
+      if (lifecycleOutcome.isProblem) {
+        lifecycleAttempt.warn(`[Worker→Frontend] ${lifecycleOutcome.sentence}`);
+      } else {
+        lifecycleAttempt.success(0, `[Worker→Frontend] ${lifecycleOutcome.sentence}`);
+      }
+      console.log(`[Worker] ${projectId} → Frontend: ${lifecycleOutcome.label} handshake emitted`);
 
       // ── Save verification handshake entries (captured before live-log clear) ──
       // Emit structured entries announcing what will be saved to the review DB.
@@ -1828,10 +1854,20 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             .fail('AI CREDIT BALANCE DEPLETED — Some analysis steps were skipped because your Anthropic API credits ran out. Please add funds at console.anthropic.com/settings/billing, then re-run research for complete results.');
         }
 
-        // Final summary entry
-        handshakeLogger.attempt('Results', 'info', 'Pipeline Complete',
+        // Final summary entry.
+        //
+        // D2. The county path had its own third phrasing of the same idea. Left alone it would have
+        // been the one place still able to say "Pipeline Complete" about a run that had errors —
+        // and one exception is all it takes for two logs to disagree again. A run that reached the
+        // end carrying errors is PARTIAL: a usable answer with something missing, which is a
+        // different claim from a clean finish and from a run that found nothing.
+        const bellOutcome = describeRunOutcome(errorCount > 0 ? 'partial' : 'complete', {
+          documents: deedCount + platCount,
+          durationMs: Number(durationSec) * 1000,
+        });
+        handshakeLogger.attempt('Results', 'info', bellOutcome.label,
           `Confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`)
-          .success(0, `Pipeline completed in ${durationSec}s — ${deedCount + platCount} documents, ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
+          .success(0, `${bellOutcome.sentence} ${errorCount} error(s), confidence: ${r.overallConfidence?.tier ?? 'unknown'} (${r.overallConfidence?.score ?? 0}/100)`);
 
         // ── Capture live logs NOW (after summary entries) and cache ──────────
         // capturedLiveLog includes ALL entries: progress events from the

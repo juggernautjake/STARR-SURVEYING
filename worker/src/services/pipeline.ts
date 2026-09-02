@@ -11,6 +11,7 @@
 //   times so that chains like deed → prior deed → plat are automatically followed.
 
 import type { PipelineInput, PipelineResult, DocumentResult, UserFile, PropertyIdResult, SearchDiagnostics } from '../types/index.js';
+import { describeRunOutcome } from '../research/run-outcome.js';
 import { PipelineLogger } from '../lib/logger.js';
 import { withRunContext } from '../infra/run-context.js';
 import { normalizeAddress } from './address-utils.js';
@@ -2339,7 +2340,21 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
     }
 
     const duration_ms = Date.now() - startTime;
-    logger.info('Pipeline', `Pipeline ${status.toUpperCase()} in ${(duration_ms / 1000).toFixed(1)}s`);
+
+    // D2. This said `Pipeline FAILED in 261.9s` while index.ts, ten minutes later, said
+    // `Pipeline Complete` about the same run. Both were true of different things and neither said
+    // which. The wording now comes from run-outcome.ts, which the lifecycle handshake also reads, so
+    // the two cannot drift apart again — and "failed" is reserved for a run that actually threw
+    // rather than one that ran correctly and found nothing.
+    const outcome = describeRunOutcome(status, {
+      documents: finalProcessedDocs.length + userDocuments.length,
+      durationMs: duration_ms,
+    });
+    if (outcome.isProblem) {
+      logger.warn('Pipeline', `${outcome.label} — ${outcome.sentence}`);
+    } else {
+      logger.info('Pipeline', `${outcome.label} — ${outcome.sentence}`);
+    }
 
     // Build human-readable failure/warning reason for the frontend.
     // Shown for 'failed' status always; also surfaced for 'partial' when the CAD
