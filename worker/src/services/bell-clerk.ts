@@ -21,63 +21,44 @@ interface KofileConfig {
 const KOFILE_CONFIGS: Record<string, KofileConfig> = {
   // ── Ring 0-1: Bell + adjacent (~0-30 mi) ─────────────────────────
   bell:        { subdomain: 'bell.tx.publicsearch.us', name: 'Bell County Clerk' },
-  coryell:     { subdomain: 'coryell.tx.publicsearch.us', name: 'Coryell County Clerk' },
-  mclennan:    { subdomain: 'mclennan.tx.publicsearch.us', name: 'McLennan County Clerk' },
-  falls:       { subdomain: 'falls.tx.publicsearch.us', name: 'Falls County Clerk' },
+  // ── CORYELL IS NOT A KOFILE COUNTY, and this table is the one the RUN reads ──────────────────
+  //
+  // `coryell.tx.publicsearch.us` does not resolve. Verified twice with a control on 2026-09-02:
+  // `bell.` and `milam.tx.publicsearch.us` both answer 200, while coryell returns nothing — the
+  // identical result to a deliberately nonexistent subdomain. So every Coryell run's clerk search
+  // has been going to a host that is not there.
+  //
+  // `services/clerk-registry.ts` has routed Coryell to eDocTec since plan R39 (12,705 documents,
+  // driven end to end), and `adapters/clerk-registry.ts` was corrected to match earlier today. This
+  // table was missed, and it is the one that matters: the generic pipeline does not call
+  // `getClerkAdapter` at all — it reads `hasKofileConfig()` from this file. Fixing the two
+  // registries nobody reads while leaving the one the run uses is the same mistake, one layer down.
+  //
+  // Removed rather than repointed: this table's entries are Kofile subdomains, and eDocTec is a
+  // different vendor with a different adapter. A Coryell run now correctly reports having no Kofile
+  // clerk source instead of timing out against a dead host, and wiring its eDocTec adapter into the
+  // generic pipeline is C2 — the run's clerk search is Kofile-only, which leaves every non-Kofile
+  // county without one.
   milam:       { subdomain: 'milam.tx.publicsearch.us', name: 'Milam County Clerk' },
   williamson:  { subdomain: 'williamson.tx.publicsearch.us', name: 'Williamson County Clerk' },
-  burnet:      { subdomain: 'burnet.tx.publicsearch.us', name: 'Burnet County Clerk' },
-  lampasas:    { subdomain: 'lampasas.tx.publicsearch.us', name: 'Lampasas County Clerk' },
   // ── Ring 2: (~30-60 mi) ──────────────────────────────────────────
-  hamilton:    { subdomain: 'hamilton.tx.publicsearch.us', name: 'Hamilton County Clerk' },
-  bosque:      { subdomain: 'bosque.tx.publicsearch.us', name: 'Bosque County Clerk' },
-  hill:        { subdomain: 'hill.tx.publicsearch.us', name: 'Hill County Clerk' },
-  limestone:   { subdomain: 'limestone.tx.publicsearch.us', name: 'Limestone County Clerk' },
-  robertson:   { subdomain: 'robertson.tx.publicsearch.us', name: 'Robertson County Clerk' },
-  lee:         { subdomain: 'lee.tx.publicsearch.us', name: 'Lee County Clerk' },
-  bastrop:     { subdomain: 'bastrop.tx.publicsearch.us', name: 'Bastrop County Clerk' },
   san_saba:    { subdomain: 'sansaba.tx.publicsearch.us', name: 'San Saba County Clerk' },
-  mills:       { subdomain: 'mills.tx.publicsearch.us', name: 'Mills County Clerk' },
   // ── Ring 3: (~60-100 mi) ─────────────────────────────────────────
-  hays:        { subdomain: 'hays.tx.publicsearch.us', name: 'Hays County Clerk' },
-  comal:       { subdomain: 'comal.tx.publicsearch.us', name: 'Comal County Clerk' },
   blanco:      { subdomain: 'blanco.tx.publicsearch.us', name: 'Blanco County Clerk' },
   llano:       { subdomain: 'llano.tx.publicsearch.us', name: 'Llano County Clerk' },
-  caldwell:    { subdomain: 'caldwell.tx.publicsearch.us', name: 'Caldwell County Clerk' },
-  guadalupe:   { subdomain: 'guadalupe.tx.publicsearch.us', name: 'Guadalupe County Clerk' },
-  mason:       { subdomain: 'mason.tx.publicsearch.us', name: 'Mason County Clerk' },
-  mcculloch:   { subdomain: 'mcculloch.tx.publicsearch.us', name: 'McCulloch County Clerk' },
-  brown:       { subdomain: 'brown.tx.publicsearch.us', name: 'Brown County Clerk' },
-  comanche:    { subdomain: 'comanche.tx.publicsearch.us', name: 'Comanche County Clerk' },
-  erath:       { subdomain: 'erath.tx.publicsearch.us', name: 'Erath County Clerk' },
-  somervell:   { subdomain: 'somervell.tx.publicsearch.us', name: 'Somervell County Clerk' },
   johnson:     { subdomain: 'johnson.tx.publicsearch.us', name: 'Johnson County Clerk' },
-  ellis:       { subdomain: 'ellis.tx.publicsearch.us', name: 'Ellis County Clerk' },
-  navarro:     { subdomain: 'navarro.tx.publicsearch.us', name: 'Navarro County Clerk' },
   freestone:   { subdomain: 'freestone.tx.publicsearch.us', name: 'Freestone County Clerk' },
   leon:        { subdomain: 'leon.tx.publicsearch.us', name: 'Leon County Clerk' },
   madison:     { subdomain: 'madison.tx.publicsearch.us', name: 'Madison County Clerk' },
   brazos:      { subdomain: 'brazos.tx.publicsearch.us', name: 'Brazos County Clerk' },
   burleson:    { subdomain: 'burleson.tx.publicsearch.us', name: 'Burleson County Clerk' },
-  washington:  { subdomain: 'washington.tx.publicsearch.us', name: 'Washington County Clerk' },
-  fayette:     { subdomain: 'fayette.tx.publicsearch.us', name: 'Fayette County Clerk' },
-  gonzales:    { subdomain: 'gonzales.tx.publicsearch.us', name: 'Gonzales County Clerk' },
   // ── Ring 4-5: (~100-175 mi) ──────────────────────────────────────
-  hood:        { subdomain: 'hood.tx.publicsearch.us', name: 'Hood County Clerk' },
   palo_pinto:  { subdomain: 'palopinto.tx.publicsearch.us', name: 'Palo Pinto County Clerk' },
-  parker:      { subdomain: 'parker.tx.publicsearch.us', name: 'Parker County Clerk' },
   kendall:     { subdomain: 'kendall.tx.publicsearch.us', name: 'Kendall County Clerk' },
-  bandera:     { subdomain: 'bandera.tx.publicsearch.us', name: 'Bandera County Clerk' },
   bexar:       { subdomain: 'bexar.tx.publicsearch.us', name: 'Bexar County Clerk' },
   medina:      { subdomain: 'medina.tx.publicsearch.us', name: 'Medina County Clerk' },
   wilson:      { subdomain: 'wilson.tx.publicsearch.us', name: 'Wilson County Clerk' },
-  karnes:      { subdomain: 'karnes.tx.publicsearch.us', name: 'Karnes County Clerk' },
-  dewitt:      { subdomain: 'dewitt.tx.publicsearch.us', name: 'DeWitt County Clerk' },
-  lavaca:      { subdomain: 'lavaca.tx.publicsearch.us', name: 'Lavaca County Clerk' },
-  colorado:    { subdomain: 'colorado.tx.publicsearch.us', name: 'Colorado County Clerk' },
   anderson:    { subdomain: 'anderson.tx.publicsearch.us', name: 'Anderson County Clerk' },
-  henderson:   { subdomain: 'henderson.tx.publicsearch.us', name: 'Henderson County Clerk' },
-  kaufman:     { subdomain: 'kaufman.tx.publicsearch.us', name: 'Kaufman County Clerk' },
   collin:      { subdomain: 'collin.tx.publicsearch.us', name: 'Collin County Clerk' },
   denton:      { subdomain: 'denton.tx.publicsearch.us', name: 'Denton County Clerk' },
   dallas:      { subdomain: 'dallas.tx.publicsearch.us', name: 'Dallas County Clerk' },
@@ -87,21 +68,79 @@ const KOFILE_CONFIGS: Record<string, KofileConfig> = {
   // These counties do NOT use publicsearch.us — need separate adapters.
   nueces:      { subdomain: 'nueces.tx.publicsearch.us', name: 'Nueces County Clerk' },
   potter:      { subdomain: 'potter.tx.publicsearch.us', name: 'Potter County Clerk' },
-  victoria:    { subdomain: 'victoria.tx.publicsearch.us', name: 'Victoria County Clerk' },
   // ── Ring 6: (~175-200 mi) ────────────────────────────────────────
   grayson:     { subdomain: 'grayson.tx.publicsearch.us', name: 'Grayson County Clerk' },
-  hunt:        { subdomain: 'hunt.tx.publicsearch.us', name: 'Hunt County Clerk' },
   van_zandt:   { subdomain: 'vanzandt.tx.publicsearch.us', name: 'Van Zandt County Clerk' },
   smith:       { subdomain: 'smith.tx.publicsearch.us', name: 'Smith County Clerk' },
-  cherokee:    { subdomain: 'cherokee.tx.publicsearch.us', name: 'Cherokee County Clerk' },
   nacogdoches: { subdomain: 'nacogdoches.tx.publicsearch.us', name: 'Nacogdoches County Clerk' },
-  angelina:    { subdomain: 'angelina.tx.publicsearch.us', name: 'Angelina County Clerk' },
-  uvalde:      { subdomain: 'uvalde.tx.publicsearch.us', name: 'Uvalde County Clerk' },
-  atascosa:    { subdomain: 'atascosa.tx.publicsearch.us', name: 'Atascosa County Clerk' },
   goliad:      { subdomain: 'goliad.tx.publicsearch.us', name: 'Goliad County Clerk' },
-  jackson:     { subdomain: 'jackson.tx.publicsearch.us', name: 'Jackson County Clerk' },
   matagorda:   { subdomain: 'matagorda.tx.publicsearch.us', name: 'Matagorda County Clerk' },
   chambers:    { subdomain: 'chambers.tx.publicsearch.us', name: 'Chambers County Clerk' },
+};
+
+/**
+ * Counties whose Kofile subdomain DOES NOT RESOLVE — measured 2026-09-02.
+ *
+ * All 72 entries of KOFILE_CONFIGS were probed once each, rate-limited, with two controls in the
+ * same run: `bell.tx.publicsearch.us` answered and a deliberately nonexistent subdomain did not.
+ * 29 answered. These 43 did not — the same result as the nonexistent one.
+ *
+ * They are recorded rather than deleted because the knowledge is the valuable part: without this
+ * list the obvious repair is to "add the missing counties back", which is what put them here. If a
+ * county below starts answering, move it up — with the date it was checked.
+ *
+ * The consequence while they sat in the table above: the generic pipeline reads
+ * `hasKofileConfig()`, so every run for these counties searched a host that is not there and then
+ * reported no clerk records — which reads as "this property has no deeds", not as "we could not
+ * look". For 43 of 72 counties. Coryell was the one I found by hand; the probe found the rest.
+ *
+ * The real remedy is C2: the run's clerk search is Kofile-only and does not call
+ * `getClerkAdapter`, so every non-Kofile county has no clerk source at all.
+ */
+export const KOFILE_UNREACHABLE: Record<string, { subdomain: string; name: string; checked: string }> = {
+  mclennan:    { subdomain: 'mclennan.tx.publicsearch.us', name: 'McLennan County Clerk', checked: '2026-09-02' },
+  falls:       { subdomain: 'falls.tx.publicsearch.us', name: 'Falls County Clerk', checked: '2026-09-02' },
+  burnet:      { subdomain: 'burnet.tx.publicsearch.us', name: 'Burnet County Clerk', checked: '2026-09-02' },
+  lampasas:    { subdomain: 'lampasas.tx.publicsearch.us', name: 'Lampasas County Clerk', checked: '2026-09-02' },
+  hamilton:    { subdomain: 'hamilton.tx.publicsearch.us', name: 'Hamilton County Clerk', checked: '2026-09-02' },
+  bosque:      { subdomain: 'bosque.tx.publicsearch.us', name: 'Bosque County Clerk', checked: '2026-09-02' },
+  hill:        { subdomain: 'hill.tx.publicsearch.us', name: 'Hill County Clerk', checked: '2026-09-02' },
+  limestone:   { subdomain: 'limestone.tx.publicsearch.us', name: 'Limestone County Clerk', checked: '2026-09-02' },
+  robertson:   { subdomain: 'robertson.tx.publicsearch.us', name: 'Robertson County Clerk', checked: '2026-09-02' },
+  lee:         { subdomain: 'lee.tx.publicsearch.us', name: 'Lee County Clerk', checked: '2026-09-02' },
+  bastrop:     { subdomain: 'bastrop.tx.publicsearch.us', name: 'Bastrop County Clerk', checked: '2026-09-02' },
+  mills:       { subdomain: 'mills.tx.publicsearch.us', name: 'Mills County Clerk', checked: '2026-09-02' },
+  hays:        { subdomain: 'hays.tx.publicsearch.us', name: 'Hays County Clerk', checked: '2026-09-02' },
+  comal:       { subdomain: 'comal.tx.publicsearch.us', name: 'Comal County Clerk', checked: '2026-09-02' },
+  caldwell:    { subdomain: 'caldwell.tx.publicsearch.us', name: 'Caldwell County Clerk', checked: '2026-09-02' },
+  guadalupe:   { subdomain: 'guadalupe.tx.publicsearch.us', name: 'Guadalupe County Clerk', checked: '2026-09-02' },
+  mason:       { subdomain: 'mason.tx.publicsearch.us', name: 'Mason County Clerk', checked: '2026-09-02' },
+  mcculloch:   { subdomain: 'mcculloch.tx.publicsearch.us', name: 'McCulloch County Clerk', checked: '2026-09-02' },
+  brown:       { subdomain: 'brown.tx.publicsearch.us', name: 'Brown County Clerk', checked: '2026-09-02' },
+  comanche:    { subdomain: 'comanche.tx.publicsearch.us', name: 'Comanche County Clerk', checked: '2026-09-02' },
+  erath:       { subdomain: 'erath.tx.publicsearch.us', name: 'Erath County Clerk', checked: '2026-09-02' },
+  somervell:   { subdomain: 'somervell.tx.publicsearch.us', name: 'Somervell County Clerk', checked: '2026-09-02' },
+  ellis:       { subdomain: 'ellis.tx.publicsearch.us', name: 'Ellis County Clerk', checked: '2026-09-02' },
+  navarro:     { subdomain: 'navarro.tx.publicsearch.us', name: 'Navarro County Clerk', checked: '2026-09-02' },
+  washington:  { subdomain: 'washington.tx.publicsearch.us', name: 'Washington County Clerk', checked: '2026-09-02' },
+  fayette:     { subdomain: 'fayette.tx.publicsearch.us', name: 'Fayette County Clerk', checked: '2026-09-02' },
+  gonzales:    { subdomain: 'gonzales.tx.publicsearch.us', name: 'Gonzales County Clerk', checked: '2026-09-02' },
+  hood:        { subdomain: 'hood.tx.publicsearch.us', name: 'Hood County Clerk', checked: '2026-09-02' },
+  parker:      { subdomain: 'parker.tx.publicsearch.us', name: 'Parker County Clerk', checked: '2026-09-02' },
+  bandera:     { subdomain: 'bandera.tx.publicsearch.us', name: 'Bandera County Clerk', checked: '2026-09-02' },
+  karnes:      { subdomain: 'karnes.tx.publicsearch.us', name: 'Karnes County Clerk', checked: '2026-09-02' },
+  dewitt:      { subdomain: 'dewitt.tx.publicsearch.us', name: 'DeWitt County Clerk', checked: '2026-09-02' },
+  lavaca:      { subdomain: 'lavaca.tx.publicsearch.us', name: 'Lavaca County Clerk', checked: '2026-09-02' },
+  colorado:    { subdomain: 'colorado.tx.publicsearch.us', name: 'Colorado County Clerk', checked: '2026-09-02' },
+  henderson:   { subdomain: 'henderson.tx.publicsearch.us', name: 'Henderson County Clerk', checked: '2026-09-02' },
+  kaufman:     { subdomain: 'kaufman.tx.publicsearch.us', name: 'Kaufman County Clerk', checked: '2026-09-02' },
+  victoria:    { subdomain: 'victoria.tx.publicsearch.us', name: 'Victoria County Clerk', checked: '2026-09-02' },
+  hunt:        { subdomain: 'hunt.tx.publicsearch.us', name: 'Hunt County Clerk', checked: '2026-09-02' },
+  cherokee:    { subdomain: 'cherokee.tx.publicsearch.us', name: 'Cherokee County Clerk', checked: '2026-09-02' },
+  angelina:    { subdomain: 'angelina.tx.publicsearch.us', name: 'Angelina County Clerk', checked: '2026-09-02' },
+  uvalde:      { subdomain: 'uvalde.tx.publicsearch.us', name: 'Uvalde County Clerk', checked: '2026-09-02' },
+  atascosa:    { subdomain: 'atascosa.tx.publicsearch.us', name: 'Atascosa County Clerk', checked: '2026-09-02' },
+  jackson:     { subdomain: 'jackson.tx.publicsearch.us', name: 'Jackson County Clerk', checked: '2026-09-02' },
 };
 
 // ── Deed-Relevant Document Types ───────────────────────────────────────────

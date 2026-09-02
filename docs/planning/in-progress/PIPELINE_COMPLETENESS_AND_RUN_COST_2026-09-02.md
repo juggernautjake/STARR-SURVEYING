@@ -75,6 +75,39 @@ The paywall verdict does not escape either — `TexasFileAdapter.lastAccess` is 
 **read by nothing**, so "5,000 records exist here and we cannot open them" reaches a `console.warn`
 and stops.
 
+### 1.5 43 of 72 counties searched a clerk host that does not exist — MEASURED
+
+Found while checking whether the TexasFile fix reaches the normal run. It does not, and the reason
+is worse than the question:
+
+**The generic pipeline never calls `getClerkAdapter`.** Its clerk search is `bell-clerk.ts`, which
+is Kofile-only and reads its own table, `KOFILE_CONFIGS`. So the vendor routing in
+`services/clerk-registry.ts` — eDocTec, Tyler, USLandRecords, Aumentum, TexasFile — governs
+chain-of-title, the document-access orchestrator and the Testing Lab, and governs **nothing in a
+normal run**.
+
+Then the table itself. All 72 entries were probed once each, rate-limited, with two controls in the
+same run — `bell.tx.publicsearch.us` answered, a deliberately nonexistent subdomain did not:
+
+| | |
+| --- | --- |
+| answered | **29** |
+| did not answer | **43** |
+
+Sixty per cent. For those 43 counties every run searched a host that is not there and then reported
+no clerk records — which reads as *"this property has no deeds"*, not *"we could not look"*. It is
+the defect this whole session keeps meeting, at the largest scale yet found.
+
+Coryell is how I found it: it was wrong in all three registries, and this morning I corrected the
+two that decide nothing. `KOFILE_CONFIGS` is the one the run reads.
+
+The 43 are moved to `KOFILE_UNREACHABLE`, dated, rather than deleted — without the list the obvious
+repair is to add them back, which is what put them there. A guard fails if any returns to the live
+table.
+
+**This makes C2 the biggest remaining item, not a tidy-up:** the run has no clerk source at all for
+every county that is not one of those 29.
+
 ### 1.4 A measurement of my own that was WRONG, recorded because it nearly became a premise
 
 A first pass at "which services can a normal run reach" traced imports from `counties/router.ts`,
