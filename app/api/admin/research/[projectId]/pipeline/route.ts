@@ -74,7 +74,7 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Verify project exists
   const { data: project, error: projError } = await supabaseAdmin
     .from('research_projects')
-    .select('id, property_address, county, state, parcel_id')
+    .select('id, property_address, county, state, parcel_id, allow_paid_documents')
     .eq('id', projectId)
     .single();
 
@@ -88,6 +88,18 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     county?: string;
     propertyId?: string;
     ownerName?: string;
+    /** Free-text starting information for THIS run — what the operator knows that the record does
+     *  not. There was no field for this at all, so an operator who knew the surveyor's name or the
+     *  neighbouring owner had nowhere to put it. */
+    operatorNotes?: string;
+    /** Files attached to this run. The worker has accepted `userFiles` since it was written and
+     *  this route has never sent any. */
+    userFiles?: unknown[];
+    /** Per-run settings: allowPaidDocuments, maxResearchTimeMinutes, maxCostUsd, mode,
+     *  refreshImagery. See worker/src/research/run-settings.ts. */
+    settings?: Record<string, unknown>;
+    /** Why this run exists, for the run list: initial | rerun_same | rerun_edited. */
+    trigger?: string;
   };
 
   let rawCounty = body.county || project.county || '';
@@ -113,6 +125,24 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
   // Auto-detect Bell County from address when county is not explicitly set
   const autoCounty = !rawCounty && rawAddress ? (detectBellCountyFromAddress(rawAddress) ? 'Bell' : '') : '';
 
+  // ── EVERYTHING THE RUN CAN BE GIVEN, ACTUALLY GIVEN TO IT ────────────────────────────────────
+  //
+  // This payload was a six-field literal, and three capabilities the system already had were being
+  // dropped on the floor here:
+  //
+  //   · `userFiles` — parsed and used by the worker's handler; never sent by this route.
+  //   · `maxResearchTimeMinutes` / `maxCostUsd` — accepted by `limitsFor()` since it was written,
+  //     with no caller ever passing one, so every run got the defaults whatever the operator chose.
+  //   · `allow_paid_documents` — a column with a UI, a helper and a test file, read by the app's
+  //     lite pipeline and by NOTHING in the worker, which is the process that spends the money.
+  //
+  // The project's column is the default and the run's setting overrides it, so a re-run can turn
+  // paid documents off for one attempt without changing what the project means in general.
+  const settings: Record<string, unknown> = {
+    allowPaidDocuments: project.allow_paid_documents !== false,
+    ...(body.settings ?? {}),
+  };
+
   const payload = {
     projectId,
     address: rawAddress,
@@ -120,6 +150,10 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     state: project.state || 'TX',
     propertyId: parcelId || undefined,
     ownerName: body.ownerName || undefined,
+    operatorNotes: body.operatorNotes?.trim() || undefined,
+    userFiles: Array.isArray(body.userFiles) && body.userFiles.length > 0 ? body.userFiles : undefined,
+    settings,
+    trigger: body.trigger,
   };
 
   if (!payload.county) {
@@ -185,6 +219,13 @@ export const POST = withErrorHandler(async (req: NextRequest) => {
     projectId,
     status: 'running',
     startedAt,
+    // The run this call started. The panel keeps it and ignores any status payload naming a
+    // different run — which is what stops a cached result from the PREVIOUS run ending the poll
+    // for this one.
+    runId: workerData?.runId ?? null,
+    runNumber: workerData?.runNumber ?? null,
+    settings,
+    settingsSummary: workerData?.settingsSummary ?? null,
     pollUrl: `/api/admin/research/${projectId}/pipeline`,
     worker: workerData,
   }, { status: 202 });
@@ -313,9 +354,98 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
     return NextResponse.json({ error: 'Worker error' }, { status: 502 });
   }
 
-  // Worker returned 404 (pipeline not in memory) or worker is unreachable.
-  // Check the DB — the pipeline may have already completed and persisted results.
-  console.log(`[pipeline/route] GET ${projectId}: worker has no active/cached pipeline — checking DB`);
+  // ── THE WORKER HAS NOTHING. ASK THE RUN RECORD BEFORE GUESSING. ───────────────────────────────
+  //
+  // What followed used to be a chain of inferences from the PROJECT's workflow status: if it is
+  // 'review' or later the pipeline must have completed; if it is 'analyzing' and research_status
+  // says 'running' it must still be going. Both are guesses about a run, made from a column that
+  // describes a project, and both are wrong in the case that matters — a re-run, where the project
+  // still carries run 1's status while run 2 is what somebody is watching.
+  //
+  // `research_runs` answers the question directly, and since seed 623 it carries the run's phase,
+  // its percentage and why it stopped. A row still marked `running` with a recent heartbeat means
+  // the run is alive and this process simply could not reach the worker; that is "reconnecting",
+  // not "failed", and it is the difference between an operator waiting and an operator re-running
+  // a job that was already working.
+  console.log(`[pipeline/route] GET ${projectId}: worker has no active/cached pipeline — checking the run record`);
+
+  const { data: latestRun } = await supabaseAdmin
+    .from('research_runs')
+    .select('id, run_number, status, phase, message, progress_percent, stop_reason, started_at, finished_at, heartbeat_at, failure_reason, budget_summary, cost_usd')
+    .eq('research_project_id', projectId)
+    .order('started_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (latestRun) {
+    const run = latestRun as Record<string, unknown>;
+    const runStatus = String(run.status ?? '');
+    const heartbeat = run.heartbeat_at ? new Date(String(run.heartbeat_at)).getTime() : 0;
+    // The same ten minutes the worker uses to decide a run was orphaned by a restart. Long enough
+    // that a county portal taking four minutes to answer is never mistaken for a dead process.
+    const heartbeatIsFresh = heartbeat > 0 && Date.now() - heartbeat < 10 * 60_000;
+
+    const common = {
+      projectId,
+      runId: String(run.id),
+      runNumber: run.run_number ?? null,
+      startedAt: (run.started_at as string) ?? undefined,
+      percent: typeof run.progress_percent === 'number' ? run.progress_percent : undefined,
+      currentStage: (run.phase as string) ?? undefined,
+      message: (run.message as string) ?? undefined,
+      stopReason: (run.stop_reason as string) ?? null,
+      costUsd: Number(run.cost_usd ?? 0),
+      fromDatabase: true,
+    };
+
+    if (runStatus === 'running' && heartbeatIsFresh) {
+      console.log(`[pipeline/route] GET ${projectId}: run ${run.run_number} is alive (heartbeat fresh) — reporting running`);
+      return NextResponse.json({
+        ...common,
+        status: 'running',
+        message: common.message ?? 'Pipeline running (reconnecting…)',
+        failureReason: null,
+      });
+    }
+
+    if (runStatus === 'running') {
+      // Marked running, heartbeat stale: the process holding it is gone. That is INTERRUPTED, and
+      // it is deliberately not 'failed' — the research did not fail, the box did, and it is usually
+      // a deploy. Somebody scanning failures should not have to work out which were releases.
+      console.log(`[pipeline/route] GET ${projectId}: run ${run.run_number} has a stale heartbeat — reporting interrupted`);
+      return NextResponse.json({
+        ...common,
+        status: 'interrupted',
+        message: common.message ?? 'The worker stopped while this run was in progress.',
+        failureReason: null,
+      });
+    }
+
+    if (runStatus === 'complete') {
+      const meta = await loadPersistedResult(projectId);
+      return NextResponse.json({
+        ...common,
+        status: 'complete',
+        percent: 100,
+        // A run that stopped on its ceiling is complete AND has something to say about why it is
+        // shorter than usual. Reporting it as a failure is what put "Research Failed — Pipeline
+        // cancelled by user" on screen beside "Finished in 2 minutes for $0.02".
+        budgetSummary: (run.budget_summary as string) ?? null,
+        failureReason: null,
+        ...meta,
+      });
+    }
+
+    if (runStatus === 'cancelled' || runStatus === 'interrupted' || runStatus === 'failed') {
+      return NextResponse.json({
+        ...common,
+        status: runStatus,
+        failureReason: runStatus === 'failed' ? (run.failure_reason as string) ?? null : null,
+        message: common.message ?? (run.failure_reason as string) ?? undefined,
+      });
+    }
+  }
+
 
   const { data: dbProject, error: dbError } = await supabaseAdmin
     .from('research_projects')
@@ -365,3 +495,23 @@ export const GET = withErrorHandler(async (req: NextRequest) => {
   // Otherwise, no pipeline ever ran or it was in an unrecognized state
   return NextResponse.json({ projectId, status: 'not_found' }, { status: 404 });
 }, { routeName: 'research/pipeline/status' });
+
+/** The persisted result of a finished run, for a poll that could not reach the worker.
+ *
+ *  Split out because the run record says a run FINISHED and the project's `analysis_metadata` holds
+ *  WHAT it produced — two different questions, and conflating them is what let a project's stale
+ *  workflow status stand in for a run's outcome. */
+async function loadPersistedResult(projectId: string): Promise<Record<string, unknown>> {
+  const { data } = await supabaseAdmin
+    .from('research_projects')
+    .select('analysis_metadata, research_logs, research_message')
+    .eq('id', projectId)
+    .single();
+
+  const meta = (data?.analysis_metadata as Record<string, unknown>) ?? {};
+  return {
+    result: (meta.result ?? {}) as Record<string, unknown>,
+    log: (data?.research_logs as unknown[]) ?? [],
+    ...(data?.research_message ? { message: String(data.research_message) } : {}),
+  };
+}

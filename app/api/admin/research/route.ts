@@ -164,6 +164,22 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
   if (updates.job_id !== undefined) {
     allowed.job_id = updates.job_id ? String(updates.job_id) : null;
   }
+  // ── allow_paid_documents WAS ACCEPTED ON CREATE AND NOWHERE ELSE ─────────────────────────────
+  //
+  // Exactly the shape of the job_id defect above, and with a sharper consequence: the column
+  // controls whether a run may SPEND MONEY, and it could only be set at the moment a project was
+  // created, from a modal most operators fill in before they know what the property needs.
+  //
+  // The owner's requirement is that a re-run be editable — "changing the settings of the run, such
+  // as whether or not it uses texasfile" — and that is not expressible while the switch is
+  // write-once.
+  //
+  // `=== false` and not `!value`: absence must mean "leave it alone", and a truthiness test would
+  // turn every PATCH that does not mention the field into an instruction to switch paid documents
+  // ON, which is the direction that costs money.
+  if (updates.allow_paid_documents !== undefined) {
+    allowed.allow_paid_documents = updates.allow_paid_documents === false ? false : true;
+  }
   if (updates.analysis_template_id !== undefined) allowed.analysis_template_id = updates.analysis_template_id;
   if (updates.analysis_filters !== undefined) allowed.analysis_filters = updates.analysis_filters;
 
@@ -204,13 +220,33 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
     ];
 
     if (clear_pipeline_documents) {
-      // Full re-run: delete all pipeline-fetched documents (keep user uploads)
+      // ── A RE-RUN SUPERSEDES. IT DOES NOT DELETE. ──────────────────────────────────────────────
+      //
+      // This was:
+      //
+      //     .from('research_documents').delete()
+      //       .eq('research_project_id', id).neq('source_type', 'user_upload')
+      //
+      // and the confirmation dialog said so plainly — "All data from the previous run will be
+      // permanently deleted, including pipeline-fetched documents". That is the exact opposite of
+      // what the owner asked for: **keep the files from the first run.**
+      //
+      // It was also lossy in a way nobody could see. The rows went; the objects in Supabase Storage
+      // did not, so every re-run left another set of orphaned files in the bucket with nothing
+      // pointing at them. And a run cut short at minute 20 has usually already BOUGHT documents —
+      // deleting those throws away money that was already spent, to no purpose.
+      //
+      // So the previous run's documents are marked superseded and stay exactly where they are:
+      // attributed, downloadable, and one toggle away in the library. The new run researches
+      // everything again from scratch, and the cross-run duplicate check
+      // (worker/src/research/project-library.ts) is what stops it filing them a second time.
       cleanupOps.push(
         supabaseAdmin
           .from('research_documents')
-          .delete()
+          .update({ superseded_at: new Date().toISOString(), updated_at: new Date().toISOString() })
           .eq('research_project_id', id)
-          .neq('source_type', 'user_upload'),
+          .neq('source_type', 'user_upload')
+          .is('superseded_at', null),
       );
       // Clear pipeline logs and status
       allowed.research_logs = null;
@@ -228,6 +264,23 @@ export const PATCH = withErrorHandler(async (req: NextRequest) => {
       );
     }
     await Promise.all(cleanupOps);
+
+    if (clear_pipeline_documents) {
+      // ── AND THE STATE THAT LIVES IN THE WORKER'S MEMORY ─────────────────────────────────────
+      //
+      // Clearing rows here is not enough, and the gap was visible on screen: a re-run showed
+      // "Research Failed — Pipeline cancelled by user" while the new run was retrieving documents
+      // in the background.
+      //
+      // The worker keeps the previous run's terminal result in an in-process Map, and its status
+      // endpoint served that to every poll until the new run registered. The panel latched the
+      // failure and stopped polling — permanently — before the new run existed. Nothing the app
+      // could write to Postgres reaches that Map; only the worker can clear it.
+      //
+      // Best-effort on purpose: a reset must not fail because the worker is unreachable. If it is
+      // down there is no stale in-process state to clear, because there is no process holding it.
+      await resetWorkerState(id);
+    }
   }
 
   const { data, error } = await supabaseAdmin
@@ -260,3 +313,43 @@ export const DELETE = withErrorHandler(async (req: NextRequest) => {
 
   return NextResponse.json({ success: true });
 }, { routeName: 'research' });
+
+// ── Worker reset ────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Ask the worker to forget everything it remembers about a project's previous run.
+ *
+ * Best-effort by design. The three ways this can fail — worker not configured, worker unreachable,
+ * worker rejects — all mean the same thing for correctness: there is no live process holding stale
+ * state, so there is nothing to clear. Failing the operator's reset over it would be strictly worse.
+ *
+ * Returns what happened so the caller can say so rather than guessing.
+ */
+async function resetWorkerState(projectId: string): Promise<{ ok: boolean; detail: string }> {
+  const workerUrl = process.env.WORKER_URL || '';
+  const workerKey = process.env.WORKER_API_KEY || '';
+  if (!workerUrl || !workerKey) {
+    return { ok: false, detail: 'Worker is not configured, so it holds no state for this project.' };
+  }
+
+  try {
+    const res = await fetch(`${workerUrl}/research/reset/${projectId}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${workerKey}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) {
+      const detail = `Worker responded HTTP ${res.status} to the reset.`;
+      console.warn(`[research/reset] ${projectId}: ${detail}`);
+      return { ok: false, detail };
+    }
+    const data = await res.json().catch(() => ({}));
+    const cleared = Array.isArray(data?.cleared) ? data.cleared.join('; ') : 'nothing to clear';
+    console.log(`[research/reset] ${projectId}: worker cleared — ${cleared}`);
+    return { ok: true, detail: cleared };
+  } catch (err) {
+    const detail = `Worker unreachable (${err instanceof Error ? err.message : String(err)}), so it is not holding state for this project.`;
+    console.warn(`[research/reset] ${projectId}: ${detail}`);
+    return { ok: false, detail };
+  }
+}

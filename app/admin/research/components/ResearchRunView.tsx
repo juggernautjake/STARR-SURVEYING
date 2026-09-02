@@ -35,7 +35,7 @@ import {
   Loader2, CheckCircle2, XCircle, PauseCircle, AlertTriangle, Ban, RefreshCw, ChevronLeft,
 } from 'lucide-react';
 import { formatElapsed, type RunState } from '@/lib/research/run-state';
-import { useRunState, type RunDocument } from './useRunState';
+import { useRunState, type RunDocument, type StartRunInput } from './useRunState';
 import RunDiffPanel from './RunDiffPanel';
 import ReportCardPanel from './ReportCardPanel';
 import type { PipelineLogEntry } from './PipelineProgressPanel';
@@ -54,6 +54,15 @@ export interface ResearchRunViewProps {
   onContinueToReview?: () => void;
   /** Open the editable re-run dialog. Owned by the page, because a re-run resets project state. */
   onRerun?: () => void;
+  /**
+   * Everything an edited re-run was configured with, when the run being started came from the
+   * re-run dialog.
+   *
+   * Without this the settings the operator just chose would be collected, displayed, confirmed —
+   * and then dropped on the way to the POST, which is the exact shape of defect this plan is full
+   * of. When absent, the four search fields are used and the run gets its defaults.
+   */
+  pendingRunInput?: StartRunInput | null;
 }
 
 type TabId = 'documents' | 'activity' | 'changes' | 'report';
@@ -61,6 +70,7 @@ type TabId = 'documents' | 'activity' | 'changes' | 'report';
 export default function ResearchRunView({
   projectId, address, county, parcelId, ownerName, autoStart = true,
   onPipelineStart, onPipelineComplete, onBack, onContinueToReview, onRerun,
+  pendingRunInput,
 }: ResearchRunViewProps) {
   const run = useRunState(projectId);
   const { state } = run;
@@ -72,7 +82,9 @@ export default function ResearchRunView({
   React.useEffect(() => {
     if (!autoStart || firedRef.current) return;
     firedRef.current = true;
-    void run.start({ address, county, parcelId, ownerName, trigger: 'initial' });
+    // The dialog's choices win. Falling back to the four search fields keeps a plain "start
+    // analysis" working exactly as before.
+    void run.start(pendingRunInput ?? { address, county, parcelId, ownerName, trigger: 'initial' });
     onPipelineStart?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart]);

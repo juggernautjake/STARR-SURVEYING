@@ -68,6 +68,8 @@ import ProjectNotes from '../components/ProjectNotes';
 import { forwardPoint, formatBearing, inverseBearingDistance } from '@/lib/cad/geometry/bearing';
 import ProjectHeader from './_sections/ProjectHeader';
 import ProjectStats from './_sections/ProjectStats';
+import RerunDialog from '../components/RerunDialog';
+import type { StartRunInput } from '../components/useRunState';
 // Choosing what goes to the crew (research plan R25).
 import PacketBuilderPanel from '../components/PacketBuilderPanel';
 // The neighbours, and the opt-in path to researching one properly (research plan R31-R33).
@@ -158,6 +160,14 @@ export default function ResearchProjectPage() {
 
   // Re-run research confirmation dialog
   const [showRerunConfirm, setShowRerunConfirm] = useState(false);
+  /**
+   * What the re-run dialog was told, held until the run panel mounts and fires it.
+   *
+   * The settings have to survive the reset-and-remount in between. Without somewhere to keep
+   * them they would be collected, displayed, confirmed — and then dropped on the way to the
+   * POST, which is the exact defect shape this whole plan is about.
+   */
+  const [pendingRunInput, setPendingRunInput] = useState<StartRunInput | null>(null);
 
   // Review state
   const [reviewTab, setReviewTab] = useState<'summary' | 'property' | 'survey' | 'easements' | 'neighbours' | 'discrepancies' | 'artifacts' | 'packet'>('summary');
@@ -550,14 +560,22 @@ export default function ResearchProjectPage() {
   }
 
   // ── Re-run research ─────────────────────────────────────────────────────
-  // Clears all pipeline data (analysis, documents, logs) and returns to
-  // either Stage 1 (update params) or Stage 2 (same params, auto-start).
-  async function handleRerunResearch(mode: 'same' | 'update') {
+  //
+  // Plan C4. This took a two-value `mode` and could express exactly two things: repeat the run,
+  // or go back to the Property Information stage and edit the PROJECT. There was no way to
+  // change a setting for one attempt, which is what the owner asked for by name.
+  //
+  // It now takes everything the dialog collected. The property fields are written back to the
+  // project because a corrected address is a fact about the property; the ceilings and the
+  // paid-documents switch are NOT, and they travel with the run alone — that separation is what
+  // lets a re-run turn TexasFile off for one attempt without changing what the project means.
+  async function handleRerunResearch(input: StartRunInput) {
     if (!project) return;
     setShowRerunConfirm(false);
+    setPendingRunInput(input);
 
     try {
-      const targetStep: WorkflowStep = mode === 'same' ? 'configure' : 'upload';
+      const targetStep: WorkflowStep = 'configure';
       const res = await fetch('/api/admin/research', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -566,6 +584,11 @@ export default function ResearchProjectPage() {
           status: targetStep,
           clear_analysis_data: true,
           clear_pipeline_documents: true,
+          // Corrections to the property itself are saved. The run-only settings are not sent
+          // here — they go with the run.
+          ...(input.address ? { property_address: input.address } : {}),
+          ...(input.county ? { county: input.county } : {}),
+          ...(input.parcelId ? { parcel_id: input.parcelId } : {}),
         }),
       });
 
@@ -587,23 +610,23 @@ export default function ResearchProjectPage() {
         loadDocuments();
         loadProject();
 
-        if (mode === 'same') {
-          // Go straight to Stage 2 and auto-start with existing params
-          setPendingSearchParams({
-            address: project.property_address || '',
-            county: project.county || '',
-            parcelId: project.parcel_id || '',
-            ownerName: projectOwnerName(project) || '',
-          });
-          setShouldAutoStartPipeline(true);
-          setHoldOnResearchStage(true);
-          setPipelineHasStarted(false);
-        }
+        // Straight to the run stage, seeded with what the dialog was told rather than with what
+        // the project happened to hold — the two differ precisely when the operator has just
+        // corrected something, which is the case that matters.
+        setPendingSearchParams({
+          address: input.address || project.property_address || '',
+          county: input.county || project.county || '',
+          parcelId: input.parcelId || project.parcel_id || '',
+          ownerName: input.ownerName || projectOwnerName(project) || '',
+        });
+        setShouldAutoStartPipeline(true);
+        setHoldOnResearchStage(true);
+        setPipelineHasStarted(false);
 
         showToast(
-          mode === 'same'
-            ? 'Starting fresh research run with same parameters…'
-            : 'Returned to Property Information — update your parameters and re-run.',
+          input.trigger === 'rerun_edited'
+            ? 'Starting an edited re-run — previous documents kept.'
+            : 'Starting a fresh run with the same settings — previous documents kept.',
           'success',
         );
       } else {
@@ -1762,66 +1785,32 @@ export default function ResearchProjectPage() {
         );
       })()}
 
-      {/* R1 — Re-run confirmation dialog lifted to the top level so the action
-          bar's "Re-run analysis" works in any post-analysis stage (not just
-          Review). */}
-      {showRerunConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999,
-        }}>
-          <div style={{
-            background: '#fff', borderRadius: 12, padding: '1.5rem 2rem', maxWidth: 480,
-            width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-          }}>
-            <h3 style={{ margin: '0 0 0.75rem', fontSize: '1.1rem', color: '#DC2626' }}>
-              Re-run Research &amp; Analysis
-            </h3>
-            <p style={{ margin: '0 0 1rem', fontSize: '0.9rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.5 }}>
-              <strong>Warning:</strong> All data from the previous run will be permanently deleted, including:
-            </p>
-            <ul style={{ margin: '0 0 1rem', paddingLeft: '1.25rem', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #374151)', lineHeight: 1.7 }}>
-              <li>Extracted data points and analysis results</li>
-              <li>Discrepancies found during analysis</li>
-              <li>Pipeline-fetched documents and screenshots</li>
-              <li>Research logs</li>
-            </ul>
-            <p style={{ margin: '0 0 1.25rem', fontSize: '0.85rem', color: 'var(--theme-fg-secondary, #6B7280)' }}>
-              Your manually uploaded documents and job notes will be preserved.
-            </p>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => setShowRerunConfirm(false)}
-                style={{
-                  padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #D1D5DB',
-                  background: '#fff', color: 'var(--theme-fg-secondary, #374151)', fontSize: '0.85rem', cursor: 'pointer',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleRerunResearch('update')}
-                style={{
-                  padding: '0.5rem 1rem', borderRadius: 6, border: '1px solid #2563EB',
-                  background: '#EFF6FF', color: '#2563EB', fontSize: '0.85rem', fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Update Parameters First
-              </button>
-              <button
-                onClick={() => handleRerunResearch('same')}
-                style={{
-                  padding: '0.5rem 1rem', borderRadius: 6, border: 'none',
-                  background: '#DC2626', color: '#fff', fontSize: '0.85rem', fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Re-run with Same Parameters
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* ── The editable re-run (plan C4) ─────────────────────────────────────────────────
+          What stood here was a two-button confirm: "Re-run with Same Parameters" started
+          immediately, and "Update Parameters First" opened nothing — it sent the operator back
+          to the Property Information stage to edit the PROJECT and walk forward again. So there
+          was no way to change a setting for one attempt, and no way at all to change the one the
+          owner named by name: whether the run may use TexasFile.
+
+          Its warning was also wrong in the direction that loses work — "All data from the
+          previous run will be permanently deleted, including pipeline-fetched documents". That
+          was an accurate description of the code, and the code was doing the opposite of what
+          was asked for. Re-runs supersede now, and the dialog says so. */}
+      {showRerunConfirm && project && (
+        <RerunDialog
+          projectId={projectId}
+          projectDefaults={{
+            address: project.property_address || '',
+            county: project.county || '',
+            parcelId: project.parcel_id || '',
+            ownerName: projectOwnerName(project) || '',
+            allowPaidDocuments:
+              (project as unknown as { allow_paid_documents?: boolean })
+                .allow_paid_documents !== false,
+          }}
+          onCancel={() => setShowRerunConfirm(false)}
+          onConfirm={(input) => void handleRerunResearch(input)}
+        />
       )}
 
       {/* Quick stats — actionable buttons (Slice C4). Each tile is
@@ -1870,6 +1859,7 @@ export default function ResearchProjectPage() {
           parcelId={pendingSearchParams?.parcelId ?? project.parcel_id ?? ''}
           ownerName={pendingSearchParams?.ownerName ?? projectOwnerName(project) ?? ''}
           autoStart={shouldAutoStartPipeline}
+          pendingRunInput={pendingRunInput}
           onRerun={() => setShowRerunConfirm(true)}
           onPipelineStart={() => {
             setPipelineHasStarted(true);

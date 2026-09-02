@@ -30,6 +30,7 @@
 
 import React from 'react';
 import ResearchRunView from '../../components/ResearchRunView';
+import type { StartRunInput } from '../../components/useRunState';
 
 export interface ResearchStagePanelProps {
   projectId: string;
@@ -44,11 +45,13 @@ export interface ResearchStagePanelProps {
   onContinueToReview: () => void;
   /** Opens the editable re-run dialog. The page owns it — a re-run resets project-level state. */
   onRerun?: () => void;
+  /** What an edited re-run was configured with, passed through to the run that is started. */
+  pendingRunInput?: StartRunInput | null;
 }
 
 export default function ResearchStagePanel({
   projectId, address, county, parcelId, ownerName, autoStart,
-  onPipelineStart, onPipelineComplete, onBack, onContinueToReview, onRerun,
+  onPipelineStart, onPipelineComplete, onBack, onContinueToReview, onRerun, pendingRunInput,
 }: ResearchStagePanelProps) {
   return (
     <div className="research-stage2">
@@ -65,6 +68,7 @@ export default function ResearchStagePanel({
           onBack={onBack}
           onContinueToReview={onContinueToReview}
           onRerun={onRerun}
+          pendingRunInput={pendingRunInput}
         />
       </div>
     </div>
