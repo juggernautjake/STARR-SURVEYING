@@ -311,16 +311,67 @@ Ship in order within a phase. Each is independently useful and independently rev
 
 ### Phase C — concurrency, guaranteed rather than observed
 
-- [ ] **C1** Audit every piece of worker state for per-project keying. `activePipelines`,
+- [x] **C1** Audit every piece of worker state for per-project keying. `activePipelines`,
       `runProgress`, `completedResults`, `completedLogs`, `filingContexts` and the spend ledger are
       all `Map`s keyed by `projectId`; the risk is anything that is NOT — a module-level singleton, a
       shared browser, a global tracing flag (`disableTracing()` takes no project argument), or a
       fixed `/tmp` path. Write the audit as a test that fails if a new global appears.
-- [ ] **C2** A completing run must not tear down a live one. Check the completion path for anything
+
+      **DONE — and the audit found the worst bug in this plan.**
+
+      `gis-viewer-capture.ts` kept the parcel centroid at module scope as a LAZY CACHE:
+      `if (_parcelCenterLon === 0 && _parcelCenterLat === 0)` computes it, otherwise reuses it. The
+      entry function reset it on the way in, which makes sequential captures correct and does
+      nothing for concurrent ones:
+
+      ```
+      run A  resets, computes its centre, starts capturing
+      run B  resets (clobbering A), computes ITS centre
+      run A  next zoom level → finds a centre already set → uses B's
+      ```
+
+      Run A then photographs run B's property, at run A's zoom levels, and files the images under
+      run A's project. Nothing errors and the screenshots look completely normal. For a surveying
+      deliverable that is close to the worst kind of silent bug, and it sits directly under the
+      owner's request for concurrent runs. Five values moved into an `AsyncLocalStorage` store
+      scoped to one capture — the file has a single entry point, which is the shape ALS is for.
+
+      The audit is a scan over every non-test worker file: any module-level `let`/`var` must be on
+      an ALLOWED list with a written reason. Eleven are, each either a genuine process singleton or
+      global by the nature of the thing (`credit-guard` is right to be process-wide — an Anthropic
+      account is depleted for the worker, not for a project; making it per-run would let run B keep
+      spending after run A proved the account empty).
+
+      Mutation-controlled: adding a new module-level `let` to a fresh file fails the scan by name.
+
+      **Known limit, stated rather than hidden:** the scan catches `let`/`var`, not a mutated
+      `const` array or object. `_captureLog` in that same file was exactly that and the scan would
+      have missed it — it was found by reading the file, not by the guard. Widening it means
+      deciding which `const` collections are configuration and which are state, which is a real
+      piece of work rather than a tighter regex.
+- [x] **C2** A completing run must not tear down a live one. Check the completion path for anything
       global: `disableTracing()`, `globalStepGate`, browser teardown, and the queue poller's capacity
       accounting.
-- [ ] **C3** Concurrency test at the shape level: two projects, interleaved lifecycle calls, asserting
+
+      **DONE, and it found a real one.** `trace.ts` held `let tracingEnabled` for the whole
+      process, and `disableTracing()` runs on the completion AND failure path of every run. Any run
+      finishing turned tracing off for all of them, so the Testing Lab watching a live run went
+      silent mid-run — which reads as a stalled run, not as another run reaching into it. Tracing is
+      now a `Set` of project ids and the three call sites name their project.
+
+      The others in the list were already fine, and it is worth saying why rather than just ticking:
+      `globalStepGate` takes a `projectId` on every method despite the name; the browser pool is
+      shared deliberately and reference-counted, with its own header documenting the launch race it
+      closes; capacity is `activePipelines.size`, so a finished run frees exactly its own slot; the
+      `/tmp` paths are all project-scoped.
+- [x] **C3** Concurrency test at the shape level: two projects, interleaved lifecycle calls, asserting
       one's completion leaves the other's state intact.
+      **DONE.** `concurrent-runs-do-not-share-state.test.ts`. The run registries — `activePipelines`,
+      `runProgress`, `completedResults`, `completedLogs` — are each asserted to be a `Map` and
+      asserted never to be `.clear()`ed, because clearing one wipes every OTHER live run, which is
+      the literal shape of "a completing run tears down a live one". Capacity is asserted to come
+      from `activePipelines.size` rather than a hand-kept counter, since a counter is how a crashed
+      run permanently consumes a slot.
 
 ### Phase D — the screen keeps telling the truth
 

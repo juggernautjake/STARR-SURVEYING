@@ -30,6 +30,7 @@
 // Coordinate system: The GIS uses WKID 2277 (NAD 1983 StatePlane Texas
 // Central FIPS 4203 Feet). We convert from WGS84 (lat/lon) to state plane.
 
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { BELL_ENDPOINTS, TIMEOUTS } from '../config/endpoints.js';
 import type { ScreenshotCapture } from '../types/research-result.js';
 import { acquireBrowser } from '../../../lib/browser-factory.js';
@@ -73,19 +74,58 @@ const LAYER_TOGGLE_WAIT = 4_000;
 // Extra wait after full page navigation to let ArcGIS tiles + layers fully render
 const POST_NAV_RENDER_WAIT = 8_000;
 
-// ── Module-level logging ─────────────────────────────────────────────
-// All helper functions use gisLog() so every log entry is captured in the
-// structured captureLog array AND emitted to console with a consistent
-// prefix. The main function resets _captureLog at the start of each run
-// and dumps it in the finally block.
+// ── C1/C2: THIS STATE IS PER CAPTURE, AND USED TO BE PER PROCESS ────────────────────────────────
+//
+// Five values lived at module scope here: the capture's start time, its log buffer, whether it had
+// already zoomed, and the parcel's centre. The entry function reset all five on the way in, which
+// makes SEQUENTIAL runs correct and does nothing whatever for concurrent ones.
+//
+// The parcel centre is the one that matters. It is a lazy cache — `if (_parcelCenterLon === 0 &&
+// _parcelCenterLat === 0)` computes it, otherwise reuses it — so with two runs in flight:
+//
+//   run A  resets, computes its centre, starts capturing
+//   run B  resets (clobbering A's), computes ITS centre
+//   run A  navigates to the next zoom level → finds a centre already set → uses B's
+//
+// Run A then photographs run B's property, at run A's zoom levels, and files the images against run
+// A's project. Nothing errors. The screenshots look entirely normal, and they are of the wrong land.
+// For a surveying deliverable that is about as bad as a silent bug gets, and the owner asked for
+// concurrent runs explicitly.
+//
+// AsyncLocalStorage rather than threading a parameter through six functions: this file has ONE entry
+// point and everything else runs inside it, which is exactly the shape ALS is for.
 
-let _captureStart = 0;
-const _captureLog: string[] = [];
+interface CaptureState {
+  startedAt: number;
+  log: string[];
+  zoomCached: boolean;
+  parcelCenterLon: number;
+  parcelCenterLat: number;
+}
+
+const captureStore = new AsyncLocalStorage<CaptureState>();
+
+function newCaptureState(): CaptureState {
+  return { startedAt: Date.now(), log: [], zoomCached: false, parcelCenterLon: 0, parcelCenterLat: 0 };
+}
+
+/**
+ * The state belonging to the capture running on this async stack.
+ *
+ * A helper reached outside a capture — a direct unit test, or a future caller — gets a fresh
+ * throwaway rather than a shared one. Its writes go nowhere, which is the correct failure for a
+ * function called out of context and strictly better than the alternative this replaces: writing
+ * into state another run is reading.
+ */
+function captureState(): CaptureState {
+  return captureStore.getStore() ?? newCaptureState();
+}
 
 function gisLog(phase: string, msg: string, data?: Record<string, unknown>): void {
-  const elapsed = _captureStart ? Date.now() - _captureStart : 0;
+  const st = captureState();
+  const elapsed = st.startedAt ? Date.now() - st.startedAt : 0;
   const entry = `[GIS-CAPTURE][${phase}][+${elapsed}ms] ${msg}`;
-  _captureLog.push(entry);
+  st.log.push(entry);
   console.log(entry, data ? JSON.stringify(data).slice(0, 500) : '');
 }
 
@@ -122,13 +162,17 @@ export async function captureGisViewerScreenshots(
   input: GisViewerCaptureInput,
   onProgress: (p: GisViewerCaptureProgress) => void,
 ): Promise<ScreenshotCapture[]> {
+  // Every capture gets its own state, and every helper it calls — however deep — reads that one and
+  // no other. This replaces a reset-on-entry, which made sequential captures correct and left
+  // concurrent ones sharing a parcel centroid. See the note above the store.
+  return captureStore.run(newCaptureState(), () => captureGisViewerScreenshotsInner(input, onProgress));
+}
+
+async function captureGisViewerScreenshotsInner(
+  input: GisViewerCaptureInput,
+  onProgress: (p: GisViewerCaptureProgress) => void,
+): Promise<ScreenshotCapture[]> {
   const results: ScreenshotCapture[] = [];
-  // Reset module-level state for this capture run
-  _captureStart = Date.now();
-  _captureLog.length = 0;
-  _zoomCached = false;
-  _parcelCenterLon = 0;
-  _parcelCenterLat = 0;
 
   // logDetail delegates to gisLog — kept for readability in the main function
   const logDetail = gisLog;
@@ -149,7 +193,7 @@ export async function captureGisViewerScreenshots(
   }
 
   // Reset zoom cache for this capture run
-  _zoomCached = false;
+  captureState().zoomCached = false;
 
   const progress = (msg: string) => {
     logDetail('progress', msg);
@@ -209,7 +253,7 @@ export async function captureGisViewerScreenshots(
         logDetail('screenshot', `Fallback screenshot captured: ${fallback.imageBase64.length} base64 chars`);
       }
       await context.close();
-      logDetail('summary', `GIS capture ABORTED (map init failed) — ${results.length} fallback screenshots in ${Date.now() - _captureStart}ms`);
+      logDetail('summary', `GIS capture ABORTED (map init failed) — ${results.length} fallback screenshots in ${Date.now() - captureState().startedAt}ms`);
       return results;
     }
 
@@ -299,7 +343,7 @@ export async function captureGisViewerScreenshots(
       logDetail('diag', `Phase A complete — tested ${diagIndex} zoom methods`);
 
       // Return to the base URL and reinitialize for Phase B screenshots
-      _zoomCached = false;
+      captureState().zoomCached = false;
       await page.goto(GIS_VIEWER_URL, { waitUntil: 'domcontentloaded', timeout: VIEWER_LOAD_TIMEOUT });
       await dismissDisclaimerDialog(page, progress);
       await waitForMapReady(page, progress);
@@ -508,7 +552,7 @@ export async function captureGisViewerScreenshots(
     }
 
     await context.close();
-    const totalDuration = Date.now() - _captureStart;
+    const totalDuration = Date.now() - captureState().startedAt;
     const totalSizeKB = Math.round(results.reduce((sum, r) => sum + r.imageBase64.length, 0) / 1024);
     logDetail('summary', `GIS viewer capture COMPLETE — ${results.length} screenshots in ${totalDuration}ms`, {
       total_screenshots: results.length,
@@ -519,7 +563,7 @@ export async function captureGisViewerScreenshots(
     progress(`✓ GIS capture complete — ${results.length} screenshots in ${Math.round(totalDuration / 1000)}s (${totalSizeKB}KB total)`);
 
   } catch (err) {
-    const totalDuration = Date.now() - _captureStart;
+    const totalDuration = Date.now() - captureState().startedAt;
     logDetail('error', `GIS viewer capture FAILED after ${totalDuration}ms: ${err instanceof Error ? err.message : String(err)}`, {
       error: err instanceof Error ? err.message : String(err),
       stack: err instanceof Error ? err.stack?.split('\n').slice(0, 5).join('\n') : undefined,
@@ -533,8 +577,8 @@ export async function captureGisViewerScreenshots(
       logDetail('cleanup', 'Browser closed');
     }
     // Log full capture timeline
-    logDetail('timeline', `Full capture log (${_captureLog.length} entries):`);
-    for (const entry of _captureLog) {
+    logDetail('timeline', `Full capture log (${captureState().log.length} entries):`);
+    for (const entry of captureState().log) {
       console.log(entry);
     }
   }
@@ -699,11 +743,6 @@ async function waitForMapReady(
 //   3. Mouse-wheel zoom — approximate but always works
 // JS API (goTo) was removed — it never works on this Experience Builder app.
 
-// Track whether we've already zoomed (avoid redundant re-zooms during capture series)
-let _zoomCached = false;
-// Cached parcel centroid for re-navigation (State Plane or WGS84 coords)
-let _parcelCenterLon = 0;
-let _parcelCenterLat = 0;
 
 /**
  * Get the current zoom level from the ArcGIS MapView.
@@ -748,20 +787,20 @@ async function navigateToParcelAtLevel(
   targetLevel: number, progress: (msg: string) => void,
 ): Promise<boolean> {
   // Compute centroid if not yet cached
-  if (_parcelCenterLon === 0 && _parcelCenterLat === 0) {
+  if (captureState().parcelCenterLon === 0 && captureState().parcelCenterLat === 0) {
     if (input.parcelBoundary && input.parcelBoundary.length > 0) {
       const ring = input.parcelBoundary[0];
       let sumLon = 0, sumLat = 0;
       for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
-      _parcelCenterLon = sumLon / ring.length;
-      _parcelCenterLat = sumLat / ring.length;
+      captureState().parcelCenterLon = sumLon / ring.length;
+      captureState().parcelCenterLat = sumLat / ring.length;
     } else {
-      _parcelCenterLon = input.lon;
-      _parcelCenterLat = input.lat;
+      captureState().parcelCenterLon = input.lon;
+      captureState().parcelCenterLat = input.lat;
     }
   }
 
-  gisLog('zoom-nav', `Navigating to parcel at level ${targetLevel} (center=${_parcelCenterLon.toFixed(4)}, ${_parcelCenterLat.toFixed(4)})`, { targetLevel });
+  gisLog('zoom-nav', `Navigating to parcel at level ${targetLevel} (center=${captureState().parcelCenterLon.toFixed(4)}, ${captureState().parcelCenterLat.toFixed(4)})`, { targetLevel });
   const baseUrl = GIS_VIEWER_URL.replace(/[#?].*$/, '');
 
   // CRITICAL: Changing only the URL hash fragment does NOT trigger a real page
@@ -771,7 +810,7 @@ async function navigateToParcelAtLevel(
   //
   // Fix: Add a cache-busting query parameter so the URL before the hash is
   // always different, forcing a genuine page navigation every time.
-  const url = `${baseUrl}?_cb=${Date.now()}#center=${_parcelCenterLon},${_parcelCenterLat}&level=${targetLevel}`;
+  const url = `${baseUrl}?_cb=${Date.now()}#center=${captureState().parcelCenterLon},${captureState().parcelCenterLat}&level=${targetLevel}`;
 
   try {
     gisLog('zoom-nav', `Full URL: ${url}`);
@@ -783,7 +822,7 @@ async function navigateToParcelAtLevel(
       return false;
     }
     await page.waitForTimeout(MAP_SETTLE_WAIT);
-    _zoomCached = true;
+    captureState().zoomCached = true;
     gisLog('zoom-nav', `Successfully navigated to level ${targetLevel}`, { targetLevel });
     return true;
   } catch (err) {
@@ -811,21 +850,21 @@ async function centerAndZoomToLevel(
   targetLevel: number, progress: (msg: string) => void,
 ): Promise<boolean> {
   // Compute centroid if not cached
-  if (_parcelCenterLon === 0 && _parcelCenterLat === 0) {
+  if (captureState().parcelCenterLon === 0 && captureState().parcelCenterLat === 0) {
     if (input.parcelBoundary && input.parcelBoundary.length > 0) {
       const ring = input.parcelBoundary[0];
       let sumLon = 0, sumLat = 0;
       for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
-      _parcelCenterLon = sumLon / ring.length;
-      _parcelCenterLat = sumLat / ring.length;
+      captureState().parcelCenterLon = sumLon / ring.length;
+      captureState().parcelCenterLat = sumLat / ring.length;
     } else {
-      _parcelCenterLon = input.lon;
-      _parcelCenterLat = input.lat;
+      captureState().parcelCenterLon = input.lon;
+      captureState().parcelCenterLat = input.lat;
     }
   }
 
-  const cLon = _parcelCenterLon;
-  const cLat = _parcelCenterLat;
+  const cLon = captureState().parcelCenterLon;
+  const cLat = captureState().parcelCenterLat;
 
   gisLog('center-zoom', `Centering on parcel (${cLon.toFixed(5)}, ${cLat.toFixed(5)}) at level ${targetLevel}`);
 
@@ -870,7 +909,7 @@ async function centerAndZoomToLevel(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (msg: string) => void): Promise<boolean> {
   // If we already zoomed to this parcel, skip re-zooming (saves ~15s per call)
-  if (_zoomCached) {
+  if (captureState().zoomCached) {
     progress('[zoom] Using cached zoom position (already zoomed to parcel)');
     return true;
   }
@@ -896,7 +935,7 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
       const afterZoom = await getCurrentZoomLevel(page);
       gisLog('zoom-cascade', `Strategy 1 SUCCESS — JS API centered on parcel at level ${afterZoom ?? 'unknown'}`);
       progress(`[zoom] ✓ Strategy 1 SUCCESS — centered on parcel at level ${afterZoom ?? '?'}`);
-      _zoomCached = true;
+      captureState().zoomCached = true;
       return true;
     }
     gisLog('zoom-cascade', 'Strategy 1 FAILED — JS API could not center on parcel');
@@ -915,7 +954,7 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
       const afterZoom = await getCurrentZoomLevel(page);
       gisLog('zoom-cascade', `Strategy 1B SUCCESS — search widget zoomed to level ${afterZoom ?? 'unknown'}`);
       progress(`[zoom] ✓ Strategy 1B SUCCESS — search widget zoomed to level ${afterZoom ?? '?'}`);
-      _zoomCached = true;
+      captureState().zoomCached = true;
       return true;
     }
     gisLog('zoom-cascade', 'Strategy 1B FAILED — search widget did not zoom');
@@ -940,7 +979,7 @@ async function zoomToParcel(page: any, input: GisViewerCaptureInput, progress: (
   const finalZoom = await getCurrentZoomLevel(page);
   gisLog('zoom-cascade', `After 20 scroll clicks: zoom=${finalZoom ?? 'unknown'} — position is approximate (map center, not parcel)`);
   progress(`[zoom] ✓ Strategy 2 — mouse wheel zoom complete (level ${finalZoom ?? '?'}) — position is approximate, NOT centered on parcel`);
-  _zoomCached = true;
+  captureState().zoomCached = true;
   // Return true but the screenshots will likely show the wrong area
   return true;
 }

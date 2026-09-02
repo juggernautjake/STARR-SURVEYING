@@ -1247,7 +1247,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
 
   // Enable function-level tracing when the request came from the Testing Lab.
   // testMode is set by the run proxy route's workerBody.
-  if ((body as Record<string, unknown>).testMode) enableTracing();
+  if ((body as Record<string, unknown>).testMode) enableTracing(projectId);
 
   // Enable step-through mode when executionMode='step' is set by the Testing Lab.
   if ((body as Record<string, unknown>).executionMode === 'step') {
@@ -1425,7 +1425,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     .then(async (unifiedResult) => {
       // Emit pipeline-complete timeline event
       timeline.add('phase-complete', 'Pipeline complete', `${county} County research finished`);
-      disableTracing();
+      disableTracing(projectId);
       globalStepGate.disableStepMode(projectId);
 
       // A run that stopped at a ceiling is not a failure — it is a usable answer plus a decision
@@ -1917,7 +1917,7 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     })
     .catch((err) => {
       // Emit pipeline-failed timeline event
-      disableTracing();
+      disableTracing(projectId);
       globalStepGate.disableStepMode(projectId);
       const crashMsg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
       timeline.add('phase-failed', 'Pipeline failed', crashMsg.slice(0, 200));
