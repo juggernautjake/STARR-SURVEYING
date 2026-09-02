@@ -441,6 +441,32 @@ reachability number until it exists.**
 
 ---
 
+## 3a. One idea kept out of a deleted file — 2026-09-02
+
+`ResearchAnalysisPanel.tsx` was deleted after the owner asked whether it was obsolete. It was: the
+old Review-stage monolith, superseded section by section by `PropertySearchPanel`,
+`ResearchRunView` and the extracted Review panels.
+
+It did one thing without an exact replacement, and the idea is worth keeping even though the code
+was not:
+
+> **`POST /api/admin/research/[projectId]/analyze` with `{ resume: true }`** — upload a file and
+> re-analyse INCLUDING it, without re-running the whole pipeline.
+
+Today's G1/G2 cover the outcome — the pipeline route attaches the project's uploads and the re-run
+dialog takes attachments directly — but at the cost of a full run. `resume` was cheaper.
+
+Three things make this a note rather than a loss:
+
+1. It was already unreachable. Nothing had mounted the panel for weeks, so the cheap path had
+   stopped working long before the file was deleted.
+2. **The route still accepts `resume`.** `analyze/route.ts` reads `body.resume` and threads it into
+   its config, so rebuilding this is a button and a fetch, not a feature.
+3. Keeping 1,297 unrendered lines as the documentation for a ten-line call is how a codebase comes
+   to have two implementations of a screen — which is the state this plan spent the day undoing.
+
+---
+
 ## 3b. Closed — 2026-09-02
 
 Every item shipped except D3, which is deferred to the owner because it spends real money on a

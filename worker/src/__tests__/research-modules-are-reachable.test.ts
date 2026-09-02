@@ -109,8 +109,14 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // run-console route still sent `usageFailed`, and after the rebuild nothing read either one. "Why
   // did this run buy nothing?" and "this cost figure is incomplete" had both stopped reaching the
   // screen. Both were restored into useRunState/ResearchRunView before the files were deleted.
-  'app/admin/research/components/ResearchAnalysisPanel.tsx':
-    'Already dead BEFORE this change, and only exposed by it: page.tsx imported it and never rendered it, so the import alone satisfied this check. 1,297 lines with a co-located stylesheet. Not part of plan E1 — its subject is the Review stage, not the run — so deleting it is an OWNER CALL rather than a side effect of rebuilding the run view. rendered-classes-are-styled.test.ts counts its 60 classes and would need rebaselining. STILL OPEN as of 2026-09-02: the other two were deleted that day and this one deliberately was not, which is why the orphan ceiling reads 61 and not 60. Its one unique feature, the paid-documents notice, no longer depends on it — that was restored into useRunState/ResearchRunView, so deleting this is now a clean removal rather than a loss.',
+  // ResearchAnalysisPanel.tsx was DELETED on 2026-09-02 and its entry went with it — a listed
+  // module that no longer exists fails the stale-entry test above, which is what keeps this list
+  // from becoming folklore.
+  //
+  // Its entry had called the deletion an OWNER CALL, and it was: the panel's subject is the Review
+  // stage rather than the run, so removing it was never a side effect of rebuilding the run view.
+  // The owner asked, the replacements were checked section by section, and the one capability
+  // without an exact replacement was already unreachable.
   // ── Found 2026-08-31, when this check was widened to .tsx and to app/admin/research/components
   //
   // Both are OWNER CALLS, recorded rather than resolved. One is a duplicate of a live page; the

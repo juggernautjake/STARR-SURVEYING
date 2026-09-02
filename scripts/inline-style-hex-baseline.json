@@ -145,7 +145,6 @@
   "app/admin/research/components/ExportPanel.tsx": 3,
   "app/admin/research/components/InteractiveBoundaryViewer.tsx": 2,
   "app/admin/research/components/PropertySearchPanel.tsx": 32,
-  "app/admin/research/components/ResearchAnalysisPanel.tsx": 2,
   "app/admin/research/components/SourceDocumentViewer.tsx": 1,
   "app/admin/research/components/SurveyPlanPanel.tsx": 65,
   "app/admin/research/components/VerificationPanel.tsx": 1,

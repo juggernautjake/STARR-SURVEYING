@@ -157,15 +157,22 @@ const KNOWN = new Map([
 // ResearchRunView/useRunState — see worker/src/__tests__/research-modules-are-reachable.test.ts,
 // which set that condition. All five were re-pointed first, in the same commit.
 //
-// ResearchAnalysisPanel is still here, and 61 rather than 60 is the shape of that: its own entry in
-// that file marks deleting it an OWNER CALL, because its subject is the Review stage rather than
-// the run and it was already dead before the rebuild. Removing it takes this to 60. Deleting it
-// unasked is not this guard's call to make, so the number records the open question instead.
+// ResearchAnalysisPanel went too, on 2026-09-02, after the owner asked whether it was obsolete.
+// It was: the old Review-stage monolith, superseded by PropertySearchPanel, ResearchRunView and
+// the extracted Review panels (DataPointsPanel, DiscrepancyPanel, EncumbrancePanel,
+// AdjoinersPanel, GisQualityCard, PacketBuilderPanel). 1,297 lines and a co-located stylesheet.
 //
+// Checked before deleting, per the rule that a retired component's guards are the inventory of
+// what it did: every section had a live replacement, and the ONE thing without an exact one —
+// `POST /analyze { resume: true }`, a cheap re-analysis over newly uploaded files — was already
+// unreachable, because nothing had mounted the panel for weeks. Deleting the file removed the last
+// copy of a capability that had already stopped working, not a working one. The route still
+// accepts `resume`, so rebuilding it is small; that is recorded in the plan rather than kept alive
+// as 1,297 lines nobody renders.
 // Not an enumerated allowlist, because I investigated three of these (one of which is now deleted) and would be inventing notes
 // for the other 58. A count is the honest instrument: it stops the next one being added by accident
 // without pretending to know what the existing ones are.
-const MAX_ORPHANS = 61;
+const MAX_ORPHANS = 60;
 
 const listOnly = process.argv.includes('--list');
 

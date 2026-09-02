@@ -96,7 +96,9 @@ describe('the paid-documents toggle is wired end to end', () => {
 
 // ── THE GUARD FOLLOWED THE CODE, AND FOUND THE FEATURE GONE ────────────────────────────────────
 //
-// This named ResearchAnalysisPanel, which the one-view rebuild retired and 2026-09-02 deleted. The
+// This named ResearchAnalysisPanel, which the one-view rebuild retired. It was deleted, restored
+// the same day to respect the owner gate on its entry, and deleted for good once the owner
+// asked whether it was obsolete. The
 // notice did not move with it: the analyze route went on computing `paidDocumentsNotice` and putting
 // it on the response, and NOTHING fetched that route any more. "Why did this run buy nothing from
 // TexasFile?" had no answer on screen — and the reachability guard was reporting that route as dead
