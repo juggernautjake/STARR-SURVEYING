@@ -375,8 +375,43 @@ Ship in order within a phase. Each is independently useful and independently rev
 
 ### Phase D — the screen keeps telling the truth
 
-- [ ] **D1** The bar's new pacing needs browser QA against a real run. A green suite has missed
+- [x] **D1** The bar's new pacing needs browser QA against a real run. A green suite has missed
       rendering bugs in this repo repeatedly.
+
+      **DONE, in a browser, and it found a bug the suite could not.**
+
+      A real run needs a live worker and a live county portal and takes thirty minutes to reach four
+      of the states worth checking. What D1 is actually about is the RENDERING, which is a pure
+      function of `RunState` — so `/ux-harness?page=research-run-progress` mounts the REAL
+      `StatusCard`, `RunNotices` and `RunCounters` with the real stylesheet over fourteen
+      hand-built states, and the outcomes come from the real `resolveOutcome()` rather than
+      hand-written text. Nothing is stubbed at the network layer, so there is no fake being tested.
+
+      **The bug: the spend counter had lost its dollar sign.** `$${…}` had become `${…}` while the
+      `spendIncomplete` hint was being added earlier the same day — a shell layer ate one of the two
+      dollars — so the card rendered `0.00`, which reads as a quantity of nothing in particular.
+      27,900 tests passed over it. The browser found it in one look. A regression test now pins it.
+
+      Two things the harness itself got wrong first, both worth recording because they are the same
+      defect shape one level up:
+
+      · The first version mounted only `StatusCard`, so the cases for "documents were skipped",
+        "paid documents refused", "stalled" and every counter rendered an ordinary card and looked
+        fine. A harness that claims to show a state and does not is exactly the thing this plan is
+        about. `RunNotices` and `RunCounters` were EXTRACTED rather than copied into the harness —
+        a copy would have been a second implementation, and QA of a copy proves nothing.
+      · The budget-stop case was under-specified: without the real `stopReason: budget_reached` it
+        rendered as a plain completion. With it, it reads "Finished early at the ceiling you set."
+
+      Verified in Chrome: 3/11/24% are genuinely small fills — no jump to 92% — the elapsed clock
+      reads `00:40 / 30:00` and falls back to a bare clock with no ceiling, spend shows `—` rather
+      than `$0.00` when unrecorded, the paid-documents notice restored this morning actually renders,
+      and budget-stop / cancelled / interrupted are all GREEN with `failed` the only red one.
+      Console clean.
+
+      Two ratchets caught the harness on the way past: an inline hex in a heading, and a hard-coded
+      "Bell County" in the sample activity, which `audit-starr-assumptions` counts as a
+      single-county assumption. Both fixed rather than baselined.
 - [x] **D2** A run that reports **FAILED** and then **Pipeline Complete** in the same log (Milam,
       10:53 → 15:58). Decide which it is and say it once.
 
@@ -466,14 +501,45 @@ address components, degrades to plain typing when the key is absent, and **is al
 research intake** (`_tabs/ProjectsTab.tsx:19`). The form already carries `city`, `county`, `state`
 and `zip`. So the request as stated — "we do not have autocomplete" — is not what is wrong.
 
-- [ ] **F1** Find out whether it WORKS in production, in a browser. A server-side probe cannot tell
+- [x] **F1** Find out whether it WORKS in production, in a browser. A server-side probe cannot tell
       you: the key is referer-restricted, so `curl` against the Places REST API returns
       `REQUEST_DENIED — API keys with referer restrictions cannot be used with this API`, which is
       the correct and expected answer for a browser key and says nothing about the browser path.
       **Verify by typing in the field on the deployed site.** This repo has fixed a Maps referer
       allowlist four times, most recently for a missing `www`.
-- [ ] **F2** If it is denied in the browser, the fix is the GCP key configuration (referer
+
+      **Answered as far as it can be from here, and the production half is DEFERRED to the owner.**
+
+      `/ux-harness?page=research-address-autocomplete` mounts the component alone, because on a form
+      a working key and a refused one look nearly identical — both end up as a text box. Driven in
+      a browser: Maps and Places both load, and the request is refused with
+      `RefererNotAllowedMapError`. See F2 for what that turned up.
+
+      **DEFERRED:** confirming the PRODUCTION origin is on the allowlist needs the deployed admin
+      UI, which is behind a login this session does not have. The check is now one minute of work
+      rather than an investigation: open the research intake on the live site, type three
+      characters into Property Address, and either suggestions appear or the field says it was
+      refused — which it did not do before today. If refused, add the exact origin the console
+      names to the key's HTTP-referer allowlist in GCP.
+- [x] **F2** If it is denied in the browser, the fix is the GCP key configuration (referer
       allowlist + which APIs are enabled on the project), not the component. Record which it was.
+
+      **Recorded: it is the referer allowlist.** From `localhost:3312` the browser logs
+      `RefererNotAllowedMapError`, naming the origin it wants authorised. The component is not at
+      fault and the key is not invalid — the allowlist simply does not contain that origin, which
+      is correct and expected for localhost.
+
+      **But driving it found a real defect, and it is the one that matters here.** A REFUSED key is
+      not a FAILED script. The script loads with a clean 200, `google.maps.places` initialises,
+      `AutocompleteService` constructs, and every request returns empty. None of the three things
+      this component watched had fired — the key was present, the script had not errored — so it
+      showed NO notice and degraded into a plain text box that looked entirely deliberate.
+
+      That is the failure most likely to actually occur: the allowlist on this key has been wrong
+      four times, most recently a missing `www`, and each time the field just quietly stopped
+      suggesting. `gm_authFailure` — Google's documented hook for a wrong referer, a disabled API
+      or lapsed billing — is now handled, and the field says "Address suggestions were refused for
+      this site — the Maps key does not allow this domain." Verified in the browser.
 - [x] **F3** Confirm every structured field the owner asked for actually lands on the project:
       street number + road, city, county, state. `county` is the one that matters most — it routes
       the whole run, and a wrong county researches the wrong courthouse.
@@ -548,6 +614,42 @@ and `zip`. So the request as stated — "we do not have autocomplete" — is not
 - Browser QA before any UI slice is called done.
 - The worker auto-deploys from `main` (systemd timer, ~15 min). Confirm with `buildSha` on
   `/healthz` — health alone is not proof, a stale container answers happily on the old build.
+
+## 4b. Closed — 2026-09-02
+
+All 24 slices shipped, except two halves that are the owner's to call and are named as such:
+
+- **B3, the paid run.** Everything up to the point of spending is built and tested. Proving the
+  paid path end to end spends real money at a live vendor against a real property.
+- **F1, the production origin.** The browser half is answered; confirming the deployed site needs a
+  login this session did not have. It is now a one-minute check rather than an investigation.
+
+### What this plan was actually about
+
+Nine of the defects found here share one shape, and it is not "the code is wrong". It is **a true
+statement standing in for the one that matters**:
+
+| said | meant |
+| --- | --- |
+| `Tried 0 variants` | the CAD was down; nothing was searched |
+| `Pipeline FAILED` + `Pipeline Complete` | the result found nothing; the process finished |
+| `1 could not be written` | the reason was in hand and printed as a count |
+| `0 skipped` on the paid notice | nothing could ever write that row |
+| a green `documents-are-filed-immediately` | it guards Bell; forty counties batched |
+| a stored uploaded survey | the run never read it |
+| `$0.00` spent | a lost `$`, over 27,900 passing tests |
+
+Each was individually invisible and collectively decisive: an operator reading these screens would
+have drawn conclusions about a PROPERTY from sentences that were only ever about the software.
+
+### The three guards that found things no test did
+
+- `verify:orphans` — red since `1499ca1cb`. Chasing it found two features the rebuild had dropped.
+- `writes-hit-real-columns` — caught `file_size`, which does not exist. PostgREST fails the whole
+  query on an unknown column, so the attachment feature would have looked built and done nothing.
+- **a browser** — caught the missing `$`. Nothing else could have.
+
+---
 
 ## 5. Slice log
 

@@ -53,6 +53,15 @@ const PAGES: Record<string, ComponentType> = {
     () => import('./ResearchPanelHarnessMount').then((m) => m.RotationPanelHarness), { ssr: false }),
   'research-vendor-accounts': nextDynamic(
     () => import('./ResearchPanelHarnessMount').then((m) => m.VendorAccountsPanelHarness), { ssr: false }),
+  // D1 (2026-09-02): the run status card at the thirteen states a run passes through. The pacing
+  // complaint — "it jumps up to 92% out of the gate" — is about the early ones, and a real run takes
+  // half an hour to reach the late ones. Every state is built from the real `resolveOutcome`.
+  'research-run-progress': nextDynamic(
+    () => import('./ResearchPanelHarnessMount').then((m) => m.RunProgressHarness), { ssr: false }),
+  // F1: the address autocomplete on its own, so a refused key is visible instead of degrading
+  // quietly into an ordinary text box — which is what it correctly does on a form.
+  'research-address-autocomplete': nextDynamic(
+    () => import('./ResearchPanelHarnessMount').then((m) => m.AddressAutocompleteHarness), { ssr: false }),
   // C7: `/admin/jobs` is a portal shell now. Pointed at the LIST, which is what this entry has
   // always been a picture of — shooting the shell would replace a screenshot of the jobs table with
   // one of a tab strip.

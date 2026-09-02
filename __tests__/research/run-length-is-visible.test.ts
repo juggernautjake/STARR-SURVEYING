@@ -80,6 +80,14 @@ describe('the run view puts the ceiling where the clock is', () => {
     expect(block).toContain('state.budgetMs != null');
   });
 
+  it('the spend counter still carries a currency symbol', () => {
+    // Found by looking at the page, not by a test. The `$` was lost from `$${…}` while the
+    // spendIncomplete hint was being added on 2026-09-02 — a shell layer ate one of the two dollars
+    // — and the counter rendered "0.00", which reads as a quantity of nothing in particular.
+    // 27,900 tests passed over it. This one exists so the next person does not need the browser.
+    expect(VIEW).toContain('`$${(state.spendUsd ?? 0).toFixed(2)}`');
+  });
+
   it('says what the ceiling MEANS, not just its value', () => {
     // A budget stop is not a failure — that is the whole of the run-state work — so the hint says
     // what happens at the ceiling rather than leaving a reader to assume the run dies there.

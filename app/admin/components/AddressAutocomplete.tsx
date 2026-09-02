@@ -80,6 +80,29 @@ export default function AddressAutocomplete({
       return;
     }
 
+    // ── A REFUSED key is not a FAILED script ────────────────────────────────────────────────────
+    //
+    // Found by driving this in a browser on 2026-09-02 (plan F1). From an origin the key does not
+    // allow, the script loads with a clean 200, `google.maps.places` initialises, `AutocompleteService`
+    // constructs — and every request comes back empty while Google logs
+    // `RefererNotAllowedMapError` to the console. Nothing this component watched had fired: the key
+    // was present, the script had not errored, so it showed no notice and degraded into a plain text
+    // box that looked entirely deliberate.
+    //
+    // That is the failure mode most likely to actually happen here. The referer allowlist on this
+    // key has been wrong four times, most recently for a missing `www`, and each time the field just
+    // quietly stopped suggesting.
+    //
+    // `gm_authFailure` is Google's documented hook for exactly this class — wrong referer, disabled
+    // API, lapsed billing. It is a single global by their design, so a second mount overwriting it
+    // with the same handler is harmless.
+    (window as unknown as { gm_authFailure?: () => void }).gm_authFailure = () => {
+      setNotice(
+        'Address suggestions were refused for this site — the Maps key does not allow this domain. ' +
+        'Type the address manually.',
+      );
+    };
+
     // Check if Google Maps is already loaded
     if (typeof google !== 'undefined' && google.maps?.places) {
       initServices();
