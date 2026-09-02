@@ -474,22 +474,59 @@ and `zip`. So the request as stated — "we do not have autocomplete" — is not
       allowlist four times, most recently for a missing `www`.
 - [ ] **F2** If it is denied in the browser, the fix is the GCP key configuration (referer
       allowlist + which APIs are enabled on the project), not the component. Record which it was.
-- [ ] **F3** Confirm every structured field the owner asked for actually lands on the project:
+- [x] **F3** Confirm every structured field the owner asked for actually lands on the project:
       street number + road, city, county, state. `county` is the one that matters most — it routes
       the whole run, and a wrong county researches the wrong courthouse.
-- [ ] **F4** The same treatment for the RE-RUN dialog, which today offers four free-text fields with
+      **VERIFIED.** `ProjectsTab` writes address, city, county, state and ZIP from one selection.
+- [x] **F4** The same treatment for the RE-RUN dialog, which today offers four free-text fields with
       no autocomplete at all. A corrected address typed there should be structured the same way.
+      **DONE.** The re-run dialog is where a corrected address actually gets typed — being editable
+      is the whole reason it exists — so it was the one place that most needed the structure and had
+      none. Selecting a suggestion fills the COUNTY, which routes the entire run. An empty county
+      from Google does not clear a good one the operator typed.
 
 ### Phase G — give the run what the operator already knows, before it starts
 
-- [ ] **G1** Files and images attached BEFORE the run. The plumbing exists and is unused: the worker
+- [x] **G1** Files and images attached BEFORE the run. The plumbing exists and is unused: the worker
       has accepted `userFiles` since it was written, the pipeline route now forwards them, and
       `useRunState.start()` puts them in the POST body — but nothing in the UI collects them at
       start time. `DocumentUploadPanel` uploads to an EXISTING project; this is the pre-run case.
-- [ ] **G2** The re-run dialog gains the same: attach a file, and free-text notes already exist
+
+      **DONE — and the gap was worse than "no UI collects them".** There is a whole STAGE for this:
+      Upload sits immediately before Research and is the last thing an operator touches before the
+      pipeline starts. It looks exactly like giving the run information.
+
+      It was not. Uploads land in `research_documents` with `source_type: user_upload`, and NEITHER
+      the pipeline route NOR the worker ever read them back. An operator could upload the client's
+      survey, watch it appear on the project, start the run, and have the run never see it. Nothing
+      failed — the file was stored, it just was not research.
+
+      The route attaches them now, smallest first: a budget spent on the most DOCUMENTS serves a run
+      better than one spent on the biggest scan. The 20 MB total is far below the 500 MB in
+      `lib/storage/uploads.ts` because that number governs a streamed bucket upload and this one a
+      JSON request body. Anything skipped is reported INTO THE RUN rather than a server log — "6 of
+      your 20 documents were attached" is exactly the fact that, left unsaid, makes an operator
+      believe the run read everything they gave it.
+
+      Two guards caught real mistakes. `writes-hit-real-columns` found the select naming
+      `file_size`, which does not exist (it is `file_size_bytes`) — PostgREST fails the WHOLE query
+      on an unknown column, so the run would have silently received no attachments at all. And the
+      orphan ratchet flagged the new module as unreachable because I reached it through
+      `await import(...)`: a module reachable only dynamically is indistinguishable from a dead one
+      to every guard in this repo.
+- [x] **G2** The re-run dialog gains the same: attach a file, and free-text notes already exist
       there. A survey the client emailed is the single most useful thing a run can be given.
-- [ ] **G3** Whatever is attached must reach the extraction pass, not merely be stored. Storing a
+      **DONE.** `RunFileAttachments` is mounted in the re-run dialog and its files go into the POST
+      body. Attachments are deliberately NOT seeded from the previous run — `FormState` is, and
+      re-presenting the last run's files as this one's is the mistake the operator notes already
+      avoid. Attaching a file also counts as a CHANGE, so the dialog cannot report "nothing
+      changed" with a survey attached and record the run as `rerun_same`.
+- [x] **G3** Whatever is attached must reach the extraction pass, not merely be stored. Storing a
       file the AI never reads is the shape of defect this plan is full of — assert the caller.
+      **VERIFIED, already true.** `processUserFiles()` turns each attachment into a `DocumentResult`
+      and `documents = [...documents, ...userDocuments]` runs immediately BEFORE Stage 3 AI
+      Extraction, so an attached file is read rather than merely carried. Checked rather than
+      assumed, because this is exactly where that defect would have hidden.
 
 ---
 ## 3. Things this work must not do

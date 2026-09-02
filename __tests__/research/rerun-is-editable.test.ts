@@ -119,7 +119,12 @@ describe('the chosen settings survive all the way to the worker', () => {
   });
 
   it('the API route forwards settings and notes to the worker', () => {
-    expect(pipelineRoute).toMatch(/operatorNotes: body\.operatorNotes/);
+    // The operator's own notes still reach the run. G1 merged the attachment report into the same
+    // field — "6 of your 20 documents were attached" belongs with the run, not in a server log — so
+    // this asserts the notes are IN the payload rather than pinning the exact expression, which
+    // would have to be rewritten every time something else is added to the same line.
+    expect(pipelineRoute).toMatch(/operatorNotes:/);
+    expect(pipelineRoute, "the operator's own notes were dropped").toMatch(/body\.operatorNotes\?\.trim\(\)/);
     expect(pipelineRoute).toMatch(/\.\.\.\(body\.settings \?\? \{\}\)/);
     expect(pipelineRoute).toMatch(/settings,/);
   });
