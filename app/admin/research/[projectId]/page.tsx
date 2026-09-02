@@ -1732,10 +1732,29 @@ export default function ResearchProjectPage() {
         const scope = checkScope(project.state, project.county);
 
         if (isAnalyzing) {
+          // ── THE FIFTH OPINION (plan D1) ────────────────────────────────────────────────────
+          //
+          // This said "AI analysis is running — live progress is shown below." and the condition
+          // behind it is:
+          //
+          //     project.status === 'analyzing' || currentStage === 'research'
+          //
+          // which is a fact about the WORKFLOW STAGE rendered as a claim about a RUN. Being on
+          // the Research & Analysis step is not the same as a run being in progress, and the two
+          // come apart constantly: a finished run, a cancelled one, a project that has never been
+          // started at all. Browser QA on 2026-09-01 caught it doing exactly that — this bar
+          // claimed a run was live, with a spinner, directly above a run view correctly reading
+          // "No run has started yet."
+          //
+          // The page does not know the run state and should not pretend to. `ResearchRunView`
+          // does, from `useRunState`, and it is four inches below this line. So this bar now says
+          // where you are and defers to it — no spinner, and no claim about activity.
           return (
-            <div className="research-action-bar research-action-bar--running" data-testid="research-action-bar">
-              <Loader2 size={18} className="research-action-bar__spin" aria-hidden="true" />
-              <span className="research-action-bar__text">AI analysis is running — live progress is shown below.</span>
+            <div className="research-action-bar" data-testid="research-action-bar">
+              <Microscope size={16} className="research-action-bar__ok" aria-hidden="true" />
+              <span className="research-action-bar__text">
+                Research &amp; Analysis. The run&apos;s current status is shown below.
+              </span>
             </div>
           );
         }

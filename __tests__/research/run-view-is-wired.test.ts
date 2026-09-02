@@ -100,3 +100,38 @@ describe('the hook keeps the stale-run guard the panel never had', () => {
     expect(hook).not.toMatch(/setPipelineStatus\('failed'\)/);
   });
 });
+
+describe('the action bar does not claim a run is running (plan D1)', () => {
+  it('no longer renders "AI analysis is running" from a STAGE check', () => {
+    // ── THE FIFTH OPINION ──────────────────────────────────────────────────────────────────────
+    //
+    // The bar's condition was:
+    //
+    //     const isAnalyzing = project.status === 'analyzing' || currentStage === 'research';
+    //
+    // — a fact about the WORKFLOW STAGE, rendered with a spinner as a claim about a RUN. Being on
+    // the Research & Analysis step is not the same as a run being in progress, and the two come
+    // apart constantly: a finished run, a cancelled one, a project never started at all.
+    //
+    // Caught by driving the browser on 2026-09-01: this bar claimed a live run, spinner and all,
+    // directly above a run view correctly reading "No run has started yet." Four panels had already
+    // been collapsed into one and this line still disagreed with the result.
+    //
+    // Asserted on code, not raw text: the sentence survives in a comment explaining the fix.
+    const codeOnly = page
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split('\n')
+      .filter((l) => !/^\s*(\/\/|\*)/.test(l))
+      .join('\n');
+    expect(codeOnly).not.toMatch(/AI analysis is running/);
+  });
+
+  it('defers to the run view instead of describing the run itself', () => {
+    expect(page).toMatch(/The run&apos;s current status is shown below/);
+  });
+
+  it('and the page still does not poll for run status of its own', () => {
+    // If the bar ever needs the real status it must come from useRunState, not a second fetch.
+    expect(page).not.toMatch(/\/pipeline`\s*,\s*\{\s*method: 'GET'/);
+  });
+});

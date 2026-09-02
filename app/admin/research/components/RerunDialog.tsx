@@ -29,7 +29,7 @@
 // Seeds itself from WHAT THE PREVIOUS RUN WAS TOLD — not from the project's current values, which
 // can have been edited since — and shows every field the run can be given, with what changed.
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, AlertTriangle, X, Info } from 'lucide-react';
 import type { RunSettingsInput, StartRunInput } from './useRunState';
 
@@ -86,8 +86,30 @@ export default function RerunDialog({
   const [form, setForm] = useState<FormState | null>(null);
 
   // ── Seed from the previous run ────────────────────────────────────────────────────────────────
+  //
+  // ── THE BUG THIS REF EXISTS FOR ─────────────────────────────────────────────────────────────
+  //
+  // `projectDefaults` is built as an object literal at the call site:
+  //
+  //     <RerunDialog projectDefaults={{ address: …, county: … }} … />
+  //
+  // so it is a NEW object on every render of the page. With it in this effect's dependency array
+  // the effect re-ran on every render, and its own cleanup set `cancelled = true` before the fetch
+  // resolved — so `setForm` was never reached. The dialog opened, showed its title and the words
+  // "Reading what the last run was told…", and never rendered a single field.
+  //
+  // Nothing caught it. It typechecks, it lints, and every unit test asserting the fields exist
+  // reads the SOURCE, where they plainly do. It took opening the dialog in a browser, which is why
+  // that is a required step here and not an optional one.
+  //
+  // The defaults are read through a ref so their identity cannot retrigger the effect, and the
+  // effect keys on `projectId` alone — the only input that should ever restart it.
+  const defaultsRef = useRef(projectDefaults);
+  defaultsRef.current = projectDefaults;
+
   useEffect(() => {
     let cancelled = false;
+    const projectDefaults = defaultsRef.current;
     (async () => {
       let latest: PreviousRun | null = null;
       let failed = false;
@@ -133,7 +155,7 @@ export default function RerunDialog({
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [projectId, projectDefaults]);
+  }, [projectId]);
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => (f ? { ...f, [k]: v } : f));
@@ -408,7 +430,15 @@ function RerunDialogStyles() {
 .rrd__loading { margin: 0; font-size: 0.85rem; color: var(--theme-fg-muted, #6B7280); }
 .rrd__prev { margin: 0; font-size: 0.82rem; color: var(--theme-fg-secondary, #374151); }
 
-.rrd__group { border: 1px solid var(--theme-border, #E5E7EB); border-radius: 9px; padding: 0.85rem; margin: 0; }
+.rrd__group {
+  border: 1px solid var(--theme-border, #E5E7EB); border-radius: 9px; padding: 0.85rem; margin: 0;
+  /* A <fieldset> defaults to min-width: min-content, which is a value it computes from its own
+     contents and which no amount of width:100% on the children can override. At 390px this made
+     the fieldset 383px inside a 328px card — a 56px overflow that every descendant inherited, so
+     the offender list read like eight separate bugs instead of one.
+     Measured in a browser at 390px; a passing test suite says nothing about it. */
+  min-width: 0;
+}
 .rrd__legend { padding: 0 0.35rem; font-size: 0.8rem; font-weight: 650; color: var(--theme-fg-primary, #111827); }
 .rrd__row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
 .rrd__field { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.7rem; }
