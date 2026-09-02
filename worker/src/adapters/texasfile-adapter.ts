@@ -27,7 +27,13 @@ import {
 } from './clerk-adapter.js';
 
 // A paywall is not an empty index — TexasFile is the fallback for 233 counties (plan R38).
-import { readAccess, type AccessResult } from './texasfile-access.js';
+import {
+  readAccess,
+  countyRecordsUrl,
+  hasTexasFileCredentials,
+  TEXASFILE_FIELDS,
+  type AccessResult,
+} from './texasfile-access.js';
 
 /** Base URL for TexasFile public search */
 const TEXASFILE_BASE = 'https://www.texasfile.com';
@@ -48,6 +54,9 @@ export class TexasFileAdapter extends ClerkAdapter {
 
   /** Whether we've already navigated to the TexasFile search page */
   private sessionReady = false;
+
+  /** Whether this session is logged in. False means searches see counts, not records. */
+  private signedIn = false;
 
   /** What the last search actually hit. Surfaced so a caller can tell a paywall (the records exist,
    *  we cannot open them) from an empty index (they do not exist) — the distinction that decides
@@ -76,6 +85,82 @@ export class TexasFileAdapter extends ClerkAdapter {
 
     this.page = await context.newPage();
     this.sessionReady = false;
+
+    // ── SIGN IN, which this adapter never did ───────────────────────────────────────────────────
+    //
+    // TexasFile runs the search anonymously, tells you how many records matched, and then redirects
+    // to /register/ to show them (measured 2026-08-02, see texasfile-access.ts). So without a login
+    // every one of the 233 counties that fall back to this adapter reached a count and stopped.
+    // `readAccess` reported that honestly as `paywalled` — which is why this looked like a coverage
+    // problem rather than a missing three lines.
+    //
+    // The credentials have been set and funded since 2026-08-29. Nothing read them: the purchase
+    // adapter logs in, this one did not, and `hasTexasFileCredentials()` had no callers at all.
+    await this.signIn();
+  }
+
+  /**
+   * Log in, so a search returns records rather than a count and a paywall.
+   *
+   * Never throws. A failed or absent login leaves the adapter exactly where it used to be — able to
+   * search and report a count — and `readAccess` will say `paywalled`, which is the truthful answer
+   * for a session that cannot see the records. Losing the sign-in must not lose the count, because
+   * "5,000 records exist here and we cannot open them" is still a purchasing decision.
+   */
+  private async signIn(): Promise<void> {
+    if (!this.page || this.signedIn) return;
+
+    if (!hasTexasFileCredentials()) {
+      // Stated once, plainly. This is a capability the run does not have, not a fact about Texas.
+      console.warn(
+        `[TexasFile/${this.countyName}] No TEXASFILE_USERNAME/TEXASFILE_PASSWORD is set. Searches ` +
+          `will reach the paywall and report record COUNTS without the records themselves. That is ` +
+          `a missing subscription, not an absence of records.`,
+      );
+      return;
+    }
+
+    try {
+      await this.page.goto(`${TEXASFILE_BASE}/login/`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+
+      const user = await this.page.$('input[name="username"], input[name="email"], input[type="email"]');
+      const pass = await this.page.$('input[name="password"], input[type="password"]');
+      if (!user || !pass) {
+        console.warn(`[TexasFile/${this.countyName}] Could not find the login form — continuing unauthenticated.`);
+        return;
+      }
+
+      await user.fill(process.env.TEXASFILE_USERNAME ?? '');
+      await pass.fill(process.env.TEXASFILE_PASSWORD ?? '');
+
+      const submit = await this.page.$('button[type="submit"], input[type="submit"]');
+      if (submit) await submit.click();
+      else await this.page.keyboard.press('Enter');
+
+      await this.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+
+      // Verified by what the page says, not by "the click did not throw". A rejected login returns
+      // 200 with an error on it, which is indistinguishable from success to a navigation check.
+      const text = await this.page.evaluate(() => document.body.innerText.slice(0, 3000)).catch(() => '');
+      const stillOnLogin = /\/login/i.test(this.page.url());
+      const rejected = /invalid|incorrect|try again|not match/i.test(text);
+
+      if (stillOnLogin || rejected) {
+        console.warn(
+          `[TexasFile/${this.countyName}] Sign-in did not take — the credentials were refused or the ` +
+            `form changed. Searches will still report counts, behind the paywall.`,
+        );
+        return;
+      }
+
+      this.signedIn = true;
+      console.log(`[TexasFile/${this.countyName}] Signed in — searches can return records.`);
+    } catch (err) {
+      console.warn(
+        `[TexasFile/${this.countyName}] Sign-in threw (${err instanceof Error ? err.message : String(err)}) ` +
+          `— continuing unauthenticated.`,
+      );
+    }
   }
 
   async destroySession(): Promise<void> {
@@ -98,28 +183,57 @@ export class TexasFileAdapter extends ClerkAdapter {
 
     if (this.sessionReady) return;
 
-    await this.page.goto(`${TEXASFILE_BASE}/search`, {
-      waitUntil: 'networkidle',
+    // ── THE URL THE SITE ACTUALLY SERVES ────────────────────────────────────────────────────────
+    //
+    // This used to go to `/search` and pick a county from a dropdown. `texasfile-access.ts` recorded
+    // on 2026-08-02, from driving the live site, that this shape is IGNORED — TexasFile redirects to
+    // its generic landing page and shows nothing. The real per-county page is slug-based, and
+    // `countyRecordsUrl()` has existed to build it ever since, with no caller.
+    //
+    // So the measurement was made, written down, and never connected to the code that needed it.
+    await this.page.goto(countyRecordsUrl(this.countyName), {
+      waitUntil: 'domcontentloaded',
       timeout: 30_000,
     });
-    await this.page.waitForTimeout(1_500);
-
-    // Select the county from the dropdown using FIPS or county name
-    const countySelector = await this.page.$(
-      'select[name="county"], select[id="county"], select[aria-label*="county" i]',
-    );
-
-    if (countySelector) {
-      // Try to select by FIPS value first, then by display text
-      await countySelector.selectOption({ value: this.countyFIPS }).catch(async () => {
-        await countySelector.selectOption({ label: this.countyName }).catch(() => {
-          // County not in dropdown; page will use default
-        });
-      });
-      await this.page.waitForTimeout(800);
-    }
+    await this.page.waitForTimeout(1_200);
 
     this.sessionReady = true;
+  }
+
+  /**
+   * Fill the county search form and submit it.
+   *
+   * Driven through the FORM rather than by building a URL, because it is a Django form: the hidden
+   * `csrfmiddlewaretoken` and `selected_counties` have to survive, and a constructed query string
+   * drops both. That is recorded in `texasfile-access.ts` beside the field names, which were read
+   * off the live page — every search method here was previously guessing at selectors like
+   * `input[name="grantee"]`, which the page does not have.
+   *
+   * Returns false when the form is not on the page, so the caller can report a navigation failure
+   * rather than an empty index.
+   */
+  private async submitSearch(fields: Partial<Record<keyof typeof TEXASFILE_FIELDS, string>>): Promise<boolean> {
+    if (!this.page) throw new Error('Session not initialized');
+
+    let filledAny = false;
+    for (const [key, value] of Object.entries(fields)) {
+      if (!value) continue;
+      const name = TEXASFILE_FIELDS[key as keyof typeof TEXASFILE_FIELDS];
+      const input = await this.page.$(`[name="${name}"]`);
+      if (!input) continue;
+      await input.fill('');
+      await input.fill(value);
+      filledAny = true;
+    }
+    if (!filledAny) return false;
+
+    const submit = await this.page.$('button[type="submit"], input[type="submit"]');
+    if (submit) await submit.click();
+    else await this.page.keyboard.press('Enter');
+
+    await this.page.waitForLoadState('networkidle', { timeout: 30_000 }).catch(() => {});
+    await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
+    return true;
   }
 
   // ── Search methods ────────────────────────────────────────────────────────────
@@ -138,27 +252,13 @@ export class TexasFileAdapter extends ClerkAdapter {
       try {
         await this.ensureOnSearchPage();
 
-        // Fill instrument number field
-        const instrInput = await this.page.$(
-          'input[name="instrno"], input[placeholder*="instrument" i], ' +
-          'input[id*="instrument" i], #InstrumentNumber',
-        );
-
-        if (instrInput) {
-          await instrInput.fill('');
-          await instrInput.type(instrumentNo);
-          await this.page.keyboard.press('Enter');
-          await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
+        if (await this.submitSearch({ instrumentNumber: instrumentNo })) {
           return await this.parseResults();
         }
-
-        // Fallback: navigate directly to search URL
-        await this.page.goto(
-          `${TEXASFILE_BASE}/search?county=${this.countyFIPS}&instrno=${encodeURIComponent(instrumentNo)}`,
-          { waitUntil: 'networkidle', timeout: 30_000 },
-        );
-        await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
-        return await this.parseResults();
+        // The form was not on the page. That is a navigation failure, and the retry below treats
+        // it as one — the old code fell through to a `/search?county=…` URL the site ignores, so a
+        // missing form arrived as an empty index for 233 counties.
+        throw new Error('the county search form was not on the page');
       } catch (e) {
         if (attempt === MAX_RETRIES) {
           // An exhausted retry is an ERROR, not an empty index. TexasFile is the fallback for 232
@@ -187,11 +287,9 @@ export class TexasFileAdapter extends ClerkAdapter {
 
     try {
       await this.ensureOnSearchPage();
-      await this.page.goto(
-        `${TEXASFILE_BASE}/search?county=${this.countyFIPS}&vol=${encodeURIComponent(volume)}&pg=${encodeURIComponent(pg)}`,
-        { waitUntil: 'networkidle', timeout: 30_000 },
-      );
-      await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
+      if (!(await this.submitSearch({ volume, page: pg }))) {
+        throw new Error('the county search form was not on the page');
+      }
       return await this.parseResults();
     } catch (e) {
       throw new Error(
@@ -215,32 +313,16 @@ export class TexasFileAdapter extends ClerkAdapter {
       try {
         await this.ensureOnSearchPage();
 
-        // Attempt to fill the grantee name field in the SPA form
-        const nameInput = await this.page.$(
-          'input[name="grantee"], input[placeholder*="Grantee" i], #grantee',
-        );
-
-        if (nameInput) {
-          await nameInput.fill('');
-          await nameInput.type(cleanName);
-
-          // Set document type filter if provided
-          if (options?.documentTypes?.length) {
-            await this.applyDocTypeFilter(options.documentTypes);
-          }
-
-          await this.page.keyboard.press('Enter');
-          await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
+        if (options?.documentTypes?.length) {
+          await this.applyDocTypeFilter(options.documentTypes);
+        }
+        // `nameType` is what separates a grantee search from a grantor one on this form. The old
+        // code looked for an `input[name="grantee"]` that does not exist, so both searches were
+        // identical and neither ran.
+        if (await this.submitSearch({ name: cleanName, nameType: 'grantee' })) {
           return await this.parseResults();
         }
-
-        // Fallback URL
-        await this.page.goto(
-          `${TEXASFILE_BASE}/search?county=${this.countyFIPS}&grantee=${encodeURIComponent(cleanName)}`,
-          { waitUntil: 'networkidle', timeout: 30_000 },
-        );
-        await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
-        return await this.parseResults();
+        throw new Error('the county search form was not on the page');
       } catch (e) {
         if (attempt === MAX_RETRIES) {
           throw new Error(
@@ -269,29 +351,13 @@ export class TexasFileAdapter extends ClerkAdapter {
       try {
         await this.ensureOnSearchPage();
 
-        const nameInput = await this.page.$(
-          'input[name="grantor"], input[placeholder*="Grantor" i], #grantor',
-        );
-
-        if (nameInput) {
-          await nameInput.fill('');
-          await nameInput.type(cleanName);
-
-          if (options?.documentTypes?.length) {
-            await this.applyDocTypeFilter(options.documentTypes);
-          }
-
-          await this.page.keyboard.press('Enter');
-          await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
+        if (options?.documentTypes?.length) {
+          await this.applyDocTypeFilter(options.documentTypes);
+        }
+        if (await this.submitSearch({ name: cleanName, nameType: 'grantor' })) {
           return await this.parseResults();
         }
-
-        await this.page.goto(
-          `${TEXASFILE_BASE}/search?county=${this.countyFIPS}&grantor=${encodeURIComponent(cleanName)}`,
-          { waitUntil: 'networkidle', timeout: 30_000 },
-        );
-        await this.page.waitForTimeout(RATE_LIMIT_MS.SEARCH_DELAY);
-        return await this.parseResults();
+        throw new Error('the county search form was not on the page');
       } catch (e) {
         if (attempt === MAX_RETRIES) {
           throw new Error(
