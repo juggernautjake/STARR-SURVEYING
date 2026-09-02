@@ -74,6 +74,14 @@ export interface SweepRow {
   http_status: number | null;
   duration_ms: number | null;
   fingerprint_match: boolean | null;
+  /**
+   * Whether THIS run established the baseline that future runs compare against.
+   *
+   * A live sweep on 2026-09-02 reported "no baseline" on all 18 portals, because nothing in the
+   * product had ever written one. The first sweep captures it now, and that is a third outcome —
+   * not healthy, not broken, but "the next check is the one that can tell you something".
+   */
+  baseline_captured?: boolean;
   summary: string;
 }
 

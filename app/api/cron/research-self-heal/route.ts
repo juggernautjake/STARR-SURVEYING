@@ -26,10 +26,12 @@
 //   5. Updates each adapter's last_verified_at + status (degraded /
 //      broken) so the next planner run respects the priority order.
 //
-// What this slice does NOT do:
-//   - No AI repair proposal generation (slice 3).
-//   - No auto-apply (slice 4).
-//   - No Playwright deep-check (slice 5).
+// This header described slice 2 alone and went stale: slices 3 and 4 landed and it still said
+// they had not. It now writes AI repair proposals (buildBreakageProposal) and runs the auto-apply
+// evaluator (runApplyEvaluator), both visible in the code below.
+//
+// What it still does NOT do:
+//   - No Playwright deep-check (slice 5). Every probe here is a plain GET.
 //
 // All gated on the SAME `schedule_enabled` toggle — flipping it OFF
 // stops every automated layer in one click.

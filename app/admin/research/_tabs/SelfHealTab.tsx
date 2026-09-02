@@ -247,7 +247,7 @@ export default function SelfHealTab(): React.ReactElement {
           <div style={styles.settingsList}>
             <SettingRow
               label="Automated background monitoring"
-              description="Periodically re-checks every adapter on its own and logs the results. (Cron wiring lands in slice 2 — toggling now just records your preference.)"
+              description="Re-checks every registered portal daily at 06:00 UTC (midnight CT) and logs the results, so overnight breakage is waiting for you at first login. This is WIRED — the cron reads this toggle and exits immediately when it is off."
               checked={settings.schedule_enabled}
               onChange={(v) => void toggleSetting('schedule_enabled', v)}
               saving={settingsSaving === 'schedule_enabled'}
@@ -375,7 +375,8 @@ export default function SelfHealTab(): React.ReactElement {
         <p style={styles.sectionSubtitle}>
           When a sweep flags a portal as broken or structurally changed,
           we file a triage row here so you can confirm + plan a fix.
-          AI-proposed fix content lands in a later slice; for now,
+          A flagged portal now arrives with a diff of what changed on the page — what disappeared, what appeared, and how similar it still is to the baseline —
+          so a renamed wrapper div is distinguishable from a search form replaced by a captcha wall without opening the site by hand. For portals where that is not enough,
           approve means &ldquo;acknowledged, will fix manually&rdquo;
           and reject means &ldquo;false alarm.&rdquo;
         </p>

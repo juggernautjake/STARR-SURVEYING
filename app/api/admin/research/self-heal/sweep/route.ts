@@ -19,6 +19,11 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { withErrorHandler } from '@/lib/apiErrorHandler';
 import { fingerprintHtml, diffFingerprints, type FingerprintDiff } from '@/lib/research/dom-fingerprint';
 import {
+  shouldCaptureBaseline,
+  buildBaselineRow,
+  describeBaselineCapture,
+} from '@/lib/research/self-heal-baseline';
+import {
   classifySweepStatus,
   describeProbe,
   describeSweep,
@@ -161,6 +166,9 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
     let error: string | null = null;
     let bodySnippet: string | null = null;
     let fingerprintMatch: boolean | null = null;
+    // Whether THIS run established the baseline every future run measures against.
+    let baselineCaptured = false;
+    let baselineReason = '';
     // R10 — the structural diff for this probe, when a baseline existed to compare against.
     let fingerprintDiff: FingerprintDiff | null = null;
 
@@ -200,6 +208,39 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
           );
         } else {
           fingerprintMatch = null;
+
+          // ── NOTHING HAS EVER WRITTEN A BASELINE, SO EVERY CHECK WAS BLIND ────────────────
+          //
+          // A live sweep on 2026-09-02: 18 portals, all HTTP 200, all "no baseline". The only
+          // code in the product that inserts a canary row is the add-an-adapter form, it fires
+          // only when an admin types a canary query, and it writes no DOM baseline at all. So
+          // this comparison had nothing to compare against and never would have.
+          //
+          // The first sweep captures it. See lib/research/self-heal-baseline.ts for why that is
+          // marked rather than silent.
+          const decision = shouldCaptureBaseline({
+            httpStatus,
+            body,
+            hasExistingBaseline: false,
+          });
+          baselineReason = decision.reason;
+          if (decision.capture) {
+            const live = fingerprintHtml(body);
+            const row = buildBaselineRow({ adapterId: adapter.id, fingerprint: live });
+            // Update an existing canary that has no baseline rather than adding a second row —
+            // the schema keeps old canaries with is_active=false, and two ACTIVE ones would make
+            // "the baseline" ambiguous.
+            const existing = canary?.adapter_id ? true : false;
+            const { error: capErr } = existing
+              ? await supabaseAdmin.from('research_adapter_canaries')
+                  .update(row).eq('adapter_id', adapter.id).eq('is_active', true)
+              : await supabaseAdmin.from('research_adapter_canaries').insert(row);
+            if (capErr) {
+              baselineReason = `could not be saved: ${capErr.message}`;
+            } else {
+              baselineCaptured = true;
+            }
+          }
         }
       }
     } catch (err) {
@@ -228,7 +269,12 @@ export const POST = withErrorHandler(async (_req: NextRequest) => {
       http_status: httpStatus,
       duration_ms: duration,
       fingerprint_match: fingerprintMatch,
-      summary,
+      // Said explicitly, because "no baseline" was the answer on every row of a live sweep and
+      // gave a reader nothing to do about it.
+      baseline_captured: baselineCaptured,
+      summary: fingerprintMatch === null
+        ? describeBaselineCapture(baselineCaptured, baselineReason)
+        : summary,
     });
 
     // Record the health-check row. Best-effort — a failure to write
