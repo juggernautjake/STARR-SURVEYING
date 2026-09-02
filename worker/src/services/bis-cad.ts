@@ -5,6 +5,7 @@
 // Every result is validated against the original search address.
 
 import type { PropertyIdResult, PropertyValidation, NormalizedAddress, AddressVariant, SearchDiagnostics, DeedHistoryEntry } from '../types/index.js';
+import { hostGate, noteHostAnswered, noteHostUnreachable, classifyTransportError } from '../infra/dead-host.js';
 // Model chosen by TASK, cheap-first (research plan R6): this call pulls property fields from a CAD page.
 import { modelFor } from '../infra/model-router.js';
 import { recordAmbientAiCall } from '../infra/usage.js';
@@ -2875,16 +2876,46 @@ async function queryArcGisLayer(
 ): Promise<ArcGisFeatureSet | null> {
   const qs = new URLSearchParams({ ...params, f: 'json' }).toString();
   const fullUrl = `${url}?${qs}`;
+
+  // A3. This function is called from nested service × layer × field loops, each with its own 10 s
+  // timeout, so a dead host used to cost one timeout PER PROBE — 147 s on the Milam run of
+  // 2026-09-02. The gate is checked here, in the one funnel every one of those loops passes
+  // through, rather than in each loop, because there are five of them and the next one added would
+  // not have known to ask.
+  const gate = hostGate(fullUrl);
+  if (gate.blocked) {
+    logger.warn('Stage1E', `ArcGIS query skipped — ${gate.reason}`);
+    return null;
+  }
+
   try {
     const resp = await fetch(fullUrl, {
       headers: { Accept: 'application/json' },
       signal: AbortSignal.timeout(10_000),
     });
+    // ANY status code means the host is alive. A 404 is the normal answer to most of these probes —
+    // the loops walk candidate service and layer names, and most do not exist — so it must clear the
+    // host, not condemn it. Treating 404 as death would cancel the search one probe before it found
+    // the layer, which is exactly how Bell finds its own.
+    noteHostAnswered(fullUrl);
     if (!resp.ok) return null;
     const json = await resp.json() as ArcGisFeatureSet;
     return json;
   } catch (err) {
-    logger.warn('Stage1E', `ArcGIS query failed: ${fullUrl} — ${String(err)}`);
+    const kind = classifyTransportError(err);
+    if (!kind) {
+      // Answered, but unusably — a parse failure is a bad endpoint on a live host.
+      logger.warn('Stage1E', `ArcGIS query failed: ${fullUrl} — ${String(err)}`);
+      return null;
+    }
+    const { host, justGated } = noteHostUnreachable(fullUrl, kind);
+    logger.warn(
+      'Stage1E',
+      `ArcGIS query failed (${kind}): ${fullUrl} — ${String(err)}` +
+        (justGated
+          ? ` — ${host} looks unreachable; skipping further ArcGIS probes to it for now`
+          : ''),
+    );
     return null;
   }
 }

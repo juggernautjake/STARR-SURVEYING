@@ -142,6 +142,26 @@ const KNOWN = new Map([
 
 // The ceiling. 62 when this was written, 61 after AddWidgetModal was deleted, and it may only go DOWN.
 //
+// It sat at 63 from `1499ca1cb` — the commit that rebuilt Research & Analysis as one view — until
+// 2026-09-02. That rebuild replaced four panels with `ResearchRunView` and left the old ones in the
+// tree: ResearchRunPanel (1,775 lines), ResearchAnalysisPanel (1,298) and, one commit earlier,
+// RunConsoleBar (123). 3,193 lines that typechecked, passed lint, and rendered nothing.
+//
+// Worth stating plainly, because this guard exists for the opposite failure and caught this one on
+// the way past: the usual defect here is code written and never wired. This was code wired, then
+// UNWIRED by its own replacement — the superseded half of a refactor. Same signature at the scan,
+// opposite cause, and the count is what noticed.
+//
+// ResearchRunPanel and RunConsoleBar are gone (63 -> 61). Deleting them was gated on re-pointing
+// the five guards that still read ResearchRunPanel to prove properties which now hold in
+// ResearchRunView/useRunState — see worker/src/__tests__/research-modules-are-reachable.test.ts,
+// which set that condition. All five were re-pointed first, in the same commit.
+//
+// ResearchAnalysisPanel is still here, and 61 rather than 60 is the shape of that: its own entry in
+// that file marks deleting it an OWNER CALL, because its subject is the Review stage rather than
+// the run and it was already dead before the rebuild. Removing it takes this to 60. Deleting it
+// unasked is not this guard's call to make, so the number records the open question instead.
+//
 // Not an enumerated allowlist, because I investigated three of these (one of which is now deleted) and would be inventing notes
 // for the other 58. A count is the honest instrument: it stops the next one being added by accident
 // without pretending to know what the existing ones are.

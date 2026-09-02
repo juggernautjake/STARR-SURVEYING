@@ -158,22 +158,46 @@ describe('the surface', () => {
   });
 
   it('keeps a broken spend read visible instead of showing a confident zero', () => {
+    // RunConsoleBar carried this until 2026-09-02. The rebuild absorbed the console into the one
+    // run view and DROPPED this caveat on the way: the route went on sending `usageFailed` and
+    // nothing read it, so a run whose usage query errored displayed a confident total. Restored
+    // 2026-09-02 — which is what this guard was for. It asserts all three hops, because the
+    // feature disappeared in the middle one.
     const route = read('app/api/admin/research/[projectId]/run-console/route.ts');
     expect(route).toContain('usageFailed');
-    const bar = read('app/admin/research/components/RunConsoleBar.tsx');
-    expect(bar).toContain('the cost shown above is incomplete');
+
+    const hook = read('app/admin/research/components/useRunState.ts');
+    expect(hook, 'the hook drops usageFailed on the floor again').toContain('data.usageFailed');
+
+    const state = read('lib/research/run-state.ts');
+    expect(state).toContain('spendIncomplete');
+
+    const view = read('app/admin/research/components/ResearchRunView.tsx');
+    expect(view).toContain('state.spendIncomplete');
+    expect(view).toContain('the cost shown above is incomplete');
   });
 
-  it('does not colour "no spend recorded" like a zero', () => {
-    const bar = read('app/admin/research/components/RunConsoleBar.tsx');
-    expect(bar).toContain('no spend recorded');
-    expect(read('app/admin/styles/AdminResearch.css')).toContain('.run-console__metric--unknown');
+  it('does not render "no spend recorded" as a zero', () => {
+    // The console showed this as a colour; the one view shows it as a value and a hint. Same
+    // guarantee, which is that $0.00 and "nothing was written" are different facts — conflating
+    // them is how a broken spend writer looked like a free run for months.
+    const view = read('app/admin/research/components/ResearchRunView.tsx');
+    expect(view).toContain('state.spendUnrecorded');
+    // The dash, not a formatted zero.
+    expect(view).toContain("state.spendUnrecorded ? '—'");
+    expect(view).toContain('NOT the same as it having cost nothing');
   });
 
   it('stops polling once the run is not running', () => {
     // A finished run does not change, and polling it every ten seconds is load nobody asked for.
-    const bar = read('app/admin/research/components/RunConsoleBar.tsx');
-    expect(bar).toMatch(/if \(data\?\.run\?\.status !== 'running'\) return;/);
+    //
+    // This read RunConsoleBar, which polled itself. In the one-hook design the timers are started
+    // and stopped from the DERIVED lifecycle, so the guarantee is now held in one place instead of
+    // in each component that remembered to check — the reason the four panels could disagree about
+    // whether a run was still going.
+    const hook = read('app/admin/research/components/useRunState.ts');
+    expect(hook).toContain('if (isActive(lifecycle))');
+    expect(hook).toContain('stopTimers();');
   });
 
   it('is actually mounted on the project page', () => {

@@ -336,6 +336,14 @@ export interface ConsolePayload {
   phase?: string | null;
   activity?: string | null;
   spend?: { totalUsd: number; noEventsRecorded: boolean; headline: string } | null;
+  /**
+   * The usage READ failed, as opposed to finding nothing.
+   *
+   * Sits beside `run` on the wire, not inside it, so the hook folds it in here. The route has
+   * always sent it; between the four-panel rebuild and 2026-09-02 nothing read it, and a run
+   * whose spend query errored displayed a confident total instead of admitting the gap.
+   */
+  usageFailed?: boolean;
   time?: {
     elapsedMs: number;
     budgetMs: number | null;
@@ -363,6 +371,19 @@ export interface RunState {
   spendUsd: number | null;
   /** True when no usage event exists at all — NOT the same as $0.00 spent. */
   spendUnrecorded: boolean;
+  /**
+   * The spend figure is known to be short — the usage read errored. Distinct again from
+   * `spendUnrecorded`: that one means "nothing was written", this one means "we could not look".
+   * Both must outrank a confident number.
+   */
+  spendIncomplete: boolean;
+  /**
+   * Why this run could not buy documents, when it could not. Null when buying was possible.
+   *
+   * The `analyze` route has computed this all along; its only reader was the panel the rebuild
+   * retired, so the answer to "why did TexasFile return nothing?" stopped reaching the screen.
+   */
+  paidDocumentsNotice: string | null;
   skipped: Array<{ what: string; reason: string }>;
   /** A `running` row nobody has heard from for ten minutes. */
   looksStalled: boolean;
@@ -375,6 +396,8 @@ export interface BuildRunStateInput {
   console: ConsolePayload | null;
   /** The percentage the legacy client-side inference produced, for a worker that predates `percent`. */
   inferredPercent?: number | null;
+  /** From the analyze status route, which is the only place it is computed. */
+  paidDocumentsNotice?: string | null;
   now?: number;
 }
 
@@ -432,6 +455,8 @@ export function buildRunState(input: BuildRunStateInput): RunState {
     budgetMs: cons?.time?.budgetMs ?? null,
     spendUsd: cons?.spend ? cons.spend.totalUsd : null,
     spendUnrecorded: cons?.spend?.noEventsRecorded ?? false,
+    spendIncomplete: cons?.usageFailed ?? false,
+    paidDocumentsNotice: input.paidDocumentsNotice ?? null,
     skipped: cons?.skipped ?? [],
     looksStalled: cons?.time?.looksStalled ?? false,
     canCancel: lifecycle === 'active',

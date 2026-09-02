@@ -96,10 +96,21 @@ const KNOWN_UNREACHABLE: Record<string, string> = {
   // NOT fixed here on purpose. Stripping comments before the scan is the right repair and it will
   // surface a batch of newly-visible orphans across the repo; doing that inside a slice about the
   // research run view would bury it. Recorded in the plan doc as its own item.
-  'app/admin/research/components/RunConsoleBar.tsx':
-    'ABSORBED into ResearchRunView (plan E1). Its independent fetch of /run-console is what let it render "Finished in 2 minutes for $0.02" beside a panel reading "Research Failed" about the same run; useRunState now reads that endpoint and the one status card renders it. run-console.test.ts was repointed to assert the DATA still reaches the screen, so retiring the component did not quietly drop the feature. Safe to delete.',
+  // RunConsoleBar.tsx and ResearchRunPanel.tsx were DELETED on 2026-09-02, so their entries are gone
+  // from this map — a listed module that no longer exists fails the stale-entry test above, which is
+  // the check that keeps this list honest.
+  //
+  // The condition written below was met first: all five guards that read ResearchRunPanel to prove
+  // properties now holding in ResearchRunView/useRunState were re-pointed at the live code in the
+  // same commit — owner-name-reaches-the-run, worker-status, run-progress, pipeline-log, stored-file.
+  //
+  // Re-pointing them was not bookkeeping. run-console.test.ts turned out to be guarding a feature
+  // that had ALREADY been dropped: the analyze route still computed `paidDocumentsNotice` and the
+  // run-console route still sent `usageFailed`, and after the rebuild nothing read either one. "Why
+  // did this run buy nothing?" and "this cost figure is incomplete" had both stopped reaching the
+  // screen. Both were restored into useRunState/ResearchRunView before the files were deleted.
   'app/admin/research/components/ResearchAnalysisPanel.tsx':
-    'Already dead BEFORE this change, and only exposed by it: page.tsx imported it and never rendered it, so the import alone satisfied this check. 1,297 lines with a co-located stylesheet. Not part of plan E1 — its subject is the Review stage, not the run — so deleting it is an OWNER CALL rather than a side effect of rebuilding the run view. rendered-classes-are-styled.test.ts counts its 60 classes and would need rebaselining.',
+    'Already dead BEFORE this change, and only exposed by it: page.tsx imported it and never rendered it, so the import alone satisfied this check. 1,297 lines with a co-located stylesheet. Not part of plan E1 — its subject is the Review stage, not the run — so deleting it is an OWNER CALL rather than a side effect of rebuilding the run view. rendered-classes-are-styled.test.ts counts its 60 classes and would need rebaselining. STILL OPEN as of 2026-09-02: the other two were deleted that day and this one deliberately was not, which is why the orphan ceiling reads 61 and not 60. Its one unique feature, the paid-documents notice, no longer depends on it — that was restored into useRunState/ResearchRunView, so deleting this is now a clean removal rather than a loss.',
   // ── Found 2026-08-31, when this check was widened to .tsx and to app/admin/research/components
   //
   // Both are OWNER CALLS, recorded rather than resolved. One is a duplicate of a live page; the

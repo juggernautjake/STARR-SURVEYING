@@ -467,12 +467,26 @@ describe('the two defects the project-scoped sweep found', () => {
     //
     // Half-tokenised is worse than neither. Two literals would have been self-consistent and
     // merely off-palette; tokenising exactly one of the pair is what made the panel invisible.
-    const src = read('app/admin/research/components/ResearchRunPanel.tsx');
-    const at = src.indexOf("className=\"rrp__progress rrp__progress--idle\"");
-    expect(at, 'the idle panel is gone').toBeGreaterThan(-1);
-    const block = src.slice(at, at + 460);
-    expect(block).toContain("background: 'var(--theme-bg-elevated");
-    expect(block, 'the panel background is a literal again').not.toMatch(/background: '#/);
+    // The panel this measured was deleted on 2026-09-02. The DEFECT it pins is not about that file:
+    // it is that an idle surface must take its background from the theme, because tokenising the
+    // text and hard-coding the ground is what rendered "No Active Research" white on white.
+    //
+    // In the one-view rebuild the idle state is a tone on the shared status block, so the guarantee
+    // is now structural: there is one background declaration, it is themed, and no tone variant
+    // overrides it with a literal. That is stronger than the original — it cannot be reintroduced
+    // for the idle case alone without failing here.
+    const src = read('app/admin/research/components/ResearchRunView.tsx');
+    const at = src.indexOf(`.rrv__status {`);
+    expect(at, 'the status block is gone').toBeGreaterThan(-1);
+    const block = src.slice(at, at + 400);
+    expect(block).toContain('background: var(--theme-bg-elevated');
+
+    // And the idle tone must not re-hard-code one.
+    const idleAt = src.indexOf(`.rrv__status--idle`);
+    if (idleAt > -1) {
+      const idleBlock = src.slice(idleAt, src.indexOf(`}`, idleAt));
+      expect(idleBlock, 'the idle tone hard-codes a background again').not.toMatch(/background:s*#/);
+    }
   });
 
   it('and the completed-stage green is defined for dark grounds', () => {

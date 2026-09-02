@@ -138,9 +138,13 @@ describe('the progress bar', () => {
   });
 });
 
-describe('the panel uses the extracted module', () => {
+describe('the run-state hook uses the extracted module', () => {
   const PANEL = fs.readFileSync(
-    path.join(process.cwd(), 'app/admin/research/components/ResearchRunPanel.tsx'), 'utf8',
+    // Was ResearchRunPanel, deleted 2026-09-02 with the rest of the superseded four-panel view.
+    // The progress derivation moved into the one hook that owns polling — which is the better
+    // home for it, because a percentage computed in a component is a percentage each component
+    // can compute differently, and four of them did.
+    path.join(process.cwd(), 'app/admin/research/components/useRunState.ts'), 'utf8',
   );
 
   it('imports it', () => {
@@ -154,7 +158,9 @@ describe('the panel uses the extracted module', () => {
   });
 
   it('and calls progressPercent rather than re-deriving the clamp', () => {
-    expect(PANEL).toContain('progressPercent(currentMicroStage, isSuccess)');
+    // The hook composes the two calls rather than holding a `currentMicroStage` variable.
+    expect(PANEL).toContain('progressPercent(');
+    expect(PANEL).toContain('inferMicroStage(');
     expect(PANEL, 'the inline clamp is back').not.toContain('Math.min(96, Math.max(6,');
   });
 });

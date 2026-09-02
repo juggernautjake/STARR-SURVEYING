@@ -39,7 +39,6 @@ const read = (p: string) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const PAGE = read('app/admin/research/[projectId]/page.tsx');
 const CREATE = read('app/api/admin/research/route.ts');
 const FORM = read('app/admin/research/_tabs/ProjectsTab.tsx');
-const PANEL = read('app/admin/research/components/ResearchRunPanel.tsx');
 
 describe('the owner name survives the whole journey', () => {
   it('the form collects it', () => {
@@ -65,11 +64,10 @@ describe('the owner name survives the whole journey', () => {
     expect(PAGE).toContain('ownerName={pendingSearchParams?.ownerName ?? projectOwnerName(project)');
   });
 
-  it('the run panel sends it with the run', () => {
-    // Kept, but no longer the load-bearing assertion: ResearchRunPanel is superseded and
-    // nothing mounts it. The next test is the one that now proves the property.
-    expect(PANEL).toMatch(/ownerName: ownerName\?\.trim\(\)/);
-  });
+  // The 'run panel sends it' assertion lived here until 2026-09-02. Its own comment already said it
+  // was no longer load-bearing — ResearchRunPanel was superseded and nothing mounted it — and the
+  // file has now been deleted outright. The test below is the one that proves the property, and it
+  // always was.
 
   it('and the LIVE run path — useRunState — sends it', () => {
     // The guard follows the code. ResearchRunView/useRunState replaced the panel, and a guard

@@ -133,10 +133,36 @@ Ship in order within a phase. Each is independently useful and independently rev
       CAD is BIS at `esearch.milamcad.org`, and the GIS is `gis.bisclient.com/milamcad/`. Make the
       address-based clerk search work — the log shows six address variants tried and
       `0 total, 0 deed-relevant`, with a failure dump that captured the HTML.
-- [ ] **A3** The 147-second dead-host discovery. Milam's Stage 1 spent 12 sequential ArcGIS layer
+- [x] **A3** The 147-second dead-host discovery. Milam's Stage 1 spent 12 sequential ArcGIS layer
       queries at 10 s each against a host that never answered. The circuit breaker exists and did not
       cover the ArcGIS path. One unreachable host should cost one timeout, not twelve.
+      **DONE.** `worker/src/infra/dead-host.ts` — a gate keyed by HOSTNAME, checked inside
+      `queryArcGisLayer`, the single funnel all five service x layer x field loops pass through.
+      The existing `infra/resilience.ts` breaker could not cover this: it is keyed by a fixed set of
+      VENDOR names declared up front, and county GIS hosts are discovered at runtime from
+      `BIS_CONFIGS`, so there is no name to declare.
+
+      The hinge is that **an HTTP 404 proves the host is alive**. Those loops walk candidate service
+      and layer names and most do not exist, so a 404 is how a live server says "not that one, keep
+      going" — it clears the host rather than condemning it. Bell finds its own parcel layer partway
+      down that list, and a gate that tripped on 404 would cancel the search one probe early.
+      Connection errors gate on the first strike (unambiguous); timeouts take two, because one 10 s
+      timeout on a live-but-slow county server is not evidence. Milam: ~147 s -> ~20 s.
+
+      17 tests, including a mutation control: moving `noteHostAnswered` behind the `resp.ok` check
+      makes the wiring test fail, and restoring it makes it pass. A wiring test that cannot fail is
+      the defect this repo keeps rediscovering.
 - [ ] **A4** Coryell: same treatment. `esearch.coryellcad.org` + `gis.bisclient.com/coryellcad/`.
+      **Registry half done.** The two registries contradicted each other: `adapters/clerk-registry.ts`
+      had Coryell as `system: 'kofile', status: 'stub'` on a dead county-website URL, while
+      `services/clerk-registry.ts` has routed it to eDocTec since plan R39 (12,705 documents). The
+      entry was wrong about the VENDOR, not just the address — confirmed with a control:
+      `milam.` and `bell.tx.publicsearch.us` answer 200 while `coryell.tx.publicsearch.us` does not
+      resolve at all, identically to a deliberately nonexistent subdomain. So swapping in a Kofile
+      address would have been the wrong fix. `'edoctec'` was never in the `ClerkSystem` union, which
+      is why the correct value could not be written; adding it made the app typecheck fail on a
+      `Record<ClerkSystem, string>` label map that had no eDocTec entry — the type system finding the
+      second half of the same gap.
 - [ ] **A5** Register both in the GIS-capture path so `capture-plan.ts` can photograph their viewers
       (it reads `BIS_CONFIGS[county].gisBaseUrl`; confirm both counties resolve).
 - [ ] **A6** Tests: the adapter registry answers for both counties, the router routes to them, and
@@ -248,3 +274,35 @@ and `zip`. So the request as stated — "we do not have autocomplete" — is not
 - **2026-09-02** — Progress pacing rebuilt from two real logs, three satellite zoom bands, run length
   15/30/60 with the bar paced to it, and completion that waits for documents (`f3cc53831`).
   Worker 1,925 tests green.
+
+- **2026-09-02** — A3 (dead-host gate) and the Coryell registry correction. Plus an orphan-guard
+  breach that turned out to be about this plan's own subject:
+
+  `npm run verify:orphans` had been red at 63 against a ceiling of 61 since `1499ca1cb`, the commit
+  that rebuilt Research & Analysis as one view. Walking main commit by commit found the crossing
+  exactly there: the rebuild replaced four panels with `ResearchRunView` and left the old ones in the
+  tree. Not the usual "authored but never wired" — this was code wired, then UNWIRED by its own
+  replacement. Same signature at the scan, opposite cause.
+
+  **Re-pointing the guards found two features that had already been silently dropped**, and this is
+  the part worth keeping:
+
+  - `paidDocumentsNotice` — the analyze route still computed "why this run could not buy documents"
+    and put it on the response, and after the rebuild **nothing fetched that route at all**. The
+    reachability guard was independently reporting the route as dead. Two guards describing one lost
+    feature from opposite ends, and it is the exact question the TexasFile work exists to answer.
+  - `usageFailed` — the run-console route still sent "the spend read errored" and nothing read it, so
+    a run whose usage query failed displayed a confident total instead of admitting the gap.
+
+  Both restored through `useRunState` -> `run-state.ts` -> `ResearchRunView`, then all five guards
+  re-pointed at the live code, then the dead files deleted — in that order, because the note in
+  `research-modules-are-reachable.test.ts` had set exactly that condition: deleting first "would not
+  remove a vacuous guard, it would remove the guard entirely".
+
+  **OWNER CALL, still open:** `ResearchAnalysisPanel.tsx` (1,298 lines) was deleted and then put
+  back. Its own registry entry marks removing it an owner decision — its subject is the Review stage,
+  not the run, and it was already dead before the rebuild. That is why the orphan ceiling reads 61
+  and not 60. Its one unique feature, the paid-documents notice, no longer depends on it, so deleting
+  it is now a clean removal rather than a loss. Say the word and it goes.
+
+  App 27,899 tests green; worker 1,942 green; both typechecks clean; orphan and hex ratchets green.

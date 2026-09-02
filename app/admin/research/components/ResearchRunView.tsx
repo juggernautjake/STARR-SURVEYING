@@ -75,6 +75,7 @@ export default function ResearchRunView({
 }: ResearchRunViewProps) {
   const run = useRunState(projectId);
   const { state } = run;
+  const { paidDocumentsNotice } = state;
   const [tab, setTab] = useState<TabId>('documents');
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
@@ -178,6 +179,13 @@ export default function ResearchRunView({
         </p>
       )}
 
+      {paidDocumentsNotice && (
+        <div className="rrv__note ra-results__paid-notice" data-testid="paid-documents-notice">
+          <AlertTriangle size={14} aria-hidden />
+          <div>{paidDocumentsNotice}</div>
+        </div>
+      )}
+
       {state.skipped.length > 0 && (
         <div className="rrv__note rrv__note--warn">
           <AlertTriangle size={14} aria-hidden />
@@ -204,12 +212,19 @@ export default function ResearchRunView({
         />
         <Counter
           label="Spent"
-          value={state.spendUnrecorded ? '—' : `$${(state.spendUsd ?? 0).toFixed(2)}`}
-          // $0.00 and "nothing was recorded" are different facts, and conflating them is how a
-          // broken spend writer looked like a free run for months.
+          value={state.spendUnrecorded ? '—' : `${(state.spendUsd ?? 0).toFixed(2)}`}
+          // Three different facts, and every one of them outranks a confident number:
+          //   spendUnrecorded  nothing was written    → "—", not "$0.00"
+          //   spendIncomplete  we could not look      → the total shown is short
+          //   otherwise        the figure is the figure
+          // Conflating the first with $0.00 is how a broken spend writer looked like a free run for
+          // months. The second is the same mistake one step earlier: a failed READ rendered as a
+          // total. The route has always sent `usageFailed`; nothing had read it since the rebuild.
           hint={state.spendUnrecorded
             ? 'No usage events were recorded for this run. That is NOT the same as it having cost nothing.'
-            : undefined}
+            : state.spendIncomplete
+              ? 'The usage read failed, so the cost shown above is incomplete.'
+              : undefined}
         />
         <Counter label="Elapsed" value={formatElapsed(state.elapsedMs)} />
       </div>

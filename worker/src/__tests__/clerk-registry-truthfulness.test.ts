@@ -60,7 +60,19 @@ describe('the registry does not overstate itself', () => {
   it('keeps the known-dead URLs annotated rather than quietly present', () => {
     // Verified dead on 2026-08-26. If someone fixes one, this test should be updated in the same
     // commit — which is the point: the annotation and the URL move together or the test complains.
-    const deadOrBroken = ['Coryell', 'Collin', 'Travis'];
+    // Coryell came OFF this list on 2026-09-02, in the same commit that fixed it — which is the
+    // workflow the comment above describes.
+    //
+    // Its entry was not merely stale about a URL, it was wrong about the VENDOR: it said `kofile`
+    // pointing at a dead county-website page, while services/clerk-registry.ts has routed Coryell to
+    // eDocTec since plan R39 (12,705 documents, driven end to end). The two registries disagreed
+    // about whether the county was supported at all. It now carries the adapter's real address,
+    // https://mclennan.edoctec.com/CoryellPublicRecords, so there is no dead URL left to annotate.
+    //
+    // Confirmed with a control: milam. and bell.tx.publicsearch.us answer 200 while
+    // coryell.tx.publicsearch.us does not resolve — identical to a nonexistent subdomain. Coryell is
+    // genuinely not a Kofile county, so swapping in a Kofile address would have been the wrong fix.
+    const deadOrBroken = ['Collin', 'Travis'];
     for (const county of deadOrBroken) {
       const e = CLERK_REGISTRY.find((x) => x.county === county);
       if (!e?.baseUrl) continue; // nulled out later is a fine resolution
