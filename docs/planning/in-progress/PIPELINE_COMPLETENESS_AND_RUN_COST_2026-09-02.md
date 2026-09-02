@@ -325,9 +325,36 @@ reachability number until it exists.**
       **This is also what makes the TexasFile work reach a normal run.** The sign-in and the real
       form fixed the adapter; until now nothing in a run could construct it.
 
-- [ ] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
+- [x] **C2** For each, decide and record: wire it, or state why it is deliberately out of the normal
       path. Not everything should run on every property — the answer must be written down either way,
       because "unreachable" and "deliberately optional" look identical from the outside.
+
+      **DONE, and the answer was not "wire more phases".** Classified by measurement:
+
+      | capability | verdict |
+      | --- | --- |
+      | `subdivision-intelligence` (1,091 ln) | **parallel** — the run already does subdivision work via `extractSubdivisionName` / `fetchBestMatchingPlat` / `searchClerkForPlats`. Wiring it would duplicate a phase. |
+      | `DocumentHarvester`, `GeometricReconciliationEngine`, `address-normalizer` variants | **parallel** — see C1. |
+      | Phase 8 confidence | **wired** (C2c) — free, and was only ever blocked on a missing file. |
+      | Phase 9 purchase | **wired** (D1). |
+      | clerk vendors for 225 counties | **wired** (C2d) — the largest gap in the plan. |
+      | `adjacent-research-*`, `row-integration-engine` | **DEFERRED** — each is a whole extra research pass per neighbour or per road, at AI cost, on every property. That is a per-run choice and not a default, and the run already RANKS the adjacent parcels (see below) so an operator can order one deliberately. |
+
+- [x] **C2e** The Stage 5 validation report survives the run.
+
+      The real answer to "use all the analysis available": the run already performs the analysis
+      and did not keep it. `runPropertyValidationPipeline` produces the most decision-shaped output
+      a run has — an overall confidence and rating, the documents worth buying next WITH cost
+      estimates and the confidence boost each would give, a ranked list of which neighbour to
+      research first, per-call evidence strength, and discrepancies with severity.
+
+      Three lines reached the log — the top 3 actions and the top 3 adjacent owners. Nothing was
+      persisted. `grep validationReport src/index.ts` returned nothing and the app had never heard
+      of the field. So every run bought this analysis and kept a summary sentence.
+
+      Persisted now, with the arrays capped AND the truncation stated: a shortened list of
+      discrepancies that does not say it was shortened reads as a property with fewer problems
+      than it has.
 - [x] **C3** The paywall verdict escapes the adapter: `lastAccess` reaches the run so an operator can
       see "N records exist here and are behind a paywall" instead of nothing.
 

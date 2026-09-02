@@ -1906,6 +1906,52 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
                   verified: r.boundary.verified ?? false,
                 } : null,
                 validation: r.validation ?? null,
+
+                // ── C2e: the Stage 5 validation report, which the run paid for and threw away ──
+                //
+                // `runPropertyValidationPipeline` is an AI pass over everything the run found. It
+                // produces the most decision-shaped output a run has: an overall confidence with a
+                // rating, the documents worth buying next WITH cost estimates and the confidence
+                // boost each would give, a ranked list of adjacent owners to research, per-call
+                // evidence strength, and discrepancies with severity.
+                //
+                // Three lines of it reached the log — the top 3 actions and the top 3 adjacent
+                // owners — and nothing was persisted. `grep validationReport index.ts` returned
+                // nothing, and the app had never heard of it. So the run bought an analysis on
+                // every property and kept a summary sentence.
+                //
+                // Arrays are capped. A boundary with 200 calls produces 200 per-call confidence
+                // entries, and a metadata column is not the place for that — but the caps are
+                // STATED, because a truncated list of discrepancies that does not say it was
+                // truncated reads as a property with fewer problems than it has.
+                validationReport: r.validationReport ? {
+                  overallConfidencePct: r.validationReport.overallConfidencePct ?? null,
+                  overallRating: r.validationReport.overallRating ?? null,
+                  propertyName: r.validationReport.propertyName ?? null,
+                  acreage: r.validationReport.acreage ?? null,
+                  datum: r.validationReport.datum ?? null,
+                  pobDescription: r.validationReport.pobDescription ?? null,
+                  recordingReferences: (r.validationReport.recordingReferences ?? []).slice(0, 40),
+
+                  // What to do next, and what it would cost. The single most useful thing here.
+                  topActions: (r.validationReport.topActions ?? []).slice(0, 20),
+                  topActionsTruncated: (r.validationReport.topActions ?? []).length > 20,
+
+                  // Which neighbour to research first, and why. Computed on every run and, until
+                  // now, printed three at a time and discarded.
+                  adjacentResearchOrder: (r.validationReport.adjacentResearchOrder ?? []).slice(0, 20),
+                  adjacentResearchOrderTruncated: (r.validationReport.adjacentResearchOrder ?? []).length > 20,
+
+                  discrepancies: (r.validationReport.discrepancies ?? []).slice(0, 50),
+                  discrepanciesTruncated: (r.validationReport.discrepancies ?? []).length > 50,
+
+                  perCallConfidence: (r.validationReport.perCallConfidence ?? []).slice(0, 200),
+                  perCallConfidenceTruncated: (r.validationReport.perCallConfidence ?? []).length > 200,
+
+                  adjacentProperties: (r.validationReport.adjacentProperties ?? []).slice(0, 40),
+                  roads: (r.validationReport.roads ?? []).slice(0, 20),
+                  easements: (r.validationReport.easements ?? []).slice(0, 40),
+                } : null,
                 // finalSummary is what the Summary tab renders as "Research Summary"
                 finalSummary: r.masterReportText ?? autoSummary,
                 masterReportText: r.masterReportText ?? null,
