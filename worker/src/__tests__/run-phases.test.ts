@@ -13,6 +13,8 @@ import {
   timeFraction,
   estimateRemainingSec,
   EXPECTED_TOTAL_SEC,
+  RUN_MINUTES,
+  clampRunMinutes,
 } from '../research/run-phases.js';
 
 const T0 = 1_700_000_000_000;
@@ -235,3 +237,123 @@ function nameFor(id: string): string {
   if (!n) throw new Error(`no known name for rung ${id} — the test's map is stale`);
   return n;
 }
+
+describe('a REAL Bell run log, replayed', () => {
+  // Taken verbatim from the owner's exported run log, 2026-09-02. The whole 25-minute run emits
+  // three phase names — Validation | Phase 1 | Phase 2 — and "Phase 2" alone spans 24 of the 25
+  // minutes. The sub-phase lives in the message.
+  const REAL = [
+    [0,    'Validation', 'Verifying address and county match...'],
+    [1,    'Phase 1',    '[0s] PHASE 1 — Property Identification'],
+    [80,   'Phase 2',    '[80s] 2A — Bell County Clerk search...'],
+    [432,  'Phase 2',    '[432s] 2B — Plat repository + clerk plat search...'],
+    [551,  'Phase 2',    '[551s] 2B½ — Fetching 11 deed/dedication instrument(s)...'],
+    [1168, 'Phase 2',    '[1168s] 2C/D/E — FEMA + TxDOT + Tax (parallel)...'],
+    [1178, 'Phase 2',    '[1178s] Capturing supplemental page screenshots...'],
+    [1407, 'Phase 2',    '[1407s] Capturing GIS viewer screenshots (multiple views)...'],
+  ] as const;
+
+  function replay() {
+    const t = new RunProgressTracker(T0);
+    const seen: Array<{ sec: number; pct: number; phase: string }> = [];
+    for (const [sec, phase, msg] of REAL) {
+      const s = t.observe(phase, msg, 0, at(sec));
+      seen.push({ sec, pct: s.percent, phase: s.phaseId });
+    }
+    return seen;
+  }
+
+  it('does NOT park on one rung for the whole of Phase 2', () => {
+    const seen = replay();
+    const duringPhase2 = seen.filter((s) => s.sec >= 80);
+    const distinct = new Set(duringPhase2.map((s) => s.phase));
+    // The phase field says "Phase 2" for every one of these. The message says otherwise.
+    expect(distinct.size, `only ${[...distinct]} — the bar parked`).toBeGreaterThanOrEqual(4);
+  });
+
+  it('advances monotonically the whole way down the real log', () => {
+    const seen = replay();
+    for (let i = 1; i < seen.length; i++) {
+      expect(seen[i].pct, `${seen[i - 1].sec}s → ${seen[i].sec}s went backwards`)
+        .toBeGreaterThanOrEqual(seen[i - 1].pct);
+    }
+  });
+
+  it('is nowhere near 92% in the first seconds — the reported bug', () => {
+    const seen = replay();
+    expect(seen[0].pct).toBeLessThan(5);
+    expect(seen[1].pct).toBeLessThan(10);
+  });
+
+  it('reaches the imagery rung by the time it is capturing screenshots', () => {
+    const seen = replay();
+    expect(seen[seen.length - 1].phase).toBe('imagery');
+  });
+
+  it('strips the [80s] prefix, or every anchored message pattern is decorative', () => {
+    // Anchors and prefixes have to be considered together. Without the strip, `^2a` never matches
+    // "[80s] 2A — ..." and the ladder silently falls back to the phase field for the whole run.
+    expect(RUN_PHASES[resolvePhaseIndex('Phase 2', '[80s] 2A — Bell County Clerk search...')].id)
+      .toBe('clerk_search');
+  });
+});
+
+describe('the run length is chosen, and the bar paces itself to it', () => {
+  it('offers 15 / 30 / 60 — the owner\'s figures', () => {
+    expect(RUN_MINUTES.min).toBe(15);
+    expect(RUN_MINUTES.default).toBe(30);
+    expect(RUN_MINUTES.max).toBe(60);
+  });
+
+  it('clamps anything outside that range', () => {
+    expect(clampRunMinutes(5)).toBe(15);
+    expect(clampRunMinutes(90)).toBe(60);
+    expect(clampRunMinutes(undefined)).toBe(30);
+    expect(clampRunMinutes(NaN)).toBe(30);
+    expect(clampRunMinutes(42)).toBe(42);
+  });
+
+  it('a SHORT run reaches the same milestone sooner, not at a different percentage', () => {
+    // The shares are the same work; only the pace differs. A 15-minute run should be further along
+    // at 5 minutes than a 60-minute run is.
+    const short = new RunProgressTracker(T0, 15 * 60);
+    const long = new RunProgressTracker(T0, 60 * 60);
+    short.observe('Plats', undefined, 0, T0);
+    long.observe('Plats', undefined, 0, T0);
+    expect(short.snapshot(at(300)).percent).toBeGreaterThan(long.snapshot(at(300)).percent);
+  });
+
+  it('a LONG run does not race to its ceiling and stall', () => {
+    // Built for ~28 minutes nominal; a 60-minute run must not exhaust the phase in the first third.
+    const long = new RunProgressTracker(T0, 60 * 60);
+    long.observe('Plats', undefined, 0, T0);
+    const a = long.snapshot(at(600)).percent;
+    const b = long.snapshot(at(1200)).percent;
+    expect(b).toBeGreaterThan(a);
+  });
+
+  it('both lengths hit the SAME percentage at the same milestone', () => {
+    // Entering a phase credits the same share regardless of pace — that is what makes the number
+    // mean "how much of the work", not "how much of the clock".
+    const short = new RunProgressTracker(T0, 15 * 60);
+    const long = new RunProgressTracker(T0, 60 * 60);
+    expect(short.observe('Adjacent', undefined, 0, T0).percent)
+      .toBe(long.observe('Adjacent', undefined, 0, T0).percent);
+  });
+
+  it('scales the estimate of time left, or it promises the wrong minutes', () => {
+    const short = new RunProgressTracker(T0, 15 * 60).observe('GIS', undefined, 0, T0);
+    const long = new RunProgressTracker(T0, 60 * 60).observe('GIS', undefined, 0, T0);
+    expect(long.etaSec!).toBeGreaterThan(short.etaSec! * 2);
+  });
+});
+
+describe('the worker\'s settings agree with the bar', () => {
+  it('run-settings clamps to the same 15–60 range', async () => {
+    // Two numbers that must agree: the bar paces to the chosen length, so a setting outside the
+    // range the bar knows about would be calibrated to a run nobody can choose.
+    const { normaliseRunSettings } = await import('../research/run-settings.js');
+    expect(normaliseRunSettings({ maxResearchTimeMinutes: 5 }).maxResearchTimeMinutes).toBe(RUN_MINUTES.min);
+    expect(normaliseRunSettings({ maxResearchTimeMinutes: 500 }).maxResearchTimeMinutes).toBe(RUN_MINUTES.max);
+  });
+});

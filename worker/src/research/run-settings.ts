@@ -79,7 +79,11 @@ export const RUN_SETTING_KEYS = [
  *  honouring it is a worker slot held for ten hours. Clamped rather than rejected: an out-of-range
  *  number from a UI slider should start a sensible run, not a 400. */
 const LIMITS = {
-  minutes: { min: 1, max: 120 },
+  // 15 floor / 60 ceiling, matching RUN_MINUTES in run-phases.ts — the progress bar paces itself
+  // to this number, so the two must agree or the bar is calibrated to a run length nobody can
+  // choose. Was 1–120: a one-minute ceiling cannot finish any real property, and a run offered a
+  // setting that always stops it early is worse than one that does not offer it.
+  minutes: { min: 15, max: 60 },
   usd: { min: 0, max: 100 },
 } as const;
 

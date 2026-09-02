@@ -21,6 +21,8 @@ import {
   googleSatelliteUrl,
   googleObliqueUrl,
   MAX_NEIGHBOUR_CAPTURES,
+  MIN_ZOOM,
+  MAX_ZOOM,
   type CapturePlanInput,
 } from '../research/capture-plan.js';
 
@@ -270,5 +272,67 @@ describe('the county GIS URLs this depends on are real, not invented', () => {
     // 19 at the time of writing. Asserting a floor, not the exact number: adding counties is good.
     expect(count).toBeGreaterThanOrEqual(15);
     expect(bis).toContain('https://gis.bisclient.com/bellcad/');
+  });
+});
+
+describe('three zoom levels on every run', () => {
+  // The owner's request: "for google maps and satellite, I want it so that we have a zoomed out
+  // view, a medium zoom view, and then a closer up zoom view… for every run we do".
+  it('captures wide, framed and close for the subject', () => {
+    const kinds = planCaptures(base).captures.map((c) => c.kind);
+    expect(kinds).toContain('aerial_wide');
+    expect(kinds).toContain('aerial_subject');
+    expect(kinds).toContain('aerial_close');
+  });
+
+  it('orders them wide → framed → close', () => {
+    const p = planCaptures(base);
+    const z = (k: string) => p.captures.find((c) => c.kind === k)!.zoom!;
+    expect(z('aerial_wide')).toBeLessThan(z('aerial_subject'));
+    expect(z('aerial_subject')).toBeLessThan(z('aerial_close'));
+  });
+
+  it('scales all three from the ACREAGE, not from a fixed number', () => {
+    // The defect this replaces: Bell captured everything at a hardcoded zoom 20.
+    const small = planCaptures({ ...base, acreage: 0.25 });
+    const large = planCaptures({ ...base, acreage: 200 });
+    const wide = (p: ReturnType<typeof planCaptures>) =>
+      p.captures.find((c) => c.kind === 'aerial_wide')!.zoom!;
+    expect(wide(large)).toBeLessThan(wide(small));
+  });
+
+  it('reports a DIFFERENT scale for each band', () => {
+    // Metres-per-pixel doubles per zoom level down. Reporting the framed scale on all three would
+    // put a wrong number on two of them, and the scale is what makes an aerial measurable.
+    const p = planCaptures(base);
+    const mpp = ['aerial_wide', 'aerial_subject', 'aerial_close']
+      .map((k) => p.captures.find((c) => c.kind === k)!.metresPerPixel!);
+    expect(new Set(mpp).size).toBe(3);
+    expect(mpp[0]).toBeGreaterThan(mpp[1]);   // wider = more ground per pixel
+    expect(mpp[1]).toBeGreaterThan(mpp[2]);
+  });
+
+  it('stays inside the range Google actually resolves', () => {
+    for (const acreage of [0.05, 1, 50, 500, 5000]) {
+      for (const c of planCaptures({ ...base, acreage }).captures) {
+        if (!c.zoom) continue;
+        expect(c.zoom, `acreage ${acreage}`).toBeGreaterThanOrEqual(MIN_ZOOM);
+        expect(c.zoom, `acreage ${acreage}`).toBeLessThanOrEqual(MAX_ZOOM);
+      }
+    }
+  });
+
+  it('gives each band its own stable key, so a re-run does not refile them', () => {
+    const first = planCaptures(base);
+    const keys = first.captures.map((c) => c.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const second = planCaptures({ ...base, alreadyHeldKeys: keys });
+    expect(second.captures).toHaveLength(0);
+  });
+
+  it('says WHY each band is worth taking, in the packet not just the log', () => {
+    const p = planCaptures(base);
+    expect(p.captures.find((c) => c.kind === 'aerial_wide')!.purpose).toMatch(/road it takes access from/i);
+    expect(p.captures.find((c) => c.kind === 'aerial_close')!.purpose).toMatch(/fence/i);
   });
 });

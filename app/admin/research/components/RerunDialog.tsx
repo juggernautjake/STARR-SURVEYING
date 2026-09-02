@@ -75,7 +75,13 @@ interface FormState {
 
 /** The defaults a run gets when nothing says otherwise. Kept here so the dialog can show them as
  *  defaults rather than presenting them as the operator's own past choices. */
-const FALLBACK = { minutes: 25, costUsd: 2, mode: 'paid' as const };
+const FALLBACK = { minutes: 30, costUsd: 2, mode: 'paid' as const };
+
+/** The run length an operator may choose. Mirrors RUN_MINUTES in worker/src/research/run-phases.ts
+ *  — the progress bar paces itself to this number, so the two must agree or the bar is calibrated
+ *  to a length nobody can pick. 15 is the floor because a measured Bell run spent 18 minutes in the
+ *  clerk and retrieval phases alone; anything shorter always stops early. */
+const RUN_MINUTES = { min: 15, default: 30, max: 60 };
 
 export default function RerunDialog({
   projectId, projectDefaults, onCancel, onConfirm,
@@ -145,7 +151,8 @@ export default function RerunDialog({
           typeof s.allowPaidDocuments === 'boolean'
             ? s.allowPaidDocuments
             : projectDefaults.allowPaidDocuments,
-        maxResearchTimeMinutes: num(s.maxResearchTimeMinutes, FALLBACK.minutes),
+        maxResearchTimeMinutes: Math.min(RUN_MINUTES.max, Math.max(RUN_MINUTES.min,
+          num(s.maxResearchTimeMinutes, FALLBACK.minutes))),
         maxCostUsd: num(s.maxCostUsd, FALLBACK.costUsd),
         mode: s.mode === 'free' ? 'free' : FALLBACK.mode,
         // Off by default even if the last run used it: 19 of 53 duplicate rows measured in
@@ -313,8 +320,15 @@ export default function RerunDialog({
 
               <div className="rrd__row">
                 <label className="rrd__field">
-                  <span className="rrd__label">Time ceiling (minutes)</span>
-                  <input className="rrd__input" type="number" min={1} max={120}
+                  <span className="rrd__label">
+                    How long this run may take
+                    <span className="rrd__hint">
+                      {RUN_MINUTES.min}–{RUN_MINUTES.max} minutes, {RUN_MINUTES.default} by default. The progress bar paces itself to
+                      this, so a shorter run reaches the same milestones sooner rather than racing
+                      ahead and stalling.
+                    </span>
+                  </span>
+                  <input className="rrd__input" type="number" min={RUN_MINUTES.min} max={RUN_MINUTES.max}
                          value={form.maxResearchTimeMinutes}
                          onChange={(e) => set('maxResearchTimeMinutes', Number(e.target.value))} />
                 </label>

@@ -257,6 +257,8 @@ function documentTypeFor(kind: PlannedCaptureItem['kind']): string {
     case 'oblique': return 'oblique_aerial';
     case 'aerial_historical': return 'historical_aerial';
     case 'aerial_neighbours': return 'adjoiner_aerial';
+    case 'aerial_wide': return 'aerial_wide';
+    case 'aerial_close': return 'aerial_close';
     default: return 'aerial';
   }
 }

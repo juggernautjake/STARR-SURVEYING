@@ -91,7 +91,7 @@ export const RUN_PHASES: RunPhase[] = [
     id: 'property',
     label: 'Identifying the property',
     expectedSec: 70,
-    match: [/^gis$/i, /^stage\s*1\b/i, /^phase\s*1$/i, /^cad\b/i, /^appraisal/i],
+    match: [/^gis$/i, /^stage\s*1\b/i, /^phase\s*1$/i, /^cad\b/i, /^appraisal/i, /^enrich:/i],
   },
   {
     id: 'discovery',
@@ -102,20 +102,31 @@ export const RUN_PHASES: RunPhase[] = [
   {
     id: 'clerk_search',
     label: 'Searching the county records',
-    expectedSec: 120,
-    // The generic pipeline names its steps in the MESSAGE, so `Stage 2: Clerk search` is matched
-    // here while `Stage 2: Downloading…` falls to retrieval below. Anchored, so a message merely
-    // mentioning a clerk cannot reach it.
-    match: [/^clerk$/i, /^stage\s*2:\s*clerk\s+search/i],
+    // MEASURED, not guessed: in the owner's 2026-09-02 Bell log, 2A ran 80s → 432s = 352s. Rounded
+    // down because that run hit a clerk portal that was answering slowly.
+    expectedSec: 240,
+    // The generic pipeline names its steps in the MESSAGE (`Stage 2: Clerk search`) and Bell
+    // names them with its own sub-phase markers (`2A — Bell County Clerk search`, `Clerk: …`).
+    // Both taken from real run logs, 2026-09-02. Anchored, so a message merely mentioning a
+    // clerk cannot reach this rung.
+    match: [/^clerk$/i, /^clerk:/i, /^2a\b/i, /^stage\s*2:\s*clerk\s+search/i],
   },
   {
     id: 'retrieval',
     label: 'Retrieving documents',
-    expectedSec: 360,
+    // MEASURED: 2B (plats) 432s → 551s and 2B½ (deed fetches) 551s → 1168s = 736s together, on a
+    // property with 17 instruments. This is the long pole by a wide margin and the ladder now says
+    // so — the previous 360 made the bar creep flat for six minutes in the middle of every run.
+    expectedSec: 600,
     match: [
-      /^plats$/i, /^phase\s*2$/i,
+      /^plats$/i, /^plats:/i, /^deeds:/i,
+      // Bell's own sub-phase markers: 2B is the plat hunt, 2B½ the deed fetches.
+      /^2b\b/i, /^2b½/i,
       /^stage\s*2:\s*(retriev|download|fetch)/i,
       /^stage\s*2\b/i,
+      // LAST among the Phase-2 patterns: the bare phase name is the coarse container that
+      // spans 24 of a 25-minute run, so it must only apply when no sub-phase marker matched.
+      /^phase\s*2$/i,
     ],
   },
   {
@@ -133,13 +144,18 @@ export const RUN_PHASES: RunPhase[] = [
     id: 'context',
     label: 'Flood, right-of-way and tax',
     expectedSec: 90,
-    match: [/^fema$/i, /^txdot$/i, /^tax$/i],
+    match: [/^fema$/i, /^fema:/i, /^txdot$/i, /^txdot:/i, /^tax$/i, /^tax:/i, /^2c\/d\/e/i],
   },
   {
     id: 'imagery',
     label: 'Capturing maps and imagery',
     expectedSec: 150,
-    match: [/^screenshots$/i, /^gis viewer$/i, /^map capture$/i, /^capture$/i],
+    match: [
+      /^screenshots$/i, /^screenshots:/i, /^gis viewer$/i, /^gis viewer:/i,
+      /^map capture$/i, /^capture$/i, /^direct maps:/i,
+      // Bell announces each capture pass in prose; these are its exact opening words.
+      /^capturing (supplemental|gis viewer|direct map)/i,
+    ],
   },
   {
     id: 'ocr',
@@ -217,19 +233,51 @@ function phaseSpanPercent(index: number): number {
  * about itself while a message is prose written for a person.
  */
 export function resolvePhaseIndex(phase: string | undefined, message?: string): number {
+  // ── THE MESSAGE IS CONSULTED FIRST, AND A REAL RUN LOG IS WHY ────────────────────────────────
+  //
+  // The first version of this preferred the PHASE field, on the reasoning that a phase name is a
+  // fact the worker stated about itself while a message is prose. That reasoning is sound and the
+  // conclusion was wrong, because Bell's phase field is not granular enough to be a fact about
+  // anything useful. From a real 25-minute run:
+  //
+  //     the whole run emits three phase names: Validation | Phase 1 | Phase 2
+  //     "Phase 2" alone spans 1,433 seconds — 24 of the 25 minutes
+  //
+  // "Phase 2" covers the clerk search, every document download, the plat hunt, the deed fetches,
+  // FEMA/TxDOT/tax, the screenshots, the GIS viewer and the map capture. Keyed on that field the
+  // bar would park at one rung for 95% of the run and creep asymptotically — which is the same
+  // complaint as the 92% jump, pointed the other way.
+  //
+  // The granularity is in the MESSAGE, which carries the real sub-phase:
+  //
+  //     [80s] 2A — Bell County Clerk search...        [1168s] 2C/D/E — FEMA + TxDOT + Tax
+  //     [432s] 2B — Plat repository + clerk plat...   [1178s] Capturing supplemental page screenshots
+  //     [551s] 2B½ — Fetching 11 deed/dedication...   [1407s] Capturing GIS viewer screenshots
+  //
+  // Message-first is only SAFE because every pattern is now anchored. It is exactly what the old
+  // loose-word matching could not do without leaping the bar to 92%.
+  const m = stripTimestampPrefix(message);
+  if (m) {
+    for (let i = 0; i < RUN_PHASES.length; i++) {
+      if (RUN_PHASES[i].match.some((re) => re.test(m))) return i;
+    }
+  }
   const p = (phase ?? '').trim();
   if (p) {
     for (let i = 0; i < RUN_PHASES.length; i++) {
       if (RUN_PHASES[i].match.some((re) => re.test(p))) return i;
     }
   }
-  const m = (message ?? '').trim();
-  if (m) {
-    for (let i = 0; i < RUN_PHASES.length; i++) {
-      if (RUN_PHASES[i].match.some((re) => re.test(m))) return i;
-    }
-  }
   return -1;
+}
+
+/** Drop the `[80s] ` elapsed prefix the county orchestrators put on every message.
+ *
+ *  Without this every anchored message pattern fails, because the string starts with a bracket
+ *  rather than with the marker — and the ladder silently falls back to the phase field for the
+ *  whole run. Anchoring and prefixes have to be considered together or the anchors are decorative. */
+function stripTimestampPrefix(message: string | undefined): string {
+  return (message ?? '').replace(/^\s*\[\d+s\]\s*/, '').trim();
 }
 
 /**
@@ -302,9 +350,28 @@ export class RunProgressTracker {
   private phaseEnteredAtMs: number;
   /** Explicit fraction from the worker (documents 12/40), when it supplies one. */
   private reportedFraction = 0;
+  /**
+   * How the ladder is stretched or compressed for THIS run.
+   *
+   * The SHARES do not change — retrieval is the same proportion of a 15-minute run as of a
+   * 60-minute one, because it is the same work. Only the pace does. So one scale factor multiplies
+   * every phase duration and the percentages are untouched, which is why a shorter run reaches the
+   * same milestones at the same percentages, just sooner.
+   *
+   * Without this the bar would crawl through a 60-minute run (built for 28) and then sit pinned
+   * near its ceiling for half an hour, or race a 15-minute run to the asymptote in the first third
+   * — the same class of lie as the 92% jump, just slower to notice.
+   */
+  private readonly paceScale: number;
 
-  constructor(nowMs: number = Date.now()) {
+  constructor(nowMs: number = Date.now(), budgetSec?: number) {
     this.phaseEnteredAtMs = nowMs;
+    this.paceScale = budgetSec && budgetSec > 0 ? budgetSec / TOTAL_SEC : 1;
+  }
+
+  /** This run's expected seconds for a phase, after pacing. */
+  private expectedFor(index: number): number {
+    return RUN_PHASES[index].expectedSec * this.paceScale;
   }
 
   /**
@@ -362,7 +429,7 @@ export class RunProgressTracker {
     }
 
     const elapsedSec = Math.max(0, (nowMs - this.phaseEnteredAtMs) / 1000);
-    const byClock = timeFraction(elapsedSec, phase.expectedSec);
+    const byClock = timeFraction(elapsedSec, this.expectedFor(index));
     // The worker's own count beats the clock when it has one.
     const fraction = Math.max(byClock, Math.min(1, this.reportedFraction));
 
@@ -379,7 +446,9 @@ export class RunProgressTracker {
       phaseCount: RUN_PHASES.length,
       percent,
       rawPhase: this.rawPhase,
-      etaSec: estimateRemainingSec(index, fraction),
+      // Scaled too, or a 60-minute run would promise it had twelve minutes left when it had
+      // twenty-five.
+      etaSec: Math.round(estimateRemainingSec(index, fraction) * this.paceScale),
     };
   }
 }
@@ -400,5 +469,21 @@ export function estimateRemainingSec(index: number, fraction: number): number {
   return Math.round(remainingHere + rest);
 }
 
-/** Total expected seconds for a full run, exported so a caller can show "of about N minutes". */
+/** Total expected seconds for a full run at the NOMINAL pace, before any per-run scaling. */
 export const EXPECTED_TOTAL_SEC = TOTAL_SEC;
+
+/**
+ * The run length an operator may choose, in minutes.
+ *
+ * 30 default, 15 floor, 60 ceiling — the owner's figures. The floor is not arbitrary: a real
+ * Bell run measured on 2026-09-02 spent 1,088 seconds in the clerk and retrieval phases alone,
+ * so a ceiling below about 15 minutes cannot finish a normal property and would produce a run
+ * that always stops early. Offering a number that cannot work is worse than not offering it.
+ */
+export const RUN_MINUTES = { min: 15, default: 30, max: 60 } as const;
+
+/** Clamp a chosen run length into the range that can actually complete a run. */
+export function clampRunMinutes(minutes: number | undefined): number {
+  if (!Number.isFinite(minutes as number)) return RUN_MINUTES.default;
+  return Math.min(RUN_MINUTES.max, Math.max(RUN_MINUTES.min, Math.round(minutes as number)));
+}

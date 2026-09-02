@@ -54,8 +54,12 @@ import {
  *  a neighbour aerial and the subject aerial come from the same source and answer different
  *  questions, and filing them under one name is how "surrounding properties" got lost. */
 export type CaptureKind =
+  /** The parcel and its surroundings — roads, neighbours, how it sits in the block. */
+  | 'aerial_wide'
   /** The parcel itself, framed so the whole tract fits. */
   | 'aerial_subject'
+  /** Close on the improvements — structures, drives, fence lines, encroachments. */
+  | 'aerial_close'
   /** The adjoiners. The neighbour's fence and the road are usually the point of looking. */
   | 'aerial_neighbours'
   /** An aerial near the controlling deed's date. A 2024 photo says nothing about a 1968 deed. */
@@ -141,6 +145,56 @@ export interface CapturePlanInput {
  *  dropping the rest. */
 export const MAX_NEIGHBOUR_CAPTURES = 6;
 
+/**
+ * Three satellite passes over the subject, at the owner's request: "a zoomed out view, a medium
+ * zoom view, and then a closer up zoom view… for every run we do".
+ *
+ * ── WHY THREE, AND WHY THEY ARE OFFSETS ───────────────────────────────────────────────────────
+ *
+ * One aerial cannot answer the questions a surveyor actually asks of one. The framed view shows
+ * the tract and settles "is this the right parcel". It cannot show the road it takes access from,
+ * and it cannot resolve a fence three feet inside the line. Those are different pictures.
+ *
+ * They are OFFSETS from the framed zoom rather than fixed numbers, because the framed zoom is
+ * computed from acreage — a quarter-acre lot and a 200-acre tract need different absolute zooms
+ * for the same job. Fixed numbers are what made the old capture take everything at zoom 20.
+ *
+ * Clamped to Google's usable range: below 14 a rural parcel disappears into terrain, above 21
+ * the imagery stops resolving and simply blurs.
+ */
+export const ZOOM_BANDS = [
+  {
+    kind: 'aerial_wide' as const,
+    label: 'Aerial — wide, parcel in context',
+    offset: -3,
+    purpose:
+      'The parcel in its surroundings: the road it takes access from, the neighbouring tracts, and how it sits in the block. A framed view of the tract alone cannot show any of that.',
+  },
+  {
+    kind: 'aerial_subject' as const,
+    label: 'Aerial — subject parcel',
+    offset: 0,
+    purpose:
+      'Framed to the whole tract, at the zoom its acreage calls for. This is the view that settles whether the right parcel was identified.',
+  },
+  {
+    kind: 'aerial_close' as const,
+    label: 'Aerial — close on the improvements',
+    offset: 2,
+    purpose:
+      'Close enough to read structures, drives and fence lines. A fence sitting three feet inside the deed line is invisible at a framing zoom and obvious at this one.',
+  },
+];
+
+/** Google resolves usable satellite imagery over roughly this range. */
+export const MIN_ZOOM = 14;
+export const MAX_ZOOM = 21;
+
+/** A band's absolute zoom, from the framed zoom the acreage produced. */
+export function zoomForBand(framedZoom: number, offset: number): number {
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, framedZoom + offset));
+}
+
 /** Google's satellite view, at a given centre and zoom, as a URL Playwright can open.
  *
  *  Matches the form `map-screenshot-capture.ts` already drives for Bell, so this is the same road
@@ -202,26 +256,32 @@ export function planCaptures(input: CapturePlanInput): CapturePlan {
     imageWidthPx: input.imageWidthPx ?? 1280,
   });
 
-  // ── 1. The parcel itself, framed ─────────────────────────────────────────────────────────────
+  // ── 1. The parcel, at THREE zooms ────────────────────────────────────────────────────────────
   //
-  // The zoom comes from the acreage. Bell's capture used a fixed zoom 20 — roughly 165 m of ground
-  // — which photographs the middle of anything larger than a house lot and calls it the parcel.
-  addCapture(captures, skipped, held, refresh, {
-    key: captureKey(input.projectId, 'aerial_subject', input.parcelId ?? `${lat},${lon}`),
-    kind: 'aerial_subject',
-    source: 'google_satellite',
-    label: 'Aerial — subject parcel',
-    purpose:
-      `Current aerial framed to the whole tract at zoom ${framing.zoom} ` +
-      `(${framing.metresPerPixel.toFixed(2)} m/px). ${framing.reason}`,
-    url: googleSatelliteUrl(lat, lon, framing.zoom),
-    centre: { lat, lon },
-    zoom: framing.zoom,
-    metresPerPixel: framing.metresPerPixel,
-    // A subject aerial rarely carries text worth extracting, but Google overlays road and place
-    // labels that place the image — cheap, and it makes the capture searchable.
-    ocr: true,
-  });
+  // Wide, framed, close — every run. The framed zoom comes from the acreage and the other two are
+  // offsets from it; Bell's capture used a fixed zoom 20 for everything, which photographs the
+  // middle of anything larger than a house lot and calls it the parcel.
+  for (const band of ZOOM_BANDS) {
+    const zoom = zoomForBand(framing.zoom, band.offset);
+    // Metres per pixel doubles for every zoom level down, so the scale has to be recomputed per
+    // band. Reporting the framed scale on all three would put a wrong number on two of them, and
+    // a scale is the one thing that makes an aerial measurable rather than decorative.
+    const mpp = framing.metresPerPixel * Math.pow(2, framing.zoom - zoom);
+    addCapture(captures, skipped, held, refresh, {
+      key: captureKey(input.projectId, band.kind, input.parcelId ?? `${lat},${lon}`),
+      kind: band.kind,
+      source: 'google_satellite',
+      label: band.label,
+      purpose: `${band.purpose} Zoom ${zoom}, ${mpp.toFixed(2)} m/px.`,
+      url: googleSatelliteUrl(lat, lon, zoom),
+      centre: { lat, lon },
+      zoom,
+      metresPerPixel: mpp,
+      // Google overlays road and place labels that place the image — cheap to read, and it makes
+      // the capture searchable. Worth most on the wide view, where the road names are.
+      ocr: band.kind === 'aerial_wide',
+    });
+  }
 
   // ── 2. The county's own GIS view ─────────────────────────────────────────────────────────────
   const gis = planCadGis(input, held, refresh);

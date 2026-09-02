@@ -30,7 +30,7 @@ import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
 import { buildPlan, type ResearchMode } from './research/research-modes.js';
-import { RunProgressTracker } from './research/run-phases.js';
+import { RunProgressTracker, clampRunMinutes } from './research/run-phases.js';
 import { normaliseRunSettings, describeRunSettings, type RunSettings } from './research/run-settings.js';
 import { resolveEffectiveSettings, decidePurchase, describeSkippedPurchase, type PurchaseDecision } from './research/purchase-gate.js';
 import { planCaptures, type CapturePlanInput } from './research/capture-plan.js';
@@ -1184,7 +1184,17 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
     stopReason: null,
     settings: runSettings as unknown as Record<string, unknown>,
   });
-  runProgress.set(projectId, new RunProgressTracker());
+  // The bar paces itself to the length this run was given (15–60 min, 30 default). The SHARES
+  // are unchanged — retrieval is the same proportion of a short run as of a long one, because it
+  // is the same work — so only the speed differs. Without this the bar is calibrated to one
+  // nominal length and lies about every other.
+  runProgress.set(
+    projectId,
+    new RunProgressTracker(
+      Date.now(),
+      clampRunMinutes(runSettings.maxResearchTimeMinutes) * 60,
+    ),
+  );
 
   // ── The project's existing library, loaded before a single document is filed ─────────────────
   //
@@ -1853,13 +1863,28 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             });
         }
 
-        // ── Persist results to Supabase ────────────────────────────────────────
-        // The Review stage reads from analysis_metadata and research_documents.
-        // Without this, all Bell County results are only in memory and disappear
-        // on page refresh.
-        persistCountyResults(projectId, r).catch((err: unknown) => {
-          console.warn(`[Worker] ${projectId}: persistCountyResults error:`, err instanceof Error ? err.message : String(err));
-        });
+        // ── THE RUN IS NOT DONE UNTIL THE DOCUMENTS ARE ────────────────────────
+        //
+        // This was fire-and-forget: `persistCountyResults(...).catch(...)`, with no await. It is
+        // the call that uploads the artifacts, so the run announced itself complete and then went
+        // on writing documents for minutes afterwards. The owner watched it happen — "two new
+        // documents suddenly showed up" while they were reviewing results — and the Milam log of
+        // 2026-09-02 shows the same shape from the other side:
+        //
+        //     [00:10:53] Pipeline FAILED in 261.9s
+        //     [00:11:02] AdaptiveVision: ...          ← five more minutes of work
+        //     [00:15:58] [Library]: 0 new document(s) filed
+        //
+        // "Complete" has to mean the review is ready, or it means nothing an operator can act on.
+        //
+        // Bounded, because a hung upload must not hold a finished run open forever: past the
+        // deadline the run completes anyway and SAYS the persistence was still going, which is a
+        // different and much smaller lie than silently finishing early.
+        await settlePersistence(
+          projectId,
+          persistCountyResults(projectId, r),
+          handshakeLogger,
+        );
 
         // ── Update project status to 'review' ─────────────────────────────────
         getSupabase()
@@ -3559,6 +3584,53 @@ function gisBaseUrlFor(county: string): string | null {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cfg = (BIS_CONFIGS as any)[key];
   return (cfg?.gisBaseUrl as string) ?? null;
+}
+
+/** How long a finished run will wait for its own documents to finish uploading. */
+const PERSIST_SETTLE_MS = 120_000;
+
+/**
+ * Wait for a run's documents to be written before calling the run complete.
+ *
+ * Bounded and non-throwing. The three ways this ends are all reported rather than swallowed:
+ * finished, timed out, or failed — and in the last two the run still completes, because a run
+ * whose research succeeded is not a failed run just because its bookkeeping was slow. What it must
+ * never do is claim the review is ready when it is not.
+ */
+async function settlePersistence(
+  projectId: string,
+  work: Promise<unknown>,
+  logger: import('./lib/logger.js').PipelineLogger,
+): Promise<void> {
+  const started = Date.now();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<'timeout'>((resolve) => {
+    timer = setTimeout(() => resolve('timeout'), PERSIST_SETTLE_MS);
+  });
+
+  try {
+    const outcome = await Promise.race([work.then(() => 'done' as const), timeout]);
+    const secs = Math.round((Date.now() - started) / 1000);
+    if (outcome === 'timeout') {
+      console.warn(`[Worker] ${projectId}: documents still uploading after ${secs}s — completing anyway`);
+      logger.attempt('[Save Check]', 'warn', 'Documents still uploading',
+        `Still writing after ${secs}s`)
+        .warn(`Some documents were still uploading when this run finished. They will appear shortly; ` +
+              `nothing was lost, but the review may be incomplete for a moment.`);
+      return;
+    }
+    console.log(`[Worker] ${projectId}: documents persisted in ${secs}s — run is genuinely complete`);
+    logger.attempt('[Save Check]', 'info', 'Documents persisted', `${secs}s`)
+      .success(0, `All documents were written before this run reported complete.`);
+  } catch (err) {
+    // A persistence failure is worth stating loudly, and is still not a research failure.
+    console.warn(`[Worker] ${projectId}: persistence failed —`, err instanceof Error ? err.message : String(err));
+    logger.attempt('[Save Check]', 'warn', 'Persistence failed', String(err))
+      .warn(`The research finished but some documents could not be written. The run is complete; ` +
+            `the review may be missing files.`);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // ── May this run spend money? ─────────────────────────────────────────────────────────────────
