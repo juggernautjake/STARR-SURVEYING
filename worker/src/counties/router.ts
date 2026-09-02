@@ -553,6 +553,7 @@ export async function runCountyResearch(
       console.log(`[CountyRouter] ${input.projectId}: using GENERIC pipeline for county="${county}"`);
 
       const { runPipeline } = await import('../services/pipeline.js');
+      const { fileGenericDocumentNow } = await import('../research/file-generic-document.js');
 
       // Adapt CountyResearchInput → PipelineInput
       const pipelineInput: PipelineInput = {
@@ -570,6 +571,17 @@ export async function runCountyResearch(
           size: f.content.length,
           description: f.description,
         })),
+        // B2 — file each document the moment it is found, not in a batch when the run ends.
+        //
+        // The Bell orchestrator has done this since it was written; the generic pipeline, which
+        // serves every other routed county, accumulated everything and let the caller delete and
+        // bulk-insert at the end. Same product, opposite behaviour, and only one of them was
+        // guarded.
+        //
+        // Deliberately not awaited: filing is a side effect of finding, and a slow write must not
+        // pace the research. `fileGenericDocumentNow` never throws, and a document it cannot write
+        // is counted and explained by the run's filing tally rather than lost silently.
+        onDocument: (doc) => { void fileGenericDocumentNow(input.projectId, doc); },
       };
 
       // The generic pipeline calls updateStatus() which writes research_message to

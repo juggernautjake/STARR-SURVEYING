@@ -13,6 +13,21 @@ export interface PipelineInput {
   ownerName?: string;
   /** User-uploaded files to process alongside online-retrieved documents */
   userFiles?: UserFile[];
+  /**
+   * Called the moment a document is found, before the run finishes — B2.
+   *
+   * The owner's requirement was explicit: "I don't want the research worker to compile the
+   * files/documents all slowly over time and then upload them in a big group." The Bell orchestrator
+   * had honoured that since it was written, at seven incremental call sites. The GENERIC pipeline
+   * never did: it accumulated everything in `documents[]`, and the caller waited for the run to end,
+   * DELETED the project's previous `property_search` rows, and bulk-inserted.
+   *
+   * So the guarantee held for one county and silently did not hold for the other forty.
+   *
+   * Fire-and-forget by contract. A filing failure must never abort research that is already
+   * succeeding — the tally records it and the run log says so (see B1).
+   */
+  onDocument?: (doc: DocumentResult) => void;
 }
 
 export interface PipelineResult {

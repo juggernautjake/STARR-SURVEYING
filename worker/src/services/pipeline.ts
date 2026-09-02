@@ -462,11 +462,45 @@ function compareBoundaries(a: BoundaryLike, b: BoundaryLike): number {
  * `concurrency: 3`, and a global would file one run's spend against another whenever two overlap —
  * a ceiling that stops the wrong job while its numbers reconcile to nothing.
  */
+/**
+ * Record a document and hand it straight to the caller — B2.
+ *
+ * Every `documents.push(...)` in this file goes through here, so a document cannot be added to the
+ * run without the caller being told about it. That is the property worth having: the previous
+ * arrangement was correct only by convention, and a new push site added later would have silently
+ * gone back to batching.
+ *
+ * Variadic so the two spread sites (`...iterationDocs`) read the same as the five single ones.
+ *
+ * The notify call is wrapped: a caller whose filing throws must not take down a run that is
+ * otherwise succeeding. Losing the row is bad and is reported; losing the research is worse.
+ */
+function fileNow(
+  list: DocumentResult[],
+  notify: ((doc: DocumentResult) => void) | undefined,
+  ...items: DocumentResult[]
+): void {
+  for (const item of items) {
+    list.push(item);
+    if (!notify) continue;
+    try {
+      notify(item);
+    } catch (err) {
+      console.warn(
+        `[Pipeline] onDocument threw for a document; the run continues —`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+}
+
 export async function runPipeline(input: PipelineInput): Promise<PipelineResult> {
   return withRunContext(input.projectId, () => runPipelineInner(input));
 }
 
 async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
+  // Handed to fileNow at every push site, so "found" and "filed" cannot drift apart.
+  const onDocument = input.onDocument;
   const startTime = Date.now();
   const logger = new PipelineLogger(input.projectId);
   const anthropicApiKey = process.env.ANTHROPIC_API_KEY ?? '';
@@ -880,7 +914,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
               },
               textContent: null, pages, ocrText: null, extractedData: null,
             };
-            documents.push(docResult);
+            fileNow(documents, onDocument, docResult);
             instrumentSearchSucceeded = true;
             docsAdded.push(`${instrNum}(${pages.length}pp)`);
             // Bundle pages → PDF non-fatally but LOG failures
@@ -944,7 +978,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
             const platResult = await fetchBestMatchingPlat(input.county, subdivisionName, logger, anthropicApiKey);
             if (platResult) {
               logger.info('Stage2A', `Plat: "${platResult.name}" (${platResult.source})`);
-              documents.push({
+              fileNow(documents, onDocument, {
                 ref: {
                   instrumentNumber: null, volume: null, page: null,
                   documentType: 'Plat (county repository)',
@@ -1036,7 +1070,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
                 textContent: null, pages,
                 ocrText: null, extractedData: null,
               };
-              documents.push(docResult);
+              fileNow(documents, onDocument, docResult);
               instrumentSearchSucceeded = true;
               bundleAndUploadPages(pages, input.projectId, instrNum, docType)
                 .then(url => { if (url) docResult.pagesPdfUrl = url; })
@@ -1117,7 +1151,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
                     },
                     textContent: null, pages, ocrText: null, extractedData: null,
                   };
-                  documents.push(docResult);
+                  fileNow(documents, onDocument, docResult);
                   instrumentSearchSucceeded = true;
                   bundleAndUploadPages(pages, input.projectId, instrNum, docType)
                     .then(url => { if (url) docResult.pagesPdfUrl = url; })
@@ -1405,7 +1439,7 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
                 },
                 textContent: null, pages, ocrText: null, extractedData: null,
               };
-              documents.push(docResult);
+              fileNow(documents, onDocument, docResult);
               instrumentSearchSucceeded = true;
               bundleAndUploadPages(pages, input.projectId, instrNum, docResult.ref.documentType)
                 .then(url => { if (url) docResult.pagesPdfUrl = url; })
@@ -1823,13 +1857,13 @@ async function runPipelineInner(input: PipelineInput): Promise<PipelineResult> {
         extractT.fail(`AI extraction failed: ${extractErr instanceof Error ? extractErr.message : String(extractErr)}`);
         // Non-fatal: skip this iteration's extraction but continue the loop
         allProcessedDocs.push(...iterationDocs); // add without extraction
-        documents.push(...iterationDocs);
+        fileNow(documents, onDocument, ...iterationDocs);
         break;
       }
 
       // Accumulate processed docs
       allProcessedDocs.push(...newProcessedDocs);
-      documents.push(...iterationDocs);
+      fileNow(documents, onDocument, ...iterationDocs);
 
       // Keep the best boundary:
       //   1. metes_and_bounds always beats lot_and_block (type hierarchy)

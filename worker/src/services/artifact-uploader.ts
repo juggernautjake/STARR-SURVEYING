@@ -958,7 +958,7 @@ function narrowRow(row: Record<string, unknown>): Record<string, unknown> {
  * started — this behaves exactly as it did before. Losing a document because its bookkeeping was
  * unavailable would be a worse failure than the duplicate this exists to prevent.
  */
-async function resilientInsertDocument(
+export async function resilientInsertDocument(
   supabase: SupabaseClient,
   projectId: string,
   row: Record<string, unknown>,

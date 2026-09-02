@@ -26,6 +26,7 @@ import { describePersist, persistAdjoiners, type AdjoinerInput } from './infra/a
 import { runROWIntegration, type ROWReport } from './services/row-integration-engine.js';
 import { GeometricReconciliationEngine } from './services/geometric-reconciliation-engine.js';
 import { uploadPipelineArtifacts, beginFiling, endFiling, type ArtifactScreenshot, type ArtifactPageImage } from './services/artifact-uploader.js';
+import { alreadyFiledThisRun, beginGenericFiling, endGenericFiling, genericDocumentRow } from './research/file-generic-document.js';
 import { ConfidenceScoringEngine } from './services/confidence-scoring-engine.js';
 import { DocumentPurchaseOrchestrator } from './services/document-purchase-orchestrator.js';
 // The mode a researcher picks when starting a run — free first, paid on demand (plan S-11).
@@ -1205,6 +1206,12 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
   //
   // Failure to load is not fatal: with no context the filer writes as it always did. A document
   // lost because its bookkeeping was unavailable is a worse outcome than a duplicate.
+  // B2. Opened unconditionally and before the library, because it tracks what the run has FILED
+  // rather than what it has seen before. If the library fails to open, documents still file (without
+  // cross-run dedupe), and the end-of-run sweep must still know which of them already landed —
+  // otherwise a failed library turns into duplicated rows.
+  beginGenericFiling(projectId);
+
   try {
     const supabaseForFiling = await getSupabase();
     if (supabaseForFiling) {
@@ -1596,58 +1603,34 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
         // them after navigating away or refreshing the page.
         // User-uploaded documents (fromUserUpload=true) already exist in the DB
         // from Stage 1 — skip them to avoid duplicates.
-        const pipelineDocs = r.documents.filter(d => !d.fromUserUpload);
+        // ── B2: a SWEEP, not the filing ─────────────────────────────────────
+        //
+        // This used to be where generic-pipeline documents were written, and it did two harmful
+        // things. It waited for the run to end, so nothing was viewable until then — the batching
+        // the owner asked us to stop. And it DELETED the project's previous `property_search` rows
+        // first, so a re-run destroyed what the last run found, and a run that crashed after the
+        // delete left the project with fewer documents than it started with. That is the precise
+        // opposite of the supersede-not-delete rule the cross-run library exists to enforce.
+        //
+        // Documents are now filed by `onDocument` as the pipeline finds them, through the same
+        // duplicate check Bell uses. What remains here is a safety net for anything the incremental
+        // path could not write — a transient Supabase failure mid-run should not cost the document.
+        // Anything already filed this run is skipped, so the net cannot double-write.
+        const pipelineDocs = r.documents
+          .filter((d) => !d.fromUserUpload)
+          .filter((d) => !alreadyFiledThisRun(projectId, d));
         if (pipelineDocs.length > 0) {
+          console.log(
+            `[Worker] ${projectId}: ${pipelineDocs.length} document(s) were not filed during the run — sweeping`,
+          );
           getSupabase()
             .then(async (supabase) => {
               if (!supabase) return;
-              // Delete documents from any previous pipeline run for this project
-              // so a re-run always shows fresh results.
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              await (supabase as any)
-                .from('research_documents')
-                .delete()
-                .eq('research_project_id', projectId)
-                .eq('source_type', 'property_search');
-
               const now = new Date().toISOString();
-              const docInserts = pipelineDocs.map((doc) => {
-                const ref = doc.ref;
-                const instr = ref.instrumentNumber;
-                const volPage = ref.volume && ref.page ? `Vol. ${ref.volume}, Pg. ${ref.page}` : null;
-                const recordingInfo = [
-                  instr ? `Instrument No. ${instr}` : null,
-                  volPage,
-                ].filter(Boolean).join(' — ') || null;
-                const pageCount = (doc.pages?.length ?? doc.pageScreenshots?.length) || null;
-                const rawText = doc.ocrText ?? doc.textContent ?? null;
-                // Cap at MAX_EXTRACTED_TEXT_LENGTH chars to stay within DB limits
-                const extractedText = rawText ? rawText.slice(0, MAX_EXTRACTED_TEXT_LENGTH) : null;
-                // Build a descriptive label: "Warranty Deed - Smith to Jones (Instr. 12345)"
-                const grantorStr = ref.grantors?.length ? ref.grantors.slice(0, 2).join(', ') : null;
-                const granteeStr = ref.grantees?.length ? ref.grantees.slice(0, 2).join(', ') : null;
-                const partyStr = grantorStr && granteeStr ? ` — ${grantorStr} to ${granteeStr}` : (grantorStr ? ` — ${grantorStr}` : '');
-                const instrStr = instr ? ` (Instr. ${instr})` : '';
-                const docLabel = `${ref.documentType || 'Document'}${partyStr}${instrStr}`;
-
-                return {
-                  research_project_id: projectId,
-                  source_type: 'property_search',
-                  original_filename: docLabel,
-                  file_type: doc.imageFormat ?? 'pdf',
-                  document_type: normDocType(ref.documentType),
-                  document_label: ref.documentType || 'Document',
-                  recording_info: recordingInfo,
-                  recorded_date: ref.recordingDate ?? null,
-                  extracted_text: extractedText,
-                  processing_status: 'analyzed',
-                  page_count: pageCount ?? null,
-                  source_url: ref.url ?? null,
-                  ocr_confidence: doc.extractedData?.confidence ?? null,
-                  created_at: now,
-                  updated_at: now,
-                };
-              });
+              // One row shape, shared with the incremental path in file-generic-document.ts. It was
+              // inlined here and nowhere else, which is how a column comes to be added to one
+              // writer and not the other.
+              const docInserts = pipelineDocs.map((doc) => genericDocumentRow(projectId, doc, now));
 
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { error: docsErr } = await (supabase as any)
@@ -1661,7 +1644,14 @@ app.post('/research/property-lookup', requireAuth, async (req: Request, res: Res
             })
             .catch((err: unknown) => {
               console.warn(`[Worker] ${projectId}: error saving pipeline docs:`, err instanceof Error ? err.message : String(err));
-            });
+            })
+            // Released only once the sweep has finished with it. `endFiling` runs earlier in this
+            // handler, and clearing the filed-set at the same time would leave the sweep unable to
+            // tell what had already landed — it writes with a plain insert, so it would have
+            // duplicated every document in the run rather than skipping them.
+            .finally(() => { endGenericFiling(projectId); });
+        } else {
+          endGenericFiling(projectId);
         }
 
         // ── Persist result summary to analysis_metadata ────────────────────

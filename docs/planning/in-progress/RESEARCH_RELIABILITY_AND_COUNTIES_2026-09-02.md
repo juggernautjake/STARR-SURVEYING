@@ -240,9 +240,39 @@ Ship in order within a phase. Each is independently useful and independently rev
       would pass everything) and a mutation control on the warn branch. The ordering assertion
       strips comments first — this block's own comment quotes the code it replaced, and the probe
       matched the prose on the first run. Fifth time in this repository.
-- [ ] **B2** Verify the immediacy guarantee holds for the GENERIC pipeline as well as Bell. The nine
+- [x] **B2** Verify the immediacy guarantee holds for the GENERIC pipeline as well as Bell. The nine
       guards in `documents-are-filed-immediately.test.ts` cover the Bell orchestrator's seven
       incremental call sites; the generic pipeline's path is not yet asserted.
+
+      **DONE — and verification FAILED, so this was a fix and not a test.** The guarantee did not
+      hold. The generic pipeline, which serves every routed county that is not Bell, accumulated
+      documents in an array and left the writing to the caller, which waited for the run to end,
+      **DELETED** the project's previous `property_search` rows, and bulk-inserted.
+
+      Two defects, and the delete is the worse of them:
+
+      1. Batching — nothing viewable until the run finished, the exact thing the owner asked us to
+         stop. Bell had honoured that since it was written, at seven incremental call sites.
+      2. The delete — every re-run destroyed what the previous run found, and a run that crashed
+         after it left the project with FEWER documents than it started with. That is the precise
+         opposite of the supersede-not-delete rule the cross-run library was built on.
+
+      Worth noting how it stayed invisible: `documents-are-filed-immediately.test.ts` passes, and
+      always did. It guards Bell. The guarantee held for the one county with a guard and did not
+      hold for the other forty, and the green test is what made that look fine.
+
+      Now: `PipelineInput.onDocument` is called the moment a document is found, through `fileNow`,
+      which every one of the seven push sites goes through — so a push site added later cannot
+      silently revert to batching. The router supplies it, and filing goes through
+      `resilientInsertDocument`, the same duplicate check Bell uses, because "check each document
+      to see if it is a duplicate" was the same sentence as "immediately" and a bare insert would
+      have satisfied one half while dropping the other.
+
+      The end-of-run block is now a SWEEP: no delete, and it skips anything already filed this run.
+      It exists so a transient Supabase failure mid-run does not cost the document.
+
+      18 tests, with three controls and a mutation control — adding a raw `documents.push()` back
+      makes the suite fail, which is the regression this is actually guarding against.
 - [ ] **B3** TexasFile and every other source. `purchase-gate.ts` now decides *whether* a run may
       buy; what is not yet proven is that the paid path RUNS when allowed —
       `research_document_purchases` is still **0 rows**, and a free Bell run cannot prove the
