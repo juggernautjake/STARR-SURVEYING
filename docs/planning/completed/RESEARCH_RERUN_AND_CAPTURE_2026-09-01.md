@@ -230,64 +230,71 @@ Ship in order. Each slice is independently useful and independently revertible.
 
 ### Phase B — documents belong to runs, and duplicates are found
 
-- [ ] **B1** `research/project-library.ts`: load what a project already holds from Supabase, build a
+- [x] **B1** `research/project-library.ts`: load what a project already holds from Supabase, build a
       `DocumentIndex` from it, and classify a candidate as `new` / `already-held` / `uncertain`,
       with a readable reason for each. SHA-256 of the stored bytes catches what the citation cannot.
-- [ ] **B2** Wire it into both insert paths. A re-found document **updates** `last_seen_run_id` and
+- [x] **B2** Wire it into both insert paths. A re-found document **updates** `last_seen_run_id` and
       increments `run_seen_count` — no second row. A near miss inserts and records `duplicate_of`
       with its reason. Every new row is stamped with `research_run_id`.
-- [ ] **B3** The purchase path seeds its held index from the project library, not only from this
+- [x] **B3** The purchase path seeds its held index from the project library, not only from this
       run's free harvest, so a re-run never re-buys what run 1 already paid for.
-- [ ] **B4** The app's reset **supersedes** instead of deleting: pipeline documents get
+- [x] **B4** The app's reset **supersedes** instead of deleting: pipeline documents get
       `superseded_at`, derived rows (`extracted_data_points`, `discrepancies`) are cleared because a
       fresh run regenerates them, and the storage objects are left in place.
-- [ ] **B5** Duplicates are visible and reversible in the UI: what was merged, into what, and why.
+- [x] **B5** Duplicates are visible and reversible in the UI: what was merged, into what, and why.
 
 ### Phase C — a re-run is fully editable
 
-- [ ] **C1** `PATCH /api/admin/research` accepts `allow_paid_documents` and per-run settings.
-- [ ] **C2** The pipeline POST forwards everything a run can be given: address, county, parcel,
+- [x] **C1** `PATCH /api/admin/research` accepts `allow_paid_documents` and per-run settings.
+- [x] **C2** The pipeline POST forwards everything a run can be given: address, county, parcel,
       owner, operator notes, attached files, time and cost ceilings, and the paid-documents switch.
-- [ ] **C3** The worker **honours** `allowPaidDocuments`. `mayBuyDocuments` is currently never
+- [x] **C3** The worker **honours** `allowPaidDocuments`. `mayBuyDocuments` is currently never
       called anywhere that spends money.
-- [ ] **C4** A real re-run dialog: edit every input and setting, see what run 1 used, and see what
+- [x] **C4** A real re-run dialog: edit every input and setting, see what run 1 used, and see what
       is about to change — replacing today's two-button "same / update" confirm.
 
 ### Phase D — the screen tells the truth
 
-- [ ] **D1** One status source. The stage panel, the console bar and the run panel read the same
+- [x] **D1** One status source. The stage panel, the console bar and the run panel read the same
       run state instead of each deriving their own.
-- [ ] **D2** The server's `percent` replaces the client's regex inference; the old inference stays
+- [x] **D2** The server's `percent` replaces the client's regex inference; the old inference stays
       only as a fallback for a worker that has not been redeployed.
-- [ ] **D3** Stale-run guard: the panel records the `runId` it started and ignores any payload for a
+- [x] **D3** Stale-run guard: the panel records the `runId` it started and ignores any payload for a
       different run. A terminal status for a run we did not start can never stop the poll.
-- [ ] **D4** The elapsed clock reads the run's real `startedAt`. It showed `00:00` beside a console
+- [x] **D4** The elapsed clock reads the run's real `startedAt`. It showed `00:00` beside a console
       bar reading 2 minutes.
-- [ ] **D5** The report card and run-diff are scoped to a run, and the disclaimers that say they
+- [x] **D5** The report card and run-diff are scoped to a run, and the disclaimers that say they
       cannot be come out — because by then they can be.
 
 ### Phase E — rebuild Research & Analysis
 
-- [ ] **E1** One `ResearchRunView`: status header, honest progress, live counters, the documents as
+- [x] **E1** One `ResearchRunView`: status header, honest progress, live counters, the documents as
       they arrive, and the logs — in one place instead of five panels that disagree.
-- [ ] **E2** Absorb or retire the panels it replaces; nothing is left rendering a second opinion.
-- [ ] **E3** Responsive at 1440 and 390, theme tokens not literal hex, and keyboard reachable.
+- [x] **E2** Absorb or retire the panels it replaces; nothing is left rendering a second opinion.
+- [x] **E3** Responsive at 1440 and 390, theme tokens not literal hex, and keyboard reachable.
       Measured against a production build per `project_ui_fit_sweep_and_preflight`.
 
 ### Phase F — imagery, CAD and drawings that count as evidence
 
-- [ ] **F1** A fetcher behind `frameParcel`, so satellite imagery is captured at the zoom that
+- [x] **F1** A fetcher behind `frameParcel`, so satellite imagery is captured at the zoom that
       actually frames the parcel, with capture date, scale, source and licence recorded. Without
       provenance an aerial can illustrate a packet but can never support a conclusion in one.
-- [ ] **F2** Oblique / bird's-eye capture where licensing allows, recorded with the same provenance.
-- [ ] **F3** Surrounding parcels captured deliberately, not incidentally — the adjoiner's fence and
+- [~] **F2** Oblique / bird's-eye capture where licensing allows, recorded with the same
+      provenance. **DEFERRED — owner-gated, not unbuilt.** The capture plan produces the oblique
+      request, the tilted URL and the provenance record, and the runner will execute it the
+      moment `OBLIQUE_IMAGERY_PROVIDER` is set. Bird's-eye coverage is licensed, and choosing a
+      provider is a spending and licensing decision only the owner can make. Until then the plan
+      records "no oblique provider is configured for this worker" — a gap in this firm's imagery
+      accounts — rather than implying the county has no oblique coverage. Those are different
+      facts and only one is about the land.
+- [x] **F3** Surrounding parcels captured deliberately, not incidentally — the adjoiner's fence and
       the road are usually the point of looking.
-- [ ] **F4** CAD GIS map capture generalised beyond Bell County, driven by `cad-registry.ts`.
-- [ ] **F5** OCR over captured imagery so a legend, a scale bar or a lot number in a map image
+- [x] **F4** CAD GIS map capture generalised beyond Bell County, driven by `cad-registry.ts`.
+- [x] **F5** OCR over captured imagery so a legend, a scale bar or a lot number in a map image
       becomes searchable text rather than pixels.
-- [ ] **F6** An explicit hunt for drawings and CAD work: recorded surveys, plats with dimensions,
+- [x] **F6** An explicit hunt for drawings and CAD work: recorded surveys, plats with dimensions,
       and any CAD or drawing file the county publishes.
-- [ ] **F7** Every capture becomes an attributed, deduplicated `research_document` like everything
+- [x] **F7** Every capture becomes an attributed, deduplicated `research_document` like everything
       else — so re-running does not re-file the same screenshot, which is 19 of the 53 duplicate
       rows measured above.
 
@@ -323,3 +330,66 @@ Ship in order. Each slice is independently useful and independently revertible.
   deleted — **78 rows** (53 byte-identical, 25 by label + recording reference) pointed at 44
   keepers, leaving 593 live documents and nothing removed. Worker typechecks clean, verified with a
   deliberate-error control.
+
+- **2026-09-01/02** — **Phases B, C, D, E and F complete.** Everything the owner asked for in the
+  five requests at the top of this document is shipped, except F2, which is deferred above with
+  its reason.
+
+  **The re-run is editable** (C1–C4). `RerunDialog` edits every input and every setting —
+  including the TexasFile switch, which was write-once at project creation. It seeds from what
+  the PREVIOUS RUN was told, via a new `GET .../runs`, not from the project's current values;
+  those differ exactly when somebody has edited the project between runs, which is when getting
+  it wrong matters.
+
+  **The TexasFile switch now stops a purchase** (C3). `mayRunBuyDocuments` was correct, careful,
+  and called from no line of code in the worker — a switch wired to a bulb in a different
+  building. `purchase-gate.ts` is consulted at all three spend sites. An UNREADABLE permission
+  refuses, because an unspent dollar is recoverable and a spent one is not.
+
+  **The screen tells the truth** (D1–D5). `lib/research/run-state.ts` is the single source; the
+  stale-run guard uses the `runId` the POST had been returning and the panel had been discarding;
+  the percentage comes off the wire instead of from a regex over prose; the clock reads the run's
+  real start. The report card is scoped to the run, and the disclaimer saying it never could be
+  has been removed — with a fallback for the 671 documents that predate attribution, because a
+  run-scoped count of zero would be a worse lie than the one being fixed.
+
+  **One view** (E1–E3). `ResearchRunView` replaces the four-panel stack. The diff and report card
+  survive as tab bodies, where they can no longer sit beside a status they are not describing.
+
+  **Imagery, CAD GIS and drawings** (F1, F3–F7). `planImagery()` had no caller outside its own
+  tests, Bell's capture took Google satellite at a FIXED zoom 20, and `BIS_CONFIGS` carried a
+  `gisBaseUrl` for 19 counties used only to query features. `capture-plan.ts` +
+  `capture-runner.ts` join them, county-general, running before `endFiling` so every capture is
+  deduplicated and attributed like a deed. `drawing-hunt.ts` recognises the drawings a five-value
+  `DocumentType` had been filing as `other` — "MAP OF SURVEY", the most useful document a
+  surveyor can find, was indistinguishable from a power of attorney.
+
+  **Browser QA found three bugs the suite could not** (the plan's own verification step): the
+  re-run dialog rendered no fields at all (an object-literal prop in a dependency array made the
+  seeding effect cancel itself every render), the dialog overflowed its card by 56px at 390px (a
+  `<fieldset>`'s intrinsic `min-width`), and the action bar still claimed "AI analysis is running"
+  above a view reading "No run has started yet" — a fifth opinion derived from the workflow stage.
+
+  **And 362 tests were not running.** Six research test files had been failing to parse with
+  "SyntaxError: Invalid or unexpected token" — they import a script that began with a shebang,
+  which vitest's transform rejects, taking each whole file out of the suite. Confirmed against a
+  clean tree, so it predates this work. The suite goes from 1,818 to 2,180.
+
+  Worker: 119 files, 1,874 tests. App research: 120 files, 2,183 tests. `npm run build` green.
+
+## 7. What still needs the owner
+
+- **Deploy the worker.** Every worker change here — the purchase gate, the progress tracker, the
+  capture phase, the drawing hunt, the live-pipeline status ordering — is in the repository and
+  NOT running. The worker is a Docker image:
+  `BUILD_SHA=$(git rev-parse --short HEAD) docker compose build worker`. Until that happens the
+  screen fixes are talking to the old worker, which still reports a budget stop as
+  "failed: Pipeline cancelled by user".
+- **F2** — name an oblique imagery provider, or confirm we are not buying one.
+- **Retire three superseded components.** `ResearchRunPanel.tsx` (1,774 lines),
+  `RunConsoleBar.tsx` and `ResearchAnalysisPanel.tsx` are mounted by nothing. Deleting the first
+  needs `run-progress`, `pipeline-log` and `stored-file` repointed at `useRunState` first —
+  otherwise the deletion removes those guards rather than a vacuous one.
+- **A blind spot in the orphan guard.** `research-modules-are-reachable` counts a BACKTICK-quoted
+  mention in a comment as a caller, so any module this codebase discusses in prose looks wired.
+  Fixing it will surface a batch of newly-visible orphans across the repo — worth its own slice.
